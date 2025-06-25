@@ -59,42 +59,7 @@ public class RedisCacheClient implements CacheClient {
     //Use redis auth token when available
     if (Service.configuration.XYZ_HUB_REDIS_AUTH_TOKEN != null)
       config.setPassword(Service.configuration.XYZ_HUB_REDIS_AUTH_TOKEN);
-    redis = ThreadLocal.withInitial(() -> {
-      try {
-        return Redis.createClient(Core.vertx, config);
-      } catch (Exception e) {
-        logger.error("Failed to create Redis client", e);
-        logger.error("Redis client configuration: SSL={}, hostVerif='{}', trustAll={}, URI={}",
-                useSSL,
-                clientOptions.getHostnameVerificationAlgorithm(),
-                clientOptions.isTrustAll(),
-                connectionString != null ? connectionString.replaceAll("://([^:@]+):([^@]+)@", "://$1:***@") : "null");
-        throw e;
-      }
-    });
-
-    testConnection();
-  }
-
-  private void testConnection() {
-    try {
-      logger.info("Testing Redis connection...");
-      Request pingReq = Request.cmd(Command.PING);
-      getClient().send(pingReq).onComplete(ar -> {
-        if (ar.succeeded()) {
-          logger.info("Redis connection test successful");
-        } else {
-          logger.error("Redis connection error details: {}", ar.cause().getMessage());
-          if (ar.cause() instanceof io.vertx.core.impl.NoStackTraceThrowable) {
-            logger.error("Redis connection parameters: ssl={}, hostname verification='{}'",
-                    useSSL,
-                    clientOptions.getHostnameVerificationAlgorithm());
-          }
-        }
-      });
-    } catch (Exception e) {
-      logger.error("Exception during Redis connection test", e);
-    }
+    redis = ThreadLocal.withInitial(() -> Redis.createClient(Core.vertx, config));
   }
 
   public static synchronized CacheClient getInstance() {
