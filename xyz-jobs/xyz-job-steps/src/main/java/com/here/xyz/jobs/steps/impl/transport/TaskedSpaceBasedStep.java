@@ -110,6 +110,14 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep> exten
     this.versionRef = versionRef;
   }
 
+  public long getSpaceCreatedAt() {
+    return spaceCreatedAt;
+  }
+
+  public void setSpaceCreatedAt(long spaceCreatedAt) {
+    this.spaceCreatedAt = spaceCreatedAt;
+  }
+
   public SpaceContext getContext() {
     return this.context;
   }
