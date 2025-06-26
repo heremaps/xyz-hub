@@ -134,7 +134,9 @@ public class TagApi extends SpaceBasedApi {
     }
 
     if (!Tag.isDescriptionValid(description)) {
-      return Future.failedFuture(new ValidationException("Invalid description parameter"));
+      return Future.failedFuture(
+              new ValidationException("Invalid description parameter, description must be less than 255 characters")
+      );
     }
 
     final Future<Space> spaceFuture = getSpace(marker, spaceId);
@@ -173,7 +175,9 @@ public class TagApi extends SpaceBasedApi {
     }
 
     if (!Tag.isDescriptionValid(description)) {
-      return Future.failedFuture(new ValidationException("Invalid description parameter"));
+      return Future.failedFuture(
+              new ValidationException("Invalid description parameter, description must be less than 255 characters")
+      );
     }
 
     if (version < -2) {

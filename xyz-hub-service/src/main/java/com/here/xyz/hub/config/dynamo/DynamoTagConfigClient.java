@@ -228,7 +228,7 @@ public class DynamoTagConfigClient extends TagConfigClient {
         .withSystem( tagData.get("system") != null ? tagData.get("system").getBOOL() : false )
         .withDescription(tagData.get("description") != null ? tagData.get("description").getS() : "")
         .withAuthor(tagData.get("author") != null ? tagData.get("author").getS() : "system")
-        .withCreatedAt(tagData.get("createdAt") != null ? Long.parseLong(tagData.get("createdAt").getN()) : Core.startOfYearMillis())
+        .withCreatedAt(tagData.get("createdAt") != null ? Long.parseLong(tagData.get("createdAt").getN()) : -1)
     ).collect(Collectors.toList());
   }
 

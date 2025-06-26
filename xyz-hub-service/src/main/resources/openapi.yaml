@@ -3356,7 +3356,7 @@ components:
         description:
           type: string
           description: >-
-            The description of the tag.
+            The description of the tag, must be less than 255 characters.
         author:
           type: string
           description: >-

@@ -65,13 +65,6 @@ public class Core {
     return clock.currentTimeMillis();
   }
 
-  public static long startOfYearMillis() {
-    return LocalDate.of(LocalDate.now().getYear(), 1, 1)
-            .atStartOfDay()
-            .toInstant(ZoneOffset.UTC)
-            .toEpochMilli();
-  }
-
   /**
    * The service start time.
    */

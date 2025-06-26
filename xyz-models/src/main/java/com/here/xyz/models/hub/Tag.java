@@ -78,7 +78,7 @@ public class Tag implements XyzSerializable {
    */
   @JsonView({Public.class, Static.class})
   @JsonProperty(access = JsonProperty.Access.READ_ONLY)
-  private long createdAt = 0;
+  private long createdAt = -1;
 
   public String getId() {
     return id;
