@@ -147,6 +147,11 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
     return this;
   }
 
+  public ExportSpaceToFiles withSpaceCreatedAt(long spaceCreateAt) {
+    setSpaceCreatedAt(spaceCreateAt);
+    return this;
+  }
+
   public ExportSpaceToFiles withContext(SpaceContext context) {
     setContext(context);
     return this;
