@@ -39,20 +39,13 @@ public class RedisCacheClient implements CacheClient {
   private static final Logger logger = LogManager.getLogger();
   private ThreadLocal<Redis> redis;
   private String connectionString = Service.configuration.getRedisUri();
-  private final boolean useSSL = connectionString != null
-          && (connectionString.startsWith("rediss://")
-          || connectionString.matches(".*[?&]ssl=(?i)(true|1|yes).*"));
-  private final boolean isLocalRun = connectionString != null
-          && connectionString.contains("localhost");
-  private final NetClientOptions clientOptions = new NetClientOptions()
-          .setHostnameVerificationAlgorithm(useSSL ? "HTTPS" : "")
-          .setTcpKeepAlive(true)
-          .setTrustAll(isLocalRun) // we can trust all certificates when running locally
-          .setIdleTimeout(30)
-          .setConnectTimeout(2000);
   RedisOptions config = new RedisOptions()
       .setConnectionString(connectionString)
-      .setNetClientOptions(clientOptions);
+      .setNetClientOptions(new NetClientOptions()
+          .setHostnameVerificationAlgorithm("") //TODO: temp disable hostname verification
+          .setTcpKeepAlive(true)
+          .setIdleTimeout(30)
+          .setConnectTimeout(2000));
   private static final String RND = UUID.randomUUID().toString();
 
   private RedisCacheClient() {
