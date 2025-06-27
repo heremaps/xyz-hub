@@ -298,18 +298,6 @@ public class JobAdminApi extends JobApiBase {
    *   }
    * }
    */
-
-  public static void main(String[] args) {
-    State s = switch ("FAILED") {
-      case "RUNNING" -> RUNNING;
-      case "SUCCESS" -> SUCCEEDED;
-      case "CANCELLING" -> CANCELLING;
-      case "CANCELLED" -> CANCELLED;
-      case "FAILED" -> FAILED;
-      default -> null;
-    };
-    System.out.println(s == FAILED);
-  }
   private void processEmrJobStateChangeEvent(JsonObject event) {
     String emrApplicationId = event.getJsonObject("detail").getString("applicationId");
     String emrJobName = event.getJsonObject("detail").getString("jobRunName");
