@@ -56,7 +56,6 @@ import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.geo.GeoTools;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
-
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
@@ -295,6 +294,14 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
 
     if (versionRef.isAllVersions())
       throw new ValidationException("It is not supported to export all versions at once.");
+
+    try {
+      if (!space().isActive())
+        throw new ValidationException("The resource was deactivated. Could not export data from it.");
+    }
+    catch (WebClientException e) {
+      throw new ValidationException("Error loading the space: " + getSpaceId(), e);
+    }
 
     //Validate input Geometry
     if (this.spatialFilter != null) {
