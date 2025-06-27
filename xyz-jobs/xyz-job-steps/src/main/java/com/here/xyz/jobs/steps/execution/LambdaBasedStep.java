@@ -138,11 +138,15 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   public abstract AsyncExecutionState getExecutionState() throws UnknownStateException;
 
   private void startExecution() throws Exception {
+    logger.info("[{}] Starting the execution of step ...", getGlobalStepId());
     updateState(RUNNING);
     execute(isResume());
 
     switch (getExecutionMode()) {
-      case SYNC -> updateState(SUCCEEDED);
+      case SYNC -> {
+        updateState(SUCCEEDED);
+        logger.info("[{}] Execution of the step has been completed successfully.", getGlobalStepId());
+      }
       case ASYNC -> {
         /*
         NOTE: The registration of the state-check trigger MUST happen *after* the call to #execute()
@@ -150,6 +154,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
          */
         registerStateCheckTrigger();
         synchronizeStep();
+        logger.info("[{}] Execution of the step has been started successfully ...", getGlobalStepId());
       }
     }
   }
@@ -385,7 +390,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     if (e instanceof StepException stepException)
       retryable = stepException.isRetryable();
 
-    logger.error("{}retryable error during execution of step {}:", retryable ? "" : "Non-", getGlobalStepId(), e);
+    logger.error("[{}] {}retryable error during execution:", getGlobalStepId(), retryable ? "" : "Non-", e);
     getStatus().setFailedRetryable(retryable);
     reportFailure(e, async);
   }
@@ -598,9 +603,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
 
         if (request.getType() == START_EXECUTION) {
           try {
-            logger.info("Starting the execution of step {} ...", request.getStep().getGlobalStepId());
             request.getStep().startExecution();
-            logger.info("Execution of step {} has been started successfully ...", request.getStep().getGlobalStepId());
           }
           catch (Exception e) {
             //Report error synchronously
