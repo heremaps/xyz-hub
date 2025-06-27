@@ -474,7 +474,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
     return jobId;
   }
 
-  void setJobId(String jobId) {
+  protected void setJobId(String jobId) {
     this.jobId = jobId;
   }
 

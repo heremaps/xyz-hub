@@ -32,4 +32,16 @@ public class JobInternalDelegateStep extends DelegateStep {
   public JobInternalDelegateStep(Step delegate, List<OutputSet> outputSets) {
     super(delegate, delegate, outputSets);
   }
+
+  @Override
+  protected void setJobId(String jobId) {
+    if(getDelegator() != null)
+      getDelegator().withJobId(jobId);
+  }
+
+  private void setDelegate(Step delegate) {
+    this.delegate = delegate;
+    this.delegator = delegate;
+  }
+
 }
