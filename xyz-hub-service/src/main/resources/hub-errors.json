@@ -105,17 +105,17 @@
     "action": "Update the resource definition to enable editing of features."
   },
   {
-    "title": "Connector timeout error.",
+    "title": "Connector timeout error",
     "code": "E318540",
     "status": 504,
-    "cause": "Remote service did not respond within the expected time",
-    "action": "Please try again with a smaller region selection or reduce the amount of payload data to improve response time"
+    "cause": "Remote service did not respond within the expected time.",
+    "action": "If the error persists, please contact the system administrator."
   },
   {
-    "title": "Connector timeout error.",
+    "title": "Expected response payload too large",
     "code": "E318541",
-    "status": 504,
-    "cause": "The connector ${connectorId} [${connectorType}] responded with an error of type Timeout",
-    "action": "Please try again with a smaller region selection or reduce the amount of payload data to improve response time"
+    "status": 513,
+    "cause": "The connector responded with an error that generated response payload will be too large.",
+    "action": "Please, change the request parameters to reduce the expected response size. E.g: reduce feature limit or size of the requested region."
   }
 ]
