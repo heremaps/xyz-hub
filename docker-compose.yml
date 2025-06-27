@@ -36,8 +36,9 @@ services:
         ports:
             - "5432:5432"
     redis:
-        image: "redis"
-        container_name: "redis"
+        build:
+            context: ./
+            dockerfile: ./dockerfiles/Dockerfile-redis-tls
         ports:
             - "6379:6379"
     swagger-ui:
