@@ -298,6 +298,18 @@ public class JobAdminApi extends JobApiBase {
    *   }
    * }
    */
+
+  public static void main(String[] args) {
+    State s = switch ("FAILED") {
+      case "RUNNING" -> RUNNING;
+      case "SUCCESS" -> SUCCEEDED;
+      case "CANCELLING" -> CANCELLING;
+      case "CANCELLED" -> CANCELLED;
+      case "FAILED" -> FAILED;
+      default -> null;
+    };
+    System.out.println(s == FAILED);
+  }
   private void processEmrJobStateChangeEvent(JsonObject event) {
     String emrApplicationId = event.getJsonObject("detail").getString("applicationId");
     String emrJobName = event.getJsonObject("detail").getString("jobRunName");
@@ -331,7 +343,8 @@ public class JobAdminApi extends JobApiBase {
             if (newStepState == FAILED)
               populateEmrErrorInformation(emrApplicationId, emrJobName, emrJobRunId, status);
             return job.updateStepStatus(stepId, status, false);
-          });
+          })
+          .onFailure(t -> logger.error("[{}] Error updating status information for step.", globalStepId, t));
     }
     else
       logger.error("The EMR job {} - {} is not associated with a step", emrJobName, emrJobRunId);
