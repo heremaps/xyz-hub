@@ -25,6 +25,7 @@ import static com.here.xyz.models.hub.Ref.HEAD;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.google.common.base.Strings;
 import com.here.xyz.XyzSerializable;
@@ -58,6 +59,26 @@ public class Tag implements XyzSerializable {
   @JsonView({Public.class, Static.class})
   @JsonInclude(NON_DEFAULT)
   private boolean system;
+
+  /**
+   * Optional description for the tag. Maximum length is 255 characters.
+   */
+  @JsonView({Public.class, Static.class})
+  private String description;
+
+  /**
+   * Tag author
+   */
+  @JsonView({Public.class, Static.class})
+  @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+  private String author = "";
+
+  /**
+   * Tag creation timestamp
+   */
+  @JsonView({Public.class, Static.class})
+  @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+  private long createdAt = -1;
 
   public String getId() {
     return id;
@@ -109,6 +130,49 @@ public class Tag implements XyzSerializable {
   public Tag withSystem(boolean system) {
    setSystem(system);
    return this;
+  }
+
+  public String getDescription() {
+    return description;
+  }
+
+  public void setDescription(String description) {
+    this.description = description;
+  }
+
+  public Tag withDescription(String description) {
+    setDescription(description);
+    return this;
+  }
+
+  public String getAuthor() {
+    return author;
+  }
+
+  public void setAuthor(String author) {
+    this.author = author;
+  }
+
+  public Tag withAuthor(String author) {
+    setAuthor(author);
+    return this;
+  }
+
+  public long getCreatedAt() {
+    return createdAt;
+  }
+
+  public void setCreatedAt(long createdAt) {
+    this.createdAt = createdAt;
+  }
+
+  public Tag withCreatedAt(long createdAt) {
+    setCreatedAt(createdAt);
+    return this;
+  }
+
+  public static boolean isDescriptionValid(String description) {
+    return description == null || description.length() < 255;
   }
 
   public static boolean isValidId(String tagId) {

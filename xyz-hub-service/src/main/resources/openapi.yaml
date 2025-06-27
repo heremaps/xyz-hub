@@ -3353,6 +3353,19 @@ components:
           type: boolean
           description: >-
             The flag indicating the tag is a system tag and cannot be modified or deleted.
+        description:
+          type: string
+          description: >-
+            The description of the tag, must be less than 255 characters.
+        author:
+          type: string
+          description: >-
+            The author of the tag.
+        createdAt:
+          type: integer
+          format: int64
+          description: >-
+            The timestamp of creation of the tag in millis.
     RemoteFunctionConfig:
       type: object
       description: A connector declaration.
