@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,9 @@
 require("../../plv8");
 require("../../../../main/resources/sql/Exception");
 require("../../../../main/resources/sql/FeatureWriter");
+require("../../../../main/resources/sql/DatabaseWriter");
 const FeatureWriter = plv8.FeatureWriter;
+const DatabaseWriter = plv8.DatabaseWriter;
 
 
 global.queryContext = () => ({
@@ -64,11 +66,9 @@ class TestFeatureWriter {
     featureHooks: null
   }];
 
-  writer = new FeatureWriter(this.inputFeature, 2, null, "DELETE", "ERROR", null, null, false);
-
   run() {
-    this.writer.writeFeature();
-    // this.writer.writeFeatureModifications(this.modification, "ANONYMOUS");
+    let result = FeatureWriter.writeFeature(this.inputFeature, null, "REPLACE", "CREATE", null, null, false, null);
+    console.log("Returned result from FeatureWriter: ", result);
   }
 
 }

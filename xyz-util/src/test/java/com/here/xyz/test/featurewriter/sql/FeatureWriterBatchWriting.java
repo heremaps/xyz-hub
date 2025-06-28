@@ -49,8 +49,8 @@ public class FeatureWriterBatchWriting extends SQLTestSuite {
 
   @Disabled
   @CartesianTest
-  public void writeLargeBatch(@Values(ints = {1, 2}) int runAttempt) throws Exception {
-    SQLSpaceWriter spaceWriter = ((SQLSpaceWriter) spaceWriter());
+  public void writeLargeBatch(@Values(ints = {1, 2}) int runAttempt, @Values(booleans = {true, false}) boolean batchMode) throws Exception {
+    SQLSpaceWriter spaceWriter = ((SQLSpaceWriter) spaceWriter()).withBatchMode(batchMode);
     spaceWriter.writeFeatures(generateLargeRandomBatch(BATCH_SIZE), DEFAULT_AUTHOR, OnExists.REPLACE, OnNotExists.CREATE, null,
         OnMergeConflict.REPLACE, false, SpaceContext.DEFAULT, true);
   }

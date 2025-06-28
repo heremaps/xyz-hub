@@ -43,13 +43,21 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class SQLSpaceWriter extends SpaceWriter {
-
+  private static final Logger logger = LogManager.getLogger();
   protected static String VERSION_SEQUENCE_SUFFIX = "_version_seq";
+  private boolean batchMode;
 
   public SQLSpaceWriter(boolean composite, String testSuiteName) {
     super(composite, testSuiteName);
+  }
+
+  public SQLSpaceWriter withBatchMode(boolean batchMode) {
+    this.batchMode = batchMode;
+    return this;
   }
 
   @Override
@@ -111,7 +119,8 @@ public class SQLSpaceWriter extends SpaceWriter {
         "schema", getDataSourceProvider().getDatabaseSettings().getSchema(),
         "table", spaceId(),
         "context", spaceContext,
-        "historyEnabled", historyEnabled
+        "historyEnabled", historyEnabled,
+        "batchMode", batchMode
     ));
     if (composite)
       queryContext.put("extendedTable", superSpaceId());
