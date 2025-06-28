@@ -29,6 +29,7 @@ CREATE OR REPLACE FUNCTION write_features(json_input TEXT, input_type TEXT, auth
     on_exists TEXT = NULL, on_not_exists TEXT = NULL, on_version_conflict TEXT = NULL, on_merge_conflict TEXT = NULL, is_partial BOOLEAN = false)
     RETURNS TEXT AS
 $BODY$
+    ${{Exception.js}}
     try {
       //Actual executions
       if (json_input == null)
@@ -47,8 +48,8 @@ $BODY$
       };
 
       //Init block of internal feature_writer functionality
-      ${{Exception.js}}
       ${{FeatureWriter.js}}
+      ${{DatabaseWriter.js}}
       //Init completed
 
       let input = JSON.parse(json_input);
