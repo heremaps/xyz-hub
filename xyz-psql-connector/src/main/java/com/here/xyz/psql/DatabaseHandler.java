@@ -263,8 +263,11 @@ public abstract class DatabaseHandler extends StorageConnector {
           version = run(new GetNextVersion<>(event));
         }
         catch (Exception e) {
-          if (!retryAttempted)
-            return executeModifyFeatures(event);
+          if (!retryAttempted) {
+              retryAttempted = true;
+              logger.warn("{} triggered retry.", traceItem, e);
+              return executeModifyFeatures(event);
+          }
           else
               throw e;
         }
@@ -306,13 +309,12 @@ public abstract class DatabaseHandler extends StorageConnector {
                 event.setFailed(fails);
 
                 if (retryCausedOnServerlessDB(e) && !retryAttempted) {
-                    retryAttempted = true;
-
                     if(!connection.isClosed())
                     { connection.setAutoCommit(previousAutoCommitState);
                       connection.close();
                     }
-
+                    retryAttempted = true;
+                    logger.warn("{} triggered retry.", traceItem, e);
                     return executeModifyFeatures(event);
                 }
 
@@ -352,6 +354,8 @@ public abstract class DatabaseHandler extends StorageConnector {
                         connection.close();
                     }
                     //Retry
+                    retryAttempted = true;
+                    logger.warn("{} triggered retry.", traceItem, e);
                     return executeModifyFeatures(event);
                 }
             }
