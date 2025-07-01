@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -94,10 +94,13 @@ public class SQLSpaceWriter extends SpaceWriter {
       OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict, boolean isPartial, SpaceContext spaceContext,
       boolean historyEnabled) throws Exception {
     try (DataSourceProvider dsp = SQLITBase.getDataSourceProvider()) {
+      long tStart = System.currentTimeMillis();
       SQLQuery q = generateWriteFeatureQuery(featureList, author, onExists, onNotExists, onVersionConflict, onMergeConflict,
           isPartial, spaceContext, historyEnabled);
 
-      return SQLQuery.batchOf(q).writeBatch(dsp);
+      int[] result = SQLQuery.batchOf(q).writeBatch(dsp);
+      System.out.println("SQLQuery " + q.getQueryId() + " took: " + (System.currentTimeMillis() - tStart) + "ms.");
+      return result;
     }
   }
 
