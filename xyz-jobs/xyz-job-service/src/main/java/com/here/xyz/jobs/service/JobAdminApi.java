@@ -205,14 +205,11 @@ public class JobAdminApi extends JobApiBase {
               if (newJobState == SUCCEEDED)
                 JobExecutor.getInstance().deleteExecution(job.getExecutionId());
               else if (newJobState == FAILED) {
-                if ("TIMED_OUT".equals(sfnStatus)) {
-                  String existingErrCause = job.getStatus().getErrorCause();
-                  job.getStatus().setErrorCause(existingErrCause != null ? "Step timeout: " + existingErrCause : "Step timeout");
-                  //Set all RUNNING steps to CANCELLED, because the steps themselves might not have been informed
-                  future = future.compose(v -> loadCausingStepId(executionArn)
-                      .compose(causingStepId -> failStep(job, job.getStepById(causingStepId))))
-                      .compose(v -> cancelSteps(job, RUNNING));
-                }
+                if ("TIMED_OUT".equals(sfnStatus))
+                  future = failCausingStep(job, "Step timeout", future, executionArn);
+                else if ("States.Timeout".equals(detail.getString("error")))
+                  future = failCausingStep(job, "Unexpected Error - HeartBeat timeout", future, executionArn);
+
                 //Set all PENDING steps to CANCELLED
                 future = future.compose(v -> cancelSteps(job, PENDING));
               }
@@ -232,6 +229,18 @@ public class JobAdminApi extends JobApiBase {
             return future;
           })
           .onFailure(t -> logger.error("Error updating the state of job {} after receiving an event from its state machine:", jobId, t));
+  }
+
+  private static Future<Void> failCausingStep(Job job, String errCausePrefixText, Future<Void> future, String executionArn) {
+    String existingErrCause = job.getStatus().getErrorCause();
+    //inject errorCause
+    job.getStatus().setErrorCause(existingErrCause != null ? errCausePrefixText + ": " + existingErrCause : errCausePrefixText);
+
+    //Set all RUNNING steps to CANCELLED, because the steps themselves might not have been informed
+    future = future.compose(v -> loadCausingStepId(executionArn)
+        .compose(causingStepId -> failStep(job, job.getStepById(causingStepId))))
+        .compose(v -> cancelSteps(job, RUNNING));
+    return future;
   }
 
   /**
