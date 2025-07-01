@@ -101,7 +101,6 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
 
     corsHandler = CorsHandler.create()
         .addRelativeOrigin(".*")
-        .allowedHeader("*")
         .allowCredentials(true)
         .maxAgeSeconds(86400);
 

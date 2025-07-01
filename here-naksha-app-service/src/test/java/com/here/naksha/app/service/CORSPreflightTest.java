@@ -8,6 +8,7 @@ import java.net.http.HttpResponse;
 
 class CORSPreflightTest extends ApiTest{
     private static final String ORIGIN_HEADER = "https://testurl.com/";
+    private static final String REQ_HEADER_KEYS = "authorization,stream-id";
 
     @Test
     void testCorsPreflightRequestGet() throws Exception {
@@ -16,7 +17,7 @@ class CORSPreflightTest extends ApiTest{
         String requestMethod = "GET";
 
         // When: OPTIONS request is sent to NakshaHub Space Storage instance
-        HttpResponse<String> response = getNakshaClient().options("hub/storages", ORIGIN_HEADER, requestMethod);
+        HttpResponse<String> response = getNakshaClient().options("hub/storages", ORIGIN_HEADER, requestMethod, "authorization");
 
         // Then: Perform assertions
         ResponseAssertions.assertThat(response)
@@ -24,7 +25,7 @@ class CORSPreflightTest extends ApiTest{
                 .hasHeader("access-control-allow-credentials", "true")
                 .hasHeader("access-control-allow-origin", ORIGIN_HEADER)
                 .hasHeader("access-control-allow-methods", "OPTIONS,GET,POST,PUT,DELETE,PATCH,HEAD")
-                .hasHeader("access-control-allow-headers", "*")
+                .hasHeader("access-control-allow-headers", "authorization")
                 .hasHeader("access-control-max-age", "86400");
     }
 
@@ -35,7 +36,7 @@ class CORSPreflightTest extends ApiTest{
         String requestMethod = "POST";
 
         // When: OPTIONS request is sent to NakshaHub Space Storage instance
-        HttpResponse<String> response = getNakshaClient().options("hub/storages", ORIGIN_HEADER, requestMethod);
+        HttpResponse<String> response = getNakshaClient().options("hub/storages", ORIGIN_HEADER, requestMethod, REQ_HEADER_KEYS);
 
         // Then: Perform assertions
         ResponseAssertions.assertThat(response)
@@ -43,7 +44,7 @@ class CORSPreflightTest extends ApiTest{
                 .hasHeader("access-control-allow-credentials", "true")
                 .hasHeader("access-control-allow-origin", ORIGIN_HEADER)
                 .hasHeader("access-control-allow-methods", "OPTIONS,GET,POST,PUT,DELETE,PATCH,HEAD")
-                .hasHeader("access-control-allow-headers", "*")
+                .hasHeader("access-control-allow-headers", REQ_HEADER_KEYS)
                 .hasHeader("access-control-max-age", "86400");
     }
 
@@ -54,7 +55,7 @@ class CORSPreflightTest extends ApiTest{
         String requestMethod = "PUT";
 
         // When: OPTIONS request is sent to NakshaHub Space Storage instance
-        HttpResponse<String> response = getNakshaClient().options("hub/storages", ORIGIN_HEADER, requestMethod);
+        HttpResponse<String> response = getNakshaClient().options("hub/storages", ORIGIN_HEADER, requestMethod, REQ_HEADER_KEYS);
 
         // Then: Perform assertions
         ResponseAssertions.assertThat(response)
@@ -62,7 +63,7 @@ class CORSPreflightTest extends ApiTest{
                 .hasHeader("access-control-allow-credentials", "true")
                 .hasHeader("access-control-allow-origin", ORIGIN_HEADER)
                 .hasHeader("access-control-allow-methods", "OPTIONS,GET,POST,PUT,DELETE,PATCH,HEAD")
-                .hasHeader("access-control-allow-headers", "*")
+                .hasHeader("access-control-allow-headers", REQ_HEADER_KEYS)
                 .hasHeader("access-control-max-age", "86400");
     }
 
@@ -73,7 +74,7 @@ class CORSPreflightTest extends ApiTest{
         String requestMethod = "PATCH";
 
         // When: OPTIONS request is sent to NakshaHub Space Storage instance
-        HttpResponse<String> response = getNakshaClient().options("hub/storages", ORIGIN_HEADER, requestMethod);
+        HttpResponse<String> response = getNakshaClient().options("hub/storages", ORIGIN_HEADER, requestMethod, REQ_HEADER_KEYS);
 
         // Then: Perform assertions
         ResponseAssertions.assertThat(response)
@@ -81,7 +82,7 @@ class CORSPreflightTest extends ApiTest{
                 .hasHeader("access-control-allow-credentials", "true")
                 .hasHeader("access-control-allow-origin", ORIGIN_HEADER)
                 .hasHeader("access-control-allow-methods", "OPTIONS,GET,POST,PUT,DELETE,PATCH,HEAD")
-                .hasHeader("access-control-allow-headers", "*")
+                .hasHeader("access-control-allow-headers", REQ_HEADER_KEYS)
                 .hasHeader("access-control-max-age", "86400");
     }
 
@@ -92,7 +93,7 @@ class CORSPreflightTest extends ApiTest{
         String requestMethod = "DELETE";
 
         // When: OPTIONS request is sent to NakshaHub Space Storage instance
-        HttpResponse<String> response = getNakshaClient().options("hub/storages", ORIGIN_HEADER, requestMethod);
+        HttpResponse<String> response = getNakshaClient().options("hub/storages", ORIGIN_HEADER, requestMethod, REQ_HEADER_KEYS);
 
         // Then: Perform assertions
         ResponseAssertions.assertThat(response)
@@ -100,7 +101,7 @@ class CORSPreflightTest extends ApiTest{
                 .hasHeader("access-control-allow-credentials", "true")
                 .hasHeader("access-control-allow-origin", ORIGIN_HEADER)
                 .hasHeader("access-control-allow-methods", "OPTIONS,GET,POST,PUT,DELETE,PATCH,HEAD")
-                .hasHeader("access-control-allow-headers", "*")
+                .hasHeader("access-control-allow-headers", REQ_HEADER_KEYS)
                 .hasHeader("access-control-max-age", "86400");
     }
 }
