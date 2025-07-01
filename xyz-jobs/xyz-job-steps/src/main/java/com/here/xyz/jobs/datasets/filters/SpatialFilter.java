@@ -19,6 +19,7 @@
 
 package com.here.xyz.jobs.datasets.filters;
 
+import java.util.List;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.XyzSerializable.Public;
@@ -32,6 +33,9 @@ import com.here.xyz.util.service.BaseHttpServerVerticle;
 @JsonInclude(JsonInclude.Include.NON_DEFAULT)
 public class SpatialFilter {
   @JsonView({Public.class, Static.class})
+  private List<String> tileIds;
+
+  @JsonView({Public.class, Static.class})
   private Geometry geometry;
 
   @JsonView({Public.class, Static.class})
@@ -39,6 +43,19 @@ public class SpatialFilter {
 
   @JsonView({Public.class, Static.class})
   private boolean clip;
+
+  public List<String> getTileIds() {
+    return tileIds;
+  }
+
+  public void setTileIds(List<String> tileIds) {
+    this.tileIds = tileIds;
+  }
+
+  public SpatialFilter withTileIds(List<String> tileIds) {
+    setTileIds(tileIds);
+    return this;
+  }
 
   public Geometry getGeometry() {
     return geometry;
