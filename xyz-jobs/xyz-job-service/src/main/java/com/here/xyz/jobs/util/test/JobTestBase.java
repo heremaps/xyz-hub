@@ -33,6 +33,7 @@ import org.apache.logging.log4j.Logger;
 public class JobTestBase extends StepTestBase {
     private static final Logger logger = LogManager.getLogger();
     private static final String LOCALSTACK_HOST = System.getProperty("localstack.host", "localhost");
+    protected static int DEFAULT_JOB_POLL_TIMEOUT_SEC = 120;
     protected Set<String> createdJobs = new HashSet<>();
     protected Set<String> createdSpaces = new HashSet<>();
 
@@ -73,12 +74,12 @@ public class JobTestBase extends StepTestBase {
     }
 
     protected String createJobAndPollStatus(JsonObject job, byte[] fileContent) throws Exception {
-        return createJobAndPollStatus(job, fileContent, 120);
+        return createJobAndPollStatus(job, fileContent, DEFAULT_JOB_POLL_TIMEOUT_SEC);
     }
 
-  protected String createJobAndPollStatus(JsonObject job, int timeoutSeconds) throws Exception {
-    return createJobAndPollStatus(job, null, timeoutSeconds);
-  }
+    protected String createJobAndPollStatus(JsonObject job, int timeoutSeconds) throws Exception {
+      return createJobAndPollStatus(job, null, timeoutSeconds);
+    }
 
     protected String createJobAndPollStatus(JsonObject job, byte[] fileContent, int timeoutSeconds) throws Exception {
         //Create Job
@@ -160,7 +161,7 @@ public class JobTestBase extends StepTestBase {
     }
 
   public static void pollJobStatus(String jobId) throws InterruptedException {
-      pollJobStatus(jobId, 120);
+      pollJobStatus(jobId, DEFAULT_JOB_POLL_TIMEOUT_SEC);
   }
 
     public static void pollJobStatus(String jobId, int timeoutSeconds) throws InterruptedException {
