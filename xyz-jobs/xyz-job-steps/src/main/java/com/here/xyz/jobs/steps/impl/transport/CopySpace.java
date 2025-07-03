@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -368,7 +368,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     if (isRemoteCopy())
       contentQuery = buildCopyQueryRemoteSpace(dbReader(), contentQuery);
 
-    int maxBatchSize = 1000;
+    int maxBatchSize = 10000;
     //TODO: Do not use slow JSONB functions in the following query!
     //TODO: Simplify / deduplicate the following query
     return new SQLQuery("""
@@ -391,7 +391,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
               ) as wfresult
             from
             (
-             select ((row_number() over ())-1)/${{maxblksize}} as rn, 
+             select ((row_number() over ())-1)/${{maxBatchSize}} as rn, 
                     idata.jsondata#>>'{properties,@ns:com:here:xyz,author}' as author, 
                     idata.jsondata || jsonb_build_object('geometry', (idata.geo)::json) as feature,
                     ((idata.jsondata#>>'{properties,@ns:com:here:xyz,deleted}') is not null) as deleted_flag
@@ -402,7 +402,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
           )
           select sum((wfresult::json->>'count')::bigint)::bigint into dummy_output from ins_data
         """).withContext(queryContext)
-        .withQueryFragment("maxblksize", "" + maxBatchSize)
+        .withQueryFragment("maxBatchSize", "" + maxBatchSize)
         .withQueryFragment("versionToBeUsed", "" + getTargetVersion())
         .withQueryFragment("contentQuery", contentQuery);
   }
