@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -50,7 +50,8 @@ public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureColl
     Map<String, Object> queryContext = new HashMap<>(Map.of(
         "schema", getSchema(),
         "table", getDefaultTable(event),
-        "historyEnabled", event.getVersionsToKeep() > 1
+        "historyEnabled", event.getVersionsToKeep() > 1,
+        "batchMode", true
     ));
     if (isExtendedSpace(event)) {
       String extendedTable = getExtendedTable(event);
