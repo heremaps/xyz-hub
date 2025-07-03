@@ -56,10 +56,10 @@
     "action": "Please provide correct ${resource} configuration"
   },
   {
-    "title": "Extended space storage mismatch",
+    "title": "Extended ${featureContainerResource} storage mismatch",
     "code": "E318408",
     "status": 400,
-    "cause": "The storage of space ${spaceId} [storage: ${storageId}] does not match the storage of the space to be extended ${extendedSpaceId} [storage: ${extendedStorageId}].",
+    "cause": "The storage of ${featureContainerResource} ${spaceId} [storage: ${storageId}] does not match the storage of the ${featureContainerResource} to be extended ${extendedSpaceId} [storage: ${extendedStorageId}].",
     "action": "Ensure that the extended ${extendedSpaceId} uses the same storage connector as the parent ${spaceId}."
   },
   {
