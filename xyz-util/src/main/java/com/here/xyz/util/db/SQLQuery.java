@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@ import static com.here.xyz.util.db.SQLQuery.XyzSqlErrors.XYZ_FAILED_ATTEMPT;
 import static com.here.xyz.util.db.pg.LockHelper.advisoryLock;
 import static com.here.xyz.util.db.pg.LockHelper.advisoryUnlock;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.here.xyz.XyzSerializable;
@@ -363,7 +364,16 @@ public class SQLQuery {
       setQueryId(UUID.randomUUID().toString());
   }
 
-  public PreparedStatement prepareStatement(Connection connection) throws SQLException {
+  /**
+   * Returns the prepared statement of this SQLQuery.
+   * If none is existing yet, it will be created and re-used for
+   * later calls of this method.
+   * @param connection
+   * @return
+   * @throws SQLException
+   */
+  @JsonIgnore
+  public PreparedStatement getPreparedStatement(Connection connection) throws SQLException {
     Map<String, Object> namedParameters = this.namedParameters;
     if (preparedStatement == null)
       preparedStatement = connection.prepareStatement(substitute().text());

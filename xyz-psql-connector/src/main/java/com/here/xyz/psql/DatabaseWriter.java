@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -251,7 +251,7 @@ public class DatabaseWriter {
             for (final Object inputDatum : inputData) {
                 try {
                     fillModificationQueryFromInput(modificationQuery, event, action, inputDatum, version);
-                    PreparedStatement ps = modificationQuery.prepareStatement(connection);
+                    PreparedStatement ps = modificationQuery.getPreparedStatement(connection);
 
                     if (transactional) {
                         ps.addBatch();
@@ -281,7 +281,7 @@ public class DatabaseWriter {
             }
 
             if (transactional) {
-                executeBatchesAndCheckOnFailures(idList, modificationQuery.prepareStatement(connection), fails, event, action);
+                executeBatchesAndCheckOnFailures(idList, modificationQuery.getPreparedStatement(connection), fails, event, action);
 
                 if (fails.size() > 0) {
                     logException(null, action, event);
