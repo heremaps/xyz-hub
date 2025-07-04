@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,6 @@
 package com.here.xyz.hub.config.dynamo;
 
 import static com.here.xyz.hub.Service.configuration;
-import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.vertx.core.json.jackson.DatabindCodec.mapper;
 
 import com.amazonaws.handlers.AsyncHandler;
@@ -49,10 +48,14 @@ import com.here.xyz.util.ARN;
 import com.here.xyz.util.service.HttpException;
 import com.here.xyz.util.service.aws.dynamo.DynamoClient;
 import com.here.xyz.util.service.aws.dynamo.IndexDefinition;
+
+import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.jackson.DatabindCodec;
+
+import java.net.http.HttpResponse;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -199,9 +202,10 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
     return get(marker, spaceId)
         .onFailure(t -> logger.error(marker, "Failure to get space ID: {} during space deletion", spaceId, t))
         .compose(space -> {
-          if (space == null)
-            return Future.failedFuture(new HttpException(NOT_FOUND, "No space was found for ID: \"" + spaceId + "\""));
-          else {
+          if (space == null) {
+              String errMsg = String.format("Space ID '%s' - space is null during space deletion", spaceId);
+              return Future.failedFuture(new HttpException(HttpResponseStatus.NOT_FOUND,errMsg));
+          } else {
               logger.info(marker, "Space ID: {} has been retrieved", space.getId());
               return Future.succeededFuture(space);
           }
