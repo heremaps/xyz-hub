@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -397,7 +397,8 @@ public class SpaceTaskHandler {
       return;
     }
 
-    if (entry.input != null && entry.result == null)
+    if (entry.input != null && entry.result == null) {
+      logger.warn("DEBUG: Deleting space: {}", entry.head.getId());
       Service.spaceConfigClient
           .delete(task.getMarker(), entry.head.getId())
           .onFailure(callback::exception)
@@ -405,7 +406,9 @@ public class SpaceTaskHandler {
             task.responseSpaces = Collections.singletonList(task.modifyOp.entries.get(0).head);
             callback.call(task);
           });
-    else
+    }
+    else {
+      logger.warn("DEBUG: Storing space: {}", entry.result.getId());
       Service.spaceConfigClient
           .store(task.getMarker(), entry.result)
           .onFailure(callback::exception)
@@ -413,6 +416,7 @@ public class SpaceTaskHandler {
             task.responseSpaces = Collections.singletonList(entry.result);
             callback.call(task);
           });
+    }
   }
 
   private static Space getSpaceTemplate(String owner, String cid) {
