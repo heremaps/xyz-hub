@@ -24,6 +24,7 @@ import com.here.xyz.jobs.steps.compiler.ExportToFiles;
 import com.here.xyz.jobs.steps.compiler.ImportFromFiles;
 import com.here.xyz.jobs.steps.compiler.JobCompilationInterceptor;
 import com.here.xyz.jobs.steps.compiler.SpaceCopy;
+import com.here.xyz.jobs.steps.compiler.SpaceMaintain;
 import com.here.xyz.util.Async;
 import io.vertx.core.Future;
 import io.vertx.core.impl.ConcurrentHashSet;
@@ -42,6 +43,7 @@ public class JobCompiler {
     registerCompilationInterceptor(ImportFromFiles.class);
     registerCompilationInterceptor(ExportToFiles.class);
     registerCompilationInterceptor(SpaceCopy.class);
+    registerCompilationInterceptor(SpaceMaintain.class);
   }
 
   public Future<StepGraph> compile(Job job) {
