@@ -41,39 +41,7 @@ import javax.naming.NoPermissionException;
 public class HttpMaintenanceApi extends Api {
 
   public HttpMaintenanceApi(RouterBuilder rb) {
-    rb.operation("getStatus").handler(this::getConnectorStatus);
-    rb.operation("postInitialization").handler(this::postDatabaseInitialization);
-    rb.operation("postMaintainIndices").handler(this::postMaintainIndices);
     rb.operation("postPurgeVersions").handler(this::postPurgeVersions); //TODO: Move responsibility back to connector
-
-    rb.operation("getMaintenanceStatusSpace").handler(this::getMaintenanceStatusSpace);
-    rb.operation("postMaintainSpace").handler(this::postMaintainSpace);
-  }
-
-  private void getConnectorStatus(final RoutingContext context) {
-    String connectorId =  context.pathParam(HApiParam.Path.CONNECTOR_ID);
-    MaintenanceHandler.getConnectorStatus(connectorId)
-            .onFailure(e -> this.sendErrorResponse(context, e))
-            .onSuccess(j -> this.sendResponse(context, OK, j));
-  }
-
-  private void postDatabaseInitialization(final RoutingContext context) {
-    String connectorId =  context.pathParam(HApiParam.Path.CONNECTOR_ID);
-    final boolean force = HQuery.getBoolean(context, "force", false);
-
-    MaintenanceHandler.initializeOrUpdateDatabase(connectorId, force)
-            .onFailure(e -> this.sendErrorResponse(context, e))
-            .onSuccess(j -> this.sendResponse(context, OK, j));
-  }
-
-  private void postMaintainIndices(final RoutingContext context) {
-    String connectorId =  context.pathParam(HApiParam.Path.CONNECTOR_ID);
-    //TODO: remove AutoIndexing
-    final boolean autoIndexing = HQuery.getBoolean(context, "autoIndexing", false);
-
-    MaintenanceHandler.maintainIndices(connectorId, autoIndexing)
-            .onFailure(e -> this.sendErrorResponse(context, e))
-            .onSuccess(j -> this.sendResponse(context, OK, j));
   }
 
   private void postPurgeVersions(final RoutingContext context) {
@@ -81,23 +49,6 @@ public class HttpMaintenanceApi extends Api {
     final Long minTagVersion = HQuery.getLong(context, "minTagVersion", null);
 
     MaintenanceHandler.purgeOldVersions(spaceId, minTagVersion)
-            .onFailure(e -> checkException(context, null, spaceId, e))
-            .onSuccess(j -> this.sendResponse(context, OK, j));
-  }
-
-  private void postMaintainSpace(final RoutingContext context) {
-    String spaceId =  context.pathParam(HApiParam.Path.SPACE_ID);
-    final boolean force = HQuery.getBoolean(context, "force", false);
-
-    MaintenanceHandler.maintainSpace(spaceId, force)
-            .onFailure(e -> checkException(context, null, spaceId, e))
-            .onSuccess(j -> this.sendResponse(context, OK, j));
-  }
-
-  private void getMaintenanceStatusSpace(final RoutingContext context) {
-    String spaceId = context.pathParam(HApiParam.Path.SPACE_ID);
-
-    MaintenanceHandler.getMaintenanceStatusOfSpace(spaceId)
             .onFailure(e -> checkException(context, null, spaceId, e))
             .onSuccess(j -> this.sendResponse(context, OK, j));
   }
