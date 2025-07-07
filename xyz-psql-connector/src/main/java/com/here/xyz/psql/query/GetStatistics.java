@@ -58,8 +58,7 @@ public class GetStatistics extends ExtendedSpace<GetStatisticsEvent, StatisticsR
 
   @Override
   protected SQLQuery buildQuery(GetStatisticsEvent event) throws SQLException, ErrorResponseException {
-    return new SQLQuery("SELECT * FROM ${schema}.xyz_statistic_space(#{schema}, #{table}, #{isExtension} )")
-        .withVariable(SCHEMA, getSchema())
+    return new SQLQuery("SELECT * FROM xyz_statistic_space(#{schema}, #{table}, #{isExtension} )")
         .withNamedParameter(SCHEMA, getSchema())
         .withNamedParameter(TABLE, getDefaultTable(event))
         .withNamedParameter("isExtension", event.getContext() == SpaceContext.EXTENSION);
