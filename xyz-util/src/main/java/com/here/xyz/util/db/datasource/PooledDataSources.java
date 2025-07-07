@@ -94,7 +94,8 @@ public class PooledDataSources extends DataSourceProvider {
 
     public void onAcquire(Connection connection, String connectionId) {
       ExtendedConnectionSettings extendedSettings = getExtendedSettings(connectionId);
-      List<String> enrichedSearchPath = new ArrayList<>(List.of(extendedSettings.currentSchema, "h3", "public", "topology"));
+      //TODO: Check if we can remove hub.psql
+      List<String> enrichedSearchPath = new ArrayList<>(List.of(extendedSettings.currentSchema, "h3", "public", "topology", "hub.psql"));
       enrichedSearchPath.addAll(extendedSettings.searchPath);
       final String compiledSearchPath = enrichedSearchPath.stream().map(schema -> "\"" + schema + "\"")
           .collect(Collectors.joining(", "));
