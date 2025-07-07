@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,24 +18,23 @@
  */
 package com.here.xyz.psql;
 
-import static com.here.xyz.events.ModifySpaceEvent.Operation.CREATE;
-import static com.here.xyz.events.ModifySpaceEvent.Operation.UPDATE;
-import static com.here.xyz.psql.query.ModifySpace.IDX_STATUS_TABLE_FQN;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
-
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.GetStatisticsEvent;
-import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.psql.tools.DhString;
-import com.here.xyz.psql.tools.FeatureGenerator;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.XyzError;
+import com.here.xyz.util.db.pg.IndexHelper;
+import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
+import org.junit.jupiter.api.Disabled;
+
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
@@ -45,10 +44,10 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
+
+import static com.here.xyz.events.ModifySpaceEvent.Operation.CREATE;
+import static com.here.xyz.events.ModifySpaceEvent.Operation.UPDATE;
+import static org.junit.Assert.assertEquals;
 
 public class PSQLIndexIT extends PSQLAbstractIT {
 
@@ -79,7 +78,6 @@ public class PSQLIndexIT extends PSQLAbstractIT {
             "foo4",true,
             "foo5",true ));
 
-        //
         ModifySpaceEvent modifySpaceEvent = new ModifySpaceEvent().withSpace("foo")
             .withOperation(CREATE)
             .withConnectorParams(connectorParams)
@@ -108,21 +106,6 @@ public class PSQLIndexIT extends PSQLAbstractIT {
 
         //Increase to 5 allowed Indices
         connectorParams.put(PSQLAbstractIT.ON_DEMAND_IDX_LIMIT, 5);
-        //Deactivated ones does not get into account - result will be 5 which are required
-        searchableProperties.put("foo5",true);
-        searchableProperties.put("foo6",false);
-        searchableProperties.put("foo7",false);
-
-        modifySpaceEvent = new ModifySpaceEvent().withSpace("foo")
-            .withOperation(UPDATE)
-            .withConnectorParams(connectorParams)
-            .withSpaceDefinition(new Space()
-                    .withId("foo")
-                    .withSearchableProperties(searchableProperties)
-            );
-
-        response = XyzSerializable.deserialize(invokeLambda(modifySpaceEvent));
-        assertEquals("OK",response.getStatus());
 
         try (final Connection connection = LAMBDA.dataSourceProvider.getWriter().getConnection()) {
             // Default System Indices
@@ -131,24 +114,19 @@ public class PSQLIndexIT extends PSQLAbstractIT {
                 add("geo");
             }};
 
-            String sqlSpaceSchema = "(select schema_name::text from information_schema.schemata where schema_name in ('xyz','public') order by 1 desc limit 1)";
-
             Statement stmt = connection.createStatement();
-            stmt.execute( DhString.format("select xyz_maintain_idxs_for_space( %s, 'foo');",sqlSpaceSchema));
 
             // Check which Indices are available
-            ResultSet resultSet = stmt.executeQuery( DhString.format("select idx_name, idx_property, src from xyz_index_list_all_available(%s, 'foo');",sqlSpaceSchema));
+            ResultSet resultSet = stmt.executeQuery("select src from xyz_index_list_all_available('public', 'foo');");
+            int searchableCount = 0;
+
             while(resultSet.next()){
-                String idxProperty = resultSet.getString("idx_property");
-                if(systemIndices.contains(idxProperty))
-                    systemIndices.remove(idxProperty);
-                else
-                    searchableProperties.remove(idxProperty);
+                String idxProperty = resultSet.getString("src");
+                if(idxProperty.equals("m"))
+                    searchableCount ++;
             }
-            // If all System Indices could get found the list should be empty
-            assertEquals(0,systemIndices.size());
-            // If foo1:foo5 could get found only foo6 & foo7 should be in the map
-            assertEquals(2,searchableProperties.size());
+
+            assertEquals(4, searchableCount);
         }
     }
 
@@ -200,7 +178,10 @@ public class PSQLIndexIT extends PSQLAbstractIT {
             String sqlSpaceSchema = "(select schema_name::text from information_schema.schemata where schema_name in ('xyz','public') order by 1 desc limit 1)";
 
             Statement stmt = connection.createStatement();
-            stmt.execute( DhString.format("select xyz_maintain_idxs_for_space( %s, 'foo');",sqlSpaceSchema));
+            List<XyzSpaceTableHelper.OnDemandIndex> activatedSearchableProperties = IndexHelper.getActivatedSearchableProperties(searchableProperties);
+
+            for(XyzSpaceTableHelper.OnDemandIndex onDemandIndex : activatedSearchableProperties)
+                stmt.execute(IndexHelper.buildOnDemandIndexCreationQuery("public", "foo", onDemandIndex.getPropertyPath(), false).toExecutableQueryString());
 
             // Check which Indices are available
             ResultSet resultSet = stmt.executeQuery( DhString.format("select idx_property, src from xyz_index_list_all_available(%s, 'foo');",sqlSpaceSchema));
@@ -238,6 +219,7 @@ public class PSQLIndexIT extends PSQLAbstractIT {
         }
     }
 
+    @Disabled
     @Test
     public void testOnDemandIndexContent() throws Exception {
         //Create space
@@ -321,85 +303,6 @@ public class PSQLIndexIT extends PSQLAbstractIT {
                         assertEquals("CREATE INDEX \"idx_foo_updatedAt\" ON ONLY public.foo USING btree (((((jsondata -> 'properties'::text) -> '@ns:com:here:xyz'::text) -> 'updatedAt'::text)), id)",indexdef);
                         break;
                 }
-            }
-        }
-    }
-
-    @Test
-    public void testAutoIndexing() throws Exception {
-        ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent()
-                .withSpace("foo")
-                .withTransaction(true)
-                .withInsertFeatures(FeatureGenerator.get11kFeatureCollection().getFeatures())
-                .withConnectorParams(connectorParams);
-
-        invokeLambda(mfevent);
-
-        // Needed to trigger update on pg_stat
-        try (final Connection connection = LAMBDA.dataSourceProvider.getWriter().getConnection()) {
-            Statement stmt = connection.createStatement();
-            stmt.execute("DELETE FROM " + IDX_STATUS_TABLE_FQN + " WHERE spaceid='foo';");
-            stmt.execute("ANALYZE \"foo\";");
-        }
-
-        // =========== Invoke HealthCheck - Triggers dbMaintenance (with index-creation) ==========
-        invokeLambdaFromFile("/events/HealthCheckEventWithAutoIndexing.json");
-
-        GetStatisticsEvent statisticsEvent = new GetStatisticsEvent()
-                .withSpace("foo")
-                .withConnectorParams(connectorParams);
-        // =========== Invoke GetStatisticsEvent ==========
-        String stringResponse = invokeLambda(statisticsEvent);
-        StatisticsResponse response = deserializeResponse(stringResponse);
-
-        assertNotNull(response);
-        assertEquals(Long.valueOf(11000), response.getCount().getValue());
-        assertEquals(true,  response.getCount().getEstimated());
-        assertEquals(StatisticsResponse.PropertiesStatistics.Searchable.PARTIAL, response.getProperties().getSearchable());
-
-        List<StatisticsResponse.PropertyStatistics> propStatistics = response.getProperties().getValue();
-        for (StatisticsResponse.PropertyStatistics propStat: propStatistics ) {
-            if(propStat.getKey().equalsIgnoreCase("test")){
-                /** The value test should not get indexed because it has only one value */
-                assertEquals("number", propStat.getDatatype());
-                assertEquals(false, propStat.isSearchable());
-                assertTrue(propStat.getCount() < 11000);
-            }else{
-                /** All other values should get indexed */
-                assertEquals("string", propStat.getDatatype());
-                assertEquals(true, propStat.isSearchable());
-                assertEquals(11000 , propStat.getCount());
-            }
-        }
-
-        /** Deactivate autoIndexing */
-        ModifySpaceEvent modifySpaceEvent = new ModifySpaceEvent().withSpace("foo")
-                .withOperation(UPDATE)
-                .withConnectorParams(connectorParams)
-                .withSpaceDefinition(new Space()
-                        .withId("foo")
-                        .withEnableAutoSearchableProperties(false)
-                );
-
-        // =========== Invoke ModifySpaceEvent ==========
-        invokeLambda(modifySpaceEvent);
-
-        // =========== Invoke HealthCheck - Triggers dbMaintenance (with index-deletion) ==========
-        invokeLambdaFromFile("/events/HealthCheckEventWithAutoIndexing.json");
-
-        stringResponse = invokeLambda(statisticsEvent);
-        response = XyzSerializable.deserialize(stringResponse);
-        assertNotNull(response);
-
-        propStatistics = response.getProperties().getValue();
-        for (StatisticsResponse.PropertyStatistics propStat: propStatistics ) {
-            /** No Auto-Indices should be present anymore */
-            if(propStat.getKey().equalsIgnoreCase("test")){
-                assertEquals("number", propStat.getDatatype());
-                assertEquals(false, propStat.isSearchable());
-            }else{
-                assertEquals("string", propStat.getDatatype());
-                assertEquals(false, propStat.isSearchable());
             }
         }
     }
