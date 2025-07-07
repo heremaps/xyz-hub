@@ -46,6 +46,7 @@ import com.here.xyz.jobs.datasets.DatasetDescription;
 import com.here.xyz.jobs.datasets.Files;
 import com.here.xyz.jobs.datasets.streams.DynamicStream;
 import com.here.xyz.jobs.processes.ProcessDescription;
+import com.here.xyz.jobs.service.JobService;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.JobCompiler;
 import com.here.xyz.jobs.steps.Step;
@@ -71,6 +72,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -777,5 +779,22 @@ public class Job implements XyzSerializable {
   @JsonIgnore
   public boolean isPipeline() {
     return getSource() instanceof DynamicStream;
+  }
+
+  public void registerFinalizeObserver(Runnable finalizationObserver) {
+    JobService.registerJobFinalizeObserver(new Consumer<>() {
+      @Override
+      public void accept(Job job) {
+        try {
+          finalizationObserver.run();
+        }
+        catch (Exception e) {
+          logger.error("Error running finalization observer for job {}", job.id, e);
+        }
+        finally {
+          JobService.deregisterJobFinalizeObserver(this);
+        }
+      }
+    });
   }
 }
