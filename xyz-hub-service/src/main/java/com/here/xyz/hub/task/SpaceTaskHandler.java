@@ -70,9 +70,12 @@ import com.here.xyz.util.service.HttpException;
 import com.here.xyz.util.service.errors.DetailedHttpException;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
+import io.vertx.core.buffer.Buffer;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.json.jackson.DatabindCodec;
+
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -99,28 +102,51 @@ public class SpaceTaskHandler {
 
   static <X extends ReadQuery<?>> void readSpaces(final X task, final Callback<X> callback) {
     Service.spaceConfigClient.getSelected(task.getMarker(),
-            task.authorizedCondition, task.selectedCondition, task.propertiesQuery)
-            .compose(spaces -> {
-              if (StringUtils.isBlank(task.selectedCondition.tagId) || spaces.isEmpty()) {
-                return Future.succeededFuture(spaces);
-              }
+                task.authorizedCondition, task.selectedCondition, task.propertiesQuery)
+        .compose(spaces -> {
+          if (StringUtils.isBlank(task.selectedCondition.tagId) || spaces.isEmpty()) {
+            return Future.succeededFuture(spaces);
+          }
 
-              List<String> spaceIds = spaces.stream().map(Space::getId).toList();
-              return Service.tagConfigClient.getTags(task.getMarker(), task.selectedCondition.tagId, spaceIds)
-                      .compose(tags -> {
-                        List<String> spaceIdsFromTag = tags.stream().map(Tag::getSpaceId).toList();
-                        List<Space> spacesFilteredByTag = spaces.stream().filter(space -> spaceIdsFromTag.contains(space.getId())).toList();
-                        return augmentWithTags(spacesFilteredByTag, tags);
-                      });
-            })
+          List<String> spaceIds = spaces.stream().map(Space::getId).toList();
+          return Service.tagConfigClient.getTags(task.getMarker(), task.selectedCondition.tagId, spaceIds)
+                  .compose(tags -> {
+                    List<String> spaceIdsFromTag = tags.stream().map(Tag::getSpaceId).toList();
+                    List<Space> spacesFilteredByTag = spaces.stream().filter(space -> spaceIdsFromTag.contains(space.getId())).toList();
+                    return augmentWithTags(spacesFilteredByTag, tags);
+                  });
+        })
+        .onFailure(t -> {
+          logger.error(task.getMarker(), "Unable to load space definitions.'", t);
+          callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definitions.", t));
+        })
+        .onSuccess(spaces -> {
+          task.responseSpaces = spaces;
+          callback.call(task);
+        });
+  }
+
+  static <X extends ReadQuery<?>> void readDependentSpaces(final X task, final Callback<X> callback) {
+    if(task.selectedCondition.spaceIds == null){
+      callback.call(task);
+      return;
+    }
+    String spaceId = task.selectedCondition.spaceIds.stream().findFirst().orElse(null);
+
+    getAllDependentSpaces(task.getMarker(), spaceId)
             .onFailure(t -> {
               logger.error(task.getMarker(), "Unable to load space definitions.'", t);
               callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definitions.", t));
             })
             .onSuccess(spaces -> {
+              if(spaces.isEmpty()){
+                callback.exception(new HttpException(NOT_FOUND, "The requested resource does not exist."));
+                return;
+              }
               task.responseSpaces = spaces;
               callback.call(task);
             });
+
   }
 
   static <X extends ReadQuery<?>> void checkSpaceExists(final X task, final Callback<X> callback) {
@@ -418,6 +444,48 @@ public class SpaceTaskHandler {
             callback.call(task);
           });
     }
+  }
+
+  static void createMaintenanceJob(final ConditionalOperation task, final Callback<ConditionalOperation> callback) {
+    final Entry<Space> entry = task.modifyOp.entries.get(0);
+
+    // Only take care about space updates where properties were modified
+    if(!task.isUpdate() || !entry.isModified){
+      callback.call(task);
+      return;
+    }
+
+    Map<String, Boolean> headProperties = entry.head.getSearchableProperties();
+    Map<String, Boolean> resultProperties = entry.result.getSearchableProperties();
+
+    if(headProperties != null && !headProperties.equals(resultProperties)
+        || headProperties == null && resultProperties != null){
+      // If the searchable properties were modified, trigger the OnDemand Index Creation Job
+      logger.info(task.getMarker(), "Trigger OnDemand Index Creation Job");
+
+      //TODO: use Job-Web-Client
+      JsonObject maintenanceJob = new JsonObject("""              
+              {
+                  "description": "Maintain indices for the space $SPACE_ID",
+                  "source": {
+                      "type": "Space",
+                      "id": "$SPACE_ID"
+                  },
+                  "process": {
+                      "type": "Maintain"
+                  }
+              }
+              """.replaceAll("\\$SPACE_ID", entry.result.getId()));
+
+      Service.webClient
+              .postAbs(Service.configuration.JOB_API_ENDPOINT + "/jobs")
+              .timeout(40_000)
+              .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
+              .sendBuffer(Buffer.buffer(maintenanceJob.toString()))
+              .onFailure(e -> logger.error(task.getMarker(),"Failed to trigger the OnDemand Index Creation Job", e));
+    }
+
+    callback.call(task);
   }
 
   private static Space getSpaceTemplate(String owner, String cid) {

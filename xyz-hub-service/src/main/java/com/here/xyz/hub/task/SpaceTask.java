@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -92,6 +92,24 @@ public abstract class SpaceTask<X extends SpaceTask<?>> extends Task<Event, X> {
       } else {
         ownerIds.add(ownerId);
       }
+    }
+  }
+
+  public static class GetDependentSpaces extends ReadQuery<GetDependentSpaces> {
+    public GetDependentSpaces(RoutingContext context, String id) {
+      super(context, ApiResponseType.SPACE_LIST, null, null);
+
+      selectedCondition = new SpaceSelectionCondition();
+      selectedCondition.spaceIds = Collections.singleton(id);
+
+      this.canReadConnectorsProperties = true;
+    }
+
+    @Override
+    public TaskPipeline createPipeline() {
+      return TaskPipeline.create(this)
+              .then(SpaceTaskHandler::readDependentSpaces)
+              .then(SpaceTaskHandler::convertResponse);
     }
   }
 
@@ -214,6 +232,7 @@ public abstract class SpaceTask<X extends SpaceTask<?>> extends Task<Event, X> {
           .then(SpaceTaskHandler::enforceUsageQuotas)
           .then(SpaceTaskHandler::sendEvents)
           .then(SpaceTaskHandler::modifySpaces)
+          .then(SpaceTaskHandler::createMaintenanceJob)
           .then(SpaceTaskHandler::resolveDependencies)
           .then(SpaceTaskHandler::convertResponse);
     }
