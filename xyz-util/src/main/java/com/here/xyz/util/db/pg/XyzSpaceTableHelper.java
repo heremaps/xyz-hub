@@ -53,6 +53,7 @@ public class XyzSpaceTableHelper {
   public interface Index extends Typed {
     String idxPrefix = "idx_";
     String getIndexName(String tableName);
+    String getIndexName();
   }
 
   public enum SystemIndex implements Index {
@@ -63,6 +64,12 @@ public class XyzSpaceTableHelper {
     SERIAL,
     VIZ,
     AUTHOR;
+
+    String indexName;
+
+    public String getIndexName() {
+      return indexName;
+    }
 
     @Override
     public String getIndexName(String tableName) {
@@ -92,12 +99,40 @@ public class XyzSpaceTableHelper {
         case AUTHOR -> List.of("author");
       };
     }
+
+    public static SystemIndex fromString(String name) {
+      if (name == null) return null;
+      return switch (name.toLowerCase()) {
+        case "geo" -> GEO;
+        case "versionid" -> VERSION_ID;
+        case "nextversion" -> NEXT_VERSION;
+        case "operation" -> OPERATION;
+        case "serial" -> SERIAL;
+        case "viz" -> VIZ;
+        case "author" -> AUTHOR;
+        default -> null;
+      };
+    }
   }
 
   public static class OnDemandIndex implements Index {
+    private String indexName;
     private String propertyPath;
 
     public OnDemandIndex() { }
+
+    public OnDemandIndex(String indexName) {
+        this.indexName = indexName;
+    }
+
+    public String getIndexName() {
+      return indexName;
+    }
+
+    public OnDemandIndex withIndexName(String indexName) {
+      this.indexName = indexName;
+      return this;
+    }
 
     public void setPropertyPath(String propertyPath) {
       this.propertyPath = propertyPath;
@@ -157,7 +192,6 @@ public class XyzSpaceTableHelper {
         .withNamedParameter("table", table);
   }
 
-
   public static List<SQLQuery> buildSpaceTableDropIndexQueries(String schema, List<String> indices) {
     return indices.stream()
         .map(index -> buildDropIndexQuery(schema, index))
@@ -165,14 +199,23 @@ public class XyzSpaceTableHelper {
   }
 
   public static List<SQLQuery> buildCreateSpaceTableQueries(String schema, String table) {
+    return buildCreateSpaceTableQueries(schema, table, List.of());
+  }
+
+  public static List<SQLQuery> buildCreateSpaceTableQueries(String schema, String table, List<OnDemandIndex> onDemandIndices) {
     List<SQLQuery> queries = new ArrayList<>();
 
+    queries.add(createDefaultSchema(schema));
     queries.add(buildCreateSpaceTableQuery(schema, table));
     queries.add(buildColumnStorageAttributesQuery(schema, table));
     queries.addAll(buildSpaceTableIndexQueries(schema, table));
     queries.add(buildCreateHeadPartitionQuery(schema, table));
     queries.add(buildCreateHistoryPartitionQuery(schema, table, 0L));
     queries.add(buildCreateSequenceQuery(schema, table, "version"));
+    if(onDemandIndices != null && !onDemandIndices.isEmpty()) {
+      for(OnDemandIndex onDemandIndex : onDemandIndices)
+        queries.add(IndexHelper.buildOnDemandIndexCreationQuery(schema, table, onDemandIndex.getPropertyPath(), false));
+    }
 
     return queries;
   }
@@ -214,6 +257,11 @@ public class XyzSpaceTableHelper {
   public static SQLQuery buildCreateHistoryPartitionQuery(String schema, String rootTable, long partitionNo) {
     return new SQLQuery(
         "SELECT xyz_create_history_partition('" + schema + "', '" + rootTable + "', " + partitionNo + ", " + PARTITION_SIZE + ")");
+  }
+
+  public static SQLQuery createDefaultSchema(String schema) {
+    return new SQLQuery("CREATE SCHEMA IF NOT EXISTS ${schema}")
+            .withVariable(SCHEMA, schema);
   }
 
   public static SQLQuery buildCreateSpaceTableQuery(String schema, String table) {

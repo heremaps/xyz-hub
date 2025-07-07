@@ -299,6 +299,8 @@ public class StepTestBase {
     if(testDatasource == null)
       testDatasource = new PooledDataSources(
             new DatabaseSettings("testSteps")
+                    //TODO: remove search_path. Temp solved as scripts are now getting installed via script installation.
+                    .withSearchPath(List.of("public", "jobs.common", "jobs.psql"))
                     .withApplicationName(StepTestBase.class.getSimpleName())
                     .withHost(PG_HOST)
                     .withDb(PG_DB)

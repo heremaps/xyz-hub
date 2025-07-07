@@ -32,6 +32,7 @@ import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+@Deprecated
 public class MarkForMaintenance extends SpaceBasedStep<MarkForMaintenance> {
   private static final String XYZ_CONFIG_SCHEMA = "xyz_config";
   private static final String IDX_STATUS_TABLE = "xyz_idxs_status";
