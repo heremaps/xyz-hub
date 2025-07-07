@@ -219,8 +219,8 @@ public class PSQLIndexIT extends PSQLAbstractIT {
         }
     }
 
+    //TODO: Fix or delete
     @Disabled
-    @Test
     public void testOnDemandIndexContent() throws Exception {
         //Create space
         ModifySpaceEvent modifySpaceEvent = new ModifySpaceEvent().withSpace("foo")

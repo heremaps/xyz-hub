@@ -111,9 +111,7 @@ public class ImportFromFiles implements JobCompilationInterceptor {
     List<List<SystemIndex>> indexTasks = Lists.partition(indices, indices.size() / 3);
 
     CompilationStepGraph importStepGraph = (CompilationStepGraph) new CompilationStepGraph()
-        .addExecution(new DropIndexes().withSpaceId(spaceId)) //Drop all existing indices
-            // TODO: remove this step in the future, when the maintenance-service got shut down.
-        .addExecution(new MarkForMaintenance().withSpaceId(spaceId).withIdxCreationCompleted(true))
+        .addExecution(new DropIndexes().withSpaceId(spaceId).withSpaceDeactivation(true)) //Drop all existing indices
         .addExecution(importFilesStep)
         //NOTE: Create *all* indices in parallel, make sure to (at least) keep the viz-index sequential #postgres-issue-with-partitions
         .addExecution(new CompilationStepGraph() //Create all the base indices semi-parallel
@@ -128,8 +126,6 @@ public class ImportFromFiles implements JobCompilationInterceptor {
       importStepGraph.addExecution(onDemandIndexSteps);
 
     importStepGraph.addExecution(new AnalyzeSpaceTable().withSpaceId(spaceId));
-    //TODO: remove this step in the future, when the maintenance-service got shut down.
-    importStepGraph.addExecution(new MarkForMaintenance().withSpaceId(spaceId).withIdxCreationCompleted(false));
 
     return importStepGraph;
   }

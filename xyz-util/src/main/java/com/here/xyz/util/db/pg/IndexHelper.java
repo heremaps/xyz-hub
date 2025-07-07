@@ -68,17 +68,6 @@ public class IndexHelper {
         .withQueryFragment("queryComment", "");
   }
 
-  public static SQLQuery checkIndexType(String schema, String table, String propertyName, int tableSampleCnt) {
-    return new SQLQuery("""
-        SELECT * FROM xyz_index_creation_on_property_object( #{schema_name}, #{table_name},
-            #{property_name}, #{table_sample_cnt} )
-        """)
-        .withNamedParameter("schema_name", schema)
-        .withNamedParameter("table_name", table)
-        .withNamedParameter("property_name", propertyName)
-        .withNamedParameter("table_sample_cnt", tableSampleCnt);
-  }
-
   public static List<OnDemandIndex> getActivatedSearchableProperties(Map<String, Boolean> searchableProperties) {
     return searchableProperties == null ? List.of() : searchableProperties.entrySet().stream()
             .filter(Map.Entry::getValue)
@@ -87,7 +76,7 @@ public class IndexHelper {
   }
 
   public static SQLQuery buildOnDemandIndexCreationQuery(String schema, String table, String propertyPath, boolean async){
-    return new SQLQuery((async ? "PERFROM " : "SELECT ") +
+    return new SQLQuery((async ? "PERFORM " : "SELECT ") +
             """
             xyz_index_creation_on_property_object(
                 #{schema_name},
@@ -97,7 +86,7 @@ public class IndexHelper {
                 xyz_property_datatype(#{schema_name}, #{table_name}, #{property_name}, #{table_sample_cnt}),
                 #{idx_type}
               )
-            """ + (async ? ";" : ""))
+            """)
             .withNamedParameter("schema_name", schema)
             .withNamedParameter("table_name", table)
             .withNamedParameter("property_name", propertyPath)
