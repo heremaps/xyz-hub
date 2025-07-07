@@ -67,6 +67,7 @@ import com.here.xyz.responses.ChangesetsStatisticsResponse;
 import com.here.xyz.util.service.BaseHttpServerVerticle;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.HttpException;
+import com.here.xyz.util.service.errors.DetailedHttpException;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.core.json.Json;
@@ -532,9 +533,12 @@ public class SpaceTaskHandler {
               .withParams(extendedConnector.getParams() != null ? extendedConnector.getParams() : new HashMap<>()));
         }
         else if (!Objects.equals(space.getStorage().getId(), extendedConnector.getId()) && !task.modifyOp.forceStorage) {
-          callback.exception(new HttpException(BAD_REQUEST, "The storage of space " + space.getId()
-              + " [storage: " + space.getStorage().getId() + "] is not matching the storage of the space to be extended "
-              + "(" + extendedSpace.getId() + " [storage: " + extendedConnector.getId() + "])."));
+          callback.exception(new DetailedHttpException("E318408",
+                  Map.of("spaceId", space.getId(),
+                          "storageId", space.getStorage().getId(),
+                          "extendedSpaceId", extendedSpace.getId(),
+                          "extendedStorageId", extendedConnector.getId()))
+          );
           return;
         }
 
