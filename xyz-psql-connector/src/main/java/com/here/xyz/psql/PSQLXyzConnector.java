@@ -60,7 +60,6 @@ import com.here.xyz.psql.query.IterateChangesets;
 import com.here.xyz.psql.query.IterateFeatures;
 import com.here.xyz.psql.query.LoadFeatures;
 import com.here.xyz.psql.query.ModifySpace;
-import com.here.xyz.psql.query.ModifySubscription;
 import com.here.xyz.psql.query.SearchForFeatures;
 import com.here.xyz.psql.query.WriteFeatures;
 import com.here.xyz.psql.query.XyzEventBasedQueryRunner;
@@ -181,7 +180,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
   @Override
   protected SuccessResponse processModifySubscriptionEvent(ModifySubscriptionEvent event) throws Exception {
-    return write(new ModifySubscription(event));
+    return new SuccessResponse().withStatus("OK");
   }
 
   @Override
