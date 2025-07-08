@@ -200,8 +200,12 @@ public class StepTestBase {
   }
 
   protected StatisticsResponse getStatistics(String spaceId) {
+    return getStatistics(spaceId, true);
+  }
+
+  protected StatisticsResponse getStatistics(String spaceId, boolean fastMode) {
     try {
-      return hubWebClient().loadSpaceStatistics(spaceId, SpaceContext.DEFAULT, true, true);
+      return hubWebClient().loadSpaceStatistics(spaceId, SpaceContext.DEFAULT, true, fastMode);
     }
     catch (XyzWebClient.WebClientException e) {
       System.out.println("Hub Error: " + e.getMessage());

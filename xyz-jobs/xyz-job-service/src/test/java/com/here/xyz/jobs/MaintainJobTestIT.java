@@ -19,17 +19,27 @@
 package com.here.xyz.jobs;
 
 import com.here.xyz.XyzSerializable;
-import com.here.xyz.jobs.datasets.DatasetDescription;
 import com.here.xyz.jobs.processes.Maintain;
 import com.here.xyz.models.hub.Space;
+import com.here.xyz.responses.StatisticsResponse;
+import com.here.xyz.responses.StatisticsResponse.PropertyStatistics;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
-@Disabled
 public class MaintainJobTestIT extends JobTest {
+    private static final Logger logger = LogManager.getLogger();
+
     @BeforeEach
     public void setUp() {
         XyzSerializable.registerSubtypes(Maintain.class);
@@ -53,20 +63,52 @@ public class MaintainJobTestIT extends JobTest {
 
     @Test
     public void testSimpleMaintain() throws Exception {
-        Job maintainJob = buildMaintainJob();
-        createJob(maintainJob);
-        createdJobs.add(maintainJob.getId());
+        int maxAttempts = 10;
+        findJobWaitAndDelete(maxAttempts);
 
-        //Wait till Job reached final state
-        pollJobStatus(maintainJob.getId());
-        //TODO: check result
+        Set<String> expectedSearchableProperties = new HashSet<>(Set.of("foo1", "new", "foo3.nested.array"));
+        Set<String> foundSearchableProperties = new HashSet<>();
+
+        while (!expectedSearchableProperties.equals(foundSearchableProperties)) {
+            if(maxAttempts-- == 0)
+                Assertions.fail("Wrong statistic found after maximum attempts");
+
+            logger.info("requesting statistics...");
+            StatisticsResponse statistics = getStatistics(SPACE_ID, false);
+            List<PropertyStatistics> searchableProperties = statistics.getProperties().getValue();
+
+            searchableProperties.forEach(property -> {
+                if(expectedSearchableProperties.contains(property.getKey()))
+                    foundSearchableProperties.add(property.getKey());
+            });
+
+            Thread.sleep(1000);
+        }
     }
 
-    private Job buildMaintainJob() {
-        return new Job()
-                .withId(JOB_ID)
-                .withDescription("Maintain Job Test")
-                .withSource(new DatasetDescription.Space<>().withId(SPACE_ID))
-                .withProcess(new Maintain());
+    private void findJobWaitAndDelete(int maxAttempts) throws InterruptedException, IOException {
+        String jobId = null;
+
+        while (jobId == null) {
+            if(maxAttempts-- == 0)
+                Assertions.fail("No job found after maximum attempts");
+            try {
+                List<Map> jobs = getJobsOnResource(SPACE_ID, true);
+                if(jobs != null && !jobs.isEmpty()) {
+                    jobId = jobs.get(0).get("id").toString();
+                    break;
+                }
+            } catch (RuntimeException | IOException e) {
+                if(e.getMessage().contains("404 response"))
+                    ;
+                else
+                    throw e;
+            }
+            Thread.sleep(1000);
+        }
+        logger.info("Found job with id: {}", jobId);
+        pollJobStatus(jobId);
+        logger.info("Job {} finished with state: {}", jobId, getJobStatus(jobId).getState());
+        deleteJob(jobId);
     }
 }

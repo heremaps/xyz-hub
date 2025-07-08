@@ -148,6 +148,12 @@ public class JobTestBase extends StepTestBase {
         return XyzSerializable.deserialize(jobResponse.body(), new TypeReference<Map>() {});
     }
 
+    public static List<Map> getJobsOnResource(String resource, boolean useAdminEndpoint) throws IOException, InterruptedException {
+        logger.info("Get jobs on resource ...");
+        HttpResponse<byte[]> jobsResponse = get((useAdminEndpoint ? "/admin" : "/") +"/jobs?" + resource );
+        return XyzSerializable.deserialize(jobsResponse.body(), new TypeReference<List<Map>>() {});
+    }
+
     public static RuntimeStatus getJobStatus(String jobId) throws IOException, InterruptedException {
         logger.info("Get job status...");
         HttpResponse<byte[]> statusResponse = get("/jobs/" + jobId + "/status");

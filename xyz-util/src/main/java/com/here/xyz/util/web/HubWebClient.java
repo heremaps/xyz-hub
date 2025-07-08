@@ -193,7 +193,7 @@ public class HubWebClient extends XyzWebClient {
         return statistics;
 
       statistics = deserialize(request(HttpRequest.newBuilder()
-          .uri(uri("/spaces/" + spaceId + "/statistics?fastMode=true&skipCache="+skipCache
+          .uri(uri("/spaces/" + spaceId + "/statistics?fastMode="+fastMode+"&skipCache="+skipCache
                   + (context == null ? "" : "&context=" + context)))).body(), StatisticsResponse.class);
       statisticsCache.put(cacheKey, statistics);
       return statistics;
