@@ -93,8 +93,8 @@ public class S3Client {
 
   protected String identifyBucketRegion(String bucketName) {
     String bucketRegion = Regions.US_EAST_1.getName();
-    try {
-      s3(bucketRegion).build().headBucket(HeadBucketRequest.builder().bucket(bucketName).build());
+    try (software.amazon.awssdk.services.s3.S3Client awsS3Client = s3(bucketRegion).build()) {
+      awsS3Client.headBucket(HeadBucketRequest.builder().bucket(bucketName).build());
     }
     catch (S3Exception e) {
       SdkHttpResponse httpResponse = e.awsErrorDetails().sdkHttpResponse();
@@ -106,7 +106,7 @@ public class S3Client {
     return bucketRegion;
   }
 
-  public static S3Client getInstance(String bucketName) {
+  public synchronized static S3Client getInstance(String bucketName) {
     if (!instances.containsKey(bucketName))
       instances.put(bucketName, new S3Client(bucketName));
     return instances.get(bucketName);
