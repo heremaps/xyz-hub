@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -53,6 +53,7 @@ import net.jodah.expiringmap.ExpiringMap;
 
 public class HubWebClient extends XyzWebClient {
   public static int STATISTICS_CACHE_TTL_SECONDS = 30;
+  public static int SPACE_CACHE_TTL_SECONDS = 30;
   public static String userAgent = DEFAULT_USER_AGENT;
   private static Map<InstanceKey, HubWebClient> instances = new ConcurrentHashMap<>();
   private ExpiringMap<String, Connector> connectorCache = ExpiringMap.builder()
@@ -62,6 +63,10 @@ public class HubWebClient extends XyzWebClient {
   private ExpiringMap<String, StatisticsResponse> statisticsCache = ExpiringMap.builder()
       .expirationPolicy(ExpirationPolicy.CREATED)
       .expiration(STATISTICS_CACHE_TTL_SECONDS, TimeUnit.SECONDS)
+      .build();
+  private ExpiringMap<String, Space> spaceCache = ExpiringMap.builder()
+      .expirationPolicy(ExpirationPolicy.CREATED)
+      .expiration(SPACE_CACHE_TTL_SECONDS, TimeUnit.SECONDS)
       .build();
 
   protected HubWebClient(String baseUrl) {
@@ -97,9 +102,15 @@ public class HubWebClient extends XyzWebClient {
   }
 
   public Space loadSpace(String spaceId) throws WebClientException {
+    Space cachedSpace = spaceCache.get(spaceId);
+    if (cachedSpace != null)
+      return cachedSpace;
+
     try {
-      return deserialize(request(HttpRequest.newBuilder()
+      Space space = deserialize(request(HttpRequest.newBuilder()
           .uri(uri("/spaces/" + spaceId))).body(), Space.class);
+      spaceCache.put(spaceId, space);
+      return space;
     }
     catch (JsonProcessingException e) {
       throw new WebClientException("Error deserializing response", e);
@@ -131,6 +142,7 @@ public class HubWebClient extends XyzWebClient {
   }
 
   public void patchSpace(String spaceId, Map<String, Object> spaceUpdates) throws WebClientException {
+    spaceCache.remove(spaceId);
     request(HttpRequest.newBuilder()
         .uri(uri("/spaces/" + spaceId))
         .header(CONTENT_TYPE, JSON_UTF_8.toString())
@@ -172,6 +184,7 @@ public class HubWebClient extends XyzWebClient {
   }
 
   public void deleteSpace(String spaceId) throws WebClientException {
+    spaceCache.remove(spaceId);
     request(HttpRequest.newBuilder()
             .DELETE()
             .uri(uri("/spaces/" + spaceId)));
