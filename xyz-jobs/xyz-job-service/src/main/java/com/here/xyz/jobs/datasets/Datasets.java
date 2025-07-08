@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,8 @@ package com.here.xyz.jobs.datasets;
 
 import java.util.List;
 import java.util.Map.Entry;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class Datasets extends DatasetDescription {
 
@@ -41,12 +43,20 @@ public class Datasets extends DatasetDescription {
 
   @Override
   public String getKey() {
-    return datasets.values()
-            .stream()
-            .filter(description -> description.getKey() != null)
-            .map(DatasetDescription::getKey)
+    return getDatasets().values()
+        .stream()
+        .filter(dataset -> dataset.getKey() != null)
+        .map(DatasetDescription::getKey)
             .findFirst()
             .orElse(null);
+  }
+
+  @Override
+  public Set<String> getResourceKeys() {
+    return getDatasets().values()
+        .stream()
+        .flatMap(dataset -> dataset.getResourceKeys().stream())
+        .collect(Collectors.toSet());
   }
 
   public List<Entry<String, DatasetDescription>> getDatasetsByType(Class<? extends DatasetDescription> clazz) {

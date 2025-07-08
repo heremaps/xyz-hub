@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@ import com.here.xyz.jobs.datasets.DatasetDescription.Space;
 import com.here.xyz.jobs.datasets.filters.FilteringSource;
 import com.here.xyz.jobs.datasets.filters.Filters;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 public class Spaces<T extends Spaces> extends DatasetDescription implements FilteringSource<T>, CombinedDatasetDescription<Space> {
@@ -62,8 +63,14 @@ public class Spaces<T extends Spaces> extends DatasetDescription implements Filt
     return (T) this;
   }
 
+  @Override
   public String getKey() {
     return String.join(",", spaceIds);
+  }
+
+  @Override
+  public Set<String> getResourceKeys() {
+    return getSpaceIds().stream().collect(Collectors.toSet());
   }
 
   @Override
