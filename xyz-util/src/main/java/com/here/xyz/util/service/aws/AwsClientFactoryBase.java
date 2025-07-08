@@ -23,6 +23,7 @@ import com.here.xyz.util.service.BaseConfig;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.awscore.client.builder.AwsClientBuilder;
+import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
@@ -54,7 +55,8 @@ public class AwsClientFactoryBase {
   }
 
   public static S3ClientBuilder s3(String region) {
-    S3ClientBuilder builder = prepareClient(S3Client.builder());
+    S3ClientBuilder builder = prepareClient(S3Client.builder()
+        .httpClientBuilder(ApacheHttpClient.builder().maxConnections(200)));
     if (isLocal())
       builder.forcePathStyle(true);
     return builder;

@@ -34,7 +34,6 @@ public class S3Client extends com.here.xyz.util.service.aws.s3.S3Client {
 
   protected S3Client(String bucketName) {
     super(bucketName);
-
   }
 
   @Override
@@ -58,7 +57,7 @@ public class S3Client extends com.here.xyz.util.service.aws.s3.S3Client {
     return getInstance(Config.instance.JOBS_S3_BUCKET);
   }
 
-  public static S3Client getInstance(String bucketName) {
+  public synchronized static S3Client getInstance(String bucketName) {
     if (!instances.containsKey(bucketName))
       instances.put(bucketName, new S3Client(bucketName));
     return instances.get(bucketName);
