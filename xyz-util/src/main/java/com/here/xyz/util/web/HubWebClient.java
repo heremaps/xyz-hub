@@ -102,9 +102,15 @@ public class HubWebClient extends XyzWebClient {
   }
 
   public Space loadSpace(String spaceId) throws WebClientException {
-    Space cachedSpace = spaceCache.get(spaceId);
-    if (cachedSpace != null)
-      return cachedSpace;
+    return loadSpace(spaceId, false);
+  }
+
+  public Space loadSpace(String spaceId, boolean skipLocalCache) throws WebClientException {
+    if (!skipLocalCache) {
+      Space cachedSpace = spaceCache.get(spaceId);
+      if (cachedSpace != null)
+        return cachedSpace;
+    }
 
     try {
       Space space = deserialize(request(HttpRequest.newBuilder()

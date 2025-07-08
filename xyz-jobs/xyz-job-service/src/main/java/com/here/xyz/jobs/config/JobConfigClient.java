@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,9 +19,10 @@
 
 package com.here.xyz.jobs.config;
 
+import static com.here.xyz.jobs.RuntimeInfo.State.FAILED;
+
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.RuntimeInfo.State;
-import static com.here.xyz.jobs.RuntimeInfo.State.FAILED;
 import com.here.xyz.jobs.service.JobService;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.util.di.ImplementationProvider;
@@ -85,11 +86,12 @@ public abstract class JobConfigClient implements Initializable {
   public abstract Future<List<Job>> loadJobs(String resourceKey, State state);
 
   /**
-   * Load all jobs related to a specified resourceKey OR secondaryResourceKey (e.g., space ID) that are having the specified state.
-   * @param resourceKey
+   * Load all jobs related to any of the specified resource keys (e.g., space ID) that are having the specified state.
+   * @param resourceKeys A set of resource keys for which to find the jobs
+   * @param state A state by which to filter the resulting jobs
    * @return
    */
-  public abstract Future<List<Job>> loadJobs(String resourceKey, String secondaryResourceKey, State state);
+  public abstract Future<Set<Job>> loadJobs(Set<String> resourceKeys, State state);
 
   public abstract Future<Void> storeJob(Job job);
 

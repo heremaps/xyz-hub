@@ -50,7 +50,6 @@ import com.here.xyz.jobs.datasets.Files;
 import com.here.xyz.jobs.datasets.streams.DynamicStream;
 import com.here.xyz.jobs.processes.ProcessDescription;
 import com.here.xyz.jobs.service.JobService;
-import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.JobCompiler;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.StepGraph;
@@ -62,15 +61,12 @@ import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.jobs.steps.resources.ExecutionResource;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.ResourcesRegistry.StaticLoad;
-import com.here.xyz.models.hub.Space.Extension;
 import com.here.xyz.util.Async;
 import com.here.xyz.util.service.Core;
-import com.here.xyz.util.web.HubWebClient;
-import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
-import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import io.vertx.core.Future;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -118,7 +114,7 @@ public class Job implements XyzSerializable {
   @JsonView({Public.class, Static.class})
   private JobClientInfo clientInfo;
   @JsonView(Static.class)
-  private String secondaryResourceKey;
+  private Set<String> resourceKeys;
   @JsonView(Static.class)
   private List<StaticLoad> calculatedResourceLoads;
 
@@ -586,6 +582,10 @@ public class Job implements XyzSerializable {
     return this;
   }
 
+  /**
+   * This getter mainly exists for auth / reporting purposes
+   * @return
+   */
   @JsonView(Static.class)
   public String getResourceKey() {
     //Always use key from the source except when the source is Files
@@ -594,29 +594,23 @@ public class Job implements XyzSerializable {
     return getSource() instanceof Files<?> ? getTarget().getKey() : getSource().getKey();
   }
 
-  public String getSecondaryResourceKey() {
-    if (secondaryResourceKey != null)
-      return secondaryResourceKey;
+  @JsonView(Static.class)
+  public Set<String> getResourceKeys() {
+    //Do not re-calculate / re-fetch the resource keys if they were deserialized from the storage (e.g., DynamoDB)
+    if (resourceKeys != null)
+      return resourceKeys;
 
-    String key = getResourceKey();
-    if (key == null)
-      return null;
+    resourceKeys = new HashSet<>();
+    if (getSource() != null)
+      resourceKeys.addAll(getSource().getResourceKeys());
+    if (getTarget() != null)
+      resourceKeys.addAll(getTarget().getResourceKeys());
 
-    try {
-      Extension extension = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadSpace(key).getExtension();
-      if (extension != null)
-        secondaryResourceKey = extension.getSpaceId();
-    }
-    catch (WebClientException e) {
-      //Ignore if space is not present anymore
-      if (!(e instanceof ErrorResponseException errorResponseException && errorResponseException.getStatusCode() == 404))
-        throw new RuntimeException(e);
-    }
-    return secondaryResourceKey;
+    return resourceKeys;
   }
 
-  private void setSecondaryResourceKey(String secondaryResourceKey) {
-    this.secondaryResourceKey = secondaryResourceKey;
+  private void setResourceKeys(Set<String> resourceKeys) {
+    this.resourceKeys = resourceKeys;
   }
 
   public String getDescription() {
