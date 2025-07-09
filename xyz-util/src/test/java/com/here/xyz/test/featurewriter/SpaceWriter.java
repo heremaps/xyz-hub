@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,9 +31,9 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.UpdateStrategy.OnExists;
+import com.here.xyz.events.UpdateStrategy.OnMergeConflict;
 import com.here.xyz.events.UpdateStrategy.OnNotExists;
 import com.here.xyz.events.UpdateStrategy.OnVersionConflict;
-import com.here.xyz.events.UpdateStrategy.OnMergeConflict;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.test.SQLITBase;
@@ -91,6 +91,13 @@ public abstract class SpaceWriter extends SQLITBase {
     writeFeatures(Arrays.asList(modifiedFeature), author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial,
         spaceContext, isHistoryActive, null);
   }
+
+  public void writeFeatures(List<Feature> featureList, String author, OnExists onExists, OnNotExists onNotExists,
+      OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict, boolean isPartial, SpaceContext spaceContext,
+      boolean historyEnabled) throws Exception {
+    writeFeatures(featureList, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial, spaceContext,
+        historyEnabled, null);
+  };
 
   protected abstract void writeFeatures(List<Feature> featureList, String author, OnExists onExists, OnNotExists onNotExists,
       OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict, boolean isPartial, SpaceContext spaceContext,
