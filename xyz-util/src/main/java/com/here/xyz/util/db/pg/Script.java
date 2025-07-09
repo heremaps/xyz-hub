@@ -271,7 +271,7 @@ public class Script {
 
   private static List<String> scanResourceFolderWA(String resourceFolder, String fileSuffix) throws IOException {
     return ((List<String>) switch (fileSuffix) {
-      case ".sql" -> List.of("/sql/common.sql",  "/sql/geo.sql", "/sql/feature_writer.sql",  "/sql/h3.sql", "/sql/psql.sql", "/jobs/transport.sql");
+      case ".sql" -> List.of("/sql/common.sql",  "/sql/geo.sql", "/sql/feature_writer.sql",  "/sql/h3.sql", "/sql/ext.sql", "/jobs/transport.sql");
       case ".js" -> List.of("/sql/Exception.js", "/sql/FeatureWriter.js");
       default -> List.of();
     }).stream().filter(filePath -> filePath.startsWith(resourceFolder)).toList();
