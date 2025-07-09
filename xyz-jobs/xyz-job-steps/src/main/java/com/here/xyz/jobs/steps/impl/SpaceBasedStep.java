@@ -66,7 +66,8 @@ import org.apache.logging.log4j.Logger;
     @JsonSubTypes.Type(value = CopySpace.class),
     @JsonSubTypes.Type(value = CopySpacePre.class),
     @JsonSubTypes.Type(value = CopySpacePost.class),
-    @JsonSubTypes.Type(value = CountSpace.class)
+    @JsonSubTypes.Type(value = CountSpace.class),
+    @JsonSubTypes.Type(value = SpawnMaintenanceJobs.class)
 })
 public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseBasedStep<T> {
   private static final Logger logger = LogManager.getLogger();

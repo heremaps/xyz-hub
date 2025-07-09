@@ -22,6 +22,7 @@ import com.here.xyz.jobs.steps.CompilationStepGraph;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.JobCompiler;
 import com.here.xyz.jobs.steps.impl.CreateIndex;
+import com.here.xyz.models.hub.Space;
 import com.here.xyz.util.db.pg.IndexHelper;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper.OnDemandIndex;
 import com.here.xyz.util.web.HubWebClient;
@@ -39,7 +40,7 @@ public class IndexCompilerHelper {
      */
     public static CompilationStepGraph compileOnDemandIndexSteps(String spaceId) throws JobCompiler.CompilationError {
 
-        List<OnDemandIndex> activatedSearchableProperties = getActiveSearchablePropertiesNew(spaceId);
+        List<OnDemandIndex> activatedSearchableProperties = getActiveSearchableProperties(spaceId);
         CompilationStepGraph onDemandIndicesGraph = (CompilationStepGraph) new CompilationStepGraph().withParallel(true);
 
         for(OnDemandIndex index : activatedSearchableProperties) {
@@ -57,10 +58,16 @@ public class IndexCompilerHelper {
      * @return A list containing the names of the active searchable properties.
      * @throws JobCompiler.CompilationError If an error occurs while retrieving the searchable properties.
      */
-    public static List<OnDemandIndex> getActiveSearchablePropertiesNew(String spaceId) throws JobCompiler.CompilationError {
+    public static List<OnDemandIndex> getActiveSearchableProperties(String spaceId) throws JobCompiler.CompilationError {
         try {
-            Map<String, Boolean> searchableProperties = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT)
-                    .loadSpace(spaceId).getSearchableProperties();
+
+            Space space = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT)
+                    .loadSpace(spaceId);
+            Map<String, Boolean> searchableProperties = space.getSearchableProperties();
+
+            if(space.getExtension() != null){
+                return getActiveSearchableProperties(space.getExtension().getSpaceId());
+            }
 
             return IndexHelper.getActivatedSearchableProperties(searchableProperties);
         }

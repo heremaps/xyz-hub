@@ -133,29 +133,29 @@ public class JobTestBase extends StepTestBase {
     }
 
     public static void startJob(String jobId) throws IOException, InterruptedException {
-        logger.info("Starting job ...");
+        logger.info("Starting job {] ...", jobId);
         patch("/jobs/" + jobId + "/status", Map.of("desiredAction", "START"));
     }
 
     public static void deleteJob(String jobId) throws IOException, InterruptedException {
-        logger.info("Deleting job ...");
+        logger.info("Deleting job {} ...", jobId);
         delete("/jobs/" + jobId );
     }
 
     public static Map getJob(String jobId, boolean useAdminEndpoint) throws IOException, InterruptedException {
-        logger.info("Get job ...");
+        logger.info("Get job {} ...", jobId);
         HttpResponse<byte[]> jobResponse = get((useAdminEndpoint ? "/admin" : "/") +"/jobs/" + jobId);
         return XyzSerializable.deserialize(jobResponse.body(), new TypeReference<Map>() {});
     }
 
     public static List<Map> getJobsOnResource(String resource, boolean useAdminEndpoint) throws IOException, InterruptedException {
-        logger.info("Get jobs on resource ...");
-        HttpResponse<byte[]> jobsResponse = get((useAdminEndpoint ? "/admin" : "/") +"/jobs?" + resource );
+        logger.info("Get jobs on resource {} ...", resource);
+        HttpResponse<byte[]> jobsResponse = get((useAdminEndpoint ? "/admin" : "/") +"/jobs?resource=" + resource );
         return XyzSerializable.deserialize(jobsResponse.body(), new TypeReference<List<Map>>() {});
     }
 
     public static RuntimeStatus getJobStatus(String jobId) throws IOException, InterruptedException {
-        logger.info("Get job status...");
+        logger.info("Get job status of {} ...", jobId);
         HttpResponse<byte[]> statusResponse = get("/jobs/" + jobId + "/status");
         return XyzSerializable.deserialize(statusResponse.body(), RuntimeStatus.class);
     }

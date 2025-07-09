@@ -23,13 +23,21 @@ import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.datasets.DatasetDescription.Space;
 import com.here.xyz.jobs.processes.Maintain;
 import com.here.xyz.jobs.steps.CompilationStepGraph;
+import com.here.xyz.jobs.steps.Config;
+import com.here.xyz.jobs.steps.JobCompiler.CompilationError;
 import com.here.xyz.jobs.steps.compiler.tools.IndexCompilerHelper;
 import com.here.xyz.jobs.steps.impl.DropIndexes;
+import com.here.xyz.jobs.steps.impl.SpawnMaintenanceJobs;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper.OnDemandIndex;
+import com.here.xyz.util.web.HubWebClient;
+import com.here.xyz.util.web.XyzWebClient;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.util.List;
 
 public class SpaceMaintain implements JobCompilationInterceptor {
+  private static final Logger logger = LogManager.getLogger();
 
   @Override
   public boolean chooseMe(Job job) {
@@ -45,7 +53,7 @@ public class SpaceMaintain implements JobCompilationInterceptor {
   public static CompilationStepGraph compile(Space source) {
     CompilationStepGraph stepGrap = new CompilationStepGraph();
 
-    List<OnDemandIndex> whiteList = IndexCompilerHelper.getActiveSearchablePropertiesNew(source.getId());
+    List<OnDemandIndex> whiteList = IndexCompilerHelper.getActiveSearchableProperties(source.getId());
 
     //Drop indices which are not in the whitelist
     DropIndexes dropIndexes = new DropIndexes()
@@ -59,6 +67,16 @@ public class SpaceMaintain implements JobCompilationInterceptor {
     stepGrap.addExecution(dropIndexes);
     if (!onDemandIndexSteps.isEmpty())
       stepGrap.addExecution(onDemandIndexSteps);
+
+    try {
+      List<com.here.xyz.models.hub.Space> spaces = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadDependentSpaces(source.getId());
+      stepGrap.addExecution(new SpawnMaintenanceJobs().withSpaceId(source.getId()));
+    } catch (XyzWebClient.WebClientException e) {
+      if (e instanceof XyzWebClient.ErrorResponseException errorResponse && errorResponse.getStatusCode() == 404) {
+        logger.info("No dependent spaces found for key {}", source.getId());
+      }else
+        throw new CompilationError("Error resolving dependent spaces" + e.getMessage(), e);
+    }
 
     return stepGrap;
   }
