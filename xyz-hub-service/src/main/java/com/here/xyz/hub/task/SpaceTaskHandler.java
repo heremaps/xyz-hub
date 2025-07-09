@@ -37,6 +37,7 @@ import com.here.xyz.Payload;
 import com.here.xyz.events.GetChangesetStatisticsEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.ModifySpaceEvent.Operation;
+import com.here.xyz.hub.Config;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.auth.Authorization;
 import com.here.xyz.hub.config.SpaceConfigClient.SpaceSelectionCondition;
@@ -68,6 +69,8 @@ import com.here.xyz.util.service.BaseHttpServerVerticle;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.HttpException;
 import com.here.xyz.util.service.errors.DetailedHttpException;
+import com.here.xyz.util.web.JobWebClient;
+import com.here.xyz.util.web.XyzWebClient;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.core.buffer.Buffer;
@@ -446,7 +449,8 @@ public class SpaceTaskHandler {
     }
   }
 
-  static void createMaintenanceJob(final ConditionalOperation task, final Callback<ConditionalOperation> callback) {
+  static void createMaintenanceJob(final ConditionalOperation task, final Callback<ConditionalOperation> callback)
+          throws XyzWebClient.WebClientException {
     final Entry<Space> entry = task.modifyOp.entries.get(0);
 
     // Only take care about space updates where properties were modified
@@ -477,12 +481,8 @@ public class SpaceTaskHandler {
               }
               """.replaceAll("\\$SPACE_ID", entry.result.getId()));
 
-      Service.webClient
-              .postAbs(Service.configuration.JOB_API_ENDPOINT + "/jobs")
-              .timeout(40_000)
-              .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
-              .sendBuffer(Buffer.buffer(maintenanceJob.toString()))
-              .onFailure(e -> logger.error(task.getMarker(),"Failed to trigger the OnDemand Index Creation Job", e));
+      JsonObject job = JobWebClient.getInstance(Config.instance.JOB_API_ENDPOINT).createJob(maintenanceJob);
+      logger.info(task.getMarker(), "Created Maintenance Job: {}", job);
     }
 
     callback.call(task);

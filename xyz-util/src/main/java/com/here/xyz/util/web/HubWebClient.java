@@ -114,6 +114,16 @@ public class HubWebClient extends XyzWebClient {
       return space.getExtension().getSpaceId();
   }
 
+  public List<Space> loadDependentSpaces(String superSpaceId) throws WebClientException {
+    try {
+      return deserialize(request(HttpRequest.newBuilder()
+              .uri(uri("/spaces/" + superSpaceId + "?dependentSpaces=true"))).body(),  new TypeReference<>() {} );
+    }
+    catch (JsonProcessingException e) {
+      throw new WebClientException("Error deserializing response", e);
+    }
+  }
+
   public Space createSpace(String spaceId, String title) throws WebClientException {
     return createSpace(new Space().withId(spaceId).withTitle(title));
   }
@@ -303,6 +313,4 @@ public class HubWebClient extends XyzWebClient {
     //Unsupported ref type (should not happen)
     throw new IllegalArgumentException("Unable to resolve the provided ref: " + ref);
   }
-
-  protected record InstanceKey(String baseUrl, Map<String, String> extraHeaders) {}
 }
