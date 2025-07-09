@@ -47,11 +47,16 @@ public class JobWebClient extends XyzWebClient {
         return instances.get(key);
     }
 
+    public JsonObject getJobStatus(String jobId) throws XyzWebClient.WebClientException {
+        return new JsonObject(new String(request(HttpRequest.newBuilder().GET()
+            .uri(uri( "/jobs/" + jobId + "/status"))).body()));
+    }
+
     public JsonObject createJob(JsonObject job) throws XyzWebClient.WebClientException {
         return new JsonObject(new String(request(HttpRequest.newBuilder()
-            .uri(uri("/jobs"))
-            .header(CONTENT_TYPE, JSON_UTF_8.toString())
-            .method("POST", HttpRequest.BodyPublishers.ofByteArray(job.toString().getBytes())))
-            .body()));
+                .uri(uri("/jobs"))
+                .header(CONTENT_TYPE, JSON_UTF_8.toString())
+                .method("POST", HttpRequest.BodyPublishers.ofByteArray(job.toString().getBytes())))
+                .body()));
     }
 }

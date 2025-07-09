@@ -21,6 +21,5 @@
   "JOBS_DYNAMODB_TABLE_ARN": "arn:aws:dynamodb:localhost:000000008000:table/xyz-jobs-local",
   "JOBS_S3_BUCKET": "test-bucket",
 
-  "HUB_ENDPOINT" : "http://localhost:8080/hub",
-  "JOB_API_ENDPOINT": "http://localhost:7070/"
+  "HUB_ENDPOINT" : "http://localhost:8080/hub"
 }
