@@ -231,8 +231,8 @@ public abstract class SpaceTask<X extends SpaceTask<?>> extends Task<Event, X> {
           .then(SpaceAuthorization::authorizeModifyOp)
           .then(SpaceTaskHandler::enforceUsageQuotas)
           .then(SpaceTaskHandler::sendEvents)
+           .then(SpaceTaskHandler::createMaintenanceJob)
           .then(SpaceTaskHandler::modifySpaces)
-          .then(SpaceTaskHandler::createMaintenanceJob)
           .then(SpaceTaskHandler::resolveDependencies)
           .then(SpaceTaskHandler::convertResponse);
     }

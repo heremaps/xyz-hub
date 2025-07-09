@@ -467,22 +467,27 @@ public class SpaceTaskHandler {
       // If the searchable properties were modified, trigger the OnDemand Index Creation Job
       logger.info(task.getMarker(), "Trigger OnDemand Index Creation Job");
 
-      //TODO: use Job-Web-Client
-      JsonObject maintenanceJob = new JsonObject("""              
-              {
-                  "description": "Maintain indices for the space $SPACE_ID",
-                  "source": {
-                      "type": "Space",
-                      "id": "$SPACE_ID"
-                  },
-                  "process": {
-                      "type": "Maintain"
-                  }
-              }
-              """.replaceAll("\\$SPACE_ID", entry.result.getId()));
+      try {
+        JsonObject maintenanceJob = new JsonObject("""              
+                {
+                    "description": "Maintain indices for the space $SPACE_ID",
+                    "source": {
+                        "type": "Space",
+                        "id": "$SPACE_ID"
+                    },
+                    "process": {
+                        "type": "Maintain"
+                    }
+                }
+                """.replaceAll("\\$SPACE_ID", entry.result.getId()));
 
-      JsonObject job = JobWebClient.getInstance(Config.instance.JOB_API_ENDPOINT).createJob(maintenanceJob);
-      logger.info(task.getMarker(), "Created Maintenance Job: {}", job);
+        JsonObject job = JobWebClient.getInstance(Config.instance.JOB_API_ENDPOINT).createJob(maintenanceJob);
+        logger.info(task.getMarker(), "Created Maintenance Job: {}", job);
+      }catch (Exception e){
+        logger.error(task.getMarker(), e.getMessage());
+        callback.exception(new HttpException(BAD_GATEWAY, "Creation of searchableProperties failed!"));
+        return;
+      }
     }
 
     callback.call(task);
