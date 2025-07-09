@@ -360,10 +360,10 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep> exten
   }
 
   @Override
-  protected void onStateCheck() {
-    //If no tasks are created, we can finish the process
+  public AsyncExecutionState getExecutionState() throws UnknownStateException {
     if(noTasksCreated)
-      reportAsyncSuccess();
+      return AsyncExecutionState.SUCCEEDED;
+    return super.getExecutionState();
   }
 
   /**
