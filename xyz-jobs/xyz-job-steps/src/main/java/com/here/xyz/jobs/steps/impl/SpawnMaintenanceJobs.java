@@ -72,7 +72,7 @@ public class SpawnMaintenanceJobs extends SpaceBasedStep<SpawnMaintenanceJobs> {
       if(space.getExtension() != null)
         return; // No need to maintain the space if it has an extension because it is maintained by the extension itself.
 
-      spaces = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadDependentSpaces(getSpaceId());
+      spaces = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadExtendingSpaces(getSpaceId());
     } catch (XyzWebClient.WebClientException e) {
       if (e instanceof XyzWebClient.ErrorResponseException errorResponse && errorResponse.getStatusCode() == 404) {
         logger.info("[{}] No dependent spaces found for key {}", getGlobalStepId() , getSpaceId());

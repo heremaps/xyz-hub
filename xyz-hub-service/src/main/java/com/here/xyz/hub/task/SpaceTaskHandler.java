@@ -65,20 +65,18 @@ import com.here.xyz.models.hub.jwt.ActionMatrix;
 import com.here.xyz.models.hub.jwt.AttributeMap;
 import com.here.xyz.models.hub.jwt.JWTPayload;
 import com.here.xyz.responses.ChangesetsStatisticsResponse;
+import com.here.xyz.util.Async;
 import com.here.xyz.util.service.BaseHttpServerVerticle;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.HttpException;
 import com.here.xyz.util.service.errors.DetailedHttpException;
 import com.here.xyz.util.web.JobWebClient;
-import com.here.xyz.util.web.XyzWebClient;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
-import io.vertx.core.buffer.Buffer;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.json.jackson.DatabindCodec;
 
-import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -98,7 +96,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 
 public class SpaceTaskHandler {
-
+  private static final Async ASYNC = new Async(10, SpaceTaskHandler.class);
   private static final Logger logger = LogManager.getLogger();
   private static final int CLIENT_VALUE_MAX_SIZE = 1024;
   private static final String DRY_RUN_SUPPORT_VERSION = "0.7.0";
@@ -129,14 +127,14 @@ public class SpaceTaskHandler {
         });
   }
 
-  static <X extends ReadQuery<?>> void readDependentSpaces(final X task, final Callback<X> callback) {
+  static <X extends ReadQuery<?>> void readExtendingSpaces(final X task, final Callback<X> callback) {
     if(task.selectedCondition.spaceIds == null){
       callback.call(task);
       return;
     }
     String spaceId = task.selectedCondition.spaceIds.stream().findFirst().orElse(null);
 
-    getAllDependentSpaces(task.getMarker(), spaceId)
+    getAllExtendingSpaces(task.getMarker(), spaceId)
             .onFailure(t -> {
               logger.error(task.getMarker(), "Unable to load space definitions.'", t);
               callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definitions.", t));
@@ -438,6 +436,9 @@ public class SpaceTaskHandler {
           });
     }
     else {
+      if (areSearchablePropertiesChanged(task, entry))
+        createMaintenanceJob(task.getMarker(), entry.result.getId());
+
       logger.warn("DEBUG: Storing space: {}", entry.result.getId());
       Service.spaceConfigClient
           .store(task.getMarker(), entry.result)
@@ -449,48 +450,45 @@ public class SpaceTaskHandler {
     }
   }
 
-  static void createMaintenanceJob(final ConditionalOperation task, final Callback<ConditionalOperation> callback)
-          throws XyzWebClient.WebClientException {
-    final Entry<Space> entry = task.modifyOp.entries.get(0);
-
+  private static boolean areSearchablePropertiesChanged(ConditionalOperation task, Entry<Space> entry) {
     // Only take care about space updates where properties were modified
     if(!task.isUpdate() || !entry.isModified){
-      callback.call(task);
-      return;
+      return false;
     }
 
     Map<String, Boolean> headProperties = entry.head.getSearchableProperties();
     Map<String, Boolean> resultProperties = entry.result.getSearchableProperties();
 
     if(headProperties != null && !headProperties.equals(resultProperties)
-        || headProperties == null && resultProperties != null){
-      // If the searchable properties were modified, trigger the OnDemand Index Creation Job
-      logger.info(task.getMarker(), "Trigger OnDemand Index Creation Job");
-
-      try {
-        JsonObject maintenanceJob = new JsonObject("""              
-                {
-                    "description": "Maintain indices for the space $SPACE_ID",
-                    "source": {
-                        "type": "Space",
-                        "id": "$SPACE_ID"
-                    },
-                    "process": {
-                        "type": "Maintain"
-                    }
-                }
-                """.replaceAll("\\$SPACE_ID", entry.result.getId()));
-
-        JsonObject job = JobWebClient.getInstance(Config.instance.JOB_API_ENDPOINT).createJob(maintenanceJob);
-        logger.info(task.getMarker(), "Created Maintenance Job: {}", job);
-      }catch (Exception e){
-        logger.error(task.getMarker(), e.getMessage());
-        callback.exception(new HttpException(BAD_GATEWAY, "Creation of searchableProperties failed!"));
-        return;
-      }
+            || headProperties == null && resultProperties != null){
+      return true;
     }
+    return false;
+  }
 
-    callback.call(task);
+  static void createMaintenanceJob(Marker marker, String spaceId){
+    // If the searchable properties were modified, trigger the OnDemand Index Creation Job
+    logger.info(marker, "Trigger OnDemand Index Creation Job");
+
+    JsonObject maintenanceJob = new JsonObject("""              
+            {
+                "description": "Maintain indices for the space $SPACE_ID",
+                "source": {
+                    "type": "Space",
+                    "id": "$SPACE_ID"
+                },
+                "process": {
+                    "type": "Maintain"
+                }
+            }
+            """.replaceAll("\\$SPACE_ID", spaceId));
+
+    ASYNC.run(() -> JobWebClient.getInstance(Config.instance.JOB_API_ENDPOINT).createJob(maintenanceJob))
+            .onFailure(e -> {
+              logger.error(marker, "Creation of maintenance Job", e);
+            }).onSuccess(job -> {
+              logger.info(marker, "Creation of maintenance Job succeeded: {}", job);
+            });
   }
 
   private static Space getSpaceTemplate(String owner, String cid) {
@@ -812,7 +810,7 @@ public class SpaceTaskHandler {
     final Future<List<Tag>> tagsFuture = Service.tagConfigClient.deleteTagsForSpace(task.getMarker(), spaceId)
         .onFailure(e->logger.error(task.getMarker(), "Failed to delete tags for space {}", spaceId, e));
 
-    final Future<Void> deactivateFuture = getAllDependentSpaces(task.getMarker(), spaceId)
+    final Future<Void> deactivateFuture = getAllExtendingSpaces(task.getMarker(), spaceId)
         .map(spaces -> spaces.stream().map(space -> Service.spaceConfigClient.store(task.getMarker(), (Space) space.withActive(false))).collect(Collectors.toList()))
         .map(Future::all)
         .mapEmpty();
@@ -846,7 +844,7 @@ public class SpaceTaskHandler {
         });
   }
 
-  private static Future<List<Space>> getAllDependentSpaces(Marker marker, String spaceId) {
+  private static Future<List<Space>> getAllExtendingSpaces(Marker marker, String spaceId) {
     return Service.spaceConfigClient.getSpacesFromSuper(marker, spaceId)
         .compose(spaces -> {
           final List<Future<List<Space>>> childrenFutures = spaces.stream().map(space ->

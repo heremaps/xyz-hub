@@ -68,15 +68,7 @@ public class SpaceMaintain implements JobCompilationInterceptor {
     if (!onDemandIndexSteps.isEmpty())
       stepGrap.addExecution(onDemandIndexSteps);
 
-    try {
-      List<com.here.xyz.models.hub.Space> spaces = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadDependentSpaces(source.getId());
-      stepGrap.addExecution(new SpawnMaintenanceJobs().withSpaceId(source.getId()));
-    } catch (XyzWebClient.WebClientException e) {
-      if (e instanceof XyzWebClient.ErrorResponseException errorResponse && errorResponse.getStatusCode() == 404) {
-        logger.info("No dependent spaces found for key {}", source.getId());
-      }else
-        throw new CompilationError("Error resolving dependent spaces" + e.getMessage(), e);
-    }
+    stepGrap.addExecution(new SpawnMaintenanceJobs().withSpaceId(source.getId()));
 
     return stepGrap;
   }

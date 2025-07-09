@@ -95,8 +95,8 @@ public abstract class SpaceTask<X extends SpaceTask<?>> extends Task<Event, X> {
     }
   }
 
-  public static class GetDependentSpaces extends ReadQuery<GetDependentSpaces> {
-    public GetDependentSpaces(RoutingContext context, String id) {
+  public static class GetExtendingSpaces extends ReadQuery<GetExtendingSpaces> {
+    public GetExtendingSpaces(RoutingContext context, String id) {
       super(context, ApiResponseType.SPACE_LIST, null, null);
 
       selectedCondition = new SpaceSelectionCondition();
@@ -108,7 +108,7 @@ public abstract class SpaceTask<X extends SpaceTask<?>> extends Task<Event, X> {
     @Override
     public TaskPipeline createPipeline() {
       return TaskPipeline.create(this)
-              .then(SpaceTaskHandler::readDependentSpaces)
+              .then(SpaceTaskHandler::readExtendingSpaces)
               .then(SpaceTaskHandler::convertResponse);
     }
   }
@@ -231,7 +231,6 @@ public abstract class SpaceTask<X extends SpaceTask<?>> extends Task<Event, X> {
           .then(SpaceAuthorization::authorizeModifyOp)
           .then(SpaceTaskHandler::enforceUsageQuotas)
           .then(SpaceTaskHandler::sendEvents)
-           .then(SpaceTaskHandler::createMaintenanceJob)
           .then(SpaceTaskHandler::modifySpaces)
           .then(SpaceTaskHandler::resolveDependencies)
           .then(SpaceTaskHandler::convertResponse);

@@ -114,10 +114,10 @@ public class HubWebClient extends XyzWebClient {
       return space.getExtension().getSpaceId();
   }
 
-  public List<Space> loadDependentSpaces(String superSpaceId) throws WebClientException {
+  public List<Space> loadExtendingSpaces(String superSpaceId) throws WebClientException {
     try {
       return deserialize(request(HttpRequest.newBuilder()
-              .uri(uri("/spaces/" + superSpaceId + "?dependentSpaces=true"))).body(),  new TypeReference<>() {} );
+              .uri(uri("/spaces/" + superSpaceId + "?extendingSpaces=true"))).body(),  new TypeReference<>() {} );
     }
     catch (JsonProcessingException e) {
       throw new WebClientException("Error deserializing response", e);
