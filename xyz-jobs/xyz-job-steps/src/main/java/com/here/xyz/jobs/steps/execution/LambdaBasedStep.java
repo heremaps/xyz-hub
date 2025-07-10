@@ -298,6 +298,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     return false;
   }
 
+  //TODO: Make private
   protected final void reportAsyncSuccess() {
     try {
       onAsyncSuccess();
