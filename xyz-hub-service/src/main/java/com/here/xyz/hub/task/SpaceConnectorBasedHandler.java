@@ -19,10 +19,12 @@
 
 package com.here.xyz.hub.task;
 
+import static com.here.xyz.responses.XyzError.ILLEGAL_ARGUMENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.METHOD_NOT_ALLOWED;
 
+import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.DeleteChangesetsEvent;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.GetChangesetStatisticsEvent;
@@ -78,8 +80,13 @@ public class SpaceConnectorBasedHandler {
           if(e instanceof DeleteChangesetsEvent || e instanceof  GetChangesetStatisticsEvent) {
               getMinTag(marker, space.getId())
                       .onSuccess(minTag -> {
-                          if (e instanceof DeleteChangesetsEvent)
-                              ((DeleteChangesetsEvent) e).setMinTagVersion(minTag);
+                          if (e instanceof DeleteChangesetsEvent deleteChangesetsEvent && minTag != null) {
+                              if (minTag < deleteChangesetsEvent.getMinVersion())
+                                  p.fail(new HttpException(BAD_REQUEST, "Tag for version " + minTag + " exists!"));
+                              else{
+                                  deleteChangesetsEvent.setMinVersion(Math.min(minTag, deleteChangesetsEvent.getMinVersion()));
+                              }
+                          }
                           else if (e instanceof GetChangesetStatisticsEvent) {
                               ((GetChangesetStatisticsEvent) e).setVersionsToKeep(space.getVersionsToKeep());
                               ((GetChangesetStatisticsEvent) e).setMinSpaceVersion(space.getMinVersion());
@@ -87,7 +94,12 @@ public class SpaceConnectorBasedHandler {
                           }
                           p.complete(space);
                       }).onFailure(
-                              t -> p.fail(new HttpException(BAD_GATEWAY, "Unexpected problem!"))
+                              t -> {
+                                  if(t instanceof HttpException){
+                                      p.fail(t);
+                                  }else
+                                      p.fail(new HttpException(BAD_GATEWAY, "Unexpected problem!"));
+                              }
                       );
           }else{
               ((IterateChangesetsEvent) e).setVersionsToKeep(space.getVersionsToKeep());

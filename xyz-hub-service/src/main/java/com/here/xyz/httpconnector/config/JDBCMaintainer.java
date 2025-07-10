@@ -36,6 +36,7 @@ import org.apache.logging.log4j.Logger;
 
 import java.sql.SQLException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.PARTITION_SIZE;
@@ -105,6 +106,7 @@ public class JDBCMaintainer extends JdbcBasedHandler {
                     return getClient(space.getStorage().getId())
                        .compose(client -> {
                          DatabaseSettings dbSettings = getDbSettings(space.getStorage().getId());
+                         dbSettings.setSearchPath( List.of(dbSettings.getSchema(),"hub.ext","public"));
                          String table = ConnectorParameters.fromMap(space.getStorage().getParams()).isEnableHashedSpaceId()
                                ? Hasher.getHash(spaceId) : spaceId;
 
