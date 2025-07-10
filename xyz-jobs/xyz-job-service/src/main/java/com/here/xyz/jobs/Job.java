@@ -23,6 +23,7 @@ import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_DEFAULT;
 import static com.here.xyz.jobs.RuntimeInfo.State.CANCELLED;
 import static com.here.xyz.jobs.RuntimeInfo.State.CANCELLING;
 import static com.here.xyz.jobs.RuntimeInfo.State.FAILED;
+import static com.here.xyz.jobs.RuntimeInfo.State.NONE;
 import static com.here.xyz.jobs.RuntimeInfo.State.NOT_READY;
 import static com.here.xyz.jobs.RuntimeInfo.State.PENDING;
 import static com.here.xyz.jobs.RuntimeInfo.State.RESUMING;
@@ -32,6 +33,8 @@ import static com.here.xyz.jobs.RuntimeInfo.State.SUCCEEDED;
 import static com.here.xyz.jobs.steps.Step.InputSet.DEFAULT_INPUT_SET_NAME;
 import static com.here.xyz.jobs.steps.inputs.Input.inputS3Prefix;
 import static com.here.xyz.jobs.steps.resources.Load.addLoads;
+import static com.here.xyz.jobs.steps.resources.ResourcesRegistry.fromStaticLoads;
+import static com.here.xyz.jobs.steps.resources.ResourcesRegistry.toStaticLoads;
 import static com.here.xyz.util.Random.randomAlpha;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -58,6 +61,7 @@ import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.jobs.steps.resources.ExecutionResource;
 import com.here.xyz.jobs.steps.resources.Load;
+import com.here.xyz.jobs.steps.resources.ResourcesRegistry.StaticLoad;
 import com.here.xyz.models.hub.Space.Extension;
 import com.here.xyz.util.Async;
 import com.here.xyz.util.service.Core;
@@ -115,6 +119,8 @@ public class Job implements XyzSerializable {
   private JobClientInfo clientInfo;
   @JsonView(Static.class)
   private String secondaryResourceKey;
+  @JsonView(Static.class)
+  private List<StaticLoad> calculatedResourceLoads;
 
   private static final Async ASYNC = new Async(100, Job.class);
   private static final Logger logger = LogManager.getLogger();
@@ -468,6 +474,17 @@ public class Job implements XyzSerializable {
     });
   }
 
+
+  private List<StaticLoad> getCalculatedResourceLoads() {
+    if (getStatus() == null || getStatus().getState() == NONE || getStatus().getState() == NOT_READY)
+      return null;
+    return calculatedResourceLoads;
+  }
+
+  private void setCalculatedResourceLoads(List<StaticLoad> calculatedResourceLoads) {
+    this.calculatedResourceLoads = calculatedResourceLoads;
+  }
+
   /**
    * Calculates the overall loads (necessary resources) of this job by aggregating the resource loads of all steps of this job.
    * The aggregation of parallel steps is done in the way that all resource-loads of parallel running steps will be added, while
@@ -476,10 +493,18 @@ public class Job implements XyzSerializable {
    * @return A list of overall resource-loads being reserved by this job
    */
   public Future<List<Load>> calculateResourceLoads() {
+    if (getCalculatedResourceLoads() != null)
+      return fromStaticLoads(getCalculatedResourceLoads());
     return calculateResourceLoads(getSteps())
-        .map(resourceLoads -> resourceLoads.entrySet().stream()
-            .map(e -> new Load().withResource(e.getKey()).withEstimatedVirtualUnits(e.getValue()))
-            .toList());
+        .map(resourceLoads -> {
+          List<Load> calculatedResourceLoads = resourceLoads.entrySet().stream()
+              .map(e -> new Load().withResource(e.getKey()).withEstimatedVirtualUnits(e.getValue()))
+              .toList();
+
+          setCalculatedResourceLoads(toStaticLoads(calculatedResourceLoads));
+
+          return calculatedResourceLoads;
+        });
   }
 
   private Future<Map<ExecutionResource, Double>> calculateResourceLoads(StepGraph graph) {

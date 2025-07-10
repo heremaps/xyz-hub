@@ -101,4 +101,34 @@ public class ResourcesRegistry {
           return resources;
         });
   }
+
+  public record StaticLoad(String resource, double units) {}
+
+  private static ExecutionResource findResourceById(List<ExecutionResource> executionResources, String resourceId) {
+    return executionResources.stream()
+        .filter(resource -> resource.getId().equals(resourceId))
+        .findAny().get();
+  }
+
+  public static List<StaticLoad> toStaticLoads(List<Load> loads) {
+    return loads.stream().map(load -> new StaticLoad(load.getResource().getId(), load.getEstimatedVirtualUnits())).toList();
+  }
+
+  public static Future<List<Load>> fromStaticLoads(List<StaticLoad> staticLoads) {
+    return getAllResources()
+        .map(executionResources -> staticLoads
+            .stream()
+            .map(staticLoad -> {
+              ExecutionResource foundResource = findResourceById(executionResources, staticLoad.resource);
+              if (foundResource == null) {
+                logger.warn("Unable to find resource with id {}", staticLoad.resource);
+                return null;
+              }
+              return new Load()
+                  .withResource(foundResource)
+                  .withEstimatedVirtualUnits(staticLoad.units);
+            })
+            .filter(load -> load != null)
+            .toList());
+  }
 }
