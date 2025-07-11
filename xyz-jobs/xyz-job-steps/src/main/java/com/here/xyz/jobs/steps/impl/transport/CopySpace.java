@@ -429,11 +429,11 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
           ( 
             ${{contentQuery}} 
           ) idata
-        RETURNING id, version, (coalesce(pg_column_size(jsondata),0) + coalesce(pg_column_size(geo),0))::bigint as bytes_size
+        RETURNING id
       ),
       count_data as 
-      ( SELECT count(1) AS rows_uploaded, sum(bytes_size)::BIGINT AS bytes_uploaded, 0::BIGINT AS files_uploaded FROM ins_data )
-      select 1 into dummy_output from count_data
+      ( SELECT count(1) AS rows_uploaded FROM ins_data )
+      select rows_uploaded into dummy_output from count_data
     """) //.withContext(queryContext)
     .withVariable("schema", targetSchema)
     .withVariable("table", targetTable)

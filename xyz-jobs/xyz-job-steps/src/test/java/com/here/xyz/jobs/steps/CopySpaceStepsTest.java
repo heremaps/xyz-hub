@@ -63,6 +63,7 @@ public class CopySpaceStepsTest extends StepTest {
   static private String sourceSpaceId = "testCopy-Source-07",
                         sourceSpaceBaseId = "testCopy-Source-base-07",
                         targetSpaceId = "testCopy-Target-07",
+                        emptyTargetSpaceId = "testCopy-Target-07e",
                         otherConnectorId = "psql_db2_hashed",
                         targetRemoteSpace = "testCopy-Target-07-remote",
                         propertyFilter = "p.all=common",
@@ -129,8 +130,8 @@ public class CopySpaceStepsTest extends StepTest {
                            .withExtension(new Space.Extension().withSpaceId(sourceSpaceBaseId)), false);
 
     createSpace(new Space().withId(targetSpaceId).withVersionsToKeep(100), false);
-    createSpace(new Space().withId(targetRemoteSpace).withVersionsToKeep(100).withStorage(new ConnectorRef().withId(otherConnectorId)),
-        false);
+    createSpace(new Space().withId(targetRemoteSpace).withVersionsToKeep(100).withStorage(new ConnectorRef().withId(otherConnectorId)),false);
+    createSpace(new Space().withId(emptyTargetSpaceId).withVersionsToKeep(100), false);
 
     //FIXME: Do not use random feature sets but specific ones that are fitting the actual use-case to be tested (prevents flickering and improves testing time)
     //write features source
@@ -164,49 +165,53 @@ public class CopySpaceStepsTest extends StepTest {
 
   private static Stream<Arguments> provideParameters() {
     return Stream.of(
-        Arguments.of(false, null, false, null, null),
-        Arguments.of(false, null, false, propertyFilter,null),
-        Arguments.of(false, spatialSearchGeom, false, null,null),
-        Arguments.of(false, spatialSearchGeom, true, null,null),
-        Arguments.of(false, spatialSearchGeom, false, propertyFilter,null),
-        Arguments.of(false, spatialSearchGeom, true, propertyFilter,null),
+        Arguments.of(false, null, false, null, null,false),
+        Arguments.of(false, null, false, null, null,true),
 
-        Arguments.of(false, null, false, null, versionRange),
-        Arguments.of(false, null, false, propertyFilter,versionRange),
-        Arguments.of(false, spatialSearchGeom, false, null, versionRange),
+        Arguments.of(false, null, false, propertyFilter,null,false),
+        Arguments.of(false, spatialSearchGeom, false, null,null,false),
+        Arguments.of(false, spatialSearchGeom, true, null,null,false),
+        Arguments.of(false, spatialSearchGeom, true, null,null,true),
+        Arguments.of(false, spatialSearchGeom, false, propertyFilter,null,false),
+        Arguments.of(false, spatialSearchGeom, true, propertyFilter,null,false),
 
-        Arguments.of(true, null, false, null,null),
-        Arguments.of(true, null, false, propertyFilter,null),
-        Arguments.of(true, spatialSearchGeom, false, null,null),
-        Arguments.of(true, spatialSearchGeom, true, null,null),
-        Arguments.of(true, spatialSearchGeom, false, propertyFilter,null),
-        Arguments.of(true, spatialSearchGeom, true, propertyFilter,null)
+        Arguments.of(false, null, false, null, versionRange,false),
+        Arguments.of(false, null, false, propertyFilter,versionRange,false),
+        Arguments.of(false, spatialSearchGeom, false, null, versionRange,false),
+
+        Arguments.of(true, null, false, null,null,false),
+        Arguments.of(true, null, false, propertyFilter,null,false),
+        Arguments.of(true, spatialSearchGeom, false, null,null,false),
+        Arguments.of(true, spatialSearchGeom, true, null,null,false),
+        Arguments.of(true, spatialSearchGeom, false, propertyFilter,null,false),
+        Arguments.of(true, spatialSearchGeom, true, propertyFilter,null,false) 
     );
   }
 
   @ParameterizedTest //(name = "{index}")
   @MethodSource("provideParameters")
-  public void copySpace(boolean testRemoteDb, Geometry geo, boolean clip, String propertyFilter, String versionRef) throws Exception {
+  public void copySpace(boolean testRemoteDb, Geometry geo, boolean clip, String propertyFilter, String versionRef, boolean emptyTarget) throws Exception {
     Ref resolvedRef = versionRef == null ? new Ref(loadHeadVersion(sourceSpaceId)) : new Ref(versionRef);
 
-    String targetSpace = !testRemoteDb ? CopySpaceStepsTest.targetSpaceId : targetRemoteSpace;
+    String targetSpace = !testRemoteDb ? (!emptyTarget ? targetSpaceId : emptyTargetSpaceId ) : targetRemoteSpace;
 
     StatisticsResponse statsBefore = getStatistics(targetSpace);
 
-    assertEquals(NrFeaturesAtStartInTargetSpace, (Object) statsBefore.getCount().getValue());
+    long NrFeaturesInTarget = statsBefore.getCount().getValue();
+    assertEquals( !emptyTarget ? NrFeaturesAtStartInTargetSpace : 0, NrFeaturesInTarget);
 
     LambdaBasedStep step = new CopySpace()
         .withSpaceId(sourceSpaceId).withSourceVersionRef(resolvedRef)
-        .withSpatialFilter( geo == null ? null : new SpatialFilter().withGeometry(geo).withClip(clip) )
+        .withSpatialFilter( geo == null ? null : new SpatialFilter().withGeometry(geo).withClip(clip).withRadius(7) )
         .withPropertyFilter(PropertiesQuery.fromString(propertyFilter))
         .withTargetSpaceId(targetSpace)
         .withJobId(JOB_ID)
+        .withEstimatedTargetFeatureCount(NrFeaturesInTarget)
         /* test only -> */.withTargetVersion(3); //TODO: rather provide the according model-based input instead (that would also directly test the functionality of providing the input accordingly)
-
 
     sendLambdaStepRequestBlock(step, true);
 
-    long expectedCount = 43L;
+    long expectedCount = ( !emptyTarget ? 43L : 40L );
 
     if( versionRef != null )
     { expectedCount = 12L;
