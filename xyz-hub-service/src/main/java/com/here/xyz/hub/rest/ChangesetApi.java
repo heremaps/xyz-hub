@@ -36,7 +36,6 @@ import com.here.xyz.hub.rest.ApiParam.Query;
 import com.here.xyz.hub.task.SpaceConnectorBasedHandler;
 import com.here.xyz.psql.query.IterateChangesets;
 import com.here.xyz.responses.ChangesetsStatisticsResponse;
-import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.responses.changesets.Changeset;
 import com.here.xyz.responses.changesets.ChangesetCollection;
 import com.here.xyz.util.service.HttpException;
@@ -62,6 +61,8 @@ public class ChangesetApi extends SpaceBasedApi {
    * Get changesets by version
    */
   private void getChangesets(final RoutingContext context) {
+    //TODO: check Space.minVersion and take it into account - We need to check before the NTF related parts.
+    // its possible that it needs to read versions before the Space.minVersion
     long startVersion = getLongQueryParam(context, START_VERSION, 0);
     long endVersion = getLongQueryParam(context, END_VERSION, -1);
 
@@ -80,6 +81,8 @@ public class ChangesetApi extends SpaceBasedApi {
    * Get changesets by version
    */
   private void getChangeset(RoutingContext context) {
+    //TODO: check Space.minVersion and take it into account - We need to check before the NTF related parts.
+    // its possible that it needs to read versions before the Space.minVersion
     long version = getVersionFromPathParam(context);
     IterateChangesetsEvent event = buildIterateChangesetsEvent(context, version, version);
     //TODO: Add static caching to this endpoint, once the execution pipelines have been refactored.
@@ -128,7 +131,12 @@ public class ChangesetApi extends SpaceBasedApi {
             sendResponse(context, HttpResponseStatus.NO_CONTENT, null);
             Marker marker = getMarker(context);
             Service.spaceConfigClient.get(marker, spaceId)
-                .compose(space -> Service.spaceConfigClient.store(marker, space.withMinVersion(minVersion)))
+                .compose(space -> {
+                  //TODO: check if minVersion is <= maxVersion? If yes we need to query the maxVersion.
+                  if(minVersion > space.getMinVersion())
+                    Service.spaceConfigClient.store(marker, space.withMinVersion(minVersion));
+                  return Future.succeededFuture();
+                })
                 .onSuccess(v -> logger.info(marker, "Updated minVersion for space {}", spaceId))
                 .onFailure(t -> logger.error(marker, "Error while updating minVersion for space {}", spaceId, t));
           })

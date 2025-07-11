@@ -1894,7 +1894,7 @@ $BODY$
 LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
-CREATE OR REPLACE FUNCTION xyz_write_versioned_modification_operation(id TEXT, version BIGINT, operation CHAR, jsondata JSONB, geo GEOMETRY, schema TEXT, tableName TEXT, concurrencyCheck BOOLEAN, partitionSize BIGINT, versionsToKeep INT, pw TEXT, baseVersion BIGINT)
+CREATE OR REPLACE FUNCTION xyz_write_versioned_modification_operation(id TEXT, version BIGINT, operation CHAR, jsondata JSONB, geo GEOMETRY, schema TEXT, tableName TEXT, concurrencyCheck BOOLEAN, partitionSize BIGINT, versionsToKeep INT, pw TEXT, baseVersion BIGINT, minTagVersion BIGINT)
     RETURNS INTEGER AS
 $BODY$
     DECLARE
@@ -1946,20 +1946,21 @@ $BODY$
             format('INSERT INTO %I.%I (id, version, operation, author, jsondata, geo) VALUES (%L, %L, %L, %L, %L, %L)',
                    schema, tableName, id, version, operation, author, jsondata, xyz_geoFromWkb(geo) );
 
-
         -- If the current history partition is nearly full, create the next one already
         IF version % partitionSize > partitionSize - 50 THEN
             EXECUTE xyz_create_history_partition(schema, tableName, (floor(version / partitionSize) + 1)::BIGINT, partitionSize);
         END IF;
 
         -- Delete old changesets from the history to keep only as many versions as specified through "versionsToKeep" if necessary
-        -- Temporarily deactivated
-        --IF version % 10 = 1 THEN -- Perform the check only on every 10th transaction
-        --    minVersion := version - versionsToKeep + 1;
-        --    IF minVersion > 0 THEN
-        --        PERFORM asyncify('SELECT xyz_delete_changesets(''' || schema || ''', ''' || tableName || ''', ' ||  partitionSize || ', ' || minVersion || ')', pw);
-        --    END IF;
-        --END IF;
+        IF version % 2 = 0 THEN -- Perform the check only on every 10th transaction
+            minVersion := version - versionsToKeep + 1;
+			IF minTagVersion != -1 THEN
+				minVersion := least(minTagVersion, minVersion);
+			END IF;        
+            IF minVersion > 0 THEN
+                PERFORM asyncify('SELECT xyz_delete_changesets(''' || schema || ''', ''' || tableName || ''', ' ||  partitionSize || ', ' || minVersion || ')', pw);
+            END IF;
+        END IF;
 
         RETURN 1;
     END

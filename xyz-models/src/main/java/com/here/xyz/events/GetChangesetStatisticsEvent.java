@@ -21,8 +21,20 @@ package com.here.xyz.events;
 
 public class GetChangesetStatisticsEvent extends Event<GetChangesetStatisticsEvent> {
     private Long minTagVersion;
-    private long minSpaceVersion;
-    private int versionsToKeep;
+    private long minVersion;
+
+    public long getMinVersion() {
+        return  minVersion;
+    }
+
+    public void setMinVersion(long minVersion) {
+        this.minVersion = minVersion;
+    }
+
+    public GetChangesetStatisticsEvent withMinVersion(long minVersion) {
+        setMinVersion(minVersion);
+        return this;
+    }
 
     public Long getMinTagVersion() {
         return minTagVersion;
@@ -33,33 +45,7 @@ public class GetChangesetStatisticsEvent extends Event<GetChangesetStatisticsEve
     }
 
     public GetChangesetStatisticsEvent withMinTagVersion(long minTagVersion) {
-        setMinSpaceVersion(minTagVersion);
-        return this;
-    }
-
-    public long getMinSpaceVersion() {
-        return minSpaceVersion;
-    }
-
-    public void setMinSpaceVersion(long minSpaceVersion) {
-        this.minSpaceVersion = minSpaceVersion;
-    }
-
-    public GetChangesetStatisticsEvent withMinSpaceVersion(long minSpaceVersion) {
-        setMinSpaceVersion(minSpaceVersion);
-        return this;
-    }
-
-    public int getVersionsToKeep() {
-        return versionsToKeep;
-    }
-
-    public void setVersionsToKeep(int versionsToKeep) {
-        this.versionsToKeep = versionsToKeep;
-    }
-
-    public GetChangesetStatisticsEvent withVersionsToKeep(int setVersionsToKeep) {
-        setVersionsToKeep(versionsToKeep);
+        setMinTagVersion(minTagVersion);
         return this;
     }
 }

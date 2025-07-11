@@ -623,6 +623,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
           .then(FeatureAuthorization::authorize)
           .then(FeatureTaskHandler::enforceUsageQuotas)
           .then(FeatureTaskHandler::extractUnmodifiedFeatures)
+          .then(FeatureTaskHandler::injectMinVersion)
           .then(this::cleanup)
           .then(FeatureTaskHandler::invoke);
     }

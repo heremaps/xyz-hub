@@ -31,25 +31,23 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 
 public class GetChangesetStatistics extends XyzQueryRunner<GetChangesetStatisticsEvent, ChangesetsStatisticsResponse> {
-  Long minTagVersion;
-  long minSpaceVersion;
-  int versionsToKeep;
+  long minTagVersion;
+  long minVersion;
 
   public GetChangesetStatistics(GetChangesetStatisticsEvent event)
       throws SQLException, ErrorResponseException {
     super(event);
     setUseReadReplica(true);
-    this.minSpaceVersion = event.getMinSpaceVersion();
-    this.minTagVersion = event.getMinTagVersion();
-    this.versionsToKeep = event.getVersionsToKeep();
+
+    this.minVersion = event.getMinVersion();
+    this.minTagVersion = event.getMinTagVersion() != null ? event.getMinTagVersion() : -1L;
   }
 
   @Override
   protected SQLQuery buildQuery(GetChangesetStatisticsEvent event) {
     SQLQuery query =new SQLQuery(
             "SELECT (SELECT max(version) FROM ${schema}.${table}) as max," +
-                    " (SELECT meta->'minAvailableVersion' " +
-                    " FROM xyz_config.space_meta WHERE h_id=#{table}) as min;");
+                    " (SELECT min(version) FROM ${schema}.${table}) as min;");
 
     query.setVariable(SCHEMA, getSchema());
     query.setVariable(TABLE, getDefaultTable(event));
@@ -64,13 +62,17 @@ public class GetChangesetStatistics extends XyzQueryRunner<GetChangesetStatistic
     if(rs.next()){
       String maxV = rs.getString("max");
       String minV = rs.getString("min");
-      long maxVersion = (maxV == null ? 0 : Long.parseLong(maxV));
+      long maxDbVersion = (maxV == null ? 0 : Long.parseLong(maxV));
       //FIXME: Returned minVersion is not always correct for spaces with v2k=1
-      long minVersion = (minV == null ? 0 : Long.parseLong(minV));
+      long minDbVersion = (minV == null ? 0 : Long.parseLong(minV));
 
-      csr.setMaxVersion(maxVersion);
-      csr.setMinVersion(maxVersion == 0 ? 0 : minVersion);
-      csr.setTagMinVersion(minTagVersion);
+      csr.setMaxVersion(maxDbVersion);
+      //Default = 1
+      if(minVersion != 1L)
+        csr.setMinVersion(Math.min(minDbVersion, minVersion));
+      csr.setMinVersion(minDbVersion);
+      if(minTagVersion != -1L)
+        csr.setTagMinVersion(minTagVersion);
     }
     return csr;
   }
