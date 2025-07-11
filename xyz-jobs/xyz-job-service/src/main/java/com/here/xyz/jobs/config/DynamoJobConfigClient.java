@@ -61,6 +61,8 @@ public class DynamoJobConfigClient extends JobConfigClient {
   public static final int MAX_RESOURCE_KEYS = 256;
   public static final IndexDefinition JOB_ID_GSI = new IndexDefinition("jobId");
   public static final IndexDefinition STATE_GSI = new IndexDefinition("state");
+  public static final IndexDefinition RESOURCE_KEY_GSI = new IndexDefinition("resourceKey");
+  public static final IndexDefinition SECONDARY_RESOURCE_KEY_GSI = new IndexDefinition("secondaryResourceKey");
   private final Table jobTable;
   private final Table resourceKeyTable;
   private final DynamoClient dynamoClient;
@@ -185,13 +187,30 @@ public class DynamoJobConfigClient extends JobConfigClient {
    */
   private Future<Set<String>> findJobIds(Set<String> resourceKeys) {
     //Run the queries for all resource keys in parallel
-    return Future.all(resourceKeys.stream()
-        .map(resourceKey -> findJobIds(resourceKey))
-        .toList())
+    List<Future<Set<String>>> bwcLoaded = resourceKeys.stream().map(resourceKey -> loadJobIdsByResourceKeyBWC(resourceKey)).toList();
+    List<Future<Set<String>>> newStyle = resourceKeys.stream().map(resourceKey -> findJobIds(resourceKey)).toList();
+    List<Future<Set<String>>> combined = new ArrayList<>();
+    combined.addAll(bwcLoaded);
+    combined.addAll(newStyle);
+
+    return Future.all(combined)
         .map(cf -> cf.list().stream()
             .flatMap(set -> ((Set<String>) set).stream())
             .collect(Collectors.toSet()));
   }
+
+  @Deprecated
+  private Future<Set<String>> loadJobIdsByResourceKeyBWC(String resourceKey) {
+    return dynamoClient.executeQueryAsync(() -> {
+      Set<String> jobs = new HashSet<>();
+      jobs.addAll(queryIndex(jobTable, RESOURCE_KEY_GSI, resourceKey).stream().map(item -> item.getString("id"))
+          .collect(Collectors.toSet()));
+      jobs.addAll(queryIndex(jobTable, SECONDARY_RESOURCE_KEY_GSI, resourceKey).stream().map(item -> item.getString("id"))
+          .collect(Collectors.toSet()));
+      return jobs;
+    });
+  }
+
 
   /**
    * Returns the IDs of all jobs that are related to the specified resource key.
@@ -367,9 +386,9 @@ public class DynamoJobConfigClient extends JobConfigClient {
       logger.info("DynamoDB running locally, initializing Jobs table.");
       try {
         List<IndexDefinition> indexes = List.of(
-            new IndexDefinition("resourceKey"), //TODO: Remove
+            RESOURCE_KEY_GSI, //TODO: Remove
             STATE_GSI,
-            new IndexDefinition("secondaryResourceKey") //TODO: Remove
+            SECONDARY_RESOURCE_KEY_GSI //TODO: Remove
         );
         dynamoClient.createTable(jobTable.getTableName(), "id:S,resourceKey:S,secondaryResourceKey:S,state:S", "id", indexes,
             "keepUntil");
