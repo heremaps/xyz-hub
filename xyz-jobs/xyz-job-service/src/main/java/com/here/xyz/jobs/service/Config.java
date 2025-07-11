@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,9 +35,14 @@ public class Config extends com.here.xyz.jobs.steps.Config {
   public String ROUTER_BUILDER_CLASS_NAMES;
 
   /**
-   * ARN of DynamoDB Table for JOBs
+   * The ARN of the DynamoDB table for jobs
    */
   public String JOBS_DYNAMODB_TABLE_ARN;
+
+  /**
+   * ARN of the DynamoDB table for job to resource-key relations.
+   */
+  public String RESOURCE_KEYS_DYNAMODB_TABLE_ARN;
 
   /**
    * The ARN of the step lambda being called by the step functions

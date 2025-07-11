@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -41,25 +41,22 @@ import com.amazonaws.services.dynamodbv2.model.ResourceInUseException;
 import com.amazonaws.services.dynamodbv2.model.TimeToLiveSpecification;
 import com.amazonaws.services.dynamodbv2.model.UpdateTimeToLiveRequest;
 import com.amazonaws.util.CollectionUtils;
-import software.amazon.awssdk.regions.Region;
 import com.here.xyz.util.ARN;
 import com.here.xyz.util.service.Core;
 import io.vertx.core.Future;
 import io.vertx.core.WorkerExecutor;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import software.amazon.awssdk.regions.Region;
 
 public class DynamoClient {
 
   private static final Logger logger = LogManager.getLogger();
   private static final Long READ_CAPACITY_UNITS = 5L;
   private static final Long WRITE_CAPACITY_UNITS = 5L;
-  private static final String INDEX_SUFFIX = "-index";
-  private static final String HYPHEN = "-";
 
 
   public static final WorkerExecutor dynamoWorkers = Core.vertx.createSharedWorkerExecutor(DynamoClient.class.getName(), 30);
@@ -169,28 +166,24 @@ public class DynamoClient {
     return DynamoClient.dynamoWorkers.executeBlocking(
         promise -> {
           try {
-              promise.complete(commandExecution.supply());
-            }
-            catch (Exception e) {
-              promise.fail(e);
-            }
+            promise.complete(commandExecution.supply());
+          }
+          catch (Exception e) {
+            promise.fail(e);
+          }
         });
   }
 
   private GlobalSecondaryIndex createGSI(IndexDefinition indexDefinition) {
     List<KeySchemaElement> keySchema = new ArrayList<>();
     keySchema.add(new KeySchemaElement(indexDefinition.getHashKey(), KeyType.HASH));
-    if(indexDefinition.getRangeKey() != null) {
+    if (indexDefinition.getRangeKey() != null)
       keySchema.add(new KeySchemaElement(indexDefinition.getRangeKey(), KeyType.RANGE));
-    }
-    String indexName = indexDefinition.getRangeKey() != null ?
-            indexDefinition.getHashKey().concat(HYPHEN).concat(indexDefinition.getRangeKey()).concat(INDEX_SUFFIX) :
-            indexDefinition.getHashKey().concat(INDEX_SUFFIX);
 
     return new GlobalSecondaryIndex()
-            .withIndexName(indexName)
-            .withKeySchema(keySchema)
-            .withProjection(new Projection().withProjectionType(ProjectionType.ALL))
-            .withProvisionedThroughput(new ProvisionedThroughput(READ_CAPACITY_UNITS, WRITE_CAPACITY_UNITS));
+        .withIndexName(indexDefinition.getName())
+        .withKeySchema(keySchema)
+        .withProjection(new Projection().withProjectionType(ProjectionType.ALL))
+        .withProvisionedThroughput(new ProvisionedThroughput(READ_CAPACITY_UNITS, WRITE_CAPACITY_UNITS));
   }
 }

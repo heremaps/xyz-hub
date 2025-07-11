@@ -221,6 +221,7 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
     try {
       return Objects.equals(otherExport.getSpaceId(), getSpaceId())
           && Objects.equals(otherExport.versionRef, versionRef)
+                                                    //TODO: Check if that part is still necessary
           && (otherExport.context == context || (space().getExtension() == null && otherExport.context == null && context == SUPER))
           && Objects.equals(otherExport.spatialFilter, spatialFilter)
           && Objects.equals(otherExport.propertyFilter, propertyFilter)

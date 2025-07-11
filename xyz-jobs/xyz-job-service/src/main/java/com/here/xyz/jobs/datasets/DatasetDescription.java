@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,8 +34,15 @@ import com.here.xyz.jobs.datasets.DatasetDescription.Space;
 import com.here.xyz.jobs.datasets.filters.FilteringSource;
 import com.here.xyz.jobs.datasets.filters.Filters;
 import com.here.xyz.jobs.datasets.streams.Notifications;
+import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.models.hub.Ref;
+import com.here.xyz.models.hub.Space.Extension;
 import com.here.xyz.util.geo.GeometryValidator;
+import com.here.xyz.util.web.HubWebClient;
+import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
+import com.here.xyz.util.web.XyzWebClient.WebClientException;
+import java.util.HashSet;
+import java.util.Set;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeInfo(use = Id.NAME, property = "type")
@@ -56,6 +63,12 @@ public abstract class DatasetDescription implements Typed {
    */
   @JsonIgnore
   public abstract String getKey();
+
+  @JsonIgnore
+  public Set<String> getResourceKeys() {
+    String primaryKey = getKey();
+    return primaryKey == null ? Set.of() : Set.of(primaryKey);
+  }
 
   public static class Map extends Identifiable implements VersionedSource<Map> {
     private Ref versionRef = new Ref(Ref.HEAD);
@@ -119,6 +132,30 @@ public abstract class DatasetDescription implements Typed {
     public T withVersionRef(Ref versionRef) {
       setVersionRef(versionRef);
       return (T) this;
+    }
+
+    @Override
+    public Set<String> getResourceKeys() {
+      Set<String> resourceKeys = new HashSet<>(super.getResourceKeys());
+
+      String extendedSpaceId = loadExtendedId();
+      if (extendedSpaceId != null)
+        resourceKeys.add(extendedSpaceId);
+
+      return resourceKeys;
+    }
+
+    public String loadExtendedId() {
+      try {
+        Extension extension = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadSpace(getId()).getExtension();
+        return extension == null ? null : extension.getSpaceId();
+      }
+      catch (WebClientException e) {
+        //Ignore if space is not present (anymore)
+        if (!(e instanceof ErrorResponseException errorResponseException && errorResponseException.getStatusCode() == 404))
+          throw new RuntimeException(e);
+      }
+      return null;
     }
   }
 }
