@@ -43,10 +43,12 @@ public class AwsClientFactoryBase {
     if (AwsClientFactoryBase.isLocal()) {
       builder.endpointOverride(BaseConfig.instance.LOCALSTACK_ENDPOINT);
       builder.credentialsProvider(LOCAL_CREDENTIALS_PROVIDER);
-      region = region == null ? BaseConfig.instance.AWS_REGION : region;
-      if (region != null)
-        builder.region(Region.of(region));
     }
+
+    region = region == null ? BaseConfig.instance.AWS_REGION : region;
+    if (region != null)
+      builder.region(Region.of(region));
+
     return builder;
   }
 
@@ -56,7 +58,7 @@ public class AwsClientFactoryBase {
 
   public static S3ClientBuilder s3(String region) {
     S3ClientBuilder builder = prepareClient(S3Client.builder()
-        .httpClientBuilder(ApacheHttpClient.builder().maxConnections(200)));
+        .httpClientBuilder(ApacheHttpClient.builder().maxConnections(200)), region);
     if (isLocal())
       builder.forcePathStyle(true);
     return builder;
