@@ -23,27 +23,16 @@ import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper.OnDemandIndex;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
 
 public class DropIndexStepTest extends StepTest {
 
-  @BeforeEach
-  public void setup() throws SQLException {
-    createSpace(new Space().withId(SPACE_ID).withSearchableProperties(Map.of(
-                    "foo1", true,
-                    "foo2.nested", true,
-                    "foo3", true
-            )
-    ), false);
-  }
-
   @Test
   public void testDropIndexesStepWithoutWhitelist() throws Exception {
+    createTestSpace(true);
     Assertions.assertTrue(listExistingIndexes(SPACE_ID).size() > 0);
 
     LambdaBasedStep step = new DropIndexes().withSpaceId(SPACE_ID);
@@ -55,6 +44,7 @@ public class DropIndexStepTest extends StepTest {
 
   @Test
   public void testDropIndexesStepWithWhitelist() throws Exception {
+    createTestSpace(true);
     Assertions.assertTrue(listExistingIndexes(SPACE_ID).size() > 0);
 
     LambdaBasedStep step = new DropIndexes()
@@ -74,6 +64,7 @@ public class DropIndexStepTest extends StepTest {
 
   @Test
   public void testDropIndexesStepWithEmptyWhitelist() throws Exception {
+    createTestSpace(true);
     Assertions.assertTrue(listExistingIndexes(SPACE_ID).size() > 0);
 
     LambdaBasedStep step = new DropIndexes()
@@ -89,7 +80,7 @@ public class DropIndexStepTest extends StepTest {
   @Test
   public void testDropIndexesStepWithWhitelistOnSpaceWithoutOnDemandIndices() throws Exception {
     //recreate space without on-demandindices
-    createSpace(new Space().withId(SPACE_ID), true);
+    createTestSpace(false);
 
     LambdaBasedStep step = new DropIndexes()
             .withSpaceId(SPACE_ID)
@@ -99,5 +90,19 @@ public class DropIndexStepTest extends StepTest {
 
     //only system indexes should remain
     Assertions.assertEquals(7, listExistingIndexes(SPACE_ID).size());
+  }
+
+  private void createTestSpace(boolean withOnDemandIndices) {
+    Space space = new Space().withId(SPACE_ID);
+    if (withOnDemandIndices) {
+      space.setSearchableProperties(
+        Map.of(
+                "foo1", true,
+                "foo2.nested", true,
+                "foo3", true
+        )
+      );
+    }
+    createSpace(space, false);
   }
 }
