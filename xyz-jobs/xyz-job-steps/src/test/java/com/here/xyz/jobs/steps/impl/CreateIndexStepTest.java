@@ -48,9 +48,6 @@ public class CreateIndexStepTest extends StepTest {
 
     @Test
     public void testCreateOnDemandIndex() throws Exception {
-        XyzSerializable.registerSubtypes(XyzSpaceTableHelper.Index.class);
-        XyzSerializable.registerSubtypes(OnDemandIndex.class);
-
         deleteAllExistingIndexes(SPACE_ID);
         Assertions.assertEquals(0, listExistingIndexes(SPACE_ID).size());
 

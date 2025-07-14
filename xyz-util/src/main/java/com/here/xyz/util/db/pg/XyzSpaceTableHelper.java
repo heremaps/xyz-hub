@@ -27,6 +27,7 @@ import static com.here.xyz.util.db.pg.IndexHelper.buildDropIndexQuery;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.here.xyz.Typed;
 import com.here.xyz.util.Hasher;
 import com.here.xyz.util.db.SQLQuery;
@@ -56,6 +57,7 @@ public class XyzSpaceTableHelper {
     String getIndexName();
   }
 
+  @JsonTypeName("SystemIndex")
   public enum SystemIndex implements Index {
     GEO,
     VERSION_ID,
@@ -115,6 +117,7 @@ public class XyzSpaceTableHelper {
     }
   }
 
+  @JsonTypeName("OnDemandIndex")
   public static class OnDemandIndex implements Index {
     private String indexName;
     private String propertyPath;
