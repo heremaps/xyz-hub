@@ -21,7 +21,11 @@ package com.here.xyz.psql.query;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.Event;
+import com.here.xyz.events.ModifySpaceEvent;
+import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.util.db.ConnectorParameters;
+import com.here.xyz.util.db.ConnectorParameters.TableLayout;
 import com.here.xyz.util.db.SQLQuery;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -39,6 +43,20 @@ public abstract class XyzQueryRunner<E extends Event, R extends XyzResponse> ext
   public XyzQueryRunner(E event)
       throws SQLException, ErrorResponseException {
     super(event);
+
+    final ConnectorParameters connectorParameters = ConnectorParameters.fromEvent(event);
+
+    // If TableLayout is not set, default to V1
+    if(connectorParameters.getTableLayout() == null )
+      setTableLayout(TableLayout.V1);
+    else
+      setTableLayout(connectorParameters.getTableLayout());
+
+    if(getTableLayout().equals(TableLayout.V2)) {
+      //TODO: Add all supported events here
+      if(!(event instanceof ModifySpaceEvent))
+        throw new ErrorResponseException(XyzError.NOT_IMPLEMENTED, "The table layout V2 is only supported for ModifySpaceEvent events.");
+    }
   }
 
 }

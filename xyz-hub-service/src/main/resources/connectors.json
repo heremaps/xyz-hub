@@ -1,5 +1,49 @@
 [
   {
+    "id": "psql-new-table-layout",
+    "params": {
+      "tableLayout": "V2",
+      "propertySearch": true,
+      "onDemandIdxLimit": 8,
+      "dbCheckoutTimeout": 12,
+      "dbAcquireRetryAttempts": 10,
+      "connectorId" : "psql",
+      "ecps": "$encrypt({\"PSQL_HOST\":\"${PSQL_HOST}\",\"PSQL_REPLICA_HOST\":\"${PSQL_HOST}\",\"PSQL_REPLICA_USER\":\"ro_user\",\"PSQL_PORT\":\"${PSQL_PORT}\",\"PSQL_DB\":\"${PSQL_DB}\",\"PSQL_USER\":\"${PSQL_USER}\",\"PSQL_PASSWORD\":\"${PSQL_PASSWORD}\"})",
+      "mvtSupport": true
+    },
+    "capabilities": {
+      "propertySearch": true,
+      "searchablePropertiesConfiguration": true,
+      "preserializedResponseSupport": true,
+      "enableAutoCache": true,
+      "maxPayloadSize": 1073741824,
+      "storageUtilizationReporting": true,
+      "mvtSupport": true,
+      "extensionSupport": true
+    },
+    "connectionSettings": {
+      "maxConnections": 32
+    },
+    "remoteFunctions": {
+      "local": {
+        "type": "Embedded",
+        "id": "xyz-psql-local",
+        "warmUp": 1,
+        "className": "com.here.xyz.psql.PSQLXyzConnector",
+        "env": {
+          "ECPS_PHRASE": "local"
+        },
+        "protocolVersion": "0.7.0"
+      }
+    },
+    "trusted": true,
+    "forwardParamsConfig": {
+      "cookies": ["here_access", "here_access_st"],
+      "headers": ["AuthorizatioN", "realm"],
+      "queryParams": ["apiKey"]
+    }
+  },
+  {
     "id": "psql",
     "params": {
       "autoIndexing": true,

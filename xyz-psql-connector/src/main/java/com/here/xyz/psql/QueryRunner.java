@@ -21,6 +21,7 @@ package com.here.xyz.psql;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.responses.ErrorResponse;
+import com.here.xyz.util.db.ConnectorParameters.TableLayout;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import com.here.xyz.util.db.datasource.DatabaseSettings;
@@ -46,6 +47,7 @@ public abstract class QueryRunner<E extends Object, R extends Object> implements
   private SQLQuery query;
   private boolean useReadReplica;
   private DataSourceProvider dataSourceProvider;
+  private TableLayout tableLayout;
 
   /*
   NOTE:
@@ -147,5 +149,18 @@ public abstract class QueryRunner<E extends Object, R extends Object> implements
 
   protected String getSchema() {
     return getDbSettings().getSchema();
+  }
+
+  public TableLayout getTableLayout() {
+    return tableLayout != null ? tableLayout : TableLayout.V1;
+  }
+
+  public void setTableLayout(TableLayout tableLayout) {
+      this.tableLayout = tableLayout;
+  }
+
+  public QueryRunner withTableLayout(TableLayout tableLayout) {
+    setTableLayout(tableLayout);
+    return this;
   }
 }

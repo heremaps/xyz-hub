@@ -28,7 +28,9 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.here.xyz.Typed;
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.util.Hasher;
+import com.here.xyz.util.db.ConnectorParameters.TableLayout;
 import com.here.xyz.util.db.SQLQuery;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -261,5 +263,21 @@ public class XyzSpaceTableHelper {
     }
 
     return getTableNameForSpaceId(spaceId, hashed);
+  }
+
+  public static SQLQuery buildAddTableCommentQuery(String schema, String table, TableComment tableComment) {
+    return new SQLQuery("COMMENT ON TABLE ${schema}.${table} IS '${{tableComment}}'")
+            .withVariable(SCHEMA, schema)
+            .withVariable(TABLE, table)
+            .withQueryFragment("tableComment", XyzSerializable.serialize(tableComment));
+  }
+
+  public static SQLQuery buildReadTableCommentQuery(String schema, String table) {
+    return new SQLQuery("SELECT comment::JSON from obj_description( '${schema}.${table}'::regclass ) as comment;")
+            .withVariable(SCHEMA, schema)
+            .withVariable(TABLE, table);
+  }
+
+  public record TableComment(String spaceId, TableLayout tableLayout) implements XyzSerializable{
   }
 }
