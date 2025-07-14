@@ -376,7 +376,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     SQLQuery contentQuery = buildCopyContentQuery(threadCount, threadId);
 
     if (isRemoteCopy())
-      contentQuery = buildCopyQueryRemoteSpace(dbReader(), contentQuery);
+      contentQuery = buildCopyQueryRemoteSpace(dbReader(), contentQuery, useTableCopy());
 
     if (! useTableCopy() )
     {

@@ -66,6 +66,7 @@ public class CopySpaceStepsTest extends StepTest {
                         emptyTargetSpaceId = "testCopy-Target-07e",
                         otherConnectorId = "psql_db2_hashed",
                         targetRemoteSpace = "testCopy-Target-07-remote",
+                        emptyTargetRemoteSpace = "testCopy-Target-07e-remote",
                         propertyFilter = "p.all=common",
                         versionRange = "1..6";
 
@@ -131,7 +132,9 @@ public class CopySpaceStepsTest extends StepTest {
 
     createSpace(new Space().withId(targetSpaceId).withVersionsToKeep(100), false);
     createSpace(new Space().withId(targetRemoteSpace).withVersionsToKeep(100).withStorage(new ConnectorRef().withId(otherConnectorId)),false);
+
     createSpace(new Space().withId(emptyTargetSpaceId).withVersionsToKeep(100), false);
+    createSpace(new Space().withId(emptyTargetRemoteSpace).withVersionsToKeep(100).withStorage(new ConnectorRef().withId(otherConnectorId)),false);
 
     //FIXME: Do not use random feature sets but specific ones that are fitting the actual use-case to be tested (prevents flickering and improves testing time)
     //write features source
@@ -165,6 +168,7 @@ public class CopySpaceStepsTest extends StepTest {
 
   private static Stream<Arguments> provideParameters() {
     return Stream.of(
+
         Arguments.of(false, null, false, null, null,false),
         Arguments.of(false, null, false, null, null,true),
 
@@ -180,9 +184,11 @@ public class CopySpaceStepsTest extends StepTest {
         Arguments.of(false, spatialSearchGeom, false, null, versionRange,false),
 
         Arguments.of(true, null, false, null,null,false),
+        Arguments.of(true, null, false, null,null,true),
         Arguments.of(true, null, false, propertyFilter,null,false),
         Arguments.of(true, spatialSearchGeom, false, null,null,false),
         Arguments.of(true, spatialSearchGeom, true, null,null,false),
+        Arguments.of(true, spatialSearchGeom, true, null,null,true),
         Arguments.of(true, spatialSearchGeom, false, propertyFilter,null,false),
         Arguments.of(true, spatialSearchGeom, true, propertyFilter,null,false) 
     );
@@ -193,7 +199,8 @@ public class CopySpaceStepsTest extends StepTest {
   public void copySpace(boolean testRemoteDb, Geometry geo, boolean clip, String propertyFilter, String versionRef, boolean emptyTarget) throws Exception {
     Ref resolvedRef = versionRef == null ? new Ref(loadHeadVersion(sourceSpaceId)) : new Ref(versionRef);
 
-    String targetSpace = !testRemoteDb ? (!emptyTarget ? targetSpaceId : emptyTargetSpaceId ) : targetRemoteSpace;
+    String targetSpace = !testRemoteDb ? (!emptyTarget ? targetSpaceId : emptyTargetSpaceId )
+                                       : (!emptyTarget ? targetRemoteSpace : emptyTargetRemoteSpace );
 
     StatisticsResponse statsBefore = getStatistics(targetSpace);
 
