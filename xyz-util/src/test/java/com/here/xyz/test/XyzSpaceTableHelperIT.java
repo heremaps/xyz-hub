@@ -56,8 +56,8 @@ public class XyzSpaceTableHelperIT extends SQLITBase {
       TableLayout v2 = TableLayout.V2;
 
       try (DataSourceProvider dsp = getDataSourceProvider()) {
-//          SQLQuery addTableComment = XyzSpaceTableHelper.buildAddTableCommentQuery(SCHEMA, TABLE, new TableComment(TABLE, v2));
-//          addTableComment.write(dsp);
+          SQLQuery addTableComment = XyzSpaceTableHelper.buildAddTableCommentQuery(SCHEMA, TABLE, new TableComment(TABLE, v2));
+          addTableComment.write(dsp);
 
           SQLQuery readTableComment = XyzSpaceTableHelper.buildReadTableCommentQuery(SCHEMA, TABLE);
           readTableComment.run(dsp, rs -> {
