@@ -266,7 +266,7 @@ public class JobAdminApi extends JobApiBase {
                   && failingEvent.stateEnteredEventDetails() != null && failingEvent.stateEnteredEventDetails().name().contains(".")
                   ? failingEvent.stateEnteredEventDetails().name() : null;
           if(causingStepId == null){
-            return Future.failedFuture("Causing stepId not found! ExecutionArn: " + executionArn);
+            return Future.failedFuture(new RuntimeException("Causing stepId not found! ExecutionArn: " + executionArn));
           }
           return Future.succeededFuture(causingStepId);
         });
