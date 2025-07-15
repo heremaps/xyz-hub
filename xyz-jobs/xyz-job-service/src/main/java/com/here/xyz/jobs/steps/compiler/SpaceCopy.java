@@ -125,6 +125,7 @@ public class SpaceCopy implements JobCompilationInterceptor {
             .withPropertyFilter(filters != null ? filters.getPropertyFilter() : null)
             .withSpatialFilter(filters != null ? filters.getSpatialFilter() : null)
             .withThreadInfo(new int[]{threadId, threadCount})
+            .withEstimatedTargetFeatureCount(targetFeatureCount)
             .withJobId(jobId)
             .withInputSets(List.of(new InputSet(preCopySpace.getOutputSet(VERSION))));
 
