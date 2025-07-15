@@ -29,6 +29,7 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.Typed;
+import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.datasets.DatasetDescription.Map;
 import com.here.xyz.jobs.datasets.DatasetDescription.Space;
 import com.here.xyz.jobs.datasets.filters.FilteringSource;
@@ -37,11 +38,14 @@ import com.here.xyz.jobs.datasets.streams.Notifications;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space.Extension;
+import com.here.xyz.util.Async;
 import com.here.xyz.util.geo.GeometryValidator;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
+import io.vertx.core.Future;
 import java.util.HashSet;
+import java.util.Optional;
 import java.util.Set;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -70,6 +74,15 @@ public abstract class DatasetDescription implements Typed {
     return primaryKey == null ? Set.of() : Set.of(primaryKey);
   }
 
+  /**
+   * May be overridden by implementing subclasses to perform some long-running preparations for the dataset.
+   * (e.g., finding all sub-resources of a resource within an external system)
+   * @return
+   */
+  public Future<Void> prepare() {
+    return Future.succeededFuture();
+  }
+
   public static class Map extends Identifiable implements VersionedSource<Map> {
     private Ref versionRef = new Ref(Ref.HEAD);
 
@@ -96,6 +109,9 @@ public abstract class DatasetDescription implements Typed {
     private Filters filters;
     @JsonView({Public.class, Static.class})
     private Ref versionRef = new Ref(Ref.HEAD);
+    @JsonIgnore
+    private Optional<String> extendedSpaceId;
+    private static final Async ASYNC = new Async(5, Job.class);
 
     @Override
     public Filters getFilters() {
@@ -138,24 +154,37 @@ public abstract class DatasetDescription implements Typed {
     public Set<String> getResourceKeys() {
       Set<String> resourceKeys = new HashSet<>(super.getResourceKeys());
 
-      String extendedSpaceId = loadExtendedId();
-      if (extendedSpaceId != null)
-        resourceKeys.add(extendedSpaceId);
+      if (extendedSpaceId != null && extendedSpaceId.isPresent())
+        resourceKeys.add(extendedSpaceId.get());
 
       return resourceKeys;
     }
 
-    public String loadExtendedId() {
-      try {
-        Extension extension = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadSpace(getId()).getExtension();
-        return extension == null ? null : extension.getSpaceId();
-      }
-      catch (WebClientException e) {
-        //Ignore if space is not present (anymore)
-        if (!(e instanceof ErrorResponseException errorResponseException && errorResponseException.getStatusCode() == 404))
-          throw new RuntimeException(e);
-      }
-      return null;
+    @Override
+    public Future<Void> prepare() {
+      if (extendedSpaceId != null)
+        return super.prepare();
+      return super.prepare()
+          .compose(v -> loadExtendedId())
+          .compose(extendedSpaceId -> {
+            this.extendedSpaceId = Optional.ofNullable(extendedSpaceId);
+            return Future.succeededFuture();
+          });
+    }
+
+    public Future<String> loadExtendedId() {
+      return ASYNC.run(() -> {
+        try {
+          Extension extension = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadSpace(getId()).getExtension();
+          return extension == null ? null : extension.getSpaceId();
+        }
+        catch (WebClientException e) {
+          //Ignore if space is not present (anymore)
+          if (!(e instanceof ErrorResponseException errorResponseException && errorResponseException.getStatusCode() == 404))
+            throw new RuntimeException(e);
+        }
+        return null;
+      });
     }
   }
 }

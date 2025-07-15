@@ -66,7 +66,6 @@ import com.here.xyz.util.service.Core;
 import io.vertx.core.Future;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -204,7 +203,33 @@ public class Job implements XyzSerializable {
    */
   protected Future<Void> prepare() {
     logger.info("[{}] Preparing job ...", getId());
-    return Future.all(Job.forEach(getSteps().stepStream().collect(Collectors.toList()), step -> prepareStep(step))).mapEmpty();
+    return Future.all(
+        Future.all(Job.forEach(getSteps().stepStream().collect(Collectors.toList()), step -> prepareStep(step))).mapEmpty(),
+        prepareDatasetDescriptions()
+    ).mapEmpty();
+  }
+
+  private Future<Void> prepareDatasetDescriptions() {
+    if (resourceKeys != null)
+      return Future.succeededFuture();
+
+    List<Future<Void>> preparations =  new ArrayList<>();
+
+    if (getSource() != null)
+      preparations.add(getSource().prepare());
+    if (getTarget() != null)
+      preparations.add(getTarget().prepare());
+
+    if (preparations.isEmpty())
+      return Future.succeededFuture();
+
+    return Future.all(preparations).map(v -> {
+      resourceKeys = Stream.concat(
+          getSource().getResourceKeys().stream(),
+          getTarget().getResourceKeys().stream()
+      ).collect(Collectors.toSet());
+      return null;
+    });
   }
 
   private Future<Void> prepareStep(Step step) {
@@ -596,16 +621,6 @@ public class Job implements XyzSerializable {
 
   @JsonView(Static.class)
   public Set<String> getResourceKeys() {
-    //Do not re-calculate / re-fetch the resource keys if they were deserialized from the storage (e.g., DynamoDB)
-    if (resourceKeys != null)
-      return resourceKeys;
-
-    resourceKeys = new HashSet<>();
-    if (getSource() != null)
-      resourceKeys.addAll(getSource().getResourceKeys());
-    if (getTarget() != null)
-      resourceKeys.addAll(getTarget().getResourceKeys());
-
     return resourceKeys;
   }
 

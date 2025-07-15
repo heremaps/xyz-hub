@@ -19,6 +19,7 @@
 
 package com.here.xyz.jobs.datasets;
 
+import io.vertx.core.Future;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.Set;
@@ -57,6 +58,15 @@ public class Datasets extends DatasetDescription {
         .stream()
         .flatMap(dataset -> dataset.getResourceKeys().stream())
         .collect(Collectors.toSet());
+  }
+
+  @Override
+  public Future<Void> prepare() {
+    return Future.all(getDatasets().values()
+            .stream()
+            .map(ds -> ds.prepare())
+            .toList())
+        .mapEmpty();
   }
 
   public List<Entry<String, DatasetDescription>> getDatasetsByType(Class<? extends DatasetDescription> clazz) {
