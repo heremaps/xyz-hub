@@ -262,9 +262,13 @@ public class JobAdminApi extends JobApiBase {
             long causingEventId = failingEvent.previousEventId();
             failingEvent = events.stream().filter(event -> event.id().equals(causingEventId)).findAny().orElse(null);
           }
-          return Future.succeededFuture(failingEvent != null && !"TaskStateEntered".equals(failingEvent.type().toString())
-              && failingEvent.stateEnteredEventDetails() != null && failingEvent.stateEnteredEventDetails().name().contains(".")
-              ? failingEvent.stateEnteredEventDetails().name() : null);
+          String causingStepId = failingEvent != null && "TaskStateEntered".equals(failingEvent.type().toString())
+                  && failingEvent.stateEnteredEventDetails() != null && failingEvent.stateEnteredEventDetails().name().contains(".")
+                  ? failingEvent.stateEnteredEventDetails().name() : null;
+          if(causingStepId == null){
+            return Future.failedFuture("Causing stepId not found! ExecutionArn: " + executionArn);
+          }
+          return Future.succeededFuture(causingStepId);
         });
   }
 
@@ -279,6 +283,9 @@ public class JobAdminApi extends JobApiBase {
   private static Future<Void> failStep(Job job, Step step) {
     if (step.getStatus().getState().isFinal())
       return Future.succeededFuture();
+
+    logger.info("[{}] Fail step {}.", job.getId(), step.getId());
+
     step.getStatus().setState(FAILED);
     return job.storeUpdatedStep(step);
   }
