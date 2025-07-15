@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -43,13 +43,21 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class SQLSpaceWriter extends SpaceWriter {
-
+  private static final Logger logger = LogManager.getLogger();
   protected static String VERSION_SEQUENCE_SUFFIX = "_version_seq";
+  private boolean batchMode;
 
   public SQLSpaceWriter(boolean composite, String testSuiteName) {
     super(composite, testSuiteName);
+  }
+
+  public SQLSpaceWriter withBatchMode(boolean batchMode) {
+    this.batchMode = batchMode;
+    return this;
   }
 
   @Override
@@ -94,10 +102,13 @@ public class SQLSpaceWriter extends SpaceWriter {
       OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict, boolean isPartial, SpaceContext spaceContext,
       boolean historyEnabled) throws Exception {
     try (DataSourceProvider dsp = SQLITBase.getDataSourceProvider()) {
+      long tStart = System.currentTimeMillis();
       SQLQuery q = generateWriteFeatureQuery(featureList, author, onExists, onNotExists, onVersionConflict, onMergeConflict,
           isPartial, spaceContext, historyEnabled);
 
-      return SQLQuery.batchOf(q).writeBatch(dsp);
+      int[] result = SQLQuery.batchOf(q).writeBatch(dsp);
+      System.out.println("SQLQuery " + q.getQueryId() + " took: " + (System.currentTimeMillis() - tStart) + "ms.");
+      return result;
     }
   }
 
@@ -108,7 +119,8 @@ public class SQLSpaceWriter extends SpaceWriter {
         "schema", getDataSourceProvider().getDatabaseSettings().getSchema(),
         "table", spaceId(),
         "context", spaceContext,
-        "historyEnabled", historyEnabled
+        "historyEnabled", historyEnabled,
+        "batchMode", batchMode
     ));
     if (composite)
       queryContext.put("extendedTable", superSpaceId());

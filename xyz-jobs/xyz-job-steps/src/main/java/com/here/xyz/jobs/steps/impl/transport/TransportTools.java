@@ -51,7 +51,8 @@ public class TransportTools {
         "stepId", stepId,
         "schema", schema,
         "table", table,
-        "historyEnabled", historyEnabled
+        "historyEnabled", historyEnabled,
+        "batchMode", true
     ));
 
     if (superTable == null)
