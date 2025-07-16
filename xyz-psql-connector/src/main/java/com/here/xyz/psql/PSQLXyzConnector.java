@@ -178,6 +178,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
     return write(new ModifySpace(event));
   }
 
+  @Deprecated
   @Override
   protected SuccessResponse processModifySubscriptionEvent(ModifySubscriptionEvent event) throws Exception {
     return new SuccessResponse().withStatus("OK");

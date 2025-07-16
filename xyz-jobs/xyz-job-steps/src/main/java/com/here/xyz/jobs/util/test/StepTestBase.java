@@ -39,6 +39,7 @@ import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
+import com.here.xyz.jobs.steps.impl.DropIndexes;
 import com.here.xyz.jobs.steps.impl.transport.CountSpace;
 import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
@@ -55,6 +56,9 @@ import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import com.here.xyz.util.db.datasource.DatabaseSettings;
 import com.here.xyz.util.db.datasource.PooledDataSources;
+import com.here.xyz.util.db.pg.XyzSpaceTableHelper.OnDemandIndex;
+import com.here.xyz.util.db.pg.XyzSpaceTableHelper.SystemIndex;
+import com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.service.aws.lambda.SimulatedContext;
 import com.here.xyz.util.web.HubWebClient;
@@ -281,22 +285,39 @@ public class StepTestBase {
     }
   }
 
-  protected void deleteAllExistingIndexes(String spaceId) throws SQLException {
-    List<String> existingIndexes = listExistingIndexes(spaceId);
+  protected void deleteAllExistingIndices(String spaceId) throws SQLException {
+    List<String> existingIndexes = getAllExistingIndices(spaceId).stream().map(i ->i.getIndexName(SPACE_ID)).toList();
     List<SQLQuery> dropQueries = buildSpaceTableDropIndexQueries(SCHEMA, existingIndexes);
     SQLQuery.join(dropQueries, ";").write(getDataSourceProvider());
   }
 
-  protected List<String> listExistingIndexes(String spaceId) throws SQLException {
+  protected List<Index> getAllExistingIndices(String spaceId) throws SQLException {
     return new SQLQuery("SELECT * FROM xyz_index_list_all_available(#{schema}, #{table});")
-        .withNamedParameter("schema", SCHEMA)
-        .withNamedParameter("table", spaceId)
-        .run(getDataSourceProvider(), rs -> {
-          List<String> result = new ArrayList<>();
-          while (rs.next())
-            result.add(rs.getString(1));
-          return result;
-        });
+            .withNamedParameter("schema", SCHEMA)
+            .withNamedParameter("table", spaceId)
+            .run(getDataSourceProvider(), DropIndexes::getIndicesFromResultSet);
+  }
+
+  protected List<Index> getOnDemandIndices(String spaceId) throws SQLException {
+    return getIndices(spaceId, false, true);
+  }
+
+  protected List<Index> getSystemIndices(String spaceId) throws SQLException {
+    return getIndices(spaceId, true, false);
+  }
+
+  protected List<Index> getIndices(String spaceId, boolean systemIndices, boolean onDemandIndices) throws SQLException {
+    return getAllExistingIndices(spaceId).stream()
+            .filter(index -> {
+              if (systemIndices && index instanceof SystemIndex) {
+                return true;
+              }
+              if (onDemandIndices && index instanceof OnDemandIndex) {
+                return true;
+              }
+              return false;
+            })
+            .toList();
   }
 
   private DataSourceProvider getDataSourceProvider() {

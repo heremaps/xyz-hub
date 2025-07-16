@@ -115,7 +115,7 @@ public class SpaceConnectorBasedHandler {
                     .onSuccess(minTag -> {
                         if (e instanceof DeleteChangesetsEvent deleteChangesetsEvent && minTag != null) {
                             if (!minTag.isSystem() && minTag.getVersion() < deleteChangesetsEvent.getMinVersion())
-                                p.fail(new HttpException(BAD_REQUEST, "Tag for version " + minTag + " exists!"));
+                                p.fail(new HttpException(BAD_REQUEST, "Tag \"" + minTag.getId() + "\"for version " + minTag.getVersion() + " exists!"));
                             else {
                                 deleteChangesetsEvent.setMinVersion(Math.min(minTag.getVersion(), deleteChangesetsEvent.getMinVersion()));
                             }

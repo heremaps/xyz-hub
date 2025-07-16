@@ -33,19 +33,21 @@ public class DropIndexStepTest extends StepTest {
   @Test
   public void testDropIndexesStepWithoutWhitelist() throws Exception {
     createTestSpace(true);
-    Assertions.assertTrue(listExistingIndexes(SPACE_ID).size() > 0);
+    Assertions.assertFalse(getAllExistingIndices(SPACE_ID).isEmpty());
 
     LambdaBasedStep step = new DropIndexes().withSpaceId(SPACE_ID);
     sendLambdaStepRequestBlock(step, true);
 
     //no indexes should remain
-    Assertions.assertEquals(0, listExistingIndexes(SPACE_ID).size());
+    Assertions.assertEquals(0, getAllExistingIndices(SPACE_ID).size());
   }
 
   @Test
   public void testDropIndexesStepWithWhitelist() throws Exception {
     createTestSpace(true);
-    Assertions.assertTrue(listExistingIndexes(SPACE_ID).size() > 0);
+    Assertions.assertFalse(getSystemIndices(SPACE_ID).isEmpty());
+    //three on-demand indices should be created with the space creation
+    Assertions.assertEquals(3, getOnDemandIndices(SPACE_ID).size());
 
     LambdaBasedStep step = new DropIndexes()
       .withSpaceId(SPACE_ID)
@@ -56,16 +58,15 @@ public class DropIndexStepTest extends StepTest {
                     new OnDemandIndex().withPropertyPath("foo3")
                 )
       );
-    sendLambdaStepRequestBlock(step, true);
 
-    //system indexes + whitelisted indexes should remain
-    Assertions.assertEquals(7 + 2, listExistingIndexes(SPACE_ID).size());
+    sendLambdaStepRequestBlock(step, true);
+    Assertions.assertEquals(2,getOnDemandIndices(SPACE_ID).size(), "whitelisted indexes should remain");
   }
 
   @Test
   public void testDropIndexesStepWithEmptyWhitelist() throws Exception {
     createTestSpace(true);
-    Assertions.assertTrue(listExistingIndexes(SPACE_ID).size() > 0);
+    Assertions.assertFalse(getSystemIndices(SPACE_ID).isEmpty());
 
     LambdaBasedStep step = new DropIndexes()
             .withSpaceId(SPACE_ID)
@@ -73,8 +74,7 @@ public class DropIndexStepTest extends StepTest {
             .withIndexWhiteList(List.of());
     sendLambdaStepRequestBlock(step, true);
 
-    //only system indexes should remain
-    Assertions.assertEquals(7, listExistingIndexes(SPACE_ID).size());
+    Assertions.assertEquals(0 ,getOnDemandIndices(SPACE_ID).size(), "only system indexes should remain");
   }
 
   @Test
@@ -88,8 +88,8 @@ public class DropIndexStepTest extends StepTest {
             .withIndexWhiteList(List.of(new OnDemandIndex().withPropertyPath("foo1")));
     sendLambdaStepRequestBlock(step, true);
 
-    //only system indexes should remain
-    Assertions.assertEquals(7, listExistingIndexes(SPACE_ID).size());
+    Assertions.assertTrue(getOnDemandIndices(SPACE_ID).isEmpty(), "only system indices should remain");
+    Assertions.assertFalse(getSystemIndices(SPACE_ID).isEmpty(),"system indices should remain");
   }
 
   private void createTestSpace(boolean withOnDemandIndices) {

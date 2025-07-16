@@ -27,12 +27,12 @@ import com.here.xyz.jobs.steps.execution.StepException;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.util.db.SQLQuery;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper.OnDemandIndex;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper.SystemIndex;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
 
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -121,23 +121,9 @@ public class DropIndexes extends SpaceBasedStep<DropIndexes> {
         logger.info("Gathering indices of space " + getSpaceId());
 
         //Get the list of existing indexes from database.
-        List<Index> indexes = runReadQuerySync(buildLoadSpaceTableIndicesQuery(getSchema(db()), getRootTableName(space())), db(), calculateNeededAcus(),
-                rs -> {
-                    List<Index> result = new ArrayList<>();
-                    while (rs.next()) {
-                        String idxName = rs.getString("idx_name");
-                        String idxPropertyPath = rs.getString("idx_property");
-                        Character src = rs.getString("src").charAt(0);
-
-                        if (src == 's')
-                            result.add(XyzSpaceTableHelper.SystemIndex.fromString(idxPropertyPath));
-                        else if (src == 'm' || src == 'a')
-                            result.add(new OnDemandIndex().withIndexName(idxName).withPropertyPath(idxPropertyPath));
-                        else
-                            throw new StepException("Unknown index source '" + src + "' for index '" + idxName);
-                    }
-                    return result;
-                });
+        List<Index> indexes = runReadQuerySync(
+                buildLoadSpaceTableIndicesQuery(getSchema(db()), getRootTableName(space())), db(), calculateNeededAcus(),
+                DropIndexes::getIndicesFromResultSet);
 
         if (indexes.isEmpty()) {
             noIndicesPresent();
@@ -179,6 +165,23 @@ public class DropIndexes extends SpaceBasedStep<DropIndexes> {
                 logger.error("Error while dropping indices for space " + getSpaceId(), e);
             }
         }
+    }
+
+    public static List<Index> getIndicesFromResultSet(ResultSet rs) throws SQLException {
+        List<Index> result = new ArrayList<>();
+        while (rs.next()) {
+            String idxName = rs.getString("idx_name");
+            String idxPropertyPath = rs.getString("idx_property");
+            Character src = rs.getString("src").charAt(0);
+
+            if (src == 's')
+                result.add(SystemIndex.fromString(idxPropertyPath));
+            else if (src == 'm' || src == 'a')
+                result.add(new OnDemandIndex().withIndexName(idxName).withPropertyPath(idxPropertyPath));
+            else
+                throw new StepException("Unknown index source '" + src + "' for index '" + idxName);
+        }
+        return result;
     }
 
     private void noIndicesPresent() {

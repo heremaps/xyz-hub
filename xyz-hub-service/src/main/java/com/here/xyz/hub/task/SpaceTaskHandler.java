@@ -140,10 +140,6 @@ public class SpaceTaskHandler {
               callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definitions.", t));
             })
             .onSuccess(spaces -> {
-              if(spaces.isEmpty()){
-                callback.exception(new HttpException(NOT_FOUND, "The requested resource does not exist."));
-                return;
-              }
               task.responseSpaces = spaces;
               callback.call(task);
             });

@@ -66,20 +66,11 @@ public class SpawnMaintenanceJobs extends SpaceBasedStep<SpawnMaintenanceJobs> {
 
   @Override
   public void execute(boolean resume) throws SQLException, TooManyResourcesClaimed, WebClientException {
-    List<Space> spaces;
-    try {
-      Space space = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadSpace(getSpaceId());
-      if(space.getExtension() != null)
-        return; // No need to maintain the space if it has an extension because it is maintained by the extension itself.
+    Space sourceSpace = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadSpace(getSpaceId());
+    if(sourceSpace.getExtension() != null)
+      return; // No need to maintain the space if it has an extension because it is maintained by the extension itself.
 
-      spaces = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadExtendingSpaces(getSpaceId());
-    } catch (XyzWebClient.WebClientException e) {
-      if (e instanceof XyzWebClient.ErrorResponseException errorResponse && errorResponse.getStatusCode() == 404) {
-        logger.info("[{}] No dependent spaces found for key {}", getGlobalStepId() , getSpaceId());
-        return;
-      }
-      throw e;
-    }
+    List<Space> spaces = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadExtendingSpaces(getSpaceId());
 
     for (Space space : spaces) {
       logger.info("[{}] Need Maintenance Child-Job for space {} ", getGlobalStepId() , space.getId());

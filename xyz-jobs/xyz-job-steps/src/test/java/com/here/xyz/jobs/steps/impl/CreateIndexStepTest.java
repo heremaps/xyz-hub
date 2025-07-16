@@ -19,9 +19,8 @@
 
 package com.here.xyz.jobs.steps.impl;
 
-import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
+import com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper.OnDemandIndex;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper.SystemIndex;
 import org.junit.jupiter.api.Assertions;
@@ -33,23 +32,23 @@ public class CreateIndexStepTest extends StepTest {
 
     @Test
     public void testCreateSystemIndex() throws Exception {
-        deleteAllExistingIndexes(SPACE_ID);
-        Assertions.assertEquals(0, listExistingIndexes(SPACE_ID).size());
+        deleteAllExistingIndices(SPACE_ID);
+        Assertions.assertTrue(getAllExistingIndices(SPACE_ID).isEmpty());
 
         SystemIndex systemIndex = SystemIndex.GEO;
         LambdaBasedStep step = new CreateIndex().withSpaceId(SPACE_ID).withIndex(SystemIndex.GEO);
 
         sendLambdaStepRequestBlock(step, true);
 
-        List<String> indexes = listExistingIndexes(SPACE_ID);
+        List<Index> indexes = getSystemIndices(SPACE_ID);
         Assertions.assertEquals(1, indexes.size());
-        Assertions.assertEquals(systemIndex.getIndexName(SPACE_ID), indexes.get(0));
+        Assertions.assertEquals(systemIndex.getIndexName(SPACE_ID), indexes.get(0).getIndexName(SPACE_ID));
     }
 
     @Test
     public void testCreateOnDemandIndex() throws Exception {
-        deleteAllExistingIndexes(SPACE_ID);
-        Assertions.assertEquals(0, listExistingIndexes(SPACE_ID).size());
+        deleteAllExistingIndices(SPACE_ID);
+        Assertions.assertTrue(getAllExistingIndices(SPACE_ID).isEmpty());
 
         OnDemandIndex onDemandIndex = new OnDemandIndex().withPropertyPath("foo");
 
@@ -57,8 +56,8 @@ public class CreateIndexStepTest extends StepTest {
 
         sendLambdaStepRequestBlock(step, true);
 
-        List<String> indexes = listExistingIndexes(SPACE_ID);
+        List<Index> indexes = getOnDemandIndices(SPACE_ID);
         Assertions.assertEquals(1, indexes.size());
-        Assertions.assertEquals(onDemandIndex.getIndexName(SPACE_ID), indexes.get(0));
+        Assertions.assertEquals(onDemandIndex.getIndexName(SPACE_ID), indexes.get(0).getIndexName());
     }
 }

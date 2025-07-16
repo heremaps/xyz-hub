@@ -208,7 +208,7 @@ public class XyzSpaceTableHelper {
   public static List<SQLQuery> buildCreateSpaceTableQueries(String schema, String table, List<OnDemandIndex> onDemandIndices) {
     List<SQLQuery> queries = new ArrayList<>();
 
-    queries.add(createDefaultSchema(schema));
+    queries.add(createConnectorSchema(schema));
     queries.add(buildCreateSpaceTableQuery(schema, table));
     queries.add(buildColumnStorageAttributesQuery(schema, table));
     queries.addAll(buildSpaceTableIndexQueries(schema, table));
@@ -262,7 +262,7 @@ public class XyzSpaceTableHelper {
         "SELECT xyz_create_history_partition('" + schema + "', '" + rootTable + "', " + partitionNo + ", " + PARTITION_SIZE + ")");
   }
 
-  public static SQLQuery createDefaultSchema(String schema) {
+  public static SQLQuery createConnectorSchema(String schema) {
     return new SQLQuery("CREATE SCHEMA IF NOT EXISTS ${schema}")
             .withVariable(SCHEMA, schema);
   }
