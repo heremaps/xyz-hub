@@ -148,12 +148,12 @@ public class SpaceCopy implements JobCompilationInterceptor {
 
       startGraph.addExecution(postCopySpace);
 
-      long DROPCREATEINDEX_THRESHOLD = 1_000_000; // 4_000_000;
+      long DROPCREATEINDEX_THRESHOLD = 4_000_000;
 
       boolean useDropIndexOptimization =    sourceFeatureCount >= DROPCREATEINDEX_THRESHOLD
                                             // target is empty and no filtering 
-                                         && targetFeatureCount <= 0   
-                                         && filters == null;  
+                                         && targetFeatureCount <= 0
+                                         && filters == null;
 
       return !useDropIndexOptimization ? startGraph : ImportFromFiles.compileWrapWithDropRecreateIndices(targetSpaceId, startGraph);
 
