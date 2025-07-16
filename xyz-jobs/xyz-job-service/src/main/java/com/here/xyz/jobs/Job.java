@@ -226,7 +226,7 @@ public class Job implements XyzSerializable {
     return Future.all(preparations).map(v -> {
       resourceKeys = Stream.concat(
           getSource().getResourceKeys().stream(),
-          getTarget().getResourceKeys().stream()
+          getTarget() != null ? getTarget().getResourceKeys().stream() : Stream.empty()
       ).collect(Collectors.toSet());
       return null;
     });
