@@ -345,6 +345,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     }
     catch (TaskTimedOutException | InvalidTokenException e) {
       try {
+        logger.warn("[{}] Task Heartbeat is failed. Cancelling step!", getGlobalStepId());
         updateState(CANCELLING);
         cancel();
         updateState(CANCELLED);
