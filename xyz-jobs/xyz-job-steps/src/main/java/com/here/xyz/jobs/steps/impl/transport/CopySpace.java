@@ -380,43 +380,35 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
 
     if (! useTableCopy() )
     {
-     int maxBatchSize = 10000;
-     //TODO: Do not use slow JSONB functions in the following query!
-     //TODO: Simplify / deduplicate the following query
-      return new SQLQuery("""
-            WITH ins_data as
+    int maxBatchSize = 1000;
+    //TODO: Do not use slow JSONB functions in the following query!
+    //TODO: Simplify / deduplicate the following query
+    return new SQLQuery("""
+          WITH ins_data as
+          (
+            select
+              write_features(
+                jsonb_agg( iidata.feature )::TEXT,
+                'Features',
+                iidata.author,
+                false,
+                ${{versionToBeUsed}}
+              ) as wfresult
+            from
             (
-              select
-                write_features(
-                jsonb_build_array(
-                  case deleted_flag when false then
-                    jsonb_build_object('updateStrategy','{"onExists":null,"onNotExists":null,"onVersionConflict":null,"onMergeConflict":null}'::jsonb,
-                                        'partialUpdates',false,
-                                        'featureData', jsonb_build_object( 'type', 'FeatureCollection', 'features', jsonb_agg( iidata.feature ) ))
-                  else
-                      jsonb_build_object('updateStrategy','{"onExists":"DELETE","onNotExists":"RETAIN"}'::jsonb,
-                                        'partialUpdates',false,
-                                        'featureIds', jsonb_agg( iidata.feature->'id' ) )
-                  end
-                )::text,
-                  'Modifications', iidata.author,false,${{versionToBeUsed}}
-                ) as wfresult
-              from
-              (
-              select ((row_number() over ())-1)/${{maxBatchSize}} as rn, 
-                      idata.jsondata#>>'{properties,@ns:com:here:xyz,author}' as author, 
-                      idata.jsondata || jsonb_build_object('geometry', (idata.geo)::json) as feature,
-                      ((idata.jsondata#>>'{properties,@ns:com:here:xyz,deleted}') is not null) as deleted_flag
-              from
-              ( ${{contentQuery}} ) idata
-              ) iidata
-              group by rn, author, deleted_flag
-            )
-            select sum((wfresult::json->>'count')::bigint)::bigint into dummy_output from ins_data
-          """).withContext(queryContext)
-          .withQueryFragment("maxBatchSize", "" + maxBatchSize)
-          .withQueryFragment("versionToBeUsed", "" + getTargetVersion())
-          .withQueryFragment("contentQuery", contentQuery);
+             select ((row_number() over ())-1)/${{maxBatchSize}} as rn, 
+                    idata.jsondata#>>'{properties,@ns:com:here:xyz,author}' as author, 
+                    idata.jsondata || jsonb_build_object('geometry', (idata.geo)::json) as feature
+             from
+             ( ${{contentQuery}} ) idata
+            ) iidata
+            group by rn, author
+          )
+          select sum((wfresult::json->>'count')::bigint)::bigint into dummy_output from ins_data
+        """).withContext(queryContext)
+        .withQueryFragment("maxBatchSize", "" + maxBatchSize)
+        .withQueryFragment("versionToBeUsed", "" + getTargetVersion())
+        .withQueryFragment("contentQuery", contentQuery);
     }
     else
     {

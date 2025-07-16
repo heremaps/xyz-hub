@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -72,31 +72,31 @@ public class InMemJobConfigClient extends JobConfigClient {
 
   @Override
   public Future<Set<Job>> loadJobs(String resourceKey) {
-    Set<Job> jobs = jobMap.values().stream()
-        .filter(job -> resourceKey.equals(job.getResourceKey()))
-        .collect(Collectors.toSet());
-    return Future.succeededFuture(jobs);
+    if (resourceKey == null)
+      return Future.succeededFuture(Set.of());
+    return loadJobs(Set.of(resourceKey)).map(jobs -> jobs.stream().collect(Collectors.toSet()));
   }
 
   @Override
   public Future<List<Job>> loadJobs(String resourceKey, State state) {
-    return loadJobs().map(jobs -> jobs.stream().filter(job -> (resourceKey == null || job.getResourceKey().equals(resourceKey))
-        && (state == null || job.getStatus().getState() == state)).toList());
+    return loadJobs(Set.of(resourceKey)).map(jobs -> jobs.stream()
+        .filter(job -> state == null || job.getStatus().getState() == state)
+        .toList());
+  }
+
+  private Future<List<Job>> loadJobs(Set<String> resourceKeys) {
+    return loadJobs().map(jobs -> jobs.stream()
+        .filter(job -> resourceKeys.stream().anyMatch(resourceKey -> job.getResourceKeys().contains(resourceKey)))
+        .toList());
   }
 
   @Override
-  public Future<List<Job>> loadJobs(String resourceKey, String secondaryResourceKey, State state) {
-    if(secondaryResourceKey == null)
-      return loadJobs(resourceKey, resourceKey, state);
+  public Future<Set<Job>> loadJobs(Set<String> resourceKeys, State state) {
     return loadJobs().map(jobs ->
-            jobs.stream()
-                    .filter(job ->
-                            (resourceKey == null || job.getResourceKey().equals(resourceKey)
-                              || (secondaryResourceKey != null && job.getResourceKey().equals(secondaryResourceKey)))
-                            && (state == null || job.getStatus().getState() == state)
-                    )
-                    .toList()
-    );
+        jobs.stream()
+            .filter(job -> resourceKeys.stream().anyMatch(resourceKey -> job.getResourceKeys().contains(resourceKey))
+                && (state == null || job.getStatus().getState() == state))
+            .collect(Collectors.toSet()));
   }
 
   @Override
