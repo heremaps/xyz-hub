@@ -159,6 +159,9 @@ public class DynamoJobConfigClient extends JobConfigClient {
   }
 
   private Future<Set<Job>> batchLoadJobsById(Set<String> jobIds) {
+    if(jobIds == null || jobIds.isEmpty())
+      return Future.succeededFuture(Set.of());
+
     return dynamoClient.executeQueryAsync(() -> {
       List<Map<String, AttributeValue>> requestKeys = jobIds.stream()
           .map(jobId -> Map.of("id", new AttributeValue().withS(jobId)))
