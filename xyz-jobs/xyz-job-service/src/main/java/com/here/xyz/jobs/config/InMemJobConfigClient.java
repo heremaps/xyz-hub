@@ -45,7 +45,6 @@ public class InMemJobConfigClient extends JobConfigClient {
     }
   }
 
-
   @Override
   public Future<Job> loadJob(String jobId) {
     return Future.succeededFuture(jobMap.get(jobId));
@@ -56,7 +55,47 @@ public class InMemJobConfigClient extends JobConfigClient {
     return Future.succeededFuture(List.copyOf(jobMap.values()));
   }
 
-  @Override
+  public Future<List<Job>> loadJobs(FilteredValues<Long> newerThan, FilteredValues<String> sourceTypes,
+                                    FilteredValues<String> targetTypes, FilteredValues<String> processTypes,
+                                    FilteredValues<String> resourceKeys, FilteredValues<State> stateTypes) {
+    return Future.succeededFuture(
+            jobMap.values().stream()
+                    .filter(job -> {
+                      if (newerThan == null || newerThan.values().isEmpty()) return true;
+                      Long ts = newerThan.values().iterator().next();
+                      return newerThan.include() ? job.getCreatedAt() > ts : job.getCreatedAt() < ts;
+                    })
+
+                    .filter(job -> matchesFilteredValues(sourceTypes,
+                            job.getSource() != null ? job.getSource().getClass().getSimpleName() : null))
+
+                    .filter(job -> matchesFilteredValues(targetTypes,
+                            job.getTarget() != null ? job.getTarget().getClass().getSimpleName() : null))
+
+                    .filter(job -> matchesFilteredValues(processTypes,
+                            job.getProcess() != null ? job.getProcess().getClass().getSimpleName() : null))
+
+                    .filter(job -> matchesFilteredValues(stateTypes,
+                            job.getStatus() != null ? State.valueOf(job.getStatus().getState().name()) : null))
+
+                    .filter(job -> {
+                      if (resourceKeys == null || resourceKeys.values().isEmpty()) return true;
+                      Set<String> jobKeys = job.getResourceKeys();
+                      if (jobKeys == null || jobKeys.isEmpty()) return !resourceKeys.include(); // Exclude when filtering for presence
+                      boolean match = resourceKeys.values().stream().anyMatch(jobKeys::contains);
+                      return resourceKeys.include() ? match : !match;
+                    })
+
+                    .toList()
+    );
+  }
+
+  private static <T> boolean matchesFilteredValues(FilteredValues<T> filter, T actualValue) {
+    if (filter == null || filter.values().isEmpty()) return true;
+    boolean match = filter.values().contains(actualValue);
+    return filter.include() ? match : !match;
+  }
+
   public Future<List<Job>> loadJobs(
           boolean newerThan, long createdAt, String sourceType,
           String targetType, String processType, String resourceKey, State state
