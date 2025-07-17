@@ -49,6 +49,7 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -108,6 +109,94 @@ public class DynamoJobConfigClient extends JobConfigClient {
   }
 
   @Override
+  public Future<List<Job>> loadJobs(FilteredValues<Long> newerThan, FilteredValues<String> sourceTypes,
+                                    FilteredValues<String> targetTypes, FilteredValues<String> processTypes,
+                                    FilteredValues<String> resourceKeys, FilteredValues<State> stateTypes) {
+    List<Job> jobs = new LinkedList<>();
+
+    List<String> filters = new ArrayList<>();
+    Map<String, String> attrNames = new HashMap<>();
+    Map<String, Object> attrValues = new HashMap<>();
+
+    // --- createdAt special case ---
+    if (newerThan != null && !newerThan.values().isEmpty()) {
+      Long ts = newerThan.values().iterator().next(); // Only use one timestamp
+      filters.add("#createdAt " + (newerThan.include() ? ">" : "<=") + " :ts");
+      attrNames.put("#createdAt", "createdAt");
+      attrValues.put(":ts", ts);
+    }
+
+    // --- IN / NOT IN filters ---
+    Optional.ofNullable(buildInFilter("source.type", sourceTypes, attrNames, attrValues)).ifPresent(filters::add);
+    Optional.ofNullable(buildInFilter("target.type", targetTypes, attrNames, attrValues)).ifPresent(filters::add);
+    Optional.ofNullable(buildInFilter("process.type", processTypes, attrNames, attrValues)).ifPresent(filters::add);
+    Optional.ofNullable(buildInFilter("status.state", stateTypes, attrNames, attrValues)).ifPresent(filters::add);
+
+    // --- resourceKeys: contains / NOT contains ---
+    if (resourceKeys != null && !resourceKeys.values().isEmpty()) {
+      List<String> subFilters = new ArrayList<>();
+      int i = 0;
+
+      for (String key : resourceKeys.values()) {
+        String paramKey = ":rk" + i++;
+        attrValues.put(paramKey, key);
+        subFilters.add("contains(#resourceKeys, " + paramKey + ")");
+      }
+
+      attrNames.put("#resourceKeys", "resourceKeys");
+
+      if (resourceKeys.include()) {
+        filters.add("(" + String.join(" OR ", subFilters) + ")");
+      } else {
+        filters.add("(" + subFilters.stream().map(f -> "NOT " + f).collect(Collectors.joining(" AND ")) + ")");
+      }
+    }
+
+    String filterExpr = filters.isEmpty() ? null : String.join(" AND ", filters);
+    if (attrNames.isEmpty()) attrNames = null;
+    if (attrValues.isEmpty()) attrValues = null;
+
+    jobTable.scan(filterExpr, attrNames, attrValues)
+            .pages()
+            .forEach(page ->
+                    page.forEach(item -> jobs.add(XyzSerializable.fromMap(item.asMap(), Job.class)))
+            );
+
+    return Future.succeededFuture(jobs);
+  }
+
+  private String buildInFilter(String fieldPath, FilteredValues<?> fv,
+                               Map<String, String> attrNames, Map<String, Object> attrValues) {
+    if (fv == null || fv.values().isEmpty()) return null;
+
+    String[] parts = fieldPath.split("\\.");
+    StringBuilder fieldExpr = new StringBuilder();
+    for (String part : parts) {
+      String key = "#" + part;
+      fieldExpr.append(key).append(".");
+      attrNames.put(key, part);
+    }
+    fieldExpr.setLength(fieldExpr.length() - 1); // Remove trailing dot
+    String fieldRef = fieldExpr.toString();
+
+    List<String> conditions = new ArrayList<>();
+    int i = 0;
+    for (Object val : fv.values()) {
+      String paramKey = ":" + parts[parts.length - 1] + i++;
+      attrValues.put(paramKey, val instanceof Enum<?> e ? e.name() : val);
+
+      if (fv.include()) {
+        conditions.add(paramKey);
+      } else {
+        conditions.add(fieldRef + " <> " + paramKey);
+      }
+    }
+
+    return fv.include()
+            ? fieldRef + " IN (" + String.join(", ", conditions) + ")"
+            : String.join(" AND ", conditions);
+  }
+
   public Future<List<Job>> loadJobs(
           boolean newerThan,
           long createdAt,

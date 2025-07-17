@@ -45,6 +45,7 @@ import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.RuntimeInfo.State;
 import com.here.xyz.jobs.config.JobConfigClient;
+import com.here.xyz.jobs.config.JobConfigClient.FilteredValues;
 import com.here.xyz.jobs.datasets.DatasetDescription;
 import com.here.xyz.jobs.datasets.Files;
 import com.here.xyz.jobs.datasets.streams.DynamicStream;
@@ -452,10 +453,9 @@ public class Job implements XyzSerializable {
       return JobConfigClient.getInstance().loadJobs(resourceKey, state);
   }
 
-  public static Future<List<Job>> load(boolean newerThan, long createdAt,
-          String sourceType, String targetType, String processType, String resourceKey, State state) {
-    return JobConfigClient.getInstance().loadJobs(newerThan, createdAt, sourceType, targetType,
-            processType, resourceKey, state);
+  public static Future<List<Job>> load(FilteredValues<Long> newerThan, FilteredValues<String> sourceType, FilteredValues<String> targetType,
+                                               FilteredValues<String> processType, FilteredValues<String> resourceKeys, FilteredValues<State> stateTypes) {
+    return JobConfigClient.getInstance().loadJobs(newerThan, sourceType, targetType, processType, resourceKeys, stateTypes);
   }
 
   public static Future<Set<Job>> loadByResourceKey(String resourceKey) {
