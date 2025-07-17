@@ -51,6 +51,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
@@ -180,9 +181,9 @@ public class DynamoJobConfigClient extends JobConfigClient {
     String fieldRef = fieldExpr.toString();
 
     List<String> conditions = new ArrayList<>();
-    int i = 0;
+
     for (Object val : fv.values()) {
-      String paramKey = ":" + parts[parts.length - 1] + i++;
+      String paramKey = ":" + parts[parts.length - 1] + UUID.randomUUID().toString().substring(0,5);
       attrValues.put(paramKey, val instanceof Enum<?> e ? e.name() : val);
 
       if (fv.include()) {
@@ -195,76 +196,6 @@ public class DynamoJobConfigClient extends JobConfigClient {
     return fv.include()
             ? fieldRef + " IN (" + String.join(", ", conditions) + ")"
             : String.join(" AND ", conditions);
-  }
-
-  public Future<List<Job>> loadJobs(
-          boolean newerThan,
-          long createdAt,
-          String sourceType,
-          String targetType,
-          String processType,
-          String resourceKey,
-          State state
-  ) {
-    //TODO: Use indexes instead of scan()
-    return dynamoClient.executeQueryAsync(() -> {
-      List<Job> jobs = new LinkedList<>();
-
-      List<String> filters = new ArrayList<>();
-      Map<String, String> attrNames = new HashMap<>();
-      Map<String, Object> attrValues = new HashMap<>();
-
-      if (createdAt != 0) {
-        filters.add( "#createdAt " + (newerThan ? ">" : "<") + " :ts");
-        attrNames.put("#createdAt", "createdAt");
-        attrValues.put(":ts", createdAt);
-      }
-
-      if (processType != null && !processType.isEmpty()) {
-        filters.add("#process.#type = :processType");
-        attrNames.put("#process", "process");
-        attrNames.put("#type", "type");
-        attrValues.put(":processType", processType);
-      }
-
-      if (sourceType != null && !sourceType.isEmpty()) {
-        filters.add("#source.#type = :sourceType");
-        attrNames.put("#source", "source");
-        attrNames.put("#type", "type");
-        attrValues.put(":sourceType", sourceType);
-      }
-
-      if (targetType != null && !targetType.isEmpty()) {
-        filters.add("#target.#type = :targetType");
-        attrNames.put("#target", "target");
-        attrNames.put("#type", "type");
-        attrValues.put(":targetType", targetType);
-      }
-
-      if (state != null) {
-        filters.add("#status.#state = :state");
-        attrNames.put("#status", "status");
-        attrNames.put("#state", "state");
-        attrValues.put(":state", state.name());
-      }
-
-      if (resourceKey != null && !resourceKey.isEmpty()) {
-        filters.add("contains(#resourceKeys, :resourceKey)");
-        attrNames.put("#resourceKeys", "resourceKeys");
-        attrValues.put(":resourceKey", resourceKey);
-      }
-
-      String filterExpr = String.join(" AND ", filters);
-
-      jobTable
-              .scan(filterExpr, attrNames, attrValues)
-              .pages()
-              .forEach(page ->
-                      page.forEach(item -> jobs.add(XyzSerializable.fromMap(item.asMap(), Job.class)))
-              );
-
-      return jobs;
-    });
   }
 
   @Override
