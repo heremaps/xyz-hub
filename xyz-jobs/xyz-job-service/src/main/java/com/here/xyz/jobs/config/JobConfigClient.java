@@ -56,13 +56,21 @@ public abstract class JobConfigClient implements Initializable {
    */
   public abstract Future<List<Job>> loadJobs();
 
-  /**
-   * Load all jobs that are newer / older than the specified createdAt timestamp.
-   * @param newerThan Whether to use "newer than", "older than" otherwise
-   * @param createdAt The timestamp to use for comparison
-   * @return A list of jobs that are newer / older than the specified timestamp.
-   */
-  public abstract Future<List<Job>> loadJobs(boolean newerThan, long createdAt);
+    /**
+     * Load all jobs by providing various filtering criteria.
+     * @param newerThan Whether to use "newer than", "older than" otherwise
+     * @param createdAt The timestamp to use for comparison
+     * @param sourceType The type of the source dataset
+     * @param targetType The type of the target dataset
+     * @param processType The type of the process
+     * @param resourceKey The resource key (e.g., space ID) to filter the jobs by
+     * @param state The state of the jobs to filter by
+     * @return A list of jobs matching the criteria
+     */
+    //TODO: provide also a filter which works with sets
+  public abstract Future<List<Job>> loadJobs(boolean newerThan, long createdAt, String sourceType,
+                                             String targetType, String processType,
+                                             String resourceKey, State state);
 
   /**
    * Load all jobs that are having the specified state.
