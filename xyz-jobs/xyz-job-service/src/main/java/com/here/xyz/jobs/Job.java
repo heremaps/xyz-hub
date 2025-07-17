@@ -302,7 +302,7 @@ public class Job implements XyzSerializable {
             getStatus().setState(CANCELLED);
             return storeStatus(CANCELLING);
           }
-          return JobExecutor.getInstance().cancel(getExecutionId());
+          return JobExecutor.getInstance().cancel(getExecutionId(), "Cancelled as it was requested by the user");
         })
         /*
         NOTE: Cancellation is still in progress. The JobExecutor will now monitor the different step cancellations
@@ -377,6 +377,7 @@ public class Job implements XyzSerializable {
     int overallWorkUnits = getSteps().stepStream().mapToInt(s -> s.getEstimatedExecutionSeconds()).sum();
     getStatus().setEstimatedProgress((float) completedWorkUnits / (float) overallWorkUnits);
 
+    //Update the job's state if applicable
     if (previousStepState != FAILED && step.getStatus().getState() == FAILED) {
       getStatus()
           .withState(FAILED)
@@ -386,11 +387,15 @@ public class Job implements XyzSerializable {
     }
 
     return storeUpdatedStep(step)
-        .compose(v -> storeStatus(null))
-        .compose(v -> getStatus().getState() == FAILED && cancelOnFailure ? JobExecutor.getInstance().cancel(getExecutionId()).recover(t -> {
-          logger.error("[{}] Error cancelling the job execution. Was it already cancelled before?", getId(), t);
-          return Future.succeededFuture();
-        }) : Future.succeededFuture());
+        .compose(v -> storeStatus(getStatus().getState()))
+        .compose(v -> getStatus().getState() == FAILED && cancelOnFailure ?
+            JobExecutor.getInstance().cancel(getExecutionId(), "Cancelled due to failed step \"" + step.getId() + "\"")
+                .recover(t -> {
+                  logger.error("[{}] Error cancelling the job execution. Was it already cancelled before?", getId(), t);
+                  return Future.succeededFuture();
+                })
+            : Future.succeededFuture()
+        );
   }
 
   private Future<Void> updatePreviousAttempts(Step step) {

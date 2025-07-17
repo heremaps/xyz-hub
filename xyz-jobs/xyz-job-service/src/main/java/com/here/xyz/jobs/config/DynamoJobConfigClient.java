@@ -292,7 +292,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
           .withValueMap(valueMap);
 
       if (expectedPreviousState != null) {
-        //TODO: Allow multiple expected previous steps?
+        //TODO: Allow multiple expected previous states?
         valueMap.put(":oldState", expectedPreviousState.toString());
         updateItemSpec.withConditionExpression("#state = :oldState")
             .withValueMap(valueMap);
