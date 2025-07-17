@@ -20,7 +20,11 @@
 package com.here.xyz.jobs.service;
 
 import static com.here.xyz.jobs.service.JobApiBase.ApiParam.Path.JOB_ID;
+import static com.here.xyz.jobs.service.JobApiBase.ApiParam.Query.RESOURCE;
 import static com.here.xyz.jobs.service.JobApiBase.ApiParam.Query.NEWER_THAN;
+import static com.here.xyz.jobs.service.JobApiBase.ApiParam.Query.SOURCE_TYPE;
+import static com.here.xyz.jobs.service.JobApiBase.ApiParam.Query.TARGET_TYPE;
+import static com.here.xyz.jobs.service.JobApiBase.ApiParam.Query.PROCESS_TYPE;
 import static com.here.xyz.jobs.service.JobApiBase.ApiParam.getQueryParam;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 
@@ -40,10 +44,27 @@ public class JobApiBase extends Api {
 
   protected void getJobs(final RoutingContext context, boolean internal) {
     try {
+      // resource and type are indexed
+      final String resource = getQueryParam(context, RESOURCE);
+      final State state = getState(context);
+
       final String newerThan = getQueryParam(context, NEWER_THAN);
-      Future<List<Job>> resultFuture = newerThan != null
-          ? Job.load(true, Long.parseLong(newerThan))
-          : Job.load(getState(context), getResource(context));
+      final String sourceType = getQueryParam(context, SOURCE_TYPE);
+      final String targetType = getQueryParam(context, TARGET_TYPE);
+      final String processType = getQueryParam(context, PROCESS_TYPE);
+
+      Future<List<Job>> resultFuture;
+
+      if(newerThan == null && sourceType == null && targetType == null && processType == null) {
+        //index can get used
+        resultFuture = Job.load(state, resource);
+      }else {
+        //scan is needed
+        long newerThanTimestamp = newerThan != null ? Long.parseLong(newerThan) : 0;
+        resultFuture = Job.load(true, newerThanTimestamp, sourceType, targetType,
+            processType, resource, state);;
+      }
+
       resultFuture
           .onSuccess(res -> {
             if (internal)
@@ -61,10 +82,6 @@ public class JobApiBase extends Api {
   protected State getState(RoutingContext context) {
     String stateParamValue = getQueryParam(context, Query.STATE);
     return stateParamValue != null ? State.valueOf(stateParamValue) : null;
-  }
-
-  protected String getResource(RoutingContext context) {
-    return getQueryParam(context, Query.RESOURCE);
   }
 
   public static class ApiParam {
@@ -85,6 +102,9 @@ public class JobApiBase extends Api {
       static final String STATE = "state";
       static final String RESOURCE = "resource";
       static final String NEWER_THAN = "newerThan";
+      static final String SOURCE_TYPE = "sourceType";
+      static final String TARGET_TYPE = "targetType";
+      static final String PROCESS_TYPE = "processType";
     }
   }
 }
