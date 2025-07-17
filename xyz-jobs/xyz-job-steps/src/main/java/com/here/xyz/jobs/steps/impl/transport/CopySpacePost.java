@@ -91,7 +91,7 @@ public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
 
   @Override
   public int getTimeoutSeconds() {
-    return 600;
+    return 30 * 60;
   }
 
   @Override
