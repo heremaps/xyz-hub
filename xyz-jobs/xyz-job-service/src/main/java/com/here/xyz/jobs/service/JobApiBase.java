@@ -96,7 +96,7 @@ public class JobApiBase extends Api {
 
   protected FilteredValues getFilteredValues(RoutingContext context, String param) {
     String paramValue = getQueryParam(context, param);
-    if (paramValue == null)
+    if (paramValue == null || paramValue.isBlank())
       return  null;
 
     boolean include = true;
