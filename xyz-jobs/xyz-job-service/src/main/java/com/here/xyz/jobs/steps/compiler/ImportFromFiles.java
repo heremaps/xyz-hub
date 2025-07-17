@@ -101,8 +101,10 @@ public class ImportFromFiles implements JobCompilationInterceptor {
     return compileImportSteps(importFilesStep);
   }
 
-  public static CompilationStepGraph compileWrapWithDropRecreateIndices(String spaceId, StepExecution stepExecution ) 
+  public static CompilationStepGraph compileWrapWithDropRecreateIndices(String spaceId, StepExecution stepExecution )
   {
+    //NOTE: drop/create indices is also used by SpaceCopy compiler
+
     //NOTE: VIZ index will be created separately in a sequential step afterwards (see below)
     List<XyzSpaceTableHelper.SystemIndex> indices = Stream.of(SystemIndex.values()).filter(index -> index != SystemIndex.VIZ).toList();
     //Split the work in three parallel tasks for now
