@@ -288,7 +288,7 @@ public abstract class JobExecutor implements Initializable {
 
   protected abstract Future<String> resume(Job job, String executionId);
 
-  public abstract Future<Void> cancel(String executionId);
+  public abstract Future<Void> cancel(String executionId, String reason);
 
   /**
    * Deletes all execution resources of the specified execution ID.

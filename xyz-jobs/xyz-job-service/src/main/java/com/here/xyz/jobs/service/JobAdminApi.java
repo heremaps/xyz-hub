@@ -206,18 +206,27 @@ public class JobAdminApi extends JobApiBase {
                 JobExecutor.getInstance().deleteExecution(job.getExecutionId());
               else if (newJobState == FAILED) {
                 if ("TIMED_OUT".equals(sfnStatus))
-                  future = failCausingStep(job, "Step timeout", future, executionArn);
+                  future = failCausingStep(job, "Timeout was exceeded of step", future, executionArn);
                 else if ("States.Timeout".equals(detail.getString("error")))
-                  future = failCausingStep(job, "Unexpected Error - HeartBeat timeout", future, executionArn);
-
+                  future = failCausingStep(job, "Unknown error - No State-checks were received anymore (HeartBeat timeout) "
+                      + "from the async step", future, executionArn);
+                else {
+                  /*
+                  NOTE: This case handles any other failures of the SFN that are nothing unusual.
+                  For these failures, the steps should've sent their failure as a step-update to the service already.
+                  This handling only acts as a safeguard to ensure that the causing SFN step failure gets reflected in the job's step.
+                  (e.g., in case of there would be issues with the step-sync)
+                   */
+                  future = failCausingStep(job, null, future, executionArn);
+                  logger.info("[{}] Received job failure from SFN. Cause: {}", job.getId(), detail.getString("cause"));
+                }
                 //Set all PENDING steps to CANCELLED
                 future = future.compose(v -> cancelSteps(job, PENDING));
               }
 
               State oldState = job.getStatus().getState();
-              if (oldState != newJobState) {
+              if (oldState != newJobState && !oldState.isFinal())
                 job.getStatus().setState(newJobState);
-              }
 
               future = future.compose(v -> job.storeStatus(oldState));
             }
@@ -232,13 +241,15 @@ public class JobAdminApi extends JobApiBase {
   }
 
   private static Future<Void> failCausingStep(Job job, String errCausePrefixText, Future<Void> future, String executionArn) {
-    String existingErrCause = job.getStatus().getErrorCause();
-    //inject errorCause
-    job.getStatus().setErrorCause(existingErrCause != null ? errCausePrefixText + ": " + existingErrCause : errCausePrefixText);
-
-    //Set all RUNNING steps to CANCELLED, because the steps themselves might not have been informed
-    future = future.compose(v -> loadCausingStepId(executionArn)
-        .compose(causingStepId -> failStep(job, job.getStepById(causingStepId))))
+    //Find the causing step within the SFN ...
+    future = future.compose(v -> loadCausingStepId(executionArn))
+        .compose(causingStepId -> {
+          //Patch the error cause on the *job* status
+          patchErrorCause(job.getStatus(), errCausePrefixText == null ? null :  errCausePrefixText + " \"" + causingStepId + "\"");
+          //... and reflect that failure in the local job's step
+          return failStep(job, job.getStepById(causingStepId), errCausePrefixText);
+        })
+        //Set all RUNNING steps to CANCELLED, because the steps themselves might not have been informed
         .compose(v -> cancelSteps(job, RUNNING));
     return future;
   }
@@ -280,14 +291,33 @@ public class JobAdminApi extends JobApiBase {
     }).toList()).recover(t -> Future.succeededFuture()).mapEmpty();
   }
 
-  private static Future<Void> failStep(Job job, Step step) {
-    if (step.getStatus().getState().isFinal())
-      return Future.succeededFuture();
+  private static Future<Void> failStep(Job job, Step step, String errCausePrefixText) {
+    //Patch the error cause on the *step* status
+    patchErrorCause(step.getStatus(), errCausePrefixText);
 
-    logger.info("[{}] Fail step {}.", job.getId(), step.getId());
+    if (step.getStatus().getState().isFinal())
+      if (errCausePrefixText == null)
+        return Future.succeededFuture();
+      else
+        return job.storeUpdatedStep(step);
+
+    logger.info("[{}] Fail step {}" + (errCausePrefixText != null ? " : " + errCausePrefixText : ""), job.getId(), step.getId(), errCausePrefixText);
 
     step.getStatus().setState(FAILED);
     return job.storeUpdatedStep(step);
+  }
+
+  /**
+   * Adds some error causing prefix-text to the existing error text of the job if there is some already.
+   * (Ensures not to masquerade an existing error text)
+   * @param status
+   * @param errCausePrefixText
+   */
+  private static void patchErrorCause(RuntimeInfo status, String errCausePrefixText) {
+    if (errCausePrefixText != null) {
+      String existingErrCause = status.getErrorCause();
+      status.setErrorCause(existingErrCause != null ? errCausePrefixText + ": " + existingErrCause : errCausePrefixText);
+    }
   }
 
   /**
