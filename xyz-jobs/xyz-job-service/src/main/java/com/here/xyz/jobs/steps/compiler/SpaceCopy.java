@@ -110,7 +110,7 @@ public class SpaceCopy implements JobCompilationInterceptor {
       startGraph.addExecution(preCopySpace);
 
       long sourceFeatureCount = sourceStatistics.getCount().getValue(),
-          targetFeatureCount = targetStatistics.getCount().getValue();
+           targetFeatureCount = targetStatistics.getCount().getValue();
 
       int threadCount = threadCountCalc(sourceFeatureCount, targetFeatureCount);
 
@@ -148,7 +148,15 @@ public class SpaceCopy implements JobCompilationInterceptor {
 
       startGraph.addExecution(postCopySpace);
 
-      return startGraph;
+      long DROPCREATEINDEX_THRESHOLD = 4_000_000;
+
+      boolean useDropIndexOptimization =    sourceFeatureCount >= DROPCREATEINDEX_THRESHOLD
+                                            // target is empty and no filtering 
+                                         && targetFeatureCount <= 0
+                                         && filters == null;
+
+      return !useDropIndexOptimization ? startGraph : ImportFromFiles.compileWrapWithDropRecreateIndices(targetSpaceId, startGraph);
+
     }
     catch (WebClientException e) {
       throw new CompilationError("Error resolving resource information: " + e.getMessage(), e);

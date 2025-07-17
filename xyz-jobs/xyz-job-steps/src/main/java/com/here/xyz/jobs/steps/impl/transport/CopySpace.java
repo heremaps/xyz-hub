@@ -416,7 +416,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
       WITH ins_data as
       (
         INSERT INTO ${schema}.${table} (jsondata, operation, author, geo, id, version, next_version )
-          SELECT idata.jsondata, 'I' AS operation, idata.author, idata.geo, idata.id, ${{versionToBeUsed}} as version, max_bigint() as next_version
+          SELECT idata.jsondata, case when idata.operation = 'U' then 'I' else idata.operation end AS operation, idata.author, idata.geo, idata.id, ${{versionToBeUsed}} as version, max_bigint() as next_version
           FROM
           ( 
             ${{contentQuery}} 
