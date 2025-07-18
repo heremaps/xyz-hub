@@ -33,6 +33,7 @@ import com.amazonaws.services.dynamodbv2.model.DeleteRequest;
 import com.amazonaws.services.dynamodbv2.model.KeysAndAttributes;
 import com.amazonaws.services.dynamodbv2.model.PutRequest;
 import com.amazonaws.services.dynamodbv2.model.WriteRequest;
+import com.google.common.collect.Lists;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.XyzSerializable.Static;
 import com.here.xyz.jobs.Job;
@@ -155,10 +156,23 @@ public class DynamoJobConfigClient extends JobConfigClient {
   //TODO: Remove resourceKey GSIs after migration
 
   private Future<Set<Job>> loadJobs(Set<String> resourceKeys) {
-    return findJobIds(resourceKeys).compose(jobIds -> batchLoadJobsById(jobIds));
+    return findJobIds(resourceKeys).compose(jobIds -> {
+
+      //Do parallel batch request to dynamo in case more than 100 job IDs
+      List<List<String>> batchedJobIds = Lists.partition(jobIds.stream().toList(), 100);
+      List<Future<Set<Job>>> futureList = new ArrayList<>();
+      for (List<String> batch : batchedJobIds) {
+        futureList.add(batchLoadJobsById(batch));
+      }
+
+      return Future.all(futureList)
+              .map(cf -> cf.list().stream()
+                      .flatMap(set -> ((Set<Job>) set).stream())
+                      .collect(Collectors.toSet()));
+    });
   }
 
-  private Future<Set<Job>> batchLoadJobsById(Set<String> jobIds) {
+  private Future<Set<Job>> batchLoadJobsById(List<String> jobIds) {
     if(jobIds == null || jobIds.isEmpty())
       return Future.succeededFuture(Set.of());
 
