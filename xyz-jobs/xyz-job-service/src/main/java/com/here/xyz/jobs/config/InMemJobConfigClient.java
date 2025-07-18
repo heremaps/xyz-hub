@@ -125,10 +125,12 @@ public class InMemJobConfigClient extends JobConfigClient {
   }
 
   @Override
-  public Future<Set<Job>> loadJobs(String resourceKey) {
+  public Future<Set<Job>> loadJobsByPrimaryResourceKey(String resourceKey) {
     if (resourceKey == null)
       return Future.succeededFuture(Set.of());
-    return loadJobs(Set.of(resourceKey)).map(jobs -> jobs.stream().collect(Collectors.toSet()));
+    return loadJobs().map(jobs -> jobs.stream()
+            .filter(job -> resourceKey.equals(job.getResourceKey()))
+            .collect(Collectors.toSet()));
   }
 
   @Override
