@@ -208,10 +208,14 @@ public class DynamoJobConfigClient extends JobConfigClient {
   }
 
   @Override
-  public Future<Set<Job>> loadJobs(String resourceKey) {
+  public Future<Set<Job>> loadJobsByPrimaryResourceKey(String resourceKey) {
     if (resourceKey == null)
       return Future.succeededFuture(Set.of());
-    return loadJobs(Set.of(resourceKey));
+
+    return dynamoClient.executeQueryAsync(() -> queryIndex(jobTable, RESOURCE_KEY_GSI, resourceKey)
+            .stream()
+            .map(jobItem -> XyzSerializable.fromMap(jobItem.asMap(), Job.class))
+            .collect(Collectors.toSet()));
   }
 
   @Override
