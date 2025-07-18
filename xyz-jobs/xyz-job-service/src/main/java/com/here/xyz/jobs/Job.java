@@ -388,7 +388,7 @@ public class Job implements XyzSerializable {
     }
 
     return storeUpdatedStep(step)
-        .compose(v -> storeStatus(getStatus().getState()))
+        .compose(v -> storeStatus(null))
         .compose(v -> getStatus().getState() == FAILED && cancelOnFailure ?
             JobExecutor.getInstance().cancel(getExecutionId(), "Cancelled due to failed step \"" + step.getId() + "\"")
                 .recover(t -> {
