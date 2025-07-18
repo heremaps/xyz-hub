@@ -379,6 +379,7 @@ public class Job implements XyzSerializable {
     getStatus().setEstimatedProgress((float) completedWorkUnits / (float) overallWorkUnits);
 
     //Update the job's state if applicable
+    State previousJobState = getStatus().getState();
     if (previousStepState != FAILED && step.getStatus().getState() == FAILED) {
       getStatus()
           .withState(FAILED)
@@ -388,7 +389,7 @@ public class Job implements XyzSerializable {
     }
 
     return storeUpdatedStep(step)
-        .compose(v -> storeStatus(null))
+        .compose(v -> storeStatus(previousJobState))
         .compose(v -> getStatus().getState() == FAILED && cancelOnFailure ?
             JobExecutor.getInstance().cancel(getExecutionId(), "Cancelled due to failed step \"" + step.getId() + "\"")
                 .recover(t -> {
