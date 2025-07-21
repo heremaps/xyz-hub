@@ -42,6 +42,7 @@ import org.apache.logging.log4j.Logger;
  *
  * @TODO - resume
  */
+//TODO: Rename this class to GetNextSpaceVersion (or create as parent class to avoid re-usability issues)
 public class CopySpacePre extends SpaceBasedStep<CopySpacePre> {
   public static final String VERSION = "version";
   private static final Logger logger = LogManager.getLogger();
