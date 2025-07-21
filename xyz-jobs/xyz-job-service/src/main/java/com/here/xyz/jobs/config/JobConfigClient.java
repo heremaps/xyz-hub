@@ -57,12 +57,25 @@ public abstract class JobConfigClient implements Initializable {
   public abstract Future<List<Job>> loadJobs();
 
   /**
-   * Load all jobs that are newer / older than the specified createdAt timestamp.
-   * @param newerThan Whether to use "newer than", "older than" otherwise
-   * @param createdAt The timestamp to use for comparison
-   * @return A list of jobs that are newer / older than the specified timestamp.
+   * Loads a list of {@link Job} entities filtered by the provided criteria.
+   * <p>
+   * Each filter uses {@link FilteredValues}, which defines a set of values and whether to include or exclude matches.
+   * If a filter is {@code null} or has an empty value set, it is ignored.
+   *
+   * @param newerThan    Filter on the job creation timestamp. If {@code include} is true, selects jobs with {@code createdAt > value};
+   *                     otherwise, selects jobs with {@code createdAt <= value}. Only the first value in the set is used.
+   * @param sourceTypes  Filters jobs by source type class name. If {@code include} is true, matches any source type in the set;
+   *                     if false, excludes those source types.
+   * @param targetTypes  Filters jobs by target type class name. Works the same way as {@code sourceTypes}.
+   * @param processTypes Filters jobs by process type class name. Works the same way as {@code sourceTypes}.
+   * @param resourceKeys Filters jobs by resource keys. If {@code include} is true, includes jobs containing any of the keys;
+   *                     if false, excludes jobs containing all of the keys.
+   * @param stateTypes   Filters jobs by their {@link State}. If {@code include} is true, includes jobs with any of the given states;
+   *                     otherwise, excludes them.
+   * @return a {@link Future} containing the filtered list of jobs
    */
-  public abstract Future<List<Job>> loadJobs(boolean newerThan, long createdAt);
+  public abstract Future<List<Job>> loadJobs(FilteredValues<Long> newerThan, FilteredValues<String> sourceTypes, FilteredValues<String> targetTypes,
+                                               FilteredValues<String> processTypes, FilteredValues<String> resourceKeys, FilteredValues<State> stateTypes);
 
   /**
    * Load all jobs that are having the specified state.
@@ -76,7 +89,7 @@ public abstract class JobConfigClient implements Initializable {
    * @param resourceKey
    * @return
    */
-  public abstract Future<Set<Job>> loadJobs(String resourceKey);
+  public abstract Future<Set<Job>> loadJobsByPrimaryResourceKey(String resourceKey);
 
   /**
    * Load all jobs related to a specified resourceKey (e.g., space ID) that are having the specified state.
@@ -138,4 +151,6 @@ public abstract class JobConfigClient implements Initializable {
             .filter(job -> (JobService.currentTimeMillis() - job.getCreatedAt()) > olderThanInMs)
             .toList());
   }
+
+  public record FilteredValues<T>(boolean include, Set<T> values){ }
 }

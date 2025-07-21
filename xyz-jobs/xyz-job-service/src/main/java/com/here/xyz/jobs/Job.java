@@ -45,6 +45,7 @@ import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.RuntimeInfo.State;
 import com.here.xyz.jobs.config.JobConfigClient;
+import com.here.xyz.jobs.config.JobConfigClient.FilteredValues;
 import com.here.xyz.jobs.datasets.DatasetDescription;
 import com.here.xyz.jobs.datasets.Files;
 import com.here.xyz.jobs.datasets.streams.DynamicStream;
@@ -302,7 +303,7 @@ public class Job implements XyzSerializable {
             getStatus().setState(CANCELLED);
             return storeStatus(CANCELLING);
           }
-          return JobExecutor.getInstance().cancel(getExecutionId());
+          return JobExecutor.getInstance().cancel(getExecutionId(), "Cancelled as it was requested by the user");
         })
         /*
         NOTE: Cancellation is still in progress. The JobExecutor will now monitor the different step cancellations
@@ -377,6 +378,7 @@ public class Job implements XyzSerializable {
     int overallWorkUnits = getSteps().stepStream().mapToInt(s -> s.getEstimatedExecutionSeconds()).sum();
     getStatus().setEstimatedProgress((float) completedWorkUnits / (float) overallWorkUnits);
 
+    //Update the job's state if applicable
     if (previousStepState != FAILED && step.getStatus().getState() == FAILED) {
       getStatus()
           .withState(FAILED)
@@ -387,10 +389,14 @@ public class Job implements XyzSerializable {
 
     return storeUpdatedStep(step)
         .compose(v -> storeStatus(null))
-        .compose(v -> getStatus().getState() == FAILED && cancelOnFailure ? JobExecutor.getInstance().cancel(getExecutionId()).recover(t -> {
-          logger.error("[{}] Error cancelling the job execution. Was it already cancelled before?", getId(), t);
-          return Future.succeededFuture();
-        }) : Future.succeededFuture());
+        .compose(v -> getStatus().getState() == FAILED && cancelOnFailure ?
+            JobExecutor.getInstance().cancel(getExecutionId(), "Cancelled due to failed step \"" + step.getId() + "\"")
+                .recover(t -> {
+                  logger.error("[{}] Error cancelling the job execution. Was it already cancelled before?", getId(), t);
+                  return Future.succeededFuture();
+                })
+            : Future.succeededFuture()
+        );
   }
 
   private Future<Void> updatePreviousAttempts(Step step) {
@@ -452,12 +458,13 @@ public class Job implements XyzSerializable {
       return JobConfigClient.getInstance().loadJobs(resourceKey, state);
   }
 
-  public static Future<List<Job>> load(boolean newerThan, long  createdAt) {
-    return JobConfigClient.getInstance().loadJobs(newerThan, createdAt);
+  public static Future<List<Job>> load(FilteredValues<Long> newerThan, FilteredValues<String> sourceType, FilteredValues<String> targetType,
+                                               FilteredValues<String> processType, FilteredValues<String> resourceKeys, FilteredValues<State> stateTypes) {
+    return JobConfigClient.getInstance().loadJobs(newerThan, sourceType, targetType, processType, resourceKeys, stateTypes);
   }
 
   public static Future<Set<Job>> loadByResourceKey(String resourceKey) {
-    return JobConfigClient.getInstance().loadJobs(resourceKey);
+    return JobConfigClient.getInstance().loadJobsByPrimaryResourceKey(resourceKey);
   }
 
   public static Future<List<Job>> loadAll() {

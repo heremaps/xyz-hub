@@ -33,6 +33,7 @@ import com.amazonaws.services.dynamodbv2.model.DeleteRequest;
 import com.amazonaws.services.dynamodbv2.model.KeysAndAttributes;
 import com.amazonaws.services.dynamodbv2.model.PutRequest;
 import com.amazonaws.services.dynamodbv2.model.WriteRequest;
+import com.google.common.collect.Lists;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.XyzSerializable.Static;
 import com.here.xyz.jobs.Job;
@@ -49,7 +50,9 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
@@ -108,15 +111,92 @@ public class DynamoJobConfigClient extends JobConfigClient {
   }
 
   @Override
-  public Future<List<Job>> loadJobs(boolean newerThan, long createdAt) {
-    //TODO: Use index with sort-key on "createdAt" attribute instead of scan()
-    return dynamoClient.executeQueryAsync(() -> {
-      List<Job> jobs = new LinkedList<>();
-      jobTable.scan("#createdAt " + (newerThan ? ">" : "<") + " :ts", Map.of("#createdAt", "createdAt"), Map.of(":ts",  createdAt))
-          .pages()
-          .forEach(page -> page.forEach(jobItem -> jobs.add(XyzSerializable.fromMap(jobItem.asMap(), Job.class))));
-      return jobs;
-    });
+  public Future<List<Job>> loadJobs(FilteredValues<Long> newerThan, FilteredValues<String> sourceTypes,
+                                    FilteredValues<String> targetTypes, FilteredValues<String> processTypes,
+                                    FilteredValues<String> resourceKeys, FilteredValues<State> stateTypes) {
+    List<Job> jobs = new LinkedList<>();
+
+    List<String> filters = new ArrayList<>();
+    Map<String, String> attrNames = new HashMap<>();
+    Map<String, Object> attrValues = new HashMap<>();
+
+    // --- createdAt special case ---
+    if (newerThan != null && !newerThan.values().isEmpty()) {
+      Long ts = newerThan.values().iterator().next(); // Only use one timestamp
+      filters.add("#createdAt " + (newerThan.include() ? ">" : "<=") + " :ts");
+      attrNames.put("#createdAt", "createdAt");
+      attrValues.put(":ts", ts);
+    }
+
+    // --- IN / NOT IN filters ---
+    Optional.ofNullable(buildInFilter("source.type", sourceTypes, attrNames, attrValues)).ifPresent(filters::add);
+    Optional.ofNullable(buildInFilter("target.type", targetTypes, attrNames, attrValues)).ifPresent(filters::add);
+    Optional.ofNullable(buildInFilter("process.type", processTypes, attrNames, attrValues)).ifPresent(filters::add);
+    Optional.ofNullable(buildInFilter("status.state", stateTypes, attrNames, attrValues)).ifPresent(filters::add);
+
+    // --- resourceKeys: contains / NOT contains ---
+    if (resourceKeys != null && !resourceKeys.values().isEmpty()) {
+      List<String> subFilters = new ArrayList<>();
+      int i = 0;
+
+      for (String key : resourceKeys.values()) {
+        String paramKey = ":rk" + i++;
+        attrValues.put(paramKey, key);
+        subFilters.add("contains(#resourceKeys, " + paramKey + ")");
+      }
+
+      attrNames.put("#resourceKeys", "resourceKeys");
+
+      if (resourceKeys.include()) {
+        filters.add("(" + String.join(" OR ", subFilters) + ")");
+      } else {
+        filters.add("(" + subFilters.stream().map(f -> "NOT " + f).collect(Collectors.joining(" AND ")) + ")");
+      }
+    }
+
+    String filterExpr = filters.isEmpty() ? null : String.join(" AND ", filters);
+    if (attrNames.isEmpty()) attrNames = null;
+    if (attrValues.isEmpty()) attrValues = null;
+
+    jobTable.scan(filterExpr, attrNames, attrValues)
+            .pages()
+            .forEach(page ->
+                    page.forEach(item -> jobs.add(XyzSerializable.fromMap(item.asMap(), Job.class)))
+            );
+
+    return Future.succeededFuture(jobs);
+  }
+
+  private String buildInFilter(String fieldPath, FilteredValues<?> fv,
+                               Map<String, String> attrNames, Map<String, Object> attrValues) {
+    if (fv == null || fv.values().isEmpty()) return null;
+
+    String[] parts = fieldPath.split("\\.");
+    StringBuilder fieldExpr = new StringBuilder();
+    for (String part : parts) {
+      String key = "#" + part;
+      fieldExpr.append(key).append(".");
+      attrNames.put(key, part);
+    }
+    fieldExpr.setLength(fieldExpr.length() - 1); // Remove trailing dot
+    String fieldRef = fieldExpr.toString();
+
+    List<String> conditions = new ArrayList<>();
+
+    for (Object val : fv.values()) {
+      String paramKey = ":" + parts[parts.length - 1] + UUID.randomUUID().toString().substring(0,5);
+      attrValues.put(paramKey, val instanceof Enum<?> e ? e.name() : val);
+
+      if (fv.include()) {
+        conditions.add(paramKey);
+      } else {
+        conditions.add(fieldRef + " <> " + paramKey);
+      }
+    }
+
+    return fv.include()
+            ? fieldRef + " IN (" + String.join(", ", conditions) + ")"
+            : String.join(" AND ", conditions);
   }
 
   @Override
@@ -128,10 +208,14 @@ public class DynamoJobConfigClient extends JobConfigClient {
   }
 
   @Override
-  public Future<Set<Job>> loadJobs(String resourceKey) {
+  public Future<Set<Job>> loadJobsByPrimaryResourceKey(String resourceKey) {
     if (resourceKey == null)
       return Future.succeededFuture(Set.of());
-    return loadJobs(Set.of(resourceKey));
+
+    return dynamoClient.executeQueryAsync(() -> queryIndex(jobTable, RESOURCE_KEY_GSI, resourceKey)
+            .stream()
+            .map(jobItem -> XyzSerializable.fromMap(jobItem.asMap(), Job.class))
+            .collect(Collectors.toSet()));
   }
 
   @Override
@@ -155,10 +239,23 @@ public class DynamoJobConfigClient extends JobConfigClient {
   //TODO: Remove resourceKey GSIs after migration
 
   private Future<Set<Job>> loadJobs(Set<String> resourceKeys) {
-    return findJobIds(resourceKeys).compose(jobIds -> batchLoadJobsById(jobIds));
+    return findJobIds(resourceKeys).compose(jobIds -> {
+
+      //Do parallel batch request to dynamo in case more than 100 job IDs
+      List<List<String>> batchedJobIds = Lists.partition(jobIds.stream().toList(), 100);
+      List<Future<Set<Job>>> futureList = new ArrayList<>();
+      for (List<String> batch : batchedJobIds) {
+        futureList.add(batchLoadJobsById(batch));
+      }
+
+      return Future.all(futureList)
+              .map(cf -> cf.list().stream()
+                      .flatMap(set -> ((Set<Job>) set).stream())
+                      .collect(Collectors.toSet()));
+    });
   }
 
-  private Future<Set<Job>> batchLoadJobsById(Set<String> jobIds) {
+  private Future<Set<Job>> batchLoadJobsById(List<String> jobIds) {
     if(jobIds == null || jobIds.isEmpty())
       return Future.succeededFuture(Set.of());
 
@@ -292,7 +389,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
           .withValueMap(valueMap);
 
       if (expectedPreviousState != null) {
-        //TODO: Allow multiple expected previous steps?
+        //TODO: Allow multiple expected previous states?
         valueMap.put(":oldState", expectedPreviousState.toString());
         updateItemSpec.withConditionExpression("#state = :oldState")
             .withValueMap(valueMap);

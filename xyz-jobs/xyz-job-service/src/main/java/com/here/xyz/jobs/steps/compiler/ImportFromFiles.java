@@ -23,7 +23,6 @@ import static com.here.xyz.jobs.steps.Step.InputSet.USER_INPUTS;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.CSV_GEOJSON;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.CSV_JSON_WKB;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.GEOJSON;
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SystemIndex;
 
 import com.google.common.collect.Lists;
 import com.here.xyz.jobs.Job;
@@ -46,6 +45,7 @@ import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPerLine;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
+import com.here.xyz.util.db.pg.XyzSpaceTableHelper.SystemIndex;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
@@ -102,17 +102,18 @@ public class ImportFromFiles implements JobCompilationInterceptor {
     return compileImportSteps(importFilesStep);
   }
 
-  public static CompilationStepGraph compileImportSteps(ImportFilesToSpace importFilesStep) {
-    String spaceId = importFilesStep.getSpaceId();
+  public static CompilationStepGraph compileWrapWithDropRecreateIndices(String spaceId, StepExecution stepExecution )
+  {
+    //NOTE: drop/create indices is also used by SpaceCopy compiler
 
     //NOTE: VIZ index will be created separately in a sequential step afterwards (see below)
     List<XyzSpaceTableHelper.SystemIndex> indices = Stream.of(SystemIndex.values()).filter(index -> index != SystemIndex.VIZ).toList();
     //Split the work in three parallel tasks for now
     List<List<SystemIndex>> indexTasks = Lists.partition(indices, indices.size() / 3);
 
-    CompilationStepGraph importStepGraph = (CompilationStepGraph) new CompilationStepGraph()
+    CompilationStepGraph wrappedStepGraph = (CompilationStepGraph) new CompilationStepGraph()
         .addExecution(new DropIndexes().withSpaceId(spaceId).withSpaceDeactivation(true)) //Drop all existing indices
-        .addExecution(importFilesStep)
+        .addExecution(stepExecution)
         //NOTE: Create *all* indices in parallel, make sure to (at least) keep the viz-index sequential #postgres-issue-with-partitions
         .addExecution(new CompilationStepGraph() //Create all the base indices semi-parallel
             .addExecution(new CompilationStepGraph().withExecutions(toSequentialSteps(spaceId, indexTasks.get(0))))
@@ -123,11 +124,16 @@ public class ImportFromFiles implements JobCompilationInterceptor {
 
     CompilationStepGraph onDemandIndexSteps = IndexCompilerHelper.compileOnDemandIndexSteps(spaceId);
     if (!onDemandIndexSteps.isEmpty())
-      importStepGraph.addExecution(onDemandIndexSteps);
+      wrappedStepGraph.addExecution(onDemandIndexSteps);
 
-    importStepGraph.addExecution(new AnalyzeSpaceTable().withSpaceId(spaceId));
+    wrappedStepGraph.addExecution(new AnalyzeSpaceTable().withSpaceId(spaceId));
 
-    return importStepGraph;
+    return wrappedStepGraph;
+
+  }
+
+  public static CompilationStepGraph compileImportSteps(ImportFilesToSpace importFilesStep) {
+    return compileWrapWithDropRecreateIndices(importFilesStep.getSpaceId(),importFilesStep );
   }
 
   private EntityPerLine getEntityPerLine(FileFormat format) {
