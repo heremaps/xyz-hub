@@ -70,14 +70,14 @@ public class ImportFilesQuickValidator {
     CountingInputStream countingStream = new CountingInputStream(rawInput);
     BufferedReader reader = new BufferedReader(new InputStreamReader(countingStream, StandardCharsets.UTF_8));
 
-    StringBuilder line2 = new StringBuilder();
+    StringBuilder line = new StringBuilder();
     int ch;
 
     while ((ch = reader.read()) != -1) {
-      line2.append((char) ch);
+      line.append((char) ch);
 
       if (ch == '\n' || ch == '\r') {
-        ImportFilesQuickValidator.validateCSVLine(line2.toString(), format, entityPerLine);
+        ImportFilesQuickValidator.validateCSVLine(line.toString(), format, entityPerLine);
         logger.info("Validation finished {} in format {}", s3File.getS3Key(), format);
         return;
       }
@@ -88,9 +88,9 @@ public class ImportFilesQuickValidator {
     }
 
     // Still validate if file ends without a newline
-    if (!line2.isEmpty()) {
+    if (!line.isEmpty()) {
       //Not able to find a newline - could be a one-liner
-      ImportFilesQuickValidator.validateCSVLine(line2.toString(), format, entityPerLine);
+      ImportFilesQuickValidator.validateCSVLine(line.toString(), format, entityPerLine);
       logger.info("Validation finished {} ", s3File.getS3Key());
       return;
     }
