@@ -21,6 +21,7 @@ package com.here.xyz.jobs.steps.impl.transport.tools;
 
 import static com.here.xyz.XyzSerializable.Mappers.DEFAULT_MAPPER;
 
+import com.amazonaws.AmazonServiceException;
 import com.amazonaws.util.CountingInputStream;
 import com.fasterxml.jackson.core.JacksonException;
 import com.here.xyz.Typed;
@@ -60,42 +61,47 @@ public class ImportFilesQuickValidator {
 
   private static void validateFirstCSVLine(S3DataFile s3File, Format format, EntityPerLine entityPerLine)
       throws IOException, ValidationException {
+
     logger.info("Validating first line of file {} in format {}", s3File.getS3Key(), format);
     S3Client client = S3Client.getInstance(s3File.getS3Bucket());
+    StringBuilder line = new StringBuilder();
 
     InputStream rawInput = client.streamObjectContent(s3File.getS3Key(), 0, VALIDATE_LINE_MAX_LINE_SIZE_BYTES);
-    if (s3File.isCompressed())
-      rawInput = new GZIPInputStream(rawInput);
+    InputStream decompressed = s3File.isCompressed() ? new GZIPInputStream(rawInput) : rawInput;
+    CountingInputStream countingStream = new CountingInputStream(decompressed);
 
-    CountingInputStream countingStream = new CountingInputStream(rawInput);
-    BufferedReader reader = new BufferedReader(new InputStreamReader(countingStream, StandardCharsets.UTF_8));
+    try (BufferedReader reader = new BufferedReader(new InputStreamReader(countingStream, StandardCharsets.UTF_8))) {
+      int ch;
 
-    StringBuilder line = new StringBuilder();
-    int ch;
+      while ((ch = reader.read()) != -1) {
+        line.append((char) ch);
 
-    while ((ch = reader.read()) != -1) {
-      line.append((char) ch);
+        if (ch == '\n' || ch == '\r') {
+          ImportFilesQuickValidator.validateCSVLine(line.toString(), format, entityPerLine);
+          logger.info("Validation finished {} in format {}", s3File.getS3Key(), format);
+          return;
+        }
 
-      if (ch == '\n' || ch == '\r') {
+        if (countingStream.getByteCount() >= VALIDATE_LINE_MAX_LINE_SIZE_BYTES) {
+          logger.info("Validation finished {} in format {}", s3File.getS3Key(), format);
+          throw new IllegalStateException("No newline found within 4MB decompressed limit.");
+        }
+      }
+
+      if (line.length() > 0) {
         ImportFilesQuickValidator.validateCSVLine(line.toString(), format, entityPerLine);
-        logger.info("Validation finished {} in format {}", s3File.getS3Key(), format);
         return;
       }
 
-      if (countingStream.getByteCount() >= VALIDATE_LINE_MAX_LINE_SIZE_BYTES) {
-        throw new IllegalStateException("No newline found within 4MB decompressed limit.");
+      throw new IllegalStateException("No data found in file.");
+    }catch (AmazonServiceException e) {
+      if (e.getErrorCode().equalsIgnoreCase("InvalidRange")) {
+        // The file might be smaller than the requested range
+        ImportFilesQuickValidator.validateCSVLine(line.toString(), format, entityPerLine);
+        return;
       }
+      throw e;
     }
-
-    // Still validate if file ends without a newline
-    if (!line.isEmpty()) {
-      //Not able to find a newline - could be a one-liner
-      ImportFilesQuickValidator.validateCSVLine(line.toString(), format, entityPerLine);
-      logger.info("Validation finished {} ", s3File.getS3Key());
-      return;
-    }
-
-    throw new IllegalStateException("No data found in file.");
   }
 
   private static void validateCSVLine(String csvLine, Format format, EntityPerLine entityPerLine) throws ValidationException {
