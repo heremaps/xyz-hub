@@ -23,6 +23,7 @@ import static com.here.xyz.util.service.aws.AwsClientFactoryBase.s3;
 import static com.here.xyz.util.service.aws.AwsClientFactoryBase.s3Presigner;
 
 import com.amazonaws.regions.Regions;
+import com.here.xyz.util.pagination.Page;
 import com.here.xyz.util.service.BaseConfig;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -207,8 +208,12 @@ public class S3Client {
         .collect(Collectors.toList());
   }
 
-  public List<S3ObjectSummary> scanFolder(String folderPath) {
-    return S3ClientHelper.scanFolder(client, bucketName, folderPath);
+  public Page<S3ObjectSummary> scanFolder(String folderPath) {
+    return scanFolder(folderPath, null, -1);
+  }
+
+  public Page<S3ObjectSummary> scanFolder(String folderPath, String startAfter, int maxKeys) {
+    return S3ClientHelper.scanFolder(client, bucketName, folderPath, startAfter, maxKeys);
   }
 
   /**

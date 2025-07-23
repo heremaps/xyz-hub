@@ -99,9 +99,11 @@ paths:
       operationId: "getJobInputs"
       parameters:
         - $ref: "#/components/parameters/JobId"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/NextPageToken"
       responses:
         "200":
-          $ref: "#/components/responses/JobInputsResponse"
+          $ref: "#/components/responses/JobInputsResponseWithPagination"
         "400":
           $ref: "#/components/responses/ErrorResponse400"
         "404":
@@ -150,9 +152,11 @@ paths:
       operationId: "getJobOutputs"
       parameters:
         - $ref: "#/components/parameters/JobId"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/NextPageToken"
       responses:
         "200":
-          $ref: "#/components/responses/JobOutputsResponse"
+          $ref: "#/components/responses/JobOutputsResponseWithPagination"
         "400":
           $ref: "#/components/responses/ErrorResponse400"
         "404":
@@ -229,6 +233,22 @@ components:
       required: false
       schema:
         $ref: '#/components/schemas/JobState'
+    Limit:
+      name: limit
+      in: query
+      description: Maximum number of items to return in the response
+      required: false
+      schema:
+        type: integer
+        default: 30000
+        minimum: 1
+    NextPageToken:
+      name: nextPageToken
+      in: query
+      description: Token for pagination to retrieve the next page of results
+      required: false
+      schema:
+        type: string
   requestBodies:
     JobRequest:
       required: true
@@ -348,6 +368,17 @@ components:
             items:
               oneOf:
                 - $ref: "#/components/schemas/UploadUrl"
+    JobInputsResponseWithPagination:
+      description: The job inputs with pagination support
+      content:
+        application/json:
+          schema:
+            oneOf:
+              - type: array
+                items:
+                  oneOf:
+                    - $ref: "#/components/schemas/UploadUrl"
+              - $ref: "#/components/schemas/PaginatedJobInputs"
     JobOutputsResponse:
       description: The job outputs
       content:
@@ -358,6 +389,18 @@ components:
               oneOf:
                 - $ref: "#/components/schemas/DownloadUrl"
                 - $ref: "#/components/schemas/FeatureStatistics"
+    JobOutputsResponseWithPagination:
+      description: The job outputs with pagination support
+      content:
+        application/json:
+          schema:
+            oneOf:
+              - type: array
+                items:
+                  oneOf:
+                    - $ref: "#/components/schemas/DownloadUrl"
+                    - $ref: "#/components/schemas/FeatureStatistics"
+              - $ref: "#/components/schemas/PaginatedJobOutputs"
     HealthResponse:
       description: HealhCheck Response
       content:
@@ -915,6 +958,43 @@ components:
         - "FAILED"
         - "RESUMING"
         - "SUCCEEDED"
+    PaginatedJobInputs:
+      type: object
+      description: A paginated list of job inputs
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          description: The list of job inputs for the current page
+          items:
+            oneOf:
+              - $ref: "#/components/schemas/UploadUrl"
+        pageToken:
+          type: string
+          description: Token to retrieve the next page of results
+        totalItems:
+          type: integer
+          description: Total number of items across all pages
+    PaginatedJobOutputs:
+      type: object
+      description: A paginated list of job outputs
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          description: The list of job outputs for the current page
+          items:
+            oneOf:
+              - $ref: "#/components/schemas/DownloadUrl"
+              - $ref: "#/components/schemas/FeatureStatistics"
+        pageToken:
+          type: string
+          description: Token to retrieve the next page of results
+        totalItems:
+          type: integer
+          description: Total number of items across all pages
     GeoJSON:
       type: object
       description: The base type for all possible GeoJSON objects.

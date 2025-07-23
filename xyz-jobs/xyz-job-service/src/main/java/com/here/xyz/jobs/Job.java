@@ -62,7 +62,12 @@ import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.jobs.steps.resources.ExecutionResource;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.ResourcesRegistry.StaticLoad;
+import com.here.xyz.jobs.retriever.JobInputsRetriever;
+import com.here.xyz.jobs.retriever.JobOutputsRetriever;
+import com.here.xyz.models.hub.Space.Extension;
 import com.here.xyz.util.Async;
+import com.here.xyz.util.pagination.Page;
+import com.here.xyz.util.pagination.PagedDataRetriever;
 import com.here.xyz.util.service.Core;
 import io.vertx.core.Future;
 import java.util.ArrayList;
@@ -587,6 +592,34 @@ public class Job implements XyzSerializable {
         .map(step -> (List<Output>) step.loadUserOutputs())
         .flatMap(ol -> ol.stream())
         .collect(Collectors.toList()));
+  }
+
+  public PagedDataRetriever<Input, JobInputsRetriever.InputsParams> createInputsRetriever() {
+    return new JobInputsRetriever(getId());
+  }
+
+  public Future<Page<Input>> getInputsPage(String setName, int pageSize, String pageToken) {
+    JobInputsRetriever.InputsParams params = new JobInputsRetriever.InputsParams().setSetName(setName);
+    return ASYNC.run(() -> createInputsRetriever().getPage(params, pageSize, pageToken));
+  }
+
+  public Future<Page<Input>> getFirstInputsPage(String setName) {
+    JobInputsRetriever.InputsParams params = new JobInputsRetriever.InputsParams().setSetName(setName);
+    return ASYNC.run(() -> createInputsRetriever().getFirstPage(params));
+  }
+
+  public PagedDataRetriever<Output, JobOutputsRetriever.OutputsParams> createOutputsRetriever() {
+    return new JobOutputsRetriever(this);
+  }
+
+  public Future<Page<Output>> getOutputsPage(int pageSize, String pageToken) {
+    JobOutputsRetriever.OutputsParams params = new JobOutputsRetriever.OutputsParams();
+    return ASYNC.run(() -> createOutputsRetriever().getPage(params, pageSize, pageToken));
+  }
+
+  public Future<Page<Output>> getFirstOutputsPage() {
+    JobOutputsRetriever.OutputsParams params = new JobOutputsRetriever.OutputsParams();
+    return ASYNC.run(() -> createOutputsRetriever().getFirstPage(params));
   }
 
   @JsonView({Public.class})

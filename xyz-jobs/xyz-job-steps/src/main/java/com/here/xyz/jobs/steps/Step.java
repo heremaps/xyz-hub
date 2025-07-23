@@ -270,6 +270,10 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
     return filterInputs(loadInputs(inputSet), inputTypes);
   }
 
+  protected List<Input> loadInputs(InputSet inputSet, String nextPageToken, int limit, Class<? extends Input>... inputTypes) {
+    return filterInputs(loadInputs(inputSet, nextPageToken, limit), inputTypes);
+  }
+
   /**
    * Loads the inputs of a previous step for the specified {@link InputSet}.
    * This is an internal helper method that should never be called directly by any implementing subclass.

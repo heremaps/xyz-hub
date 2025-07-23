@@ -30,6 +30,7 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.payloads.StepPayload;
 import com.here.xyz.jobs.util.S3Client;
+import com.here.xyz.util.pagination.Page;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.aws.s3.S3ObjectSummary;
 import com.here.xyz.util.service.aws.s3.S3Uri;
@@ -115,17 +116,21 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
       return (T) this;
   }
 
-  public static List<Input> loadInputs(String jobId, String setName) {
+  public static Page<Input> loadInputs(String jobId, String setName) {
+    return loadInputs(jobId, setName, null, -1);
+  }
+
+  public static Page<Input> loadInputs(String jobId, String setName, String nextPageToken, int limit) {
     //Only cache inputs of jobs which are submitted already
-    if (inputsCacheActive.contains(jobId)) {
+    if (inputsCacheActive.contains(jobId) && nextPageToken == null && limit == -1) {
       List<Input> inputs = getFromInputCache(jobId, setName);
       if (inputs == null) {
-        inputs = loadInputsAndWriteMetadata(jobId, setName, -1, Input.class);
+        inputs = loadInputsAndWriteMetadata(jobId, setName, limit, nextPageToken, Input.class);
         putToInputCache(jobId, setName, inputs);
       }
       return inputs;
     }
-    return loadInputsAndWriteMetadata(jobId, setName, -1, Input.class);
+    return loadInputsAndWriteMetadata(jobId, setName, limit, nextPageToken, Input.class);
   }
 
   private synchronized static void putToInputCache(String jobId, String setName, List<Input> inputs) {
@@ -154,7 +159,11 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
     return metadata == null ? null : metadata.get(setName);
   }
 
-  private static <T extends Input> List<T> loadInputsAndWriteMetadata(String jobId, String setName, int maxReturnSize, Class<T> inputType) {
+  private static <T extends Input> Page<T> loadInputsAndWriteMetadata(String jobId, String setName, int maxReturnSize, Class<T> inputType) {
+    return loadInputsAndWriteMetadata(jobId, setName, maxReturnSize, null, inputType);
+  }
+
+  private static <T extends Input> Page<T> loadInputsAndWriteMetadata(String jobId, String setName, int maxReturnSize, String nextPageToken, Class<T> inputType) {
     try {
       InputsMetadata metadata = loadMetadata(jobId, setName);
       Stream<T> inputs = metadata.inputs.entrySet().stream()
@@ -170,13 +179,20 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
             return (T) createInput(s3Bucket, s3Key, metaEntry.getValue().byteSize, metaEntry.getValue().compressed);
           });
 
+      // Apply pagination if nextPageToken is provided
+      if (nextPageToken != null) {
+        // Skip elements until we reach the token position
+        long skipCount = Long.parseLong(nextPageToken);
+        inputs = inputs.skip(skipCount);
+      }
+
       return (maxReturnSize > 0 ? inputs.unordered().limit(maxReturnSize) : inputs).toList();
     }
     catch (IOException | S3Exception ignore) {}
 
-    final List<T> inputs = loadInputsInParallel(defaultBucket(), inputS3Prefix(jobId, setName), maxReturnSize, inputType);
+    final Page<T> inputs = loadInputsInParallel(defaultBucket(), inputS3Prefix(jobId, setName), maxReturnSize, nextPageToken, inputType);
     //Only write metadata of jobs which are submitted already
-    if (inputs != null && inputs.size() > 0 && inputsCacheActive.contains(jobId))
+    if (inputs != null && inputs.size() > 0 && inputsCacheActive.contains(jobId) && nextPageToken == null)
       storeMetadata(jobId, (List<Input>) inputs, setName);
 
     return inputs;
@@ -261,12 +277,16 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
   }
 
   static final <T extends Input> List<T> loadInputsInParallel(String bucketName, String inputS3Prefix, int maxReturnSize, Class<T> inputType) {
+    return loadInputsInParallel(bucketName, inputS3Prefix, maxReturnSize, null, inputType);
+  }
+
+  static final <T extends Input> Page<T> loadInputsInParallel(String bucketName, String inputS3Prefix, int maxReturnSize, String nextPageToken, Class<T> inputType) {
     logger.info("Scanning inputs from bucket {} and prefix {} ...", bucketName, inputS3Prefix);
     long t1 = Core.currentTimeMillis();
     ForkJoinPool tmpPool = new ForkJoinPool(10);
-    List<T> inputs = null;
+    Page<T> inputs = null;
     try {
-      inputs = tmpPool.submit(() -> loadAndTransformInputs(bucketName, inputS3Prefix, maxReturnSize, inputType)).get();
+      inputs = tmpPool.submit(() -> loadAndTransformInputs(bucketName, inputS3Prefix, maxReturnSize, nextPageToken, inputType)).get();
     }
     catch (InterruptedException ignore) {}
     catch (ExecutionException e) {
@@ -283,24 +303,29 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
   }
 
   public static int currentInputsCount(String jobId, Class<? extends Input> inputType, String setName) {
-    return (int) loadInputs(jobId, setName).stream().filter(input -> inputType.isAssignableFrom(input.getClass())).count();
+    return (int) loadInputs(jobId, setName).getItems().stream().filter(input -> inputType.isAssignableFrom(input.getClass())).count();
   }
 
   public static <T extends Input> List<T> loadInputsSample(String jobId, String setName, int maxSampleSize, Class<T> inputType) {
     return loadInputsAndWriteMetadata(jobId, setName, maxSampleSize, inputType);
   }
 
-  private static <T extends Input> List<T> loadAndTransformInputs(String bucketName, String inputS3Prefix, int maxReturnSize, Class<T> inputType) {
-    Stream<Input> inputsStream = S3Client.getInstance(bucketName).scanFolder(inputS3Prefix)
+  private static <T extends Input> Page<T> loadAndTransformInputs(String bucketName, String inputS3Prefix, int maxReturnSize, Class<T> inputType) {
+    return loadAndTransformInputs(bucketName, inputS3Prefix, maxReturnSize, null, inputType);
+  }
+
+  private static <T extends Input> Page<T> loadAndTransformInputs(String bucketName, String inputS3Prefix, int maxReturnSize, String nextPageToken, Class<T> inputType) {
+    Page<S3ObjectSummary> page = S3Client.getInstance(bucketName).scanFolder(inputS3Prefix, nextPageToken, maxReturnSize);
+    Stream<Input> inputsStream = page.getItems()
         .parallelStream()
         .map(s3ObjectSummary -> createInput(defaultBucket().equals(bucketName) ? null : bucketName, s3ObjectSummary.key(),
             s3ObjectSummary.size(), inputIsCompressed(s3ObjectSummary)))
         .filter(input -> input.getByteSize() > 0 && inputType.isAssignableFrom(input.getClass()));
 
-    if (maxReturnSize > 0)
+    if (maxReturnSize > 0 && nextPageToken == null)
       inputsStream = inputsStream.unordered().limit(maxReturnSize);
 
-    return (List<T>) inputsStream.collect(Collectors.toList());
+    return new Page<>((List<T>) inputsStream.collect(Collectors.toList()), page.getNextPageToken(), page.getTotalItems());
   }
 
   public static ModelBasedInput resolveRawInput(Map<String, Object> rawInput) {

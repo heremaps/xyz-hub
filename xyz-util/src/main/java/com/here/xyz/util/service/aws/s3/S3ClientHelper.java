@@ -18,6 +18,7 @@
  */
 package com.here.xyz.util.service.aws.s3;
 
+import com.here.xyz.util.pagination.Page;
 import java.net.URL;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -62,26 +63,47 @@ public class S3ClientHelper {
                 .build()).url();
     }
 
-    public static List<S3ObjectSummary> scanFolder(S3Client client, String bucketName, String folderPath) {
-        List<S3Object> summaries = new ArrayList<>();
-        ListObjectsV2Request listObjectsV2Request = ListObjectsV2Request.builder()
+    public static Page<S3ObjectSummary> scanFolder(S3Client client, String bucketName, String folderPath) {
+        return scanFolder(client, bucketName, folderPath, null, -1);
+    }
+
+    public static Page<S3ObjectSummary> scanFolder(S3Client client, String bucketName, String folderPath, String startAfter, int maxKeys) {
+        Page<S3ObjectSummary> summaries = new Page<>();
+        List<S3Object> responseItems = new ArrayList<>();
+        ListObjectsV2Request.Builder requestBuilder = ListObjectsV2Request.builder()
                 .bucket(bucketName)
-                .prefix(folderPath)
-                .build();
+                .prefix(folderPath);
 
-        ListObjectsV2Response listResponse;
+        if (startAfter != null) {
+            requestBuilder.startAfter(startAfter);
+        }
 
-        do {
-            listResponse = client.listObjectsV2(listObjectsV2Request);
-            summaries.addAll(listResponse.contents());
+        if (maxKeys > 0) {
+            requestBuilder.maxKeys(maxKeys);
+            ListObjectsV2Response response = client.listObjectsV2(requestBuilder.build());
+            responseItems = response.contents();
+            summaries.setNextPageToken(response.nextContinuationToken());
+            summaries.setTotalItems(response.maxKeys());
+        } else {
+            // fallback if there is no key
+            ListObjectsV2Request listObjectsV2Request = requestBuilder.build();
+            ListObjectsV2Response listResponse;
 
-            listObjectsV2Request = listObjectsV2Request.toBuilder()
-                    .continuationToken(listResponse.nextContinuationToken())
-                    .build();
+            do {
+                listResponse = client.listObjectsV2(listObjectsV2Request);
+                responseItems.addAll(listResponse.contents());
 
-        } while (listResponse.isTruncated());
+                listObjectsV2Request = listObjectsV2Request.toBuilder()
+                        .continuationToken(listResponse.nextContinuationToken())
+                        .build();
 
-        return summaries.stream().map((it) -> S3ObjectSummary.fromS3Object(it, bucketName)).collect(Collectors.toList());
+            } while (listResponse.isTruncated());
+        }
+
+        return summaries.setItems(
+            responseItems.stream()
+                .map((it) -> S3ObjectSummary.fromS3Object(it, bucketName))
+                .collect(Collectors.toList()));
     }
 
     public static void deleteObject(S3Client client, String bucketName, String key) {

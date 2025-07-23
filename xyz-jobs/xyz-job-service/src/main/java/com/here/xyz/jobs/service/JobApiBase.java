@@ -21,6 +21,8 @@ package com.here.xyz.jobs.service;
 
 import static com.here.xyz.jobs.service.JobApiBase.ApiParam.Path.JOB_ID;
 import static com.here.xyz.jobs.service.JobApiBase.ApiParam.Query.RESOURCE;
+import static com.here.xyz.jobs.service.JobApiBase.ApiParam.Path.LIMIT;
+import static com.here.xyz.jobs.service.JobApiBase.ApiParam.Path.NEXT_PAGE_TOKEN;
 import static com.here.xyz.jobs.service.JobApiBase.ApiParam.Query.NEWER_THAN;
 import static com.here.xyz.jobs.service.JobApiBase.ApiParam.Query.SOURCE_TYPE;
 import static com.here.xyz.jobs.service.JobApiBase.ApiParam.Query.STATE;
@@ -45,6 +47,14 @@ public class JobApiBase extends Api {
 
   protected static String jobId(RoutingContext context) {
     return context.pathParam(JOB_ID);
+  }
+
+  protected static String limit(RoutingContext context) {
+    return context.pathParam(LIMIT);
+  }
+
+  protected static String nextPageToken(RoutingContext context) {
+    return context.pathParam(NEXT_PAGE_TOKEN);
   }
 
   protected void getJobs(final RoutingContext context, boolean internal) {
@@ -129,6 +139,8 @@ public class JobApiBase extends Api {
     public static class Path {
       static final String SPACE_ID = "spaceId";
       static final String JOB_ID = "jobId";
+      static final String NEXT_PAGE_TOKEN = "nextPageToken";
+      static final String LIMIT = "limit";
     }
 
     public static class Query {
