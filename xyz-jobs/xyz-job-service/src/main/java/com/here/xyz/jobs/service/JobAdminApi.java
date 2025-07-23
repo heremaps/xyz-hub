@@ -231,13 +231,14 @@ public class JobAdminApi extends JobApiBase {
               future = future.compose(v -> job.storeStatus(oldState));
             }
 
-            //Call finalize observers after setting the new state to the job status
-            if (job.getStatus().getState().isFinal())
-              JobService.callFinalizeObservers(job);
-
-            return future;
+            return future
+                .onComplete(ar -> {
+                  //Call finalize observers after all statuses have been updated
+                  if (job.getStatus().getState().isFinal())
+                    JobService.callFinalizeObservers(job);
+                });
           })
-          .onFailure(t -> logger.error("Error updating the state of job {} after receiving an event from its state machine:", jobId, t));
+          .onFailure(t -> logger.error("[{}] Error updating the state of the job after receiving an event from its state machine:", jobId, t));
   }
 
   private static Future<Void> failCausingStep(Job job, String errCausePrefixText, Future<Void> future, String executionArn) {
@@ -246,8 +247,11 @@ public class JobAdminApi extends JobApiBase {
         .compose(causingStepId -> {
           //Patch the error cause on the *job* status
           patchErrorCause(job.getStatus(), errCausePrefixText == null ? null :  errCausePrefixText + " \"" + causingStepId + "\"");
+          Step causingStep = job.getStepById(causingStepId);
+          if (causingStep == null)
+            return Future.failedFuture(new NullPointerException("No step with ID \"" + causingStepId + "\" was found in job \"" +  job.getId() + "\"."));
           //... and reflect that failure in the local job's step
-          return failStep(job, job.getStepById(causingStepId), errCausePrefixText);
+          return failStep(job, causingStep, errCausePrefixText);
         })
         //Set all RUNNING steps to CANCELLED, because the steps themselves might not have been informed
         .compose(v -> cancelSteps(job, RUNNING));
@@ -273,12 +277,12 @@ public class JobAdminApi extends JobApiBase {
             long causingEventId = failingEvent.previousEventId();
             failingEvent = events.stream().filter(event -> event.id().equals(causingEventId)).findAny().orElse(null);
           }
-          String causingStepId = failingEvent != null && "TaskStateEntered".equals(failingEvent.type().toString())
+          String causingStepName = failingEvent != null && "TaskStateEntered".equals(failingEvent.type().toString())
                   && failingEvent.stateEnteredEventDetails() != null && failingEvent.stateEnteredEventDetails().name().contains(".")
                   ? failingEvent.stateEnteredEventDetails().name() : null;
-          if(causingStepId == null){
-            return Future.failedFuture(new RuntimeException("Causing stepId not found! ExecutionArn: " + executionArn));
-          }
+          if (causingStepName == null)
+            return Future.failedFuture(new RuntimeException("Causing stepId not found in SFN execution with ARN: " + executionArn));
+          String causingStepId = causingStepName.substring(causingStepName.indexOf(".") + 1);
           return Future.succeededFuture(causingStepId);
         });
   }
