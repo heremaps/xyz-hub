@@ -188,6 +188,20 @@ paths:
       operationId: deleteSpace
       parameters:
         - $ref: '#/components/parameters/SpaceId'
+        - name: mode
+          in: query
+          description: >-
+           delete - delete the space [default]
+
+
+           erase  - erase, wipe all content
+          required: false
+          schema:
+              type: string
+              enum:
+                - erase
+                - delete
+              default: delete
       responses:
         '200':
           $ref: '#/components/responses/SpaceResponse'

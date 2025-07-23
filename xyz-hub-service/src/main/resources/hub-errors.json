@@ -63,6 +63,13 @@
     "action": "Ensure that the extended ${extendedSpaceId} uses the same storage connector as the parent ${spaceId}."
   },
   {
+    "title": "Invalid value for query parameter ${param}",
+    "code": "E318409",
+    "status": 400,
+    "cause": "Invalid value '${wrongParam}' for query parameter ${param}:[${allowedParam}]",
+    "action": ""
+  },
+  {
     "title": "${featureContainerResource} modification is not allowed",
     "code": "E318431",
     "status": 403,

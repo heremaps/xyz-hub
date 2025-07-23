@@ -43,25 +43,35 @@ public class ModifySpaceOp extends ModifyOp<Space, SpaceEntry> {
   ConnectorMapping connectorMapping;
   boolean dryRun;
   boolean forceStorage;
+  boolean truncateSpace;
 
   public ModifySpaceOp(List<Map<String, Object>> inputStates, IfNotExists ifNotExists, IfExists ifExists, boolean isTransactional, boolean dryRun) {
-    this(inputStates, ifNotExists, ifExists, isTransactional, null, dryRun);
+    this(inputStates, ifNotExists, ifExists, isTransactional, null, dryRun,false,false);
   }
 
   public ModifySpaceOp(List<Map<String, Object>> inputStates, IfNotExists ifNotExists, IfExists ifExists, boolean isTransactional, boolean dryRun, boolean forceStorage) {
-    this(inputStates, ifNotExists, ifExists, isTransactional, null, dryRun, forceStorage);
+    this(inputStates, ifNotExists, ifExists, isTransactional, null, dryRun, forceStorage,false);
+  }
+
+  public ModifySpaceOp(List<Map<String, Object>> inputStates, IfNotExists ifNotExists, IfExists ifExists, boolean isTransactional, boolean dryRun, boolean forceStorage, boolean truncateSpace) {
+    this(inputStates, ifNotExists, ifExists, isTransactional, null, dryRun, forceStorage, truncateSpace);
   }
 
   public ModifySpaceOp(List<Map<String, Object>> inputStates, IfNotExists ifNotExists, IfExists ifExists, boolean isTransactional, ConnectorMapping connectorMapping, boolean dryRun) {
-    this(inputStates, ifNotExists, ifExists, isTransactional, connectorMapping, dryRun, false);
+    this(inputStates, ifNotExists, ifExists, isTransactional, connectorMapping, dryRun, false, false);
   }
 
   public ModifySpaceOp(List<Map<String, Object>> inputStates, IfNotExists ifNotExists, IfExists ifExists, boolean isTransactional, ConnectorMapping connectorMapping, boolean dryRun, boolean forceStorage) {
+   this(inputStates, ifNotExists, ifExists, isTransactional, connectorMapping, dryRun, forceStorage,false); 
+  }
+
+  public ModifySpaceOp(List<Map<String, Object>> inputStates, IfNotExists ifNotExists, IfExists ifExists, boolean isTransactional, ConnectorMapping connectorMapping, boolean dryRun, boolean forceStorage, boolean truncateSpace) {
     super((inputStates == null) ? Collections.emptyList() : inputStates.stream().map(input -> new SpaceEntry(input, ifNotExists, ifExists))
         .collect(Collectors.toList()), isTransactional);
     this.connectorMapping = connectorMapping;
     this.dryRun = dryRun;
     this.forceStorage = forceStorage;
+    this.truncateSpace = truncateSpace;
   }
 
 
