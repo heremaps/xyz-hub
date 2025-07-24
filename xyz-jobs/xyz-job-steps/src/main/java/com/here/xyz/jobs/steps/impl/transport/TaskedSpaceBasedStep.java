@@ -185,8 +185,8 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep> exten
 
     try {
       try {
-        versionRef = hubWebClient().resolveRef(getSpaceId(), context, versionRef);
-        spaceCreatedAt = space().getCreatedAt();
+        setVersionRef(hubWebClient().resolveRef(getSpaceId(), context, versionRef));
+        setSpaceCreatedAt(space(true).getCreatedAt());
       }
       catch (ErrorResponseException e) {
         handleErrorResponse(e);

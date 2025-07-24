@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -126,10 +126,10 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
     }
   }
 
-  private Space loadSpace(String spaceId) throws WebClientException {
+  private Space loadSpace(String spaceId, boolean skipLocalCache) throws WebClientException {
     try {
       logger.info("[{}] Loading space config for space {} ...", getGlobalStepId(), spaceId);
-      return hubWebClient().loadSpace(spaceId);
+      return hubWebClient().loadSpace(spaceId, skipLocalCache);
     }
     catch (ErrorResponseException e) {
       return handleErrorResponse(e);
@@ -220,7 +220,7 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
   protected Space space(String spaceId) throws WebClientException {
     Space space = cachedSpaces.get(spaceId);
     if (space == null)
-      cachedSpaces.put(spaceId, space = loadSpace(spaceId));
+      cachedSpaces.put(spaceId, space = loadSpace(spaceId, false));
     return space;
   }
 
@@ -232,6 +232,10 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
    */
   protected Space space() throws WebClientException {
     return space(getSpaceId());
+  }
+
+  protected Space space(boolean skipLocalCache) throws WebClientException {
+    return loadSpace(spaceId, skipLocalCache);
   }
 
   protected StatisticsResponse spaceStatistics(SpaceContext context, boolean skipCache) throws WebClientException {

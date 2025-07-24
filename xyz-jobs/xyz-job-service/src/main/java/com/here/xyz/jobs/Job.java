@@ -45,12 +45,12 @@ import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.RuntimeInfo.State;
 import com.here.xyz.jobs.config.JobConfigClient;
+import com.here.xyz.jobs.config.JobConfigClient.FilteredValues;
 import com.here.xyz.jobs.datasets.DatasetDescription;
 import com.here.xyz.jobs.datasets.Files;
 import com.here.xyz.jobs.datasets.streams.DynamicStream;
 import com.here.xyz.jobs.processes.ProcessDescription;
 import com.here.xyz.jobs.service.JobService;
-import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.JobCompiler;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.StepGraph;
@@ -62,12 +62,8 @@ import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.jobs.steps.resources.ExecutionResource;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.ResourcesRegistry.StaticLoad;
-import com.here.xyz.models.hub.Space.Extension;
 import com.here.xyz.util.Async;
 import com.here.xyz.util.service.Core;
-import com.here.xyz.util.web.HubWebClient;
-import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
-import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import io.vertx.core.Future;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -118,7 +114,7 @@ public class Job implements XyzSerializable {
   @JsonView({Public.class, Static.class})
   private JobClientInfo clientInfo;
   @JsonView(Static.class)
-  private String secondaryResourceKey;
+  private Set<String> resourceKeys;
   @JsonView(Static.class)
   private List<StaticLoad> calculatedResourceLoads;
 
@@ -208,7 +204,33 @@ public class Job implements XyzSerializable {
    */
   protected Future<Void> prepare() {
     logger.info("[{}] Preparing job ...", getId());
-    return Future.all(Job.forEach(getSteps().stepStream().collect(Collectors.toList()), step -> prepareStep(step))).mapEmpty();
+    return Future.all(
+        Future.all(Job.forEach(getSteps().stepStream().collect(Collectors.toList()), step -> prepareStep(step))).mapEmpty(),
+        prepareDatasetDescriptions()
+    ).mapEmpty();
+  }
+
+  private Future<Void> prepareDatasetDescriptions() {
+    if (resourceKeys != null)
+      return Future.succeededFuture();
+
+    List<Future<Void>> preparations =  new ArrayList<>();
+
+    if (getSource() != null)
+      preparations.add(getSource().prepare());
+    if (getTarget() != null)
+      preparations.add(getTarget().prepare());
+
+    if (preparations.isEmpty())
+      return Future.succeededFuture();
+
+    return Future.all(preparations).map(v -> {
+      resourceKeys = Stream.concat(
+          getSource().getResourceKeys().stream(),
+          getTarget().getResourceKeys().stream()
+      ).collect(Collectors.toSet());
+      return null;
+    });
   }
 
   private Future<Void> prepareStep(Step step) {
@@ -281,7 +303,7 @@ public class Job implements XyzSerializable {
             getStatus().setState(CANCELLED);
             return storeStatus(CANCELLING);
           }
-          return JobExecutor.getInstance().cancel(getExecutionId());
+          return JobExecutor.getInstance().cancel(getExecutionId(), "Cancelled as it was requested by the user");
         })
         /*
         NOTE: Cancellation is still in progress. The JobExecutor will now monitor the different step cancellations
@@ -356,6 +378,7 @@ public class Job implements XyzSerializable {
     int overallWorkUnits = getSteps().stepStream().mapToInt(s -> s.getEstimatedExecutionSeconds()).sum();
     getStatus().setEstimatedProgress((float) completedWorkUnits / (float) overallWorkUnits);
 
+    //Update the job's state if applicable
     if (previousStepState != FAILED && step.getStatus().getState() == FAILED) {
       getStatus()
           .withState(FAILED)
@@ -366,10 +389,14 @@ public class Job implements XyzSerializable {
 
     return storeUpdatedStep(step)
         .compose(v -> storeStatus(null))
-        .compose(v -> getStatus().getState() == FAILED && cancelOnFailure ? JobExecutor.getInstance().cancel(getExecutionId()).recover(t -> {
-          logger.error("[{}] Error cancelling the job execution. Was it already cancelled before?", getId(), t);
-          return Future.succeededFuture();
-        }) : Future.succeededFuture());
+        .compose(v -> getStatus().getState() == FAILED && cancelOnFailure ?
+            JobExecutor.getInstance().cancel(getExecutionId(), "Cancelled due to failed step \"" + step.getId() + "\"")
+                .recover(t -> {
+                  logger.error("[{}] Error cancelling the job execution. Was it already cancelled before?", getId(), t);
+                  return Future.succeededFuture();
+                })
+            : Future.succeededFuture()
+        );
   }
 
   private Future<Void> updatePreviousAttempts(Step step) {
@@ -431,12 +458,13 @@ public class Job implements XyzSerializable {
       return JobConfigClient.getInstance().loadJobs(resourceKey, state);
   }
 
-  public static Future<List<Job>> load(boolean newerThan, long  createdAt) {
-    return JobConfigClient.getInstance().loadJobs(newerThan, createdAt);
+  public static Future<List<Job>> load(FilteredValues<Long> newerThan, FilteredValues<String> sourceType, FilteredValues<String> targetType,
+                                               FilteredValues<String> processType, FilteredValues<String> resourceKeys, FilteredValues<State> stateTypes) {
+    return JobConfigClient.getInstance().loadJobs(newerThan, sourceType, targetType, processType, resourceKeys, stateTypes);
   }
 
   public static Future<Set<Job>> loadByResourceKey(String resourceKey) {
-    return JobConfigClient.getInstance().loadJobs(resourceKey);
+    return JobConfigClient.getInstance().loadJobsByPrimaryResourceKey(resourceKey);
   }
 
   public static Future<List<Job>> loadAll() {
@@ -586,6 +614,10 @@ public class Job implements XyzSerializable {
     return this;
   }
 
+  /**
+   * This getter mainly exists for auth / reporting purposes
+   * @return
+   */
   @JsonView(Static.class)
   public String getResourceKey() {
     //Always use key from the source except when the source is Files
@@ -594,29 +626,13 @@ public class Job implements XyzSerializable {
     return getSource() instanceof Files<?> ? getTarget().getKey() : getSource().getKey();
   }
 
-  public String getSecondaryResourceKey() {
-    if (secondaryResourceKey != null)
-      return secondaryResourceKey;
-
-    String key = getResourceKey();
-    if (key == null)
-      return null;
-
-    try {
-      Extension extension = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadSpace(key).getExtension();
-      if (extension != null)
-        secondaryResourceKey = extension.getSpaceId();
-    }
-    catch (WebClientException e) {
-      //Ignore if space is not present anymore
-      if (!(e instanceof ErrorResponseException errorResponseException && errorResponseException.getStatusCode() == 404))
-        throw new RuntimeException(e);
-    }
-    return secondaryResourceKey;
+  @JsonView(Static.class)
+  public Set<String> getResourceKeys() {
+    return resourceKeys;
   }
 
-  private void setSecondaryResourceKey(String secondaryResourceKey) {
-    this.secondaryResourceKey = secondaryResourceKey;
+  private void setResourceKeys(Set<String> resourceKeys) {
+    this.resourceKeys = resourceKeys;
   }
 
   public String getDescription() {

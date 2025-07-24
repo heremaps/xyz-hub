@@ -128,6 +128,7 @@ public abstract class JobExecutor implements Initializable {
           .compose(pendingJobs -> {
             Future<Void> taskChain = Future.succeededFuture();
             try {
+              pendingJobs = new ArrayList<>(pendingJobs);
               pendingJobs.sort(comparingLong(Job::getCreatedAt));
               logger.info("Checking {} PENDING jobs if they can be executed ...", pendingJobs.size());
               if (stopRequested)
@@ -287,7 +288,7 @@ public abstract class JobExecutor implements Initializable {
 
   protected abstract Future<String> resume(Job job, String executionId);
 
-  public abstract Future<Void> cancel(String executionId);
+  public abstract Future<Void> cancel(String executionId, String reason);
 
   /**
    * Deletes all execution resources of the specified execution ID.
@@ -346,9 +347,9 @@ public abstract class JobExecutor implements Initializable {
    */
   private static Future<Void> reuseExistingJobIfPossible(Job job) {
     logger.info("[{}] Checking for reusable existing jobs ...", job.getId());
-    if (job.getResourceKey() == null || job.getSteps().stepStream().anyMatch(step -> step instanceof DelegateStep))
+    if (job.getResourceKeys().isEmpty() || job.getSteps().stepStream().anyMatch(step -> step instanceof DelegateStep))
       return Future.succeededFuture();
-    return JobConfigClient.getInstance().loadJobs(job.getResourceKey(), job.getSecondaryResourceKey(), SUCCEEDED)
+    return JobConfigClient.getInstance().loadJobs(job.getResourceKeys(), SUCCEEDED)
         .compose(candidates -> Future.succeededFuture(candidates.stream()
             .filter(candidate -> !job.getId().equals(candidate.getId())) //Do not try to compare the job to itself
             .map(candidate -> fuseGraphs(job, candidate.getSteps()))

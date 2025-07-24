@@ -118,6 +118,9 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   @JsonView({Internal.class, Static.class})
   private boolean retainMetadata = false;
 
+  @JsonView({Internal.class, Static.class})
+  private boolean enableQuickValidation = true;
+
   {
     setOutputSets(List.of(new OutputSet(STATISTICS, USER, true)));
   }
@@ -185,6 +188,19 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   public ImportFilesToSpace withRetainMetadata(boolean retainMetadata) {
     setRetainMetadata(retainMetadata);
     return this;
+  }
+
+  public void setEnableQuickValidation(boolean enableQuickValidation) {
+    this.enableQuickValidation = enableQuickValidation;
+  }
+
+  public ImportFilesToSpace withEnableQuickValidation(boolean enableQuickValidation) {
+    setEnableQuickValidation(enableQuickValidation);
+    return this;
+  }
+
+  public boolean isEnableQuickValidation() {
+    return enableQuickValidation;
   }
 
   public boolean keepIndices() {
@@ -308,7 +324,8 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       if (!isUserInputsPresent(UploadUrl.class))
         return false;
       //Quick-validate the first UploadUrl that is found in the inputs
-      ImportFilesQuickValidator.validate(loadInputsSample(1, UploadUrl.class).get(0), format, entityPerLine);
+      if(enableQuickValidation)
+        ImportFilesQuickValidator.validate(loadInputsSample(1, UploadUrl.class).get(0), format, entityPerLine);
     }
 
     return true;
