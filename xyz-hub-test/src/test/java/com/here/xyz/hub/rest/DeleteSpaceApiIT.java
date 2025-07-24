@@ -29,23 +29,22 @@ import static org.hamcrest.Matchers.equalTo;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
+import org.junit.jupiter.api.Disabled;
 
 public class DeleteSpaceApiIT extends TestSpaceWithFeature {
 
-  @BeforeClass
-  public static void setupClass() {
-    remove();
-  }
+  private static String spaceName;
 
   @Before
   public void setup() {
-    createSpace();
+    spaceName = createSpaceWithRandomId();
   }
 
   @After
   public void tearDown() {
-    remove();
+    remove(spaceName);
   }
 
   @Test
@@ -53,7 +52,7 @@ public class DeleteSpaceApiIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .delete("/spaces/x-psql-test")
+        .delete("/spaces/" + spaceName)
         .then()
         .statusCode(NO_CONTENT.code());
   }
@@ -64,20 +63,20 @@ public class DeleteSpaceApiIT extends TestSpaceWithFeature {
         .accept(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .delete("/spaces/x-psql-test")
+        .delete("/spaces/" + spaceName)
         .then()
         .statusCode(OK.code())
-        .body("id", equalTo("x-psql-test"));
+        .body("id", equalTo(spaceName));
   }
 
   @Test
   public void deleteSpaceNonExisting() {
-    remove();
+    remove(spaceName);
     given()
         .accept(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .delete("/spaces/x-psql-test")
+        .delete("/spaces/" + spaceName)
         .then()
         .statusCode(NOT_FOUND.code());
   }
@@ -87,9 +86,26 @@ public class DeleteSpaceApiIT extends TestSpaceWithFeature {
    */
   @Test
   public void createSpaceWithSameName() {
-    addFeatures();
-    remove();
-    createSpace();
-    countFeatures(0);
+    addFeatures( spaceName );
+    remove( spaceName );
+    createSpaceWithId(spaceName);
+    countFeatures(spaceName,0);
   }
+
+  @Test
+  public void truncateSpace() {  //TODO: move to /features test
+    addFeatures( spaceName );
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .when()
+        .delete("/spaces/" + spaceName + "/features?eraseAllFeatures=true")
+        .then()
+        .statusCode(NO_CONTENT.code());
+
+    countFeatures(spaceName,0);
+
+  }
+
+
 }

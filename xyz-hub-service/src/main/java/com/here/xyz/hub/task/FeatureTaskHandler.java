@@ -72,6 +72,7 @@ import com.here.xyz.hub.connectors.models.Space.ResolvableListenerConnectorRef;
 import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.ApiParam;
 import com.here.xyz.hub.rest.ApiResponseType;
+import com.here.xyz.hub.rest.FeatureApi;
 import com.here.xyz.hub.task.FeatureTask.ConditionalOperation;
 import com.here.xyz.hub.task.FeatureTask.ReadQuery;
 import com.here.xyz.hub.task.FeatureTask.TileQuery;
@@ -1175,6 +1176,7 @@ public class FeatureTaskHandler {
 
   static void processConditionalOp(ConditionalOperation task, Callback<ConditionalOperation> callback) throws Exception {
     try {
+
       task.modifyOp.process();
       final List<Feature> insert = new ArrayList<>();
       final List<Feature> update = new ArrayList<>();
@@ -1241,7 +1243,9 @@ public class FeatureTaskHandler {
       task.getEvent().setFailed(fails);
 
       // In case nothing was changed, set the response directly to skip calling the storage connector.
-      if (insert.size() == 0 && update.size() == 0 && delete.size() == 0) {
+      boolean eraseAllFeatures = FeatureApi.eraseAllFeatures( task.context );
+
+      if (!eraseAllFeatures && insert.size() == 0 && update.size() == 0 && delete.size() == 0) {
         FeatureCollection fc = new FeatureCollection();
         if( task.hasNonModified ){
           task.modifyOp.entries.stream().filter(e -> !e.isModified).forEach(e -> {
