@@ -83,8 +83,15 @@ public class SpaceConnectorBasedHandler {
                                     && ctx.event instanceof GetChangesetStatisticsEvent) {
                                 long minVersion = ctx.space.getMinVersion();
 
-                                if (minVersion != 1L)
-                                    statsResponse.setMinVersion(minVersion);
+                                if (minVersion != 0L) {
+                                    //FIXME: Only to be BWC - should be removed in future versions
+                                    // if a minVersion is present it should used for override (else part)
+                                    if(statsResponse.getMinTagVersion() != null
+                                            && minVersion > statsResponse.getMinTagVersion())
+                                        statsResponse.setMinVersion( statsResponse.getMinTagVersion());
+                                    else
+                                        statsResponse.setMinVersion(minVersion);
+                                }
                             }
 
                             promise.complete(result);
@@ -114,12 +121,14 @@ public class SpaceConnectorBasedHandler {
             getMinTag(marker, space.getId())
                     .onSuccess(minTag -> {
                         if (e instanceof DeleteChangesetsEvent deleteChangesetsEvent && minTag != null) {
+                            //FIXME: getMinUserTag and use this version. Currently we use minTag to be BTC
                             if (!minTag.isSystem() && minTag.getVersion() < deleteChangesetsEvent.getMinVersion())
                                 p.fail(new HttpException(BAD_REQUEST, "Tag \"" + minTag.getId() + "\"for version " + minTag.getVersion() + " exists!"));
                             else {
                                 deleteChangesetsEvent.setMinVersion(Math.min(minTag.getVersion(), deleteChangesetsEvent.getMinVersion()));
                             }
                         } else if (e instanceof GetChangesetStatisticsEvent getChangesetStatisticsEvent && minTag != null) {
+                            //TODO: check minSpaceVersion
                             getChangesetStatisticsEvent.setMinTagVersion(minTag.getVersion());
                             getChangesetStatisticsEvent.setMinVersion(Math.min(minTag.getVersion(), space.getMinVersion()));
                         } else if (e instanceof IterateChangesetsEvent iterateChangesetsEvent && minTag != null) {
@@ -140,7 +149,7 @@ public class SpaceConnectorBasedHandler {
         return p.future();
     }
 
-    private static Future<Tag> getMinTag(Marker marker, String space) {
+    public static Future<Tag> getMinTag(Marker marker, String space) {
         return Service.tagConfigClient.getTags(marker, space, true)
                 .compose(tags -> {
                     if (tags == null || tags.isEmpty()) {

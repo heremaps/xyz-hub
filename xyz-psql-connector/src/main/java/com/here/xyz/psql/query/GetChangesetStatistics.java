@@ -67,10 +67,13 @@ public class GetChangesetStatistics extends XyzQueryRunner<GetChangesetStatistic
       long minDbVersion = (minV == null ? 0 : Long.parseLong(minV));
 
       csr.setMaxVersion(maxDbVersion);
-      //Default = 1
-      if(minVersion != 1L)
+      //Default = 0
+      if(minVersion != 0L)
         csr.setMinVersion(Math.min(minDbVersion, minVersion));
-      csr.setMinVersion(minDbVersion);
+      else
+        //We deliver 0 as minVersion to include the empty space version "0"
+        csr.setMinVersion(minDbVersion == 1L ? 0L : minDbVersion);
+
       if(minTagVersion != -1L)
         csr.setTagMinVersion(minTagVersion);
     }

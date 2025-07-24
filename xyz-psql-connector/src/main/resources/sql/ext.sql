@@ -1952,7 +1952,7 @@ $BODY$
         END IF;
 
         -- Delete old changesets from the history to keep only as many versions as specified through "versionsToKeep" if necessary
-        IF version % 2 = 0 THEN -- Perform the check only on every 10th transaction
+        IF version % 10 = 0 THEN -- Perform the check only on every 10th transaction
             minVersion := version - versionsToKeep + 1;
 			IF minTagVersion != -1 THEN
 				minVersion := least(minTagVersion, minVersion);

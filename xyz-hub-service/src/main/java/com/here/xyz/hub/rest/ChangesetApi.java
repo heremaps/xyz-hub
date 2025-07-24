@@ -132,7 +132,7 @@ public class ChangesetApi extends SpaceBasedApi {
             Marker marker = getMarker(context);
             Service.spaceConfigClient.get(marker, spaceId)
                 .compose(space -> {
-                  //TODO: check if minVersion is <= maxVersion? If yes we need to query the maxVersion.
+                  //FIXME: Fetch the maxVersion and check if minVersion>maxVersion - in that case set minVersion=maxVersion
                   if(minVersion > space.getMinVersion())
                     Service.spaceConfigClient.store(marker, space.withMinVersion(minVersion));
                   return Future.succeededFuture();

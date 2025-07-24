@@ -1511,15 +1511,20 @@ public class FeatureTaskHandler {
         //Ensure the StatisticsResponse is correctly set-up
         StatisticsResponse response = (StatisticsResponse) task.getResponse();
 
-        //Override minVersion if it is set in the space config
-        if(task.space.getMinVersion() != 1)
-          response.setMinVersion(new StatisticsResponse.Value<>(task.space.getMinVersion() ).withEstimated(false));
+        getMinTagVersion(task.getMarker(), task.space.getId())
+                .onSuccess(minTagVersion -> {
+                  //Override minVersion if it is set in the space config and if it is higher than the one in the response
+                  response.getMinVersion().setValue(Math.max(task.space.getMinVersion(),
+                          response.getMaxVersion().getValue() - task.space.getVersionsToKeep() + 1));
 
-        defineGlobalSearchableField(response, task);
-        defineContentUpdatedAtField(response, (FeatureTask.GetStatistics) task)
-                .onSuccess(r -> callback.call(task))
-                .onFailure(callback::exception);
+                  if(minTagVersion != null)
+                    response.getMinVersion().setValue(Math.min(minTagVersion, response.getMinVersion().getValue()));
 
+                  defineGlobalSearchableField(response, task);
+                  defineContentUpdatedAtField(response, (FeatureTask.GetStatistics) task)
+                          .onSuccess(r -> callback.call(task))
+                          .onFailure(callback::exception);
+                }).onFailure(callback::exception);
         return;
       }
     } else if (task instanceof FeatureTask.IdsQuery) {

@@ -156,7 +156,7 @@ public class Space {
    * This value will increase depending on the value having been defined for {@link #versionsToKeep}.
    */
   @JsonView({Internal.class, Static.class})
-  private long minVersion = 1;
+  private long minVersion = 0;
 
   /**
    * If false, auto-indexing gets disabled
