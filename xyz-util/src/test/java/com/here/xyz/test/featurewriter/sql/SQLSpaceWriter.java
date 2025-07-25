@@ -46,6 +46,8 @@ import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import static com.here.xyz.util.db.ConnectorParameters.TableLayout.V1;
+
 public class SQLSpaceWriter extends SpaceWriter {
   private static final Logger logger = LogManager.getLogger();
   protected static String VERSION_SEQUENCE_SUFFIX = "_version_seq";
@@ -65,8 +67,8 @@ public class SQLSpaceWriter extends SpaceWriter {
     try (DataSourceProvider dsp = SQLITBase.getDataSourceProvider()) {
       List<SQLQuery> queries = new ArrayList<>();
       if (composite)
-        queries.addAll(buildCreateSpaceTableQueries(dsp.getDatabaseSettings().getSchema(), superSpaceId()));
-      queries.addAll(buildCreateSpaceTableQueries(dsp.getDatabaseSettings().getSchema(), spaceId()));
+        queries.addAll(buildCreateSpaceTableQueries(dsp.getDatabaseSettings().getSchema(), superSpaceId(), superSpaceId(), V1));
+      queries.addAll(buildCreateSpaceTableQueries(dsp.getDatabaseSettings().getSchema(), spaceId(), spaceId(), V1));
       SQLQuery.batchOf(queries).writeBatch(dsp);
     }
   }

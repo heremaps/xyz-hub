@@ -23,6 +23,8 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.here.xyz.Typed;
+
+import com.here.xyz.util.db.ConnectorParameters.TableLayout;
 import com.here.xyz.util.db.SQLQuery;
 import org.apache.commons.codec.digest.DigestUtils;
 
@@ -32,6 +34,8 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_DEFAULT;
+import static com.here.xyz.util.db.ConnectorParameters.TableLayout.V1;
+import static com.here.xyz.util.db.ConnectorParameters.TableLayout.V2;
 
 public class IndexHelper {
 
@@ -198,14 +202,19 @@ public class IndexHelper {
             .collect(Collectors.toList());
   }
 
-  public static List<SQLQuery> buildSpaceTableIndexQueries(String schema, String table) {
-    return Arrays.asList(SystemIndex.values()).stream()
-            .map(index -> buildCreateIndexQuery(schema, table, index.getIndexContent(), index.getIndexType(), index.getIndexName(table)))
-            .toList();
+  public static List<SQLQuery> buildSpaceTableIndexQueries(String schema, String table, TableLayout layout) {
+    if(layout == V1)
+      return Arrays.asList(SystemIndex.values()).stream()
+              .map(index -> buildCreateIndexQuery(schema, table, index.getIndexContent(), index.getIndexType(), index.getIndexName(table)))
+              .toList();
+    else if (layout == V2)
+      return List.of(new SQLQuery(""));
+
+    throw new IllegalArgumentException("Unsupported layout " + layout);
   }
 
   /**
-   * @deprecated Please use only method {@link #buildSpaceTableIndexQueries(String, String)} instead.
+   * @deprecated Please use only method {@link #buildSpaceTableIndexQueries(String, String, TableLayout)} instead.
    * @param schema
    * @param table
    * @param queryComment
@@ -213,7 +222,7 @@ public class IndexHelper {
    */
   @Deprecated
   public static List<SQLQuery> buildSpaceTableIndexQueries(String schema, String table, SQLQuery queryComment) {
-    return buildSpaceTableIndexQueries(schema, table)
+    return buildSpaceTableIndexQueries(schema, table, TableLayout.V1)
             .stream()
             .map(q -> addQueryComment(q, queryComment))
             .toList();

@@ -25,6 +25,7 @@ import static com.here.xyz.events.ModifySpaceEvent.Operation.DELETE;
 import static com.here.xyz.events.ModifySpaceEvent.Operation.UPDATE;
 import static com.here.xyz.psql.query.helpers.versioning.GetNextVersion.VERSION_SEQUENCE_SUFFIX;
 import static com.here.xyz.responses.XyzError.ILLEGAL_ARGUMENT;
+import static com.here.xyz.util.db.ConnectorParameters.TableLayout.V2;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SCHEMA;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.TABLE;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildCreateSpaceTableQueries;
@@ -34,13 +35,14 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.here.xyz.connectors.ErrorResponseException;
+import com.here.xyz.util.db.ConnectorParameters;
+import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
 import com.here.xyz.util.runtime.FunctionRuntime;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.ModifySpaceEvent.Operation;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.psql.DatabaseMaintainer;
 import com.here.xyz.responses.SuccessResponse;
-import com.here.xyz.util.db.ConnectorParameters;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import java.sql.ResultSet;
@@ -49,6 +51,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static com.here.xyz.util.db.ConnectorParameters.TableLayout.V1;
 
 public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse> {
 
@@ -129,25 +133,35 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
 
     @Override
     protected SQLQuery buildQuery(ModifySpaceEvent event) throws SQLException {
-        if (event.getOperation() == CREATE || event.getOperation() == UPDATE) {
-            List<SQLQuery> queries = new ArrayList<>();
-            final String table = getDefaultTable(event);
+        if(getTableLayout().equals(ConnectorParameters.TableLayout.V1)){
+            if (event.getOperation() == CREATE || event.getOperation() == UPDATE) {
+                List<SQLQuery> queries = new ArrayList<>();
+                final String table = getDefaultTable(event);
 
-            if (event.getSpaceDefinition() != null && event.getOperation() == CREATE)
-                //Add space table creation queries
-                queries.addAll(buildCreateSpaceTableQueries(getSchema(), table));
+                if (event.getSpaceDefinition() != null && event.getOperation() == CREATE)
+                    //Add space table creation queries
+                    queries.addAll(buildCreateSpaceTableQueries(getSchema(), table, event.getSpace(), V1));
 
-            //Write idx related data
-            queries.addAll(buildSearchablePropertiesUpsertQueries(event));
-            //Write metadata
-            queries.add(buildSpaceMetaUpsertQuery(event));
+                //Write idx related data
+                queries.addAll(buildSearchablePropertiesUpsertQueries(event));
+                //Write metadata
+                queries.add(buildSpaceMetaUpsertQuery(event));
 
-            return SQLQuery.batchOf(queries).withLock(table);
+                return SQLQuery.batchOf(queries).withLock(table);
+            }
+            else if (event.getOperation() == DELETE) {
+                return SQLQuery.batchOf(XyzSpaceTableHelper.buildCleanUpQuery(getSchema(), getDefaultTable(event), VERSION_SEQUENCE_SUFFIX, V1));
+            }
+        }else if(getTableLayout().equals(ConnectorParameters.TableLayout.V2)){
+            if (event.getOperation() == CREATE && event.getSpaceDefinition() != null) {
+                final String table = getDefaultTable(event);
+                List<SQLQuery> queries = new ArrayList<>(buildCreateSpaceTableQueries(getSchema(), table, event.getSpace(), V2));
+                return SQLQuery.batchOf(queries).withLock(table);
+            }
+            else if (event.getOperation() == DELETE)
+                return buildCleanUpQuery(event);
         }
-        else if (event.getOperation() == DELETE)
-            return buildCleanUpQuery(event);
-
-        return null;
+        return null; //TODO: Check
     }
 
     @Override
@@ -305,6 +319,7 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
     }
 
     public SQLQuery buildCleanUpQuery(ModifySpaceEvent event) {
+
         String table = getDefaultTable(event);
         SQLQuery q = new SQLQuery("${{deleteMetadata}} ${{deleteIndexStatus}} ${{dropTable}} ${{dropISequence}} ${{dropVersionSequence}}")
             .withQueryFragment(
@@ -330,8 +345,6 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
             .withVariable("iSequence", table + I_SEQUENCE_SUFFIX)
             .withVariable("versionSequence", getDefaultTable(event) + VERSION_SEQUENCE_SUFFIX);
     }
-
-
 
     private static class IdxManual {
         @JsonInclude(JsonInclude.Include.NON_NULL)
