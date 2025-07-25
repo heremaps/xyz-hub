@@ -99,6 +99,7 @@ public class ApiParam {
     static final String H3_INDEX = "h3Index";
     static final String CONTENT_UPDATED_AT = "contentUpdatedAt";
     static final String CONTEXT = "context";
+    static final String SPACE_DELETE_MODE = "mode";
 
     static final String CLUSTERING_PARAM_RESOLUTION = "resolution";
     static final String CLUSTERING_PARAM_RESOLUTION_RELATIVE = "relativeResolution";

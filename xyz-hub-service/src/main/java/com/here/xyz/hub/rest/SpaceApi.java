@@ -134,9 +134,20 @@ public class SpaceApi extends SpaceBasedApi {
   public void deleteSpace(final RoutingContext context) {
     Map<String,Object> input = new JsonObject().put("id", getSpaceId(context)).getMap();
     boolean dryRun = ApiParam.Query.getBoolean(context, Query.DRY_RUN, false);
-    ModifySpaceOp modifyOp = new ModifySpaceOp(Collections.singletonList(input), IfNotExists.ERROR, IfExists.DELETE, true, dryRun);
+    String mode = ApiParam.Query.getString(context, Query.SPACE_DELETE_MODE, "delete").toLowerCase();
+    boolean truncateSpace = false;
 
-    //Delete the space
+    switch( mode )
+    { case "erase": case "delete": 
+       truncateSpace = mode.equals("erase");  break;
+      default: 
+        context.fail(new DetailedHttpException("E318409", Map.of("param", Query.SPACE_DELETE_MODE,"wrongParam",mode,"allowedParam","erase|delete")));
+        return;  
+    }
+
+    ModifySpaceOp modifyOp = new ModifySpaceOp(Collections.singletonList(input), IfNotExists.ERROR, IfExists.DELETE, true, dryRun, false, truncateSpace );
+
+    //Delete/Truncate the space
     ApiResponseType responseType = APPLICATION_JSON.equals(context.request().getHeader(ACCEPT))
         ? ApiResponseType.SPACE : ApiResponseType.EMPTY;
     new ConditionalOperation(context, responseType, modifyOp, true)

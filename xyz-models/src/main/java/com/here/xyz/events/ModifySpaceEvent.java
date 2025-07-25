@@ -31,6 +31,7 @@ public class ModifySpaceEvent extends Event<ModifySpaceEvent> {
   private Space spaceDefinition;
 
   private boolean dryRun;
+  private boolean truncateSpace;
 
   @SuppressWarnings("unused")
   public Operation getOperation() {
@@ -76,6 +77,20 @@ public class ModifySpaceEvent extends Event<ModifySpaceEvent> {
     setDryRun(dryRun);
     return this;
   }
+
+    public boolean isTruncateSpace() {
+    return truncateSpace;
+  }
+
+  public void setTruncateSpace(boolean truncateSpace) {
+    this.truncateSpace = truncateSpace;
+  }
+
+  public ModifySpaceEvent withTruncateSpace(boolean truncateSpace) {
+    setTruncateSpace(truncateSpace);
+    return this;
+  }
+
 
   public enum Operation {
     CREATE, UPDATE, DELETE

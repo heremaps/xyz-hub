@@ -211,9 +211,13 @@ public class XyzSpaceTableHelper {
         .withVariable("partitionTable", rootTable + HEAD_TABLE_SUFFIX);
   }
 
-  public static SQLQuery buildCreateHistoryPartitionQuery(String schema, String rootTable, long partitionNo) {
+  public static SQLQuery buildCreateHistoryPartitionQuery(String schema, String rootTable, long partitionNo, boolean useSelect) {
     return new SQLQuery(
-        "SELECT xyz_create_history_partition('" + schema + "', '" + rootTable + "', " + partitionNo + ", " + PARTITION_SIZE + ")");
+        (useSelect ? "SELECT" : "PERFORM") + " xyz_create_history_partition('" + schema + "', '" + rootTable + "', " + partitionNo + ", " + PARTITION_SIZE + ")");
+  }
+
+  public static SQLQuery buildCreateHistoryPartitionQuery(String schema, String rootTable, long partitionNo) {
+    return buildCreateHistoryPartitionQuery( schema, rootTable, partitionNo, true);
   }
 
   public static SQLQuery buildCreateSpaceTableQuery(String schema, String table) {

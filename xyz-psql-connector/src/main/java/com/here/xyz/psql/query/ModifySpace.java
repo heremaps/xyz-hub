@@ -43,6 +43,8 @@ import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.util.db.ConnectorParameters;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
+import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
+
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -145,7 +147,7 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
             return SQLQuery.batchOf(queries).withLock(table);
         }
         else if (event.getOperation() == DELETE)
-            return buildCleanUpQuery(event);
+            return !event.isTruncateSpace() ? buildCleanUpQuery(event) : buildTruncateSpaceQuery(event);
 
         return null;
     }
@@ -331,7 +333,89 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
             .withVariable("versionSequence", getDefaultTable(event) + VERSION_SEQUENCE_SUFFIX);
     }
 
+    private SQLQuery buildTruncateSpaceQueryKeepVersionSeq(ModifySpaceEvent event) {
+        String table = getDefaultTable(event),
+        dropOtherPartitions = // build a list of partitions to be dropped
+         String.format(
+                """
+                    DO $b2$
+                    DECLARE
+                        partition_list text;
+                    BEGIN
+                        with
+                        indata as  ( select '%1$s' as in_schema, '%2$s' as in_table ),
+                        iindata as ( select i.in_schema, relname::text, replace( relname::text, i.in_table || '_p', '' )::integer as pid
+                                     from pg_class c, indata i  
+                                     where 1 = 1
+                                       and relname like i.in_table || '_p%%' 
+                                       and relkind = 'r'
+                                       and relnamespace = ( select n.oid from pg_namespace n where n.nspname = i.in_schema )),
+                        iiindata as ( select ii.*, ( select max(pid) from iindata ) as max_pid from iindata ii )
+                        select string_agg( format('%%I.%%I', iii.in_schema, iii.relname ),',' ) into partition_list from iiindata iii
+                        where 1 = 1
+                          and pid != max_pid;
 
+                        if partition_list is not null then
+                         execute format('DROP TABLE IF EXISTS %%s', partition_list);
+                        end if; 
+                    END $b2$
+                """, getSchema(), table ); //TODO: use withNamedParameter when replacement issue is fixed.
+
+        SQLQuery q = new SQLQuery("${{truncateTable}}; ${{dropOtherPartitions}}; ${{analyseTruncatedTable}}")
+            .withQueryFragment("truncateTable", "TRUNCATE TABLE ${schema}.${table}")
+            .withQueryFragment("dropOtherPartitions", dropOtherPartitions )
+            .withQueryFragment("analyseTruncatedTable", "ANALYSE ${schema}.${table}" );
+
+        return q
+            .withVariable(SCHEMA, getSchema())
+            .withVariable(TABLE, table);
+    }
+
+    private SQLQuery buildTruncateSpaceQueryResetVersionSeq(ModifySpaceEvent event) {
+        String table = getDefaultTable(event),
+        dropOtherPartitions = // build a list of partitions to be dropped
+         String.format(
+                """
+                    DO $b2$
+                    DECLARE
+                        partition_list text;
+                    BEGIN
+                        with indata as ( select '%1$s' as in_schema, '%2$s' as in_table )
+                        select string_agg( format('%%I.%%I',i.in_schema,relname::text ),',' ) into partition_list from pg_class c, indata i  
+                        where 1 = 1
+                        and relname like i.in_table || '_p%%' 
+                            and relname != i.in_table || '_p0' 
+                            and relkind = 'r'
+                            and relnamespace = ( select n.oid from pg_namespace n where n.nspname = i.in_schema );
+
+                        if partition_list is not null then
+                         execute format('DROP TABLE IF EXISTS %%s', partition_list);
+                        end if; 
+                    END $b2$
+                """, getSchema(), table ); //TODO: use withNamedParameter when replacement issue is fixed.
+        
+
+        SQLQuery q = new SQLQuery("${{truncateTable}}; ${{resetVersionSequence}}; DO $b1$ BEGIN ${{recreateTableP0}}; END $b1$; ${{dropOtherPartitions}}; ${{analyseTruncatedTable}}")
+            .withQueryFragment("truncateTable", "TRUNCATE TABLE ${schema}.${table} RESTART IDENTITY")
+            .withQueryFragment("resetVersionSequence", "ALTER SEQUENCE ${schema}.${versionSequence} RESTART WITH 1")
+            .withQueryFragment("recreateTableP0", XyzSpaceTableHelper.buildCreateHistoryPartitionQuery(getSchema(), table, 0L,false))
+            .withQueryFragment("dropOtherPartitions", dropOtherPartitions )
+            .withQueryFragment("analyseTruncatedTable", "ANALYSE ${schema}.${table}" );
+
+        return q
+            .withVariable(SCHEMA, getSchema())
+            .withVariable(TABLE, table)
+            .withVariable("versionSequence", getDefaultTable(event) + VERSION_SEQUENCE_SUFFIX);
+    }
+
+    public SQLQuery buildTruncateSpaceQuery(ModifySpaceEvent event) {
+
+      boolean resetVersionSequence = false;  // always keep current version, but might be subject of change.
+
+      return resetVersionSequence ? buildTruncateSpaceQueryResetVersionSeq( event ) 
+                                  : buildTruncateSpaceQueryKeepVersionSeq( event );
+
+    }
 
     private static class IdxManual {
         @JsonInclude(JsonInclude.Include.NON_NULL)

@@ -399,6 +399,7 @@ public class SpaceTaskHandler {
     }
 
     if (entry.input != null && entry.result == null) {
+     if(! task.modifyOp.truncateSpace ) {
       logger.warn("DEBUG: Deleting space: {}", entry.head.getId());
       Service.spaceConfigClient
           .delete(task.getMarker(), entry.head.getId())
@@ -407,6 +408,22 @@ public class SpaceTaskHandler {
             task.responseSpaces = Collections.singletonList(task.modifyOp.entries.get(0).head);
             callback.call(task);
           });
+
+      } else {
+
+      logger.warn("DEBUG: Storing truncated space: {}", entry.head.getId());
+
+      entry.head.setContentUpdatedAt(Core.currentTimeMillis());
+
+      Service.spaceConfigClient
+          .store(task.getMarker(), entry.head)
+          .onFailure(callback::exception)
+          .onSuccess(v -> {
+            task.responseSpaces = Collections.singletonList(entry.head);
+            callback.call(task);
+          });
+
+      }
     }
     else {
       logger.warn("DEBUG: Storing space: {}", entry.result.getId());
@@ -611,7 +628,8 @@ public class SpaceTaskHandler {
               .withParams(storageParams)
               .withIfNoneMatch(task.context.request().headers().get("If-None-Match"))
               .withSpace(space.getId())
-              .withDryRun(task.modifyOp.dryRun);
+              .withDryRun(task.modifyOp.dryRun)
+              .withTruncateSpace(task.modifyOp.truncateSpace);
 
       ModifySpaceQuery query = new ModifySpaceQuery(event, task.context, ApiResponseType.EMPTY);
       query.space = space;
