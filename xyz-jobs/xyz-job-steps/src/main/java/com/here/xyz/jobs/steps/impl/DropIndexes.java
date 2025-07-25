@@ -19,8 +19,8 @@
 
 package com.here.xyz.jobs.steps.impl;
 
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildLoadSpaceTableIndicesQuery;
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildSpaceTableDropIndexQueries;
+import static com.here.xyz.util.db.pg.IndexHelper.buildLoadSpaceTableIndicesQuery;
+import static com.here.xyz.util.db.pg.IndexHelper.buildSpaceTableDropIndexQueries;
 
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;

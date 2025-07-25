@@ -43,8 +43,8 @@ import com.here.xyz.jobs.steps.impl.MarkForMaintenance;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPerLine;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper.SystemIndex;
+import com.here.xyz.util.db.pg.IndexHelper.OnDemandIndex;
+import com.here.xyz.util.db.pg.IndexHelper.SystemIndex;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
@@ -106,7 +106,7 @@ public class ImportFromFiles implements JobCompilationInterceptor {
     //NOTE: drop/create indices is also used by SpaceCopy compiler
 
     //NOTE: VIZ index will be created separately in a sequential step afterwards (see below)
-    List<XyzSpaceTableHelper.SystemIndex> indices = Stream.of(SystemIndex.values()).filter(index -> index != SystemIndex.VIZ).toList();
+    List<SystemIndex> indices = Stream.of(SystemIndex.values()).filter(index -> index != SystemIndex.VIZ).toList();
     //Split the work in three parallel tasks for now
     List<List<SystemIndex>> indexTasks = Lists.partition(indices, indices.size() / 3);
 
@@ -175,7 +175,7 @@ public class ImportFromFiles implements JobCompilationInterceptor {
       if (activatedSearchableProperties.get(property)) {
         // Create an OnDemandIndex step for each activated searchable property
         onDemandIndicesGraph.addExecution(new CreateIndex()
-            .withIndex(new XyzSpaceTableHelper.OnDemandIndex().withPropertyPath(property))
+            .withIndex(new OnDemandIndex().withPropertyPath(property))
             .withSpaceId(spaceId));
       }
     }

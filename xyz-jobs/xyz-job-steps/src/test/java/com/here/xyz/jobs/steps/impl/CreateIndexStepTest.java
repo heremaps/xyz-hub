@@ -21,9 +21,9 @@ package com.here.xyz.jobs.steps.impl;
 
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper.OnDemandIndex;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper.SystemIndex;
+import com.here.xyz.util.db.pg.IndexHelper.Index;
+import com.here.xyz.util.db.pg.IndexHelper.OnDemandIndex;
+import com.here.xyz.util.db.pg.IndexHelper.SystemIndex;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -48,7 +48,7 @@ public class CreateIndexStepTest extends StepTest {
 
     @Test
     public void testCreateOnDemandIndex() throws Exception {
-        XyzSerializable.registerSubtypes(XyzSpaceTableHelper.Index.class);
+        XyzSerializable.registerSubtypes(Index.class);
         XyzSerializable.registerSubtypes(OnDemandIndex.class);
 
         deleteAllExistingIndexes(SPACE_ID);

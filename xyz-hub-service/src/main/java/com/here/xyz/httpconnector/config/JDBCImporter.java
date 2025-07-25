@@ -24,9 +24,9 @@ import static com.here.xyz.httpconnector.util.jobs.Job.ERROR_TYPE_ABORTED;
 import static com.here.xyz.httpconnector.util.jobs.Job.ERROR_TYPE_FINALIZATION_FAILED;
 import static com.here.xyz.psql.query.ModifySpace.IDX_STATUS_TABLE;
 import static com.here.xyz.psql.query.ModifySpace.XYZ_CONFIG_SCHEMA;
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildLoadSpaceTableIndicesQuery;
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildSpaceTableDropIndexQueries;
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildSpaceTableIndexQueries;
+import static com.here.xyz.util.db.pg.IndexHelper.buildLoadSpaceTableIndicesQuery;
+import static com.here.xyz.util.db.pg.IndexHelper.buildSpaceTableDropIndexQueries;
+import static com.here.xyz.util.db.pg.IndexHelper.buildSpaceTableIndexQueries;
 
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.task.JdbcBasedHandler;
