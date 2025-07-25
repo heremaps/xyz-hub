@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -39,11 +39,11 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.zip.GZIPInputStream;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.locationtech.jts.io.ParseException;
 import org.locationtech.jts.io.WKBReader;
+import software.amazon.awssdk.core.ResponseInputStream;
 
 public class ImportFilesQuickValidator {
   private static final Logger logger = LogManager.getLogger();
@@ -66,8 +66,8 @@ public class ImportFilesQuickValidator {
     S3Client client = S3Client.getInstance(s3File.getS3Bucket());
     StringBuilder line = new StringBuilder();
 
-    InputStream rawInput = client.streamObjectContent(s3File.getS3Key(), 0, VALIDATE_LINE_MAX_LINE_SIZE_BYTES);
-    InputStream decompressed = s3File.isCompressed() ? new GZIPInputStream(rawInput) : rawInput;
+    ResponseInputStream s3InputStream = client.streamObjectContent(s3File.getS3Key(), 0, VALIDATE_LINE_MAX_LINE_SIZE_BYTES);
+    InputStream decompressed = s3File.isCompressed() ? new GZIPInputStream(s3InputStream) : s3InputStream;
     CountingInputStream countingStream = new CountingInputStream(decompressed);
 
     try (BufferedReader reader = new BufferedReader(new InputStreamReader(countingStream, StandardCharsets.UTF_8))) {
@@ -79,11 +79,13 @@ public class ImportFilesQuickValidator {
         if (ch == '\n' || ch == '\r') {
           ImportFilesQuickValidator.validateCSVLine(line.toString(), format, entityPerLine);
           logger.info("Validation finished {} in format {}", s3File.getS3Key(), format);
+          S3Client.abortS3Streaming(s3InputStream);
           return;
         }
 
         if (countingStream.getByteCount() >= VALIDATE_LINE_MAX_LINE_SIZE_BYTES) {
           logger.info("Validation finished {} in format {}", s3File.getS3Key(), format);
+          S3Client.abortS3Streaming(s3InputStream);
           throw new IllegalStateException("No newline found within 4MB decompressed limit.");
         }
       }
@@ -94,7 +96,8 @@ public class ImportFilesQuickValidator {
       }
 
       throw new IllegalStateException("No data found in file.");
-    }catch (AmazonServiceException e) {
+    }
+    catch (AmazonServiceException e) {
       if (e.getErrorCode().equalsIgnoreCase("InvalidRange")) {
         // The file might be smaller than the requested range
         ImportFilesQuickValidator.validateCSVLine(line.toString(), format, entityPerLine);
