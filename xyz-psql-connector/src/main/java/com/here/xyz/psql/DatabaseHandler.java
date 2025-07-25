@@ -272,6 +272,7 @@ public abstract class DatabaseHandler extends StorageConnector {
               throw e;
         }
 
+        
         /*
         NOTE: This is a workaround for tables which have no unique constraint
         TODO: Remove this workaround once all constraints have been adjusted accordingly
@@ -284,7 +285,8 @@ public abstract class DatabaseHandler extends StorageConnector {
             connection.setAutoCommit(!event.getTransaction());
 
             try {
-                if (deletes.size() > 0) {
+                
+                if (deletes.size() > 0 || event.isEraseAllFeatures()) {
                     DatabaseWriter.modifyFeatures(this, event, DELETE, collection, fails, new ArrayList(deletes.entrySet()), connection, version, uniqueConstraintExists);
                 }
                 if (inserts.size() > 0) {
