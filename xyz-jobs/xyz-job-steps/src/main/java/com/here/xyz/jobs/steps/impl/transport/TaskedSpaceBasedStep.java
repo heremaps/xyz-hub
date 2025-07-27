@@ -19,14 +19,15 @@
 
 package com.here.xyz.jobs.steps.impl.transport;
 
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_ASYNC_UPDATE;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.createQueryContext;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporaryJobTableName;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
 import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -41,9 +42,11 @@ import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
 import com.here.xyz.models.hub.Ref;
+import com.here.xyz.models.hub.Space;
 import com.here.xyz.psql.query.QueryBuilder.QueryBuildingException;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.SQLQuery;
+import com.here.xyz.util.db.pg.FeatureWriterQueryBuilder.FeatureWriterQueryContextBuilder;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.web.XyzWebClient;
 import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
@@ -481,9 +484,22 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep> exten
     }
   }
 
+  @JsonIgnore
   protected Map<String, Object> getQueryContext(String schema) throws WebClientException {
-    String superTable = space().getExtension() != null ? getRootTableName(superSpace()) : null;
-    return createQueryContext(getId(), schema, getRootTableName(space()), (space().getVersionsToKeep() > 1), superTable);
+    Space superSpace = superSpace();
+    List<String> tables = new ArrayList<>();
+    if (superSpace != null)
+      tables.add(getRootTableName(superSpace));
+    tables.add(getRootTableName(space()));
+
+    return new FeatureWriterQueryContextBuilder()
+        .withSchema(schema)
+        .withTables(tables)
+        .withSpaceContext(DEFAULT)
+        .withHistoryEnabled(space().getVersionsToKeep() > 1)
+        .withBatchMode(true)
+        .with("stepId", getId())
+        .build();
   }
 
   protected record TaskProgress(int totalTasks, int startedTasks, int finalizedTasks, Integer taskId, TaskData taskInput) {

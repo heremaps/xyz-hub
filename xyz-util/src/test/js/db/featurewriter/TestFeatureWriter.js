@@ -27,9 +27,7 @@ const DatabaseWriter = plv8.DatabaseWriter;
 
 global.queryContext = () => ({
   schema: "public",
-  table: "composite-export-space-ext-ext",
-  extendedTable: "composite-export-space-ext",
-  extendedTableL2: "composite-export-space",
+  tables: ["composite-export-space", "composite-export-space-ext", "composite-export-space-ext-ext"],
   context: "DEFAULT",
   historyEnabled: false
 });

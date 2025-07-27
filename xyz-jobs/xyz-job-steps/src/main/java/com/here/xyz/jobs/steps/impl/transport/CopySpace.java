@@ -24,7 +24,6 @@ import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
 import static com.here.xyz.jobs.steps.execution.db.Database.loadDatabase;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_RESUME;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.createQueryContext;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
 
 import com.fasterxml.jackson.annotation.JsonView;
@@ -45,6 +44,7 @@ import com.here.xyz.psql.query.GetFeaturesByGeometryBuilder;
 import com.here.xyz.psql.query.GetFeaturesByGeometryBuilder.GetFeaturesByGeometryInput;
 import com.here.xyz.psql.query.QueryBuilder.QueryBuildingException;
 import com.here.xyz.util.db.SQLQuery;
+import com.here.xyz.util.db.pg.FeatureWriterQueryBuilder.FeatureWriterQueryContextBuilder;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import java.io.IOException;
@@ -370,8 +370,12 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
         targetSchema = getSchema(loadDatabase(targetStorageId, WRITER)),
         targetTable = getRootTableName(targetSpace());
 
-    final Map<String, Object> queryContext = createQueryContext(getId(), targetSchema, targetTable, targetSpace().getVersionsToKeep() > 1,
-        null);
+    final Map<String, Object> queryContext = new FeatureWriterQueryContextBuilder()
+        .withSchema(targetSchema)
+        .withTables(List.of(targetTable))
+        .withHistoryEnabled(targetSpace().getVersionsToKeep() > 1)
+        .withBatchMode(true)
+        .build();
 
     SQLQuery contentQuery = buildCopyContentQuery(threadCount, threadId);
 
@@ -519,12 +523,12 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     if( threadIdFilter != null )
      queryBuilder.withAdditionalFilterFragment(threadIdFilter);
 
-    if(! useTableCopy() ) 
+    if(! useTableCopy() )
      return queryBuilder.buildQuery(input); //TODO: with author, operation provided in selection the parsing of those values in buildCopySpaceQuery would be obsolete
-    else 
+    else
      return queryBuilder
             .withSelectClauseOverride(new SQLQuery("id, jsondata, operation, author, ${{PlainGeom}} ").withQueryFragment("PlainGeom",buildGeoFragment()))
             .buildQuery(input);
-     
+
   }
 }
