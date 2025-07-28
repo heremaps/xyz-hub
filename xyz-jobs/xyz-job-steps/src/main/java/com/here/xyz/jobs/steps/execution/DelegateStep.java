@@ -36,9 +36,9 @@ import java.util.List;
 })
 public class DelegateStep extends Step<DelegateStep> {
   @JsonView({Internal.class, Static.class})
-  private final Step<?> delegate;
+  protected Step<?> delegate;
   @JsonIgnore
-  private final Step<?> delegator;
+  protected Step<?> delegator;
   private RuntimeInfo status = new RuntimeInfo();
 
   //Only needed for deserialization purposes

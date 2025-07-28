@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,28 +18,29 @@
  */
 package com.here.xyz.hub.cache;
 
-import com.here.xyz.jobs.util.S3ClientHelper;
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
-import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
-import software.amazon.awssdk.core.ResponseBytes;
-import software.amazon.awssdk.core.sync.RequestBody;
-import software.amazon.awssdk.regions.Region;
-import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.S3ClientBuilder;
-import software.amazon.awssdk.services.s3.model.*;
-import software.amazon.awssdk.core.sync.ResponseTransformer;
-import com.here.xyz.hub.Service;
+import com.here.xyz.hub.Config;
 import com.here.xyz.util.service.Core;
+import com.here.xyz.util.service.aws.s3.S3ClientHelper;
 import io.vertx.core.Future;
-
-import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.core.ResponseBytes;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.core.sync.ResponseTransformer;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.S3ClientBuilder;
+import software.amazon.awssdk.services.s3.model.CopyObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 public class S3CacheClient implements CacheClient {
     private static final String EXPIRES_AT = "expiresAt";
@@ -52,9 +53,9 @@ public class S3CacheClient implements CacheClient {
     private String bucket;
 
     private S3CacheClient() {
-        if (Service.configuration.XYZ_HUB_S3_BUCKET == null)
+        if (Config.instance.XYZ_HUB_S3_BUCKET == null)
             throw new RuntimeException("No S3 bucket defined. S3CacheClient can not be used.");
-        bucket = Service.configuration.XYZ_HUB_S3_BUCKET;
+        bucket = Config.instance.XYZ_HUB_S3_BUCKET;
         initS3Client();
     }
 
@@ -73,18 +74,18 @@ public class S3CacheClient implements CacheClient {
         S3ClientBuilder builder = S3Client.builder()
                 .credentialsProvider(DefaultCredentialsProvider.create());
 
-        if (Service.configuration.LOCALSTACK_ENDPOINT != null) {
+        if (Config.instance.LOCALSTACK_ENDPOINT != null) {
             builder
                     .region(Region.EU_WEST_1)
-                    .endpointOverride(URI.create(Service.configuration.LOCALSTACK_ENDPOINT))
+                    .endpointOverride(Config.instance.LOCALSTACK_ENDPOINT)
                     .credentialsProvider(
                             StaticCredentialsProvider.create(
                                     AwsBasicCredentials.create("localstack", "localstack")))
                     .forcePathStyle(true);
         }
 
-        if (Service.configuration.AWS_REGION != null && !Service.configuration.AWS_REGION.isEmpty()) {
-            builder.region(Region.of(Service.configuration.AWS_REGION));
+        if (Config.instance.AWS_REGION != null && !Config.instance.AWS_REGION.isEmpty()) {
+            builder.region(Region.of(Config.instance.AWS_REGION));
         }
 
         s3client = builder.build();

@@ -509,4 +509,51 @@ public class TagApiIT extends TestSpaceWithFeature {
         .then()
         .statusCode(OK.code());
   }
+
+  @Test
+  public void createTagAndCheckForAuthorAndCreatedAtAndDescription() {
+    _createTag()
+            .statusCode(OK.code())
+            .body("id", equalTo("XYZ_1"))
+            .body("version", equalTo(0));
+
+    given()
+            .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+            .get("/spaces/" + getSpaceId() + "/tags/XYZ_1")
+            .then()
+            .statusCode(OK.code())
+            .body("$", hasKey("author"))
+            .body("$", hasKey("createdAt"))
+            .body("$", hasKey("description"));
+  }
+
+  @Test
+  public void testUpdateTagWithDescription() {
+    _createTag();
+
+    given()
+            .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+            .contentType(ContentType.JSON)
+            .body(new Tag().withId("XYZ_1").withVersion(1).withDescription("description"))
+            .patch("/spaces/" + getSpaceId() + "/tags/XYZ_1")
+            .then()
+            .statusCode(OK.code())
+            .body("description", equalTo("description"));
+  }
+
+  @Test
+  public void testListTagsSortedDesc() throws InterruptedException {
+    _createTagForId(getSpaceId(), "XYZ_1", false);
+    Thread.sleep(10);
+    _createTagForId(getSpaceId(), "XYZ_2", false);
+
+    given()
+            .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+            .get("/spaces/" + getSpaceId() + "/tags")
+            .then()
+            .statusCode(OK.code())
+            .body("size()", is(2))
+            .body("id[0]", equalTo("XYZ_2"))
+            .body("id[1]", equalTo("XYZ_1"));
+  }
 }

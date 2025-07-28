@@ -457,19 +457,6 @@ BEGIN
     onVersionConflict = CASE WHEN onVersionConflict = 'null' THEN NULL ELSE onVersionConflict END;
     onMergeConflict = CASE WHEN onMergeConflict = 'null' THEN NULL ELSE onMergeConflict END;
 
-
-    --TODO: check how to use asyncify instead
-    PERFORM context(
-        jsonb_build_object(
-            'stepId', get_stepid_from_work_table(TG_TABLE_NAME::REGCLASS) ,
-            'schema', TG_TABLE_SCHEMA,
-            'table', targetTable,
-            'historyEnabled', historyEnabled,
-            'context', CASE WHEN context = 'null' THEN null ELSE context END,
-            'extendedTable', CASE WHEN extendedTable = 'null' THEN null ELSE extendedTable END
-        )
-    );
-
     IF format = 'CSV_JSON_WKB' AND NEW.geo IS NOT NULL THEN
         --TODO: Extend feature_writer with possibility to provide geometry (as JSONB manipulations are quite slow)
         --TODO: Remove unnecessary xyz_reduce_precision call, because the FeatureWriter will do it anyways
@@ -489,8 +476,21 @@ BEGIN
         END IF;
     END IF;
 
+    --TODO: check how to use asyncify instead
+    PERFORM context(
+        jsonb_build_object(
+            'stepId', get_stepid_from_work_table(TG_TABLE_NAME::REGCLASS) ,
+            'schema', TG_TABLE_SCHEMA,
+            'table', targetTable,
+            'historyEnabled', historyEnabled,
+            'context', CASE WHEN context = 'null' THEN null ELSE context END,
+            'extendedTable', CASE WHEN extendedTable = 'null' THEN null ELSE extendedTable END,
+            'batchMode', inputType != 'Feature'
+        )
+    );
+
     SELECT write_features(
-        input, inputType, author, false, NULL,
+        input, inputType, author, false, currentVersion,
         onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial
     )::JSONB->'count' INTO featureCount;
 

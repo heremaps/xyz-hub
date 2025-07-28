@@ -21,7 +21,7 @@ package com.here.xyz.util.runtime;
 
 import com.amazonaws.services.lambda.runtime.Context;
 import com.here.xyz.util.ARN;
-import com.here.xyz.util.service.aws.SimulatedContext;
+import com.here.xyz.util.service.aws.lambda.SimulatedContext;
 import java.util.List;
 
 public class LambdaFunctionRuntime extends FunctionRuntime {

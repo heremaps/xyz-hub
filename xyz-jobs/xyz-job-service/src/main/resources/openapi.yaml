@@ -730,6 +730,11 @@ components:
       type: object
       description: A geometrical object to be used as a filter when reading data from a space
       properties:
+        tileIds:
+          type: array
+          items:
+            type: string
+          description: The list of HERE Quadkey tile ids used as filter
         radius:
           type: integer
           description: The radius around the filter-geometry in meters

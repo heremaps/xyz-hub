@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -64,8 +64,10 @@ import com.here.xyz.models.hub.jwt.ActionMatrix;
 import com.here.xyz.models.hub.jwt.AttributeMap;
 import com.here.xyz.models.hub.jwt.JWTPayload;
 import com.here.xyz.responses.ChangesetsStatisticsResponse;
+import com.here.xyz.util.service.BaseHttpServerVerticle;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.HttpException;
+import com.here.xyz.util.service.errors.DetailedHttpException;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.core.json.Json;
@@ -396,7 +398,8 @@ public class SpaceTaskHandler {
       return;
     }
 
-    if (entry.input != null && entry.result == null)
+    if (entry.input != null && entry.result == null) {
+      logger.warn("DEBUG: Deleting space: {}", entry.head.getId());
       Service.spaceConfigClient
           .delete(task.getMarker(), entry.head.getId())
           .onFailure(callback::exception)
@@ -404,7 +407,9 @@ public class SpaceTaskHandler {
             task.responseSpaces = Collections.singletonList(task.modifyOp.entries.get(0).head);
             callback.call(task);
           });
-    else
+    }
+    else {
+      logger.warn("DEBUG: Storing space: {}", entry.result.getId());
       Service.spaceConfigClient
           .store(task.getMarker(), entry.result)
           .onFailure(callback::exception)
@@ -412,6 +417,7 @@ public class SpaceTaskHandler {
             task.responseSpaces = Collections.singletonList(entry.result);
             callback.call(task);
           });
+    }
   }
 
   private static Space getSpaceTemplate(String owner, String cid) {
@@ -527,9 +533,12 @@ public class SpaceTaskHandler {
               .withParams(extendedConnector.getParams() != null ? extendedConnector.getParams() : new HashMap<>()));
         }
         else if (!Objects.equals(space.getStorage().getId(), extendedConnector.getId()) && !task.modifyOp.forceStorage) {
-          callback.exception(new HttpException(BAD_REQUEST, "The storage of space " + space.getId()
-              + " [storage: " + space.getStorage().getId() + "] is not matching the storage of the space to be extended "
-              + "(" + extendedSpace.getId() + " [storage: " + extendedConnector.getId() + "])."));
+          callback.exception(new DetailedHttpException("E318408",
+                  Map.of("spaceId", space.getId(),
+                          "storageId", space.getStorage().getId(),
+                          "extendedSpaceId", extendedSpace.getId(),
+                          "extendedStorageId", extendedConnector.getId()))
+          );
           return;
         }
 
@@ -746,11 +755,12 @@ public class SpaceTaskHandler {
   private static void resolveDependenciesForCreation(ConditionalOperation task, Callback<ConditionalOperation> callback) {
     final String spaceId = task.responseSpaces.get(0).getId();
 
+    String author = BaseHttpServerVerticle.getAuthor(task.context);
     // check if there are subscriptions with source pointing to the space id being created
     Service.subscriptionConfigClient.getBySource(task.getMarker(), spaceId)
         .compose(subscriptions -> {
           if (!subscriptions.isEmpty()) {
-            return TagApi.createTag(task.getMarker(), spaceId, Service.configuration.SUBSCRIPTION_TAG);
+            return TagApi.createTag(task.getMarker(), spaceId, Service.configuration.SUBSCRIPTION_TAG, author);
           }
 
           return Future.succeededFuture();

@@ -110,6 +110,14 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep> exten
     this.versionRef = versionRef;
   }
 
+  public long getSpaceCreatedAt() {
+    return spaceCreatedAt;
+  }
+
+  public void setSpaceCreatedAt(long spaceCreatedAt) {
+    this.spaceCreatedAt = spaceCreatedAt;
+  }
+
   public SpaceContext getContext() {
     return this.context;
   }
@@ -177,8 +185,8 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep> exten
 
     try {
       try {
-        versionRef = hubWebClient().resolveRef(getSpaceId(), context, versionRef);
-        spaceCreatedAt = space().getCreatedAt();
+        setVersionRef(hubWebClient().resolveRef(getSpaceId(), context, versionRef));
+        setSpaceCreatedAt(space(true).getCreatedAt());
       }
       catch (ErrorResponseException e) {
         handleErrorResponse(e);
@@ -352,10 +360,10 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep> exten
   }
 
   @Override
-  protected void onStateCheck() {
-    //If no tasks are created, we can finish the process
+  public AsyncExecutionState getExecutionState() throws UnknownStateException {
     if(noTasksCreated)
-      reportAsyncSuccess();
+      return AsyncExecutionState.SUCCEEDED;
+    return super.getExecutionState();
   }
 
   /**

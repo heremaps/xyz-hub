@@ -28,8 +28,8 @@ import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SY
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.START_EXECUTION;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.STATE_CHECK;
 import static com.here.xyz.jobs.steps.execution.StepException.codeFromErrorErrorResponseException;
-import static com.here.xyz.jobs.util.AwsClients.cloudwatchEventsClient;
-import static com.here.xyz.jobs.util.AwsClients.sfnClient;
+import static com.here.xyz.jobs.util.AwsClientFactory.cloudwatchEventsClient;
+import static com.here.xyz.jobs.util.AwsClientFactory.sfnClient;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.STREAM_ID;
 import static software.amazon.awssdk.services.cloudwatchevents.model.RuleState.ENABLED;
 
@@ -53,7 +53,7 @@ import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.util.JobWebClient;
 import com.here.xyz.util.ARN;
 import com.here.xyz.util.runtime.LambdaFunctionRuntime;
-import com.here.xyz.util.service.aws.SimulatedContext;
+import com.here.xyz.util.service.aws.lambda.SimulatedContext;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
@@ -298,6 +298,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     return false;
   }
 
+  //TODO: Make private
   protected final void reportAsyncSuccess() {
     try {
       onAsyncSuccess();
@@ -344,6 +345,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     }
     catch (TaskTimedOutException | InvalidTokenException e) {
       try {
+        logger.warn("[{}] Task Heartbeat is failed. Cancelling step!", getGlobalStepId());
         updateState(CANCELLING);
         cancel();
         updateState(CANCELLED);

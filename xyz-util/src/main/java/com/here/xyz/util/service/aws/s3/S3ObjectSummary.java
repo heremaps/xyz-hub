@@ -17,11 +17,15 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.jobs.steps.impl.transport;
+package com.here.xyz.util.service.aws.s3;
 
-/**
- * This step is kept for BWC.
- *
- * @TODO - Remove this step later
- */
-public class CopySpacePre extends GetNextSpaceVersion {}
+import software.amazon.awssdk.services.s3.model.S3Object;
+
+public record S3ObjectSummary(String key, String bucket, long size) {
+    public boolean isEmpty() {
+        return size == 0;
+    }
+    public static S3ObjectSummary fromS3Object(S3Object s3Object, String bucketName) {
+        return new S3ObjectSummary(s3Object.key(), bucketName, s3Object.size());
+    }
+}

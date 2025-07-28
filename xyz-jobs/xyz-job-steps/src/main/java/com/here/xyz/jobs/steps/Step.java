@@ -47,8 +47,8 @@ import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.jobs.steps.resources.ExecutionResource;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.util.S3Client;
-import com.here.xyz.util.service.aws.S3Uri;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
+import com.here.xyz.util.service.aws.s3.S3Uri;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -474,7 +474,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
     return jobId;
   }
 
-  void setJobId(String jobId) {
+  protected void setJobId(String jobId) {
     this.jobId = jobId;
   }
 

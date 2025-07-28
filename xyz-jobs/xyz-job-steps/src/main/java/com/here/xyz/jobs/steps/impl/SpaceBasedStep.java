@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -39,6 +39,7 @@ import com.here.xyz.jobs.steps.impl.transport.CopySpacePre;
 import com.here.xyz.jobs.steps.impl.transport.CountSpace;
 import com.here.xyz.jobs.steps.impl.transport.ExportChangedTiles;
 import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
+import com.here.xyz.jobs.steps.impl.transport.GetNextSpaceVersion;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
 import com.here.xyz.models.hub.Connector;
 import com.here.xyz.models.hub.Space;
@@ -63,6 +64,7 @@ import org.apache.logging.log4j.Logger;
     @JsonSubTypes.Type(value = DropIndexes.class),
     @JsonSubTypes.Type(value = AnalyzeSpaceTable.class),
     @JsonSubTypes.Type(value = MarkForMaintenance.class),
+    @JsonSubTypes.Type(value = GetNextSpaceVersion.class),
     @JsonSubTypes.Type(value = CopySpace.class),
     @JsonSubTypes.Type(value = CopySpacePre.class),
     @JsonSubTypes.Type(value = CopySpacePost.class),
@@ -126,10 +128,10 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
     }
   }
 
-  private Space loadSpace(String spaceId) throws WebClientException {
+  private Space loadSpace(String spaceId, boolean skipLocalCache) throws WebClientException {
     try {
       logger.info("[{}] Loading space config for space {} ...", getGlobalStepId(), spaceId);
-      return hubWebClient().loadSpace(spaceId);
+      return hubWebClient().loadSpace(spaceId, skipLocalCache);
     }
     catch (ErrorResponseException e) {
       return handleErrorResponse(e);
@@ -220,7 +222,7 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
   protected Space space(String spaceId) throws WebClientException {
     Space space = cachedSpaces.get(spaceId);
     if (space == null)
-      cachedSpaces.put(spaceId, space = loadSpace(spaceId));
+      cachedSpaces.put(spaceId, space = loadSpace(spaceId, false));
     return space;
   }
 
@@ -232,6 +234,10 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
    */
   protected Space space() throws WebClientException {
     return space(getSpaceId());
+  }
+
+  protected Space space(boolean skipLocalCache) throws WebClientException {
+    return loadSpace(spaceId, skipLocalCache);
   }
 
   protected StatisticsResponse spaceStatistics(SpaceContext context, boolean skipCache) throws WebClientException {

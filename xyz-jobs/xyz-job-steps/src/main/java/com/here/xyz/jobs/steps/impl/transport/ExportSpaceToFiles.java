@@ -56,7 +56,6 @@ import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.geo.GeoTools;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
-
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
@@ -147,6 +146,11 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
     return this;
   }
 
+  public ExportSpaceToFiles withSpaceCreatedAt(long spaceCreateAt) {
+    setSpaceCreatedAt(spaceCreateAt);
+    return this;
+  }
+
   public ExportSpaceToFiles withContext(SpaceContext context) {
     setContext(context);
     return this;
@@ -217,6 +221,7 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
     try {
       return Objects.equals(otherExport.getSpaceId(), getSpaceId())
           && Objects.equals(otherExport.versionRef, versionRef)
+                                                    //TODO: Check if that part is still necessary
           && (otherExport.context == context || (space().getExtension() == null && otherExport.context == null && context == SUPER))
           && Objects.equals(otherExport.spatialFilter, spatialFilter)
           && Objects.equals(otherExport.propertyFilter, propertyFilter)
@@ -295,6 +300,14 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
 
     if (versionRef.isAllVersions())
       throw new ValidationException("It is not supported to export all versions at once.");
+
+    try {
+      if (!space().isActive())
+        throw new ValidationException("The resource was deactivated. Could not export data from it.");
+    }
+    catch (WebClientException e) {
+      throw new ValidationException("Error loading the space: " + getSpaceId(), e);
+    }
 
     //Validate input Geometry
     if (this.spatialFilter != null) {

@@ -19,7 +19,7 @@
 
 package com.here.xyz.jobs.steps.inputs;
 
-import com.here.xyz.util.service.aws.S3Uri;
+import com.here.xyz.util.service.aws.s3.S3Uri;
 import java.util.List;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 

@@ -33,6 +33,7 @@ import org.apache.logging.log4j.Logger;
 public class JobTestBase extends StepTestBase {
     private static final Logger logger = LogManager.getLogger();
     private static final String LOCALSTACK_HOST = System.getProperty("localstack.host", "localhost");
+    protected static int DEFAULT_JOB_POLL_TIMEOUT_SEC = 120;
     protected Set<String> createdJobs = new HashSet<>();
     protected Set<String> createdSpaces = new HashSet<>();
 
@@ -73,6 +74,14 @@ public class JobTestBase extends StepTestBase {
     }
 
     protected String createJobAndPollStatus(JsonObject job, byte[] fileContent) throws Exception {
+        return createJobAndPollStatus(job, fileContent, DEFAULT_JOB_POLL_TIMEOUT_SEC);
+    }
+
+    protected String createJobAndPollStatus(JsonObject job, int timeoutSeconds) throws Exception {
+      return createJobAndPollStatus(job, null, timeoutSeconds);
+    }
+
+    protected String createJobAndPollStatus(JsonObject job, byte[] fileContent, int timeoutSeconds) throws Exception {
         //Create Job
         String jobId = createJob(job);
         createdJobs.add(jobId);
@@ -85,7 +94,7 @@ public class JobTestBase extends StepTestBase {
         }
 
         //Wait till Job reached final state
-        pollJobStatus(jobId);
+        pollJobStatus(jobId, timeoutSeconds);
 
         return jobId;
     }
@@ -151,7 +160,11 @@ public class JobTestBase extends StepTestBase {
         return XyzSerializable.deserialize(outputResponse.body(), new TypeReference<List<Map>>() {});
     }
 
-    public static void pollJobStatus(String jobId) throws InterruptedException {
+  public static void pollJobStatus(String jobId) throws InterruptedException {
+      pollJobStatus(jobId, DEFAULT_JOB_POLL_TIMEOUT_SEC);
+  }
+
+    public static void pollJobStatus(String jobId, int timeoutSeconds) throws InterruptedException {
         ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
 
         //Poll job status every 5 seconds
@@ -172,7 +185,6 @@ public class JobTestBase extends StepTestBase {
             }
         }, 0, 5, TimeUnit.SECONDS);
 
-        int timeoutSeconds = 120;
         if (!executor.awaitTermination(timeoutSeconds, TimeUnit.SECONDS)) {
             executor.shutdownNow();
             logger.info("Stopped polling status for job {} after timeout {} seconds", jobId, timeoutSeconds);

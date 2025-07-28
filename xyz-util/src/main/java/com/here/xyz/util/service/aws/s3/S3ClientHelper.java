@@ -16,22 +16,28 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-package com.here.xyz.jobs.util;
+package com.here.xyz.util.service.aws.s3;
 
-import com.here.xyz.util.service.aws.S3ObjectSummary;
-import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.*;
-import software.amazon.awssdk.services.s3.presigner.S3Presigner;
-import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
-import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
-
-import java.io.InputStream;
 import java.net.URL;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.S3Object;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
+import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
+//TODO: Move all methods into S3Client once AwsS3Client has been removed
+@Deprecated
 public class S3ClientHelper {
 
     public static URL generateDownloadURL(S3Presigner presigner, String bucketName, String key, Duration duration) {
@@ -57,7 +63,6 @@ public class S3ClientHelper {
     }
 
     public static List<S3ObjectSummary> scanFolder(S3Client client, String bucketName, String folderPath) {
-
         List<S3Object> summaries = new ArrayList<>();
         ListObjectsV2Request listObjectsV2Request = ListObjectsV2Request.builder()
                 .bucket(bucketName)
@@ -86,31 +91,6 @@ public class S3ClientHelper {
                 .build();
 
         client.deleteObject(deleteObjectRequest);
-    }
-
-    public static InputStream streamObjectContent(S3Client client, String bucketName, String s3Key, long offset, long length) {
-        GetObjectRequest.Builder builder = GetObjectRequest.builder()
-                .bucket(bucketName)
-                .key(s3Key);
-
-        if (offset > 0 && length > 0) {
-            builder.range("bytes=" + offset + "-" + (offset + length - 1));
-        }
-
-        return client.getObject(builder.build());
-    }
-
-    public static boolean checkIsFolder(S3Client client, String bucketName, String s3Key) {
-        String normalizedKey = s3Key.endsWith("/") ? s3Key : s3Key + "/";
-
-        ListObjectsV2Request listRequest = ListObjectsV2Request.builder()
-                .bucket(bucketName)
-                .prefix(normalizedKey)
-                .maxKeys(1)
-                .build();
-
-        ListObjectsV2Response response = client.listObjectsV2(listRequest);
-        return !response.contents().isEmpty();
     }
 
     public static HeadObjectResponse loadMetadata(S3Client client, String bucketName, String key) {

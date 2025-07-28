@@ -32,13 +32,12 @@ import com.amazonaws.services.dynamodbv2.model.ReturnValue;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.hub.config.TagConfigClient;
 import com.here.xyz.models.hub.Tag;
+import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.aws.dynamo.DynamoClient;
 import com.here.xyz.util.service.aws.dynamo.IndexDefinition;
 import io.vertx.core.Future;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+
+import java.util.*;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -135,7 +134,8 @@ public class DynamoTagConfigClient extends TagConfigClient {
           .withParameters(new AttributeValue(spaceId));
 
       return dynamoClient.executeStatement(request)
-          .map(DynamoTagConfigClient::tagDataToTags);
+          .map(DynamoTagConfigClient::tagDataToTags)
+          .map(this::sortTagsByCreatedAtDesc);
     }
     catch (Exception e) {
       return Future.failedFuture(e);
@@ -225,6 +225,17 @@ public class DynamoTagConfigClient extends TagConfigClient {
         .withId(tagData.get("id").getS())
         .withSpaceId(tagData.get("spaceId").getS())
         .withVersion(Long.parseLong(tagData.get("version").getN()))
-        .withSystem( tagData.get("system") != null ? tagData.get("system").getBOOL() : false )).collect(Collectors.toList());
+        .withSystem( tagData.get("system") != null ? tagData.get("system").getBOOL() : false )
+        .withDescription(tagData.get("description") != null ? tagData.get("description").getS() : "")
+        .withAuthor(tagData.get("author") != null ? tagData.get("author").getS() : "system")
+        .withCreatedAt(tagData.get("createdAt") != null ? Long.parseLong(tagData.get("createdAt").getN()) : -1)
+    ).collect(Collectors.toList());
+  }
+
+  private List<Tag> sortTagsByCreatedAtDesc(List<Tag> tags) {
+    tags.sort(Comparator.comparingLong((Tag tag) ->
+            tag.getCreatedAt() == 0 ? Long.MIN_VALUE : tag.getCreatedAt()
+    ).reversed());
+    return tags;
   }
 }
