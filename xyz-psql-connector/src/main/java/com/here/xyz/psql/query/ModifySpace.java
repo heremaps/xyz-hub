@@ -29,6 +29,7 @@ import static com.here.xyz.util.db.ConnectorParameters.TableLayout.V2;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SCHEMA;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.TABLE;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildCreateSpaceTableQueries;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildCleanUpQuery;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -150,7 +151,7 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
                 return SQLQuery.batchOf(queries).withLock(table);
             }
             else if (event.getOperation() == DELETE) {
-                return SQLQuery.batchOf(XyzSpaceTableHelper.buildCleanUpQuery(getSchema(), getDefaultTable(event), VERSION_SEQUENCE_SUFFIX, V1));
+                return SQLQuery.batchOf(buildCleanUpQuery(getSchema(), getDefaultTable(event), VERSION_SEQUENCE_SUFFIX, V1));
             }
         }else if(getTableLayout().equals(ConnectorParameters.TableLayout.V2)){
             if (event.getOperation() == CREATE && event.getSpaceDefinition() != null) {
@@ -159,7 +160,7 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
                 return SQLQuery.batchOf(queries).withLock(table);
             }
             else if (event.getOperation() == DELETE)
-                return buildCleanUpQuery(event);
+                return SQLQuery.batchOf(buildCleanUpQuery(getSchema(), getDefaultTable(event), VERSION_SEQUENCE_SUFFIX, V2));
         }
         return null; //TODO: Check
     }
@@ -316,34 +317,6 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
         upsertIDX.setNamedParameter(SCHEMA, getSchema());
         upsertIDX.setNamedParameter("auto_indexing", enableAutoIndexing);
         return upsertIDX;
-    }
-
-    public SQLQuery buildCleanUpQuery(ModifySpaceEvent event) {
-
-        String table = getDefaultTable(event);
-        SQLQuery q = new SQLQuery("${{deleteMetadata}} ${{deleteIndexStatus}} ${{dropTable}} ${{dropISequence}} ${{dropVersionSequence}}")
-            .withQueryFragment(
-                "deleteMetadata",
-                "DELETE FROM ${configSchema}.${spaceMetaTable} WHERE h_id = #{table} AND schem = #{schema};"
-            )
-            .withQueryFragment(
-                "deleteIndexStatus",
-                "DELETE FROM ${configSchema}.${idxStatusTable} WHERE spaceid = #{table} AND schem = #{schema};"
-            )
-            .withQueryFragment("dropTable", "DROP TABLE IF EXISTS ${schema}.${table};")
-            .withQueryFragment("dropISequence", "DROP SEQUENCE IF EXISTS ${schema}.${iSequence};")
-            .withQueryFragment("dropVersionSequence", "DROP SEQUENCE IF EXISTS ${schema}.${versionSequence};");
-
-        return q
-            .withVariable(SCHEMA, getSchema())
-            .withVariable(TABLE, table)
-            .withNamedParameter(SCHEMA, getSchema())
-            .withNamedParameter(TABLE, table)
-            .withVariable("configSchema", XYZ_CONFIG_SCHEMA)
-            .withVariable("idxStatusTable", IDX_STATUS_TABLE)
-            .withVariable("spaceMetaTable", SPACE_META_TABLE)
-            .withVariable("iSequence", table + I_SEQUENCE_SUFFIX)
-            .withVariable("versionSequence", getDefaultTable(event) + VERSION_SEQUENCE_SUFFIX);
     }
 
     private static class IdxManual {
