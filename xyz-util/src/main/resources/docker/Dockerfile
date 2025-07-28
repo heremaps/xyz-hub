@@ -12,7 +12,7 @@ ENV FS_WEB_ROOT www
 ENV LOCALSTACK_ENDPOINT http://aws-localstack:4566
 ENV STORAGE_DB_URL jdbc:postgresql://postgres/postgres
 ENV PSQL_HOST postgres
-ENV XYZ_HUB_REDIS_URI redis://redis
+ENV XYZ_HUB_REDIS_URI rediss://redis
 ENV HTTP_CONNECTOR_ENDPOINT http://xyz-http-connector:9090/psql
 ENV HUB_ENDPOINT http://xyz-hub:8080/hub
 
