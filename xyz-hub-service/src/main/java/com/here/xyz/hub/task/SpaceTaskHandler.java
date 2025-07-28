@@ -435,6 +435,9 @@ public class SpaceTaskHandler {
       if (areSearchablePropertiesChanged(task, entry))
         createMaintenanceJob(task.getMarker(), entry.result.getId());
 
+      //remove searchable properties from the result if the space has an extension
+      entry.result.withSearchableProperties(entry.result.getExtension() != null ? null : entry.result.getSearchableProperties());
+
       logger.warn("DEBUG: Storing space: {}", entry.result.getId());
       Service.spaceConfigClient
           .store(task.getMarker(), entry.result)
@@ -457,7 +460,8 @@ public class SpaceTaskHandler {
 
     if(headProperties != null && !headProperties.equals(resultProperties)
             || headProperties == null && resultProperties != null){
-      return true;
+      //skip check if the space has an extension
+      return entry.result.getExtension() == null;
     }
     return false;
   }
@@ -595,9 +599,11 @@ public class SpaceTaskHandler {
         ConnectorRef extendedConnector = extendedSpace.getStorage();
         if (task.isCreate()) {
           //Override the storage config by copying it from the extended space
-          space.setStorage(new ConnectorRef()
-              .withId(extendedConnector.getId())
-              .withParams(extendedConnector.getParams() != null ? extendedConnector.getParams() : new HashMap<>()));
+          //Inject searchableProperties from base (but without storing them later)
+          space.withSearchableProperties(extendedSpace.getSearchableProperties())
+              .setStorage(new ConnectorRef()
+                  .withId(extendedConnector.getId())
+                  .withParams(extendedConnector.getParams() != null ? extendedConnector.getParams() : new HashMap<>()));
         }
         else if (!Objects.equals(space.getStorage().getId(), extendedConnector.getId()) && !task.modifyOp.forceStorage) {
           callback.exception(new DetailedHttpException("E318408",
@@ -627,8 +633,12 @@ public class SpaceTaskHandler {
                 if (((Map<String, Object>) resolvedSecondLvlExtensions.get("extends")).containsKey("extends"))
                   callback.exception(new HttpException(BAD_REQUEST, "The space " + space.getId() + " cannot extend the space "
                       + extendedSpace.getId() + " because the maximum extension level is 2."));
-                else
+                else{
+                  //Inject searchableProperties from base (but without storing them later)
+                  if (task.isCreate())
+                    space.withSearchableProperties(secondLvlExtendedSpace.getSearchableProperties());
                   callback.call(task);
+                }
               });
         }
         else
