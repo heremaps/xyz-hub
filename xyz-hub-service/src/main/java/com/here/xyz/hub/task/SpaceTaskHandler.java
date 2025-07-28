@@ -435,9 +435,6 @@ public class SpaceTaskHandler {
       if (areSearchablePropertiesChanged(task, entry))
         createMaintenanceJob(task.getMarker(), entry.result.getId());
 
-      //remove searchable properties from the result if the space has an extension
-      entry.result.withSearchableProperties(entry.result.getExtension() != null ? null : entry.result.getSearchableProperties());
-
       logger.warn("DEBUG: Storing space: {}", entry.result.getId());
       Service.spaceConfigClient
           .store(task.getMarker(), entry.result)
@@ -598,10 +595,10 @@ public class SpaceTaskHandler {
 
         ConnectorRef extendedConnector = extendedSpace.getStorage();
         if (task.isCreate()) {
+          //Store searchableProperties from base (but without storing them later)
+          task.resolvedSearchableProperties = extendedSpace.getSearchableProperties();
           //Override the storage config by copying it from the extended space
-          //Inject searchableProperties from base (but without storing them later)
-          space.withSearchableProperties(extendedSpace.getSearchableProperties())
-              .setStorage(new ConnectorRef()
+          space.setStorage(new ConnectorRef()
                   .withId(extendedConnector.getId())
                   .withParams(extendedConnector.getParams() != null ? extendedConnector.getParams() : new HashMap<>()));
         }
@@ -634,9 +631,9 @@ public class SpaceTaskHandler {
                   callback.exception(new HttpException(BAD_REQUEST, "The space " + space.getId() + " cannot extend the space "
                       + extendedSpace.getId() + " because the maximum extension level is 2."));
                 else{
-                  //Inject searchableProperties from base (but without storing them later)
+                  //Store searchableProperties from base (but without storing them later)
                   if (task.isCreate())
-                    space.withSearchableProperties(secondLvlExtendedSpace.getSearchableProperties());
+                    task.resolvedSearchableProperties = secondLvlExtendedSpace.getSearchableProperties();
                   callback.call(task);
                 }
               });
@@ -680,6 +677,9 @@ public class SpaceTaskHandler {
     if (task.resolvedExtensions != null)
       storageParams.putAll(task.resolvedExtensions);
 
+    if(task.resolvedSearchableProperties != null)
+      space.withSearchableProperties(task.resolvedSearchableProperties);
+
     if (entry.isModified) {
       final ModifySpaceEvent event = new ModifySpaceEvent()
               .withOperation(op)
@@ -710,11 +710,14 @@ public class SpaceTaskHandler {
             entry.result = DatabindCodec.mapper().readValue(Json.encode(resultClone), Space.class);
           }
         }
-
+        //remove searchable properties from the result if the space has an extension
+        if(entry.result != null)
+          entry.result.withSearchableProperties(entry.result.getExtension() != null ? null : entry.result.getSearchableProperties());
         callback.call(task);
       };
       //Send "ModifySpaceEvent" to (all) the connector(s) to do some setup, update or clean up.
       query.execute(onEventProcessed, (t, e) -> callback.exception(e));
+
       return;
     }
     callback.call(task);

@@ -56,6 +56,11 @@ public abstract class SpaceTask<X extends SpaceTask<?>> extends Task<Event, X> {
    * "Resolved" means it contains the full extended layer-stack. For a 2-level extension that means it would contain two levels of spaces.
    */
   Map<String, Object> resolvedExtensions;
+  /**
+   * If the space root space of this task is a composite-space, this field will contain the resolved searchable properties from
+   * the base layer.
+   */
+  Map<String, Boolean> resolvedSearchableProperties;
 
   public SpaceTask(RoutingContext context, ApiResponseType responseType) {
     super(new SpaceEvent(), context, responseType, true);
