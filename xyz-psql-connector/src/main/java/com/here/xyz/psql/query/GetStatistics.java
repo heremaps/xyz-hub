@@ -46,6 +46,7 @@ public class GetStatistics extends ExtendedSpace<GetStatisticsEvent, StatisticsR
   private boolean fastMode;
   private String spaceId;
   private Map<String, Object> connectorParams;
+  private long minVersion = -1L;
   private static final Pattern BBOX_PATTERN = Pattern.compile("^BOX\\(([-\\d\\.]*)\\s([-\\d\\.]*),([-\\d\\.]*)\\s([-\\d\\.]*)\\)$");
 
   public GetStatistics(GetStatisticsEvent event) throws SQLException, ErrorResponseException {
@@ -54,12 +55,12 @@ public class GetStatistics extends ExtendedSpace<GetStatisticsEvent, StatisticsR
     spaceId = event.getSpace();
     connectorParams = event.getConnectorParams();
     fastMode = event.isFastMode();
+    minVersion = event.getMinVersion();
   }
 
   @Override
   protected SQLQuery buildQuery(GetStatisticsEvent event) throws SQLException, ErrorResponseException {
-    return new SQLQuery("SELECT * FROM ${schema}.xyz_statistic_space(#{schema}, #{table}, #{isExtension} )")
-        .withVariable(SCHEMA, getSchema())
+    return new SQLQuery("SELECT * FROM xyz_statistic_space(#{schema}, #{table}, #{isExtension} )")
         .withNamedParameter(SCHEMA, getSchema())
         .withNamedParameter(TABLE, getDefaultTable(event))
         .withNamedParameter("isExtension", event.getContext() == SpaceContext.EXTENSION);
@@ -71,16 +72,21 @@ public class GetStatistics extends ExtendedSpace<GetStatisticsEvent, StatisticsR
       return super.run(dataSourceProvider);
 
     //TODO: Do version related queries directly inside xyz_statistic_space() and remove GetChangesetStatistics / GetChangesetStatisticsEvent / ChangesetStatisticsResponse ...
-    long minVersion;
-    long maxVersion;
+    long respondedMinVersion;
+    long respondeeMaxVersion;
     Value<Long> minTagVersion;
     try {
       final GetChangesetStatisticsEvent event = new GetChangesetStatisticsEvent()
+          .withMinVersion(minVersion)
           .withSpace(spaceId)
           .withConnectorParams(connectorParams);
-      ChangesetsStatisticsResponse versionResponse = new GetChangesetStatistics(event).withDataSourceProvider(dataSourceProvider).run();
-      minVersion = versionResponse.getMinVersion();
-      maxVersion = versionResponse.getMaxVersion();
+
+      ChangesetsStatisticsResponse versionResponse = new GetChangesetStatistics(event)
+              .withDataSourceProvider(dataSourceProvider)
+              .run();
+
+      respondedMinVersion = versionResponse.getMinVersion();
+      respondeeMaxVersion = versionResponse.getMaxVersion();
       minTagVersion = versionResponse.getMinTagVersion() == null ? null : new Value<>(versionResponse.getMinTagVersion());
     }
     catch (ErrorResponseException e) {
@@ -88,8 +94,8 @@ public class GetStatistics extends ExtendedSpace<GetStatisticsEvent, StatisticsR
     }
 
     return super.run(dataSourceProvider)
-        .withMinVersion(new Value<>(minVersion).withEstimated(false))
-        .withMaxVersion(new Value<>(maxVersion).withEstimated(false))
+        .withMinVersion(new Value<>(respondedMinVersion).withEstimated(false))
+        .withMaxVersion(new Value<>(respondeeMaxVersion).withEstimated(false))
         .withMinTagVersion(minTagVersion);
   }
 

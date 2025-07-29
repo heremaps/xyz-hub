@@ -31,6 +31,7 @@ import com.here.xyz.hub.task.ModifySpaceOp;
 import com.here.xyz.hub.task.SpaceTask.ConditionalOperation;
 import com.here.xyz.hub.task.SpaceTask.ConnectorMapping;
 import com.here.xyz.hub.task.SpaceTask.MatrixReadQuery;
+import com.here.xyz.hub.task.SpaceTask.GetExtendingSpaces;
 import com.here.xyz.models.hub.FeatureModificationList.IfExists;
 import com.here.xyz.models.hub.FeatureModificationList.IfNotExists;
 import com.here.xyz.models.hub.Space.Copyright;
@@ -57,7 +58,12 @@ public class SpaceApi extends SpaceBasedApi {
    * Read a space.
    */
   public void getSpace(final RoutingContext context) {
-    new MatrixReadQuery(context, getSpaceId(context)).execute(this::sendResponse, this::sendErrorResponse);
+    boolean getExtendingSpaces = Query.getBoolean(context, Query.EXTENDING_SPACES, false);
+    if( getExtendingSpaces)
+      new GetExtendingSpaces(context, getSpaceId(context))
+              .execute(this::sendResponse, this::sendErrorResponse);
+    else
+      new MatrixReadQuery(context, getSpaceId(context)).execute(this::sendResponse, this::sendErrorResponse);
   }
 
   /**

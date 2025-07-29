@@ -36,6 +36,7 @@ import com.here.xyz.models.hub.Connector;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Tag;
+import com.here.xyz.responses.ChangesetsStatisticsResponse;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.XyzResponse;
 import java.net.URLEncoder;
@@ -48,6 +49,9 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+
+import com.here.xyz.responses.changesets.Changeset;
+import com.here.xyz.responses.changesets.ChangesetCollection;
 import net.jodah.expiringmap.ExpirationPolicy;
 import net.jodah.expiringmap.ExpiringMap;
 
@@ -131,6 +135,16 @@ public class HubWebClient extends XyzWebClient {
       return space.getExtension().getSpaceId();
   }
 
+  public List<Space> loadExtendingSpaces(String superSpaceId) throws WebClientException {
+    try {
+      return deserialize(request(HttpRequest.newBuilder()
+              .uri(uri("/spaces/" + superSpaceId + "?extendingSpaces=true"))).body(),  new TypeReference<>() {} );
+    }
+    catch (JsonProcessingException e) {
+      throw new WebClientException("Error deserializing response", e);
+    }
+  }
+
   public Space createSpace(String spaceId, String title) throws WebClientException {
     return createSpace(new Space().withId(spaceId).withTitle(title));
   }
@@ -212,7 +226,7 @@ public class HubWebClient extends XyzWebClient {
         return statistics;
 
       statistics = deserialize(request(HttpRequest.newBuilder()
-          .uri(uri("/spaces/" + spaceId + "/statistics?fastMode=true&skipCache="+skipCache
+          .uri(uri("/spaces/" + spaceId + "/statistics?fastMode="+fastMode+"&skipCache="+skipCache
                   + (context == null ? "" : "&context=" + context)))).body(), StatisticsResponse.class);
       statisticsCache.put(cacheKey, statistics);
       return statistics;
@@ -220,6 +234,44 @@ public class HubWebClient extends XyzWebClient {
     catch (JsonProcessingException e) {
       throw new WebClientException("Error deserializing response", e);
     }
+  }
+
+  public ChangesetsStatisticsResponse loadSpaceChangesetStatistics(String spaceId) throws WebClientException {
+    try {
+      return deserialize(request(HttpRequest.newBuilder()
+              .uri(uri("/spaces/" + spaceId + "/changesets/statistics"))
+      ).body(), ChangesetsStatisticsResponse.class);
+    }catch (JsonProcessingException e) {
+      throw new WebClientException("Error deserializing response", e);
+    }
+  }
+
+  public Changeset getChangeset(String spaceId, long version) throws WebClientException {
+    try {
+      return deserialize(request(HttpRequest.newBuilder()
+              .uri(uri("/spaces/" + spaceId + "/changesets/" + version))
+      ).body(), Changeset.class);
+    }catch (JsonProcessingException e) {
+      throw new WebClientException("Error deserializing response", e);
+    }
+  }
+
+  public ChangesetCollection getChangesets(String spaceId, long startVersion, long endVersion) throws WebClientException {
+    try {
+      return deserialize(request(HttpRequest.newBuilder()
+              .uri(uri("/spaces/" + spaceId + "/changesets"
+                      + "?startVersion=" + startVersion + "&endVersion=" + endVersion))
+      ).body(), ChangesetCollection.class);
+    }catch (JsonProcessingException e) {
+      throw new WebClientException("Error deserializing response", e);
+    }
+  }
+
+  public void deleteChangesets(String spaceId, long version) throws WebClientException {
+     request(HttpRequest.newBuilder()
+            .DELETE()
+            .uri(uri("/spaces/" + spaceId + "/changesets?version=lt="+version ))
+            .header(CONTENT_TYPE, JSON_UTF_8.toString()));
   }
 
   public FeatureCollection getFeaturesFromSmallSpace(String spaceId, SpaceContext context, String propertyFilter, boolean force2D) throws WebClientException {
@@ -322,6 +374,4 @@ public class HubWebClient extends XyzWebClient {
     //Unsupported ref type (should not happen)
     throw new IllegalArgumentException("Unable to resolve the provided ref: " + ref);
   }
-
-  protected record InstanceKey(String baseUrl, Map<String, String> extraHeaders) {}
 }

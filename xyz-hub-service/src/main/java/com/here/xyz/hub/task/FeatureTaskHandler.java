@@ -91,6 +91,7 @@ import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Ref.InvalidRef;
 import com.here.xyz.models.hub.Space.Extension;
+import com.here.xyz.models.hub.Tag;
 import com.here.xyz.models.hub.jwt.JWTPayload;
 import com.here.xyz.responses.BinaryResponse;
 import com.here.xyz.responses.ErrorResponse;
@@ -1509,10 +1510,21 @@ public class FeatureTaskHandler {
       if (task.getResponse() instanceof StatisticsResponse) {
         //Ensure the StatisticsResponse is correctly set-up
         StatisticsResponse response = (StatisticsResponse) task.getResponse();
-        defineGlobalSearchableField(response, task);
-        defineContentUpdatedAtField(response, (FeatureTask.GetStatistics) task)
-                .onSuccess(r -> callback.call(task))
-                .onFailure(callback::exception);
+
+        getMinTagVersion(task.getMarker(), task.space.getId())
+                .onSuccess(minTagVersion -> {
+                  //Override minVersion if it is set in the space config and if it is higher than the one in the response
+                  response.getMinVersion().setValue(Math.max(task.space.getMinVersion(),
+                          response.getMaxVersion().getValue() - task.space.getVersionsToKeep() + 1));
+
+                  if(minTagVersion != null)
+                    response.getMinVersion().setValue(Math.min(minTagVersion, response.getMinVersion().getValue()));
+
+                  defineGlobalSearchableField(response, task);
+                  defineContentUpdatedAtField(response, (FeatureTask.GetStatistics) task)
+                          .onSuccess(r -> callback.call(task))
+                          .onFailure(callback::exception);
+                }).onFailure(callback::exception);
         return;
       }
     } else if (task instanceof FeatureTask.IdsQuery) {
@@ -1523,6 +1535,14 @@ public class FeatureTaskHandler {
       }
     }
     callback.call(task);
+  }
+
+  protected static Future<Long> getMinTagVersion(Marker marker, String space) {
+    return Service.tagConfigClient.getTags(marker, space, true)
+            .map(tags -> {
+              if (tags == null || tags.isEmpty()) return null;
+              return tags.stream().mapToLong(Tag::getVersion).min().orElseThrow();
+            });
   }
 
   private static void defineGlobalSearchableField(StatisticsResponse response, FeatureTask task) {
@@ -1741,6 +1761,27 @@ public class FeatureTaskHandler {
       task.unmodifiedFeatures = task.modifyOp.entries.stream().filter(e -> !e.isModified).map(fe -> fe.result).collect(Collectors.toList());
     callback.call(task);
   }
+
+  static void injectMinVersion(final ConditionalOperation task, final Callback<ConditionalOperation> callback) {
+    if (task.getEvent() instanceof ModifyFeaturesEvent){
+      Promise<Void> p = Promise.promise();
+
+      getMinTagVersion(task.getMarker(), task.space.getId())
+          .onSuccess(minTagVersion -> {
+
+            if (minTagVersion != null) {
+              task.getEvent().setMinVersion(minTagVersion);
+            }else
+              task.getEvent().setMinVersion(-1l);
+          })
+          .onSuccess(tag -> callback.call(task))
+          .onFailure(t -> {
+                logger.error(task.getMarker(), "Error while population minVersion.", t);
+                callback.exception(t instanceof HttpException ? t : new HttpException(INTERNAL_SERVER_ERROR, "Error while population minVersion.", t));
+          });
+    }
+  }
+
 
   private static SnsAsyncClient getSnsClient() {
     if (snsClient == null)
