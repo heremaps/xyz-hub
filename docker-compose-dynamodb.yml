@@ -64,9 +64,8 @@ services:
         ports:
             - "5432:5432"
     redis:
-        build:
-            context: ./
-            dockerfile: ./dockerfiles/Dockerfile-redis-tls
+        image: "redis"
+        container_name: "redis"
         ports:
             - "6379:6379"
     dynamodb:
