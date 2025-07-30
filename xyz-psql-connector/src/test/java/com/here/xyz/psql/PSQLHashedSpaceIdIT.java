@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,31 +19,26 @@
 
 package com.here.xyz.psql;
 
-import static com.here.xyz.psql.query.ModifySpace.IDX_STATUS_TABLE_FQN;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.psql.tools.FeatureGenerator;
 import com.here.xyz.util.Hasher;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
+
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
-import org.apache.commons.codec.digest.DigestUtils;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 @SuppressWarnings("unused")
 public class PSQLHashedSpaceIdIT extends PSQLAbstractIT {
@@ -93,66 +88,6 @@ public class PSQLHashedSpaceIdIT extends PSQLAbstractIT {
     ) {
       assertTrue(rs.next());
       assertEquals(hashedSpaceId, rs.getString("table_name"));
-    }
-  }
-
-  @Test
-  public void testAutoIndexing() throws Exception {
-    final String spaceId = "foo";
-    final String hashedSpaceId = Hasher.getHash(spaceId);
-
-    final List<Feature> features = FeatureGenerator.get11kFeatureCollection().getFeatures();
-    ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent()
-            .withSpace(spaceId)
-            .withConnectorParams(connectorParams)
-            .withTransaction(true)
-            .withInsertFeatures(features);
-
-    invokeLambda(mfevent);
-
-    /** Needed to trigger update on pg_stat */
-    try (final Connection connection = LAMBDA.dataSourceProvider.getWriter().getConnection()) {
-      Statement stmt = connection.createStatement();
-      stmt.execute("DELETE FROM " + IDX_STATUS_TABLE_FQN + " WHERE spaceid='" + hashedSpaceId + "';");
-      stmt.execute("ANALYZE \"" + hashedSpaceId + "\";");
-    }
-
-    //Triggers dbMaintenance
-    invokeLambdaFromFile("/events/HealthCheckWithEnableHashedSpaceIdEvent.json");
-
-    try (final Connection connection = LAMBDA.dataSourceProvider.getWriter().getConnection()) {
-      Statement stmt = connection.createStatement();
-      // check for the index status
-      try (ResultSet rs = stmt.executeQuery("SELECT * FROM " + IDX_STATUS_TABLE_FQN + " where spaceid = '" + hashedSpaceId + "';")) {
-        assertTrue(rs.next());
-        assertTrue(rs.getBoolean("idx_creation_finished"));
-        assertEquals(11_000L, rs.getInt("count"));
-      }
-
-      // check for the indexes itself
-      try (ResultSet rs = stmt.executeQuery("SELECT * FROM pg_indexes WHERE tablename = '" + hashedSpaceId + "';")) {
-        final Set<String> indexes = new HashSet<>() {{
-          add("idx_" + hashedSpaceId + "_geo");
-          add("idx_" + hashedSpaceId + "_serial");
-        }};
-
-        indexes.addAll(features.get(0).getProperties().keySet().stream()
-            .filter(k->!"test".equals(k))
-            .filter(k->!"@ns:com:here:xyz".equals(k))
-            .map(k ->"idx_" + hashedSpaceId + "_" + DigestUtils.md5Hex(k).substring(0, 7) + "_a")
-            .collect(Collectors.toSet()));
-
-        final List<String> extractedIndexes = new ArrayList<>();
-        while (rs.next()) {
-          extractedIndexes.add(rs.getString("indexname"));
-        }
-
-        assertTrue(extractedIndexes.containsAll(indexes));
-        assertFalse(extractedIndexes.contains("idx_" + hashedSpaceId + "_" + DigestUtils.md5Hex("test").substring(0, 7) + "_a"));
-      }
-
-      /* Clean-up maintenance entry */
-      stmt.execute("DELETE FROM " + IDX_STATUS_TABLE_FQN + " WHERE spaceid='" + hashedSpaceId + "';");
     }
   }
 }

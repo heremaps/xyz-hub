@@ -74,7 +74,6 @@ public abstract class DatabaseHandler extends StorageConnector {
     private static final List<ScriptResourcePath> SCRIPT_RESOURCE_PATHS = List.of(new ScriptResourcePath("/sql", "hub", "common"));
     public static final String ECPS_PHRASE = "ECPS_PHRASE";
     private static final Logger logger = LogManager.getLogger();
-    private static final String MAINTENANCE_ENDPOINT = "MAINTENANCE_SERVICE_ENDPOINT";
 
     /**
      * Lambda Execution Time = 25s. We are actively canceling queries after STATEMENT_TIMEOUT_SECONDS
@@ -84,11 +83,6 @@ public abstract class DatabaseHandler extends StorageConnector {
     static final int MIN_REMAINING_TIME_FOR_RETRY_SECONDS = 3;
 
     private static String INCLUDE_OLD_STATES = "includeOldStates"; // read from event params
-
-    /**
-     * The dbMaintainer for the current event.
-     */
-    public DatabaseMaintainer dbMaintainer;
 
     private boolean retryAttempted;
 
@@ -113,8 +107,7 @@ public abstract class DatabaseHandler extends StorageConnector {
 
         dataSourceProvider = new CachedPooledDataSources(dbSettings);
         retryAttempted = false;
-        dbMaintainer = new DatabaseMaintainer(dbSettings, connectorParams,
-            FunctionRuntime.getInstance().getEnvironmentVariable(MAINTENANCE_ENDPOINT));
+
         DataSourceProvider.setDefaultProvider(dataSourceProvider);
     }
 

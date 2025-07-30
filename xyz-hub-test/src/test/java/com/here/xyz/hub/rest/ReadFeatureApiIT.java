@@ -145,7 +145,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         get(getSpacesPath() + "/x-psql-test/statistics").
         then().
         statusCode(OK.code()).
-        body("minVersion.value", equalTo(0)).
+        body("minVersion.value", equalTo(1)).
         body("maxVersion.value", equalTo(1)).
         body("count.value",  equalTo(252)).
         body("count.estimated", equalTo(false)).
@@ -163,7 +163,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
             get(getSpacesPath() + "/x-psql-test/statistics?fastMode=true").
             then().
             statusCode(OK.code()).
-            body("minVersion.value", equalTo(0)).
+            body("minVersion.value", equalTo(1)).
             body("maxVersion.value", equalTo(1)).
             body("count.value", equalTo(252)).
             body("count.estimated", equalTo(false)).

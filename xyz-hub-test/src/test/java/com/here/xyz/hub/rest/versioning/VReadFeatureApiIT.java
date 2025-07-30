@@ -22,6 +22,15 @@ package com.here.xyz.hub.rest.versioning;
 import com.here.xyz.hub.rest.ReadFeatureApiIT;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.Test;
+
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
+import static io.netty.handler.codec.http.HttpResponseStatus.OK;
+import static io.restassured.RestAssured.given;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class VReadFeatureApiIT extends ReadFeatureApiIT {
 
@@ -32,5 +41,43 @@ public class VReadFeatureApiIT extends ReadFeatureApiIT {
   @AfterClass
   public static void tearDown() {
     VersioningBaseIT.tearDown();
+  }
+
+  @Test
+  @Override
+  public void testStatistics() {
+    given().
+            accept(APPLICATION_JSON).
+            headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+            when().
+            get(getSpacesPath() + "/x-psql-test/statistics").
+            then().
+            statusCode(OK.code()).
+            body("minVersion.value", equalTo(0)).
+            body("maxVersion.value", equalTo(1)).
+            body("count.value",  equalTo(252)).
+            body("count.estimated", equalTo(false)).
+            body("byteSize.value", greaterThan(0)).
+            body("byteSize.estimated", equalTo(true)).
+            body("properties", notNullValue());
+  }
+
+  @Test
+  @Override
+  public void testStatisticsFastMode() {
+    given().
+            accept(APPLICATION_JSON).
+            headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+            when().
+            get(getSpacesPath() + "/x-psql-test/statistics?fastMode=true").
+            then().
+            statusCode(OK.code()).
+            body("minVersion.value", equalTo(0)).
+            body("maxVersion.value", equalTo(1)).
+            body("count.value", equalTo(252)).
+            body("count.estimated", equalTo(false)).
+            body("byteSize.value", greaterThan(0)).
+            body("byteSize.estimated", equalTo(true)).
+            body("properties", nullValue());
   }
 }

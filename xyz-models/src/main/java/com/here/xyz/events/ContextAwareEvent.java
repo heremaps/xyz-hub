@@ -31,6 +31,7 @@ public abstract class ContextAwareEvent<T extends ContextAwareEvent> extends Eve
   private SpaceContext context = SpaceContext.DEFAULT;
   private int versionsToKeep = DEFAULT_VERSIONS_TO_KEEP;
   private String author;
+  private long minVersion;
 
   public String getAuthor() {
     return author;
@@ -93,6 +94,19 @@ public abstract class ContextAwareEvent<T extends ContextAwareEvent> extends Eve
 
   public T withVersionsToKeep(int versionsToKeep) {
     setVersionsToKeep(versionsToKeep);
+    return (T) this;
+  }
+
+  public long getMinVersion() {
+    return  minVersion;
+  }
+
+  public void setMinVersion(long minVersion) {
+    this.minVersion = minVersion;
+  }
+
+  public T withMinVersion(long minVersion) {
+    setMinVersion(minVersion);
     return (T) this;
   }
 }

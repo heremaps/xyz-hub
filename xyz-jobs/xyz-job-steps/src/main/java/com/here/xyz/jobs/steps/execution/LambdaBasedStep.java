@@ -50,7 +50,7 @@ import com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.Proce
 import com.here.xyz.jobs.steps.execution.db.DatabaseBasedStep;
 import com.here.xyz.jobs.steps.impl.transport.TaskedSpaceBasedStep;
 import com.here.xyz.jobs.steps.inputs.Input;
-import com.here.xyz.jobs.util.JobWebClient;
+import com.here.xyz.jobs.util.StepWebClient;
 import com.here.xyz.util.ARN;
 import com.here.xyz.util.runtime.LambdaFunctionRuntime;
 import com.here.xyz.util.service.aws.lambda.SimulatedContext;
@@ -465,7 +465,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
       return;
     logger.info("Synchronizing step {} with the job service ...", getGlobalStepId());
     try {
-      JobWebClient.getInstance().postStepUpdate(this);
+      StepWebClient.getInstance(Config.instance.JOB_API_ENDPOINT.toString()).postStepUpdate(this);
     }
     catch (ErrorResponseException httpError) {
       HttpResponse<byte[]> errorResponse = httpError.getErrorResponse();
@@ -587,7 +587,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
           throw new NullPointerException("Malformed step request, missing step definition.");
 
         //Set the userAgent of the web clients correctly
-        HubWebClient.userAgent = JobWebClient.userAgent = "XYZ-JobStep-" + request.getStep().getClass().getSimpleName();
+        HubWebClient.userAgent = StepWebClient.userAgent = "XYZ-JobStep-" + request.getStep().getClass().getSimpleName();
 
         //Set the own lambda ARN accordingly
         if (context instanceof SimulatedContext) {
