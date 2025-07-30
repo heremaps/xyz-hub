@@ -52,8 +52,11 @@ public final class ModifyFeaturesEvent extends ContextAwareEvent<ModifyFeaturesE
   private List<Feature> upsertFeatures;
   @JsonInclude(Include.ALWAYS)
   private Map<String, String> deleteFeatures;
+
   private boolean transaction;
   private boolean conflictDetectionEnabled;
+  private boolean eraseAllFeatures;
+
   private List<ModificationFailure> failed;
 
   /**
@@ -187,6 +190,19 @@ public final class ModifyFeaturesEvent extends ContextAwareEvent<ModifyFeaturesE
    */
   public ModifyFeaturesEvent withConflictDetectionEnabled(boolean conflictDetectionEnabled) {
     setConflictDetectionEnabled(conflictDetectionEnabled);
+    return this;
+  }
+
+  public boolean isEraseAllFeatures() {
+    return eraseAllFeatures;
+  }
+
+  public void setEraseAllFeatures(boolean eraseAllFeatures) {
+    this.eraseAllFeatures = eraseAllFeatures;
+  }
+
+  public ModifyFeaturesEvent withEraseAllFeatures(boolean eraseAllFeatures) {
+    this.eraseAllFeatures = eraseAllFeatures;
     return this;
   }
 

@@ -60,7 +60,11 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
   protected static String usedStorageId = embeddedStorageId;
 
   protected static void remove() {
-    TestWithSpaceCleanup.removeSpace("x-psql-test");
+    remove("x-psql-test");
+  }
+
+  protected static void remove(String spaceId) { 
+   TestWithSpaceCleanup.removeSpace(spaceId); 
   }
 
   public static ValidatableResponse createSpace(String content) {
@@ -109,7 +113,7 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
    * @return the random ID
    */
   protected static String createSpaceWithRandomId() {
-    return createSpaceWithId(UUID.randomUUID().toString());
+    return createSpaceWithId(UUID.randomUUID().toString().substring(0,13));
   }
 
   protected static String createSpaceWithId(String spaceId) {
@@ -311,15 +315,19 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
         .body("id", equalTo(spaceId));
   }
 
-  protected void countFeatures(int expected) {
+  protected void countFeatures(String spaceId, int expected) {
     given().
         accept(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .get(getSpacesPath() + "/x-psql-test/statistics")
+        .get(getSpacesPath() + "/"+ spaceId +"/statistics")
         .then()
         .statusCode(OK.code())
         .body("count.value", equalTo(expected),"count.estimated", equalTo(false));
+  }
+
+  protected void countFeatures(int expected) {
+    countFeatures("x-psql-test",expected);
   }
 
   @SuppressWarnings("SameParameterValue")
