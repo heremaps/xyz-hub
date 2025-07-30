@@ -490,7 +490,7 @@ BEGIN
     );
 
     SELECT write_features(
-        input, inputType, author, false, NULL,
+        input, inputType, author, false, currentVersion,
         onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial
     )::JSONB->'count' INTO featureCount;
 

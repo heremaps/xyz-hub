@@ -28,7 +28,7 @@ import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.IterateChangesetsEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.psql.query.helpers.versioning.GetMinAvailableVersion;
+import com.here.xyz.psql.query.helpers.versioning.GetMinVersion;
 import com.here.xyz.responses.changesets.Changeset;
 import com.here.xyz.responses.changesets.ChangesetCollection;
 import com.here.xyz.util.db.SQLQuery;
@@ -45,6 +45,7 @@ public class IterateChangesets extends XyzQueryRunner<IterateChangesetsEvent, Ch
   private String pageToken;
   private long limit;
   private long startVersion = -1;
+  private long minVersion;
   private IterateChangesetsEvent event; //TODO: Do not store the whole event during the request phase
 
   public IterateChangesets(IterateChangesetsEvent event) throws SQLException, ErrorResponseException {
@@ -52,11 +53,14 @@ public class IterateChangesets extends XyzQueryRunner<IterateChangesetsEvent, Ch
     this.event = event;
     limit = event.getLimit() <= 0 ? DEFAULT_LIMIT : event.getLimit();
     pageToken = event.getPageToken();
+    minVersion = event.getMinVersion();
   }
 
   @Override
   public ChangesetCollection run(DataSourceProvider dataSourceProvider) throws SQLException, ErrorResponseException {
-    startVersion = Math.max(event.getStartVersion(), new GetMinAvailableVersion<>(event).withDataSourceProvider(dataSourceProvider).run());
+    Long minDbVersion = new GetMinVersion<>(event).withDataSourceProvider(dataSourceProvider).run();
+    minVersion = Math.min(minDbVersion, minVersion);
+    startVersion = Math.max(event.getStartVersion(), minVersion);
     return super.run(dataSourceProvider);
   }
 

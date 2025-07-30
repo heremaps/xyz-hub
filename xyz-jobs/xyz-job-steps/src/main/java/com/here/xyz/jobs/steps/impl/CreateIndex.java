@@ -19,7 +19,6 @@
 
 package com.here.xyz.jobs.steps.impl;
 
-import static com.here.xyz.util.db.pg.IndexHelper.buildAsyncOnDemandIndexQuery;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildSpaceTableIndexQuery;
 
 import com.fasterxml.jackson.annotation.JsonView;
@@ -28,6 +27,7 @@ import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.util.db.SQLQuery;
+import com.here.xyz.util.db.pg.IndexHelper;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper.OnDemandIndex;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper.SystemIndex;
@@ -120,9 +120,9 @@ public class CreateIndex extends SpaceBasedStep<CreateIndex> {
     List<SQLQuery> indexCreationQueries = new ArrayList<>();
 
     indexCreationQueries.addAll(loadPartitionNamesOf(rootTableName).stream()
-        .map(partitionTableName -> new SQLQuery(buildAsyncOnDemandIndexQuery(schema, partitionTableName, onDemandIndex.getPropertyPath()).toExecutableQueryString()))
+        .map(partitionTableName -> new SQLQuery(IndexHelper.buildOnDemandIndexCreationQuery(schema, partitionTableName, onDemandIndex.getPropertyPath(), true).toExecutableQueryString()))
         .toList());
-    indexCreationQueries.add(new SQLQuery(buildAsyncOnDemandIndexQuery(schema, rootTableName, onDemandIndex.getPropertyPath()).toExecutableQueryString()));
+    indexCreationQueries.add(new SQLQuery(IndexHelper.buildOnDemandIndexCreationQuery(schema, rootTableName, onDemandIndex.getPropertyPath(), true).toExecutableQueryString()));
 
     return SQLQuery.join(indexCreationQueries, ";");
   }

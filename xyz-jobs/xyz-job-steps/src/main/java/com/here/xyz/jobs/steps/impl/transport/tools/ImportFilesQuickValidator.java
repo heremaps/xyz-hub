@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ package com.here.xyz.jobs.steps.impl.transport.tools;
 import static com.here.xyz.XyzSerializable.Mappers.DEFAULT_MAPPER;
 
 import com.amazonaws.AmazonServiceException;
+import com.amazonaws.util.CountingInputStream;
 import com.fasterxml.jackson.core.JacksonException;
 import com.here.xyz.Typed;
 import com.here.xyz.XyzSerializable;
@@ -36,62 +37,73 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.zip.GZIPInputStream;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.locationtech.jts.io.ParseException;
 import org.locationtech.jts.io.WKBReader;
+import software.amazon.awssdk.core.ResponseInputStream;
 
 public class ImportFilesQuickValidator {
-  private static final int VALIDATE_LINE_PAGE_SIZE_BYTES = 512 * 1024;
+  private static final Logger logger = LogManager.getLogger();
   private static final int VALIDATE_LINE_MAX_LINE_SIZE_BYTES = 4 * 1024 * 1024;
   private static final String RE_UPLOAD_HINT = "\nPlease re-upload the input files in the correct format using the already provided upload-urls!";
 
   public static void validate(S3DataFile s3File, Format format, EntityPerLine entityPerLine) throws ValidationException {
     try {
-      validateFirstCSVLine(s3File, format, "", 0, entityPerLine);
+      validateFirstCSVLine(s3File, format, entityPerLine);
     }
     catch (IOException e) {
       throw new ValidationException("Input could not be read.", e);
     }
   }
 
-  private static void validateFirstCSVLine(S3DataFile s3File, Format format, String line, long fromKB, EntityPerLine entityPerLine)
+  private static void validateFirstCSVLine(S3DataFile s3File, Format format, EntityPerLine entityPerLine)
       throws IOException, ValidationException {
+
+    logger.info("Validating first line of file {} in format {}", s3File.getS3Key(), format);
     S3Client client = S3Client.getInstance(s3File.getS3Bucket());
-    long toKB = fromKB + VALIDATE_LINE_PAGE_SIZE_BYTES;
+    StringBuilder line = new StringBuilder();
 
-    InputStream input = client.streamObjectContent(s3File.getS3Key(), 0, toKB);
+    ResponseInputStream s3InputStream = client.streamObjectContent(s3File.getS3Key(), 0, VALIDATE_LINE_MAX_LINE_SIZE_BYTES);
+    InputStream decompressed = s3File.isCompressed() ? new GZIPInputStream(s3InputStream) : s3InputStream;
+    CountingInputStream countingStream = new CountingInputStream(decompressed);
 
-    if (s3File.isCompressed())
-      input = new GZIPInputStream(input);
+    try (BufferedReader reader = new BufferedReader(new InputStreamReader(countingStream, StandardCharsets.UTF_8))) {
+      int ch;
 
-    try (BufferedReader reader = new BufferedReader(new InputStreamReader(input))) {
-      int val;
-      while ((val = reader.read()) != -1) {
-        char c = (char) val;
-        line += c;
+      while ((ch = reader.read()) != -1) {
+        line.append((char) ch);
 
-        if (c == '\n' || c == '\r') {
-          ImportFilesQuickValidator.validateCSVLine(line, format, entityPerLine);
+        if (ch == '\n' || ch == '\r') {
+          ImportFilesQuickValidator.validateCSVLine(line.toString(), format, entityPerLine);
+          logger.info("Validation finished {} in format {}", s3File.getS3Key(), format);
+          S3Client.abortS3Streaming(s3InputStream);
           return;
         }
+
+        if (countingStream.getByteCount() >= VALIDATE_LINE_MAX_LINE_SIZE_BYTES) {
+          logger.info("Validation finished {} in format {}", s3File.getS3Key(), format);
+          S3Client.abortS3Streaming(s3InputStream);
+          throw new IllegalStateException("No newline found within 4MB decompressed limit.");
+        }
       }
+
+      if (line.length() > 0) {
+        ImportFilesQuickValidator.validateCSVLine(line.toString(), format, entityPerLine);
+        return;
+      }
+
+      throw new IllegalStateException("No data found in file.");
     }
     catch (AmazonServiceException e) {
       if (e.getErrorCode().equalsIgnoreCase("InvalidRange")) {
-        //Did not find a line break - maybe CSV with 1LOC - try to validate
-        ImportFilesQuickValidator.validateCSVLine(line, format, entityPerLine);
+        // The file might be smaller than the requested range
+        ImportFilesQuickValidator.validateCSVLine(line.toString(), format, entityPerLine);
         return;
       }
       throw e;
-    }
-
-    if (toKB <= VALIDATE_LINE_MAX_LINE_SIZE_BYTES) {
-      //Not found a line break till now - search further
-      validateFirstCSVLine(s3File, format, line, toKB, entityPerLine);
-    }
-    else {
-      //Not able to find a newline - could be a one-liner
-      validateCSVLine(line, format, entityPerLine);
     }
   }
 

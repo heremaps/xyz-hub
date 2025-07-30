@@ -21,6 +21,7 @@ services:
             - SUBSCRIPTIONS_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-subscriptions
             - TAGS_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-tags
             - SETTINGS_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-settings
+            - JOB_API_ENDPOINT=http://xyz-job-service:7070/
     xyz-http-connector:
         image: "xyz-hub"
         build:
@@ -49,6 +50,7 @@ services:
             - HUB_ENDPOINT=http://xyz-hub:8080/hub
             - LOCALSTACK_ENDPOINT=http://localstack:4566
             - JOBS_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-jobs-local
+            - PARALLEL_STEPS_SUPPORTED=false
         depends_on:
             - "xyz-hub"
             - "dynamodb"
