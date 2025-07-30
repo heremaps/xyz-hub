@@ -101,7 +101,7 @@ public class CreateIndex extends SpaceBasedStep<CreateIndex> {
     logger.info("[{}] Creating the index {} for space {} ...", getGlobalStepId(), index, getSpaceId());
     SQLQuery indexCreationQuery = null;
     if (index instanceof SystemIndex)
-      indexCreationQuery = buildCreateIndexQuery(getSchema(db()), getRootTableName(space()), index);
+      indexCreationQuery = buildSpaceTableIndexQuery(getSchema(db()), getRootTableName(space()), index);
     else if (index instanceof OnDemandIndex onDemandIndex)
       indexCreationQuery = buildOnDemandIndexCreationQuery(onDemandIndex);
 

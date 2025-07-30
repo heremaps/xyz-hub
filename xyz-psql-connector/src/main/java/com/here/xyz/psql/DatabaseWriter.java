@@ -58,12 +58,13 @@ public class DatabaseWriter {
 
     private static SQLQuery buildMultiModalInsertStmtQuery(DatabaseSettings dbSettings, ModifyFeaturesEvent event) {
         return new SQLQuery("SELECT xyz_write_versioned_modification_operation(#{id}, #{version}, #{operation}, #{jsondata}, #{geo}, "
-            + "#{schema}, #{table}, #{concurrencyCheck}, #{partitionSize}, #{versionsToKeep}, #{pw}, #{baseVersion})")
+            + "#{schema}, #{table}, #{concurrencyCheck}, #{partitionSize}, #{versionsToKeep}, #{pw}, #{baseVersion}, #{minTagVersion})")
             .withNamedParameter(SCHEMA, dbSettings.getSchema())
             .withNamedParameter(TABLE, XyzEventBasedQueryRunner.readTableFromEvent(event))
             .withNamedParameter("concurrencyCheck", event.isConflictDetectionEnabled())
             .withNamedParameter("partitionSize", PARTITION_SIZE)
             .withNamedParameter("versionsToKeep", event.getVersionsToKeep())
+            .withNamedParameter("minTagVersion", event.getMinVersion())
             .withNamedParameter("pw", dbSettings.getPassword());
     }
 

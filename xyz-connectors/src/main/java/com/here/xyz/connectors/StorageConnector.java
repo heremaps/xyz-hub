@@ -218,6 +218,7 @@ public abstract class StorageConnector extends AbstractConnectorHandler {
    * Processes a ModifySubscriptionEvent event.
    */
   @SuppressWarnings("WeakerAccess")
+  @Deprecated
   protected abstract SuccessResponse processModifySubscriptionEvent(ModifySubscriptionEvent event) throws Exception;
 
   protected abstract StorageStatistics processGetStorageStatisticsEvent(GetStorageStatisticsEvent event) throws Exception;

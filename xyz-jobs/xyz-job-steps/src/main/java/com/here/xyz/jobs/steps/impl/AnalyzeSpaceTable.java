@@ -22,10 +22,13 @@ package com.here.xyz.jobs.steps.impl;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.util.db.SQLQuery;
+import com.here.xyz.util.service.Core;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import java.sql.SQLException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -64,6 +67,16 @@ public class AnalyzeSpaceTable extends SpaceBasedStep<AnalyzeSpaceTable> {
   private int calculateNeededAcus() {
     //TODO: Check max ACUs during tests to find correct interpolation
     return 0;
+  }
+
+  @Override
+  protected void onAsyncSuccess() throws Exception {
+    super.onAsyncSuccess();
+    logger.info("[{}] Re-activating the space {} and update contentUpdatedAt!", getGlobalStepId(), getSpaceId());
+    hubWebClient().patchSpace(getSpaceId(), Map.of(
+            "active", true,
+            "contentUpdatedAt", Core.currentTimeMillis()
+    ));
   }
 
   @Override

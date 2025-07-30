@@ -31,6 +31,7 @@ import org.apache.commons.codec.digest.DigestUtils;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_DEFAULT;
@@ -160,23 +161,30 @@ public class IndexHelper {
         .withQueryFragment("queryComment", "");
   }
 
-  //TODO: move xyz_index_creation_on_property_object, xyz_index_name_for_property, xyz_property_datatype functions from ext to common.sql ?
-  public static SQLQuery buildAsyncOnDemandIndexQuery(String schema, String table, String propertyName) {
-    return new SQLQuery("""
-        PERFORM xyz_index_creation_on_property_object(
-            #{schema_name},
-            #{table_name},
-            #{property_name},
-            xyz_index_name_for_property(#{table_name}, #{property_name}, #{idx_type}),
-            xyz_property_datatype(#{schema_name}, #{table_name}, #{property_name}, #{table_sample_cnt}),
-            #{idx_type}
-          )
-        """)
-        .withNamedParameter("schema_name", schema)
-        .withNamedParameter("table_name", table)
-        .withNamedParameter("property_name", propertyName)
-        .withNamedParameter("table_sample_cnt", 5000)
-        .withNamedParameter("idx_type", "m");
+  public static List<OnDemandIndex> getActivatedSearchableProperties(Map<String, Boolean> searchableProperties) {
+    return searchableProperties == null ? List.of() : searchableProperties.entrySet().stream()
+            .filter(Map.Entry::getValue)
+            .map(entry -> new XyzSpaceTableHelper.OnDemandIndex().withPropertyPath(entry.getKey()))
+            .collect(Collectors.toList());
+  }
+
+  public static SQLQuery buildOnDemandIndexCreationQuery(String schema, String table, String propertyPath, boolean async){
+    return new SQLQuery((async ? "PERFORM " : "SELECT ") +
+            """
+            xyz_index_creation_on_property_object(
+                #{schema_name},
+                #{table_name},
+                #{property_name},
+                xyz_index_name_for_property(#{table_name}, #{property_name}, #{idx_type}),
+                xyz_property_datatype(#{schema_name}, #{table_name}, #{property_name}, #{table_sample_cnt}),
+                #{idx_type}
+              )
+            """)
+            .withNamedParameter("schema_name", schema)
+            .withNamedParameter("table_name", table)
+            .withNamedParameter("property_name", propertyPath)
+            .withNamedParameter("table_sample_cnt", 5000)
+            .withNamedParameter("idx_type", "m");
   }
 
   public static SQLQuery checkIndexType(String schema, String table, String propertyName, int tableSampleCnt) {

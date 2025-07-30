@@ -46,7 +46,7 @@ public class XyzSpaceTableHelper {
     }
 
     List<SQLQuery> queries = new ArrayList<>();
-
+    queries.add(createConnectorSchema(schema));
     queries.add(buildCreateSpaceTableQuery(schema, table, layout));
     queries.add(buildAddTableCommentQuery(schema, table, new TableComment(spaceId, layout)));
     queries.add(buildColumnStorageAttributesQuery(schema, table, layout));
@@ -54,7 +54,10 @@ public class XyzSpaceTableHelper {
     queries.add(buildCreateHeadPartitionQuery(schema, table, layout));
     queries.add(buildCreateHistoryPartitionQuery(schema, table, 0L, layout));
     queries.add(buildCreateSequenceQuery(schema, table, "version", layout));
-
+    if(onDemandIndices != null && !onDemandIndices.isEmpty()) {
+      for(OnDemandIndex onDemandIndex : onDemandIndices)
+          queries.add(IndexHelper.buildOnDemandIndexCreationQuery(schema, table, onDemandIndex.getPropertyPath(), false));
+      }
     return queries;
   }
 
@@ -106,6 +109,11 @@ public class XyzSpaceTableHelper {
       return new SQLQuery("");
     }
     throw new IllegalArgumentException("Unsupported Table Layout: " + layout);
+  }
+
+  public static SQLQuery createConnectorSchema(String schema) {
+        return new SQLQuery("CREATE SCHEMA IF NOT EXISTS ${schema}")
+                .withVariable(SCHEMA, schema);
   }
 
   public static SQLQuery buildCreateSpaceTableQuery(String schema, String table, TableLayout layout) {

@@ -19,8 +19,8 @@
 
 package com.here.xyz.psql.query;
 
-import static com.here.xyz.psql.query.ModifySpace.SPACE_META_TABLE_FQN;
 import static com.here.xyz.responses.XyzError.ILLEGAL_ARGUMENT;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.PARTITION_SIZE;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.DeleteChangesetsEvent;
@@ -42,10 +42,8 @@ public class DeleteChangesets extends XyzQueryRunner<DeleteChangesetsEvent, Succ
   @Override
   public SuccessResponse write(DataSourceProvider dataSourceProvider) throws SQLException, ErrorResponseException {
     long headVersion = new GetHeadVersion<>(event).withDataSourceProvider(dataSourceProvider).run();
-    if(event.getMinTagVersion() != null && event.getMinTagVersion() < event.getRequestedMinVersion())
-      throw new ErrorResponseException(ILLEGAL_ARGUMENT, "Tag for version " + event.getMinTagVersion() +" exists!");
-    if (event.getRequestedMinVersion() > headVersion)
-      throw new ErrorResponseException(ILLEGAL_ARGUMENT, "Can not delete all changesets older than version " + event.getRequestedMinVersion()
+    if (event.getMinVersion() > headVersion)
+      throw new ErrorResponseException(ILLEGAL_ARGUMENT, "Can not delete all changesets older than version " + event.getMinVersion()
               + " as it would also delete the HEAD (" + headVersion
               + ") version. Minimum version which may specified as new minimum version is HEAD.");
 
@@ -55,21 +53,21 @@ public class DeleteChangesets extends XyzQueryRunner<DeleteChangesetsEvent, Succ
   @Override
   protected SuccessResponse handleWrite(int[] rowCounts) throws ErrorResponseException {
     if (rowCounts[0] == 0)
-      throw new ErrorResponseException(ILLEGAL_ARGUMENT, "Version < '"+event.getRequestedMinVersion()+"' is already deleted!");
+      throw new ErrorResponseException(ILLEGAL_ARGUMENT, "Version < '"+event.getMinVersion()+"' is already deleted!");
     return new SuccessResponse();
   }
 
   @Override
   protected SQLQuery buildQuery(DeleteChangesetsEvent event) throws SQLException, ErrorResponseException {
-    /** Update "userMinVersion" which flags the minimum Version the user wants to have. The deletion will happen asynchronously. */
-    return new SQLQuery("UPDATE "+ SPACE_META_TABLE_FQN +" " +
-            "SET meta = meta || #{userMinVersionJson}::jsonb " +
-            "WHERE id=#{spaceId} " +
-            " AND (meta->'userMinVersion' < #{userMinVersion}::text::jsonb OR meta->'userMinVersion' IS NULL) " +
-            " AND COALESCE((meta->'minAvailableVersion')::bigint, 0) < #{userMinVersion}")
-            .withNamedParameter("userMinVersionJson", "{\"userMinVersion\":"+event.getRequestedMinVersion()+"}")
-            .withNamedParameter("userMinVersion",event.getRequestedMinVersion())
-            .withNamedParameter("spaceId", event.getSpace());
+
+    return new SQLQuery("SELECT xyz_delete_changesets(#{schema}, #{table}, #{partitionSize}, #{minVersion})")
+            .withNamedParameter("schema", getSchema())
+            .withNamedParameter("table", getDefaultTable(event))
+            .withNamedParameter("partitionSize", PARTITION_SIZE)
+            //TODO: check NTF
+            //minVersion=Math.min(requestedVersion, space.minTagVersion)
+            .withNamedParameter("minVersion", event.getMinVersion())
+            .withAsync(true);
   }
 
   @Override

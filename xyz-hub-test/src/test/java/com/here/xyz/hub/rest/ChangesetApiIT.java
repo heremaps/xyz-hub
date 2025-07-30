@@ -326,19 +326,25 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
   public void deleteChangesetsMultipleTimes() {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .delete("/spaces/" + cleanUpSpaceId + "/changesets?version=lt=1")
+        .then()
+        .statusCode(NO_CONTENT.code());
+
+    given().headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+            .get("/spaces/" + cleanUpSpaceId + "/features?id=A&version=2")
+            .then()
+            .statusCode(OK.code())
+            .body("features.size()", equalTo(1));
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .delete("/spaces/" + cleanUpSpaceId + "/changesets?version=lt=3")
         .then()
         .statusCode(NO_CONTENT.code());
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .delete("/spaces/" + cleanUpSpaceId + "/changesets?version=lt=3")
-        .then()
-        .statusCode(BAD_REQUEST.code());
-
-    given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .get("/spaces/" + cleanUpSpaceId + "/features?id=F1,F2&version=2")
+        .get("/spaces/" + cleanUpSpaceId + "/features?id=A&version=2")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(0));

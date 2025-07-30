@@ -35,6 +35,7 @@ import com.here.xyz.jobs.steps.CompilationStepGraph;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.JobCompiler.CompilationError;
 import com.here.xyz.jobs.steps.StepExecution;
+import com.here.xyz.jobs.steps.compiler.tools.IndexCompilerHelper;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
 import com.here.xyz.jobs.steps.impl.AnalyzeSpaceTable;
 import com.here.xyz.jobs.steps.impl.CreateIndex;
@@ -111,9 +112,7 @@ public class ImportFromFiles implements JobCompilationInterceptor {
     List<List<SystemIndex>> indexTasks = Lists.partition(indices, indices.size() / 3);
 
     CompilationStepGraph wrappedStepGraph = (CompilationStepGraph) new CompilationStepGraph()
-        .addExecution(new DropIndexes().withSpaceId(spaceId)) //Drop all existing indices
-            // TODO: remove this step in the future, when the maintenance-service got shut down.
-        .addExecution(new MarkForMaintenance().withSpaceId(spaceId).withIdxCreationCompleted(true))
+        .addExecution(new DropIndexes().withSpaceId(spaceId).withSpaceDeactivation(true)) //Drop all existing indices
         .addExecution(stepExecution)
         //NOTE: Create *all* indices in parallel, make sure to (at least) keep the viz-index sequential #postgres-issue-with-partitions
         .addExecution(new CompilationStepGraph() //Create all the base indices semi-parallel
@@ -123,13 +122,11 @@ public class ImportFromFiles implements JobCompilationInterceptor {
             .withParallel(true))
         .addExecution(new CreateIndex().withIndex(SystemIndex.VIZ).withSpaceId(spaceId));
 
-    CompilationStepGraph onDemandIndexSteps = compileOnDemandIndexSteps(spaceId);
+    CompilationStepGraph onDemandIndexSteps = IndexCompilerHelper.compileOnDemandIndexSteps(spaceId);
     if (!onDemandIndexSteps.isEmpty())
       wrappedStepGraph.addExecution(onDemandIndexSteps);
 
     wrappedStepGraph.addExecution(new AnalyzeSpaceTable().withSpaceId(spaceId));
-    //TODO: remove this step in the future, when the maintenance-service got shut down.
-    wrappedStepGraph.addExecution(new MarkForMaintenance().withSpaceId(spaceId).withIdxCreationCompleted(false));
 
     return wrappedStepGraph;
 
@@ -160,48 +157,5 @@ public class ImportFromFiles implements JobCompilationInterceptor {
     }
   }
 
-  /**
-   * Creates a CompilationStepGraph for the on-demand indices of the given space.
-   * @param spaceId The ID of the space for which to create the on-demand indices.
-   * @return A CompilationStepGraph containing the steps to create the on-demand indices, which are getting executed in parallel.
-   * @throws CompilationError If an error occurs while retrieving the searchable properties.
-   */
-  private static CompilationStepGraph compileOnDemandIndexSteps(String spaceId) throws CompilationError {
 
-    Map<String, Boolean> activatedSearchableProperties = getActiveSearchableProperties(spaceId);
-    CompilationStepGraph onDemandIndicesGraph = (CompilationStepGraph) new CompilationStepGraph().withParallel(true);
-
-    for(String property : activatedSearchableProperties.keySet()) {
-      if (activatedSearchableProperties.get(property)) {
-        // Create an OnDemandIndex step for each activated searchable property
-        onDemandIndicesGraph.addExecution(new CreateIndex()
-            .withIndex(new OnDemandIndex().withPropertyPath(property))
-            .withSpaceId(spaceId));
-      }
-    }
-    return onDemandIndicesGraph;
-  }
-
-  /**
-   * Retrieves the searchable properties being active for the given space ID.
-   * @param spaceId The ID of the space for which to retrieve the searchable properties.
-   * @return A map containing the active searchable properties and their values.
-   * @throws CompilationError If an error occurs while retrieving the searchable properties.
-   */
-  private static Map<String, Boolean> getActiveSearchableProperties(String spaceId) throws CompilationError {
-    try {
-      Map<String, Boolean> searchableProperties = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT)
-          .loadSpace(spaceId).getSearchableProperties();
-
-      return searchableProperties == null ? Map.of() : searchableProperties.entrySet().stream()
-          .filter(Map.Entry::getValue)
-          .collect(Collectors.toMap(
-              Map.Entry::getKey,
-              Map.Entry::getValue
-          ));
-    }
-    catch (WebClientException e) {
-      throw new CompilationError("Error fetching the searchable properties. Target is not accessible! " + e.getMessage(), e);
-    }
-  }
 }
