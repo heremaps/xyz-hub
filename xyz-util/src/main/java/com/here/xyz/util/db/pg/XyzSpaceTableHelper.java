@@ -30,6 +30,7 @@ import java.util.Map;
 
 import static com.here.xyz.models.hub.Space.TABLE_NAME;
 import static com.here.xyz.util.db.pg.IndexHelper.buildSpaceTableIndexQueries;
+import static com.here.xyz.util.db.pg.IndexHelper.OnDemandIndex;
 import static com.here.xyz.util.db.ConnectorParameters.TableLayout.V1;
 import static com.here.xyz.util.db.ConnectorParameters.TableLayout.V2;
 
@@ -40,7 +41,8 @@ public class XyzSpaceTableHelper {
   public static final String HEAD_TABLE_SUFFIX = "_head";
   public static final long PARTITION_SIZE = 100_000;
 
-  public static List<SQLQuery> buildCreateSpaceTableQueries(String schema, String table, String spaceId, TableLayout layout) {
+  public static List<SQLQuery> buildCreateSpaceTableQueries(String schema, String table,  List<OnDemandIndex> onDemandIndices,
+                                                            String spaceId, TableLayout layout) {
     if (layout != TableLayout.V1 && layout != TableLayout.V2) {
       throw new IllegalArgumentException("Unsupported Table Layout: " + layout);
     }
@@ -55,9 +57,9 @@ public class XyzSpaceTableHelper {
     queries.add(buildCreateHistoryPartitionQuery(schema, table, 0L, layout));
     queries.add(buildCreateSequenceQuery(schema, table, "version", layout));
     if(onDemandIndices != null && !onDemandIndices.isEmpty()) {
-      for(OnDemandIndex onDemandIndex : onDemandIndices)
-          queries.add(IndexHelper.buildOnDemandIndexCreationQuery(schema, table, onDemandIndex.getPropertyPath(), false));
-      }
+        for (OnDemandIndex onDemandIndex : onDemandIndices)
+            queries.add(IndexHelper.buildOnDemandIndexCreationQuery(schema, table, onDemandIndex.getPropertyPath(), false));
+    }
     return queries;
   }
 
@@ -211,10 +213,6 @@ public class XyzSpaceTableHelper {
       SQLQuery deleteSpaceMetaEntry = new SQLQuery("DELETE FROM xyz_config.space_meta WHERE h_id = #{table} AND schem = #{schema};")
               .withNamedParameter(SCHEMA, schema)
               .withNamedParameter(TABLE, table);
-      // Gets removed
-      SQLQuery deleteIndexStatusEntry = new SQLQuery("DELETE FROM xyz_config.xyz_idxs_status WHERE spaceid = #{table} AND schem = #{schema};")
-                .withNamedParameter(SCHEMA, schema)
-                .withNamedParameter(TABLE, table);
 
       SQLQuery dropISequenceQuery = new SQLQuery("DROP SEQUENCE IF EXISTS ${schema}.${iSequence};")
               .withVariable("iSequence", table + "_i_seq") //Assuming iSequence suffix is "_i_seq"
@@ -222,7 +220,6 @@ public class XyzSpaceTableHelper {
 
       // Gets removed
       queries.add(deleteSpaceMetaEntry);
-      queries.add(deleteIndexStatusEntry);
       // Gets removed
       queries.add(dropTableQuery);
       queries.add(dropISequenceQuery);

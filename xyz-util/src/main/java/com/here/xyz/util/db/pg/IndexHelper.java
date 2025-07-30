@@ -22,6 +22,7 @@ package com.here.xyz.util.db.pg;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.here.xyz.Typed;
 
 import com.here.xyz.util.db.ConnectorParameters.TableLayout;
@@ -49,8 +50,10 @@ public class IndexHelper {
   public interface Index extends Typed {
     String idxPrefix = "idx_";
     String getIndexName(String tableName);
+    String getIndexName();
   }
 
+  @JsonTypeName("SystemIndex")
   public enum SystemIndex implements Index {
     GEO,
     VERSION_ID,
@@ -59,6 +62,12 @@ public class IndexHelper {
     SERIAL,
     VIZ,
     AUTHOR;
+
+    String indexName;
+
+    public String getIndexName() {
+      return indexName;
+    }
 
     @Override
     public String getIndexName(String tableName) {
@@ -88,12 +97,41 @@ public class IndexHelper {
         case AUTHOR -> List.of("author");
       };
     }
+
+    public static SystemIndex fromString(String name) {
+      if (name == null) return null;
+      return switch (name.toLowerCase()) {
+        case "geo" -> GEO;
+        case "versionid" -> VERSION_ID;
+        case "nextversion" -> NEXT_VERSION;
+        case "operation" -> OPERATION;
+        case "serial" -> SERIAL;
+        case "viz" -> VIZ;
+        case "author" -> AUTHOR;
+        default -> null;
+      };
+    }
   }
 
+  @JsonTypeName("OnDemandIndex")
   public static class OnDemandIndex implements Index {
+    private String indexName;
     private String propertyPath;
 
     public OnDemandIndex() { }
+
+    public OnDemandIndex(String indexName) {
+      this.indexName = indexName;
+    }
+
+    public String getIndexName() {
+      return indexName;
+    }
+
+    public OnDemandIndex withIndexName(String indexName) {
+      this.indexName = indexName;
+      return this;
+    }
 
     public void setPropertyPath(String propertyPath) {
       this.propertyPath = propertyPath;
@@ -138,6 +176,10 @@ public class IndexHelper {
       return buildCreateIndexQuery(schema, table, Collections.singletonList(columnNameOrExpression), method, indexName, null);
   }
 
+  public static SQLQuery buildSpaceTableIndexQuery(String schema, String table, Index index) {
+    return buildCreateIndexQuery(schema, table, ((SystemIndex)index).getIndexContent(), ((SystemIndex)index).getIndexType(), index.getIndexName(table));
+  }
+
   public static SQLQuery buildCreateIndexQuery(String schema, String table, List<String> columnNamesOrExpressions, String method,
       String indexName) {
     return buildCreateIndexQuery(schema, table, columnNamesOrExpressions, method, indexName, null);
@@ -164,7 +206,7 @@ public class IndexHelper {
   public static List<OnDemandIndex> getActivatedSearchableProperties(Map<String, Boolean> searchableProperties) {
     return searchableProperties == null ? List.of() : searchableProperties.entrySet().stream()
             .filter(Map.Entry::getValue)
-            .map(entry -> new XyzSpaceTableHelper.OnDemandIndex().withPropertyPath(entry.getKey()))
+            .map(entry -> new OnDemandIndex().withPropertyPath(entry.getKey()))
             .collect(Collectors.toList());
   }
 

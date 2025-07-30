@@ -23,14 +23,10 @@ import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.datasets.DatasetDescription.Space;
 import com.here.xyz.jobs.processes.Maintain;
 import com.here.xyz.jobs.steps.CompilationStepGraph;
-import com.here.xyz.jobs.steps.Config;
-import com.here.xyz.jobs.steps.JobCompiler.CompilationError;
 import com.here.xyz.jobs.steps.compiler.tools.IndexCompilerHelper;
 import com.here.xyz.jobs.steps.impl.DropIndexes;
 import com.here.xyz.jobs.steps.impl.SpawnMaintenanceJobs;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper.OnDemandIndex;
-import com.here.xyz.util.web.HubWebClient;
-import com.here.xyz.util.web.XyzWebClient;
+import com.here.xyz.util.db.pg.IndexHelper.OnDemandIndex;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 

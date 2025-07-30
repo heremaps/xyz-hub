@@ -19,15 +19,13 @@
 
 package com.here.xyz.jobs.steps.impl;
 
-import static com.here.xyz.util.db.pg.IndexHelper.buildAsyncOnDemandIndexQuery;
-import static com.here.xyz.util.db.pg.IndexHelper.buildCreateIndexQuery;
-
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.jobs.steps.execution.StepException;
 import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.util.db.SQLQuery;
+import com.here.xyz.util.db.pg.IndexHelper;
 import com.here.xyz.util.db.pg.IndexHelper.Index;
 import com.here.xyz.util.db.pg.IndexHelper.OnDemandIndex;
 import com.here.xyz.util.db.pg.IndexHelper.SystemIndex;
@@ -39,6 +37,8 @@ import java.util.Collections;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import static com.here.xyz.util.db.pg.IndexHelper.buildSpaceTableIndexQuery;
 
 public class CreateIndex extends SpaceBasedStep<CreateIndex> {
   private static final Logger logger = LogManager.getLogger();
@@ -120,9 +120,9 @@ public class CreateIndex extends SpaceBasedStep<CreateIndex> {
     List<SQLQuery> indexCreationQueries = new ArrayList<>();
 
     indexCreationQueries.addAll(loadPartitionNamesOf(rootTableName).stream()
-        .map(partitionTableName -> new SQLQuery(buildAsyncOnDemandIndexQuery(schema, partitionTableName, onDemandIndex.getPropertyPath()).toExecutableQueryString()))
+        .map(partitionTableName -> new SQLQuery(IndexHelper.buildOnDemandIndexCreationQuery(schema, partitionTableName, onDemandIndex.getPropertyPath(), true).toExecutableQueryString()))
         .toList());
-    indexCreationQueries.add(new SQLQuery(buildAsyncOnDemandIndexQuery(schema, rootTableName, onDemandIndex.getPropertyPath()).toExecutableQueryString()));
+    indexCreationQueries.add(new SQLQuery(IndexHelper.buildOnDemandIndexCreationQuery(schema, rootTableName, onDemandIndex.getPropertyPath(),true).toExecutableQueryString()));
 
     return SQLQuery.join(indexCreationQueries, ";");
   }

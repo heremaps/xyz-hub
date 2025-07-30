@@ -29,39 +29,22 @@ import static com.here.xyz.util.db.ConnectorParameters.TableLayout.V2;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SCHEMA;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.TABLE;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildCreateSpaceTableQueries;
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildCleanUpQuery;
-
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.util.db.ConnectorParameters;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
-import com.here.xyz.util.runtime.FunctionRuntime;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.ModifySpaceEvent.Operation;
 import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
-import com.here.xyz.util.db.pg.IndexHelper;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
+import com.here.xyz.util.db.pg.IndexHelper.OnDemandIndex;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
-
-import static com.here.xyz.XyzSerializable.Mappers.DEFAULT_MAPPER;
-import static com.here.xyz.events.ModifySpaceEvent.Operation.CREATE;
-import static com.here.xyz.events.ModifySpaceEvent.Operation.DELETE;
-import static com.here.xyz.events.ModifySpaceEvent.Operation.UPDATE;
-import static com.here.xyz.psql.query.helpers.versioning.GetNextVersion.VERSION_SEQUENCE_SUFFIX;
-import static com.here.xyz.responses.XyzError.ILLEGAL_ARGUMENT;
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SCHEMA;
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.TABLE;
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildCreateSpaceTableQueries;
-
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildCleanUpQuery;
+import static com.here.xyz.util.db.pg.IndexHelper.getActivatedSearchableProperties;
 import static com.here.xyz.util.db.ConnectorParameters.TableLayout.V1;
 
 public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse> {
@@ -147,10 +130,11 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
 
                 if (event.getSpaceDefinition() != null && event.getOperation() == CREATE) {
                     //Add space table creation queries
-                    List<XyzSpaceTableHelper.OnDemandIndex> activatedSearchableProperties
-                            = IndexHelper.getActivatedSearchableProperties(event.getSpaceDefinition().getSearchableProperties());
+                    List<OnDemandIndex> activatedSearchableProperties
+                            = getActivatedSearchableProperties(event.getSpaceDefinition().getSearchableProperties());
 
-                    queries.addAll(buildCreateSpaceTableQueries(getSchema(), table, activatedSearchableProperties));
+                    queries.addAll(buildCreateSpaceTableQueries(getSchema(), table, activatedSearchableProperties,
+                            event.getSpace(), ConnectorParameters.TableLayout.V1));
                 }
 
                 //Write metadata
@@ -164,7 +148,9 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
         }else if(getTableLayout().equals(ConnectorParameters.TableLayout.V2)){
             if (event.getOperation() == CREATE && event.getSpaceDefinition() != null) {
                 final String table = getDefaultTable(event);
-                List<SQLQuery> queries = new ArrayList<>(buildCreateSpaceTableQueries(getSchema(), table, event.getSpace(), V2));
+                List<SQLQuery> queries = new ArrayList<>(buildCreateSpaceTableQueries(getSchema(), table,
+                        //No OnDemandIndices are supported in V2
+                        null, event.getSpace(), V2));
                 return SQLQuery.batchOf(queries).withLock(table);
             }
             else if (event.getOperation() == DELETE)
@@ -229,27 +215,5 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
           q.setNamedParameter(TABLE, getDefaultTable(event));
 
           return q;
-    }
-
-    public SQLQuery buildCleanUpQuery(ModifySpaceEvent event) {
-        String table = getDefaultTable(event);
-        SQLQuery q = new SQLQuery("${{deleteMetadata}} ${{dropTable}} ${{dropISequence}} ${{dropVersionSequence}}")
-            .withQueryFragment(
-                "deleteMetadata",
-                "DELETE FROM ${configSchema}.${spaceMetaTable} WHERE h_id = #{table} AND schem = #{schema};"
-            )
-            .withQueryFragment("dropTable", "DROP TABLE IF EXISTS ${schema}.${table};")
-            .withQueryFragment("dropISequence", "DROP SEQUENCE IF EXISTS ${schema}.${iSequence};")
-            .withQueryFragment("dropVersionSequence", "DROP SEQUENCE IF EXISTS ${schema}.${versionSequence};");
-
-        return q
-            .withVariable(SCHEMA, getSchema())
-            .withVariable(TABLE, table)
-            .withNamedParameter(SCHEMA, getSchema())
-            .withNamedParameter(TABLE, table)
-            .withVariable("configSchema", XYZ_CONFIG_SCHEMA)
-            .withVariable("spaceMetaTable", SPACE_META_TABLE)
-            .withVariable("iSequence", table + I_SEQUENCE_SUFFIX)
-            .withVariable("versionSequence", getDefaultTable(event) + VERSION_SEQUENCE_SUFFIX);
     }
 }
