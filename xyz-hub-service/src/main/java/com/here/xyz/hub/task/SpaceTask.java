@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -56,6 +56,11 @@ public abstract class SpaceTask<X extends SpaceTask<?>> extends Task<Event, X> {
    * "Resolved" means it contains the full extended layer-stack. For a 2-level extension that means it would contain two levels of spaces.
    */
   Map<String, Object> resolvedExtensions;
+  /**
+   * If the space root space of this task is a composite-space, this field will contain the resolved searchable properties from
+   * the base layer.
+   */
+  Map<String, Boolean> resolvedSearchableProperties;
 
   public SpaceTask(RoutingContext context, ApiResponseType responseType) {
     super(new SpaceEvent(), context, responseType, true);
@@ -92,6 +97,24 @@ public abstract class SpaceTask<X extends SpaceTask<?>> extends Task<Event, X> {
       } else {
         ownerIds.add(ownerId);
       }
+    }
+  }
+
+  public static class GetExtendingSpaces extends ReadQuery<GetExtendingSpaces> {
+    public GetExtendingSpaces(RoutingContext context, String id) {
+      super(context, ApiResponseType.SPACE_LIST, null, null);
+
+      selectedCondition = new SpaceSelectionCondition();
+      selectedCondition.spaceIds = Collections.singleton(id);
+
+      this.canReadConnectorsProperties = true;
+    }
+
+    @Override
+    public TaskPipeline createPipeline() {
+      return TaskPipeline.create(this)
+              .then(SpaceTaskHandler::readExtendingSpaces)
+              .then(SpaceTaskHandler::convertResponse);
     }
   }
 

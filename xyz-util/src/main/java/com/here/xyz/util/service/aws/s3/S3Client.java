@@ -27,7 +27,6 @@ import com.here.xyz.util.pagination.Page;
 import com.here.xyz.util.service.BaseConfig;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.URL;
 import java.time.Duration;
 import java.util.List;
@@ -35,12 +34,15 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.util.zip.GZIPOutputStream;
+import org.apache.http.ConnectionClosedException;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.http.SdkHttpResponse;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest.Builder;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.HeadBucketRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
@@ -137,7 +139,20 @@ public class S3Client {
     return streamObjectContent(s3Key, offset, length).readAllBytes();
   }
 
-  public InputStream streamObjectContent(String s3Key, long offset, long length) {
+  /**
+   * Read an S3 object using an {@link ResponseInputStream}.
+   *
+   * @see #abortS3Streaming(ResponseInputStream)
+   *
+   * @param s3Key The key of the object to be read
+   * @param offset The start offset (byte position) from where to start reading
+   * @param length The amount of bytes to read starting at the offset
+   * @return A {@link ResponseInputStream} that can be used to read the data from the response-
+   * NOTE: If reading that stream should be stopped before reaching its end, the method {@link #abortS3Streaming(ResponseInputStream)}
+   * must be called. Only calling the stream's {@link ResponseInputStream#close()} is not sufficient, because that call would block
+   * due to an internal task in the SDK that continues to read the whole object till the end.
+   */
+  public ResponseInputStream<GetObjectResponse> streamObjectContent(String s3Key, long offset, long length) {
     Builder builder = GetObjectRequest.builder()
             .bucket(bucketName)
             .key(s3Key);
@@ -148,8 +163,39 @@ public class S3Client {
     return client.getObject(builder.build());
   }
 
-  public InputStream streamObjectContent(String s3Key) {
+  /**
+   * Read an S3 object using an {@link ResponseInputStream}.
+   *
+   * @see #abortS3Streaming(ResponseInputStream)
+   *
+   * @param s3Key The key of the object to be read
+   * @return A {@link ResponseInputStream} that can be used to read the data from the response-
+   * NOTE: If reading that stream should be stopped before reaching its end, the method {@link #abortS3Streaming(ResponseInputStream)}
+   * must be called. Only calling the stream's {@link ResponseInputStream#close()} is not sufficient, because that call would block
+   * due to an internal task in the SDK that continues to read the whole object till the end.
+   */
+  public ResponseInputStream<GetObjectResponse> streamObjectContent(String s3Key) {
     return streamObjectContent(s3Key, -1, -1);
+  }
+
+  /**
+   * Important: This method *must* be called when wanting to stop reading an {@link ResponseInputStream} before reaching its end.
+   * Otherwise, calling the method {@link ResponseInputStream#close()} would block until the SDK read the full S3 object.
+   *
+   * @see #streamObjectContent(String)
+   * @see #streamObjectContent(String, long, long)
+   *
+   * @param s3InputStream The input stream as it has been returned by {@link #streamObjectContent(String)}
+   *  or {@link #streamObjectContent(String, long, long)}
+   * @throws IOException
+   */
+  public static void abortS3Streaming(ResponseInputStream s3InputStream) throws IOException {
+    //Abort the running HTTP request from the AWS SDK (That provokes a ConnectionClosedException however)
+    s3InputStream.abort();
+    try {
+      s3InputStream.close();
+    }
+    catch (ConnectionClosedException ignore) {}
   }
 
   public void putObject(String s3Key, String contentType, String content) throws IOException {

@@ -49,7 +49,9 @@ import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
 import com.here.xyz.jobs.steps.impl.transport.tools.ImportFilesQuickValidator;
 import com.here.xyz.jobs.steps.inputs.Input;
+import com.here.xyz.jobs.steps.inputs.InputFromOutput;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
+import com.here.xyz.jobs.steps.outputs.CreatedVersion;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
 import com.here.xyz.jobs.steps.resources.IOResource;
@@ -70,6 +72,7 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -339,7 +342,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     else {
       if (!resume) {
         infoLog(STEP_EXECUTE, this,"Retrieve new version");
-        long newVersion = increaseVersionSequence();
+        long newVersion = getOrIncreaseVersionSequence();
 
         infoLog(STEP_EXECUTE, this,"Create TriggerTable and Trigger");
         //Create Temp-ImportTable to avoid deserialization of JSON and fix missing row count
@@ -365,7 +368,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   private void syncExecution() throws WebClientException, SQLException, TooManyResourcesClaimed, IOException {
     //TODO: Support resume
     infoLog(STEP_EXECUTE, this,"Retrieve new version");
-    long newVersion = increaseVersionSequence();
+    long newVersion = getOrIncreaseVersionSequence();
 
     ExecutorService exec = Executors.newFixedThreadPool(5);
     List<Future<FeatureStatistics>> resultFutures = new ArrayList<>();
@@ -438,7 +441,22 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     }
   }
 
-  private long increaseVersionSequence() throws SQLException, TooManyResourcesClaimed, WebClientException {
+  /**
+   * This method returns the next space version in either of two ways:
+   * <ol><li>By Fetching the next version from {@link CreatedVersion} provided as step input</li>
+   * <li>By Incrementing the space version sequence</li></ol>
+   */
+  private long getOrIncreaseVersionSequence() throws SQLException, TooManyResourcesClaimed, WebClientException {
+
+    Optional<Input> versionInput = loadInputs(InputFromOutput.class)
+            .stream()
+            .filter(input -> ((InputFromOutput) input).getDelegate() instanceof CreatedVersion)
+            .findFirst();
+    if(versionInput.isPresent()) {
+      CreatedVersion version = (CreatedVersion) ((InputFromOutput) versionInput.get()).getDelegate();
+      return version.getVersion();
+    }
+
     return runReadQuerySync(buildVersionSequenceIncrement(), db(), 0, rs -> {
       rs.next();
       return rs.getLong(1);

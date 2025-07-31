@@ -19,37 +19,38 @@
 
 package com.here.xyz.jobs.util;
 
-import static com.google.common.net.HttpHeaders.CONTENT_TYPE;
-import static com.google.common.net.MediaType.JSON_UTF_8;
-import static java.time.temporal.ChronoUnit.SECONDS;
-
 import com.here.xyz.XyzSerializable;
-import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.Step;
-import com.here.xyz.util.web.XyzWebClient;
+import com.here.xyz.util.web.JobWebClient;
+
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
-import java.time.Duration;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
-public class JobWebClient extends XyzWebClient {
-  private static JobWebClient instance = new JobWebClient(Config.instance.JOB_API_ENDPOINT.toString());
-  public static String userAgent = DEFAULT_USER_AGENT;
+import static com.google.common.net.HttpHeaders.CONTENT_TYPE;
+import static com.google.common.net.MediaType.JSON_UTF_8;
 
-  public JobWebClient(String baseUrl) {
-    super(baseUrl, userAgent);
+public class StepWebClient extends JobWebClient {
+  private static Map<InstanceKey, StepWebClient> instances = new ConcurrentHashMap<>();
+
+  public StepWebClient(String baseUrl) {
+    super(baseUrl);
   }
 
-  @Override
-  public boolean isServiceReachable() {
-    try {
-      request(HttpRequest.newBuilder()
-          .uri(uri("/health"))
-          .timeout(Duration.of(3, SECONDS)));
-    }
-    catch (WebClientException e) {
-      return false;
-    }
-    return true;
+  protected StepWebClient(String baseUrl, Map<String, String> extraHeaders) {
+    super(baseUrl, extraHeaders);
+  }
+
+  public static StepWebClient getInstance(String baseUrl) {
+    return getInstance(baseUrl, null);
+  }
+
+  public static StepWebClient getInstance(String baseUrl, Map<String, String> extraHeaders) {
+    InstanceKey key = new InstanceKey(baseUrl, extraHeaders);
+    if (!instances.containsKey(key))
+      instances.put(key, new StepWebClient(baseUrl, extraHeaders));
+    return instances.get(key);
   }
 
   public void postStepUpdate(Step<?> step) throws WebClientException {
@@ -57,9 +58,5 @@ public class JobWebClient extends XyzWebClient {
         .uri(uri("/admin/jobs/" + step.getJobId() + "/steps"))
         .header(CONTENT_TYPE, JSON_UTF_8.toString())
         .method("POST", BodyPublishers.ofByteArray(XyzSerializable.serialize(step).getBytes())));
-  }
-
-  public static JobWebClient getInstance() {
-    return instance;
   }
 }

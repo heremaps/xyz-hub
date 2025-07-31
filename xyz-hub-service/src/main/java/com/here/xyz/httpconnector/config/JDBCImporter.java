@@ -22,7 +22,6 @@ package com.here.xyz.httpconnector.config;
 import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.GEOJSON;
 import static com.here.xyz.httpconnector.util.jobs.Job.ERROR_TYPE_ABORTED;
 import static com.here.xyz.httpconnector.util.jobs.Job.ERROR_TYPE_FINALIZATION_FAILED;
-import static com.here.xyz.psql.query.ModifySpace.IDX_STATUS_TABLE;
 import static com.here.xyz.psql.query.ModifySpace.XYZ_CONFIG_SCHEMA;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildLoadSpaceTableIndicesQuery;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildSpaceTableDropIndexQueries;
@@ -243,7 +242,7 @@ public class JDBCImporter extends JdbcBasedHandler {
                 + "SET idx_creation_finished = #{markAs} "
                 + "WHERE spaceid = #{spaceId} AND schem = #{schema}")
             .withVariable("schema", XYZ_CONFIG_SCHEMA)
-            .withVariable("table", IDX_STATUS_TABLE)
+            .withVariable("table", "IDX_STATUS_TABLE")
             .withNamedParameter("schema", schema)
             .withNamedParameter("spaceId", spaceId)
             .withNamedParameter("markAs", false);

@@ -20,21 +20,89 @@
 package com.here.xyz.jobs.steps.impl;
 
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
+import com.here.xyz.models.hub.Space;
+import com.here.xyz.util.db.pg.XyzSpaceTableHelper.OnDemandIndex;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.START_EXECUTION;
-import static java.lang.Thread.sleep;
+import java.util.List;
+import java.util.Map;
 
 public class DropIndexStepTest extends StepTest {
 
   @Test
-  public void testDropIndexesStep() throws Exception {
-    Assertions.assertTrue(listExistingIndexes(SPACE_ID).size() > 0);
+  public void testDropIndexesStepWithoutWhitelist() throws Exception {
+    createTestSpace(true);
+    Assertions.assertFalse(getAllExistingIndices(SPACE_ID).isEmpty());
 
     LambdaBasedStep step = new DropIndexes().withSpaceId(SPACE_ID);
     sendLambdaStepRequestBlock(step, true);
 
-    Assertions.assertEquals(0, listExistingIndexes(SPACE_ID).size());
+    //no indexes should remain
+    Assertions.assertEquals(0, getAllExistingIndices(SPACE_ID).size());
+  }
+
+  @Test
+  public void testDropIndexesStepWithWhitelist() throws Exception {
+    createTestSpace(true);
+    Assertions.assertFalse(getSystemIndices(SPACE_ID).isEmpty());
+    //three on-demand indices should be created with the space creation
+    Assertions.assertEquals(3, getOnDemandIndices(SPACE_ID).size());
+
+    LambdaBasedStep step = new DropIndexes()
+      .withSpaceId(SPACE_ID)
+      .withSpaceDeactivation(false)
+      .withIndexWhiteList(
+                List.of(
+                    new OnDemandIndex().withPropertyPath("foo1"),
+                    new OnDemandIndex().withPropertyPath("foo3")
+                )
+      );
+
+    sendLambdaStepRequestBlock(step, true);
+    Assertions.assertEquals(2,getOnDemandIndices(SPACE_ID).size(), "whitelisted indexes should remain");
+  }
+
+  @Test
+  public void testDropIndexesStepWithEmptyWhitelist() throws Exception {
+    createTestSpace(true);
+    Assertions.assertFalse(getSystemIndices(SPACE_ID).isEmpty());
+
+    LambdaBasedStep step = new DropIndexes()
+            .withSpaceId(SPACE_ID)
+            .withSpaceDeactivation(false)
+            .withIndexWhiteList(List.of());
+    sendLambdaStepRequestBlock(step, true);
+
+    Assertions.assertEquals(0 ,getOnDemandIndices(SPACE_ID).size(), "only system indexes should remain");
+  }
+
+  @Test
+  public void testDropIndexesStepWithWhitelistOnSpaceWithoutOnDemandIndices() throws Exception {
+    //recreate space without on-demandindices
+    createTestSpace(false);
+
+    LambdaBasedStep step = new DropIndexes()
+            .withSpaceId(SPACE_ID)
+            .withSpaceDeactivation(false)
+            .withIndexWhiteList(List.of(new OnDemandIndex().withPropertyPath("foo1")));
+    sendLambdaStepRequestBlock(step, true);
+
+    Assertions.assertTrue(getOnDemandIndices(SPACE_ID).isEmpty(), "only system indices should remain");
+    Assertions.assertFalse(getSystemIndices(SPACE_ID).isEmpty(),"system indices should remain");
+  }
+
+  private void createTestSpace(boolean withOnDemandIndices) {
+    Space space = new Space().withId(SPACE_ID);
+    if (withOnDemandIndices) {
+      space.setSearchableProperties(
+        Map.of(
+                "foo1", true,
+                "foo2.nested", true,
+                "foo3", true
+        )
+      );
+    }
+    createSpace(space, false);
   }
 }

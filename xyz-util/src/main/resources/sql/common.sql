@@ -20,25 +20,44 @@
 /**
  * Install required extensions
  */
-DO $installExtensions$
+DO $initializeDatabase$
+    DECLARE
+        config_schema_name text := 'xyz_config';
+        --Deprecated
+        config_space_meta_table text := 'space_meta';
     BEGIN
-    
-     CREATE EXTENSION IF NOT EXISTS postgis SCHEMA public;
-     CREATE EXTENSION IF NOT EXISTS postgis_topology;
-     CREATE EXTENSION IF NOT EXISTS tsm_system_rows SCHEMA public;
-     CREATE EXTENSION IF NOT EXISTS dblink SCHEMA public;
-     CREATE EXTENSION IF NOT EXISTS plv8 SCHEMA pg_catalog;
+        IF EXISTS(SELECT extname FROM pg_extension WHERE extname = 'postgis') THEN
+            --Skip init of db
+            RETURN;
+        END IF;
 
-     IF EXISTS ( SELECT 1 FROM pg_settings WHERE name IN ( 'rds.extensions', 'rds.allowed_extensions', 'rds.superuser_variables' ) ) THEN
-      CREATE EXTENSION IF NOT EXISTS aws_s3 CASCADE;
-      CREATE EXTENSION IF NOT EXISTS aws_lambda CASCADE;
-     ELSE
-      CREATE EXTENSION IF NOT EXISTS plpython3u CASCADE;
-      CREATE EXTENSION IF NOT EXISTS aws_s3 CASCADE;
-     END IF;
-     
-    END;
-$installExtensions$;
+        -- Install required extensions
+        CREATE EXTENSION IF NOT EXISTS postgis SCHEMA public;
+        CREATE EXTENSION IF NOT EXISTS postgis_topology;
+        CREATE EXTENSION IF NOT EXISTS tsm_system_rows SCHEMA public;
+        CREATE EXTENSION IF NOT EXISTS dblink SCHEMA public;
+        CREATE EXTENSION IF NOT EXISTS plv8 SCHEMA pg_catalog;
+
+        IF EXISTS ( SELECT 1 FROM pg_settings WHERE name IN ( 'rds.extensions', 'rds.allowed_extensions', 'rds.superuser_variables' ) ) THEN
+            CREATE EXTENSION IF NOT EXISTS aws_s3 CASCADE;
+            CREATE EXTENSION IF NOT EXISTS aws_lambda CASCADE;
+        ELSE
+            CREATE EXTENSION IF NOT EXISTS plpython3u CASCADE;
+            CREATE EXTENSION IF NOT EXISTS aws_s3 CASCADE;
+        END IF;
+
+        -- Deprecated - can be removed if the below tables are not used anymore
+        EXECUTE format('CREATE SCHEMA IF NOT EXISTS %I', config_schema_name);
+
+        EXECUTE format('CREATE TABLE IF NOT EXISTS %I.%I (
+            id text NOT NULL,
+            schem text NOT NULL,
+            h_id text,
+            meta jsonb,
+            CONSTRAINT xyz_space_meta_pkey PRIMARY KEY (id, schem)
+        );', config_schema_name, config_space_meta_table);
+END;
+$initializeDatabase$;
 
 /**
  * Returns a context field's value.

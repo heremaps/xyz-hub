@@ -39,6 +39,7 @@ import com.here.xyz.jobs.steps.impl.transport.CopySpacePre;
 import com.here.xyz.jobs.steps.impl.transport.CountSpace;
 import com.here.xyz.jobs.steps.impl.transport.ExportChangedTiles;
 import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
+import com.here.xyz.jobs.steps.impl.transport.GetNextSpaceVersion;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
 import com.here.xyz.models.hub.Connector;
 import com.here.xyz.models.hub.Space;
@@ -63,10 +64,12 @@ import org.apache.logging.log4j.Logger;
     @JsonSubTypes.Type(value = DropIndexes.class),
     @JsonSubTypes.Type(value = AnalyzeSpaceTable.class),
     @JsonSubTypes.Type(value = MarkForMaintenance.class),
+    @JsonSubTypes.Type(value = GetNextSpaceVersion.class),
     @JsonSubTypes.Type(value = CopySpace.class),
     @JsonSubTypes.Type(value = CopySpacePre.class),
     @JsonSubTypes.Type(value = CopySpacePost.class),
-    @JsonSubTypes.Type(value = CountSpace.class)
+    @JsonSubTypes.Type(value = CountSpace.class),
+    @JsonSubTypes.Type(value = SpawnMaintenanceJobs.class)
 })
 public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseBasedStep<T> {
   private static final Logger logger = LogManager.getLogger();

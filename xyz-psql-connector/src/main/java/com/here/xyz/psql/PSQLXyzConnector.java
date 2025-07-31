@@ -60,7 +60,6 @@ import com.here.xyz.psql.query.IterateChangesets;
 import com.here.xyz.psql.query.IterateFeatures;
 import com.here.xyz.psql.query.LoadFeatures;
 import com.here.xyz.psql.query.ModifySpace;
-import com.here.xyz.psql.query.ModifySubscription;
 import com.here.xyz.psql.query.SearchForFeatures;
 import com.here.xyz.psql.query.WriteFeatures;
 import com.here.xyz.psql.query.XyzEventBasedQueryRunner;
@@ -86,17 +85,6 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
   @Override
   protected HealthStatus processHealthCheckEvent(HealthCheckEvent event) throws Exception {
-    if (event.getWarmupCount() == 0 && FunctionRuntime.getInstance().isRunningLocally()) {
-      //FIXME: Do not trigger maintenance on warmup calls, but on simple health-check (non-warmup) calls instead!
-      //Run DB-Maintenance - warmUp request is used
-      if (event.getMinResponseTime() != 0) {
-        logger.info("{} dbMaintainer start", traceItem);
-        dbMaintainer.run(traceItem);
-        logger.info("{} dbMaintainer finished", traceItem);
-        return new HealthStatus().withStatus("OK");
-      }
-    }
-
     SQLQuery query = new SQLQuery("SELECT 1");
     query.run(dataSourceProvider);
 
@@ -104,7 +92,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
     if (dataSourceProvider.hasReader())
       query.run(dataSourceProvider, true);
 
-    return ((HealthStatus) super.processHealthCheckEvent(event)).withStatus("OK");
+    return super.processHealthCheckEvent(event).withStatus("OK");
   }
 
   @Override
@@ -187,12 +175,13 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
   @Override
   protected SuccessResponse processModifySpaceEvent(ModifySpaceEvent event) throws Exception {
-    return write(new ModifySpace(event).withDbMaintainer(dbMaintainer));
+    return write(new ModifySpace(event));
   }
 
+  @Deprecated
   @Override
   protected SuccessResponse processModifySubscriptionEvent(ModifySubscriptionEvent event) throws Exception {
-    return write(new ModifySubscription(event));
+    return new SuccessResponse().withStatus("OK");
   }
 
   @Override

@@ -127,6 +127,8 @@ class StateMachineExecutor extends JobExecutor {
 
   @Override
   public Future<Boolean> deleteExecution(String executionId) {
+    logger.info("Delete SFN state machine {}", executionId);
+
     if (executionId == null)
       return Future.succeededFuture(false);
 

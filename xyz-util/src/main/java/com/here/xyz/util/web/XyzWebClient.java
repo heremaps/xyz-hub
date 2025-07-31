@@ -145,4 +145,6 @@ public abstract class XyzWebClient {
       return statusCode;
     }
   }
+
+  public record InstanceKey(String baseUrl, Map<String, String> extraHeaders) {}
 }

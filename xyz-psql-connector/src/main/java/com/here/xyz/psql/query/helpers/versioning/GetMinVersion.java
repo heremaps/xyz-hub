@@ -19,7 +19,6 @@
 
 package com.here.xyz.psql.query.helpers.versioning;
 
-import static com.here.xyz.psql.query.ModifySpace.SPACE_META_TABLE_FQN;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SCHEMA;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.TABLE;
 
@@ -27,25 +26,21 @@ import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.Event;
 import com.here.xyz.psql.query.XyzEventBasedQueryRunner;
 import com.here.xyz.util.db.SQLQuery;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
+
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
-public class GetMinAvailableVersion<E extends Event> extends XyzEventBasedQueryRunner<E, Long> {
+public class GetMinVersion<E extends Event> extends XyzEventBasedQueryRunner<E, Long> {
 
-  public GetMinAvailableVersion(E input) throws SQLException, ErrorResponseException {
+  public GetMinVersion(E input) throws SQLException, ErrorResponseException {
     super(input);
   }
 
   @Override
   protected SQLQuery buildQuery(E event) throws SQLException, ErrorResponseException {
-    return new SQLQuery("SELECT COALESCE((meta->'minAvailableVersion')::bigint, 0) as min," +
-            "(SELECT max(version) FROM ${schema}.${table}) as max " +
-            " FROM " + SPACE_META_TABLE_FQN +
-            " WHERE id=#{spaceId}")
-        .withVariable(SCHEMA, getSchema())
-        .withVariable(TABLE, getDefaultTable(event))
-        .withNamedParameter("spaceId", event.getSpace());
+    return new SQLQuery("SELECT min(version) FROM ${schema}.${table}")
+            .withVariable(SCHEMA, getSchema())
+            .withVariable(TABLE, getDefaultTable(event));
   }
 
   @Override
@@ -53,6 +48,6 @@ public class GetMinAvailableVersion<E extends Event> extends XyzEventBasedQueryR
     if (rs.next()){
       return rs.getLong("min");
     }
-    throw new SQLException("Unable to retrieve minAvailableVersion from space.");
+    throw new SQLException("Unable to retrieve minVersion from space.");
   }
 }

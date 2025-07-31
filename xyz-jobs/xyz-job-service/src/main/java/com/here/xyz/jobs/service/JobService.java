@@ -22,6 +22,7 @@ package com.here.xyz.jobs.service;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.config.JobConfigClient;
+import com.here.xyz.jobs.processes.Maintain;
 import com.here.xyz.jobs.steps.StepGraph;
 import com.here.xyz.jobs.steps.execution.CleanUpExecutor;
 import com.here.xyz.jobs.steps.execution.JobExecutor;
@@ -58,6 +59,9 @@ public class JobService extends Core {
     XyzSerializable.registerSubtypes(StepGraph.class);
     XyzSerializable.registerSubtypes(Input.class);
     XyzSerializable.registerSubtypes(Output.class);
+
+    //Maintenance process
+    XyzSerializable.registerSubtypes(Maintain.class);
   }
 
   private static Set<Consumer> jobFinalizationObservers = new ConcurrentHashSet<>();
