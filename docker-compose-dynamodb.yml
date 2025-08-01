@@ -12,7 +12,6 @@ services:
             - "dynamodb"
             - "postgres"
             - "redis"
-            - "xyz-http-connector"
             - "aws-localstack"
         environment:
             - SPACES_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-spaces
@@ -22,22 +21,6 @@ services:
             - TAGS_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-tags
             - SETTINGS_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-settings
             - JOB_API_ENDPOINT=http://xyz-job-service:7070/
-    xyz-http-connector:
-        image: "xyz-hub"
-        build:
-            context: ./
-            dockerfile: ./xyz-util/src/main/resources/docker/Dockerfile
-        container_name: xyz-http-connector
-        ports:
-            - "9090:9090"
-        environment:
-            - LOCALSTACK_ENDPOINT=http://localstack:4566
-            - JOBS_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-jobs
-        depends_on:
-            - "dynamodb"
-            - "postgres"
-            - "aws-localstack"
-        command: java -cp xyz-hub-service.jar com.here.xyz.httpconnector.CService
     xyz-job-service:
         image: "xyz-job"
         build:
