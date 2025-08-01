@@ -44,7 +44,7 @@ import com.here.xyz.jobs.steps.impl.MarkForMaintenance;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPerLine;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
+import com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper.SystemIndex;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
@@ -102,19 +102,23 @@ public class ImportFromFiles implements JobCompilationInterceptor {
     return compileImportSteps(importFilesStep);
   }
 
-  public static CompilationStepGraph compileWrapWithDropRecreateIndices(String spaceId, StepExecution stepExecution )
-  {
+  public static CompilationStepGraph compileWrapWithDropRecreateIndices(String spaceId, StepExecution stepExecution) {
+    return compileWrapWithDropRecreateIndices(spaceId, stepExecution, null);
+  }
+
+  public static CompilationStepGraph compileWrapWithDropRecreateIndices(String spaceId, StepExecution stepExecution, List<Index> keepIndices) {
     //NOTE: drop/create indices is also used by SpaceCopy compiler
 
     //NOTE: VIZ index will be created separately in a sequential step afterwards (see below)
-    List<XyzSpaceTableHelper.SystemIndex> indices = Stream.of(SystemIndex.values()).filter(index -> index != SystemIndex.VIZ).toList();
+    List<SystemIndex> indices = Stream.of(SystemIndex.values()).filter(index -> index != SystemIndex.VIZ).toList();
     //Split the work in three parallel tasks for now
     List<List<SystemIndex>> indexTasks = Lists.partition(indices, indices.size() / 3);
 
     CompilationStepGraph wrappedStepGraph = (CompilationStepGraph) new CompilationStepGraph()
-        .addExecution(new DropIndexes().withSpaceId(spaceId).withSpaceDeactivation(true)) //Drop all existing indices
+        .addExecution(new DropIndexes().withSpaceId(spaceId).withSpaceDeactivation(true).withIndexWhiteList(keepIndices)) //Drop existing indices
         .addExecution(stepExecution)
         //NOTE: Create *all* indices in parallel, make sure to (at least) keep the viz-index sequential #postgres-issue-with-partitions
+        //No need to filter out indices from "keepIndices" as create index query checks for "IF NOT EXISTS"
         .addExecution(new CompilationStepGraph() //Create all the base indices semi-parallel
             .addExecution(new CompilationStepGraph().withExecutions(toSequentialSteps(spaceId, indexTasks.get(0))))
             .addExecution(new CompilationStepGraph().withExecutions(toSequentialSteps(spaceId, indexTasks.get(1))))
