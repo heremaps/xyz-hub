@@ -249,7 +249,7 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
 
       return List.of(
           new Load().withResource(dbReader()).withEstimatedVirtualUnits(overallNeededAcus),
-          new Load().withResource(IOResource.getInstance()).withEstimatedVirtualUnits(getUncompressedUploadBytesEstimation()));
+          new Load().withResource(IOResource.getInstance()).withEstimatedVirtualUnits(statistics.getDataSize().getValue()));
     }
     catch (WebClientException e) {
       throw new StepException("Error calculating the necessary resources for the step.", e);
