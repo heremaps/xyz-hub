@@ -38,7 +38,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -51,17 +50,17 @@ public class DropIndexes extends SpaceBasedStep<DropIndexes> {
 
     private boolean spaceDeactivation = true;
     //If not set, the step will drop all indexes of the space.
-    private List<OnDemandIndex> indexWhiteList;
+    private List<Index> indexWhiteList;
 
-    public List<OnDemandIndex> getIndexWhiteList() {
+    public List<Index> getIndexWhiteList() {
         return indexWhiteList;
     }
 
-    public void setIndexWhiteList(List<OnDemandIndex> indexWhiteList) {
+    public void setIndexWhiteList(List<Index> indexWhiteList) {
         this.indexWhiteList = indexWhiteList;
     }
 
-    public DropIndexes withIndexWhiteList(List<OnDemandIndex> indexWhiteList) {
+    public DropIndexes withIndexWhiteList(List<Index> indexWhiteList) {
         setIndexWhiteList(indexWhiteList);
         return this;
     }
@@ -135,21 +134,11 @@ public class DropIndexes extends SpaceBasedStep<DropIndexes> {
             }
             String rootTableName = getRootTableName(space());
 
+            //List of all index names excluding whitelisted indexes
+            //This will drop all the indexes (system and on-demand) except for the white-listed ones
             List<String> idxNames = indexes.stream()
-                    .map(index -> {
-                        if (index instanceof OnDemandIndex onDemandIndex) {
-                            if (getIndexWhiteList() != null) {
-                                if(getIndexWhiteList().stream()
-                                        .anyMatch(whitelisted -> Objects.equals(whitelisted.getPropertyPath(), onDemandIndex.getPropertyPath())))
-                                    return null; // Skip this index as it is in the whitelist
-                            }
-                            return index.getIndexName();
-                        }
-                        else if (index instanceof SystemIndex && getIndexWhiteList() == null)
-                            return index.getIndexName(rootTableName);
-                        return null;
-                    })
-                    .filter(Objects::nonNull)
+                    .filter(index -> indexWhiteList == null || indexWhiteList.stream().noneMatch(excludedIndex -> isSameIndex(index, excludedIndex)))
+                    .map(index -> index instanceof SystemIndex ? index.getIndexName(rootTableName) : index.getIndexName())
                     .toList();
             if(idxNames.isEmpty()) {
                 noIndicesPresent();
@@ -187,5 +176,13 @@ public class DropIndexes extends SpaceBasedStep<DropIndexes> {
     private void noIndicesPresent() {
         logger.info("[{}] No Indices got found for space {}", getGlobalStepId(), getSpaceId());
         noIndicesFound = true;
+    }
+
+    private boolean isSameIndex(Index index1, Index index2) {
+        if(index1 instanceof SystemIndex systemIndex1 && index2 instanceof SystemIndex systemIndex2)
+            return systemIndex1 == systemIndex2;
+        if(index1 instanceof OnDemandIndex onDemandIndex1 && index2 instanceof OnDemandIndex onDemandIndex2)
+            return onDemandIndex1.getPropertyPath().equals(onDemandIndex2.getPropertyPath());
+        return false;
     }
 }

@@ -127,6 +127,10 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   @JsonView({Internal.class, Static.class})
   private boolean enableQuickValidation = true;
 
+  //Compilers can decide max allowed import size. Set default to 10G for normal use-case
+  @JsonIgnore
+  private long maxInputBytesForNonEmptyImport = 10l * 1024 * 1024 * 1024;
+
   {
     setOutputSets(List.of(new OutputSet(STATISTICS, USER, true)));
   }
@@ -207,6 +211,19 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
   public boolean isEnableQuickValidation() {
     return enableQuickValidation;
+  }
+
+  public long getMaxInputBytesForNonEmptyImport() {
+    return maxInputBytesForNonEmptyImport;
+  }
+
+  public void setMaxInputBytesForNonEmptyImport(long maxInputBytesForNonEmptyImport) {
+    this.maxInputBytesForNonEmptyImport = maxInputBytesForNonEmptyImport;
+  }
+
+  public ImportFilesToSpace withMaxInputBytesForNonEmptyImport(long maxInputBytesForNonEmptyImport) {
+    setMaxInputBytesForNonEmptyImport(maxInputBytesForNonEmptyImport);
+    return this;
   }
 
   public boolean keepIndices() {
@@ -318,9 +335,9 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       if (entityPerLine == FeatureCollection && format == CSV_JSON_WKB)
         throw new ValidationException("Combination of entityPerLine 'FeatureCollection' and type 'Csv' is not supported!");
 
-      if (loadTargetSpaceFeatureCount() > 0 && getUncompressedUploadBytesEstimation() > MAX_INPUT_BYTES_FOR_NON_EMPTY_IMPORT)
+      if (loadTargetSpaceFeatureCount() > 0 && getUncompressedUploadBytesEstimation() > getMaxInputBytesForNonEmptyImport())
         throw new ValidationException("An import into a non empty space is not possible. "
-            + "The uncompressed size of the provided files exceeds the limit of " + MAX_INPUT_BYTES_FOR_NON_EMPTY_IMPORT + " bytes.");
+            + "The uncompressed size of the provided files exceeds the limit of " + getMaxInputBytesForNonEmptyImport() + " bytes.");
     }
     catch (WebClientException e) {
       throw new ValidationException("Error loading resource " + getSpaceId(), e);
@@ -572,7 +589,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   }
 
   private SQLQuery buildCreateImportTrigger(String targetAuthor, long newVersion) throws WebClientException {
-    if (loadTargetSpaceFeatureCount() <= 0)
+    if (loadTargetSpaceFeatureCount() <= 0 && space().getExtension() != null)
       return buildCreateImportTriggerForEmptyLayer(targetAuthor, newVersion);
     return buildCreateImportTriggerForNonEmptyLayer(targetAuthor, newVersion);
   }
