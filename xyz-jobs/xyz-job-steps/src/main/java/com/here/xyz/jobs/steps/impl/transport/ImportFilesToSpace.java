@@ -90,7 +90,6 @@ import org.locationtech.jts.io.ParseException;
  */
 public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
-  private static final long MAX_INPUT_BYTES_FOR_NON_EMPTY_IMPORT = 10l * 1024 * 1024 * 1024;
   private static final long MAX_INPUT_BYTES_FOR_SYNC_IMPORT = 100l * 1024 * 1024;
   private static final long MAX_INPUT_BYTES_FOR_KEEP_INDICES = 1l * 1024 * 1024 * 1024;
   private static final int MIN_FEATURE_COUNT_IN_TARGET_TABLE_FOR_KEEP_INDICES = 5_000_000;

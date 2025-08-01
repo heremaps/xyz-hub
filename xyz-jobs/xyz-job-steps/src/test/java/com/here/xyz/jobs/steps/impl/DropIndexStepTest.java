@@ -21,8 +21,10 @@ package com.here.xyz.jobs.steps.impl;
 
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
 import com.here.xyz.models.hub.Space;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper.SystemIndex;
+import com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper.OnDemandIndex;
+import com.here.xyz.util.db.pg.XyzSpaceTableHelper.SystemIndex;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Assertions;
@@ -98,14 +100,16 @@ public class DropIndexStepTest extends StepTest {
     //recreate space without on-demandindices
     createTestSpace(false);
 
+    List<Index> whiteListIndexes = new ArrayList<>(List.of(SystemIndex.values()));
+    whiteListIndexes.add(new OnDemandIndex().withPropertyPath("foo1"));
     LambdaBasedStep step = new DropIndexes()
             .withSpaceId(SPACE_ID)
             .withSpaceDeactivation(false)
-            .withIndexWhiteList(List.of(new OnDemandIndex().withPropertyPath("foo1")));
+            .withIndexWhiteList(whiteListIndexes);
     sendLambdaStepRequestBlock(step, true);
 
-    Assertions.assertTrue(getOnDemandIndices(SPACE_ID).isEmpty(), "no indexes should remain");
-    Assertions.assertTrue(getSystemIndices(SPACE_ID).isEmpty(),"no indexes should remain");
+    Assertions.assertTrue(getOnDemandIndices(SPACE_ID).isEmpty(), "only system indices should remain");
+    Assertions.assertFalse(getSystemIndices(SPACE_ID).isEmpty(),"system indices should remain");
   }
 
   private void createTestSpace(boolean withOnDemandIndices) {
