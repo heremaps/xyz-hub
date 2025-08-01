@@ -264,6 +264,8 @@ public class Script {
 
   private String readResource(String resourceLocation) throws IOException {
     InputStream is = getClass().getResourceAsStream(resourceLocation);
+    if (is == null)
+      throw new RuntimeException("Unable to install script " + getScriptName() + ". Resource not found: " + resourceLocation);
     try (BufferedReader buffer = new BufferedReader(new InputStreamReader(is))) {
       return buffer.lines().collect(Collectors.joining("\n"));
     }
