@@ -43,6 +43,8 @@ import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.LineString;
 import com.here.xyz.models.geojson.implementation.Point;
+import io.restassured.response.ValidatableResponse;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.After;
 import org.junit.Before;
@@ -440,12 +442,27 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
 
   @Test
   public void updateFeatureById_putNonModified() {
-    storeNonModified();
-    storeNonModified();
+    String featureCollectionPrefix = "features[0].";
+    String xyzNsPath = "properties.'@ns:com:here:xyz'";
+    String createdAtPath = xyzNsPath + ".createdAt";
+    String updatedAtPath = xyzNsPath + ".updatedAt";
+
+    Map xyzNs = storeNonModified()
+        .body(featureCollectionPrefix + createdAtPath, notNullValue())
+        .body(featureCollectionPrefix + updatedAtPath, notNullValue())
+        .extract().path(featureCollectionPrefix + xyzNsPath);
+
+    checkNonModified(xyzNs, xyzNsPath);
+
+    storeNonModified()
+        .body(featureCollectionPrefix + createdAtPath, notNullValue())
+        .body(featureCollectionPrefix + updatedAtPath, notNullValue());
+
+    checkNonModified(xyzNs, xyzNsPath);
   }
 
-  private static void storeNonModified() {
-    given()
+  private ValidatableResponse storeNonModified() {
+    return given()
         .accept(APPLICATION_GEO_JSON)
         .contentType(APPLICATION_GEO_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
@@ -453,8 +470,16 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
         .when()
         .put(getSpacesPath() + "/x-psql-test/features")
         .then()
-        .statusCode(OK.code())
-        .body("features[0].properties.'@ns:com:here:xyz'.createdAt", notNullValue());
+        .statusCode(OK.code());
   }
 
+  private ValidatableResponse checkNonModified(Map expectedXyzNs, String xyzNsPath) {
+    long createdAt = (long) expectedXyzNs.get("createdAt");
+    long updatedAt = (long) expectedXyzNs.get("updatedAt");
+
+    return getFeature(getSpaceId(), "A")
+        .body(xyzNsPath + ".createdAt", equalTo(createdAt))
+        .body(xyzNsPath + ".updatedAt", equalTo(updatedAt))
+        .body(xyzNsPath + ".version", equalTo(2));
+  }
 }

@@ -332,7 +332,7 @@ class FeatureWriter {
           return null;
 
         let execution = this._upsertRow(execution => {
-          if (execution.action != ExecutionAction.UPDATED && this.onNotExists == "ERROR")
+          if (execution?.action != ExecutionAction.UPDATED && this.onNotExists == "ERROR")
             this._throwFeatureNotExistsError();
           return execution;
         });
@@ -814,7 +814,8 @@ class FeatureWriter {
     if (execution != null) {
       if (execution.action != ExecutionAction.DELETED)
         result.features.push(execution.feature);
-      result[execution.action].push(execution.feature.id);
+      if (execution.action != ExecutionAction.NONE)
+        result[execution.action].push(execution.feature.id);
     }
   }
 
@@ -852,6 +853,7 @@ class ExecutionAction {
   static INSERTED = "inserted";
   static UPDATED = "updated";
   static DELETED = "deleted";
+  static NONE = "none"; //To choose if no change was executed, but the feature should be still part of the result (e.g., for features for which an update was requested but the content was not differing from the existing version)
 
   static fromOperation = {
     "I": this.INSERTED,
