@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -45,7 +45,6 @@ Once refactoring is complete, all members of SearchForFeaturesEvent can be pulle
 can be renamed to SearchForFeaturesEvent again.
  */
 public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzResponse> extends GetFeatures<E, R> {
-  protected boolean hasSearch;
   private SearchForFeaturesEvent tmpEvent; //TODO: Remove after refactoring
 
   public SearchForFeatures(E event) throws SQLException, ErrorResponseException {
@@ -80,7 +79,6 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
 
   protected SQLQuery buildSearchFragment(E event) {
     final SQLQuery searchQuery = generateSearchQuery(event);
-    hasSearch = searchQuery != null;
     return searchQuery;
   }
 
