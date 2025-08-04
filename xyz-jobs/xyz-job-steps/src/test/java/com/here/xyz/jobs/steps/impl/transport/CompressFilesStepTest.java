@@ -32,6 +32,7 @@ import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.jobs.util.S3Client;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -533,6 +534,133 @@ public class CompressFilesStepTest extends StepTest {
     String originalPath = "files";
     String result = compressFiles.unwrapPath(originalPath);
     Assertions.assertEquals(null, result);
+  }
+
+  @Test
+  public void testNewlineHandlingInSplitAndAddInputToZip() throws Exception {
+    // Use reflection to change the MIN_DESIRED_CONTAINED_FILESIZE value
+    Field minDesiredSizeField = CompressFiles.class.getDeclaredField("MIN_DESIRED_CONTAINED_FILESIZE");
+    minDesiredSizeField.setAccessible(true);
+
+    String fileContent = "Line1\nLine2\nLine3";
+    byte[] fileBytes = fileContent.getBytes();
+    uploadInputFile(JOB_ID, fileBytes, APPLICATION_JSON);
+
+    CompressFiles step = new CompressFiles()
+        .withDesiredContainedFilesize(10)
+        .withJobId(JOB_ID)
+        .withOutputSetVisibility(COMPRESSED_DATA, USER)
+        .withInputSets(List.of(USER_INPUTS.get()));
+
+    // set to a smaller value for testing
+    minDesiredSizeField.setInt(step, 1);
+
+    sendLambdaStepRequestBlock(step, true);
+
+    List<Output> testOutputs = step.loadUserOutputs();
+    Assertions.assertEquals(1, testOutputs.size());
+
+    byte[] archiveBytes = S3Client.getInstance().loadObjectContent(testOutputs.get(0).getS3Key());
+
+    List<String> zipEntries = getZipContents(archiveBytes);
+    Assertions.assertTrue(zipEntries.size() > 1);
+
+    int totalContentLength = 0;
+    try (ZipInputStream zipInputStream = new ZipInputStream(new ByteArrayInputStream(archiveBytes))) {
+      while (zipInputStream.getNextEntry() != null) {
+        byte[] content = zipInputStream.readAllBytes();
+        totalContentLength += content.length;
+      }
+    }
+
+    int expectedMinLength = fileBytes.length;
+    Assertions.assertTrue(totalContentLength >= expectedMinLength);
+  }
+
+  @Test
+  public void testCorrectNewlineByteCount() throws Exception {
+    String line = "This is a test line";
+    StringBuilder content = new StringBuilder();
+    int lineCount = 5;
+
+    for (int i = 0; i < lineCount; i++) {
+      if (i > 0) {
+        content.append("\n");
+      }
+      content.append(line);
+    }
+
+    byte[] fileBytes = content.toString().getBytes();
+    uploadInputFile(JOB_ID, fileBytes, APPLICATION_JSON);
+
+    CompressFiles step = new CompressFiles()
+        .withDesiredContainedFilesize(1024 * 1024)
+        .withJobId(JOB_ID)
+        .withOutputSetVisibility(COMPRESSED_DATA, USER)
+        .withInputSets(List.of(USER_INPUTS.get()));
+
+    sendLambdaStepRequestBlock(step, true);
+
+    List<Output> testOutputs = step.loadUserOutputs();
+    Assertions.assertEquals(1, testOutputs.size());
+
+    byte[] archiveBytes = S3Client.getInstance().loadObjectContent(testOutputs.get(0).getS3Key());
+
+    int actualSize = 0;
+    try (ZipInputStream zipInputStream = new ZipInputStream(new ByteArrayInputStream(archiveBytes))) {
+      while (zipInputStream.getNextEntry() != null) {
+        byte[] extractedContent = zipInputStream.readAllBytes();
+        actualSize += extractedContent.length;
+      }
+    }
+
+    Assertions.assertTrue(actualSize >= fileBytes.length);
+  }
+
+  @Test
+  public void testBytesWrittenCalculationWithNewlines() throws Exception {
+    // Use reflection to change the MIN_DESIRED_CONTAINED_FILESIZE value
+    Field minDesiredSizeField = CompressFiles.class.getDeclaredField("MIN_DESIRED_CONTAINED_FILESIZE");
+    minDesiredSizeField.setAccessible(true);
+
+    String line1 = "A";
+    String line2 = "BB";
+    String line3 = "CCC";
+    String fileContent = line1 + "\n" + line2 + "\n" + line3;
+
+    byte[] fileBytes = fileContent.getBytes();
+    Assertions.assertEquals(8, fileBytes.length);
+
+    uploadInputFile(JOB_ID, fileBytes, APPLICATION_JSON);
+
+    CompressFiles step = new CompressFiles()
+        .withDesiredContainedFilesize(3)
+        .withJobId(JOB_ID)
+        .withOutputSetVisibility(COMPRESSED_DATA, USER)
+        .withInputSets(List.of(USER_INPUTS.get()));
+
+    // set to a smaller value for testing
+    minDesiredSizeField.setInt(step, 1);
+
+    sendLambdaStepRequestBlock(step, true);
+
+    List<Output> testOutputs = step.loadUserOutputs();
+    Assertions.assertEquals(1, testOutputs.size());
+
+    byte[] archiveBytes = S3Client.getInstance().loadObjectContent(testOutputs.get(0).getS3Key());
+
+    List<String> zipEntries = getZipContents(archiveBytes);
+    Assertions.assertTrue(zipEntries.size() >= 2);
+
+    List<byte[]> extractedContents = new ArrayList<>();
+    try (ZipInputStream zipInputStream = new ZipInputStream(new ByteArrayInputStream(archiveBytes))) {
+      while (zipInputStream.getNextEntry() != null) {
+        extractedContents.add(zipInputStream.readAllBytes());
+      }
+    }
+
+    int totalExtractedSize = extractedContents.stream().mapToInt(arr -> arr.length).sum();
+    Assertions.assertTrue(totalExtractedSize >= fileBytes.length);
   }
 
   private List<String> getZipContents(byte[] zipBytes) throws Exception {

@@ -22,8 +22,6 @@ package com.here.xyz.jobs.steps.impl.transport;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.util.db.SQLQuery;
-import java.util.HashMap;
-import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -42,27 +40,6 @@ public class TransportTools {
     return new SQLQuery("DROP TABLE IF EXISTS ${schema}.${table};")
         .withVariable("table", tableName)
         .withVariable("schema", schema);
-  }
-
-  protected static Map<String, Object> createQueryContext(String stepId, String schema, String table,
-      boolean historyEnabled, String superTable) {
-
-    Map<String, Object> queryContext = new HashMap<>(Map.of(
-        "stepId", stepId,
-        "schema", schema,
-        "table", table,
-        "historyEnabled", historyEnabled,
-        "batchMode", true
-    ));
-
-    if (superTable == null)
-      queryContext.put("context", null);
-    else {
-      queryContext.put("context", "DEFAULT");
-      queryContext.put("extendedTable", superTable);
-    }
-
-    return queryContext;
   }
 
   //TODO: Introduce proper logging methods at parent Step class level
