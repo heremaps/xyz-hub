@@ -618,7 +618,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
              ${{onMergeConflict}},
              ${{historyEnabled}},
              ${{context}},
-             ${{tables}},
+             '${{tables}}',
              '${{format}}',
              '${{entityPerLine}}'
              )
@@ -633,7 +633,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
             updateStrategy.onMergeConflict() == null ? "NULL" : "'" + updateStrategy.onMergeConflict() + "'")
         .withQueryFragment("historyEnabled", "" + (space().getVersionsToKeep() > 1))
         .withQueryFragment("context", superTable == null ? "NULL" : "'DEFAULT'")
-        .withQueryFragment("tables", String.join(",", tables.stream().map(table -> "'" + table + "'").toList()))
+        .withQueryFragment("tables", String.join(",", tables))
         .withQueryFragment("format", format.toString())
         .withQueryFragment("entityPerLine", entityPerLine.toString())
         .withVariable("schema", getSchema(db()))
