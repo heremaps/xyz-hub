@@ -377,6 +377,8 @@ public class Script {
   }
 
   private void batchDeleteFunctions(List<String> functionSignatures) throws SQLException {
+    if (functionSignatures.isEmpty())
+      return;
     SQLQuery.batchOf(buildDeleteFunctionQueries(functionSignatures))
         .writeBatch(dataSourceProvider);
   }
@@ -411,13 +413,13 @@ public class Script {
         try {
           uninstall(scriptVersion);
         }
-        catch (SQLException | IllegalStateException e) {
+        catch (Exception e) {
           logger.error("Unable to uninstall script version {}:{} on DB {} during script version cleanup.", getScriptName(),
               scriptVersion, getDbId(), e);
         }
       }
     }
-    catch (SQLException e) {
+    catch (Exception e) {
       logger.error("Unable to cleanup old script versions of script {} on DB {}.", getScriptName(), getDbId(), e);
     }
   }
