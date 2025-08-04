@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -86,15 +86,13 @@ public class ChangesetApi extends SpaceBasedApi {
     long version = getVersionFromPathParam(context);
     IterateChangesetsEvent event = buildIterateChangesetsEvent(context, version, version);
     //TODO: Add static caching to this endpoint, once the execution pipelines have been refactored.
-    SpaceConnectorBasedHandler.<IterateChangesetsEvent,ChangesetCollection>execute(getMarker(context),
+    SpaceConnectorBasedHandler.<IterateChangesetsEvent, ChangesetCollection>execute(getMarker(context),
             space -> Authorization.authorizeManageSpacesRights(context, space.getId(), space.getOwner()).map(space), event)
-        .onSuccess(result -> {
-            ChangesetCollection changesets = (ChangesetCollection) result;
-            if (changesets.getVersions().isEmpty())
-             sendErrorResponse(context, new DetailedHttpException("E318443", Map.of("version", String.valueOf(version))));
-            else
-             sendResponse(context, changesets.getVersions().get(version).withNextPageToken(changesets.getNextPageToken()));
-
+        .onSuccess(changesets -> {
+          if (changesets.getVersions().isEmpty())
+            sendErrorResponse(context, new HttpException(NOT_FOUND, "No changeset was found for version " + version));
+          else
+            sendResponse(context, changesets.getVersions().get(version).withNextPageToken(changesets.getNextPageToken()));
         })
         .onFailure(t -> sendErrorResponse(context, t));
   }
@@ -164,7 +162,7 @@ public class ChangesetApi extends SpaceBasedApi {
         .withSpace(getSpaceId(context))
         .withStartVersion(startVersion)
         .withEndVersion(endVersion)
-        .withPageToken(pageToken)
+        .withNextPageToken(pageToken)
         .withLimit(limit);
   }
 

@@ -101,10 +101,10 @@ public abstract class StorageConnector extends AbstractConnectorHandler {
         return processPutBlobTileEvent(putBlobTileEvent);
       if (event instanceof GetFeaturesByBBoxEvent)
         return processGetFeaturesByBBoxEvent((GetFeaturesByBBoxEvent) event);
-      if (event instanceof IterateFeaturesEvent)
-        return processIterateFeaturesEvent((IterateFeaturesEvent) event);
       if (event instanceof IterateChangesetsEvent)
         return processIterateChangesetsEvent((IterateChangesetsEvent) event);
+      if (event instanceof IterateFeaturesEvent)
+        return processIterateFeaturesEvent((IterateFeaturesEvent) event);
       if (event instanceof GetChangesetStatisticsEvent)
         return processGetChangesetsStatisticsEvent((GetChangesetStatisticsEvent) event);
       if (event instanceof SearchForFeaturesEvent)

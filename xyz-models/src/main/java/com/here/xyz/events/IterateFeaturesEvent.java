@@ -24,7 +24,7 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "IterateFeaturesEvent")
-public final class IterateFeaturesEvent extends SearchForFeaturesEvent<IterateFeaturesEvent> {
+public class IterateFeaturesEvent<T extends IterateFeaturesEvent> extends SearchForFeaturesEvent<T> {
 
   private String nextPageToken;
 
@@ -39,8 +39,8 @@ public final class IterateFeaturesEvent extends SearchForFeaturesEvent<IterateFe
   }
 
   @SuppressWarnings("unused")
-  public IterateFeaturesEvent withNextPageToken(String nextPageToken) {
+  public T withNextPageToken(String nextPageToken) {
     setNextPageToken(nextPageToken);
-    return this;
+    return (T) this;
   }
 }
