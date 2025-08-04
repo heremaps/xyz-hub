@@ -140,12 +140,12 @@ public class FeatureQueryApi extends SpaceBasedApi {
       final SpaceContext spaceContext = getSpaceContext(context);
       final Ref ref = getRef(context);
 
-      IterateFeaturesEvent event = new IterateFeaturesEvent()
+      IterateFeaturesEvent event = (IterateFeaturesEvent) new IterateFeaturesEvent()
+          .withNextPageToken(Query.getString(context, Query.HANDLE, null)) //TODO: Rename query param to nextPageToken!
           .withLimit(getLimit(context))
           .withForce2D(force2D)
           .withSelection(Query.getSelection(context))
           .withRef(ref)
-          .withNextPageToken(Query.getString(context, Query.HANDLE, null)) //TODO: Rename to nextPageToken!
           .withContext(spaceContext);
 
       final IterateQuery task = new IterateQuery(event, context, ApiResponseType.FEATURE_COLLECTION, skipCache);

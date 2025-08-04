@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,14 +25,11 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "IterateChangesetsEvent")
-public final class IterateChangesetsEvent extends SearchForFeaturesEvent<IterateChangesetsEvent> {
-  private String pageToken;
+public final class IterateChangesetsEvent extends IterateFeaturesEvent<IterateChangesetsEvent> {
   @JsonInclude(JsonInclude.Include.NON_DEFAULT)
   private long startVersion;
   @JsonInclude(JsonInclude.Include.NON_DEFAULT)
   private long endVersion = -1;
-
-  private int versionsToKeep;
 
   public long getStartVersion() {
     return startVersion;
@@ -57,35 +54,6 @@ public final class IterateChangesetsEvent extends SearchForFeaturesEvent<Iterate
 
   public IterateChangesetsEvent withEndVersion(long endVersion) {
     setEndVersion(endVersion);
-    return this;
-  }
-
-  @SuppressWarnings("unused")
-  public String getPageToken() {
-    return pageToken;
-  }
-
-  @SuppressWarnings("WeakerAccess")
-  public void setPageToken(String pageToken) {
-    this.pageToken = pageToken;
-  }
-
-  @SuppressWarnings("unused")
-  public IterateChangesetsEvent withPageToken(String pageToken) {
-    setPageToken(pageToken);
-    return this;
-  }
-
-  public int getVersionsToKeep() {
-    return versionsToKeep;
-  }
-
-  public void setVersionsToKeep(int versionsToKeep) {
-    this.versionsToKeep = versionsToKeep;
-  }
-
-  public IterateChangesetsEvent withVersionsToKeep(int setVersionsToKeep) {
-    setVersionsToKeep(versionsToKeep);
     return this;
   }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -51,7 +51,7 @@ public class PSQLResponseSizeIT extends PSQLAbstractIT {
 
   @Test
   public void testMaxConnectorResponseSize() throws Exception {
-    final IterateFeaturesEvent iter = new IterateFeaturesEvent()
+    final IterateFeaturesEvent iter = (IterateFeaturesEvent) new IterateFeaturesEvent()
         .withSpace(TEST_SPACE_ID);
 
     Typed result = XyzSerializable.deserialize(invokeLambda(iter
