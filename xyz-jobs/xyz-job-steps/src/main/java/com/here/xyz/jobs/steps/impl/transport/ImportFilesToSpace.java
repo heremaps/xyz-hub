@@ -698,6 +698,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   }
 
   private SQLQuery buildFeatureWriterQuery(String featureList, long targetVersion) throws WebClientException, JsonProcessingException {
+    Map<String, Object> queryContext = getQueryContext();
     return new SQLQuery("SELECT (write_features::JSONB->>'count')::INT AS count FROM ${{writeFeaturesQuery}};")
         .withQueryFragment("writeFeaturesQuery", new FeatureWriterQueryBuilder()
             .withInput(featureList, "Features")
@@ -706,8 +707,9 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
             .withVersion(targetVersion)
             .withUpdateStrategy(updateStrategy)
             .withIsPartial(false)
-            .withQueryContext(getQueryContext())
-            .build());
+            .withQueryContext(queryContext)
+            .build())
+        .withContext(queryContext); //TODO: That is a temporary workaround for a bug with ignored query contexts of nested queries
   }
 
   private SQLQuery buildProgressQuery(String schema, ImportFilesToSpace step) {
