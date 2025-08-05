@@ -23,6 +23,9 @@ import static com.here.xyz.jobs.steps.Step.InputSet.USER_INPUTS;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.CSV_GEOJSON;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.CSV_JSON_WKB;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.GEOJSON;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SystemIndex.NEXT_VERSION;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SystemIndex.OPERATION;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SystemIndex.VERSION_ID;
 
 import com.google.common.collect.Lists;
 import com.here.xyz.jobs.Job;
@@ -137,7 +140,13 @@ public class ImportFromFiles implements JobCompilationInterceptor {
   }
 
   public static CompilationStepGraph compileImportSteps(ImportFilesToSpace importFilesStep) {
-    return compileWrapWithDropRecreateIndices(importFilesStep.getSpaceId(),importFilesStep );
+    try {
+      //Keep these indices if FeatureWriter is used
+      List<Index> whiteListIndex = importFilesStep.useFeatureWriter() ? List.of(VERSION_ID, NEXT_VERSION, OPERATION) : null;
+      return compileWrapWithDropRecreateIndices(importFilesStep.getSpaceId(), importFilesStep, whiteListIndex);
+    } catch (WebClientException e) {
+      throw new CompilationError("Unexpected error occurred during compilation", e);
+    }
   }
 
   private EntityPerLine getEntityPerLine(FileFormat format) {
