@@ -143,17 +143,7 @@ public class Script {
   private void install(String targetSchema, boolean deleteBefore) throws SQLException, IOException {
     logger.info("Installing script {} on DB {} into schema {} ...", getScriptName(), getDbId(), targetSchema);
 
-    SQLQuery scriptContent = new SQLQuery("${{scriptContent}}")
-        .withQueryFragment("scriptContent", loadScriptContent());
-
-    //Load JS-scripts to be injected
-    for (Script jsScript : loadJsScripts(getScriptResourceFolder())) {
-      String relativeJsScriptPath = jsScript.getScriptResourceFolder().substring(getScriptResourceFolder().length());
-      scriptContent
-          .withQueryFragment(relativeJsScriptPath + jsScript.getScriptName(), jsScript.loadScriptContent())
-          .withQueryFragment("./" + relativeJsScriptPath + jsScript.getScriptName(), jsScript.loadScriptContent());
-    }
-
+    SQLQuery scriptContent = loadSubstitutedScriptContent();
     List<SQLQuery> installationQueries = new ArrayList<>();
     if (deleteBefore) {
       //TODO: Remove following workaround once "drop schema cascade"-bug creating orphaned functions is fixed in postgres
@@ -259,7 +249,7 @@ public class Script {
   }
 
   private String getHash() throws IOException {
-    return Hasher.getHash(loadScriptContent());
+    return Hasher.getHash(loadSubstitutedScriptContent().withLabelsEnabled(false).toExecutableQueryString());
   }
 
   private String readResource(String resourceLocation) throws IOException {
@@ -316,6 +306,20 @@ public class Script {
   private String loadScriptContent() throws IOException {
     if (scriptContent == null)
       scriptContent = readResource(scriptResourceLocation);
+    return scriptContent;
+  }
+
+  private SQLQuery loadSubstitutedScriptContent() throws IOException {
+    SQLQuery scriptContent = new SQLQuery("${{scriptContent}}")
+        .withQueryFragment("scriptContent", loadScriptContent());
+
+    //Load JS-scripts to be injected
+    for (Script jsScript : loadJsScripts(getScriptResourceFolder())) {
+      String relativeJsScriptPath = jsScript.getScriptResourceFolder().substring(getScriptResourceFolder().length());
+      scriptContent
+          .withQueryFragment(relativeJsScriptPath + jsScript.getScriptName(), jsScript.loadScriptContent())
+          .withQueryFragment("./" + relativeJsScriptPath + jsScript.getScriptName(), jsScript.loadScriptContent());
+    }
     return scriptContent;
   }
 
