@@ -634,7 +634,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
              ${{onMergeConflict}},
              ${{historyEnabled}},
              ${{context}},
-             ${{tables}},
+             '${{tables}}',
              '${{format}}',
              '${{entityPerLine}}'
              )
@@ -649,7 +649,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
             updateStrategy.onMergeConflict() == null ? "NULL" : "'" + updateStrategy.onMergeConflict() + "'")
         .withQueryFragment("historyEnabled", "" + (space().getVersionsToKeep() > 1))
         .withQueryFragment("context", superTable == null ? "NULL" : "'DEFAULT'")
-        .withQueryFragment("tables", String.join(",", tables.stream().map(table -> "'" + table + "'").toList()))
+        .withQueryFragment("tables", String.join(",", tables))
         .withQueryFragment("format", format.toString())
         .withQueryFragment("entityPerLine", entityPerLine.toString())
         .withVariable("schema", getSchema(db()))
@@ -714,6 +714,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   }
 
   private SQLQuery buildFeatureWriterQuery(String featureList, long targetVersion) throws WebClientException, JsonProcessingException {
+    Map<String, Object> queryContext = getQueryContext();
     return new SQLQuery("SELECT (write_features::JSONB->>'count')::INT AS count FROM ${{writeFeaturesQuery}};")
         .withQueryFragment("writeFeaturesQuery", new FeatureWriterQueryBuilder()
             .withInput(featureList, "Features")
@@ -722,8 +723,9 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
             .withVersion(targetVersion)
             .withUpdateStrategy(updateStrategy)
             .withIsPartial(false)
-            .withQueryContext(getQueryContext())
-            .build());
+            .withQueryContext(queryContext)
+            .build())
+        .withContext(queryContext); //TODO: That is a temporary workaround for a bug with ignored query contexts of nested queries
   }
 
   private SQLQuery buildProgressQuery(String schema, ImportFilesToSpace step) {

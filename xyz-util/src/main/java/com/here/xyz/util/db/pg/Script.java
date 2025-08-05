@@ -264,6 +264,8 @@ public class Script {
 
   private String readResource(String resourceLocation) throws IOException {
     InputStream is = getClass().getResourceAsStream(resourceLocation);
+    if (is == null)
+      throw new RuntimeException("Unable to install script " + getScriptName() + ". Resource not found: " + resourceLocation);
     try (BufferedReader buffer = new BufferedReader(new InputStreamReader(is))) {
       return buffer.lines().collect(Collectors.joining("\n"));
     }
@@ -375,6 +377,8 @@ public class Script {
   }
 
   private void batchDeleteFunctions(List<String> functionSignatures) throws SQLException {
+    if (functionSignatures.isEmpty())
+      return;
     SQLQuery.batchOf(buildDeleteFunctionQueries(functionSignatures))
         .writeBatch(dataSourceProvider);
   }
@@ -409,13 +413,13 @@ public class Script {
         try {
           uninstall(scriptVersion);
         }
-        catch (SQLException | IllegalStateException e) {
+        catch (Exception e) {
           logger.error("Unable to uninstall script version {}:{} on DB {} during script version cleanup.", getScriptName(),
               scriptVersion, getDbId(), e);
         }
       }
     }
-    catch (SQLException e) {
+    catch (Exception e) {
       logger.error("Unable to cleanup old script versions of script {} on DB {}.", getScriptName(), getDbId(), e);
     }
   }
