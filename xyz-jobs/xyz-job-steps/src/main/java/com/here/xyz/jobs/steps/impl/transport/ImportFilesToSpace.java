@@ -230,11 +230,20 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
      * The targetSpace needs to have more than MIN_FEATURE_COUNT_IN_TARGET_TABLE_FOR_KEEP_INDICES features
      * Reason: For tables with not that many records in its always faster to remove and recreate indices
      * +
-     * Incoming bytes have to be smaller as MAX_INPUT_BYTES_FOR_KEEP_INDICES
+     * Incoming bytes have to be smaller than MAX_INPUT_BYTES_FOR_KEEP_INDICES
      * Reason: if we write not that much, it's also with indices fast enough
      */
-    return loadTargetSpaceFeatureCount() >= MIN_FEATURE_COUNT_IN_TARGET_TABLE_FOR_KEEP_INDICES
-        && getUncompressedUploadBytesEstimation() <= MAX_INPUT_BYTES_FOR_KEEP_INDICES;
+    return loadTargetSpaceFeatureCount() > MIN_FEATURE_COUNT_IN_TARGET_TABLE_FOR_KEEP_INDICES
+            || getUncompressedUploadBytesEstimation() < MAX_INPUT_BYTES_FOR_KEEP_INDICES;
+  }
+
+  /*
+   * Use FeatureWriter if either is true
+   * - the target space is not empty
+   * - space is composite
+   */
+  public boolean useFeatureWriter() throws WebClientException {
+    return loadTargetSpaceFeatureCount() > 0 || space().getExtension() != null;
   }
 
   private long loadTargetSpaceFeatureCount() {
@@ -588,9 +597,9 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   }
 
   private SQLQuery buildCreateImportTrigger(String targetAuthor, long newVersion) throws WebClientException {
-    if (loadTargetSpaceFeatureCount() <= 0 && space().getExtension() != null)
-      return buildCreateImportTriggerForEmptyLayer(targetAuthor, newVersion);
-    return buildCreateImportTriggerForNonEmptyLayer(targetAuthor, newVersion);
+    if(useFeatureWriter())
+      return buildCreateImportTriggerWithFeatureWriter(targetAuthor, newVersion);
+    return buildCreateImportTriggerForInsertsOnly(targetAuthor, newVersion);
   }
 
   private SQLQuery buildTemporaryTriggerTableBlock(String targetAuthor, long newVersion) throws WebClientException {
@@ -600,7 +609,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     );
   }
 
-  private SQLQuery buildCreateImportTriggerForEmptyLayer(String targetAuthor, long targetSpaceVersion) throws WebClientException {
+  private SQLQuery buildCreateImportTriggerForInsertsOnly(String targetAuthor, long targetSpaceVersion) throws WebClientException {
     String triggerFunction = "import_from_s3_trigger_for_empty_layer";
     triggerFunction += entityPerLine == FeatureCollection ? "_geojsonfc" : "";
 
@@ -615,7 +624,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
         .withVariable("table", getTemporaryTriggerTableName(getId()));
   }
 
-  private SQLQuery buildCreateImportTriggerForNonEmptyLayer(String author, long newVersion) throws WebClientException {
+  private SQLQuery buildCreateImportTriggerWithFeatureWriter(String author, long newVersion) throws WebClientException {
     String triggerFunction = "import_from_s3_trigger_for_non_empty_layer";
     String superTable = space().getExtension() != null ? getRootTableName(superSpace()) : null;
 
