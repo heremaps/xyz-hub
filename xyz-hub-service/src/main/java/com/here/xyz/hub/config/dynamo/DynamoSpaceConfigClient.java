@@ -113,7 +113,7 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
                 new IndexDefinition("region"),
                 new IndexDefinition("type", "contentUpdatedAt")
         );
-        dynamoClient.createTable(spaces.getTableName(), "id:S,owner:S,shared:N,region:S,type:S,contentUpdatedAt:N,extendsFrom:S", "id", indexes, "exp");
+        dynamoClient.createTable(spaces.getTableName(), "id:S,owner:S,shared:N,region:S,type:S,contentUpdatedAt:N,extendsFrom:S,extendsVersion:N", "id", indexes, "exp");
         dynamoClient.createTable(packages.getTableName(), "packageName:S,spaceId:S", "packageName,spaceId", null, null);
       }
       catch (AmazonDynamoDBException e) {
@@ -140,6 +140,16 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
         itemData.put("shared", ((Number) itemData.get("shared")).intValue() == 1);
         //NOTE: The following is a temporary implementation to keep backwards compatibility for non-versioned spaces
         itemData.putIfAbsent("versionsToKeep", 0);
+
+        if (!itemData.containsKey("extends") && itemData.containsKey("extendsFrom")) {
+          Map<String,Object> ext = new HashMap<>();
+          ext.put("spaceId", itemData.get("extendsFrom"));
+          if (itemData.containsKey("extendsVersion")) {
+            ext.put("version", ((Number)itemData.get("extendsVersion")).intValue());
+          }
+          itemData.put("extends", ext);
+        }
+
         final Space space = mapper().convertValue(itemData, Space.class);
         if (space != null)
           logger.info(marker, "Space ID: {} with title: \"{}\" has been decoded", spaceId, space.getTitle());
@@ -176,8 +186,10 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
       itemData.put("shared", space.isShared() ? 1 : 0); //Shared value must be a number because it's also used as index
       itemData.put("type", "SPACE");
 
-      if (space.getExtension() != null && !Strings.isNullOrEmpty(space.getExtension().getSpaceId()))
+      if (space.getExtension() != null && !Strings.isNullOrEmpty(space.getExtension().getSpaceId())) {
         itemData.put("extendsFrom", space.getExtension().getSpaceId());
+        itemData.put("extendsVersion", space.getExtension().getVersion());
+      }
 
       sanitize(itemData);
       spaces.putItem(Item.fromMap(itemData));
