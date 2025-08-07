@@ -52,6 +52,8 @@ import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -78,7 +80,7 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
   private String spaceId;
 
   @JsonIgnore
-  private Map<String, Space> cachedSpaces = new ConcurrentHashMap<>();
+  private Map<SpaceCacheKey, Space> cachedSpaces = new ConcurrentHashMap<>();
 
   @JsonIgnore
   protected Space superSpace;
@@ -221,10 +223,12 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
    * @throws WebClientException
    */
   protected Space space(String spaceId) throws WebClientException {
-    Space space = cachedSpaces.get(spaceId);
-    if (space == null)
-      cachedSpaces.put(spaceId, space = loadSpace(spaceId, false));
-    return space;
+    Space raw = loadSpace(spaceId, false);
+    int version = Optional.ofNullable(raw.getExtension())
+            .map(Space.Extension::getVersion)
+            .orElse(0);
+    SpaceCacheKey key = new SpaceCacheKey(spaceId, version);
+    return cachedSpaces.computeIfAbsent(key, k -> raw);
   }
 
   /**
@@ -267,5 +271,27 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
           .withCode("HTTP-" + e.getStatusCode())
           .withRetryable(true);
     throw e;
+  }
+
+  private static class SpaceCacheKey {
+    private final String spaceId;
+    private final int version;
+
+    public SpaceCacheKey(String spaceId, int version) {
+      this.spaceId = spaceId;
+      this.version = version;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) return true;
+      if (!(o instanceof SpaceCacheKey)) return false;
+      SpaceCacheKey that = (SpaceCacheKey)o;
+      return version == that.version &&
+              Objects.equals(spaceId, that.spaceId);
+    }
+    @Override public int hashCode() {
+      return Objects.hash(spaceId, version);
+    }
   }
 }
