@@ -242,7 +242,7 @@ public class SpaceTaskHandler {
       logger.info(task.getMarker(), "storageId from space template: " + storageId);
 
       if (region != null) {
-        storageId = Service.configuration.getDefaultStorageId(region);
+        storageId = Service.configuration.getDefaultStorageId(region, spaceId);
         logger.info(task.getMarker(), "default storageId from region " + region + ": " + storageId);
 
         if (task.modifyOp.connectorMapping == ConnectorMapping.SPACESTORAGEMATCHINGMAP) {
