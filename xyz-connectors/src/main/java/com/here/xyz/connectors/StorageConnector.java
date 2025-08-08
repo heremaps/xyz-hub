@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 
 package com.here.xyz.connectors;
 
+import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.BINARY;
 import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT;
 import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT_FLATTENED;
 import static com.here.xyz.responses.XyzError.EXCEPTION;
@@ -42,6 +43,7 @@ import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.ModifySubscriptionEvent;
 import com.here.xyz.events.OneTimeActionEvent;
+import com.here.xyz.events.PutBlobTileEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.events.WriteFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
@@ -84,7 +86,7 @@ public abstract class StorageConnector extends AbstractConnectorHandler {
       if (event instanceof GetFeaturesByGeometryEvent)
         return processGetFeaturesByGeometryEvent((GetFeaturesByGeometryEvent) event);
       if (event instanceof GetFeaturesByTileEvent tileEvent) {
-        if (tileEvent.getResponseType() == MVT || tileEvent.getResponseType() == MVT_FLATTENED) {
+        if (tileEvent.getResponseType() == MVT || tileEvent.getResponseType() == MVT_FLATTENED || tileEvent.getResponseType() == BINARY) {
           try {
             return processBinaryGetFeaturesByTileEvent(tileEvent);
           }
@@ -95,6 +97,8 @@ public abstract class StorageConnector extends AbstractConnectorHandler {
         }
         return processGetFeaturesByTileEvent(tileEvent);
       }
+      if (event instanceof PutBlobTileEvent putBlobTileEvent)
+        return processPutBlobTileEvent(putBlobTileEvent);
       if (event instanceof GetFeaturesByBBoxEvent)
         return processGetFeaturesByBBoxEvent((GetFeaturesByBBoxEvent) event);
       if (event instanceof IterateFeaturesEvent)
@@ -175,6 +179,13 @@ public abstract class StorageConnector extends AbstractConnectorHandler {
    * Processes a binary GetFeaturesByTile event.
    */
   protected BinaryResponse processBinaryGetFeaturesByTileEvent(GetFeaturesByTileEvent event) throws Exception {
+    throw new UnsupportedOperationException(event.getClass().getSimpleName() + ": No binary support was implemented.");
+  }
+
+  /**
+   * Processes a binary PutBlobTile event.
+   */
+  protected SuccessResponse processPutBlobTileEvent(PutBlobTileEvent event) throws Exception {
     throw new UnsupportedOperationException(event.getClass().getSimpleName() + ": No binary support was implemented.");
   }
 

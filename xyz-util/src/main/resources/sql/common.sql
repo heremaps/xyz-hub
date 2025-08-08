@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -99,6 +99,18 @@ END
 $BODY$ LANGUAGE plpgsql VOLATILE;
 
 /**
+ * This function is like coalesce() except that it returns the *index* of the first
+ * non-null element within the specified array.
+ */
+CREATE OR REPLACE FUNCTION coalesce_subscript(anyarray) RETURNS integer AS $BODY$
+    SELECT i
+    FROM generate_subscripts($1, 1) AS i
+    WHERE $1[i] IS NOT NULL
+    ORDER BY i
+    LIMIT 1;
+$BODY$ LANGUAGE SQL IMMUTABLE;
+
+/**
  * This function can be used to write logs, if we run in Async mode.
  */
 CREATE OR REPLACE FUNCTION write_log(log_msg text, log_source text, log_level text DEFAULT 'INFO') RETURNS VOID AS
@@ -132,26 +144,26 @@ CREATE OR REPLACE FUNCTION calculate_space_statistics(
 )
 RETURNS TABLE(table_size bigint, table_count bigint, is_estimated boolean, min_version bigint, max_version bigint) AS
 $BODY$
-DECLARE 	
+DECLARE
     count_table bigint :=0;
 	count_ext_table bigint :=0;
 BEGIN
-	IF context NOT IN ('DEFAULT','SUPER','EXTENSION') THEN 
+	IF context NOT IN ('DEFAULT','SUPER','EXTENSION') THEN
 		RAISE EXCEPTION 'Unknown context: %!', context;
 	END IF;
-	
-	IF space_ext_table IS NULL THEN		
+
+	IF space_ext_table IS NULL THEN
 		EXECUTE format(
 		    'SELECT (SELECT COALESCE((meta->>''minAvailableVersion'')::BIGINT,0) FROM xyz_config.space_meta WHERE h_id=%1$L), '
 	            || 'MAX(version), pg_total_relation_size(%2$L) FROM %2$s',
 		    regexp_replace(replace(space_table::text, '"', ''), '_head$', '') , space_table
 		) INTO min_version, max_version, table_size;
-		
+
 		RETURN QUERY SELECT table_size, A.table_count, A.is_estimated, min_version, max_version
 		FROM fetch_table_count(space_table) A;
-	ELSE 
+	ELSE
 		EXECUTE format('SELECT (SELECT COALESCE((meta->>''minAvailableVersion'')::BIGINT,0) FROM xyz_config.space_meta WHERE h_id=%1$L), '
-				|| 'MAX(version), pg_total_relation_size(%2$L) FROM %2$s', 
+				|| 'MAX(version), pg_total_relation_size(%2$L) FROM %2$s',
 			(CASE context
 				WHEN 'SUPER' THEN regexp_replace(replace(space_ext_table::text, '"', ''), '_head$', '')
 				ELSE regexp_replace(replace(space_table::text, '"', ''), '_head$', '')
@@ -160,16 +172,16 @@ BEGIN
 				WHEN 'SUPER' THEN space_ext_table
 				ELSE space_table
 			END)
-		) INTO min_version, max_version, table_size;	
+		) INTO min_version, max_version, table_size;
 
 		CASE context
 		    WHEN 'SUPER' THEN RETURN QUERY SELECT table_size, A.table_count, A.is_estimated, min_version, max_version
 				FROM fetch_table_count(space_ext_table) A;
-		    WHEN 'EXTENSION' THEN RETURN QUERY SELECT table_size, A.table_count, A.is_estimated, min_version, max_version 
+		    WHEN 'EXTENSION' THEN RETURN QUERY SELECT table_size, A.table_count, A.is_estimated, min_version, max_version
 				FROM fetch_table_count(space_table) A;
-		    WHEN 'DEFAULT' THEN 
+		    WHEN 'DEFAULT' THEN
 				table_size = table_size + pg_total_relation_size(space_ext_table);
-				RETURN QUERY 				
+				RETURN QUERY
 					SELECT table_size, SUM(C.table_count)::BIGINT, BOOL_OR(C.is_estimated), min_version, max_version
 					FROM(
 						SELECT A.table_count, A.is_estimated FROM fetch_table_count(space_table) A
@@ -204,7 +216,7 @@ BEGIN
 	ELSE
 		is_estimated = true;
 	END IF;
-	
+
     RETURN NEXT;
 END;
 $BODY$

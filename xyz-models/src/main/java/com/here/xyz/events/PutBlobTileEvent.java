@@ -17,34 +17,22 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.hub.rest;
+package com.here.xyz.events;
 
-/**
- * An enumeration with all responses that should be returned to the client. If the required response type is not available an {@link
- * com.here.xyz.responses.ErrorResponse} should be returned.
- */
-public enum ApiResponseType {
-  EMPTY,
-  FEATURE,
-  FEATURE_COLLECTION,
-  CHANGESET_COLLECTION,
-  MVT(true),
-  MVT_FLATTENED(true),
-  BINARY(true),
-  SPACE,
-  SPACE_LIST,
-  @Deprecated
-  COUNT_RESPONSE,
-  HEALTHY_RESPONSE,
-  STATISTICS_RESPONSE;
+public class PutBlobTileEvent extends BinaryEvent<PutBlobTileEvent> {
 
-  public final boolean binary;
+  private String tileId;
 
-  ApiResponseType() {
-    this.binary = false;
+  public String getTileId() {
+    return tileId;
   }
 
-  ApiResponseType(boolean binary) {
-    this.binary = binary;
+  public void setTileId(String tileId) {
+    this.tileId = tileId;
+  }
+
+  public PutBlobTileEvent withTileId(String tileId) {
+    setTileId(tileId);
+    return this;
   }
 }

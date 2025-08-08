@@ -23,18 +23,15 @@ import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.datasets.DatasetDescription.Space;
 import com.here.xyz.jobs.processes.Maintain;
 import com.here.xyz.jobs.steps.CompilationStepGraph;
-import com.here.xyz.jobs.steps.Config;
-import com.here.xyz.jobs.steps.JobCompiler.CompilationError;
 import com.here.xyz.jobs.steps.compiler.tools.IndexCompilerHelper;
 import com.here.xyz.jobs.steps.impl.DropIndexes;
 import com.here.xyz.jobs.steps.impl.SpawnMaintenanceJobs;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper.OnDemandIndex;
-import com.here.xyz.util.web.HubWebClient;
-import com.here.xyz.util.web.XyzWebClient;
+import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
+import com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index;
+import java.util.List;
+import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import java.util.List;
 
 public class SpaceMaintain implements JobCompilationInterceptor {
   private static final Logger logger = LogManager.getLogger();
@@ -51,9 +48,11 @@ public class SpaceMaintain implements JobCompilationInterceptor {
   }
 
   public static CompilationStepGraph compile(Space source) {
-    CompilationStepGraph stepGrap = new CompilationStepGraph();
+    CompilationStepGraph stepGraph = new CompilationStepGraph();
 
-    List<OnDemandIndex> whiteList = IndexCompilerHelper.getActiveSearchableProperties(source.getId());
+    //White-list on-demand indexes based on active searchable properties and all the system indexes
+    List<Index> whiteList = Stream.concat(Stream.of(XyzSpaceTableHelper.SystemIndex.values()),
+            IndexCompilerHelper.getActiveSearchableProperties(source.getId()).stream()).toList();
 
     //Drop indices which are not in the whitelist
     DropIndexes dropIndexes = new DropIndexes()
@@ -64,12 +63,12 @@ public class SpaceMaintain implements JobCompilationInterceptor {
     //Create all indices that are defined - existing ones are getting skipped
     CompilationStepGraph onDemandIndexSteps = IndexCompilerHelper.compileOnDemandIndexSteps(source.getId());
 
-    stepGrap.addExecution(dropIndexes);
+    stepGraph.addExecution(dropIndexes);
     if (!onDemandIndexSteps.isEmpty())
-      stepGrap.addExecution(onDemandIndexSteps);
+      stepGraph.addExecution(onDemandIndexSteps);
 
-    stepGrap.addExecution(new SpawnMaintenanceJobs().withSpaceId(source.getId()));
+    stepGraph.addExecution(new SpawnMaintenanceJobs().withSpaceId(source.getId()));
 
-    return stepGrap;
+    return stepGraph;
   }
 }

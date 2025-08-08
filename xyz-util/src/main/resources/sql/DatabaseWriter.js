@@ -103,13 +103,16 @@ class DatabaseWriter {
    */
   upsertRow(inputFeature, version, operation, author, onExists, resultHandler) {
     this.enrichTimestamps(inputFeature, true);
-    let onConflict = onExists == "REPLACE" ? ` ON CONFLICT (id, next_version) DO UPDATE SET
-                              version = greatest(tbl.version, EXCLUDED.version),
-                              operation = CASE WHEN $3 = 'H' THEN 'J' ELSE 'U' END,
-                              author = EXCLUDED.author,
-                              jsondata = jsonb_set(EXCLUDED.jsondata, '{properties, ${XYZ_NS}, createdAt}',
-                                     tbl.jsondata->'properties'->'${XYZ_NS}'->'createdAt'),
-                              geo = EXCLUDED.geo` : onExists == "RETAIN" ? " ON CONFLICT(id, next_version) DO NOTHING" : "";
+    let onConflict = onExists == "REPLACE"
+        ? ` ON CONFLICT (id, next_version) DO UPDATE SET
+          version = greatest(tbl.version, EXCLUDED.version),
+          operation = CASE WHEN $3 = 'H' THEN 'J' ELSE 'U' END,
+          author = EXCLUDED.author,
+          jsondata = jsonb_set(EXCLUDED.jsondata, '{properties, ${XYZ_NS}, createdAt}',
+                 tbl.jsondata->'properties'->'${XYZ_NS}'->'createdAt'),
+          geo = EXCLUDED.geo
+          WHERE EXCLUDED.jsondata #- ARRAY['properties', '${XYZ_NS}'] IS DISTINCT FROM tbl.jsondata #- ARRAY['properties', '${XYZ_NS}']`
+        : onExists == "RETAIN" ? " ON CONFLICT(id, next_version) DO NOTHING" : "";
 
     let sql = `INSERT INTO "${this.schema}"."${this.table}" AS tbl
                         (id, version, operation, author, jsondata, geo)
@@ -135,10 +138,12 @@ class DatabaseWriter {
       inputFeature.geometry //TODO: Use TEXT
     ]);
     this.resultParsers[method].push(result => {
-      if (result[0]?.operation == "U")
+      //TODO: In future return null here, if actually no update was taking place (due to non-changed content) - keeping status quo for BWC for now
+      let executedAction = !result.length ? ExecutionAction.NONE : ExecutionAction.fromOperation[result[0].operation];
+      if (result.length && executedAction == ExecutionAction.UPDATED)
         //Inject createdAt
-        inputFeature.properties[XYZ_NS].createdAt = result[0].created_at[0];
-      return resultHandler(new FeatureModificationExecutionResult(ExecutionAction.fromOperation[result[0]?.operation], inputFeature, version, author));
+        inputFeature.properties[XYZ_NS].createdAt = result[0].created_at;
+      return resultHandler(new FeatureModificationExecutionResult(executedAction, inputFeature, version, author));
     });
 
     if (!this.batchMode)

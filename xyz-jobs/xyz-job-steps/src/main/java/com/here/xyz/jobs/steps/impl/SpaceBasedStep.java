@@ -248,6 +248,8 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
   }
 
   protected Space superSpace() throws WebClientException {
+    if (space().getExtension() == null)
+      return null;
     return space(space().getExtension().getSpaceId());
   }
 
