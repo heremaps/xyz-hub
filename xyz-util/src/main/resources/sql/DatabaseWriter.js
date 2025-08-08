@@ -229,7 +229,7 @@ class DatabaseWriter {
     ]);
     this.resultParsers[method].push(result => {
       //FIXME: Extract written creation timestamp if applicable
-      return resultHandler(new FeatureModificationExecutionResult(ExecutionAction.fromOperation[operation], inputFeature, version, author));
+      return resultHandler(new FeatureModificationExecutionResult(inputFeature.properties[XYZ_NS].deleted ? ExecutionAction.DELETED : ExecutionAction.fromOperation[operation], inputFeature, version, author));
     });
 
     if (!this.batchMode)
