@@ -133,7 +133,7 @@ public class Config extends BaseConfig {
 
     try { 
        return spaceId == null ? randomStorageId
-                              : storageIds.get( Integer.parseInt(Hasher.getHash(spaceId + preventAlignmentToTablenames).substring(0, 4), 16) % storageIds.size() ); 
+                              : storageIds.get( Math.abs(Integer.parseInt(Hasher.getHash(spaceId + preventAlignmentToTablenames).substring(0, 4), 16)) % storageIds.size() ); 
     } catch (Exception e) {
        return randomStorageId; // Handle exception, e.g., return a random storageId as fallback
     }
