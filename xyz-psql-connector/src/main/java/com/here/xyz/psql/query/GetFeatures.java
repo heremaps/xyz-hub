@@ -159,7 +159,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
         "requestedVersion");
   }
 
-  private SQLQuery buildNextVersionFragment(Ref ref, boolean historyEnabled, String versionParamName) {
+  protected SQLQuery buildNextVersionFragment(Ref ref, boolean historyEnabled, String versionParamName) {
     if (!historyEnabled || ref.isAllVersions())
       return new SQLQuery("");
 

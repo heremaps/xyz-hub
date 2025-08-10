@@ -127,9 +127,10 @@ public class SpaceConnectorBasedHandler {
                 getChangesetStatisticsEvent.setMinTagVersion(minTag.getVersion());
                 getChangesetStatisticsEvent.setMinVersion(Math.min(minTag.getVersion(), space.getMinVersion()));
               }
-              else if (event instanceof IterateChangesetsEvent iterateChangesetsEvent && minTag != null) {
-                iterateChangesetsEvent.setMinVersion(minTag.getVersion());
+              else if (event instanceof IterateChangesetsEvent iterateChangesetsEvent) {
                 iterateChangesetsEvent.setVersionsToKeep(space.getVersionsToKeep());
+                if (minTag != null)
+                  iterateChangesetsEvent.setMinVersion(minTag.getVersion());
               }
               return Future.succeededFuture(space);
             });

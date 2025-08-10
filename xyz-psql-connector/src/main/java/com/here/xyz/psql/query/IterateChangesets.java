@@ -24,6 +24,7 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.IterateChangesetsEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
+import com.here.xyz.models.hub.Ref;
 import com.here.xyz.psql.query.helpers.versioning.GetMinVersion;
 import com.here.xyz.responses.changesets.Changeset;
 import com.here.xyz.responses.changesets.ChangesetCollection;
@@ -37,38 +38,36 @@ import java.util.Map;
 public class IterateChangesets extends IterateFeatures<IterateChangesetsEvent, ChangesetCollection> {
   public static long DEFAULT_LIMIT = 1_000l;
   private long limit;
-  private long startVersion = -1;
-  private long minVersion;
   private IterateChangesetsEvent event; //TODO: Do not store the whole event during the request phase
 
   public IterateChangesets(IterateChangesetsEvent event) throws SQLException, ErrorResponseException {
     super(event);
     this.event = event;
     limit = event.getLimit() <= 0 ? DEFAULT_LIMIT : event.getLimit();
-    minVersion = event.getMinVersion();
   }
 
   @Override
   public ChangesetCollection run(DataSourceProvider dataSourceProvider) throws SQLException, ErrorResponseException {
-    //TODO: Only fetch the minDbVersion if requested startVersion < requested minVersion (otherwise the extra query would be useless)
-    Long minDbVersion = new GetMinVersion<>(event).withDataSourceProvider(dataSourceProvider).run();
-    minVersion = Math.min(minDbVersion, minVersion);
-    startVersion = Math.max(event.getStartVersion(), minVersion);
-    //TODO: Use range-ref instead of custom filter query in future
-    //event.setRef(new Ref(Math.max(0, startVersion - 1) + ".." + (event.getEndVersion() == -1 ? HEAD : event.getEndVersion())));
+    long minVersion = event.getMinVersion();
+    long startVersion = event.getRef().getStart().getVersion();
+
+    if (startVersion < minVersion) {
+      Long minDbVersion = new GetMinVersion<>(event).withDataSourceProvider(dataSourceProvider).run();
+      minVersion = Math.min(minDbVersion, minVersion);
+    }
+
+    startVersion = Math.max(startVersion, minVersion);
+    //Use the updated ref
+    event.setRef(new Ref(new Ref(startVersion), event.getRef().getEnd()));
     return super.run(dataSourceProvider);
   }
 
-  //TODO: Use range-ref instead of custom filter query in future
   @Override
-  protected SQLQuery buildFilterWhereClause(IterateChangesetsEvent event) {
-    return new SQLQuery("${{startVersion}} ${{endVersion}}")
-        .withQueryFragment("startVersion", new SQLQuery("version >= #{start}")
-            .withNamedParameter("start", startVersion))
-        .withQueryFragment("endVersion", event.getEndVersion() != -1
-            ? new SQLQuery("AND version <= #{end}")
-                .withNamedParameter("end", event.getEndVersion())
-            : new SQLQuery(""));
+  protected SQLQuery buildNextVersionFragment(Ref ref, boolean historyEnabled, String versionParamName) {
+    //TODO: Check if this check could be pulled up, because when requesting history versions from a range, the next-version anyways should not play any role
+    if (ref.isRange())
+      return new SQLQuery("");
+    return super.buildNextVersionFragment(ref, historyEnabled, versionParamName);
   }
 
   @Override
