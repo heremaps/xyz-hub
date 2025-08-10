@@ -23,6 +23,7 @@ import static com.here.xyz.events.PropertyQuery.QueryOperation.LESS_THAN;
 import static com.here.xyz.hub.rest.ApiParam.Path.VERSION;
 import static com.here.xyz.hub.rest.ApiParam.Query.END_VERSION;
 import static com.here.xyz.hub.rest.ApiParam.Query.START_VERSION;
+import static com.here.xyz.models.hub.Ref.HEAD;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 
 import com.here.xyz.events.DeleteChangesetsEvent;
@@ -34,6 +35,7 @@ import com.here.xyz.hub.auth.Authorization;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.ApiParam.Query;
 import com.here.xyz.hub.task.SpaceConnectorBasedHandler;
+import com.here.xyz.models.hub.Ref;
 import com.here.xyz.psql.query.IterateChangesets;
 import com.here.xyz.responses.ChangesetsStatisticsResponse;
 import com.here.xyz.responses.changesets.Changeset;
@@ -60,16 +62,19 @@ public class ChangesetApi extends SpaceBasedApi {
   /**
    * Get changesets by version
    */
-  private void getChangesets(final RoutingContext context) {
+  private void getChangesets(final RoutingContext context) throws HttpException {
     //TODO: check Space.minVersion and take it into account - We need to check before the NTF related parts.
     // its possible that it needs to read versions before the Space.minVersion
     long startVersion = getLongQueryParam(context, START_VERSION, 0);
     long endVersion = getLongQueryParam(context, END_VERSION, -1);
+    Ref ref = getRef(context);
+    if (!ref.isRange())
+      ref = new Ref(new Ref(Math.max(0, startVersion - 1)), endVersion == -1 ? new Ref(HEAD) : new Ref(endVersion));
 
     if (endVersion != -1 && startVersion > endVersion)
       throw new IllegalArgumentException("The parameter \"" + START_VERSION + "\" needs to be smaller than or equal to \"" + END_VERSION + "\".");
 
-    IterateChangesetsEvent event = buildIterateChangesetsEvent(context, startVersion, endVersion);
+    IterateChangesetsEvent event = buildIterateChangesetsEvent(context, ref);
     //TODO: Add static caching to this endpoint, once the execution pipelines have been refactored.
     SpaceConnectorBasedHandler.execute(getMarker(context),
             space -> Authorization.authorizeManageSpacesRights(context, space.getId(), space.getOwner()).map(space), event)
@@ -84,7 +89,9 @@ public class ChangesetApi extends SpaceBasedApi {
     //TODO: check Space.minVersion and take it into account - We need to check before the NTF related parts.
     // its possible that it needs to read versions before the Space.minVersion
     long version = getVersionFromPathParam(context);
-    IterateChangesetsEvent event = buildIterateChangesetsEvent(context, version, version);
+    if (version < 1)
+      throw new IllegalArgumentException("The specified version must be larger than 0, was: " + version);
+    IterateChangesetsEvent event = buildIterateChangesetsEvent(context, new Ref(version - 1, version));
     //TODO: Add static caching to this endpoint, once the execution pipelines have been refactored.
     SpaceConnectorBasedHandler.<IterateChangesetsEvent, ChangesetCollection>execute(getMarker(context),
             space -> Authorization.authorizeManageSpacesRights(context, space.getId(), space.getOwner()).map(space), event)
@@ -154,14 +161,13 @@ public class ChangesetApi extends SpaceBasedApi {
         .onFailure(t -> sendErrorResponse(context, t));
   }
 
-  private IterateChangesetsEvent buildIterateChangesetsEvent(final RoutingContext context, long startVersion, long endVersion) {
+  private IterateChangesetsEvent buildIterateChangesetsEvent(final RoutingContext context, Ref versionRef) {
     String pageToken = Query.getString(context, Query.PAGE_TOKEN, null);
     long limit = Query.getLong(context, Query.LIMIT, IterateChangesets.DEFAULT_LIMIT);
 
     return new IterateChangesetsEvent()
         .withSpace(getSpaceId(context))
-        .withStartVersion(startVersion)
-        .withEndVersion(endVersion)
+        .withRef(versionRef)
         .withNextPageToken(pageToken)
         .withLimit(limit);
   }

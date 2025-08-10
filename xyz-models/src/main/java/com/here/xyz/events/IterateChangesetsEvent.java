@@ -20,40 +20,10 @@
 package com.here.xyz.events;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "IterateChangesetsEvent")
 public final class IterateChangesetsEvent extends IterateFeaturesEvent<IterateChangesetsEvent> {
-  @JsonInclude(JsonInclude.Include.NON_DEFAULT)
-  private long startVersion;
-  @JsonInclude(JsonInclude.Include.NON_DEFAULT)
-  private long endVersion = -1;
 
-  public long getStartVersion() {
-    return startVersion;
-  }
-
-  public void setStartVersion(long startVersion) {
-    this.startVersion = startVersion;
-  }
-
-  public IterateChangesetsEvent withStartVersion(long startVersion) {
-    setStartVersion(startVersion);
-    return this;
-  }
-
-  public long getEndVersion() {
-    return endVersion;
-  }
-
-  public void setEndVersion(long endVersion) {
-    this.endVersion = endVersion;
-  }
-
-  public IterateChangesetsEvent withEndVersion(long endVersion) {
-    setEndVersion(endVersion);
-    return this;
-  }
 }
