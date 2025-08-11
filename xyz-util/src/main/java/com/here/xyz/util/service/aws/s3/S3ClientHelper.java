@@ -63,47 +63,58 @@ public class S3ClientHelper {
                 .build()).url();
     }
 
-    public static Page<S3ObjectSummary> scanFolder(S3Client client, String bucketName, String folderPath) {
-        return scanFolder(client, bucketName, folderPath, null, -1);
+    /**
+     * Scan all contents of a folder in an S3 bucket.
+     */
+    public static List<S3ObjectSummary> scanFolder(S3Client client, String bucketName, String folderPath) {
+        List<S3Object> summaries = new ArrayList<>();
+        ListObjectsV2Request listObjectsV2Request = ListObjectsV2Request.builder()
+            .bucket(bucketName)
+            .prefix(folderPath)
+            .build();
+
+        ListObjectsV2Response listResponse;
+
+        do {
+            listResponse = client.listObjectsV2(listObjectsV2Request);
+            summaries.addAll(listResponse.contents());
+
+            listObjectsV2Request = listObjectsV2Request.toBuilder()
+                .continuationToken(listResponse.nextContinuationToken())
+                .build();
+
+        } while (listResponse.isTruncated());
+
+        return summaries.stream().map((it) -> S3ObjectSummary.fromS3Object(it, bucketName)).collect(Collectors.toList());
     }
 
-    public static Page<S3ObjectSummary> scanFolder(S3Client client, String bucketName, String folderPath, String startAfter, int maxKeys) {
-        Page<S3ObjectSummary> summaries = new Page<>();
-        List<S3Object> responseItems = new ArrayList<>();
+    /**
+     * Scan a folder in an S3 bucket with pagination support.
+     */
+    public static Page<S3ObjectSummary> scanFolder(S3Client client, String bucketName, String folderPath,
+        String nextPageToken, int limit) {
         ListObjectsV2Request.Builder requestBuilder = ListObjectsV2Request.builder()
-                .bucket(bucketName)
-                .prefix(folderPath);
+            .bucket(bucketName)
+            .prefix(folderPath);
 
-        if (startAfter != null) {
-            requestBuilder.startAfter(startAfter);
+        if (nextPageToken != null) {
+            requestBuilder.startAfter(nextPageToken);
+        }
+        if (limit > 0) {
+            requestBuilder.maxKeys(limit);
         }
 
-        if (maxKeys > 0) {
-            requestBuilder.maxKeys(maxKeys);
-            ListObjectsV2Response response = client.listObjectsV2(requestBuilder.build());
-            responseItems = response.contents();
-            summaries.setNextPageToken(response.nextContinuationToken());
-            summaries.setTotalItems(response.maxKeys());
-        } else {
-            // fallback if there is no key
-            ListObjectsV2Request listObjectsV2Request = requestBuilder.build();
-            ListObjectsV2Response listResponse;
+        ListObjectsV2Response response = client.listObjectsV2(requestBuilder.build());
+        List<S3Object> responseItems = response.contents();
 
-            do {
-                listResponse = client.listObjectsV2(listObjectsV2Request);
-                responseItems.addAll(listResponse.contents());
-
-                listObjectsV2Request = listObjectsV2Request.toBuilder()
-                        .continuationToken(listResponse.nextContinuationToken())
-                        .build();
-
-            } while (listResponse.isTruncated());
-        }
-
-        return summaries.setItems(
+        Page<S3ObjectSummary> summaries = new Page<>();
+        summaries.setNextPageToken(response.nextContinuationToken());
+        summaries.setItems(
             responseItems.stream()
                 .map((it) -> S3ObjectSummary.fromS3Object(it, bucketName))
                 .collect(Collectors.toList()));
+
+        return summaries;
     }
 
     public static void deleteObject(S3Client client, String bucketName, String key) {

@@ -37,8 +37,7 @@ public class JobInputsRetriever implements PagedDataRetriever<Input, JobInputsRe
 
   @Override
   public List<Input> getItems(InputsParams params) {
-    Page<Input> inputPage = Input.loadInputs(jobId, params.getSetName());
-    return inputPage.getItems();
+    return Input.loadInputs(jobId, params.getSetName());
   }
 
   @Override

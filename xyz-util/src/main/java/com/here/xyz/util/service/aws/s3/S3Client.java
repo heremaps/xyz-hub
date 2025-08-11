@@ -254,12 +254,20 @@ public class S3Client {
         .collect(Collectors.toList());
   }
 
-  public Page<S3ObjectSummary> scanFolder(String folderPath) {
-    return scanFolder(folderPath, null, -1);
+  /**
+   * Retrieves all objects from a specified folder path in an S3 bucket
+   * Note: This method automatically handles pagination
+   */
+  public List<S3ObjectSummary> scanFolder(String folderPath) {
+    return S3ClientHelper.scanFolder(client, bucketName, folderPath);
   }
 
-  public Page<S3ObjectSummary> scanFolder(String folderPath, String startAfter, int maxKeys) {
-    return S3ClientHelper.scanFolder(client, bucketName, folderPath, startAfter, maxKeys);
+  /**
+   * Retrieves objects from a specified folder path in an S3 bucket with pagination support
+   * Note: This version allows for controlled pagination through the nextPageToken and limit parameters
+   */
+  public Page<S3ObjectSummary> scanFolder(String folderPath, String nextPageToken, int limit) {
+    return S3ClientHelper.scanFolder(client, bucketName, folderPath, nextPageToken, limit);
   }
 
   /**
