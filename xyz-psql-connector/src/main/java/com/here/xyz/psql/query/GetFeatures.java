@@ -35,7 +35,6 @@ import com.here.xyz.events.SelectiveEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.psql.DatabaseWriter.ModificationType;
-import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.db.SQLQuery;
 import java.sql.ResultSet;
@@ -125,7 +124,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
         .withQueryFragment("geo", buildGeoFragment(event))
         .withQueryFragment("dataset", new SQLQuery("${{datasetNo}} AS dataset")
         .withQueryFragment("datasetNo", "" + dataset))
-        .withQueryFragment("version", getFeatureVersion(dataset) + " AS version");
+        .withQueryFragment("version", getFeatureVersion(event, dataset) + " AS version");
   }
 
   private SQLQuery buildVersionCheckFragment(E event) {
@@ -144,9 +143,12 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
       return new SQLQuery("");
 
     if (ref.isRange())
-      return new SQLQuery("AND version > #{startVersion} AND version <= #{endVersion}")
+      return new SQLQuery("AND version > #{startVersion} ${{endVersionCheck}}")
           .withNamedParameter("startVersion", ref.getStart().getVersion())
-          .withNamedParameter("endVersion", ref.getEnd().getVersion());
+          .withQueryFragment("endVersionCheck", ref.getEnd().isHead()
+              ? new SQLQuery("")
+              : new SQLQuery("AND version <= #{endVersion}")
+                  .withNamedParameter("endVersion", ref.getEnd().getVersion()));
 
     return new SQLQuery("AND version <= #{requestedVersion}")
         .withNamedParameter("requestedVersion", ref.getVersion());
@@ -157,7 +159,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
         "requestedVersion");
   }
 
-  private SQLQuery buildNextVersionFragment(Ref ref, boolean historyEnabled, String versionParamName) {
+  protected SQLQuery buildNextVersionFragment(Ref ref, boolean historyEnabled, String versionParamName) {
     if (!historyEnabled || ref.isAllVersions())
       return new SQLQuery("");
 
@@ -263,27 +265,19 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
    */
   @Override
   public R handle(ResultSet rs) throws SQLException {
-    StringBuilder result = new StringBuilder();
-    String prefix = "[";
-    result.append(prefix);
+    LazyParsableFeatureCollection fc = new LazyParsableFeatureCollection();
 
-    while (rs.next() && MAX_RESULT_SIZE > result.length())
-      handleFeature(rs, result);
+    while (rs.next()) {
+      try {
+        fc.addFeature(content -> handleFeature(rs, content));
+      }
+      catch (ErrorResponseException e) {
+        //TODO: Throw ErrorResponseException instead
+        return (R) e.getErrorResponse();
+      }
+    }
 
-    if (result.length() > prefix.length())
-      result.setLength(result.length() - 1);
-
-    result.append("]");
-
-    final FeatureCollection featureCollection = new FeatureCollection();
-    featureCollection._setFeatures(result.toString());
-
-    if (result.length() > MAX_RESULT_SIZE)
-      //TODO: Throw ErrorResponseException instead
-      return (R) new ErrorResponse().withError(PAYLOAD_TO_LARGE)
-          .withErrorMessage("Maximum response char limit of " + MAX_RESULT_SIZE + " reached");
-
-    return (R) featureCollection;
+    return (R) fc.build();
   }
 
   protected void handleFeature(ResultSet rs, StringBuilder result) throws SQLException {
@@ -293,10 +287,36 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     result.append(",\"geometry\":");
     result.append(geom == null ? "null" : geom);
     result.append("}");
-    result.append(",");
   }
 
-  protected SQLQuery buildJsonDataFragment(ContextAwareEvent event, int dataset) {
+  protected static class LazyParsableFeatureCollection {
+    public static final String PREFIX = "[";
+    public static final String SUFFIX = "]";
+
+    private StringBuilder content = new StringBuilder().append(PREFIX);
+
+    public void addFeature(FeatureAppender featureAppender) throws ErrorResponseException, SQLException {
+      featureAppender.appendFeature(content);
+      content = content.append(",");
+      if (content.length() > MAX_RESULT_SIZE)
+        throw new ErrorResponseException(PAYLOAD_TO_LARGE, "Maximum response char limit of " + MAX_RESULT_SIZE + " reached");
+    }
+
+    public FeatureCollection build() {
+      final FeatureCollection featureCollection = new FeatureCollection();
+      if (content.length() > PREFIX.length())
+        content.setLength(content.length() - 1); //Removes the last extra comma
+      featureCollection._setFeatures(content.append(SUFFIX).toString());
+      return featureCollection;
+    }
+
+    @FunctionalInterface
+    interface FeatureAppender {
+      void appendFeature(StringBuilder content) throws ErrorResponseException, SQLException;
+    }
+  }
+
+  protected SQLQuery buildJsonDataFragment(E event, int dataset) {
     SQLQuery jsonData;
 
     if (!(event instanceof SelectiveEvent selectiveEvent) || selectiveEvent.getSelection() == null)
@@ -316,16 +336,18 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
     return new SQLQuery("jsonb_set(${{innerJsonData}}, '{properties, @ns:com:here:xyz, version}', to_jsonb(${{featureVersion}})) AS jsondata")
         .withQueryFragment("innerJsonData", jsonData)
-        .withQueryFragment("featureVersion", getFeatureVersion(dataset));
+        .withQueryFragment("featureVersion", getFeatureVersion(event, dataset));
   }
 
-  private static String getFeatureVersion(int dataset) {
+  private String getFeatureVersion(E event, int dataset) {
+    int topLevelDataset = compositeDatasetNo(event, CompositeDataset.EXTENSION);
     /*
     NOTE: From the perspective of a composite layer (requested with context = DEFAULT),
-    the extended dataset(s) always have version = 0, because the extension itself *is empty* and this *empty version (aka version 0)*
-    is simply not empty but contains the whole HEAD of the dataset being extended (e.g., INTERMEDIATE and / or SUPER dataset).
+    the extended dataset(s) always have version = 0, because at the beginning the extension itself *is empty* and
+    this *empty version (aka version 0)* is simply not empty but contains the whole HEAD
+    of the dataset being extended (e.g., INTERMEDIATE and / or SUPER dataset).
      */
-    return dataset > 0 ? "0" : "version";
+    return dataset < topLevelDataset ? "0" : "version";
   }
 
   protected String buildOuterOrderByFragment(ContextAwareEvent event) {
@@ -372,9 +394,9 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
   protected int compositeDatasetNo(E event, CompositeDataset dataset) {
     return switch (dataset) {
-      case EXTENSION -> 0;
+      case EXTENSION -> is2LevelExtendedSpace(event) ? 2 : isExtendedSpace(event) ? 1 : 0;
       case INTERMEDIATE -> 1;
-      case SUPER -> is2LevelExtendedSpace(event) ? 2 : 1;
+      case SUPER -> 0;
     };
   }
 }

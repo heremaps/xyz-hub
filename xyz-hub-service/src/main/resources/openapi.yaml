@@ -206,10 +206,14 @@ paths:
       summary: Get Changesets
       description: >-
         Retrieves a subset of existing Changesets from the space's history.
-        The subset is defined by a "startVersion" and an "endVersion".
+        The subset can be defined either by a "startVersion" and an "endVersion"
+        or by providing a version ref that references a version range
+        e.g., "5..6" or "0..HEAD"
+        
 
         Each successful write transaction to the space is stored as one single Changeset,
         which can contain modifications applied to one or more features.
+
 
         The response payload may be split in multiple pages. The next page token is written in the
         property 'nextPageToken', which then can be used to retrieve the next page using the
@@ -217,6 +221,7 @@ paths:
       operationId: getChangesets
       parameters:
         - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/VersionRef'
         - $ref: '#/components/parameters/StartVersion'
         - $ref: '#/components/parameters/EndVersion'
         - $ref: '#/components/parameters/PageToken'
@@ -1780,7 +1785,7 @@ components:
            "p.myNumber1": 5,
            "p.myNumber2=gte":7
           }
-          
+
     PropertiesSelection:
       name: selection
       in: query

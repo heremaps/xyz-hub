@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,72 +20,10 @@
 package com.here.xyz.events;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "IterateChangesetsEvent")
-public final class IterateChangesetsEvent extends SearchForFeaturesEvent<IterateChangesetsEvent> {
-  private String pageToken;
-  @JsonInclude(JsonInclude.Include.NON_DEFAULT)
-  private long startVersion;
-  @JsonInclude(JsonInclude.Include.NON_DEFAULT)
-  private long endVersion = -1;
+public final class IterateChangesetsEvent extends IterateFeaturesEvent<IterateChangesetsEvent> {
 
-  private int versionsToKeep;
-
-  public long getStartVersion() {
-    return startVersion;
-  }
-
-  public void setStartVersion(long startVersion) {
-    this.startVersion = startVersion;
-  }
-
-  public IterateChangesetsEvent withStartVersion(long startVersion) {
-    setStartVersion(startVersion);
-    return this;
-  }
-
-  public long getEndVersion() {
-    return endVersion;
-  }
-
-  public void setEndVersion(long endVersion) {
-    this.endVersion = endVersion;
-  }
-
-  public IterateChangesetsEvent withEndVersion(long endVersion) {
-    setEndVersion(endVersion);
-    return this;
-  }
-
-  @SuppressWarnings("unused")
-  public String getPageToken() {
-    return pageToken;
-  }
-
-  @SuppressWarnings("WeakerAccess")
-  public void setPageToken(String pageToken) {
-    this.pageToken = pageToken;
-  }
-
-  @SuppressWarnings("unused")
-  public IterateChangesetsEvent withPageToken(String pageToken) {
-    setPageToken(pageToken);
-    return this;
-  }
-
-  public int getVersionsToKeep() {
-    return versionsToKeep;
-  }
-
-  public void setVersionsToKeep(int versionsToKeep) {
-    this.versionsToKeep = versionsToKeep;
-  }
-
-  public IterateChangesetsEvent withVersionsToKeep(int setVersionsToKeep) {
-    setVersionsToKeep(versionsToKeep);
-    return this;
-  }
 }

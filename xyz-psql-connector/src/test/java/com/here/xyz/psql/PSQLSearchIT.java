@@ -1,3 +1,22 @@
+/*
+ * Copyright (C) 2017-2025 HERE Europe B.V.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ * License-Filename: LICENSE
+ */
+
 package com.here.xyz.psql;
 
 import static org.junit.Assert.assertEquals;
@@ -89,7 +108,7 @@ public class PSQLSearchIT extends PSQLAbstractIT {
    * @deprecated Please use {@link #invokeLambda(Event)} instead.
    */
   @Deprecated
-  protected void invokeAndAssert(Map<String, Object> eventAsMap, int size, String... names) throws Exception {
+  protected String invokeAndAssert(Map<String, Object> eventAsMap, int size, String... names) throws Exception {
     String response = invokeLambda(XyzSerializable.fromMap(eventAsMap, Event.class));
 
     final FeatureCollection responseCollection = XyzSerializable.deserialize(response);
@@ -99,6 +118,7 @@ public class PSQLSearchIT extends PSQLAbstractIT {
     for (int i = 0; i < size; i++) {
       assertEquals("Check name", names[i], responseFeatures.get(i).getProperties().get("name"));
     }
+    return response;
   }
 
   @Test
@@ -304,11 +324,16 @@ public class PSQLSearchIT extends PSQLAbstractIT {
   }
 
   @Test
-  public void test16() throws Exception { //TODO: rename
-    // Test 16
-    Map<String, Object> test16 = MAPPER.readValue(ORIGINAL_EVENT, TYPE_REFERENCE);
-    test16.put("type", "IterateFeaturesEvent");
-    test16.put("handle", "1");
-    invokeAndAssert(test16, 3, "Tesla", "Ducati", "BikeX");
+  public void iterateFeatures() throws Exception {
+    Map<String, Object> event = MAPPER.readValue(ORIGINAL_EVENT, TYPE_REFERENCE);
+    event.put("type", "IterateFeaturesEvent");
+    event.put("limit", "1");
+    String response = invokeAndAssert(event, 1, "Toyota");
+
+    String nextPageToken = ((FeatureCollection) XyzSerializable.deserialize(response)).getNextPageToken();
+    event.put("type", "IterateFeaturesEvent");
+    event.put("nextPageToken", nextPageToken);
+    event.remove("limit");
+    invokeAndAssert(event, 3, "Tesla", "Ducati", "BikeX");
   }
 }
