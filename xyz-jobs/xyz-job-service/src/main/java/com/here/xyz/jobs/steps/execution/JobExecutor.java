@@ -351,21 +351,24 @@ public abstract class JobExecutor implements Initializable {
     if (job.getResourceKeys().isEmpty() || job.getSteps().stepStream().anyMatch(step -> step instanceof DelegateStep))
       return Future.succeededFuture();
     return JobConfigClient.getInstance().loadJobs(job.getResourceKeys(), SUCCEEDED)
-        .compose(candidates -> Future.succeededFuture(candidates.stream()
-            .filter(candidate -> !job.getId().equals(candidate.getId())) //Do not try to compare the job to itself
-            .filter(candidate -> filterByExistingReferees(candidate, candidates))
-            .map(candidate -> fuseGraphs(job, candidate.getSteps()))
-            .max(comparingLong(candidateGraph -> candidateGraph.stepStream()
-                .filter(step -> step instanceof DelegateStep).count())) //Take the candidate with the largest matching subgraph
-            .orElse(null)))
+        .compose(candidates -> {
+          Set<String> candidateIds = candidates.stream().map(candidate -> candidate.getId()).collect(Collectors.toSet());
+          return Future.succeededFuture(candidates.stream()
+              .filter(candidate -> !job.getId().equals(candidate.getId())) //Do not try to compare the job to itself
+              .filter(candidate -> filterByExistingReferees(candidate, candidateIds))
+              .map(candidate -> fuseGraphs(job, candidate.getSteps()))
+              .max(comparingLong(candidateGraph -> candidateGraph.stepStream()
+                  .filter(step -> step instanceof DelegateStep).count())) //Take the candidate with the largest matching subgraph
+              .orElse(null));
+        })
         .compose(fusedGraph -> fusedGraph == null ? Future.succeededFuture() : job.withSteps(fusedGraph).store());
   }
 
   //TODO: Remove the following workaround once S3 reference-counting was fixed
-  private boolean filterByExistingReferees(Job candidate, Set<Job> allCandidates) {
+  private boolean filterByExistingReferees(Job candidate, Set<String> allCandidateIds) {
     //Check for all DelegateSteps whether they are pointing to a job that actually still exists
-    return candidate.getSteps().stepStream().allMatch(step -> !(step instanceof DelegateStep)
-        || allCandidates.stream().anyMatch(existingJob -> existingJob.getId().equals(step.getId())));
+    return candidate.getSteps().stepStream().allMatch(step -> !(step instanceof DelegateStep delegateStep)
+        || allCandidateIds.contains(delegateStep.getDelegate().getJobId()));
   }
 
   public static void shutdown() throws InterruptedException {
