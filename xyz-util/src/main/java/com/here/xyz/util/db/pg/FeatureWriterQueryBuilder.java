@@ -174,6 +174,11 @@ public class FeatureWriterQueryBuilder {
       return this;
     }
 
+    public FeatureWriterQueryContextBuilder withBaseVersion(long baseVersion) {
+      queryContext.put("baseVersion", baseVersion);
+      return this;
+    }
+
     public FeatureWriterQueryContextBuilder withBatchMode(boolean batchMode) {
       queryContext.put("batchMode", batchMode);
       return this;
