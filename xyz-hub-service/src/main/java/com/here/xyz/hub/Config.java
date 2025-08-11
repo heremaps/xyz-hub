@@ -128,12 +128,11 @@ public class Config extends BaseConfig {
     if( storageIds == null )  
      return null;
 
-    String randomStorageId = storageIds.get((int) (Math.random() * storageIds.size())),
-           preventAlignmentToTablenames = "4711"; // this is just to not accidently produce unwanted correlation with hashed tablenames.
+    String randomStorageId = storageIds.get((int) (Math.random() * storageIds.size()));
 
     try { 
        return spaceId == null ? randomStorageId
-                              : storageIds.get( Math.abs(Integer.parseInt(Hasher.getHash(spaceId + preventAlignmentToTablenames).substring(0, 4), 16)) % storageIds.size() ); 
+                              : storageIds.get((int) (Math.abs(Long.parseLong(Hasher.getHash(spaceId).substring(0, 8), 16)) % storageIds.size()));
     } catch (Exception e) {
        return randomStorageId; // Handle exception, e.g., return a random storageId as fallback
     }
