@@ -74,7 +74,7 @@ class FeatureWriter {
     this.inputFeature = inputFeature;
     this.version = version;
     this.author = author || "ANONYMOUS";
-    this.baseVersion = (this.inputFeature.properties || {})[XYZ_NS]?.version;
+    this.baseVersion = queryContext().baseVersion != null ? queryContext().baseVersion : this.inputFeature.properties?.[XYZ_NS]?.version;
     this.featureHooks = featureHooks;
     this.enrichFeature();
 
@@ -89,7 +89,7 @@ class FeatureWriter {
       throw new IllegalArgumentException("MERGE can not be executed for spaces without history!");
 
     if (this.onVersionConflict && this.baseVersion == null)
-      throw new IllegalArgumentException("The provided Feature does not have a baseVersion but a version conflict detection was requested!");
+      throw new IllegalArgumentException(`No base version was provided, but a version conflict detection was requested! Please provide a base-version in the query-context or in the input-feature with ID ${this.inputFeature.id}.`);
 
     if (this.debugOutput)
       this.debugBox(JSON.stringify(this, null, 2));
