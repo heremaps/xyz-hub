@@ -1083,7 +1083,8 @@ public class SQLQuery {
       handler = new Ignore1stResultSet(handler);
 
     final List<?> results = getRunner(dataSource, executionContext).execute(query.text(), handler, query.parameters().toArray());
-    return results.size() <= 1 ? results.get(0) : results.get(results.size() - 1);
+    
+    return results.size() == 0 ? null : ( results.size() == 1 ? results.get(0) : results.get(results.size() - 1));
   }
 
   private static QueryRunner getRunner(DataSource dataSource, ExecutionContext executionContext) {

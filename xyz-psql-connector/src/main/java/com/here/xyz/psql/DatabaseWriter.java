@@ -285,9 +285,7 @@ public class DatabaseWriter {
                 }
             }
 
-            if( event.isEraseAllFeatures() ) 
-             modificationQuery.getPreparedStatement(connection).execute();
-            else if (transactional) {
+            if (transactional) {
                  executeBatchesAndCheckOnFailures(idList, modificationQuery.getPreparedStatement(connection), fails, event, action);
 
                 if (fails.size() > 0) {
@@ -337,13 +335,6 @@ public class DatabaseWriter {
     }
 
     private static SQLQuery buildModificationStmtQuery(DatabaseHandler dbHandler, ModifyFeaturesEvent event, ModificationType action, boolean uniqueConstraintExists) {
-
-/**/
-        boolean eraseAllFeatures = (event.isEraseAllFeatures() && action == DELETE);
-        
-        if(eraseAllFeatures)
-         return buildTruncateSpaceQuery(event, dbHandler.getDatabaseSettings().getSchema());
-/**/
 
         //If versioning is activated for the space, always only perform inserts
         if (event.getVersionsToKeep() > 1)
@@ -447,89 +438,4 @@ public class DatabaseWriter {
                 fails.add(new FeatureCollection.ModificationFailure().withId(idList.get(i)).withMessage(getFailedRowErrorMsg(action, event)));
     }
 
-    private static SQLQuery buildTruncateSpaceQueryKeepVersionSeq(ModifyFeaturesEvent event, String schema) {
-        String table = XyzEventBasedQueryRunner.readTableFromEvent(event),
-        dropOtherPartitions = // build a list of partitions to be dropped
-         String.format(
-                """
-                    DO $b2$
-                    DECLARE
-                        partition_list text;
-                    BEGIN
-                        with
-                        indata as  ( select '%1$s' as in_schema, '%2$s' as in_table ),
-                        iindata as ( select i.in_schema, relname::text, replace( relname::text, i.in_table || '_p', '' )::integer as pid
-                                     from pg_class c, indata i  
-                                     where 1 = 1
-                                       and relname like i.in_table || '_p%%' 
-                                       and relkind = 'r'
-                                       and relnamespace = ( select n.oid from pg_namespace n where n.nspname = i.in_schema )),
-                        iiindata as ( select ii.*, ( select max(pid) from iindata ) as max_pid from iindata ii )
-                        select string_agg( format('%%I.%%I', iii.in_schema, iii.relname ),',' ) into partition_list from iiindata iii
-                        where 1 = 1
-                          and pid != max_pid;
-
-                        if partition_list is not null then
-                         execute format('DROP TABLE IF EXISTS %%s', partition_list);
-                        end if; 
-                    END $b2$
-                """, schema, table ); //TODO: use withNamedParameter when replacement issue is fixed.
-
-        SQLQuery q = new SQLQuery("${{truncateTable}}; ${{dropOtherPartitions}}; ${{analyseTruncatedTable}}")
-            .withQueryFragment("truncateTable", "TRUNCATE TABLE ${schema}.${table}")
-            .withQueryFragment("dropOtherPartitions", dropOtherPartitions )
-            .withQueryFragment("analyseTruncatedTable", "ANALYSE ${schema}.${table}" );
-
-        return q
-            .withVariable(SCHEMA, schema)
-            .withVariable(TABLE, table);
-    }
-
-    private static SQLQuery buildTruncateSpaceQueryResetVersionSeq(ModifyFeaturesEvent event, String schema) {
-        String table = XyzEventBasedQueryRunner.readTableFromEvent(event),
-        dropOtherPartitions = // build a list of partitions to be dropped
-         String.format(
-                """
-                    DO $b2$
-                    DECLARE
-                        partition_list text;
-                    BEGIN
-                        with indata as ( select '%1$s' as in_schema, '%2$s' as in_table )
-                        select string_agg( format('%%I.%%I',i.in_schema,relname::text ),',' ) into partition_list from pg_class c, indata i  
-                        where 1 = 1
-                        and relname like i.in_table || '_p%%' 
-                            and relname != i.in_table || '_p0' 
-                            and relkind = 'r'
-                            and relnamespace = ( select n.oid from pg_namespace n where n.nspname = i.in_schema );
-
-                        if partition_list is not null then
-                         execute format('DROP TABLE IF EXISTS %%s', partition_list);
-                        end if; 
-                    END $b2$
-                """, schema, table ); //TODO: use withNamedParameter when replacement issue is fixed.
-        
-
-        SQLQuery q = new SQLQuery("${{truncateTable}}; ${{resetVersionSequence}}; DO $b1$ BEGIN ${{recreateTableP0}}; END $b1$; ${{dropOtherPartitions}}; ${{analyseTruncatedTable}}")
-            .withQueryFragment("truncateTable", "TRUNCATE TABLE ${schema}.${table} RESTART IDENTITY")
-            .withQueryFragment("resetVersionSequence", "ALTER SEQUENCE ${schema}.${versionSequence} RESTART WITH 1")
-            .withQueryFragment("recreateTableP0", XyzSpaceTableHelper.buildCreateHistoryPartitionQuery(schema, table, 0L,false))
-            .withQueryFragment("dropOtherPartitions", dropOtherPartitions )
-            .withQueryFragment("analyseTruncatedTable", "ANALYSE ${schema}.${table}" );
-
-        return q
-            .withVariable(SCHEMA, schema)
-            .withVariable(TABLE, table)
-            .withVariable("versionSequence", table + GetNextVersion.VERSION_SEQUENCE_SUFFIX);
-    }
-
-    private static SQLQuery buildTruncateSpaceQuery(ModifyFeaturesEvent event, String schema) {
-
-      //return new SQLQuery("select count(1) from tmp.atest;");
-
-      boolean resetVersionSequence = false;  // always keep current version, but might be subject of change.
-
-      return resetVersionSequence ? buildTruncateSpaceQueryResetVersionSeq( event, schema ) 
-                                  : buildTruncateSpaceQueryKeepVersionSeq( event, schema );
-
-    }
 }
