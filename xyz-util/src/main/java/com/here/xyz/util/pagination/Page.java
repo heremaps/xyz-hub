@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonInclude.Include;
 
 import com.here.xyz.XyzSerializable;
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.List;
 
 public class Page<T> implements Serializable, XyzSerializable {
@@ -15,16 +16,17 @@ public class Page<T> implements Serializable, XyzSerializable {
   @JsonInclude(Include.NON_NULL)
   private String nextPageToken;
 
-  @JsonInclude(Include.NON_NULL)
-  private long totalItems;
-
   public Page() {
+    this.items = new ArrayList<>();
   }
 
-  public Page(List<T> items, String nextPageToken, long totalItems) {
+  public Page(List<T> items) {
+    this.items = items;
+  }
+
+  public Page(List<T> items, String nextPageToken) {
     this.items = items;
     this.nextPageToken = nextPageToken;
-    this.totalItems = totalItems;
   }
 
   public List<T> getItems() {
@@ -42,15 +44,6 @@ public class Page<T> implements Serializable, XyzSerializable {
 
   public Page<T> setNextPageToken(String nextPageToken) {
     this.nextPageToken = nextPageToken;
-    return this;
-  }
-
-  public long getTotalItems() {
-    return totalItems;
-  }
-
-  public Page<T> setTotalItems(long totalItems) {
-    this.totalItems = totalItems;
     return this;
   }
 
