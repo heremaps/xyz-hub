@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -265,7 +265,6 @@ public abstract class DatabaseHandler extends StorageConnector {
               throw e;
         }
 
-        
         /*
         NOTE: This is a workaround for tables which have no unique constraint
         TODO: Remove this workaround once all constraints have been adjusted accordingly
@@ -278,7 +277,6 @@ public abstract class DatabaseHandler extends StorageConnector {
             connection.setAutoCommit(!event.getTransaction());
 
             try {
-                
                 if (deletes.size() > 0) {
                     DatabaseWriter.modifyFeatures(this, event, DELETE, collection, fails, new ArrayList(deletes.entrySet()), connection, version, uniqueConstraintExists);
                 }

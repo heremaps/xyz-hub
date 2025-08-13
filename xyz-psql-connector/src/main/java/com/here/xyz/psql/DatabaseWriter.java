@@ -242,7 +242,6 @@ public class DatabaseWriter {
         long version, boolean uniqueConstraintExists) throws SQLException, JsonProcessingException {
         boolean transactional = event.getTransaction();
         connection.setAutoCommit(!transactional);
-
         SQLQuery modificationQuery = buildModificationStmtQuery(dbh, event, action, uniqueConstraintExists).withLabel("streamId", getStreamId());
 
         List<String> idList = transactional ? new ArrayList<>() : null;
@@ -283,7 +282,7 @@ public class DatabaseWriter {
             }
 
             if (transactional) {
-                 executeBatchesAndCheckOnFailures(idList, modificationQuery.getPreparedStatement(connection), fails, event, action);
+                executeBatchesAndCheckOnFailures(idList, modificationQuery.getPreparedStatement(connection), fails, event, action);
 
                 if (fails.size() > 0) {
                     logException(null, action, event);
@@ -332,7 +331,6 @@ public class DatabaseWriter {
     }
 
     private static SQLQuery buildModificationStmtQuery(DatabaseHandler dbHandler, ModifyFeaturesEvent event, ModificationType action, boolean uniqueConstraintExists) {
-
         //If versioning is activated for the space, always only perform inserts
         if (event.getVersionsToKeep() > 1)
             return buildMultiModalInsertStmtQuery(dbHandler.getDatabaseSettings(), event);
@@ -399,8 +397,8 @@ public class DatabaseWriter {
         ModifyFeaturesEvent event, ModificationType type) throws SQLException {
 
         try {
-            if ( idList.size() > 0 ) {
-                logger.info("{} batch execution [{}]: {} ", getStreamId(), type, batchStmt);
+            if (idList.size() > 0) {
+                logger.debug("{} batch execution [{}]: {} ", getStreamId(), type, batchStmt);
 
                 batchStmt.setQueryTimeout(DatabaseHandler.calculateTimeout());
                 batchStmt.executeBatch();
@@ -434,5 +432,4 @@ public class DatabaseWriter {
             if (batchResult[i] == 0)
                 fails.add(new FeatureCollection.ModificationFailure().withId(idList.get(i)).withMessage(getFailedRowErrorMsg(action, event)));
     }
-
 }
