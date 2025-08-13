@@ -99,7 +99,7 @@ public class DeleteSpaceApiIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .delete("/spaces/" + spaceName + "/features?eraseAllFeatures=true")
+        .delete("/spaces/" + spaceName + "/features?eraseContent=true")
         .then()
         .statusCode(NO_CONTENT.code());
 

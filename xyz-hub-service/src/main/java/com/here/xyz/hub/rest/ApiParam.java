@@ -100,7 +100,7 @@ public class ApiParam {
     static final String CONTENT_UPDATED_AT = "contentUpdatedAt";
     static final String CONTEXT = "context";
     static final String EXTENDING_SPACES = "extendingSpaces";
-    static final String ERASE_ALL_FEATURES = "eraseAllFeatures";
+    static final String ERASE_CONTENT = "eraseContent";
 
     static final String CLUSTERING_PARAM_RESOLUTION = "resolution";
     static final String CLUSTERING_PARAM_RESOLUTION_RELATIVE = "relativeResolution";

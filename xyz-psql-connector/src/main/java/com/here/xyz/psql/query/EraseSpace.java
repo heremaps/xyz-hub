@@ -3,23 +3,17 @@ package com.here.xyz.psql.query;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
-import org.xbill.DNS.dnssec.R;
-
 import com.here.xyz.connectors.ErrorResponseException;
-import com.here.xyz.events.Event;
 import com.here.xyz.events.ModifyFeaturesEvent;
-import com.here.xyz.events.WriteFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.psql.query.helpers.versioning.GetNextVersion;
-import com.here.xyz.responses.XyzError;
-import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
-import com.here.xyz.util.db.pg.SQLError;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SCHEMA;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.TABLE;
 import static com.here.xyz.responses.XyzError.EXCEPTION;
+import static com.here.xyz.responses.XyzError.NOT_IMPLEMENTED;
 
 public class EraseSpace extends XyzQueryRunner<ModifyFeaturesEvent, FeatureCollection> {
 
@@ -40,8 +34,8 @@ public class EraseSpace extends XyzQueryRunner<ModifyFeaturesEvent, FeatureColle
 
       FeatureCollection fc = super.run(dataSourceProvider);
 
-      if( fc != null ) // s. handle(...)  -- current fc will be null 
-       return fc;
+      if( fc != null ) // s. handle(...)  -- with current used sql statements, fc will be always null 
+       return fc; // just in case
 
       return new FeatureCollection();
 
@@ -55,9 +49,10 @@ public class EraseSpace extends XyzQueryRunner<ModifyFeaturesEvent, FeatureColle
     @Override
     public FeatureCollection handle(ResultSet rs) throws SQLException {
 
-      //TODO: handle function is not called when sql does not return results
-      // return new FeatureCollection();
-      throw new UnsupportedOperationException("Unimplemented method 'handle'");
+      //handle function is not called when used with belows sql statements (non select) 
+      //TODO: throw new ErrorResponseException(NOT_IMPLEMENTED, "Unexpected call of method 'handle'");
+      
+      throw new UnsupportedOperationException("Unexpected call of method 'handle'");
     }
 
     private static SQLQuery buildTruncateSpaceQueryKeepVersionSeq(ModifyFeaturesEvent event, String schema, String table) {

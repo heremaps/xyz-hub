@@ -55,7 +55,7 @@ public final class ModifyFeaturesEvent extends ContextAwareEvent<ModifyFeaturesE
 
   private boolean transaction;
   private boolean conflictDetectionEnabled;
-  private boolean eraseAllFeatures;
+  private boolean eraseContent;
 
   private List<ModificationFailure> failed;
 
@@ -193,16 +193,12 @@ public final class ModifyFeaturesEvent extends ContextAwareEvent<ModifyFeaturesE
     return this;
   }
 
-  public boolean isEraseAllFeatures() {
-    return eraseAllFeatures;
+  public boolean isEraseContent() {
+    return eraseContent;
   }
 
-  public void setEraseAllFeatures(boolean eraseAllFeatures) {
-    this.eraseAllFeatures = eraseAllFeatures;
-  }
-
-  public ModifyFeaturesEvent withEraseAllFeatures(boolean eraseAllFeatures) {
-    this.eraseAllFeatures = eraseAllFeatures;
+  public ModifyFeaturesEvent withEraseContent(boolean eraseContent) {
+    this.eraseContent = eraseContent;
     return this;
   }
 

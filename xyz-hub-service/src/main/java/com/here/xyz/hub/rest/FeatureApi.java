@@ -24,7 +24,7 @@ import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
 import static com.here.xyz.events.UpdateStrategy.DEFAULT_DELETE_STRATEGY;
 import static com.here.xyz.hub.rest.ApiParam.Query.ADD_TAGS;
 import static com.here.xyz.hub.rest.ApiParam.Query.CONFLICT_DETECTION;
-import static com.here.xyz.hub.rest.ApiParam.Query.ERASE_ALL_FEATURES;
+import static com.here.xyz.hub.rest.ApiParam.Query.ERASE_CONTENT;
 import static com.here.xyz.hub.rest.ApiParam.Query.FEATURE_ID;
 import static com.here.xyz.hub.rest.ApiParam.Query.FORCE_2D;
 import static com.here.xyz.hub.rest.ApiParam.Query.PREFIX_ID;
@@ -412,17 +412,17 @@ public class FeatureApi extends SpaceBasedApi {
    */
   private void deleteFeatures(final RoutingContext context) throws HttpException {
     final List<String> featureIds = new ArrayList<>(new HashSet<>(queryParam(FEATURE_ID, context)));
-    final boolean eraseAllFeatures = eraseAllFeatures(context);
+    final boolean eraseContent = eraseContent(context);
     final String accept = context.request().getHeader(ACCEPT);
     final ApiResponseType responseType = APPLICATION_GEO_JSON.equals(accept) || APPLICATION_JSON.equals(accept)
         ? FEATURE_COLLECTION : ApiResponseType.EMPTY;
     final SpaceContext spaceContext = getSpaceContext(context);
 
-    if (featureIds.isEmpty() && !eraseAllFeatures)
+    if (featureIds.isEmpty() && !eraseContent)
       sendErrorResponse(context, new DetailedHttpException("E318406"));
     else {
       //Delete features by IDs
-      if (Config.instance.USE_WRITE_FEATURES_EVENT && !eraseAllFeatures)
+      if (Config.instance.USE_WRITE_FEATURES_EVENT && !eraseContent)
         executeDeleteFeatures(context, responseType, featureIds, spaceContext, false);
       else
         executeConditionalOperationChain(false, context, responseType, IfExists.DELETE, IfNotExists.RETAIN, true,
@@ -738,7 +738,7 @@ public class FeatureApi extends SpaceBasedApi {
           .withTransaction(transactional)
           .withContext(spaceContext)
           .withConflictDetectionEnabled(isConflictDetectionEnabled(context))
-          .withEraseAllFeatures(eraseAllFeatures(context));
+          .withEraseContent(eraseContent(context));
       int bodySize = context.getBody() != null ? context.getBody().length() : 0;
 
       ConditionalOperation task = buildConditionalOperation(event, context, apiResponseTypeType, featureModifications, ifNotExists,
@@ -777,9 +777,9 @@ public class FeatureApi extends SpaceBasedApi {
     return Query.getBoolean(context, CONFLICT_DETECTION, false);
   }
 
-  public static boolean eraseAllFeatures(RoutingContext context) {
+  public static boolean eraseContent(RoutingContext context) {
    final List<String> featureIds = new ArrayList<>(new HashSet<>(queryParam(FEATURE_ID, context)));
-   return Query.getBoolean(context, ERASE_ALL_FEATURES, false) && featureIds.isEmpty(); 
+   return Query.getBoolean(context, ERASE_CONTENT, false) && featureIds.isEmpty(); 
   }
 
   private static void checkModificationOnSuper(SpaceContext spaceContext) throws HttpException {

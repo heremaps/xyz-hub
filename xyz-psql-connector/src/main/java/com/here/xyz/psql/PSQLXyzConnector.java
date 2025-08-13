@@ -165,7 +165,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
   @Override
   protected FeatureCollection processModifyFeaturesEvent(ModifyFeaturesEvent event) throws Exception {
-    return !event.isEraseAllFeatures() ? executeModifyFeatures(event) : run( new EraseSpace(event) );
+    return !event.isEraseContent() ? executeModifyFeatures(event) : run( new EraseSpace(event) );
   }
 
   @Override

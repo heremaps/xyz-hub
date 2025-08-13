@@ -1250,9 +1250,9 @@ public class FeatureTaskHandler {
       task.getEvent().setFailed(fails);
 
       // In case nothing was changed, set the response directly to skip calling the storage connector.
-      boolean eraseAllFeatures = FeatureApi.eraseAllFeatures( task.context );
+      boolean eraseContent = FeatureApi.eraseContent( task.context );
 
-      if (!eraseAllFeatures && insert.size() == 0 && update.size() == 0 && delete.size() == 0) {
+      if (!eraseContent && insert.size() == 0 && update.size() == 0 && delete.size() == 0) {
         FeatureCollection fc = new FeatureCollection();
         if( task.hasNonModified ){
           task.modifyOp.entries.stream().filter(e -> !e.isModified).forEach(e -> {

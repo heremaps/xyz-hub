@@ -640,10 +640,10 @@ paths:
         - $ref: '#/components/parameters/SpaceId'
         - $ref: '#/components/parameters/Ids'
         - $ref: '#/components/parameters/Context'
-        - name: eraseAllFeatures
+        - name: eraseContent
           in: query
           description: >-
-           false - delete the space [default]
+           false - [default]
 
 
            true  - erase, wipe all content
@@ -1581,7 +1581,7 @@ components:
           * id=value1,id=value2
 
 
-        not required when eraseAllFeatures=true is used.
+        not required when eraseContent=true is used.
       required: false
       schema:
         type: array

@@ -279,7 +279,7 @@ public abstract class DatabaseHandler extends StorageConnector {
 
             try {
                 
-                if (deletes.size() > 0 || event.isEraseAllFeatures()) {
+                if (deletes.size() > 0) {
                     DatabaseWriter.modifyFeatures(this, event, DELETE, collection, fails, new ArrayList(deletes.entrySet()), connection, version, uniqueConstraintExists);
                 }
                 if (inserts.size() > 0) {
