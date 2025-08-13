@@ -46,6 +46,7 @@ import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.events.WriteFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.psql.query.DeleteChangesets;
+import com.here.xyz.psql.query.EraseSpace;
 import com.here.xyz.psql.query.GetChangesetStatistics;
 import com.here.xyz.psql.query.GetFastStatistics;
 import com.here.xyz.psql.query.GetFeaturesByBBox;
@@ -164,7 +165,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
   @Override
   protected FeatureCollection processModifyFeaturesEvent(ModifyFeaturesEvent event) throws Exception {
-    return executeModifyFeatures(event);
+    return !event.isEraseContent() ? executeModifyFeatures(event) : run( new EraseSpace(event) );
   }
 
   @Override

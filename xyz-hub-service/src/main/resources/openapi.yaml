@@ -640,6 +640,18 @@ paths:
         - $ref: '#/components/parameters/SpaceId'
         - $ref: '#/components/parameters/Ids'
         - $ref: '#/components/parameters/Context'
+        - name: eraseContent
+          in: query
+          description: >-
+           false - [default]
+
+
+           true  - erase, wipe all content
+          required: false
+          schema:
+            type: boolean
+            default: false
+
       responses:
         '200':
           $ref: '#/components/responses/FeatureCollectionModificationResponse'
@@ -1438,7 +1450,10 @@ components:
         for this field:
           * id=value1,value2
           * id=value1,id=value2
-      required: true
+
+
+        not required when eraseContent=true is used.
+      required: false
       schema:
         type: array
         items:
