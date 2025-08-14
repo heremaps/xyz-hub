@@ -305,23 +305,9 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
   }
 
   @Override
-  public List<Load> getNeededResources() {
-    if (spatialFilter != null) {
-      return super.getNeededResources();
-    }
-
-    try {
-      // temp solution
-      infoLog(JOB_EXECUTOR, this, "Estimated ACUS: byteSize of layer: " + ESTIMATED_SPATIAL_FILTERED_PEAK_ACUS
-          + " => neededACUs:" + overallNeededAcus);
-
-      return List.of(
-          new Load().withResource(dbReader()).withEstimatedVirtualUnits(ESTIMATED_SPATIAL_FILTERED_PEAK_ACUS),
-          new Load().withResource(IOResource.getInstance()).withEstimatedVirtualUnits(ESTIMATED_SPATIAL_FILTERED_IO_BYTES)
-      );
-    } catch (WebClientException e) {
-      throw new RuntimeException(e);
-    }
+  protected long getEstimatedIOBytes() {
+    // replace with real data usage
+    return ESTIMATED_SPATIAL_FILTERED_IO_BYTES;
   }
 
   private void generateInvalidationTileListOutput() throws WebClientException
