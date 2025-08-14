@@ -131,6 +131,10 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     setOutputSets(List.of(new OutputSet(STATISTICS, USER, true)));
   }
 
+  public ImportFilesToSpace(String spaceId) {
+    super(spaceId);
+  }
+
   public Format getFormat() {
     return format;
   }

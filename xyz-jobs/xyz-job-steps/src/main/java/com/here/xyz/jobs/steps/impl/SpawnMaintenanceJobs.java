@@ -39,6 +39,10 @@ import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SY
 public class SpawnMaintenanceJobs extends SpaceBasedStep<SpawnMaintenanceJobs> {
   private static final Logger logger = LogManager.getLogger();
 
+  public SpawnMaintenanceJobs(String spaceId) {
+    super(spaceId);
+  }
+
   @Override
   public ExecutionMode getExecutionMode() {
     return SYNC;

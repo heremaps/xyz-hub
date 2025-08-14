@@ -40,6 +40,10 @@ public class MarkForMaintenance extends SpaceBasedStep<MarkForMaintenance> {
   @JsonView({Internal.class, Static.class})
   private boolean idxCreationCompleted;
 
+  public MarkForMaintenance(String spaceId) {
+    super(spaceId);
+  }
+
   public void setIdxCreationCompleted(boolean idxCreationCompleted) {
     this.idxCreationCompleted = idxCreationCompleted;
   }

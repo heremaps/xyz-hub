@@ -96,6 +96,10 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
   @JsonView({Internal.class, Static.class})
   private boolean clipOnTileBoundaries;
 
+  public ExportChangedTiles(String spaceId) {
+    super(spaceId);
+  }
+
   public boolean isClipOnTileBoundaries() {
     return clipOnTileBoundaries;
   }

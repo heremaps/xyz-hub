@@ -35,7 +35,7 @@ public class DropIndexStepTest extends StepTest {
     createTestSpace(true);
     Assertions.assertFalse(getAllExistingIndices(SPACE_ID).isEmpty());
 
-    LambdaBasedStep step = new DropIndexes().withSpaceId(SPACE_ID);
+    LambdaBasedStep step = new DropIndexes(SPACE_ID);
     sendLambdaStepRequestBlock(step, true);
 
     //no indexes should remain
@@ -49,8 +49,7 @@ public class DropIndexStepTest extends StepTest {
     //three on-demand indices should be created with the space creation
     Assertions.assertEquals(3, getOnDemandIndices(SPACE_ID).size());
 
-    LambdaBasedStep step = new DropIndexes()
-      .withSpaceId(SPACE_ID)
+    LambdaBasedStep step = new DropIndexes(SPACE_ID)
       .withSpaceDeactivation(false)
       .withIndexWhiteList(
                 List.of(
@@ -68,8 +67,7 @@ public class DropIndexStepTest extends StepTest {
     createTestSpace(true);
     Assertions.assertFalse(getSystemIndices(SPACE_ID).isEmpty());
 
-    LambdaBasedStep step = new DropIndexes()
-            .withSpaceId(SPACE_ID)
+    LambdaBasedStep step = new DropIndexes(SPACE_ID)
             .withSpaceDeactivation(false)
             .withIndexWhiteList(List.of());
     sendLambdaStepRequestBlock(step, true);
@@ -82,8 +80,7 @@ public class DropIndexStepTest extends StepTest {
     //recreate space without on-demandindices
     createTestSpace(false);
 
-    LambdaBasedStep step = new DropIndexes()
-            .withSpaceId(SPACE_ID)
+    LambdaBasedStep step = new DropIndexes(SPACE_ID)
             .withSpaceDeactivation(false)
             .withIndexWhiteList(List.of(new OnDemandIndex().withPropertyPath("foo1")));
     sendLambdaStepRequestBlock(step, true);

@@ -47,11 +47,13 @@ import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.jobs.steps.resources.ExecutionResource;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.util.S3Client;
+import com.here.xyz.util.pagination.Page;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.service.aws.s3.S3Uri;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -93,11 +95,13 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   @JsonView({Internal.class, Static.class})
   private boolean pipeline;
   @JsonView({Internal.class, Static.class})
-  protected List<OutputSet> outputSets = List.of();
+  private List<OutputSet> outputSets = List.of();
   @JsonView({Internal.class, Static.class})
   private List<InputSet> inputSets = List.of();
   @JsonView({Internal.class, Static.class})
   private Map<String, String> outputMetadata;
+  @JsonView({Internal.class, Static.class})
+  private String outputSetGroup;
   @JsonView({Internal.class, Static.class})
   private boolean notReusable = false;
 
@@ -189,15 +193,23 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
     return loadOutputs(USER);
   }
 
+  public Page<Output> loadUserOutputsPage(int limit, String nextPageToken) {
+    return loadOutputsPage(USER, limit, nextPageToken);
+  }
+
+  public Page<Output> loadOutputsPage(Visibility visibility, int limit, String nextPageToken) {
+    List<OutputSet> filteredOutputSets = outputSets.stream()
+        .filter(outputSet -> outputSet.visibility == visibility)
+        .toList();
+
+    return loadStepOutputsPage(filteredOutputSets, limit, nextPageToken);
+  }
+
   public List<Output> loadOutputs(Visibility visibility) {
     return outputSets.stream()
         .filter(outputSet -> outputSet.visibility == visibility)
         .flatMap(outputSet -> loadStepOutputs(outputSet).stream())
         .toList();
-  }
-
-  protected List<Output> loadOutputs(String outputSetName) {
-    return loadStepOutputs(getOutputSet(outputSetName));
   }
 
   public OutputSet getOutputSet(String outputSetName) {
@@ -208,6 +220,94 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
       throw new IllegalArgumentException("No outputSet was found with name: " + outputSetName);
     }
   }
+
+  private void replaceOutputSet(String outputSetName, OutputSet outputSet) {
+    outputSets.removeIf(set -> set.name.equals(outputSetName));
+    outputSets.add(outputSet);
+  }
+
+  private Page<Output> loadStepOutputsPage(List<OutputSet> outputSets, int limit, String nextPageToken) {
+    PaginationState state = parsePaginationToken(nextPageToken);
+
+    List<Output> pageItems = new ArrayList<>();
+    int collected = 0;
+
+    int currentSetIndex = state.setIndex;
+    int currentOutputIndex = state.outputIndex;
+
+    while (currentSetIndex < outputSets.size() && collected < limit) {
+      OutputSet outputSet = outputSets.get(currentSetIndex);
+      List<Output> setOutputs = loadStepOutputs(outputSet);
+
+      int startFrom = currentOutputIndex;
+      currentOutputIndex = 0;
+
+      for (int i = startFrom; i < setOutputs.size() && collected < limit; i++) {
+        pageItems.add(setOutputs.get(i));
+        collected++;
+        currentOutputIndex = i + 1;
+      }
+
+      if (currentOutputIndex >= setOutputs.size()) {
+        currentSetIndex++;
+        currentOutputIndex = 0;
+      }
+    }
+
+    // Create next page token if there are more results
+    String nextToken = null;
+    if (currentSetIndex < outputSets.size()) {
+      // Still have more output sets to process
+      nextToken = createPaginationToken(currentSetIndex, currentOutputIndex);
+    } else if (currentSetIndex == outputSets.size() - 1 && currentOutputIndex > 0) {
+      // Check if there are more outputs in the last output set
+      OutputSet lastSet = outputSets.get(currentSetIndex);
+      List<Output> lastSetOutputs = loadStepOutputs(lastSet);
+      if (currentOutputIndex < lastSetOutputs.size()) {
+        nextToken = createPaginationToken(currentSetIndex, currentOutputIndex);
+      }
+    }
+
+    return new Page<>(pageItems, nextToken);
+  }
+
+  private PaginationState parsePaginationToken(String token) {
+    if (token == null || token.isEmpty()) {
+      return new PaginationState(0, 0);
+    }
+
+    try {
+      String decoded = new String(Base64.getDecoder().decode(token));
+      String[] parts = decoded.split(":");
+      if (parts.length == 2) {
+        return new PaginationState(Integer.parseInt(parts[0]), Integer.parseInt(parts[1]));
+      }
+    } catch (Exception e) {
+      // Invalid token, start from beginning
+      logger.warn("[{}] Invalid pagination token provided: {}", getGlobalStepId(), token, e);
+    }
+
+    return new PaginationState(0, 0);
+  }
+
+  private String createPaginationToken(int setIndex, int outputIndex) {
+    String tokenData = setIndex + ":" + outputIndex;
+    return Base64.getEncoder().encodeToString(tokenData.getBytes());
+  }
+
+  /**
+   * Internal class to hold pagination state information.
+   */
+  private static class PaginationState {
+    final int setIndex;
+    final int outputIndex;
+
+    PaginationState(int setIndex, int outputIndex) {
+      this.setIndex = setIndex;
+      this.outputIndex = outputIndex;
+    }
+  }
+
 
   /**
    * Loads the outputs that have been created by this step (so far).
@@ -568,6 +668,9 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
 
   @JsonIgnore
   protected void setOutputSets(List<OutputSet> outputSets) {
+    if (outputSets.stream().anyMatch(outputSet -> outputSet.visibility == USER) && outputSetGroup == null || outputSetGroup.isBlank()) {
+      throw new IllegalStateException("you are registering user-facing output set, please first define outputset group value");
+    }
     outputSets.forEach(outputSet -> outputSet.setStepId(getId()));
     this.outputSets = outputSets;
   }
@@ -586,8 +689,13 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   }
 
   public T withOutputSetVisibility(String outputSetName, Visibility visibility) {
+    if (visibility == USER && outputSetGroup == null || outputSetGroup.isBlank()) {
+      throw new IllegalStateException("you are registering user-facing output set, please first define outputset group value");
+    }
     OutputSet outputSet = getOutputSet(outputSetName);
-    outputSet.visibility = visibility;
+    replaceOutputSet(outputSetName, new OutputSet(outputSet, outputSet.jobId, visibility)
+        .withStepId(outputSet.stepId)
+    );
     return (T) this;
   }
 
@@ -601,6 +709,19 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
 
   public T withOutputMetadata(Map<String, String> metadata) {
     setOutputMetadata(metadata);
+    return (T) this;
+  }
+
+  public String getOutputSetGroup() {
+    return outputSetGroup;
+  }
+
+  public void setOutputSetGroup(String outputSetGroup) {
+    this.outputSetGroup = outputSetGroup;
+  }
+
+  public T withOutputSetGroup(String outputSetGroup) {
+    setOutputSetGroup(outputSetGroup);
     return (T) this;
   }
 
@@ -690,11 +811,13 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
     private String jobId;
     private String stepId;
     public String name;
-    public Visibility visibility;
     public String fileSuffix;
     public boolean modelBased;
+    public final Visibility visibility;
 
-    private OutputSet() {} //NOTE: Only needed for deserialization purposes
+    private OutputSet() {
+      this.visibility = Visibility.SYSTEM; //NOTE: Only needed for deserialization purposes
+    }
 
     public OutputSet(String name, Visibility visibility, String fileSuffix) {
       this.name = name;

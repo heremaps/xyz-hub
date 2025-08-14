@@ -45,6 +45,10 @@ public class GetNextSpaceVersion extends SpaceBasedStep<GetNextSpaceVersion> {
     setOutputSets(List.of(new OutputSet(VERSION, SYSTEM, true)));
   }
 
+  public GetNextSpaceVersion(String spaceId) {
+    super(spaceId);
+  }
+
   @Override
   public List<Load> getNeededResources() {
     try {

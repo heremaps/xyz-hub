@@ -584,42 +584,29 @@ public class Job implements XyzSerializable {
   }
 
   public Future<List<Input>> loadInputs(String setName) {
-    return ASYNC.run(() -> Input.loadInputs(getId(), setName));
+    return ASYNC.run(() -> createInputsRetriever().getItems(new JobInputsRetriever.InputsParams().setSetName(setName)));
+  }
+
+  public Future<Page<Input>> loadInputs(String setName, int limit, String nextPageToken) {
+    return ASYNC.run(
+        () -> createInputsRetriever().getPage(new JobInputsRetriever.InputsParams().setSetName(setName), limit, nextPageToken));
   }
 
   public Future<List<Output>> loadOutputs() {
-    return ASYNC.run(() -> steps.stepStream()
-        .map(step -> (List<Output>) step.loadUserOutputs())
-        .flatMap(ol -> ol.stream())
-        .collect(Collectors.toList()));
+    return ASYNC.run(() -> createOutputsRetriever().getItems(new JobOutputsRetriever.OutputsParams(null)));
+  }
+
+  public Future<Page<Output>> loadOutputs(String outputSetGroup, int limit, String nextPageToken) {
+    JobOutputsRetriever.OutputsParams params = new JobOutputsRetriever.OutputsParams(outputSetGroup);
+    return ASYNC.run(() -> createOutputsRetriever().getPage(params, limit, nextPageToken));
   }
 
   public PagedDataRetriever<Input, JobInputsRetriever.InputsParams> createInputsRetriever() {
     return new JobInputsRetriever(getId());
   }
 
-  public Future<Page<Input>> getInputsPage(String setName, int pageSize, String pageToken) {
-    JobInputsRetriever.InputsParams params = new JobInputsRetriever.InputsParams().setSetName(setName);
-    return ASYNC.run(() -> createInputsRetriever().getPage(params, pageSize, pageToken));
-  }
-
-  public Future<Page<Input>> getFirstInputsPage(String setName) {
-    JobInputsRetriever.InputsParams params = new JobInputsRetriever.InputsParams().setSetName(setName);
-    return ASYNC.run(() -> createInputsRetriever().getFirstPage(params));
-  }
-
   public PagedDataRetriever<Output, JobOutputsRetriever.OutputsParams> createOutputsRetriever() {
     return new JobOutputsRetriever(this);
-  }
-
-  public Future<Page<Output>> getOutputsPage(int pageSize, String pageToken) {
-    JobOutputsRetriever.OutputsParams params = new JobOutputsRetriever.OutputsParams();
-    return ASYNC.run(() -> createOutputsRetriever().getPage(params, pageSize, pageToken));
-  }
-
-  public Future<Page<Output>> getFirstOutputsPage() {
-    JobOutputsRetriever.OutputsParams params = new JobOutputsRetriever.OutputsParams();
-    return ASYNC.run(() -> createOutputsRetriever().getFirstPage(params));
   }
 
   @JsonView({Public.class})

@@ -60,6 +60,10 @@ public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
     setOutputSets(List.of(new OutputSet(STATISTICS, USER, true)));
   }
 
+  public CopySpacePost(String spaceId) {
+    super(spaceId);
+  }
+
   @Override
   public List<Load> getNeededResources() {
     try {

@@ -38,6 +38,7 @@ import com.here.xyz.XyzSerializable.SerializationView;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.util.pagination.Page;
 import com.here.xyz.util.service.BaseConfig;
 import com.here.xyz.util.service.BaseHttpServerVerticle;
 import com.here.xyz.util.service.BaseHttpServerVerticle.RequestCancelledException;
@@ -299,6 +300,11 @@ public class Api {
     }
 
     protected void sendResponse(RoutingContext context, int statusCode, List<? extends XyzSerializable> list,
+        TypeReference listItemTypeReference) {
+        serializeAndSendResponse(context, statusCode, list, listItemTypeReference, Public.class);
+    }
+
+    protected void sendResponse(RoutingContext context, int statusCode, Page<? extends XyzSerializable> list,
         TypeReference listItemTypeReference) {
         serializeAndSendResponse(context, statusCode, list, listItemTypeReference, Public.class);
     }

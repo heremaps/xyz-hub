@@ -105,6 +105,10 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep> exten
   @JsonView({Internal.class, Static.class})
   protected boolean noTasksCreated = false;
 
+  public TaskedSpaceBasedStep(String spaceId) {
+    super(spaceId);
+  }
+
   public Ref getVersionRef() {
     return versionRef;
   }

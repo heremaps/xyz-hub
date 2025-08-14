@@ -113,6 +113,9 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
   @JsonView({Internal.class, Static.class})
   protected Ref providedVersionRef;
 
+  public ExportSpaceToFiles(String spaceId) {
+    super(spaceId);
+  }
 
   public void setProvidedVersionRef(Ref providedVersionRef) {
     this.providedVersionRef = providedVersionRef;

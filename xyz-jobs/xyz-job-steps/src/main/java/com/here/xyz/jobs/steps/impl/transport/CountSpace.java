@@ -64,6 +64,10 @@ public class CountSpace extends TaskedSpaceBasedStep<CountSpace> {
 
   private boolean realCount = true;
 
+  public CountSpace(String spaceId) {
+    super(spaceId);
+  }
+
   public SpatialFilter getSpatialFilter() {
     return spatialFilter;
   }

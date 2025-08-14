@@ -44,6 +44,7 @@ import com.here.xyz.jobs.steps.inputs.InputsFromS3;
 import com.here.xyz.jobs.steps.inputs.ModelBasedInput;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.Output;
+import com.here.xyz.util.pagination.Page;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.service.HttpException;
 import com.here.xyz.util.service.errors.DetailedHttpException;
@@ -58,6 +59,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public class JobApi extends JobApiBase {
+  static final Integer DEFAULT_PAGE_SIZE = 1000; // Depicts the default page size
   protected static final Logger logger = LogManager.getLogger();
   protected JobApi() {}
 
@@ -215,15 +217,15 @@ public class JobApi extends JobApiBase {
 
   protected void getJobInputs(final RoutingContext context) {
     loadJob(context, jobId(context))
-        .compose(job -> job.loadInputs(inputSetName(context)))
-        .onSuccess(res -> sendResponse(context, OK.code(), res, new TypeReference<List<Input>>() {}))
+        .compose(job -> job.loadInputs(inputSetName(context), pageLimit(context), context.queryParams().get("nextPageToken")))
+        .onSuccess(res -> sendResponse(context, OK.code(), res, new TypeReference<Page<Input>>() {}))
         .onFailure(err -> sendErrorResponse(context, err));
   }
 
   protected void getJobOutputs(final RoutingContext context) {
     loadJob(context, jobId(context))
-        .compose(job -> job.loadOutputs())
-        .onSuccess(res -> sendResponse(context, OK.code(), res, new TypeReference<List<Output>>() {}))
+        .compose(job -> job.loadOutputs(outputSetGroup(context), pageLimit(context), context.queryParams().get("nextPageToken")))
+        .onSuccess(res -> sendResponse(context, OK.code(), res, new TypeReference<Page<Output>>() {}))
         .onFailure(err -> sendErrorResponse(context, err));
   }
 
@@ -276,6 +278,15 @@ public class JobApi extends JobApiBase {
   protected String inputSetName(RoutingContext context) {
     String setName = context.pathParam("setName");
     return setName == null ? DEFAULT_INPUT_SET_NAME : setName;
+  }
+
+  protected String outputSetGroup(RoutingContext context) {
+    return context.pathParam("outputSetGroup");
+  }
+
+  protected Integer pageLimit(RoutingContext context) {
+    String requestedLimit = context.queryParams().get("limit");
+    return requestedLimit == null ? DEFAULT_PAGE_SIZE : Integer.parseInt(requestedLimit);
   }
 
   protected Input getJobInputFromBody(RoutingContext context) throws HttpException {

@@ -20,18 +20,16 @@
 package com.here.xyz.jobs.retriever;
 
 import com.here.xyz.jobs.Job;
+import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.util.pagination.Page;
 import com.here.xyz.util.pagination.PagedDataRetriever;
 
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.stream.Collectors;
 
-/**
- * Implements the {@link PagedDataRetriever} interface for retrieving job outputs with pagination. This class handles the pagination of
- * outputs across all steps in a job.
- */
 public class JobOutputsRetriever implements PagedDataRetriever<Output, JobOutputsRetriever.OutputsParams> {
 
   private final Job job;
@@ -44,54 +42,109 @@ public class JobOutputsRetriever implements PagedDataRetriever<Output, JobOutput
   public List<Output> getItems(OutputsParams params) {
     return job.getSteps().stepStream()
         .map(step -> (List<Output>) step.loadUserOutputs())
-        .flatMap(List::stream)
+        .flatMap(ol -> ol.stream())
         .collect(Collectors.toList());
   }
 
   @Override
-  public Page<Output> getPage(OutputsParams params, int pageSize, String pageToken) {
-    List<Output> allOutputs = getItems(params);
+  public Page<Output> getPage(OutputsParams params, int limit, String nextPageToken) {
+    PaginationState state = parsePaginationToken(nextPageToken);
 
-    int totalItems = allOutputs.size();
-    int startIndex = 0;
+    List<Output> pageItems = new ArrayList<>();
+    List<String> stepIds = getOrderedStepIds(params.outputSetGroup);
+    int collected = 0;
 
-    if (pageToken != null && !pageToken.isEmpty()) {
-      startIndex = decodePageToken(pageToken);
+    int currentStepIndex = state.stepIndex;
+    String currentStepToken = state.stepToken;
+
+    while (currentStepIndex < stepIds.size() && collected < limit) {
+      String stepId = stepIds.get(currentStepIndex);
+      Step<?> step = job.getSteps().getStep(stepId);
+
+      if (step == null) {
+        currentStepIndex++;
+        currentStepToken = null;
+        continue;
+      }
+
+      int remainingLimit = limit - collected;
+
+      Page<Output> stepOutputsPage = step.loadUserOutputsPage(remainingLimit, currentStepToken);
+      List<Output> stepOutputs = stepOutputsPage.getItems();
+
+      pageItems.addAll(stepOutputs);
+      collected += stepOutputs.size();
+
+      if (stepOutputsPage.getNextPageToken() != null) {
+        currentStepToken = stepOutputsPage.getNextPageToken();
+        break; // the limit within this step reached
+      } else {
+        // this step is fully processed, move to next step
+        currentStepIndex++;
+        currentStepToken = null;
+      }
     }
 
-    if (startIndex >= totalItems) {
-      return new Page<Output>().setItems(List.of()).setTotalItems(totalItems);
+    String nextToken = null;
+    if (currentStepIndex < stepIds.size() ||
+        (currentStepIndex < stepIds.size() && currentStepToken != null)) {
+      nextToken = createPaginationToken(currentStepIndex, currentStepToken);
     }
 
-    int endIndex = Math.min(startIndex + pageSize, totalItems);
-
-    List<Output> pageItems = allOutputs.subList(startIndex, endIndex);
-
-    String nextPageToken = null;
-    if (endIndex < totalItems) {
-      nextPageToken = encodePageToken(endIndex);
-    }
-
-    return new Page<Output>()
-        .setItems(pageItems)
-        .setNextPageToken(nextPageToken)
-        .setTotalItems(totalItems);
+    return new Page<>(pageItems, nextToken);
   }
 
-  private String encodePageToken(int index) {
-    return Base64.getEncoder().encodeToString(String.valueOf(index).getBytes());
+  private List<String> getOrderedStepIds(String outputSetGroup) {
+    return job.getSteps().stepStream()
+        .filter(step -> outputSetGroup.equals(step.getOutputSetGroup()))
+        .map(Step::getId)
+        .toList();
   }
 
-  private int decodePageToken(String pageToken) {
+  private PaginationState parsePaginationToken(String token) {
+    if (token == null || token.isEmpty()) {
+      return new PaginationState(0, null);
+    }
+
     try {
-      String decoded = new String(Base64.getDecoder().decode(pageToken));
-      return Integer.parseInt(decoded);
+      String decoded = new String(Base64.getDecoder().decode(token));
+      String[] parts = decoded.split(":", 2);
+      if (parts.length >= 1) {
+        int stepIndex = Integer.parseInt(parts[0]);
+        String stepToken = parts.length > 1 && !parts[1].isEmpty() ? parts[1] : null;
+        return new PaginationState(stepIndex, stepToken);
+      }
     } catch (Exception e) {
-      return 0;
+      // invalid token, start from beginning
+    }
+
+    return new PaginationState(0, null);
+  }
+
+  private String createPaginationToken(int stepIndex, String stepToken) {
+    String tokenData = stepIndex + ":" + (stepToken != null ? stepToken : "");
+    return Base64.getEncoder().encodeToString(tokenData.getBytes());
+  }
+
+  private static class PaginationState {
+
+    final int stepIndex;
+    final String stepToken;
+
+    PaginationState(int stepIndex, String stepToken) {
+      this.stepIndex = stepIndex;
+      this.stepToken = stepToken;
     }
   }
 
   public static class OutputsParams {
-    // add filters here
+
+    public final String outputSetGroup;
+    public final String setName;
+
+    public OutputsParams(String outputSetGroup, String setName) {
+      this.outputSetGroup = outputSetGroup;
+      this.setName = setName;
+    }
   }
 }

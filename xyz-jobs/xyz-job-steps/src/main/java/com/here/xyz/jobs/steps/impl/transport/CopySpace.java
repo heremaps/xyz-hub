@@ -88,6 +88,10 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
   @JsonView({Internal.class, Static.class}) //TODO: Remove static
   private long targetVersion = 0;
 
+  public CopySpace(String spaceId) {
+    super(spaceId);
+  }
+
   public static double calculateNeededCopyAcus(long nrFeatureSource) {
     final double maxAcus = 5;
     int ftBlock = 20000;

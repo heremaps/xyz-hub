@@ -47,6 +47,10 @@ public class CreateIndex extends SpaceBasedStep<CreateIndex> {
   @JsonView({Internal.class, Static.class})
   private int estimatedSeconds = -1;
 
+  public CreateIndex(String spaceId) {
+    super(spaceId);
+  }
+
   @Override
   public List<Load> getNeededResources() {
     try {

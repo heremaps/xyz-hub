@@ -53,7 +53,11 @@ public class DropIndexes extends SpaceBasedStep<DropIndexes> {
     //If not set, the step will drop all indexes of the space.
     private List<OnDemandIndex> indexWhiteList;
 
-    public List<OnDemandIndex> getIndexWhiteList() {
+  public DropIndexes(String spaceId) {
+    super(spaceId);
+  }
+
+  public List<OnDemandIndex> getIndexWhiteList() {
         return indexWhiteList;
     }
 
