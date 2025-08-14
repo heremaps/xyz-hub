@@ -24,6 +24,7 @@ import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
 import static com.here.xyz.jobs.steps.Step.Visibility.SYSTEM;
 import static com.here.xyz.jobs.steps.Step.Visibility.USER;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_EXECUTOR;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_ASYNC_SUCCESS;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporaryJobTableName;
@@ -37,6 +38,8 @@ import com.here.xyz.jobs.steps.StepExecution;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
 import com.here.xyz.jobs.steps.outputs.TileInvalidations;
+import com.here.xyz.jobs.steps.resources.IOResource;
+import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.models.geojson.HQuad;
 import com.here.xyz.models.geojson.WebMercatorTile;
@@ -299,6 +302,26 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
           throw new RuntimeException(e);
       }
       super.onStateCheck();
+  }
+
+  @Override
+  public List<Load> getNeededResources() {
+    if (spatialFilter != null) {
+      return super.getNeededResources();
+    }
+
+    try {
+      // temp solution
+      infoLog(JOB_EXECUTOR, this, "Estimated ACUS: byteSize of layer: " + ESTIMATED_SPATIAL_FILTERED_PEAK_ACUS
+          + " => neededACUs:" + overallNeededAcus);
+
+      return List.of(
+          new Load().withResource(dbReader()).withEstimatedVirtualUnits(ESTIMATED_SPATIAL_FILTERED_PEAK_ACUS),
+          new Load().withResource(IOResource.getInstance()).withEstimatedVirtualUnits(ESTIMATED_SPATIAL_FILTERED_IO_BYTES)
+      );
+    } catch (WebClientException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   private void generateInvalidationTileListOutput() throws WebClientException
