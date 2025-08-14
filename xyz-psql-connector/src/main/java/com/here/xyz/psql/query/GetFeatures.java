@@ -190,7 +190,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
           .withNamedParameter("minVersion", event.getMinVersion())
           .withNamedParameter("requestedVersion", requestedVersion);
 
-    return isHeadOrAllVersions ? new SQLQuery("") : new SQLQuery("AND #{requestedVersion} = (SELECT max(version) AS HEAD FROM ${schema}.${table})")
+    return isHeadOrAllVersions || ref.isRange() ? new SQLQuery("") : new SQLQuery("AND #{requestedVersion} = (SELECT max(version) AS HEAD FROM ${schema}.${table})")
         .withNamedParameter("requestedVersion", requestedVersion);
   }
 
