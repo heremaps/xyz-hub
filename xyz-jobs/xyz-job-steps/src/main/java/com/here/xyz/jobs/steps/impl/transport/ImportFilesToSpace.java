@@ -374,6 +374,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
         infoLog(STEP_EXECUTE, this,"Create TriggerTable and Trigger");
         //Create Temp-ImportTable to avoid deserialization of JSON and fix missing row count
+        //FIXME: Use job owner as author
         runBatchWriteQuerySync(buildTemporaryTriggerTableBlock(space().getOwner(), newVersion), db(), 0);
       }
 
@@ -495,6 +496,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     if (isResume()) {
       infoLog(STEP_EXECUTE, this, "Reset SuccessMarker");
       runWriteQuerySync(buildResetJobTableItemsForResumeStatement(), db(), 0);
+      return true;
     }
     else {
       infoLog(STEP_EXECUTE, this, "Create temporary job table");
@@ -508,7 +510,6 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       //If no Inputs are present return 0
       return inputs.size() != 0;
     }
-    return true;
   }
 
   @Override
