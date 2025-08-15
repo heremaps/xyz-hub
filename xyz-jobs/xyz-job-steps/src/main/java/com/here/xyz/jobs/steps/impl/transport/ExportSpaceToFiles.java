@@ -252,7 +252,7 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
           new Load().withResource(IOResource.getInstance()).withEstimatedVirtualUnits(estimatedIOBytes));
     }
     catch (WebClientException e) {
-      throw new StepException("Error calculating the necessary resources for the step.", e);
+      throw new StepException("Error calculating the necessary resources for the step.", e).withRetryable(true);
     }
   }
 
@@ -261,7 +261,7 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
     try {
       statistics = spaceStatistics(context, true);
     } catch (WebClientException e) {
-      throw new StepException("Error calculating the necessary resources for the step.", e);
+      throw new StepException("Error calculating the necessary resources for the step.", e).withRetryable(true);
     }
     return statistics.getDataSize().getValue();
   }
