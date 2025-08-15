@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -442,11 +442,10 @@ DECLARE
     onVersionConflict TEXT := TG_ARGV[5];
     onMergeConflict TEXT := TG_ARGV[6];
     historyEnabled BOOLEAN := TG_ARGV[7]::BOOLEAN;
-    context TEXT := TG_ARGV[8];
-    extendedTable TEXT := TG_ARGV[9];
+    spaceContext TEXT := TG_ARGV[8];
+    tables TEXT := TG_ARGV[9];
     format TEXT := TG_ARGV[10];
     entityPerLine TEXT := TG_ARGV[11];
-    targetTable TEXT := TG_ARGV[12];
     featureCount INT := 0;
     input TEXT;
     inputType TEXT;
@@ -481,10 +480,9 @@ BEGIN
         jsonb_build_object(
             'stepId', get_stepid_from_work_table(TG_TABLE_NAME::REGCLASS) ,
             'schema', TG_TABLE_SCHEMA,
-            'table', targetTable,
+            'tables', string_to_array(tables, ','),
             'historyEnabled', historyEnabled,
-            'context', CASE WHEN context = 'null' THEN null ELSE context END,
-            'extendedTable', CASE WHEN extendedTable = 'null' THEN null ELSE extendedTable END,
+            'context', CASE WHEN spaceContext = 'null' THEN null ELSE spaceContext END,
             'batchMode', inputType != 'Feature'
         )
     );
@@ -615,7 +613,7 @@ BEGIN
     RETURN NEXT;
 END
 $BODY$
-    LANGUAGE plpgsql IMMUTABLE;
+LANGUAGE plpgsql IMMUTABLE;
 
 -- ####################################################################################################################
 -- Export related:

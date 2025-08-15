@@ -102,15 +102,23 @@ public class XyzSpaceTableHelper {
     throw new IllegalArgumentException("Unsupported Table Layout: " + layout);
   }
 
-  public static SQLQuery buildCreateHistoryPartitionQuery(String schema, String rootTable, long partitionNo, TableLayout layout) {
+  public static SQLQuery buildCreateHistoryPartitionQuery(String schema, String rootTable, long partitionNo, boolean useSelect) {
+    return buildCreateHistoryPartitionQuery(schema, rootTable, partitionNo, V1, useSelect);
+  }
+
+  public static SQLQuery buildCreateHistoryPartitionQuery(String schema, String rootTable, long partitionNo, TableLayout layout, boolean useSelect) {
     if(layout == TableLayout.V1)
       return new SQLQuery(
-        "SELECT xyz_create_history_partition('" + schema + "', '" + rootTable + "', " + partitionNo + ", " + PARTITION_SIZE + ")");
+          (useSelect ? "SELECT" : "PERFORM") + " xyz_create_history_partition('" + schema + "', '" + rootTable + "', " + partitionNo + ", " + PARTITION_SIZE + ")");
     else if (layout == TableLayout.V2) {
       //TODO!
       return new SQLQuery("");
     }
     throw new IllegalArgumentException("Unsupported Table Layout: " + layout);
+  }
+
+  public static SQLQuery buildCreateHistoryPartitionQuery(String schema, String rootTable, long partitionNo) {
+    return buildCreateHistoryPartitionQuery( schema, rootTable, partitionNo, true);
   }
 
   public static SQLQuery createConnectorSchema(String schema) {

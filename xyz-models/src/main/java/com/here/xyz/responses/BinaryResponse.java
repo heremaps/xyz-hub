@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,9 @@
 
 package com.here.xyz.responses;
 
+import static com.here.xyz.events.BinaryEvent.BINARY_IDENTIFIER;
+import static com.here.xyz.events.BinaryEvent.buffer2ByteArray;
+
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.google.flatbuffers.FlatBufferBuilder;
 import com.here.xyz.Payload;
@@ -27,18 +30,15 @@ import java.nio.ByteBuffer;
 
 /**
  * A wrapper class which is based on {@link XyzResponse} for binary responses from connectors.
- * Internally it uses an actual binary representation for the payload.
+ * Internally, it uses an actual binary representation for the payload.
  *
  * An instance of {@link ConnectorPayload} will be used internally to convert it to binary form.
- * For all other protocol versions the payload will be encoded as JSON.
+ * For all other protocol versions, the payload will be encoded as JSON.
  *
  * @see Payload#VERSION
  */
 public class BinaryResponse extends XyzResponse<BinaryResponse> {
-
-  public static final String BINARY_SUPPORT_VERSION = "0.6.0";
-
-  private String mimeType;
+  private String mimeType = "application/octet-stream";
   private byte[] bytes;
 
   @JsonIgnore
@@ -92,7 +92,7 @@ public class BinaryResponse extends XyzResponse<BinaryResponse> {
   public byte[] toByteArray() {
     FlatBufferBuilder builder = new FlatBufferBuilder();
     int payload = ConnectorPayload.createConnectorPayload(builder, builder.createString(getMimeType()), builder.createString(getEtag()), builder.createByteVector(getBytes()));
-    builder.finish(payload);
+    builder.finish(payload, BINARY_IDENTIFIER);
     return buffer2ByteArray(builder.dataBuffer());
   }
 
@@ -107,11 +107,5 @@ public class BinaryResponse extends XyzResponse<BinaryResponse> {
         .withMimeType(payload.mimeType())
         .withBytes(buffer2ByteArray(payload.bytesAsByteBuffer()))
         .withEtag(payload.etag());
-  }
-
-  private static final byte[] buffer2ByteArray(ByteBuffer buffer) {
-    byte[] byteArray = new byte[buffer.remaining()];
-    buffer.get(byteArray);
-    return byteArray;
   }
 }

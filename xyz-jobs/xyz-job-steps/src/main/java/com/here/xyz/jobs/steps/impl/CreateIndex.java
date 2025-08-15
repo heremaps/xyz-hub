@@ -93,19 +93,30 @@ public class CreateIndex extends SpaceBasedStep<CreateIndex> {
   }
 
   @Override
-  public void execute(boolean resume) throws SQLException, TooManyResourcesClaimed, WebClientException {
-    /*
-    NOTE: In case of resume, no cleanup needed, in any case, sending the index creation query again will work
-    as it is using the "CREATE INDEX IF NOT EXISTS" semantics
-     */
-    logger.info("[{}] Creating the index {} for space {} ...", getGlobalStepId(), index, getSpaceId());
-    SQLQuery indexCreationQuery = null;
-    if (index instanceof SystemIndex)
-      indexCreationQuery = buildSpaceTableIndexQuery(getSchema(db()), getRootTableName(space()), index);
-    else if (index instanceof OnDemandIndex onDemandIndex)
-      indexCreationQuery = buildOnDemandIndexCreationQuery(onDemandIndex);
+  public void execute(boolean resume) throws TooManyResourcesClaimed {
+    try {
+      /*
+      NOTE: In case of resume, no cleanup needed, in any case, sending the index creation query again will work
+      as it is using the "CREATE INDEX IF NOT EXISTS" semantics
+       */
+      logger.info("[{}] Creating the index {} for space {} ...", getGlobalStepId(), index, getSpaceId());
+      SQLQuery indexCreationQuery = null;
+      if (index instanceof SystemIndex)
+        indexCreationQuery = buildSpaceTableIndexQuery(getSchema(db()), getRootTableName(space()), index);
+      else if (index instanceof OnDemandIndex onDemandIndex)
+        indexCreationQuery = buildOnDemandIndexCreationQuery(onDemandIndex);
 
-    runWriteQueryAsync(indexCreationQuery, db(), ResourceAndTimeCalculator.getInstance().calculateNeededIndexAcus(getUncompressedUploadBytesEstimation(), index));
+      runWriteQueryAsync(indexCreationQuery, db(),
+          ResourceAndTimeCalculator.getInstance().calculateNeededIndexAcus(getUncompressedUploadBytesEstimation(), index));
+    }
+    catch (WebClientException | SQLException e) {
+      throw new StepException("Error while creating the index " + index + " for " + getSpaceId(), e).withRetryable(true);
+    }
+  }
+
+  @Override
+  protected boolean onAsyncFailure() {
+    return true;
   }
 
   private SQLQuery buildOnDemandIndexCreationQuery(OnDemandIndex onDemandIndex) throws WebClientException, SQLException,

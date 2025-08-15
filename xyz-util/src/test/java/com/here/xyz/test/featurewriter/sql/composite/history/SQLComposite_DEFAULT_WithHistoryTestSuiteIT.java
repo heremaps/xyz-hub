@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,9 +32,9 @@ import static com.here.xyz.util.db.pg.SQLError.MERGE_CONFLICT_ERROR;
 import static com.here.xyz.util.db.pg.SQLError.VERSION_CONFLICT_ERROR;
 
 import com.here.xyz.events.UpdateStrategy.OnExists;
+import com.here.xyz.events.UpdateStrategy.OnMergeConflict;
 import com.here.xyz.events.UpdateStrategy.OnNotExists;
 import com.here.xyz.events.UpdateStrategy.OnVersionConflict;
-import com.here.xyz.events.UpdateStrategy.OnMergeConflict;
 import com.here.xyz.test.featurewriter.sql.noncomposite.history.SQLNonCompositeWithHistoryTestSuiteIT;
 import java.util.stream.Stream;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -54,7 +54,7 @@ public class SQLComposite_DEFAULT_WithHistoryTestSuiteIT extends SQLNonComposite
         new TestArgs("1.3", true, true, UserIntent.WRITE, OnNotExists.RETAIN, null, null, null,
             new TestAssertions()),
 
-        new TestArgs("2.1", true, true, true, true, true, false, UserIntent.WRITE, null, OnExists.DELETE, null, null, DEFAULT,
+        new TestArgs("2.1", true, true, true, true, true, false, UserIntent.WRITE, OnNotExists.RETAIN, OnExists.DELETE, null, null, DEFAULT,
             new TestAssertions(INSERT, H)),
 
         new TestArgs("2.2", true, true, true, true, true, false, UserIntent.WRITE, null, OnExists.REPLACE, null, null, DEFAULT,
@@ -75,10 +75,10 @@ public class SQLComposite_DEFAULT_WithHistoryTestSuiteIT extends SQLNonComposite
         new TestArgs("3.3", true, true, true, true, false, true, UserIntent.WRITE, null, OnExists.ERROR, null, null, DEFAULT,
             new TestAssertions(FEATURE_EXISTS)),
 
-        new TestArgs("4.1", true, true, true, true, true, true, UserIntent.WRITE, null, OnExists.DELETE, null, null, DEFAULT,
+        new TestArgs("4.1", true, true, true, true, true, true, UserIntent.WRITE, OnNotExists.RETAIN, OnExists.DELETE, null, null, DEFAULT,
             new TestAssertions(INSERT, J)),
 
-        new TestArgs("4.2", true, true, true, true, false, true, UserIntent.WRITE, null, OnExists.DELETE, null, null, DEFAULT,
+        new TestArgs("4.2", true, true, true, true, false, true, UserIntent.WRITE, OnNotExists.RETAIN, OnExists.DELETE, null, null, DEFAULT,
             new TestAssertions(INSERT, D)),
 
         new TestArgs("5.1", true, true, true, false, false, false, true, UserIntent.WRITE, null, OnExists.REPLACE, OnVersionConflict.ERROR, null, DEFAULT,
@@ -87,10 +87,10 @@ public class SQLComposite_DEFAULT_WithHistoryTestSuiteIT extends SQLNonComposite
         new TestArgs("5.2", true, true, true, false, false, false, true, UserIntent.WRITE, null, OnExists.REPLACE, OnVersionConflict.RETAIN, null, DEFAULT,
             new TestAssertions()),
 
-        new TestArgs("6.1", true, true, true, false, false, true, true, UserIntent.WRITE, null, OnExists.DELETE, OnVersionConflict.REPLACE, null, DEFAULT,
+        new TestArgs("6.1", true, true, true, false, false, true, true, UserIntent.WRITE, OnNotExists.RETAIN, OnExists.DELETE, OnVersionConflict.REPLACE, null, DEFAULT,
             new TestAssertions(INSERT, J)),
 
-        new TestArgs("6.2", true, true, true, false, false, false, true, UserIntent.WRITE, null, OnExists.DELETE, OnVersionConflict.REPLACE, null, DEFAULT,
+        new TestArgs("6.2", true, true, true, false, false, false, true, UserIntent.WRITE, OnNotExists.RETAIN, OnExists.DELETE, OnVersionConflict.REPLACE, null, DEFAULT,
             new TestAssertions(INSERT, D)),
 
         new TestArgs("6.3", true, true, true, false, false, false, true, UserIntent.WRITE, null, OnExists.REPLACE, OnVersionConflict.REPLACE, null, DEFAULT,
@@ -102,7 +102,7 @@ public class SQLComposite_DEFAULT_WithHistoryTestSuiteIT extends SQLNonComposite
         new TestArgs("6.5", true, true, true, false, false, false, true, UserIntent.WRITE, null, OnExists.ERROR, OnVersionConflict.REPLACE, null, DEFAULT,
             new TestAssertions(FEATURE_EXISTS)),
 
-        new TestArgs("7.1", true, true, true, false, false, true, false, UserIntent.WRITE, null, OnExists.DELETE, OnVersionConflict.REPLACE, null, DEFAULT,
+        new TestArgs("7.1", true, true, true, false, false, true, false, UserIntent.WRITE, OnNotExists.RETAIN, OnExists.DELETE, OnVersionConflict.REPLACE, null, DEFAULT,
             new TestAssertions(INSERT, H)),
 
         new TestArgs("7.2", true, true, true, false, false, true, false, UserIntent.WRITE, null, OnExists.REPLACE, OnVersionConflict.REPLACE, null, DEFAULT,

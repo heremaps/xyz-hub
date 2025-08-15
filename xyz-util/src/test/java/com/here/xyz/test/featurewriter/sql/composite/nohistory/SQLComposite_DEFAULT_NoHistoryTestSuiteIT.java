@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -53,7 +53,7 @@ public class SQLComposite_DEFAULT_NoHistoryTestSuiteIT extends SQLNonCompositeNo
         new TestArgs("1.3", true, false, UserIntent.WRITE, OnNotExists.RETAIN, null, null, null,
             new TestAssertions()),
 
-        new TestArgs("2.1", true, false, true, true, true, false, UserIntent.WRITE, null, OnExists.DELETE, null, null, DEFAULT,
+        new TestArgs("2.1", true, false, true, true, true, false, UserIntent.WRITE, OnNotExists.RETAIN, OnExists.DELETE, null, null, DEFAULT,
             new TestAssertions(INSERT, H)),
 
         new TestArgs("2.2", true, false, true, true, true, false, UserIntent.WRITE, null, OnExists.REPLACE, null, null, DEFAULT,
@@ -74,10 +74,10 @@ public class SQLComposite_DEFAULT_NoHistoryTestSuiteIT extends SQLNonCompositeNo
         new TestArgs("3.3", true, false, true, true, false, true, UserIntent.WRITE, null, OnExists.ERROR, null, null, DEFAULT,
             new TestAssertions(FEATURE_EXISTS)),
 
-        new TestArgs("4.1", true, false, true, true, true, true, UserIntent.WRITE, null, OnExists.DELETE, null, null, DEFAULT,
+        new TestArgs("4.1", true, false, true, true, true, true, UserIntent.WRITE, OnNotExists.RETAIN, OnExists.DELETE, null, null, DEFAULT,
             new TestAssertions(UPDATE, J)),
 
-        new TestArgs("4.2", true, false, true, true, false, true, UserIntent.WRITE, null, OnExists.DELETE, null, null, DEFAULT,
+        new TestArgs("4.2", true, false, true, true, false, true, UserIntent.WRITE, OnNotExists.RETAIN, OnExists.DELETE, null, null, DEFAULT,
             new TestAssertions(DELETE)),
 
         new TestArgs("5.1", true, false, true, false, false, false, true, UserIntent.WRITE, null, OnExists.REPLACE, OnVersionConflict.ERROR, null, DEFAULT,

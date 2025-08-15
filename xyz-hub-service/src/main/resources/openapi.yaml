@@ -206,10 +206,14 @@ paths:
       summary: Get Changesets
       description: >-
         Retrieves a subset of existing Changesets from the space's history.
-        The subset is defined by a "startVersion" and an "endVersion".
+        The subset can be defined either by a "startVersion" and an "endVersion"
+        or by providing a version ref that references a version range
+        e.g., "5..6" or "0..HEAD"
+        
 
         Each successful write transaction to the space is stored as one single Changeset,
         which can contain modifications applied to one or more features.
+
 
         The response payload may be split in multiple pages. The next page token is written in the
         property 'nextPageToken', which then can be used to retrieve the next page using the
@@ -217,6 +221,7 @@ paths:
       operationId: getChangesets
       parameters:
         - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/VersionRef'
         - $ref: '#/components/parameters/StartVersion'
         - $ref: '#/components/parameters/EndVersion'
         - $ref: '#/components/parameters/PageToken'
@@ -635,6 +640,18 @@ paths:
         - $ref: '#/components/parameters/SpaceId'
         - $ref: '#/components/parameters/Ids'
         - $ref: '#/components/parameters/Context'
+        - name: eraseContent
+          in: query
+          description: >-
+           false - [default]
+
+
+           true  - erase, wipe all content
+          required: false
+          schema:
+            type: boolean
+            default: false
+
       responses:
         '200':
           $ref: '#/components/responses/FeatureCollectionModificationResponse'
@@ -1212,135 +1229,6 @@ paths:
           $ref: '#/components/responses/ErrorResponse404'
         '409':
           $ref: '#/components/responses/ErrorResponse409'
-  '/spaces/{spaceId}/jobs':
-    post:
-      tags:
-        - Manage Jobs
-      summary: Create Job
-      operationId: postJob
-      parameters:
-        - $ref: '#/components/parameters/SpaceId'
-      requestBody:
-        $ref: '#/components/requestBodies/JobRequest'
-      responses:
-        '201':
-          $ref: '#/components/responses/JobResponse'
-        '400':
-          $ref: '#/components/responses/ErrorResponse400'
-        '401':
-          $ref: '#/components/responses/ErrorResponse401'
-        '403':
-          $ref: '#/components/responses/ErrorResponse403'
-    get:
-      tags:
-        - Manage Jobs
-      summary: Get jobs
-      description: Retrieve jobs
-      operationId: getJobs
-      parameters:
-        - $ref: '#/components/parameters/SpaceId'
-        - $ref: '#/components/parameters/JobStatus'
-      responses:
-        '200':
-          $ref: '#/components/responses/JobsResponse'
-        '400':
-          $ref: '#/components/responses/ErrorResponse400'
-        '401':
-          $ref: '#/components/responses/ErrorResponse401'
-        '403':
-          $ref: '#/components/responses/ErrorResponse403'
-        '404':
-          $ref: '#/components/responses/ErrorResponse404'
-  '/spaces/{spaceId}/job/{jobId}':
-    get:
-      tags:
-        - Manage Jobs (deprecated)
-      summary: Get job
-      description: Retrieve job
-      operationId: getJob
-      parameters:
-        - $ref: '#/components/parameters/SpaceId'
-        - $ref: '#/components/parameters/JobId'
-      responses:
-        '200':
-          $ref: '#/components/responses/JobResponse'
-        '400':
-          $ref: '#/components/responses/ErrorResponse400'
-        '401':
-          $ref: '#/components/responses/ErrorResponse401'
-        '403':
-          $ref: '#/components/responses/ErrorResponse403'
-        '404':
-          $ref: '#/components/responses/ErrorResponse404'
-    patch:
-      tags:
-        - Manage Jobs (deprecated)
-      summary: Update Job
-      operationId: patchJob
-      parameters:
-        - $ref: '#/components/parameters/SpaceId'
-        - $ref: '#/components/parameters/JobId'
-      requestBody:
-        $ref: '#/components/requestBodies/JobRequest'
-      responses:
-        '200':
-          $ref: '#/components/responses/JobResponse'
-        '400':
-          $ref: '#/components/responses/ErrorResponse400'
-        '401':
-          $ref: '#/components/responses/ErrorResponse401'
-        '403':
-          $ref: '#/components/responses/ErrorResponse403'
-        '404':
-          $ref: '#/components/responses/ErrorResponse404'
-    delete:
-      tags:
-        - Manage Jobs (deprecated)
-      summary: Delete job
-      description: Delete job
-      operationId: deleteJob
-      parameters:
-        - $ref: '#/components/parameters/SpaceId'
-        - $ref: '#/components/parameters/JobId'
-        - $ref: '#/components/parameters/DeleteData'
-      responses:
-        '200':
-          $ref: '#/components/responses/JobResponse'
-        '400':
-          $ref: '#/components/responses/ErrorResponse400'
-        '401':
-          $ref: '#/components/responses/ErrorResponse401'
-        '403':
-          $ref: '#/components/responses/ErrorResponse403'
-        '404':
-          $ref: '#/components/responses/ErrorResponse404'
-  '/spaces/{spaceId}/job/{jobId}/execute':
-    post:
-      tags:
-        - Manage Jobs (deprecated)
-      summary: Run Command
-      description: Run Command on Job
-      operationId: postExecute
-      parameters:
-        - $ref: '#/components/parameters/SpaceId'
-        - $ref: '#/components/parameters/JobId'
-        - $ref: '#/components/parameters/Command'
-        - $ref: '#/components/parameters/UrlCount'
-      responses:
-        '204':
-          $ref: '#/components/responses/JobResponse'
-        '400':
-          $ref: '#/components/responses/ErrorResponse400'
-        '401':
-          $ref: '#/components/responses/ErrorResponse401'
-        '403':
-          $ref: '#/components/responses/ErrorResponse403'
-        '404':
-          $ref: '#/components/responses/ErrorResponse404'
-        '409':
-          $ref: '#/components/responses/ErrorResponse409'
-        '412':
-          $ref: '#/components/responses/ErrorResponse412'
 components:
   securitySchemes:
     AccessToken:
@@ -1562,7 +1450,10 @@ components:
         for this field:
           * id=value1,value2
           * id=value1,id=value2
-      required: true
+
+
+        not required when eraseContent=true is used.
+      required: false
       schema:
         type: array
         items:
@@ -1765,7 +1656,7 @@ components:
            "p.myNumber1": 5,
            "p.myNumber2=gte":7
           }
-          
+
     PropertiesSelection:
       name: selection
       in: query

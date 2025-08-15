@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -64,12 +64,10 @@ class JsSpaceWriter {
   writeFeatureModification(modification, author, spaceContext, historyActive, expectedError) {
     let queryContext = {
       schema: this.schema,
-      table: this.spaceId,
+      tables: this.composite ? [this.superSpaceId, this.spaceId] : [this.spaceId],
       context: spaceContext,
       historyEnabled: historyActive
     };
-    if (this.composite)
-      queryContext.extendedTable = this.superSpaceId;
     global.queryContext = () => queryContext;
 
     try {

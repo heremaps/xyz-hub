@@ -241,19 +241,29 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
             new Load().withResource(IOResource.getInstance()).withEstimatedVirtualUnits(ESTIMATED_SPATIAL_FILTERED_IO_BYTES)
         );
 
-      StatisticsResponse statistics = spaceStatistics(context, true);
-      overallNeededAcus = overallNeededAcus != -1 ? overallNeededAcus : calculateNeededExportAcus(statistics.getDataSize().getValue());
+      long estimatedIOBytes = getEstimatedIOBytes();
+      overallNeededAcus = overallNeededAcus != -1 ? overallNeededAcus : calculateNeededExportAcus(estimatedIOBytes);
 
-      infoLog(JOB_EXECUTOR, this, "Calculated ACUS: byteSize of layer: " + statistics.getDataSize().getValue()
+      infoLog(JOB_EXECUTOR, this, "Calculated ACUS: byteSize of layer: " + estimatedIOBytes
           + " => neededACUs:" + overallNeededAcus);
 
       return List.of(
           new Load().withResource(dbReader()).withEstimatedVirtualUnits(overallNeededAcus),
-          new Load().withResource(IOResource.getInstance()).withEstimatedVirtualUnits(getUncompressedUploadBytesEstimation()));
+          new Load().withResource(IOResource.getInstance()).withEstimatedVirtualUnits(estimatedIOBytes));
     }
     catch (WebClientException e) {
-      throw new StepException("Error calculating the necessary resources for the step.", e);
+      throw new StepException("Error calculating the necessary resources for the step.", e).withRetryable(true);
     }
+  }
+
+  protected long getEstimatedIOBytes() {
+    StatisticsResponse statistics;
+    try {
+      statistics = spaceStatistics(context, true);
+    } catch (WebClientException e) {
+      throw new StepException("Error calculating the necessary resources for the step.", e).withRetryable(true);
+    }
+    return statistics.getDataSize().getValue();
   }
 
   private double calculateNeededExportAcus(long bytesSizeEstimation) {

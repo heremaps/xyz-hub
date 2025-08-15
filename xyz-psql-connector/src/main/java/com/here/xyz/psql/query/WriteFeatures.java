@@ -26,15 +26,18 @@ import static com.here.xyz.responses.XyzError.NOT_FOUND;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.connectors.ErrorResponseException;
+import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.WriteFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
+import com.here.xyz.util.db.pg.FeatureWriterQueryBuilder.FeatureWriterQueryContextBuilder;
 import com.here.xyz.util.db.pg.SQLError;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureCollection> {
@@ -47,21 +50,24 @@ public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureColl
 
   @Override
   protected SQLQuery buildQuery(WriteFeaturesEvent event) throws ErrorResponseException {
-    Map<String, Object> queryContext = new HashMap<>(Map.of(
-        "schema", getSchema(),
-        "table", getDefaultTable(event),
-        "historyEnabled", event.getVersionsToKeep() > 1,
-        "batchMode", true
-    ));
+    List<String> tables = new ArrayList<>();
+    SpaceContext spaceContext = null;
+
     if (isExtendedSpace(event)) {
-      String extendedTable = getExtendedTable(event);
-      if (is2LevelExtendedSpace(event)) {
-        queryContext.put("extendedTableL2", extendedTable);
-        extendedTable = getIntermediateTable(event);
-      }
-      queryContext.put("extendedTable", extendedTable);
-      queryContext.put("context", event.getContext().toString());
+      tables.add(getExtendedTable(event));
+      if (is2LevelExtendedSpace(event))
+        tables.add(getIntermediateTable(event));
+      spaceContext = event.getContext();
     }
+    tables.add(getDefaultTable(event));
+
+    Map<String, Object> queryContext = new FeatureWriterQueryContextBuilder()
+        .withSchema(getSchema())
+        .withTables(tables)
+        .withSpaceContext(spaceContext)
+        .withHistoryEnabled(event.getVersionsToKeep() > 1)
+        .withBatchMode(true)
+        .build();
 
     return new SQLQuery("SELECT write_features(#{modifications}, 'Modifications', #{author}, #{responseDataExpected});")
         .withLoggingEnabled(false)

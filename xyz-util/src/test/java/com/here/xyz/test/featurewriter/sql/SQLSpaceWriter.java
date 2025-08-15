@@ -37,9 +37,9 @@ import com.here.xyz.test.SQLITBase;
 import com.here.xyz.test.featurewriter.SpaceWriter;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
+import com.here.xyz.util.db.pg.FeatureWriterQueryBuilder.FeatureWriterQueryContextBuilder;
 import com.here.xyz.util.db.pg.SQLError;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -117,15 +117,13 @@ public class SQLSpaceWriter extends SpaceWriter {
   private SQLQuery generateWriteFeatureQuery(List<Feature> featureList, String author, OnExists onExists, OnNotExists onNotExists,
       OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict, boolean isPartial, SpaceContext spaceContext,
       boolean historyEnabled) {
-    final Map<String, Object> queryContext = new HashMap<>(Map.of(
-        "schema", getDataSourceProvider().getDatabaseSettings().getSchema(),
-        "table", spaceId(),
-        "context", spaceContext,
-        "historyEnabled", historyEnabled,
-        "batchMode", batchMode
-    ));
-    if (composite)
-      queryContext.put("extendedTable", superSpaceId());
+    final Map<String, Object> queryContext = new FeatureWriterQueryContextBuilder()
+        .withSchema(getDataSourceProvider().getDatabaseSettings().getSchema())
+        .withTables(composite ? List.of(superSpaceId(), spaceId()): List.of(spaceId()))
+        .withSpaceContext(spaceContext)
+        .withHistoryEnabled(historyEnabled)
+        .withBatchMode(batchMode)
+        .build();
 
     WriteFeaturesEvent.Modification modification = new
             WriteFeaturesEvent.Modification()

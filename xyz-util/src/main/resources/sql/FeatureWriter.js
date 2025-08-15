@@ -30,9 +30,7 @@ class FeatureWriter {
 
   //Context input fields
   schema;
-  table;
-  extendedTable;
-  extendedTableL2;
+  tables;
   context;
   historyEnabled;
 
@@ -69,16 +67,14 @@ class FeatureWriter {
     //   throw new IllegalArgumentException("onNotExists must not be \"CREATE\" for partial writes.");
 
     this.schema = queryContext().schema;
-    this.table = queryContext().table;
-    this.extendedTable = queryContext().extendedTable;
-    this.extendedTableL2 = queryContext().extendedTableL2;
+    this.tables = queryContext().tables;
     this.context = queryContext().context;
     this.historyEnabled = queryContext().historyEnabled;
 
     this.inputFeature = inputFeature;
     this.version = version;
     this.author = author || "ANONYMOUS";
-    this.baseVersion = (this.inputFeature.properties || {})[XYZ_NS]?.version;
+    this.baseVersion = queryContext().baseVersion != null ? queryContext().baseVersion : this.inputFeature.properties?.[XYZ_NS]?.version;
     this.featureHooks = featureHooks;
     this.enrichFeature();
 
@@ -93,7 +89,7 @@ class FeatureWriter {
       throw new IllegalArgumentException("MERGE can not be executed for spaces without history!");
 
     if (this.onVersionConflict && this.baseVersion == null)
-      throw new IllegalArgumentException("The provided Feature does not have a baseVersion but a version conflict detection was requested!");
+      throw new IllegalArgumentException(`No base version was provided, but a version conflict detection was requested! Please provide a base-version in the query-context or in the input-feature with ID ${this.inputFeature.id}.`);
 
     if (this.debugOutput)
       this.debugBox(JSON.stringify(this, null, 2));
@@ -224,14 +220,24 @@ class FeatureWriter {
         }
       }
       else {
-        switch (this.onNotExists) {
-          case "CREATE":
-            break; //NOTHING TO DO;
-          case "ERROR":
-            this._throwFeatureNotExistsError();
-          case "RETAIN":
-            return null;
+        let featureExists = false;
+        if (this.tables.length > 1) {
+          /*
+          We still don't know if the feature already exists or not, because in this case it could exist in the base table(s),
+          so here we have to actively check if the feature exists
+           */
+          featureExists = this.featureExistsInHead(this.inputFeature.id, "SUPER");
         }
+
+        if (!featureExists)
+          switch (this.onNotExists) {
+            case "CREATE":
+              break; //NOTHING TO DO;
+            case "ERROR":
+              this._throwFeatureNotExistsError();
+            case "RETAIN":
+              return null;
+          }
 
         /*
         If the space is a composite space a not existence in the extension does not necessarily mean,
@@ -336,7 +342,7 @@ class FeatureWriter {
           return null;
 
         let execution = this._upsertRow(execution => {
-          if (execution.action != ExecutionAction.UPDATED && this.onNotExists == "ERROR")
+          if (execution?.action != ExecutionAction.UPDATED && this.onNotExists == "ERROR")
             this._throwFeatureNotExistsError();
           return execution;
         });
@@ -504,6 +510,7 @@ class FeatureWriter {
   }
 
   loadFeature(id, version = "HEAD", context = this.context) {
+    //TODO: Also cache headFeatures for other contexts / queries to other table combinations
     if (version == "HEAD" && context == this.context && this.headFeature) //NOTE: Only cache for the defaults
       return this.headFeature;
 
@@ -511,15 +518,8 @@ class FeatureWriter {
     if (id == null)
       return null;
 
-    let res = this._loadFeature(id, version, this._targetTable(context));
-    if (context == "DEFAULT" && !res.length) {
-      res = this._loadFeature(id, version, this.extendedTable);
-      if (!res.length && this.extendedTableL2)
-        res = this._loadFeature(id, version, this.extendedTableL2);
-    }
-    else if (context == "SUPER" && !res.length && this.extendedTableL2)
-      res = this._loadFeature(id, version, this.extendedTableL2);
-
+    let tables = context == "EXTENSION" ? this.tables.slice(-1) : context == "SUPER" ? this.tables.slice(0, -1) : this.tables;
+    let res = this._loadFeature(id, version, tables);
 
     if (!res.length)
       return null;
@@ -705,21 +705,38 @@ class FeatureWriter {
   }
 
   static _targetTable(context = queryContext().context) {
-    return context == "SUPER" ? queryContext().extendedTable : queryContext().table;
+    return queryContext().tables[queryContext().tables.length - (context == "SUPER" ? 2 : 1)];
   }
 
   _targetTable(context = this.context) {
     return FeatureWriter._targetTable(context);
   }
 
-  _loadFeature(id, version, table) {
-    let sql = `SELECT id, version, author, jsondata, ST_AsGeojson(geo)::JSONB FROM "${this.schema}"."${table}"`;
+  _loadFeature(id, version, tables) {
+    let tableAliases = tables.map((table, i) => "t" + (tables.length - i - 1));
+    let whereCondition = `WHERE id = $1 AND ${version == "HEAD" ? "next_version" : "version"} = $2 AND operation != $3`;
 
-    let res = version == "HEAD"
-        //next_version + operation supports head retrieval if we have multiple versions
-        ? plv8.execute(sql + "WHERE id = $1 AND next_version = $2::BIGINT AND operation != $3", [id, MAX_BIG_INT, "D"])
-        : plv8.execute(sql + "WHERE id = $1 AND version = $2 AND operation != $3", [id, version, "D"]);
-    return res;
+    let sql = `
+        SELECT
+            id_array[index] AS id,
+            version_array[index] AS version,
+            author_array[index] AS author,
+            jsondata_array[index] AS jsondata,
+            ST_AsGeojson(geo_array[index])::JSONB AS geo
+        FROM (
+            SELECT
+                ARRAY[${tableAliases.map(alias => alias + ".id").join(", ")}] AS id_array,
+                ARRAY[${tableAliases.map(alias => alias + ".version").join(", ")}] AS version_array,
+                ARRAY[${tableAliases.map(alias => alias + ".author").join(", ")}] AS author_array,
+                ARRAY[${tableAliases.map(alias => alias + ".jsondata").join(", ")}] AS jsondata_array,
+                ARRAY[${tableAliases.map(alias => alias + ".geo").join(", ")}] AS geo_array,
+                coalesce_subscript(ARRAY[${tableAliases.map(alias => alias + ".id").join(", ")}]) AS index
+            FROM (SELECT * FROM "${this.schema}"."${tables[tables.length - 1]}" ${whereCondition}) AS ${tableAliases[0]}
+                ${tables.slice(0, -1).reverse().map((baseTable, i) => `FULL JOIN (SELECT * FROM "${this.schema}"."${baseTable}" ${whereCondition}) AS ${tableAliases[i + 1]} USING (id) `).join("\n")}
+        );
+    `;
+
+    return plv8.execute(sql, [id, version == "HEAD" ? MAX_BIG_INT : version, "D"]);
   }
 
   /**
@@ -731,6 +748,7 @@ class FeatureWriter {
   }
 
   _updateNextVersion() {
+    //TODO: Perform the following queries only once per feature even if this method is getting called multiple times
     if (this.onVersionConflict != null)
       return plv8.execute(`UPDATE "${this.schema}"."${this._targetTable()}"
                            SET next_version = $1
@@ -808,7 +826,8 @@ class FeatureWriter {
     if (execution != null) {
       if (execution.action != ExecutionAction.DELETED)
         result.features.push(execution.feature);
-      result[execution.action].push(execution.feature.id);
+      if (execution.action != ExecutionAction.NONE)
+        result[execution.action].push(execution.feature.id);
     }
   }
 
@@ -846,6 +865,7 @@ class ExecutionAction {
   static INSERTED = "inserted";
   static UPDATED = "updated";
   static DELETED = "deleted";
+  static NONE = "none"; //To choose if no change was executed, but the feature should be still part of the result (e.g., for features for which an update was requested but the content was not differing from the existing version)
 
   static fromOperation = {
     "I": this.INSERTED,

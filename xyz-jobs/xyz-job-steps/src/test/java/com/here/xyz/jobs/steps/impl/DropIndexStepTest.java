@@ -21,12 +21,14 @@ package com.here.xyz.jobs.steps.impl;
 
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
 import com.here.xyz.models.hub.Space;
+import com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index;
 import com.here.xyz.util.db.pg.IndexHelper.OnDemandIndex;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Test;
-
+import com.here.xyz.util.db.pg.XyzSpaceTableHelper.SystemIndex;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
 
 public class DropIndexStepTest extends StepTest {
 
@@ -74,7 +76,23 @@ public class DropIndexStepTest extends StepTest {
             .withIndexWhiteList(List.of());
     sendLambdaStepRequestBlock(step, true);
 
-    Assertions.assertEquals(0 ,getOnDemandIndices(SPACE_ID).size(), "only system indexes should remain");
+    Assertions.assertEquals(0, getOnDemandIndices(SPACE_ID).size(), "no indexes should remain");
+    Assertions.assertEquals(0, getSystemIndices(SPACE_ID).size(), "no indexes should remain");
+  }
+
+  @Test
+  public void testDropIndexesStepWithWhitelistedSystemIndexes() throws Exception {
+    createTestSpace(true);
+    Assertions.assertFalse(getSystemIndices(SPACE_ID).isEmpty());
+
+    LambdaBasedStep step = new DropIndexes()
+            .withSpaceId(SPACE_ID)
+            .withSpaceDeactivation(false)
+            .withIndexWhiteList(List.of(SystemIndex.VERSION_ID, SystemIndex.OPERATION));
+    sendLambdaStepRequestBlock(step, true);
+
+    Assertions.assertEquals(0, getOnDemandIndices(SPACE_ID).size(), "no on-demand indexes should remain");
+    Assertions.assertEquals(2, getSystemIndices(SPACE_ID).size(), "only 2 system indexes should remain");
   }
 
   @Test
@@ -82,10 +100,12 @@ public class DropIndexStepTest extends StepTest {
     //recreate space without on-demandindices
     createTestSpace(false);
 
+    List<Index> whiteListIndexes = new ArrayList<>(List.of(SystemIndex.values()));
+    whiteListIndexes.add(new OnDemandIndex().withPropertyPath("foo1"));
     LambdaBasedStep step = new DropIndexes()
             .withSpaceId(SPACE_ID)
             .withSpaceDeactivation(false)
-            .withIndexWhiteList(List.of(new OnDemandIndex().withPropertyPath("foo1")));
+            .withIndexWhiteList(whiteListIndexes);
     sendLambdaStepRequestBlock(step, true);
 
     Assertions.assertTrue(getOnDemandIndices(SPACE_ID).isEmpty(), "only system indices should remain");

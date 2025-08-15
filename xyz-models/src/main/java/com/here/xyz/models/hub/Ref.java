@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -61,8 +61,12 @@ public class Ref implements XyzSerializable {
   }
 
   public Ref(long startVersion, long endVersion) {
-    start = new Ref(startVersion);
-    end = new Ref(endVersion);
+    this(new Ref(startVersion), new Ref(endVersion));
+  }
+
+  public Ref(Ref startRef, Ref endRef) {
+    start = startRef;
+    end = endRef;
     validateRange();
   }
 

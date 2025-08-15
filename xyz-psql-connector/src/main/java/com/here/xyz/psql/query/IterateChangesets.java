@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,15 +19,12 @@
 
 package com.here.xyz.psql.query;
 
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SCHEMA;
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.TABLE;
-
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.IterateChangesetsEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
-import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.models.hub.Ref;
 import com.here.xyz.psql.query.helpers.versioning.GetMinVersion;
 import com.here.xyz.responses.changesets.Changeset;
 import com.here.xyz.responses.changesets.ChangesetCollection;
@@ -35,173 +32,153 @@ import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
-public class IterateChangesets extends XyzQueryRunner<IterateChangesetsEvent, ChangesetCollection> {
-  public static long DEFAULT_LIMIT = 10_000L;
-  private String pageToken;
+public class IterateChangesets extends IterateFeatures<IterateChangesetsEvent, ChangesetCollection> {
+  public static long DEFAULT_LIMIT = 1_000l;
   private long limit;
-  private long startVersion = -1;
-  private long minVersion;
   private IterateChangesetsEvent event; //TODO: Do not store the whole event during the request phase
 
   public IterateChangesets(IterateChangesetsEvent event) throws SQLException, ErrorResponseException {
     super(event);
     this.event = event;
     limit = event.getLimit() <= 0 ? DEFAULT_LIMIT : event.getLimit();
-    pageToken = event.getPageToken();
-    minVersion = event.getMinVersion();
   }
 
   @Override
   public ChangesetCollection run(DataSourceProvider dataSourceProvider) throws SQLException, ErrorResponseException {
-    Long minDbVersion = new GetMinVersion<>(event).withDataSourceProvider(dataSourceProvider).run();
-    minVersion = Math.min(minDbVersion, minVersion);
-    startVersion = Math.max(event.getStartVersion(), minVersion);
+    long minVersion = event.getMinVersion();
+    long startVersion = event.getRef().getStart().getVersion();
+
+    if (startVersion < minVersion) {
+      Long minDbVersion = new GetMinVersion<>(event).withDataSourceProvider(dataSourceProvider).run();
+      minVersion = Math.min(minDbVersion, minVersion);
+    }
+
+    startVersion = Math.max(startVersion, minVersion);
+    //Use the updated ref
+    event.setRef(new Ref(new Ref(startVersion), event.getRef().getEnd()));
     return super.run(dataSourceProvider);
   }
 
   @Override
-  protected SQLQuery buildQuery(IterateChangesetsEvent event) throws SQLException, ErrorResponseException {
-    return buildIterateChangesets(event);
+  protected SQLQuery buildNextVersionFragment(Ref ref, boolean historyEnabled, String versionParamName) {
+    //TODO: Check if this check could be pulled up, because when requesting history versions from a range, the next-version anyways should not play any role
+    if (ref.isRange())
+      return new SQLQuery("");
+    return super.buildNextVersionFragment(ref, historyEnabled, versionParamName);
   }
 
   @Override
+  protected SQLQuery buildSelectClause(IterateChangesetsEvent event, int dataset) {
+    return new SQLQuery("${{selectClauseWithoutExtraFields}}, operation, author")
+        .withQueryFragment("selectClauseWithoutExtraFields", super.buildSelectClause(event, dataset));
+  }
+
+  @Override
+  protected SQLQuery buildLimitFragment(IterateChangesetsEvent event) {
+    //Query one more feature as requested, to be able to determine if we need to include a nextPageToken
+    return new SQLQuery("LIMIT #{limit}").withNamedParameter("limit", event.getLimit() + 1);
+  }
+
   public ChangesetCollection handle(ResultSet rs) throws SQLException {
-    long numFeatures = 0;
-
-    ChangesetCollection ccol = new ChangesetCollection();
     Map<Long, Changeset> versions = new HashMap<>();
-    Long lastVersion = null;
-    Long startVersion = null;
-    boolean wroteStart = false;
-    String author = null;
-    long createdAt = 0;
 
-    List<Feature> inserts = new ArrayList<>();
-    List<Feature> updates = new ArrayList<>();
-    List<Feature> deletes = new ArrayList<>();
+    long numFeatures = 0;
+    long startVersion = -1;
+    long prevVersion = -1;
+    boolean writeStarted = false;
+    String author = null;
+    long createdAt = -1;
+
+    LazyParsableFeatureCollection inserts = new LazyParsableFeatureCollection();
+    LazyParsableFeatureCollection updates = new LazyParsableFeatureCollection();
+    LazyParsableFeatureCollection deletes = new LazyParsableFeatureCollection();
 
     while (rs.next()) {
       numFeatures++;
       //skip the additional added feature
-      if(!rs.isFirst() && rs.isLast() && numFeatures > limit)
+      if (!rs.isFirst() && rs.isLast() && numFeatures > limit)
         break;
 
-      Feature feature;
       String operation = rs.getString("operation");
-      Long version = rs.getLong("version");
+      long version = rs.getLong("version");
 
-      if(!wroteStart){
+      if (!writeStarted) {
         startVersion = version;
-        wroteStart = true;
+        writeStarted = true;
       }
 
-      if(lastVersion !=  null && version > lastVersion) {
-        Changeset cs = new Changeset().withInserted(new FeatureCollection().withFeatures(inserts))
-            .withVersion(lastVersion).withUpdated(new FeatureCollection().withFeatures(updates))
-            .withDeleted(new FeatureCollection().withFeatures(deletes))
+      if (prevVersion != -1 && version > prevVersion) {
+        versions.put(prevVersion, new Changeset()
+            .withVersion(prevVersion)
             .withCreatedAt(createdAt)
-            .withAuthor(author);
+            .withAuthor(author)
+            .withInserted(inserts.build())
+            .withUpdated(updates.build())
+            .withDeleted(deletes.build()));
 
-        versions.put(lastVersion, cs);
-        inserts = new ArrayList<>();
-        updates = new ArrayList<>();
-        deletes = new ArrayList<>();
+        author = null;
+        createdAt = -1;
+        inserts = new LazyParsableFeatureCollection();
+        updates = new LazyParsableFeatureCollection();
+        deletes = new LazyParsableFeatureCollection();
       }
 
-      author = rs.getString("author");
+      if (author == null) {
+        author = rs.getString("author");
+        try {
+          Feature firstFeature = XyzSerializable.deserialize(rs.getString("jsondata"));
+          createdAt = firstFeature.getProperties().getXyzNamespace().getUpdatedAt();
+        }
+        catch (JsonProcessingException e) {
+          throw new SQLException("Can't read feature json from database!", e);
+        }
+      }
 
       try {
-        feature =  new ObjectMapper().readValue(rs.getString("feature"), Feature.class);
-        createdAt = feature.getProperties().getXyzNamespace().getUpdatedAt();
-      }catch (JsonProcessingException e){
-        throw new SQLException("Cant read json from database!");
+        switch (operation) {
+          case "I":
+          case "H":
+            inserts.addFeature(content -> handleFeature(rs, content));
+            break;
+          case "U":
+          case "J":
+            updates.addFeature(content -> handleFeature(rs, content));
+            break;
+          case "D":
+            deletes.addFeature(content -> handleFeature(rs, content));
+            break;
+        }
+      }
+      catch (ErrorResponseException e) {
+        //TODO: Throw ErrorResponseException instead
+        throw new SQLException(e.getMessage());
       }
 
-      switch (operation){
-        case "I":
-        case "H":
-          inserts.add(feature);
-          break;
-        case "U":
-        case "J":
-          updates.add(feature);
-          break;
-        case "D":
-          deletes.add(feature);
-          break;
-      }
-
-      pageToken = rs.getString("vid");
-      lastVersion = version;
+      prevVersion = version;
     }
 
-    if(wroteStart){
-      Changeset cs = new Changeset().withInserted(new FeatureCollection().withFeatures(inserts))
-          .withVersion(lastVersion)
-          .withUpdated(new FeatureCollection().withFeatures(updates))
-          .withDeleted(new FeatureCollection().withFeatures(deletes))
+    if (writeStarted) {
+      versions.put(prevVersion, new Changeset()
+          .withVersion(prevVersion)
           .withCreatedAt(createdAt)
-          .withAuthor(author);
-
-      versions.put(lastVersion, cs);
-      ccol.setStartVersion(startVersion);
-      ccol.setEndVersion(lastVersion);
-    }else{
-      ccol.setStartVersion(-1);
-      ccol.setEndVersion(-1);
+          .withAuthor(author)
+          .withInserted(inserts.build())
+          .withUpdated(updates.build())
+          .withDeleted(deletes.build()));
     }
 
-    ccol.setVersions(versions);
-
-    //Only add pageToke if we have further results
+    //Only create a nextPageToken if there are further results
+    String nextPageToken = null;
     if (numFeatures > 0 && numFeatures == limit + 1 && numFeatures > limit)
-      ccol.setNextPageToken(pageToken);
+      nextPageToken = createNextPageToken();
 
-    return ccol;
+    return new ChangesetCollection()
+        .withStartVersion(startVersion)
+        .withEndVersion(prevVersion)
+        .withVersions(versions)
+        .withNextPageToken(nextPageToken);
   }
-
-  public SQLQuery buildIterateChangesets(IterateChangesetsEvent event){
-    //TODO: Re-use geo fragment from GetFeatures QR instead of duplicating it here
-    String geo = "REGEXP_REPLACE(ST_AsGeojson(geo, " + GetFeatures.GEOMETRY_DECIMAL_DIGITS + "), 'nan', '0', 'gi')::jsonb";
-
-    SQLQuery query = new SQLQuery(
-        "SELECT " +
-                " version||'_'||id as vid,"+
-                " id,"+
-                " version,"+
-                " author,"+
-                " operation,"+
-                " jsonb_set(jsondata,'{properties, @ns:com:here:xyz, version}',to_jsonb(version)) || jsonb_strip_nulls(jsonb_build_object('geometry',"+ geo +")) As feature "+
-                "   from  ${schema}.${table} "+
-                " WHERE 1=1"+
-                "      ${{page}}"+
-                "      ${{start_version}}"+
-                "      ${{end_version}}"+
-                " order by version ASC,id "+
-                " ${{limit}}");
-
-    query.setVariable(SCHEMA, getSchema());
-    query.setVariable(TABLE, getDefaultTable(event));
-    query.setQueryFragment("page", event.getPageToken() != null ?
-            new SQLQuery("AND version||'_'||id > #{page_token} ")
-                    .withNamedParameter("page_token", event.getPageToken()) : new SQLQuery(""));
-
-    query.setQueryFragment("start_version", new SQLQuery("AND version >=  #{start} ")
-                    .withNamedParameter("versionsToKeep", event.getVersionsToKeep())
-                    .withNamedParameter("start", startVersion));
-
-    query.setQueryFragment("end_version", event.getEndVersion() != -1 ? new SQLQuery("AND version <= #{end}")
-                    .withNamedParameter("end", event.getEndVersion()) : new SQLQuery(""));
-
-    //Query one more feature as requested, to be able to determine if we need to include a nextPageToken
-    query.setQueryFragment("limit", new SQLQuery("LIMIT #{limit}").withNamedParameter("limit", limit + 1));
-
-    return query;
-  }
-
 }

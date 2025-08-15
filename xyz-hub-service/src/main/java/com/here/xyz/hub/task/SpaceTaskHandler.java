@@ -76,7 +76,6 @@ import io.vertx.core.Promise;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.json.jackson.DatabindCodec;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -242,7 +241,7 @@ public class SpaceTaskHandler {
       logger.info(task.getMarker(), "storageId from space template: " + storageId);
 
       if (region != null) {
-        storageId = Service.configuration.getDefaultStorageId(region);
+        storageId = Service.configuration.getDefaultStorageId(region, spaceId);
         logger.info(task.getMarker(), "default storageId from region " + region + ": " + storageId);
 
         if (task.modifyOp.connectorMapping == ConnectorMapping.SPACESTORAGEMATCHINGMAP) {
@@ -788,12 +787,13 @@ public class SpaceTaskHandler {
     Promise<Void> p = Promise.promise();
     Space.resolveConnector(marker, space.getStorage().getId())
         .onSuccess(connector -> RpcClient.getInstanceFor(connector).execute(marker, event, ar -> {
-          ChangesetsStatisticsResponse response = (ChangesetsStatisticsResponse) ar.result();
-          if( response != null )
-          { space.setReadOnlyHeadVersion(response.getMaxVersion());
-            p.complete();
+          if (ar.failed()) {
+            p.fail(ar.cause());
+            return;
           }
-          else p.fail("failed to get Changeset statistics");
+          ChangesetsStatisticsResponse changesetStatistics = (ChangesetsStatisticsResponse) ar.result();
+          space.setReadOnlyHeadVersion(changesetStatistics.getMaxVersion());
+          p.complete();
         }))
         .onFailure(p::fail);
     return p.future();

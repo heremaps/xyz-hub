@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,8 +25,6 @@ import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
-import static io.netty.handler.codec.http.HttpResponseStatus.METHOD_NOT_ALLOWED;
-import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_REQUIRED;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
@@ -143,7 +141,7 @@ public class FeatureHandler {
     }
   }
 
-  static void injectSpaceParams(Event event, Space space) {
+  public static void injectSpaceParams(Event event, Space space) {
     event.setSpace(space.getId());
     if (event instanceof ContextAwareEvent contextAwareEvent)
       contextAwareEvent.setVersionsToKeep(space.getVersionsToKeep());
@@ -208,7 +206,7 @@ public class FeatureHandler {
               "The resource contains " + currentSpaceCount + " features and cannot store any more features.");
   }
 
-  private static RpcClient getRpcClient(Connector refConnector) throws HttpException {
+  public static RpcClient getRpcClient(Connector refConnector) throws HttpException {
     try {
       return RpcClient.getInstanceFor(refConnector);
     }
@@ -224,7 +222,8 @@ public class FeatureHandler {
 
   public static void checkIsActive(Space space) throws HttpException {
     if (!space.isActive())
-      throw new DetailedHttpException("E318451", Map.of("resourceId", space.getId()));
+      throw new HttpException(PRECONDITION_REQUIRED,
+          "The method is not allowed, because the resource \"" + space.getId() + "\" is not active.");
   }
 
   public static Future<Void> resolveExtendedSpaces(Marker marker, Space compositeSpace) {

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +19,6 @@
 
 package com.here.xyz.hub.task;
 
-import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 
 import com.here.xyz.events.DeleteChangesetsEvent;
@@ -36,11 +35,9 @@ import com.here.xyz.util.service.HttpException;
 import com.here.xyz.util.service.errors.DetailedHttpException;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
-
 import java.util.Comparator;
 import java.util.Map;
 import java.util.function.Function;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
@@ -113,40 +110,33 @@ public class SpaceConnectorBasedHandler {
         }
     }
 
-    private static Future<Space> injectEventParameters(Marker marker, Event e, Space space) {
-        Promise<Space> p = Promise.promise();
-
-        if (e instanceof DeleteChangesetsEvent || e instanceof GetChangesetStatisticsEvent
-                || e instanceof IterateChangesetsEvent) {
-            getMinTag(marker, space.getId())
-                    .onSuccess(minTag -> {
-                        if (e instanceof DeleteChangesetsEvent deleteChangesetsEvent && minTag != null) {
-                            //FIXME: getMinUserTag and use this version. Currently we use minTag to be BTC
-                            if (!minTag.isSystem() && minTag.getVersion() < deleteChangesetsEvent.getMinVersion())
-                                p.fail(new HttpException(BAD_REQUEST, "Tag \"" + minTag.getId() + "\"for version " + minTag.getVersion() + " exists!"));
-                            else {
-                                deleteChangesetsEvent.setMinVersion(Math.min(minTag.getVersion(), deleteChangesetsEvent.getMinVersion()));
-                            }
-                        } else if (e instanceof GetChangesetStatisticsEvent getChangesetStatisticsEvent && minTag != null) {
-                            //TODO: check minSpaceVersion
-                            getChangesetStatisticsEvent.setMinTagVersion(minTag.getVersion());
-                            getChangesetStatisticsEvent.setMinVersion(Math.min(minTag.getVersion(), space.getMinVersion()));
-                        } else if (e instanceof IterateChangesetsEvent iterateChangesetsEvent && minTag != null) {
-                            iterateChangesetsEvent.setMinVersion(minTag.getVersion());
-                            iterateChangesetsEvent.setVersionsToKeep(space.getVersionsToKeep());
-                        }
-                        p.complete(space);
-                    }).onFailure(
-                            t -> {
-                                if (t instanceof HttpException) {
-                                    p.fail(t);
-                                } else
-                                    p.fail(new HttpException(BAD_GATEWAY, "Unexpected problem!"));
-                            }
-                    );
-        } else
-            p.complete(space);
-        return p.future();
+    private static Future<Space> injectEventParameters(Marker marker, Event event, Space space) {
+      if (event instanceof DeleteChangesetsEvent || event instanceof GetChangesetStatisticsEvent || event instanceof IterateChangesetsEvent) {
+        return getMinTag(marker, space.getId())
+            .compose(minTag -> {
+              if (event instanceof DeleteChangesetsEvent deleteChangesetsEvent && minTag != null) {
+                //FIXME: getMinUserTag and use this version. Currently we use minTag to be BWC
+                if (!minTag.isSystem() && minTag.getVersion() < deleteChangesetsEvent.getMinVersion())
+                  return Future.failedFuture(new HttpException(BAD_REQUEST, "Tag \"" + minTag.getId() + "\"for version "
+                      + minTag.getVersion() + " exists!"));
+                else
+                  deleteChangesetsEvent.setMinVersion(Math.min(minTag.getVersion(), deleteChangesetsEvent.getMinVersion()));
+              }
+              else if (event instanceof GetChangesetStatisticsEvent getChangesetStatisticsEvent && minTag != null) {
+                //TODO: check minSpaceVersion
+                getChangesetStatisticsEvent.setMinTagVersion(minTag.getVersion());
+                getChangesetStatisticsEvent.setMinVersion(Math.min(minTag.getVersion(), space.getMinVersion()));
+              }
+              else if (event instanceof IterateChangesetsEvent iterateChangesetsEvent) {
+                iterateChangesetsEvent.setVersionsToKeep(space.getVersionsToKeep());
+                if (minTag != null)
+                  iterateChangesetsEvent.setMinVersion(minTag.getVersion());
+              }
+              return Future.succeededFuture(space);
+            });
+      }
+      else
+        return Future.succeededFuture(space);
     }
 
     public static Future<Tag> getMinTag(Marker marker, String space) {

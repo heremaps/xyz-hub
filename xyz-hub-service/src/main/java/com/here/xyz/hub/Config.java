@@ -26,6 +26,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.here.xyz.hub.auth.AuthorizationType;
 import com.here.xyz.hub.task.SpaceTask.ConnectorMapping;
 import com.here.xyz.util.ARN;
+import com.here.xyz.util.Hasher;
 import com.here.xyz.util.service.BaseConfig;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -115,12 +116,28 @@ public class Config extends BaseConfig {
   }
 
   public String getDefaultStorageId(String region) {
+    return getDefaultStorageId(region, null);
+  }
+
+ public String getDefaultStorageId(String region, String spaceId) {
     List<String> storageIds = getDefaultStorageIds(region);
+
     if (storageIds == null)
       storageIds = defaultStorageIds;
 
-    return storageIds == null ? null : storageIds.get((int) (Math.random() * storageIds.size()));
+    if( storageIds == null )  
+     return null;
+
+    String randomStorageId = storageIds.get((int) (Math.random() * storageIds.size()));
+
+    try { 
+       return spaceId == null ? randomStorageId
+                              : storageIds.get((int) (Math.abs(Long.parseLong(Hasher.getHash(spaceId).substring(0, 8), 16)) % storageIds.size()));
+    } catch (Exception e) {
+       return randomStorageId; // Handle exception, e.g., return a random storageId as fallback
+    }
   }
+
 
   /**
    * Adds backward-compatibility for the deprecated environment variables XYZ_HUB_REDIS_HOST & XYZ_HUB_REDIS_PORT.
