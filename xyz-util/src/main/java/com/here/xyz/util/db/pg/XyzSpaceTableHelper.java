@@ -19,20 +19,19 @@
 
 package com.here.xyz.util.db.pg;
 
+import static com.here.xyz.models.hub.Space.TABLE_NAME;
+import static com.here.xyz.util.db.ConnectorParameters.TableLayout.V1;
+import static com.here.xyz.util.db.ConnectorParameters.TableLayout.V2;
+import static com.here.xyz.util.db.pg.IndexHelper.OnDemandIndex;
+import static com.here.xyz.util.db.pg.IndexHelper.buildSpaceTableIndexQueries;
+
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.util.Hasher;
 import com.here.xyz.util.db.ConnectorParameters.TableLayout;
 import com.here.xyz.util.db.SQLQuery;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-
-import static com.here.xyz.models.hub.Space.TABLE_NAME;
-import static com.here.xyz.util.db.pg.IndexHelper.buildSpaceTableIndexQueries;
-import static com.here.xyz.util.db.pg.IndexHelper.OnDemandIndex;
-import static com.here.xyz.util.db.ConnectorParameters.TableLayout.V1;
-import static com.here.xyz.util.db.ConnectorParameters.TableLayout.V2;
 
 public class XyzSpaceTableHelper {
 
@@ -104,6 +103,10 @@ public class XyzSpaceTableHelper {
 
   public static SQLQuery buildCreateHistoryPartitionQuery(String schema, String rootTable, long partitionNo, boolean useSelect) {
     return buildCreateHistoryPartitionQuery(schema, rootTable, partitionNo, V1, useSelect);
+  }
+
+  public static SQLQuery buildCreateHistoryPartitionQuery(String schema, String rootTable, long partitionNo, TableLayout layout) {
+    return buildCreateHistoryPartitionQuery(schema, rootTable, partitionNo, layout, true);
   }
 
   public static SQLQuery buildCreateHistoryPartitionQuery(String schema, String rootTable, long partitionNo, TableLayout layout, boolean useSelect) {
