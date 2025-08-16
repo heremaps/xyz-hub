@@ -119,25 +119,24 @@ public class Config extends BaseConfig {
     return getDefaultStorageId(region, null);
   }
 
- public String getDefaultStorageId(String region, String spaceId) {
+  public String getDefaultStorageId(String region, String spaceId) {
     List<String> storageIds = getDefaultStorageIds(region);
-
     if (storageIds == null)
       storageIds = defaultStorageIds;
 
-    if( storageIds == null )  
-     return null;
+    if (storageIds == null)
+      return null;
 
     String randomStorageId = storageIds.get((int) (Math.random() * storageIds.size()));
 
-    try { 
-       return spaceId == null ? randomStorageId
-                              : storageIds.get((int) (Math.abs(Long.parseLong(Hasher.getHash(spaceId).substring(0, 8), 16)) % storageIds.size()));
-    } catch (Exception e) {
-       return randomStorageId; // Handle exception, e.g., return a random storageId as fallback
+    try {
+      return spaceId == null ? randomStorageId
+          : storageIds.get((int) (Math.abs(Long.parseLong(Hasher.getHash(spaceId).substring(0, 8), 16)) % storageIds.size()));
+    }
+    catch (Exception e) {
+      return randomStorageId; //Handle exception, e.g., return a random storageId as fallback
     }
   }
-
 
   /**
    * Adds backward-compatibility for the deprecated environment variables XYZ_HUB_REDIS_HOST & XYZ_HUB_REDIS_PORT.
