@@ -31,14 +31,12 @@ import com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper.OnDemandIndex;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper.SystemIndex;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
-
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -82,11 +80,16 @@ public class DropIndexes extends SpaceBasedStep<DropIndexes> {
   public List<Load> getNeededResources() {
     try {
       return Collections.singletonList(new Load().withResource(db()).withEstimatedVirtualUnits(calculateNeededAcus()));
-    } catch (WebClientException e) {
+    }
+    catch (WebClientException e) {
       //TODO: log error
       //TODO: is the step failed? Retry later? It could be a retryable error as the prior validation succeeded, depending on the type of HubWebClientException
       throw new RuntimeException(e);
     }
+  }
+
+  private int calculateNeededAcus() {
+    return 0;
   }
 
   @Override
@@ -104,10 +107,6 @@ public class DropIndexes extends SpaceBasedStep<DropIndexes> {
     return "Drops all the indexes on space " + getSpaceId();
   }
 
-  private int calculateNeededAcus() {
-    return 0;
-  }
-
   @Override
   public AsyncExecutionState getExecutionState() throws UnknownStateException {
     if (noIndicesFound)
@@ -122,12 +121,12 @@ public class DropIndexes extends SpaceBasedStep<DropIndexes> {
 
       //Get the list of existing indexes from database.
       List<Index> indexes = runReadQuerySync(
-              buildLoadSpaceTableIndicesQuery(getSchema(db()), getRootTableName(space())), db(), calculateNeededAcus(),
-              DropIndexes::getIndicesFromResultSet);
+          buildLoadSpaceTableIndicesQuery(getSchema(db()), getRootTableName(space())), db(), calculateNeededAcus(),
+          DropIndexes::getIndicesFromResultSet);
 
-      if (indexes.isEmpty()) {
+      if (indexes.isEmpty())
         noIndicesPresent();
-      } else {
+      else {
         /* Shift to */
         if (spaceDeactivation) {
           logger.info("[{}] Deactivating the space {} ...", getGlobalStepId(), getSpaceId());
@@ -138,9 +137,10 @@ public class DropIndexes extends SpaceBasedStep<DropIndexes> {
         //List of all index names excluding whitelisted indexes
         //This will drop all the indexes (system and on-demand) except for the white-listed ones
         List<String> idxNames = indexes.stream()
-                .filter(index -> index != null && (indexWhiteList == null || indexWhiteList.stream().noneMatch(excludedIndex -> isSameIndex(index, excludedIndex))))
-                .map(index -> index instanceof SystemIndex ? index.getIndexName(rootTableName) : index.getIndexName())
-                .toList();
+            .filter(index -> index != null && (indexWhiteList == null || indexWhiteList.stream()
+                .noneMatch(excludedIndex -> isSameIndex(index, excludedIndex))))
+            .map(index -> index instanceof SystemIndex ? index.getIndexName(rootTableName) : index.getIndexName())
+            .toList();
         if (idxNames.isEmpty()) {
           noIndicesPresent();
           return;
@@ -151,7 +151,8 @@ public class DropIndexes extends SpaceBasedStep<DropIndexes> {
         logger.info("[{}] Dropping the following indices for space {} : {} ", getGlobalStepId(), getSpaceId(), idxNames);
         runWriteQueryAsync(dropIndexesQuery, db(), calculateNeededAcus());
       }
-    } catch (Exception e) {
+    }
+    catch (Exception e) {
       throw new StepException("Error while dropping indices for space " + getSpaceId(), e).withRetryable(true);
     }
   }
