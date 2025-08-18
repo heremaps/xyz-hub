@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -51,7 +51,8 @@ public class VersioningCompositeGetFeaturesIT extends VersioningGetFeaturesIT {
 
     postFeature(BASE, newFeature(), ACCESS_ALL);
 
-    postFeature(DELTA, newFeature(), ACCESS_ALL);
+    postFeature(DELTA, newFeature()
+        .withProperties(new Properties().with("otherKey", "otherValue")), ACCESS_ALL);
     postFeature(DELTA, newFeature()
         .withGeometry(new Point().withCoordinates(new PointCoordinates(50, 50)))
         .withProperties(new Properties().with("key2", "value2")), ACCESS_ALL);
@@ -156,7 +157,7 @@ public class VersioningCompositeGetFeaturesIT extends VersioningGetFeaturesIT {
         .body("features[0].id", equalTo(fId))
         .body("features[0].properties.@ns:com:here:xyz.version", equalTo(0));
 
-    postFeature(DELTA, newFeature().withId(fId), ACCESS_ALL);
+    postFeature(DELTA, newFeature().withId(fId).withProperties(new Properties().with("key3", "value3")), ACCESS_ALL);
 
     getAllFeatureVersions(DELTA, fId, "DEFAULT")
         .statusCode(OK.code())
