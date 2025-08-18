@@ -111,6 +111,11 @@ CREATE OR REPLACE FUNCTION coalesce_subscript(anyarray) RETURNS integer AS $BODY
 $BODY$ LANGUAGE SQL IMMUTABLE
 PARALLEL SAFE;
 
+CREATE OR REPLACE FUNCTION array_reverse(anyarray) RETURNS anyarray LANGUAGE SQL IMMUTABLE STRICT PARALLEL SAFE AS $BODY$
+    SELECT array_agg(val ORDER BY ordinality DESC)
+    FROM unnest($1) WITH ORDINALITY AS t(val, ordinality);
+$BODY$;
+
 /**
  * This function can be used to write logs, if we run in Async mode.
  */

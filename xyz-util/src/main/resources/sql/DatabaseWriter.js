@@ -195,7 +195,7 @@ class DatabaseWriter {
    * @param {function(FeatureModificationExecutionResult) : FeatureModificationExecutionResult} resultHandler
    * @returns {FeatureModificationExecutionResult}
    */
-  insertHistoryRow(inputFeature, version, operation, author, resultHandler) {
+  insertHistoryRow(inputFeature, baseFeature, version, operation, author, resultHandler) {
     //TODO: Check if it makes sense to get the previous creation timestamp by loading the feature in case the operation != "I" / "H" (rather than doing the in-lined SELECT
     //TODO: Improve performance by reading geo inside JS and then pass it separately and use TEXT / WKB / BYTEA
     this.enrichTimestamps(inputFeature, true);
@@ -205,8 +205,7 @@ class DatabaseWriter {
                           CASE WHEN $3::CHAR = 'I' OR $3::CHAR = 'H' THEN
                               $5::JSONB - 'geometry'
                           ELSE 
-                              jsonb_set($5::JSONB - 'geometry', '{properties, ${XYZ_NS}, createdAt}',
-                                        (SELECT jsondata->'properties'->'${XYZ_NS}'->'createdAt' FROM "${this.schema}"."${this.table}" WHERE id = $1 AND next_version = $2::BIGINT))
+                              jsonb_set($5::JSONB - 'geometry', '{properties, ${XYZ_NS}, createdAt}', to_jsonb($7::BIGINT))
                           END,
                           CASE
                               WHEN $6::JSONB IS NULL THEN NULL
@@ -214,7 +213,7 @@ class DatabaseWriter {
 
     let method = "insertHistoryRow";
     if (!this.plans[method]) {
-      this.plans[method] = this._preparePlan(sql, ["TEXT", "BIGINT", "CHAR", "TEXT", "JSONB", "JSONB"]);
+      this.plans[method] = this._preparePlan(sql, ["TEXT", "BIGINT", "CHAR", "TEXT", "JSONB", "JSONB", "BIGINT"]);
       this.parameterSets[method] = [];
       this.resultParsers[method] = [];
     }
@@ -225,7 +224,8 @@ class DatabaseWriter {
       operation,
       author,
       inputFeature,
-      inputFeature.geometry
+      inputFeature.geometry,
+      baseFeature ? baseFeature.properties[XYZ_NS].createdAt : -1
     ]);
     this.resultParsers[method].push(result => {
       //FIXME: Extract written creation timestamp if applicable
@@ -340,5 +340,7 @@ class FeatureModificationExecutionResult {
 
 plv8.DatabaseWriter = DatabaseWriter;
 
-if (plv8.global)
+if (plv8.global) {
   global.DatabaseWriter = DatabaseWriter;
+  global.FeatureModificationExecutionResult = FeatureModificationExecutionResult;
+}
