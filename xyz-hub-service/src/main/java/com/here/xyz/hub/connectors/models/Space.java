@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -88,6 +88,18 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
 
   public static Future<Space> resolveSpace(Marker marker, String spaceId) {
     return Service.spaceConfigClient.get(marker, spaceId);
+  }
+
+  public void updateContentUpdatedAt(Marker marker) {
+    long now = Core.currentTimeMillis();
+    if (now - getContentUpdatedAt() > CONTENT_UPDATED_AT_INTERVAL_MILLIS) {
+      setContentUpdatedAt(Core.currentTimeMillis());
+      volatilityAtLastContentUpdate = getVolatility();
+      //NOTE: Storing / updating the space-config is done asynchronously here by intention to prevent adding latency in the response phase
+      Service.spaceConfigClient.store(marker, this)
+          .onSuccess(v -> logger.info(marker, "Updated contentUpdatedAt for space {}", getId()))
+          .onFailure(t -> logger.error(marker, "Error while updating contentUpdatedAt for space {}", getId(), t));
+    }
   }
 
   @JsonIgnore

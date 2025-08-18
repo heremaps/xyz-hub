@@ -308,16 +308,8 @@ public class FeatureTaskHandler {
       }
 
       //Update the contentUpdatedAt timestamp to indicate that the data in this space was modified
-      if (task instanceof FeatureTask.ConditionalOperation) {
-        long now = Core.currentTimeMillis();
-        if (now - task.space.getContentUpdatedAt() > Space.CONTENT_UPDATED_AT_INTERVAL_MILLIS) {
-          task.space.setContentUpdatedAt(Core.currentTimeMillis());
-          task.space.volatilityAtLastContentUpdate = task.space.getVolatility();
-          Service.spaceConfigClient.store(task.getMarker(), task.space)
-              .onSuccess(v -> logger.info(task.getMarker(), "Updated contentUpdatedAt for space {}", task.space.getId()))
-              .onFailure(t -> logger.error(task.getMarker(), "Error while updating contentUpdatedAt for space {}", task.space.getId(), t));
-        }
-      }
+      if (task instanceof FeatureTask.ConditionalOperation)
+        task.space.updateContentUpdatedAt(task.getMarker());
       //Send event to potentially registered request-listeners
       if (requestListenerPayload != null)
         notifyListeners(task, eventType, requestListenerPayload);
