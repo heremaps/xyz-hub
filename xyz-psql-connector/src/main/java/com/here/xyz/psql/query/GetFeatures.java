@@ -32,6 +32,7 @@ import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.TABLE;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.SelectiveEvent;
+import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.psql.DatabaseWriter.ModificationType;
@@ -340,6 +341,11 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   }
 
   private String getFeatureVersion(E event, int dataset) {
+
+    // sketch of fix in case it is an extended space but SpaceContext is extensions. Then always use "real" version
+    if ( (isExtendedSpace(event) && (event.getContext() == SpaceContext.EXTENSION )) )
+     return "version";
+
     int topLevelDataset = compositeDatasetNo(event, CompositeDataset.EXTENSION);
     /*
     NOTE: From the perspective of a composite layer (requested with context = DEFAULT),
