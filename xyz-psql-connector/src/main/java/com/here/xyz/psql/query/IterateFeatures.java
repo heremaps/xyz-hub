@@ -23,12 +23,15 @@ import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.db.ECPSTool;
 import com.here.xyz.util.db.SQLQuery;
 import java.security.GeneralSecurityException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+
+import javax.crypto.IllegalBlockSizeException;
 
 public class IterateFeatures<E extends IterateFeaturesEvent, R extends XyzResponse> extends SearchForFeatures<E, R> {
   protected long limit;
@@ -42,7 +45,12 @@ public class IterateFeatures<E extends IterateFeaturesEvent, R extends XyzRespon
     super(event);
     limit = event.getLimit();
     if (event.getNextPageToken() != null)
-      readTokenContent(event.getNextPageToken());
+     try { readTokenContent(event.getNextPageToken()); }
+     catch( RuntimeException e )
+     { if( e.getCause() != null && e.getCause() instanceof IllegalBlockSizeException )
+        throw new ErrorResponseException(XyzError.ILLEGAL_ARGUMENT, "Invalid handle provided for iterate");
+       throw e;
+     }
   }
 
   @Override
