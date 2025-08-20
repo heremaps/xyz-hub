@@ -297,15 +297,20 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
     public void addFeature(FeatureAppender featureAppender) throws ErrorResponseException, SQLException {
       featureAppender.appendFeature(content);
-      content = content.append(",");
+
+      if( content.length() > PREFIX.length() && content.charAt(content.length() - 1) != ',' ) //prevent inserting additionals ',' in case featureAppender.appendFeature(content) does nop
+       content = content.append(",");
+
       if (content.length() > MAX_RESULT_SIZE)
         throw new ErrorResponseException(PAYLOAD_TO_LARGE, "Maximum response char limit of " + MAX_RESULT_SIZE + " reached");
     }
 
     public FeatureCollection build() {
       final FeatureCollection featureCollection = new FeatureCollection();
-      if (content.length() > PREFIX.length())
-        content.setLength(content.length() - 1); //Removes the last extra comma
+
+      if (content.length() > PREFIX.length() && content.charAt(content.length() - 1) == ',' )
+       content.setLength(content.length() - 1); //Removes the last extra comma
+
       featureCollection._setFeatures(content.append(SUFFIX).toString());
       return featureCollection;
     }
