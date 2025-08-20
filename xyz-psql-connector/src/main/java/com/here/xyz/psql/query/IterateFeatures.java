@@ -19,20 +19,16 @@
 
 package com.here.xyz.psql.query;
 
-import static com.here.xyz.responses.XyzError.EXCEPTION;
-
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.db.ECPSTool;
 import com.here.xyz.util.db.SQLQuery;
 import java.security.GeneralSecurityException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-
 import javax.crypto.IllegalBlockSizeException;
 
 public class IterateFeatures<E extends IterateFeaturesEvent, R extends XyzResponse> extends SearchForFeatures<E, R> {
@@ -140,7 +136,7 @@ public class IterateFeatures<E extends IterateFeaturesEvent, R extends XyzRespon
     try {
       return ECPSTool.decrypt(IterateFeatures.class.getSimpleName(), token, true);
     }
-    catch (GeneralSecurityException e) {
+    catch (GeneralSecurityException | IllegalArgumentException e) {
       if (e.getCause() != null && e.getCause() instanceof IllegalBlockSizeException)
         throw new IllegalArgumentException("Invalid nextPageToken provided for iterate");
       throw new IllegalArgumentException("Error trying to decode the iteration nextPageToken.");
