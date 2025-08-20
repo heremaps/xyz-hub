@@ -29,20 +29,17 @@ import com.here.xyz.util.db.SQLQuery;
 import java.security.GeneralSecurityException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import javax.crypto.IllegalBlockSizeException;
 
 public class IterateFeatures<E extends IterateFeaturesEvent, R extends XyzResponse> extends SearchForFeatures<E, R> {
   protected long limit;
-  private long startOffset;
-  private int startDataset = -1;
   private String nextDataset = null;
   private String nextIOffset = "";
-  private int numFeatures = 0;
+  protected int numFeatures = 0;
 
   public IterateFeatures(E event) throws SQLException, ErrorResponseException {
     super(event);
     limit = event.getLimit();
-    if (event.getNextPageToken() != null)
-      readTokenContent(event.getNextPageToken());
   }
 
   @Override
@@ -74,29 +71,31 @@ public class IterateFeatures<E extends IterateFeaturesEvent, R extends XyzRespon
     return "ORDER BY i";
   }
 
-  private SQLQuery buildOffsetFilterFragment(IterateFeaturesEvent event, int dataset) {
+  protected SQLQuery buildOffsetFilterFragment(IterateFeaturesEvent event, int dataset) {
+    if (event.getNextPageToken() == null)
+      return new SQLQuery("");
+
+    TokenContent token = readTokenContent(event.getNextPageToken());
     return new SQLQuery("AND " + dataset + " >= #{currentDataset} "
         + "AND (" + dataset + " > #{currentDataset} OR i > #{startOffset})")
-        .withNamedParameter("currentDataset", startDataset)
-        .withNamedParameter("startOffset", startOffset);
+        .withNamedParameter("currentDataset", token.startDataset)
+        .withNamedParameter("startOffset", token.startOffset);
   }
 
-  private void readTokenContent(String token) {
+  private TokenContent readTokenContent(String token) {
     token = decodeToken(token);
     if (token.contains("_")) {
-      startDataset = getDatasetFromToken(token);
-      startOffset = getStartOffsetFromToken(token);
+      final String[] tokenParts = token.split("_");
+      return new TokenContent(Integer.parseInt(tokenParts[0]), Integer.parseInt(tokenParts[1]));
     }
     else
-      startOffset = Long.parseLong(token);
+      return new TokenContent(-1, Long.parseLong(token));
   }
 
-  private int getDatasetFromToken(String token) {
-    return Integer.parseInt(token.split("_")[0]);
-  }
-
-  private int getStartOffsetFromToken(String token) {
-    return Integer.parseInt(token.split("_")[1]);
+  private record TokenContent(int startDataset, long startOffset) {
+    public String toString() {
+      return startDataset + "_" + startOffset;
+    }
   }
 
   @Override
@@ -137,8 +136,10 @@ public class IterateFeatures<E extends IterateFeaturesEvent, R extends XyzRespon
     try {
       return ECPSTool.decrypt(IterateFeatures.class.getSimpleName(), token, true);
     }
-    catch (GeneralSecurityException e) {
-      throw new RuntimeException(e);
+    catch (GeneralSecurityException | IllegalArgumentException e) {
+      if (e.getCause() != null && e.getCause() instanceof IllegalBlockSizeException)
+        throw new IllegalArgumentException("Invalid nextPageToken provided for iterate");
+      throw new IllegalArgumentException("Error trying to decode the iteration nextPageToken.");
     }
   }
 }

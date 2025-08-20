@@ -23,12 +23,10 @@ import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.BINARY;
 import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT;
 import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT_FLATTENED;
 import static com.here.xyz.util.service.rest.TooManyRequestsException.ThrottlingReason.CONNECTOR;
-import static io.netty.handler.codec.http.HttpHeaderValues.APPLICATION_JSON;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
 import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
-import static io.netty.handler.codec.http.HttpResponseStatus.GATEWAY_TIMEOUT;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_IMPLEMENTED;
 import static io.netty.handler.codec.rtsp.RtspResponseStatuses.REQUEST_ENTITY_TOO_LARGE;
@@ -525,7 +523,8 @@ public class RpcClient {
       return;
     }
 
-    if (APPLICATION_JSON.equals(binaryResponse.getMimeType())) {
+    if (binaryResponse.getMimeType() != null && binaryResponse.getMimeType().startsWith("application/")
+        && binaryResponse.getMimeType().endsWith("json")) {
       //In case we got a JSON string encoded within a BinaryResponse, it needs to be un-packed and continued with the JSON-decoding
       parseResponse(marker, binaryResponse.getBytes(), false, callback);
     }

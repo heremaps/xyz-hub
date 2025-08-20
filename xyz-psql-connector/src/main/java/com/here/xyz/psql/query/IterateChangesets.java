@@ -22,7 +22,9 @@ package com.here.xyz.psql.query;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.connectors.ErrorResponseException;
+import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.IterateChangesetsEvent;
+import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.psql.query.helpers.versioning.GetMinVersion;
@@ -39,11 +41,59 @@ public class IterateChangesets extends IterateFeatures<IterateChangesetsEvent, C
   public static long DEFAULT_LIMIT = 1_000l;
   private long limit;
   private IterateChangesetsEvent event; //TODO: Do not store the whole event during the request phase
+  private long nextTokenVersion;
+  private String nextTokenId;
 
   public IterateChangesets(IterateChangesetsEvent event) throws SQLException, ErrorResponseException {
     super(event);
     this.event = event;
     limit = event.getLimit() <= 0 ? DEFAULT_LIMIT : event.getLimit();
+  }
+
+  @Override
+  protected String buildOuterOrderByFragment(ContextAwareEvent event) {
+    return this.buildOrderByFragment(event);
+  }
+
+  @Override
+  protected String buildOrderByFragment(ContextAwareEvent event) {
+    return "ORDER BY version, id";
+  }
+
+  @Override
+  protected SQLQuery buildOffsetFilterFragment(IterateFeaturesEvent event, int dataset) {
+    if (event.getNextPageToken() == null)
+      return new SQLQuery("");
+
+    TokenContent token = readTokenContent(event.getNextPageToken());
+    return new SQLQuery("""
+        AND (
+          version >= #{tokenStartVersion} AND id > #{tokenStartId}
+          OR
+          version > #{tokenStartVersion}
+        )
+        """)
+        .withNamedParameter("tokenStartVersion", token.startVersion)
+        .withNamedParameter("tokenStartId", token.startId);
+  }
+
+  private TokenContent readTokenContent(String token) {
+    if (token == null)
+      return null;
+    token = decodeToken(token);
+    String[] tokenParts = token.split("_");
+    return new TokenContent(Long.parseLong(tokenParts[0]), tokenParts[1]);
+  }
+
+  private record TokenContent(long startVersion, String startId) {
+    public String toString() {
+      return startVersion + "_" + startId;
+    }
+  }
+
+  @Override
+  protected String createNextPageToken() {
+    return encodeToken(new TokenContent(nextTokenVersion, nextTokenId).toString());
   }
 
   @Override
@@ -180,5 +230,12 @@ public class IterateChangesets extends IterateFeatures<IterateChangesetsEvent, C
         .withEndVersion(prevVersion)
         .withVersions(versions)
         .withNextPageToken(nextPageToken);
+  }
+
+  @Override
+  protected void handleFeature(ResultSet rs, StringBuilder result) throws SQLException {
+    super.handleFeature(rs, result);
+    nextTokenVersion = rs.getLong("version");
+    nextTokenId = rs.getString("id");
   }
 }

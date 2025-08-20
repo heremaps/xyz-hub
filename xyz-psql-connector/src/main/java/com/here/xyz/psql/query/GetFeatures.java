@@ -394,7 +394,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
   protected int compositeDatasetNo(E event, CompositeDataset dataset) {
     return switch (dataset) {
-      case EXTENSION -> is2LevelExtendedSpace(event) ? 2 : isExtendedSpace(event) ? 1 : 0;
+      case EXTENSION -> !isCompositeQuery(event) ? 0 :  is2LevelExtendedSpace(event) ? 2 : isExtendedSpace(event) ? 1 : 0;
       case INTERMEDIATE -> 1;
       case SUPER -> 0;
     };
