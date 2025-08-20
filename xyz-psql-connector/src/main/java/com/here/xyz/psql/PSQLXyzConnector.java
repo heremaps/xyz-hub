@@ -206,6 +206,9 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
   @Override
   protected void handleProcessingException(Exception exception, Event event) throws Exception {
+    if (exception instanceof IllegalArgumentException)
+      throw new ErrorResponseException(ILLEGAL_ARGUMENT, exception.getMessage());
+
     if (!(exception instanceof SQLException sqlException))
       throw exception;
 
