@@ -98,6 +98,18 @@
 --			where spaceid != 'idx_in_progess' order by count desc
 ------------------------------------------------
 ------------------------------------------------
+-- 
+-- used by xyz-psql-connector\src\main\java\com\here\xyz\psql\DatabaseWriter.java
+-- and will be obsolet with removal of java code
+--
+-- xyz_write_versioned_modification_operation
+-- xyz_simple_upsert
+-- xyz_simple_update
+-- xyz_simple_delete
+-- xyz_simple_conflictCheck
+-- xyz_geoFromWkb
+--
+
 CREATE OR REPLACE FUNCTION xyz_reduce_precision(geo GEOMETRY, enable_logging boolean = TRUE)
     RETURNS GEOMETRY AS
 $BODY$
