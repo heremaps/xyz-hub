@@ -135,9 +135,6 @@ public class ResultHelper {
   public static <R extends XyzFeature> Map<EExecutedOp, List<R>> readFeaturesGroupedByOp(
       Result result, Class<R> featureType, long limit) throws NoCursor {
     try (ForwardCursor<XyzFeature, XyzFeatureCodec> resultCursor = result.getXyzFeatureCursor()) {
-      if (!resultCursor.hasNext()) {
-        throw new NoSuchElementException("Result Cursor is empty");
-      }
       final List<R> insertedFeatures = new ArrayList<>();
       final List<R> updatedFeatures = new ArrayList<>();
       final List<R> deletedFeatures = new ArrayList<>();
