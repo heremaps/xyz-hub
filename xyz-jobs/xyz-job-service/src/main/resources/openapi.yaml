@@ -99,11 +99,9 @@ paths:
       operationId: "getJobInputs"
       parameters:
         - $ref: "#/components/parameters/JobId"
-        - $ref: "#/components/parameters/Limit"
-        - $ref: "#/components/parameters/NextPageToken"
       responses:
         "200":
-          $ref: "#/components/responses/JobInputsResponseWithPagination"
+          $ref: "#/components/responses/JobInputsResponse"
         "400":
           $ref: "#/components/responses/ErrorResponse400"
         "404":
@@ -152,15 +150,124 @@ paths:
       operationId: "getJobOutputs"
       parameters:
         - $ref: "#/components/parameters/JobId"
-        - $ref: "#/components/parameters/Limit"
-        - $ref: "#/components/parameters/NextPageToken"
       responses:
         "200":
-          $ref: "#/components/responses/JobOutputsResponseWithPagination"
+          $ref: "#/components/responses/JobOutputsResponse"
         "400":
           $ref: "#/components/responses/ErrorResponse400"
         "404":
           $ref: "#/components/responses/ErrorResponse404"
+  /jobs/{jobId}/outputs-preview:
+    get:
+      tags:
+        - Manage Jobs
+      summary: Preview job outputs
+      description: Returns a grouped summary (counts and sizes) of the job's outputs.
+      operationId: getJobOutputsPreview
+      parameters:
+        - $ref: '#/components/parameters/JobId'
+      responses:
+        '200':
+          $ref: '#/components/responses/JobOutputsPreviewResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+
+  /jobs/{jobId}/outputs/{group}:
+    get:
+      tags:
+        - Manage Jobs
+      summary: Get output group summary
+      description: Returns a summary for a specific output group with its sets.
+      operationId: getJobOutputGroup
+      parameters:
+        - $ref: '#/components/parameters/JobId'
+        - $ref: '#/components/parameters/OutputGroup'
+      responses:
+        '200':
+          $ref: '#/components/responses/OutputGroupResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+
+  /jobs/{jobId}/outputs/{group}/{name}:
+    get:
+      tags:
+        - Manage Jobs
+      summary: List items in an output set (paged)
+      description: Returns a paginated list of items within an output set.
+      operationId: getJobOutputSetItems
+      parameters:
+        - $ref: '#/components/parameters/JobId'
+        - $ref: '#/components/parameters/OutputGroup'
+        - $ref: '#/components/parameters/OutputSetName'
+        - $ref: '#/components/parameters/PageToken'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          $ref: '#/components/responses/OutputItemsPageResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+
+  /jobs/{jobId}/inputs-preview:
+    get:
+      tags:
+        - Manage Jobs
+      summary: Preview job inputs
+      description: Returns a grouped summary (counts and sizes) of the job's inputs.
+      operationId: getJobInputsPreview
+      parameters:
+        - $ref: '#/components/parameters/JobId'
+      responses:
+        '200':
+          $ref: '#/components/responses/JobInputsPreviewResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+
+  /jobs/{jobId}/inputs/groups/{group}:
+    get:
+      tags:
+        - Manage Jobs
+      summary: Get input group summary
+      description: Returns a summary for a specific input group with its sets.
+      operationId: getJobInputGroup
+      parameters:
+        - $ref: '#/components/parameters/JobId'
+        - $ref: '#/components/parameters/OutputGroup'
+      responses:
+        '200':
+          $ref: '#/components/responses/InputGroupResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+
+  /jobs/{jobId}/inputs/groups/{group}/{name}:
+    get:
+      tags:
+        - Manage Jobs
+      summary: List items in an input set (paged)
+      description: Returns a paginated list of items within an input set.
+      operationId: getJobInputSetItems
+      parameters:
+        - $ref: '#/components/parameters/JobId'
+        - $ref: '#/components/parameters/OutputGroup'
+        - $ref: '#/components/parameters/OutputSetName'
+        - $ref: '#/components/parameters/PageToken'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          $ref: '#/components/responses/InputItemsPageResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
   /jobs/{jobId}/status:
     patch:
       tags:
@@ -233,22 +340,37 @@ components:
       required: false
       schema:
         $ref: '#/components/schemas/JobState'
-    Limit:
-      name: limit
-      in: query
-      description: Maximum number of items to return in the response
-      required: false
+    OutputGroup:
+      name: group
+      in: path
+      description: The group name (e.g., "topology", "address").
+      required: true
       schema:
-        type: integer
-        default: 30000
-        minimum: 1
-    NextPageToken:
-      name: nextPageToken
+        type: string
+    OutputSetName:
+      name: name
+      in: path
+      description: The set name within the group (e.g., "exportedData", "statistics").
+      required: true
+      schema:
+        type: string
+    PageToken:
+      name: pageToken
       in: query
-      description: Token for pagination to retrieve the next page of results
+      description: Token for fetching the next page of results.
       required: false
       schema:
         type: string
+    PageSize:
+      name: pageSize
+      in: query
+      description: Maximum number of items to return.
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 1000
+        default: 100
   requestBodies:
     JobRequest:
       required: true
@@ -368,17 +490,6 @@ components:
             items:
               oneOf:
                 - $ref: "#/components/schemas/UploadUrl"
-    JobInputsResponseWithPagination:
-      description: The job inputs with pagination support
-      content:
-        application/json:
-          schema:
-            oneOf:
-              - type: array
-                items:
-                  oneOf:
-                    - $ref: "#/components/schemas/UploadUrl"
-              - $ref: "#/components/schemas/PaginatedJobInputs"
     JobOutputsResponse:
       description: The job outputs
       content:
@@ -389,18 +500,78 @@ components:
               oneOf:
                 - $ref: "#/components/schemas/DownloadUrl"
                 - $ref: "#/components/schemas/FeatureStatistics"
-    JobOutputsResponseWithPagination:
-      description: The job outputs with pagination support
+    JobOutputsPreviewResponse:
+      description: Grouped preview of job outputs.
       content:
         application/json:
           schema:
-            oneOf:
-              - type: array
-                items:
-                  oneOf:
-                    - $ref: "#/components/schemas/DownloadUrl"
-                    - $ref: "#/components/schemas/FeatureStatistics"
-              - $ref: "#/components/schemas/PaginatedJobOutputs"
+            $ref: '#/components/schemas/GroupedPayloadsPreview'
+          examples:
+            response:
+              value:
+                type: JobOutputs
+                outputGroups:
+                  topology:
+                    type: OutputGroup
+                    outputSets:
+                      exportedData: { type: OutputSet, itemCount: 320, byteSize: 5242880 }
+                      statistics: { type: OutputSet, itemCount: 1,   byteSize: 4096 }
+                    itemCount: 321
+                    byteSize: 5246976
+                  address:
+                    type: OutputGroup
+                    outputSets:
+                      exportedData: { type: OutputSet, itemCount: 220, byteSize: 3145728 }
+                      statistics: { type: OutputSet, itemCount: 1,   byteSize: 4096 }
+                    itemCount: 221
+                    byteSize: 3149824
+                itemCount: 542
+                byteSize: 8396800
+
+    JobInputsPreviewResponse:
+      description: Grouped preview of job inputs.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GroupedPayloadsPreview'
+          examples:
+            response:
+              value:
+                type: JobInputs
+                outputGroups:
+                  topology:
+                    type: OutputGroup
+                    outputSets:
+                      rawFiles: { type: OutputSet, itemCount: 12, byteSize: 1048576 }
+                      metadata: { type: OutputSet, itemCount: 2,  byteSize: 8192 }
+                    itemCount: 14
+                    byteSize: 1056768
+                itemCount: 14
+                byteSize: 1056768
+    OutputGroupResponse:
+      description: Summary for a single output group with its sets.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/OutputGroupSummary'
+    InputGroupResponse:
+      description: Summary for a single input group with its sets.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/OutputGroupSummary'
+    OutputItemsPageResponse:
+      description: A page of items from an output set.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/OutputItemsPage'
+    InputItemsPageResponse:
+      description: A page of items from an input set.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/InputItemsPage'
     HealthResponse:
       description: HealhCheck Response
       content:
@@ -841,6 +1012,107 @@ components:
           description: The type of the Output
           example: DownloadUrl
           type: string
+    GroupedPayloadsPreview:
+      type: object
+      description: Summary of grouped payloads (inputs/outputs) for a job.
+      properties:
+        type:
+          type: string
+          description: A descriptive type label.
+          example: JobOutputs
+        outputGroups:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/OutputGroupSummary'
+        itemCount:
+          type: number
+          description: Total items across all groups.
+          example: 1200
+        byteSize:
+          type: number
+          description: Total size of items across all groups in bytes.
+          example: 10485760
+
+    OutputGroupSummary:
+      type: object
+      description: A named group containing multiple output/input sets.
+      properties:
+        type:
+          type: string
+          enum: [ OutputGroup ]
+          example: OutputGroup
+        outputSets:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/OutputSetSummary'
+        itemCount:
+          type: number
+          description: Total items in the group.
+          example: 800
+        byteSize:
+          type: number
+          description: Total size of the group's items in bytes.
+          example: 7340032
+
+    OutputSetSummary:
+      type: object
+      description: Summary for a single set within a group.
+      properties:
+        type:
+          type: string
+          enum: [ OutputSet ]
+          example: OutputSet
+        itemCount:
+          type: number
+          description: Number of items in the set.
+          example: 400
+        byteSize:
+          type: number
+          description: Total size of the set in bytes.
+          example: 3670016
+
+    OutputItemsPage:
+      type: object
+      description: A page of output items.
+      properties:
+        items:
+          type: array
+          items:
+            oneOf:
+              - $ref: '#/components/schemas/DownloadUrl'
+              - $ref: '#/components/schemas/FeatureStatistics'
+        nextPageToken:
+          type: string
+          nullable: true
+          description: Token to retrieve the next page. Omitted or null if no further pages.
+      example:
+        items:
+          - type: DownloadUrl
+            url: https://foo.com/export/topology/part_1.geojson
+            byteSize: 409600
+          - type: FeatureStatistics
+            featureCount: 28075
+            byteSize: 409600
+        nextPageToken: eyJwYWdlIjoyfQ==
+
+    InputItemsPage:
+      type: object
+      description: A page of input items.
+      properties:
+        items:
+          type: array
+          items:
+            oneOf:
+              - $ref: '#/components/schemas/UploadUrl'
+        nextPageToken:
+          type: string
+          nullable: true
+          description: Token to retrieve the next page. Omitted or null if no further pages.
+      example:
+        items:
+          - type: UploadUrl
+            url: https://foo.com/import/h3TGlF/part_1.csv
+        nextPageToken: null
     DownloadUrl:
       allOf:
         - $ref: '#/components/schemas/JobOutput'
@@ -958,43 +1230,6 @@ components:
         - "FAILED"
         - "RESUMING"
         - "SUCCEEDED"
-    PaginatedJobInputs:
-      type: object
-      description: A paginated list of job inputs
-      required:
-        - items
-      properties:
-        items:
-          type: array
-          description: The list of job inputs for the current page
-          items:
-            oneOf:
-              - $ref: "#/components/schemas/UploadUrl"
-        pageToken:
-          type: string
-          description: Token to retrieve the next page of results
-        totalItems:
-          type: integer
-          description: Total number of items across all pages
-    PaginatedJobOutputs:
-      type: object
-      description: A paginated list of job outputs
-      required:
-        - items
-      properties:
-        items:
-          type: array
-          description: The list of job outputs for the current page
-          items:
-            oneOf:
-              - $ref: "#/components/schemas/DownloadUrl"
-              - $ref: "#/components/schemas/FeatureStatistics"
-        pageToken:
-          type: string
-          description: Token to retrieve the next page of results
-        totalItems:
-          type: integer
-          description: Total number of items across all pages
     GeoJSON:
       type: object
       description: The base type for all possible GeoJSON objects.
