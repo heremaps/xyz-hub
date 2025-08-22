@@ -258,7 +258,6 @@ $BODY$;
  */
 CREATE OR REPLACE PROCEDURE execute_transfer(format TEXT, success_callback TEXT, failure_callback TEXT, content_query TEXT = NULL)
     LANGUAGE 'plpgsql'
-    VOLATILE
 AS
 $BODY$
 DECLARE
