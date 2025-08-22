@@ -2,7 +2,6 @@
   {
     "id": "psql-new-table-layout",
     "params": {
-      "tableLayout": "V2",
       "propertySearch": true,
       "onDemandIdxLimit": 8,
       "dbCheckoutTimeout": 12,
@@ -29,7 +28,7 @@
         "type": "Embedded",
         "id": "xyz-psql-local",
         "warmUp": 1,
-        "className": "com.here.xyz.psql.PSQLXyzConnector",
+        "className": "com.here.xyz.psql.NLConnector",
         "env": {
           "ECPS_PHRASE": "local"
         },

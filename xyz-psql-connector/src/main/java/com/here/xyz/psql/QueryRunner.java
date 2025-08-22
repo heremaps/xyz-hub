@@ -159,8 +159,8 @@ public abstract class QueryRunner<E extends Object, R extends Object> implements
       this.tableLayout = tableLayout;
   }
 
-  public QueryRunner withTableLayout(TableLayout tableLayout) {
+  public <T extends QueryRunner<E, R>> T  withTableLayout(TableLayout tableLayout) {
     setTableLayout(tableLayout);
-    return this;
+    return (T) this;
   }
 }

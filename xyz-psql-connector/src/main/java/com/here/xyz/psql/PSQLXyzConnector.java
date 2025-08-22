@@ -80,7 +80,7 @@ import org.apache.logging.log4j.Logger;
 
 public class PSQLXyzConnector extends DatabaseHandler {
   private static final Logger logger = LogManager.getLogger();
-  private static final Pattern ERRVALUE_22P02 = Pattern.compile("invalid input syntax for type numeric:\\s+\"([^\"]*)\"\\s+Query:"),
+  protected static final Pattern ERRVALUE_22P02 = Pattern.compile("invalid input syntax for type numeric:\\s+\"([^\"]*)\"\\s+Query:"),
       ERRVALUE_22P05 = Pattern.compile("ERROR:\\s+(.*)\\s+Detail:\\s+(.*)\\s+Where:");
 
   @Override
@@ -128,7 +128,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
     return run(getBBoxBasedQueryRunner(event));
   }
 
-  private static void checkForInvalidHereTileClustering(GetFeaturesByTileEvent event) throws ErrorResponseException {
+  protected static void checkForInvalidHereTileClustering(GetFeaturesByTileEvent event) throws ErrorResponseException {
     if (event.getHereTileFlag() && event.getClusteringType() != null)
       throw new ErrorResponseException(ILLEGAL_ARGUMENT,
           "clustering=[hexbin,quadbin] is not supported for 'here' tile type. Use Web Mercator projection (quadkey, web, tms).");

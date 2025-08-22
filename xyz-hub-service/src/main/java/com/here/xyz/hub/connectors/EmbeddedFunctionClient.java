@@ -20,6 +20,7 @@
 package com.here.xyz.hub.connectors;
 
 import com.amazonaws.services.lambda.runtime.RequestStreamHandler;
+import com.here.xyz.connectors.EntryConnectorHandler;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig;
 import com.here.xyz.util.service.Core;
@@ -93,7 +94,7 @@ public class EmbeddedFunctionClient extends RemoteFunctionClient {
       String className = null;
       try {
         className = ((Connector.RemoteFunctionConfig.Embedded) remoteFunction).className;
-        final Class<?> mainClass = Class.forName(className);
+        final Class<?> mainClass = Class.forName(EntryConnectorHandler.class.getName());
         final RequestStreamHandler reqHandler = (RequestStreamHandler) mainClass.newInstance();
         final ByteArrayOutputStream output = new ByteArrayOutputStream();
         reqHandler.handleRequest(new ByteArrayInputStream(fc.bytes), output,
