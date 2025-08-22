@@ -192,7 +192,7 @@ BEGIN
 	END IF;
 END;
 $BODY$
-LANGUAGE plpgsql VOLATILE;
+LANGUAGE plpgsql STABLE;
 
 /**
  * This function can be used to get the count of a table.
@@ -220,4 +220,4 @@ BEGIN
     RETURN NEXT;
 END;
 $BODY$
-LANGUAGE plpgsql VOLATILE;
+LANGUAGE plpgsql STABLE;

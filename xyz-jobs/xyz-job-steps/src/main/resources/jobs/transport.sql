@@ -20,6 +20,7 @@
 CREATE OR REPLACE FUNCTION s3_plugin_config(format TEXT)
     RETURNS TABLE(plugin_columns TEXT, plugin_options TEXT)
     LANGUAGE 'plpgsql'
+    IMMUTABLE
 AS $BODY$
 BEGIN
     plugin_options := '(FORMAT CSV, ENCODING ''UTF8'', DELIMITER '','', QUOTE  ''"'',  ESCAPE '''''''')';
@@ -48,6 +49,7 @@ $BODY$;
 CREATE OR REPLACE FUNCTION get_table_reference(schema TEXT, tbl TEXT, type TEXT = 'DEFAULT')
     RETURNS REGCLASS
     LANGUAGE 'plpgsql'
+    STABLE
 AS $BODY$
 DECLARE
     prefix TEXT := '';
@@ -71,6 +73,7 @@ $BODY$;
 CREATE OR REPLACE FUNCTION get_stepid_from_work_table(trigger_tbl REGCLASS)
 RETURNS TEXT
     LANGUAGE 'plpgsql'
+    STABLE
 AS $BODY$
 BEGIN
     RETURN regexp_replace(substring(trigger_tbl::TEXT from length('job_data_') + 1), '_trigger_tbl', '');
@@ -83,6 +86,7 @@ $BODY$;
 CREATE OR REPLACE FUNCTION get_work_table_name(schema TEXT, step_id TEXT)
     RETURNS REGCLASS
     LANGUAGE 'plpgsql'
+    STABLE
 AS $BODY$
 BEGIN
     RETURN (schema ||'.'|| '"job_data_' || step_id || '"')::REGCLASS;
@@ -96,6 +100,7 @@ $BODY$;
 CREATE OR REPLACE FUNCTION get_work_item(temporary_tbl REGCLASS)
     RETURNS JSONB
     LANGUAGE 'plpgsql'
+    VOLATILE
 AS $BODY$
 DECLARE
     work_items_left INT := 1;
@@ -176,6 +181,7 @@ $BODY$;
 CREATE OR REPLACE FUNCTION perform_work_item(work_item JSONB, format TEXT, content_query TEXT)
     RETURNS VOID
     LANGUAGE 'plpgsql'
+    VOLATILE
 AS $BODY$
 DECLARE
     ctx JSONB;
@@ -252,6 +258,7 @@ $BODY$;
  */
 CREATE OR REPLACE PROCEDURE execute_transfer(format TEXT, success_callback TEXT, failure_callback TEXT, content_query TEXT = NULL)
     LANGUAGE 'plpgsql'
+    VOLATILE
 AS
 $BODY$
 DECLARE
@@ -338,6 +345,7 @@ CREATE OR REPLACE FUNCTION report_progress(
 )
 RETURNS VOID
     LANGUAGE 'plpgsql'
+    VOLATILE
 AS $BODY$
 DECLARE
     lamda_response RECORD;
@@ -508,6 +516,7 @@ CREATE OR REPLACE FUNCTION import_from_s3_perform(schem TEXT, temporary_tbl REGC
                                                   s3_bucket TEXT, s3_path TEXT, s3_region TEXT, format TEXT, filesize BIGINT)
     RETURNS void
     LANGUAGE 'plpgsql'
+    VOLATILE
 AS $BODY$
 DECLARE
     import_statistics RECORD;
@@ -637,6 +646,7 @@ CREATE OR REPLACE FUNCTION report_task_progress(
 )
     RETURNS VOID
     LANGUAGE 'plpgsql'
+    VOLATILE
 AS $BODY$
 BEGIN
 	PERFORM report_progress(
@@ -710,7 +720,7 @@ BEGIN
         RETURN QUERY SELECT v_total, v_started, v_finalized, -1, '{"type" : "TaskData"}'::JSONB;
     END IF;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql VOLATILE;
 
 /**
  *  Export data from RDS -> S3
@@ -730,6 +740,7 @@ CREATE OR REPLACE FUNCTION export_to_s3_perform(
 	)
     RETURNS void
     LANGUAGE 'plpgsql'
+    VOLATILE
 AS $BODY$
 DECLARE
 	sql_text TEXT;

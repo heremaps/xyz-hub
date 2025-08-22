@@ -188,7 +188,7 @@ $BODY$
 		RETURN NULL;
 	END;
 $BODY$
-  LANGUAGE plpgsql VOLATILE;
+  LANGUAGE plpgsql IMMUTABLE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_index_get_plain_propkey(propkey text)
@@ -217,7 +217,7 @@ $BODY$
 		RETURN propkey;
 	END;
 $BODY$
-  LANGUAGE plpgsql VOLATILE;
+  LANGUAGE plpgsql IMMUTABLE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_count_estimation(query text)
@@ -261,7 +261,7 @@ BEGIN
 	RETURN result;
 END;
 $BODY$
-LANGUAGE plpgsql VOLATILE;
+LANGUAGE plpgsql IMMUTABLE;
 ------------------------------------------------
 ------------------------------------------------
 create or replace function xyz_qk_envelope2lrc(geo geometry, lvl integer)
@@ -414,7 +414,7 @@ $BODY$
 		END LOOP;
 	END
 $BODY$
-  LANGUAGE plpgsql VOLATILE;
+  LANGUAGE plpgsql STABLE;
  ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_index_check_comments(
@@ -584,7 +584,7 @@ $BODY$
 		RETURN jsonarray;
         END;
 $BODY$
-  LANGUAGE plpgsql VOLATILE;
+  LANGUAGE plpgsql IMMUTABLE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_property_path(propertypath TEXT)
@@ -615,7 +615,7 @@ $BODY$
 		RETURN jsonpath;
         END;
 $BODY$
-  LANGUAGE plpgsql VOLATILE;
+  LANGUAGE plpgsql IMMUTABLE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_property_datatype(
@@ -769,7 +769,7 @@ BEGIN
            tableName  !~ '.+\_p[0-9]'; -- It's a history partition
 END
 $BODY$
-LANGUAGE plpgsql VOLATILE;
+LANGUAGE plpgsql IMMUTABLE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_statistic_all_spaces(
@@ -984,7 +984,7 @@ $BODY$
 		END IF;
         END;
 $BODY$
-  LANGUAGE plpgsql VOLATILE;
+  LANGUAGE plpgsql IMMUTABLE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_index_name_for_property(
@@ -1027,7 +1027,7 @@ $BODY$
 		RETURN idx_name;
 	END;
 $BODY$
-  LANGUAGE plpgsql VOLATILE;
+  LANGUAGE plpgsql IMMUTABLE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_index_find_missing_system_indexes(
@@ -1069,7 +1069,7 @@ $BODY$
 			) B WHERE idx_available IS NULL OR jsonb_array_length(idx_available) < 2;
 	END;
 $BODY$
-  LANGUAGE plpgsql VOLATILE;
+  LANGUAGE plpgsql STABLE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_index_name_dissolve_to_property(IN idx_name text, space_id text)
@@ -1106,7 +1106,7 @@ $BODY$
 		RETURN NEXT;
 	END;
 $BODY$
-  LANGUAGE plpgsql VOLATILE;
+  LANGUAGE plpgsql IMMUTABLE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_index_property_available(
@@ -1146,7 +1146,7 @@ $BODY$
 		return ret is not null;
 	END;
 $BODY$
-  LANGUAGE plpgsql VOLATILE;
+  LANGUAGE plpgsql STABLE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_property_statistic(
@@ -1300,7 +1300,7 @@ $BODY$
 	END IF;
   END;
 $BODY$
-  LANGUAGE plpgsql VOLATILE;
+  LANGUAGE plpgsql IMMUTABLE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_statistic_xl_space(
@@ -1885,7 +1885,7 @@ BEGIN
     RETURN 9223372036854775807::BIGINT;
 END
 $BODY$
-LANGUAGE plpgsql VOLATILE;
+LANGUAGE plpgsql IMMUTABLE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION operation_2_human_readable(operation CHAR) RETURNS TEXT AS
@@ -1894,7 +1894,7 @@ BEGIN
     RETURN CASE WHEN operation = 'I' OR operation = 'H' THEN 'insert' ELSE (CASE WHEN operation = 'U' OR operation = 'J' THEN 'update' ELSE 'delete' END) END;
 END
 $BODY$
-LANGUAGE plpgsql VOLATILE;
+LANGUAGE plpgsql IMMUTABLE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_isHideOperation(operation CHAR) RETURNS BOOLEAN AS
@@ -1903,7 +1903,7 @@ BEGIN
     RETURN operation = 'H' OR operation = 'J';
 END
 $BODY$
-LANGUAGE plpgsql VOLATILE;
+LANGUAGE plpgsql IMMUTABLE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_write_versioned_modification_operation(id TEXT, version BIGINT, operation CHAR, jsondata JSONB, geo GEOMETRY, schema TEXT, tableName TEXT, concurrencyCheck BOOLEAN, partitionSize BIGINT, versionsToKeep INT, pw TEXT, baseVersion BIGINT, minTagVersion BIGINT)
@@ -2106,7 +2106,7 @@ $BODY$
             END;
     END
 $BODY$
-LANGUAGE plpgsql VOLATILE;
+LANGUAGE plpgsql IMMUTABLE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_geoFromWkb(geo GEOMETRY)
@@ -2116,7 +2116,7 @@ $BODY$
         RETURN CASE WHEN geo::geometry IS NULL THEN NULL ELSE xyz_reduce_precision( ST_Force3D(ST_GeomFromWKB(geo::BYTEA, 4326)) ) END;
     END
 $BODY$
-LANGUAGE plpgsql VOLATILE;
+LANGUAGE plpgsql IMMUTABLE;
 ------------------------------------------------
 ------------------------------------------------
 DO $$
@@ -2239,7 +2239,7 @@ BEGIN
     END IF;
 END
 $BODY$
-LANGUAGE plpgsql VOLATILE;
+LANGUAGE plpgsql STABLE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_get_root_table(tableName TEXT) RETURNS TEXT AS
@@ -2252,7 +2252,7 @@ BEGIN
     END IF;
 END
 $BODY$
-LANGUAGE plpgsql VOLATILE;
+LANGUAGE plpgsql IMMUTABLE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_table_exists(schema TEXT, tableName TEXT) RETURNS BOOLEAN AS
@@ -2265,7 +2265,7 @@ BEGIN
     RETURN existsResult.tableExists;
 END
 $BODY$
-LANGUAGE plpgsql VOLATILE;
+LANGUAGE plpgsql STABLE;
 ------------------------------------------------
 ------------------------------------------------
 -- **NOTE:** This variant of the asyncify function is only to be called from JDBC
@@ -2393,7 +2393,7 @@ BEGIN
     return labels;
 END
 $BODY$
-LANGUAGE plpgsql VOLATILE;
+LANGUAGE plpgsql STABLE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION streamId() RETURNS TEXT AS
