@@ -98,7 +98,7 @@
 --			where spaceid != 'idx_in_progess' order by count desc
 ------------------------------------------------
 ------------------------------------------------
--- 
+--
 -- used by xyz-psql-connector\src\main\java\com\here\xyz\psql\DatabaseWriter.java
 -- and will be obsolet with removal of java code
 --
