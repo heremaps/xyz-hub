@@ -38,6 +38,7 @@ public class XyzSpaceTableHelper {
   public static final String SCHEMA = "schema";
   public static final String TABLE = "table";
   public static final String HEAD_TABLE_SUFFIX = "_head";
+  public static final long HEAD_TABLE_PARTION_COUNT = 10;
   public static final long PARTITION_SIZE = 100_000;
 
   public static List<SQLQuery> buildCreateSpaceTableQueries(String schema, String table,  List<OnDemandIndex> onDemandIndices,
@@ -52,7 +53,7 @@ public class XyzSpaceTableHelper {
     queries.add(buildAddTableCommentQuery(schema, table, new TableComment(spaceId, layout)));
     queries.add(buildColumnStorageAttributesQuery(schema, table, layout));
     queries.addAll(buildSpaceTableIndexQueries(schema, table, layout));
-    queries.add(buildCreateHeadPartitionQuery(schema, table, layout));
+    queries.addAll(buildCreateHeadPartitionQuery(schema, table, layout));
     queries.add(buildCreateHistoryPartitionQuery(schema, table, 0L, layout));
     queries.add(buildCreateSequenceQuery(schema, table, "version", layout));
     if(onDemandIndices != null && !onDemandIndices.isEmpty()) {
@@ -82,21 +83,48 @@ public class XyzSpaceTableHelper {
               .withVariable(SCHEMA, schema)
               .withVariable(TABLE, tableName);
     }else if(layout == TableLayout.V2) {
+      //Not needed for V2 layout
       return new SQLQuery("");
     }
     throw new IllegalArgumentException("Unsupported Table Layout: " + layout);
   }
 
-  public static SQLQuery buildCreateHeadPartitionQuery(String schema, String rootTable, TableLayout layout) {
+  public static List<SQLQuery>  buildCreateHeadPartitionQuery(String schema, String rootTable, TableLayout layout) {
     if(layout == TableLayout.V1)
-      return new SQLQuery("CREATE TABLE IF NOT EXISTS ${schema}.${partitionTable} "
+      return List.of(new SQLQuery("CREATE TABLE IF NOT EXISTS ${schema}.${partitionTable} "
               + "PARTITION OF ${schema}.${rootTable} FOR VALUES FROM (max_bigint()) TO (MAXVALUE)")
               .withVariable(SCHEMA, schema)
               .withVariable("rootTable", rootTable)
-              .withVariable("partitionTable", rootTable + HEAD_TABLE_SUFFIX);
+              .withVariable("partitionTable", rootTable + HEAD_TABLE_SUFFIX));
     else if (layout == TableLayout.V2) {
-      //Not needed for V2 layout
-      return new SQLQuery("");
+      SQLQuery headTableCreation = new SQLQuery("""
+              CREATE TABLE IF NOT EXISTS ${schema}.${partitionTable}
+                PARTITION OF ${schema}.${rootTable} FOR VALUES FROM (max_bigint()) TO (MAXVALUE)
+                PARTITION BY HASH (id);
+              """)
+              .withVariable(SCHEMA, schema)
+              .withVariable("rootTable", rootTable)
+              .withVariable("partitionTable", rootTable + HEAD_TABLE_SUFFIX);
+      SQLQuery headTablePartitionCreations = new SQLQuery("""
+              DO $$
+              BEGIN
+                FOR i IN 0..$partitionCountLoop$ LOOP
+                  EXECUTE format('
+                    CREATE TABLE $schema$.$headTable$_p%s
+                      PARTITION OF $schema$.$headTable$
+                      FOR VALUES WITH (MODULUS $partitionCount$, REMAINDER %s);', i, i);
+                END LOOP;
+              END $$;
+              """
+              .replace("$partitionCountLoop$", Long.toString(HEAD_TABLE_PARTION_COUNT - 1))
+              .replace("$schema$",schema)
+              .replace("$headTable$",rootTable + HEAD_TABLE_SUFFIX)
+              .replace("$partitionCount$",Long.toString(HEAD_TABLE_PARTION_COUNT))
+      );
+      return List.of(
+              headTableCreation,
+              headTablePartitionCreations
+      );
     }
     throw new IllegalArgumentException("Unsupported Table Layout: " + layout);
   }
@@ -239,6 +267,7 @@ public class XyzSpaceTableHelper {
     }else if(layout == TableLayout.V2) {
       queries.add(dropTableQuery);
       queries.add(dropVersionSequenceQuery);
+      return queries;
     }
 
     throw new IllegalArgumentException("Unsupported Table Layout: " + layout);
