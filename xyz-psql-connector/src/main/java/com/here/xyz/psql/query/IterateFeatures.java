@@ -137,7 +137,7 @@ public class IterateFeatures<E extends IterateFeaturesEvent, R extends XyzRespon
       return ECPSTool.decrypt(IterateFeatures.class.getSimpleName(), token, true);
     }
     catch (GeneralSecurityException | IllegalArgumentException e) {
-      if (e.getCause() != null && e.getCause() instanceof IllegalBlockSizeException)
+      if ( e instanceof IllegalBlockSizeException || (e.getCause() != null && e.getCause() instanceof IllegalBlockSizeException))
         throw new IllegalArgumentException("Invalid nextPageToken provided for iterate");
       throw new IllegalArgumentException("Error trying to decode the iteration nextPageToken.");
     }
