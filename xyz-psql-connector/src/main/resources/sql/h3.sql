@@ -22,7 +22,6 @@
 /*
 Sourcecode:  https://github.com/uber/h3.git  tag: v3.2.0
 */
-create schema if not exists h3;
 
 create or replace function h3_version() 
 returns integer as
