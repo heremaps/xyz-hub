@@ -138,7 +138,7 @@ BEGIN
 
 END
 $BODY$
-LANGUAGE plpgsql immutable;
+LANGUAGE plpgsql immutable parallel safe;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR  REPLACE FUNCTION xyz_random_string(length integer)
@@ -159,7 +159,7 @@ $BODY$
         RETURN result;
     END;
 $BODY$
-LANGUAGE plpgsql VOLATILE;
+LANGUAGE plpgsql VOLATILE PARALLEL RESTRICTED;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_index_dissolve_datatype(propkey text)
@@ -188,7 +188,7 @@ $BODY$
 		RETURN NULL;
 	END;
 $BODY$
-  LANGUAGE plpgsql VOLATILE;
+  LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_index_get_plain_propkey(propkey text)
@@ -217,7 +217,7 @@ $BODY$
 		RETURN propkey;
 	END;
 $BODY$
-  LANGUAGE plpgsql VOLATILE;
+  LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_count_estimation(query text)
@@ -237,7 +237,7 @@ BEGIN
     RETURN rows;
 END;
 $BODY$
-    LANGUAGE plpgsql VOLATILE;
+    LANGUAGE plpgsql VOLATILE PARALLEL RESTRICTED;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_qk_child_calculation(quadkey text,resolution integer, result text[])
@@ -261,7 +261,7 @@ BEGIN
 	RETURN result;
 END;
 $BODY$
-LANGUAGE plpgsql VOLATILE;
+LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 create or replace function xyz_qk_envelope2lrc(geo geometry, lvl integer)
@@ -302,7 +302,7 @@ begin
 
 end;
 $body$
-language plpgsql immutable;
+language plpgsql immutable parallel safe;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_space_bbox(
@@ -355,7 +355,7 @@ $BODY$
 		RETURN bboxx;
         END;
 $BODY$
-  LANGUAGE plpgsql VOLATILE;
+  LANGUAGE plpgsql VOLATILE PARALLEL RESTRICTED;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_index_list_all_available(
@@ -414,7 +414,7 @@ $BODY$
 		END LOOP;
 	END
 $BODY$
-  LANGUAGE plpgsql VOLATILE;
+  LANGUAGE plpgsql STABLE PARALLEL RESTRICTED;
  ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_index_check_comments(
@@ -584,7 +584,7 @@ $BODY$
 		RETURN jsonarray;
         END;
 $BODY$
-  LANGUAGE plpgsql VOLATILE;
+  LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_property_path(propertypath TEXT)
@@ -615,7 +615,7 @@ $BODY$
 		RETURN jsonpath;
         END;
 $BODY$
-  LANGUAGE plpgsql VOLATILE;
+  LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_property_datatype(
@@ -663,7 +663,7 @@ $BODY$
 			RETURN 'unknown';
 	END;
 $BODY$
-  LANGUAGE plpgsql VOLATILE;
+  LANGUAGE plpgsql VOLATILE PARALLEL RESTRICTED;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_property_statistic_v2(
@@ -769,7 +769,7 @@ BEGIN
            tableName  !~ '.+\_p[0-9]'; -- It's a history partition
 END
 $BODY$
-LANGUAGE plpgsql VOLATILE;
+LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_statistic_all_spaces(
@@ -899,7 +899,7 @@ $BODY$
 		END LOOP;
         END;
 $BODY$
-  LANGUAGE plpgsql VOLATILE;
+  LANGUAGE plpgsql VOLATILE PARALLEL RESTRICTED;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_index_creation_on_property(
@@ -984,7 +984,7 @@ $BODY$
 		END IF;
         END;
 $BODY$
-  LANGUAGE plpgsql VOLATILE;
+  LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_index_name_for_property(
@@ -1027,7 +1027,7 @@ $BODY$
 		RETURN idx_name;
 	END;
 $BODY$
-  LANGUAGE plpgsql VOLATILE;
+  LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_index_find_missing_system_indexes(
@@ -1069,7 +1069,7 @@ $BODY$
 			) B WHERE idx_available IS NULL OR jsonb_array_length(idx_available) < 2;
 	END;
 $BODY$
-  LANGUAGE plpgsql VOLATILE;
+  LANGUAGE plpgsql STABLE PARALLEL RESTRICTED;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_index_name_dissolve_to_property(IN idx_name text, space_id text)
@@ -1106,7 +1106,7 @@ $BODY$
 		RETURN NEXT;
 	END;
 $BODY$
-  LANGUAGE plpgsql VOLATILE;
+  LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_index_property_available(
@@ -1146,7 +1146,7 @@ $BODY$
 		return ret is not null;
 	END;
 $BODY$
-  LANGUAGE plpgsql VOLATILE;
+  LANGUAGE plpgsql STABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_property_statistic(
@@ -1300,7 +1300,7 @@ $BODY$
 	END IF;
   END;
 $BODY$
-  LANGUAGE plpgsql VOLATILE;
+  LANGUAGE plpgsql IMMUTABLE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_statistic_xl_space(
@@ -1557,7 +1557,7 @@ begin
  end if;
 end
 $body$
-language plpgsql immutable;
+language plpgsql immutable PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION _prj_flatten(jdoc jsonb, depth integer )
@@ -1588,14 +1588,14 @@ with
  )
  select level, jkey, jval from outdata
 $body$
-LANGUAGE sql IMMUTABLE;
+LANGUAGE sql IMMUTABLE PARALLEL SAFE;
 
 CREATE OR REPLACE FUNCTION prj_flatten(jdoc jsonb)
 RETURNS TABLE(level integer, jkey text, jval jsonb) AS
 $body$
  select * from _prj_flatten( jdoc, 100 )
 $body$
-LANGUAGE sql IMMUTABLE;
+LANGUAGE sql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION _prj_diff( left_jdoc jsonb, right_jdoc jsonb )
@@ -1641,14 +1641,14 @@ with
  )
 select * from outdiff order by jkey
 $body$
-LANGUAGE sql IMMUTABLE;
+LANGUAGE sql IMMUTABLE PARALLEL SAFE;
 
 CREATE OR REPLACE FUNCTION prj_diff( left_jdoc jsonb, right_jdoc jsonb )
 RETURNS jsonb AS
 $body$
  select jsonb_agg( jsonb_build_array( jkey, jval_l, jval_r ) ) from _prj_diff( left_jdoc, right_jdoc ) d
 $body$
-LANGUAGE sql IMMUTABLE;
+LANGUAGE sql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION prj_input_validate(plist text[])
@@ -1660,7 +1660,7 @@ select array_agg( i.jpth ) from
   group by 1 having count(1) = 1
 ) i
 $body$
-LANGUAGE sql IMMUTABLE;
+LANGUAGE sql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION prj_rebuild_elem( jpath text, jval jsonb )
@@ -1671,7 +1671,7 @@ $body$
  from
   ( select fn, ( fn ~ '^\d+$' ) as ia  from regexp_split_to_table( jpath, '\.') fn ) i
 $body$
-LANGUAGE sql IMMUTABLE;
+LANGUAGE sql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 create or replace function prj_jmerge(CurrentData jsonb,newData jsonb)
@@ -1697,7 +1697,7 @@ $body$
    else newData
  end
 $body$
-language sql immutable;
+language sql immutable PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 create or replace function prj_build( jpaths text[], indata jsonb )
@@ -1729,7 +1729,7 @@ begin
  return rval;
 end
 $body$
-language plpgsql immutable;
+language plpgsql immutable PARALLEL SAFE;
 ------------------------------------------------
 ---------------- QUADKEY_FUNCTIONS -------------
 ------------------------------------------------
@@ -1750,7 +1750,7 @@ BEGIN
 
   RETURN next;
 END;
-$$ LANGUAGE plpgsql IMMUTABLE;
+$$ LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_qk_lrc2qk(rowY integer, colX integer, level integer )  RETURNS text AS $$
@@ -1779,7 +1779,7 @@ BEGIN
 
   return qk;
 END;
-$$ LANGUAGE plpgsql IMMUTABLE;
+$$ LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_qk_qk2lrc( qid text )
@@ -1803,7 +1803,7 @@ BEGIN
 
  RETURN next;
 END;
-$$ LANGUAGE plpgsql IMMUTABLE;
+$$ LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_qk_lrc2bbox(rowY integer, colX integer, level integer)
@@ -1811,7 +1811,7 @@ CREATE OR REPLACE FUNCTION xyz_qk_lrc2bbox(rowY integer, colX integer, level int
 $$
  select st_transform(ST_TileEnvelope(level, colX, rowY), 4326)
 $$
-LANGUAGE sql IMMUTABLE;
+LANGUAGE sql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_qk_qk2bbox( qid text )
@@ -1824,7 +1824,7 @@ BEGIN
 	)A;
  return geo;
 END;
-$$ LANGUAGE plpgsql IMMUTABLE;
+$$ LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_qk_point2qk( geo geometry(Point,4326), level integer )
@@ -1835,7 +1835,7 @@ BEGIN
 	select * from xyz_qk_point2lrc( geo, level ) into xyzTile;
  return xyz_qk_lrc2qk(xyzTile.rowY, xyzTile.colX, level);
 END;
-$$ LANGUAGE plpgsql IMMUTABLE;
+$$ LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_qk_bbox2zooml( geometry )
@@ -1844,7 +1844,7 @@ $body$ -- select round( ( ln( 360 ) - ln( st_xmax(i.env) - st_xmin(i.env) )  )/ 
  select round( ( 5.88610403145016 - ln( st_xmax(i.env) - st_xmin(i.env) )  )/ 0.693147180559945 )::integer as zm
  from ( select st_envelope( $1 ) as env ) i
 $body$
-LANGUAGE sql IMMUTABLE;
+LANGUAGE sql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------ftm - fast tile mode ------------------------------------------
 CREATE OR REPLACE FUNCTION ftm_SimplifyPreserveTopology( geo geometry, tolerance float)
@@ -1852,7 +1852,7 @@ CREATE OR REPLACE FUNCTION ftm_SimplifyPreserveTopology( geo geometry, tolerance
 $BODY$
  select case ST_NPoints( geo ) < 20 when true then geo else st_simplifypreservetopology( geo, tolerance ) end
 $BODY$
-  LANGUAGE sql IMMUTABLE;
+  LANGUAGE sql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION ftm_Simplify( geo geometry, tolerance float)
@@ -1860,7 +1860,7 @@ CREATE OR REPLACE FUNCTION ftm_Simplify( geo geometry, tolerance float)
 $BODY$
  select case ST_NPoints( geo ) < 20 when true then geo else (select case st_issimple( i.g ) when true then i.g else null end from ( select st_simplify( geo, tolerance,false ) as g ) i ) end
 $BODY$
-  LANGUAGE sql IMMUTABLE;
+  LANGUAGE sql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_postgis_selectivity( tbl regclass, att_name text, geom geometry )
@@ -1885,7 +1885,7 @@ BEGIN
     RETURN 9223372036854775807::BIGINT;
 END
 $BODY$
-LANGUAGE plpgsql VOLATILE;
+LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION operation_2_human_readable(operation CHAR) RETURNS TEXT AS
@@ -1894,7 +1894,7 @@ BEGIN
     RETURN CASE WHEN operation = 'I' OR operation = 'H' THEN 'insert' ELSE (CASE WHEN operation = 'U' OR operation = 'J' THEN 'update' ELSE 'delete' END) END;
 END
 $BODY$
-LANGUAGE plpgsql VOLATILE;
+LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_isHideOperation(operation CHAR) RETURNS BOOLEAN AS
@@ -1903,7 +1903,7 @@ BEGIN
     RETURN operation = 'H' OR operation = 'J';
 END
 $BODY$
-LANGUAGE plpgsql VOLATILE;
+LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_write_versioned_modification_operation(id TEXT, version BIGINT, operation CHAR, jsondata JSONB, geo GEOMETRY, schema TEXT, tableName TEXT, concurrencyCheck BOOLEAN, partitionSize BIGINT, versionsToKeep INT, pw TEXT, baseVersion BIGINT, minTagVersion BIGINT)
@@ -2106,7 +2106,7 @@ $BODY$
             END;
     END
 $BODY$
-LANGUAGE plpgsql VOLATILE;
+LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_geoFromWkb(geo GEOMETRY)
@@ -2116,7 +2116,7 @@ $BODY$
         RETURN CASE WHEN geo::geometry IS NULL THEN NULL ELSE xyz_reduce_precision( ST_Force3D(ST_GeomFromWKB(geo::BYTEA, 4326)) ) END;
     END
 $BODY$
-LANGUAGE plpgsql VOLATILE;
+LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 DO $$
@@ -2239,7 +2239,7 @@ BEGIN
     END IF;
 END
 $BODY$
-LANGUAGE plpgsql VOLATILE;
+LANGUAGE plpgsql STABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_get_root_table(tableName TEXT) RETURNS TEXT AS
@@ -2252,7 +2252,7 @@ BEGIN
     END IF;
 END
 $BODY$
-LANGUAGE plpgsql VOLATILE;
+LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_table_exists(schema TEXT, tableName TEXT) RETURNS BOOLEAN AS
@@ -2265,7 +2265,7 @@ BEGIN
     RETURN existsResult.tableExists;
 END
 $BODY$
-LANGUAGE plpgsql VOLATILE;
+LANGUAGE plpgsql STABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 -- **NOTE:** This variant of the asyncify function is only to be called from JDBC
@@ -2393,7 +2393,7 @@ BEGIN
     return labels;
 END
 $BODY$
-LANGUAGE plpgsql VOLATILE;
+LANGUAGE plpgsql STABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION streamId() RETURNS TEXT AS
@@ -2403,7 +2403,7 @@ BEGIN
 EXCEPTION WHEN OTHERS THEN RETURN 'no-streamId';
 END
 $BODY$
-    LANGUAGE plpgsql VOLATILE;
+    LANGUAGE plpgsql VOLATILE PARALLEL RESTRICTED;
 
 CREATE OR REPLACE FUNCTION streamId(sid TEXT) RETURNS VOID AS
 $BODY$
@@ -2411,5 +2411,5 @@ BEGIN
     PERFORM set_config('xyz.streamId', sid, true);
 END
 $BODY$
-LANGUAGE plpgsql VOLATILE;
+LANGUAGE plpgsql VOLATILE PARALLEL RESTRICTED;
 
