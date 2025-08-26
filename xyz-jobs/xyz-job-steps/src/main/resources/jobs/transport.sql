@@ -21,6 +21,7 @@ CREATE OR REPLACE FUNCTION s3_plugin_config(format TEXT)
     RETURNS TABLE(plugin_columns TEXT, plugin_options TEXT)
     LANGUAGE 'plpgsql'
     IMMUTABLE
+    PARALLEL SAFE
 AS $BODY$
 BEGIN
     plugin_options := '(FORMAT CSV, ENCODING ''UTF8'', DELIMITER '','', QUOTE  ''"'',  ESCAPE '''''''')';
@@ -50,6 +51,7 @@ CREATE OR REPLACE FUNCTION get_table_reference(schema TEXT, tbl TEXT, type TEXT 
     RETURNS REGCLASS
     LANGUAGE 'plpgsql'
     STABLE
+    PARALLEL SAFE
 AS $BODY$
 DECLARE
     prefix TEXT := '';
@@ -74,6 +76,7 @@ CREATE OR REPLACE FUNCTION get_stepid_from_work_table(trigger_tbl REGCLASS)
 RETURNS TEXT
     LANGUAGE 'plpgsql'
     STABLE
+    PARALLEL SAFE
 AS $BODY$
 BEGIN
     RETURN regexp_replace(substring(trigger_tbl::TEXT from length('job_data_') + 1), '_trigger_tbl', '');
@@ -87,6 +90,7 @@ CREATE OR REPLACE FUNCTION get_work_table_name(schema TEXT, step_id TEXT)
     RETURNS REGCLASS
     LANGUAGE 'plpgsql'
     STABLE
+    PARALLEL SAFE
 AS $BODY$
 BEGIN
     RETURN (schema ||'.'|| '"job_data_' || step_id || '"')::REGCLASS;
@@ -621,7 +625,7 @@ BEGIN
     RETURN NEXT;
 END
 $BODY$
-LANGUAGE plpgsql IMMUTABLE;
+LANGUAGE plpgsql VOLATILE;
 
 -- ####################################################################################################################
 -- Export related:

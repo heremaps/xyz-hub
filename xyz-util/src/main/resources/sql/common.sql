@@ -108,7 +108,8 @@ CREATE OR REPLACE FUNCTION coalesce_subscript(anyarray) RETURNS integer AS $BODY
     WHERE $1[i] IS NOT NULL
     ORDER BY i
     LIMIT 1;
-$BODY$ LANGUAGE SQL IMMUTABLE;
+$BODY$ LANGUAGE SQL IMMUTABLE
+PARALLEL SAFE;
 
 /**
  * This function can be used to write logs, if we run in Async mode.
@@ -192,7 +193,8 @@ BEGIN
 	END IF;
 END;
 $BODY$
-LANGUAGE plpgsql STABLE;
+LANGUAGE plpgsql STABLE
+PARALLEL SAFE;
 
 /**
  * This function can be used to get the count of a table.
@@ -220,4 +222,5 @@ BEGIN
     RETURN NEXT;
 END;
 $BODY$
-LANGUAGE plpgsql STABLE;
+LANGUAGE plpgsql STABLE
+PARALLEL SAFE;
