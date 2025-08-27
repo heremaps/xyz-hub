@@ -180,6 +180,7 @@ public class CopySpaceStepsTest extends StepTest {
         Arguments.of(false, spatialSearchGeom, true, propertyFilter,null,false),
 
         Arguments.of(false, null, false, null, versionRange,false),
+        Arguments.of(false, null, false, null, versionRange,true),
         Arguments.of(false, null, false, propertyFilter,versionRange,false),
         Arguments.of(false, spatialSearchGeom, false, null, versionRange,false),
 
@@ -221,7 +222,7 @@ public class CopySpaceStepsTest extends StepTest {
     long expectedCount = ( !emptyTarget ? 43L : 40L );
 
     if( versionRef != null )
-    { expectedCount = 12L;
+    { expectedCount = ( !emptyTarget ? 12L : 10L );
       if( geo != null || propertyFilter != null ) //TODO: clarify - in case of filtering with versionRange, deleted features are not copied as they are not "found"
        expectedCount++;
     }
