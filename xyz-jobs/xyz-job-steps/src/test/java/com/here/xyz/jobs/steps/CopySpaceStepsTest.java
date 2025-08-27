@@ -215,6 +215,7 @@ public class CopySpaceStepsTest extends StepTest {
         .withTargetSpaceId(targetSpace)
         .withJobId(JOB_ID)
         .withEstimatedTargetFeatureCount(NrFeaturesInTarget)
+        //.withThreadInfo(new int[]{6, 8})
         /* test only -> */.withTargetVersion(3); //TODO: rather provide the according model-based input instead (that would also directly test the functionality of providing the input accordingly)
 
     sendLambdaStepRequestBlock(step, true);
