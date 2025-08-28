@@ -30,7 +30,7 @@ import static com.here.xyz.jobs.RuntimeInfo.State.RESUMING;
 import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
 import static com.here.xyz.jobs.RuntimeInfo.State.SUBMITTED;
 import static com.here.xyz.jobs.RuntimeInfo.State.SUCCEEDED;
-import static com.here.xyz.jobs.steps.Step.InputSet.DEFAULT_INPUT_SET_NAME;
+import static com.here.xyz.jobs.steps.Step.InputSet.DEFAULT_SET_NAME;
 import static com.here.xyz.jobs.steps.inputs.Input.inputS3Prefix;
 import static com.here.xyz.jobs.steps.resources.Load.addLoads;
 import static com.here.xyz.jobs.steps.resources.ResourcesRegistry.fromStaticLoads;
@@ -53,18 +53,22 @@ import com.here.xyz.jobs.processes.ProcessDescription;
 import com.here.xyz.jobs.service.JobService;
 import com.here.xyz.jobs.steps.JobCompiler;
 import com.here.xyz.jobs.steps.Step;
+import com.here.xyz.jobs.steps.Step.OutputSet;
+import com.here.xyz.jobs.steps.Step.Visibility;
 import com.here.xyz.jobs.steps.StepGraph;
 import com.here.xyz.jobs.steps.execution.JobExecutor;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.inputs.ModelBasedInput;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
+import com.here.xyz.jobs.steps.outputs.GroupedPayloadsPreview;
 import com.here.xyz.jobs.steps.outputs.Output;
+import com.here.xyz.jobs.steps.outputs.GroupSummary;
+import com.here.xyz.jobs.steps.outputs.SetSummary;
 import com.here.xyz.jobs.steps.resources.ExecutionResource;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.ResourcesRegistry.StaticLoad;
 import com.here.xyz.jobs.retriever.JobInputsRetriever;
 import com.here.xyz.jobs.retriever.JobOutputsRetriever;
-import com.here.xyz.models.hub.Space.Extension;
 import com.here.xyz.util.Async;
 import com.here.xyz.util.pagination.Page;
 import com.here.xyz.util.pagination.PagedDataRetriever;
@@ -559,7 +563,7 @@ public class Job implements XyzSerializable {
   }
 
   public UploadUrl createUploadUrl(boolean compressed) {
-    return createUploadUrl(compressed, DEFAULT_INPUT_SET_NAME);
+    return createUploadUrl(compressed, DEFAULT_SET_NAME);
   }
 
   public UploadUrl createUploadUrl(boolean compressed, String setName) {
@@ -584,21 +588,102 @@ public class Job implements XyzSerializable {
   }
 
   public Future<List<Input>> loadInputs(String setName) {
-    return ASYNC.run(() -> createInputsRetriever().getItems(new JobInputsRetriever.InputsParams().setSetName(setName)));
+    return ASYNC.run(() -> createInputsRetriever().getItems(new JobInputsRetriever.InputsParams().withSetName(setName)));
   }
 
-  public Future<Page<Input>> loadInputs(String setName, int limit, String nextPageToken) {
+  public Future<Page<Input>> loadInputs(String setName, String outputSetGroup, int limit, String nextPageToken) {
     return ASYNC.run(
-        () -> createInputsRetriever().getPage(new JobInputsRetriever.InputsParams().setSetName(setName), limit, nextPageToken));
+        () -> createInputsRetriever().getPage(new JobInputsRetriever.InputsParams()
+                .withSetName(setName)
+                .withOutputSetGroup(outputSetGroup),
+            limit, nextPageToken));
   }
 
   public Future<List<Output>> loadOutputs() {
-    return ASYNC.run(() -> createOutputsRetriever().getItems(new JobOutputsRetriever.OutputsParams(null)));
+    return ASYNC.run(() -> createOutputsRetriever().getItems(new JobOutputsRetriever.OutputsParams()));
   }
 
-  public Future<Page<Output>> loadOutputs(String outputSetGroup, int limit, String nextPageToken) {
-    JobOutputsRetriever.OutputsParams params = new JobOutputsRetriever.OutputsParams(outputSetGroup);
+  public Future<Page<Output>> loadOutputs(String setName, String outputSetGroup, int limit, String nextPageToken) {
+    JobOutputsRetriever.OutputsParams params = new JobOutputsRetriever.OutputsParams(outputSetGroup, setName);
     return ASYNC.run(() -> createOutputsRetriever().getPage(params, limit, nextPageToken));
+  }
+
+  public Future<GroupedPayloadsPreview> composeInputsPreview() {
+    return ASYNC.run(() -> Input.previewInputs(this.id).withType(GroupedPayloadsPreview.INPUT_TYPE));
+  }
+
+  public Future<GroupSummary> composeInputGroupPreview(String outputSetGroup) {
+    return ASYNC.run(() -> Input.previewInputGroups(this.id, outputSetGroup));
+  }
+
+  public Future<GroupedPayloadsPreview> composeOutputsPreview() {
+    return ASYNC.run(() -> {
+      final Map<String, GroupSummary> groups = new HashMap<>();
+
+      getSteps().stepStream().forEach(step -> {
+        String group = step.getOutputSetGroup();
+        List<OutputSet> outputSets = step.getOutputSets();
+
+        outputSets.forEach(os -> {
+          final String setName = os.name;
+
+          long itemCount = getSteps().getStep(group, setName).loadOutputs(Visibility.USER).size();
+
+          GroupSummary groupSummary = groups.computeIfAbsent(
+              group,
+              g -> new GroupSummary()
+                  .withItems(new HashMap<>())
+                  .withItemCount(itemCount)
+          );
+
+          SetSummary setSummary = groupSummary.getItems()
+              .computeIfAbsent(setName, s -> new SetSummary().withItemCount(0).withByteSize(0));
+
+          setSummary.setItemCount(setSummary.getItemCount() + itemCount);
+
+          groupSummary.setItemCount(groupSummary.getItemCount() + itemCount);
+        });
+      });
+
+      long totalItems = groups.values().stream().mapToLong(GroupSummary::getItemCount).sum();
+      long totalBytes = groups.values().stream().mapToLong(GroupSummary::getByteSize).sum();
+
+      return new GroupedPayloadsPreview()
+          .withType(GroupedPayloadsPreview.OUTPUT_TYPE)
+          .withItems(groups)
+          .withItemCount(totalItems)
+          .withByteSize(totalBytes);
+    });
+  }
+
+  public Future<GroupSummary> composeOutputGroupPreview(String outputSetGroup) {
+    return ASYNC.run(() -> {
+      final Map<String, SetSummary> sets = new HashMap<>();
+
+      getSteps().stepStream().filter(step -> step.getOutputSetGroup().equals(outputSetGroup)).forEach(step -> {
+        String group = step.getOutputSetGroup();
+        List<OutputSet> outputSets = step.getOutputSets();
+
+        outputSets.forEach(os -> {
+          final String setName = os.name;
+
+          long itemCount = getSteps().getStep(group, setName).loadOutputs(Visibility.USER).size();
+
+          SetSummary setSummary = sets
+              .computeIfAbsent(setName, s -> new SetSummary().withItemCount(0).withByteSize(0));
+
+          setSummary.setItemCount(setSummary.getItemCount() + itemCount);
+        });
+      });
+
+      long totalItems = sets.values().stream().mapToLong(SetSummary::getItemCount).sum();
+      long totalBytes = sets.values().stream().mapToLong(SetSummary::getByteSize).sum();
+
+      return new GroupSummary()
+          .withItems(sets)
+          .withItemCount(totalItems)
+          .withByteSize(totalBytes);
+    });
   }
 
   public PagedDataRetriever<Input, JobInputsRetriever.InputsParams> createInputsRetriever() {

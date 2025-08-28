@@ -25,7 +25,7 @@ import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
 import static com.here.xyz.jobs.RuntimeStatus.Action.CANCEL;
 import static com.here.xyz.jobs.service.JobApiBase.ApiParam.Path.SPACE_ID;
 import static com.here.xyz.jobs.service.JobApiBase.ApiParam.getPathParam;
-import static com.here.xyz.jobs.steps.Step.InputSet.DEFAULT_INPUT_SET_NAME;
+import static com.here.xyz.jobs.steps.Step.InputSet.DEFAULT_SET_NAME;
 import static io.netty.handler.codec.http.HttpResponseStatus.ACCEPTED;
 import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
@@ -61,6 +61,7 @@ import org.apache.logging.log4j.Logger;
 public class JobApi extends JobApiBase {
   static final Integer DEFAULT_PAGE_SIZE = 1000; // Depicts the default page size
   protected static final Logger logger = LogManager.getLogger();
+
   protected JobApi() {}
 
   public JobApi(RouterBuilder rb) {
@@ -71,8 +72,11 @@ public class JobApi extends JobApiBase {
     rb.getRoute("postJobInputs").setDoValidation(false).addHandler(handleErrors(this::postJobInput));
     rb.getRoute("getJobInputs").setDoValidation(false).addHandler(handleErrors(this::getJobInputs));
     rb.getRoute("postNamedJobInputs").setDoValidation(false).addHandler(handleErrors(this::postJobInput));
-    rb.getRoute("getNamedJobInputs").setDoValidation(false).addHandler(handleErrors(this::getJobInputs));
+    rb.getRoute("getNamedJobInputGroups").setDoValidation(false).addHandler(handleErrors(this::getNamedJobInputGroups));
     rb.getRoute("getJobOutputs").setDoValidation(false).addHandler(handleErrors(this::getJobOutputs));
+    rb.getRoute("getJobOutputGroup").setDoValidation(false).addHandler(handleErrors(this::getJobOutputGroup));
+    rb.getRoute("getJobOutputSetItems").setDoValidation(false).addHandler(handleErrors(this::getJobOutputSetItems));
+    rb.getRoute("getJobInputSetItems").setDoValidation(false).addHandler(handleErrors(this::getJobInputSetItems));
     rb.getRoute("patchJobStatus").setDoValidation(false).addHandler(handleErrors(this::patchJobStatus));
     rb.getRoute("getJobStatus").setDoValidation(false).addHandler(handleErrors(this::getJobStatus));
   }
@@ -150,7 +154,7 @@ public class JobApi extends JobApiBase {
   protected void postJobInput(final RoutingContext context) throws HttpException {
     String jobId = jobId(context);
     Input input = getJobInputFromBody(context);
-    String inputSetName = inputSetName(context);
+    String inputSetName = retrieveSetName(context);
 
     Future<Input> inputCreatedFuture = loadJob(context, jobId).compose(job -> registerInput(context, job, input, inputSetName));
 
@@ -216,16 +220,87 @@ public class JobApi extends JobApiBase {
   }
 
   protected void getJobInputs(final RoutingContext context) {
-    loadJob(context, jobId(context))
-        .compose(job -> job.loadInputs(inputSetName(context), pageLimit(context), context.queryParams().get("nextPageToken")))
-        .onSuccess(res -> sendResponse(context, OK.code(), res, new TypeReference<Page<Input>>() {}))
-        .onFailure(err -> sendErrorResponse(context, err));
+    final boolean paginatedMode = isPaginatedRequest(context);
+
+    if (paginatedMode) {
+      loadJob(context, jobId(context))
+          .compose(Job::composeInputsPreview)
+          .onSuccess(summary -> sendResponse(context, OK.code(), summary))
+          .onFailure(err -> sendErrorResponse(context, err));
+    } else {
+      final String name = retrieveSetName(context);
+      loadJob(context, jobId(context))
+          .compose(job -> job.loadInputs(name)
+          .onSuccess(items -> sendResponse(context, OK.code(), items, new TypeReference<List<Input>>() {
+          }))
+          .onFailure(err -> sendErrorResponse(context, err)));
+    }
+  }
+
+  protected void getNamedJobInputGroups(final RoutingContext context) {
+    final boolean paginatedMode = isPaginatedRequest(context);
+
+    if (paginatedMode) {
+      String group = retrieveSetGroup(context);
+      loadJob(context, jobId(context))
+          .compose(job -> job.composeInputGroupPreview(group))
+          .onSuccess(summary -> sendResponse(context, OK.code(), summary))
+          .onFailure(err -> sendErrorResponse(context, err));
+    } else {
+      final String name = retrieveSetName(context);
+      loadJob(context, jobId(context))
+          .compose(job -> job.loadInputs(name)
+          .onSuccess(items -> sendResponse(context, OK.code(), items, new TypeReference<List<Input>>() {
+          }))
+          .onFailure(err -> sendErrorResponse(context, err)));
+    }
+  }
+
+  private boolean isPaginatedRequest(RoutingContext context) {
+    return "paginated".equalsIgnoreCase(context.request().getHeader("X-Response-Mode"));
   }
 
   protected void getJobOutputs(final RoutingContext context) {
+    final boolean paginatedMode = isPaginatedRequest(context);
+
+    if (paginatedMode) {
+      loadJob(context, jobId(context))
+          .compose(Job::composeOutputsPreview)
+          .onSuccess(summary -> sendResponse(context, OK.code(), summary))
+          .onFailure(err -> sendErrorResponse(context, err));
+    } else {
+      loadJob(context, jobId(context))
+          .compose(Job::loadOutputs)
+          .onSuccess(res -> sendResponse(context, OK.code(), res, new TypeReference<List<Output>>() {}))
+          .onFailure(err -> sendErrorResponse(context, err));
+    }
+  }
+
+  protected void getJobOutputGroup(final RoutingContext context) {
+    final String group = Objects.requireNonNull(retrieveSetGroup(context));
     loadJob(context, jobId(context))
-        .compose(job -> job.loadOutputs(outputSetGroup(context), pageLimit(context), context.queryParams().get("nextPageToken")))
-        .onSuccess(res -> sendResponse(context, OK.code(), res, new TypeReference<Page<Output>>() {}))
+        .compose(job -> job.composeOutputGroupPreview(group))
+        .onSuccess(summary -> sendResponse(context, OK.code(), summary))
+        .onFailure(err -> sendErrorResponse(context, err));
+  }
+
+  protected void getJobOutputSetItems(final RoutingContext context) {
+    final String group = Objects.requireNonNull(retrieveSetGroup(context));
+    final String name = Objects.requireNonNull(retrieveSetName(context));
+    loadJob(context, jobId(context))
+        .compose(job -> job.loadOutputs(name, group, pageLimit(context), context.queryParams().get("pageToken")))
+        .onSuccess(res -> sendResponse(context, OK.code(), res, new TypeReference<Page<Output>>() {
+        }))
+        .onFailure(err -> sendErrorResponse(context, err));
+  }
+
+  protected void getJobInputSetItems(final RoutingContext context) {
+    final String group = Objects.requireNonNull(retrieveSetGroup(context));
+    final String name = Objects.requireNonNull(retrieveSetName(context));
+    loadJob(context, jobId(context))
+        .compose(job -> job.loadInputs(name, group, pageLimit(context), context.queryParams().get("pageToken")))
+        .onSuccess(res -> sendResponse(context, OK.code(), res, new TypeReference<Page<Input>>() {
+        }))
         .onFailure(err -> sendErrorResponse(context, err));
   }
 
@@ -275,17 +350,23 @@ public class JobApi extends JobApiBase {
     return Future.succeededFuture();
   }
 
-  protected String inputSetName(RoutingContext context) {
-    String setName = context.pathParam("setName");
-    return setName == null ? DEFAULT_INPUT_SET_NAME : setName;
+  protected String retrieveSetName(RoutingContext context) {
+    String setName = context.pathParam("name");
+    if (setName == null) {
+      setName = context.pathParam("setName");
+    }
+    return setName == null ? DEFAULT_SET_NAME : setName;
   }
 
-  protected String outputSetGroup(RoutingContext context) {
-    return context.pathParam("outputSetGroup");
+  protected String retrieveSetGroup(RoutingContext context) {
+    return context.pathParam("group");
   }
 
   protected Integer pageLimit(RoutingContext context) {
-    String requestedLimit = context.queryParams().get("limit");
+    String requestedLimit = context.queryParams().get("pageSize");
+    if (requestedLimit == null) {
+      requestedLimit = context.queryParams().get("limit");
+    }
     return requestedLimit == null ? DEFAULT_PAGE_SIZE : Integer.parseInt(requestedLimit);
   }
 

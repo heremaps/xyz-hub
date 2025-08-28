@@ -49,6 +49,7 @@ import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.util.S3Client;
 import com.here.xyz.util.pagination.Page;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
+import com.here.xyz.util.service.aws.s3.S3ObjectSummary;
 import com.here.xyz.util.service.aws.s3.S3Uri;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -61,6 +62,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Supplier;
@@ -193,16 +195,17 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
     return loadOutputs(USER);
   }
 
-  public Page<Output> loadUserOutputsPage(int limit, String nextPageToken) {
-    return loadOutputsPage(USER, limit, nextPageToken);
+  public Page<Output> loadUserOutputsPage(String setName, int limit, String nextPageToken) {
+    return loadOutputsPage(USER, setName, limit, nextPageToken);
   }
 
-  public Page<Output> loadOutputsPage(Visibility visibility, int limit, String nextPageToken) {
-    List<OutputSet> filteredOutputSets = outputSets.stream()
-        .filter(outputSet -> outputSet.visibility == visibility)
-        .toList();
+  public Page<Output> loadOutputsPage(Visibility visibility, String setName, int limit, String nextPageToken) {
+    Optional<OutputSet> filteredOutputSet = outputSets.stream()
+        .filter(outputSet -> outputSet.visibility == visibility && outputSet.name.equals(setName))
+        .findFirst();
 
-    return loadStepOutputsPage(filteredOutputSets, limit, nextPageToken);
+    return filteredOutputSet.map(outputSet -> loadStepOutputsPage(outputSet, limit, nextPageToken))
+        .orElseGet(() -> new Page<>(List.of(), null));
   }
 
   public List<Output> loadOutputs(Visibility visibility) {
@@ -225,89 +228,6 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
     outputSets.removeIf(set -> set.name.equals(outputSetName));
     outputSets.add(outputSet);
   }
-
-  private Page<Output> loadStepOutputsPage(List<OutputSet> outputSets, int limit, String nextPageToken) {
-    PaginationState state = parsePaginationToken(nextPageToken);
-
-    List<Output> pageItems = new ArrayList<>();
-    int collected = 0;
-
-    int currentSetIndex = state.setIndex;
-    int currentOutputIndex = state.outputIndex;
-
-    while (currentSetIndex < outputSets.size() && collected < limit) {
-      OutputSet outputSet = outputSets.get(currentSetIndex);
-      List<Output> setOutputs = loadStepOutputs(outputSet);
-
-      int startFrom = currentOutputIndex;
-      currentOutputIndex = 0;
-
-      for (int i = startFrom; i < setOutputs.size() && collected < limit; i++) {
-        pageItems.add(setOutputs.get(i));
-        collected++;
-        currentOutputIndex = i + 1;
-      }
-
-      if (currentOutputIndex >= setOutputs.size()) {
-        currentSetIndex++;
-        currentOutputIndex = 0;
-      }
-    }
-
-    // Create next page token if there are more results
-    String nextToken = null;
-    if (currentSetIndex < outputSets.size()) {
-      // Still have more output sets to process
-      nextToken = createPaginationToken(currentSetIndex, currentOutputIndex);
-    } else if (currentSetIndex == outputSets.size() - 1 && currentOutputIndex > 0) {
-      // Check if there are more outputs in the last output set
-      OutputSet lastSet = outputSets.get(currentSetIndex);
-      List<Output> lastSetOutputs = loadStepOutputs(lastSet);
-      if (currentOutputIndex < lastSetOutputs.size()) {
-        nextToken = createPaginationToken(currentSetIndex, currentOutputIndex);
-      }
-    }
-
-    return new Page<>(pageItems, nextToken);
-  }
-
-  private PaginationState parsePaginationToken(String token) {
-    if (token == null || token.isEmpty()) {
-      return new PaginationState(0, 0);
-    }
-
-    try {
-      String decoded = new String(Base64.getDecoder().decode(token));
-      String[] parts = decoded.split(":");
-      if (parts.length == 2) {
-        return new PaginationState(Integer.parseInt(parts[0]), Integer.parseInt(parts[1]));
-      }
-    } catch (Exception e) {
-      // Invalid token, start from beginning
-      logger.warn("[{}] Invalid pagination token provided: {}", getGlobalStepId(), token, e);
-    }
-
-    return new PaginationState(0, 0);
-  }
-
-  private String createPaginationToken(int setIndex, int outputIndex) {
-    String tokenData = setIndex + ":" + outputIndex;
-    return Base64.getEncoder().encodeToString(tokenData.getBytes());
-  }
-
-  /**
-   * Internal class to hold pagination state information.
-   */
-  private static class PaginationState {
-    final int setIndex;
-    final int outputIndex;
-
-    PaginationState(int setIndex, int outputIndex) {
-      this.setIndex = setIndex;
-      this.outputIndex = outputIndex;
-    }
-  }
-
 
   /**
    * Loads the outputs that have been created by this step (so far).
@@ -334,6 +254,23 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
                     .withByteSize(s3ObjectSummary.size())
                     .withMetadata(outputMetadata)))
         .collect(Collectors.toList());
+  }
+
+  private Page<Output> loadStepOutputsPage(OutputSet outputSet, int limit, String nextPageToken) {
+
+    Page<S3ObjectSummary> page = S3Client.getInstance().scanFolder(toS3Path(outputSet), nextPageToken, limit);
+
+    List<Output> outputs = page.getItems().stream()
+        .filter(s3ObjectSummary -> !s3ObjectSummary.isEmpty())
+        .map(s3ObjectSummary -> outputSet.modelBased
+            ? ModelBasedOutput.load(s3ObjectSummary.key(), outputMetadata)
+            : new DownloadUrl()
+                .withS3Key(s3ObjectSummary.key())
+                .withByteSize(s3ObjectSummary.size())
+                .withMetadata(outputMetadata))
+        .collect(Collectors.toList());
+
+    return new Page<>(outputs, page.getNextPageToken());
   }
 
   /**
@@ -755,7 +692,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
    * @param name The name for the set of outputs to be produced
    */
   public record InputSet(String jobId, String providerId, String name, boolean modelBased, Map<String, String> metadata) {
-    public static final String DEFAULT_INPUT_SET_NAME = "inputs"; //Depicts the input set used if no set name is defined
+    public static final String DEFAULT_SET_NAME = "inputs"; //Depicts the input set used if no set name is defined
     public static final String USER_PROVIDER = "USER";
     public static final Supplier<InputSet> USER_INPUTS = () -> new InputSet();
 
@@ -786,7 +723,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
      */
     public InputSet() {
       //TODO: Currently only non-modelbased user inputs are supported
-      this(null, USER_PROVIDER, DEFAULT_INPUT_SET_NAME, false);
+      this(null, USER_PROVIDER, DEFAULT_SET_NAME, false);
     }
 
     public String toS3Path(String consumerJobId) {

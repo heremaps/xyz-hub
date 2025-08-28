@@ -28,6 +28,9 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.steps.Config;
+import com.here.xyz.jobs.steps.outputs.GroupSummary;
+import com.here.xyz.jobs.steps.outputs.GroupedPayloadsPreview;
+import com.here.xyz.jobs.steps.outputs.SetSummary;
 import com.here.xyz.jobs.steps.payloads.StepPayload;
 import com.here.xyz.jobs.util.S3Client;
 import com.here.xyz.util.pagination.Page;
@@ -64,8 +67,8 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
   private String s3Bucket;
   @JsonIgnore
   private String s3Key;
-  private static Map<String, Map<String, InputsMetadata>> metadataCache = new WeakHashMap<>();
-  private static Map<String, Map<String, List<Input>>> inputsCache = new WeakHashMap<>(); //TODO: Expire keys after <24h
+  private static Map<String, Map<String, Map<String, InputsMetadata>>> metadataCache = new WeakHashMap<>();
+  private static Map<String, Map<String, Map<String, List<Input>>>> inputsCache = new WeakHashMap<>(); //TODO: Expire keys after <24h
   private static Set<String> inputsCacheActive = new HashSet<>();
 
   public static String inputS3Prefix(String jobId) {
@@ -86,6 +89,62 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
 
   public static String defaultBucket() {
     return Config.instance.JOBS_S3_BUCKET;
+  }
+
+  public static GroupedPayloadsPreview previewInputs(String jobId) {
+    if (!inputsCacheActive.contains(jobId) || !metadataCache.containsKey(jobId)) {
+      loadInputs(jobId, null);
+    }
+    Map<String, Map<String, InputsMetadata>> cachedGroups = metadataCache.get(jobId);
+
+    Map<String, GroupSummary> responseGroups = new ConcurrentHashMap<>();
+    cachedGroups.forEach((groupName, metadataMap) -> {
+      Map<String, SetSummary> responseSets = new ConcurrentHashMap<>();
+      metadataMap.forEach((setName, metadata) -> {
+        Long totalSize = metadata.inputs.values().stream()
+            .map(inputMetadata -> inputMetadata.byteSize)
+            .reduce(Long::sum).orElse(0L);
+        int totalItems = metadata.inputs.size();
+        responseSets.put(setName, new SetSummary()
+            .withItemCount(totalItems)
+            .withByteSize(totalSize));
+      });
+      responseGroups.put(groupName, new GroupSummary()
+          .withItems(responseSets)
+          .withByteSize(responseSets.values().stream().mapToLong(SetSummary::getByteSize).sum())
+          .withItemCount(responseSets.size()));
+    });
+    return new GroupedPayloadsPreview()
+        .withItems(responseGroups)
+        .withByteSize(responseGroups.values().stream().mapToLong(GroupSummary::getByteSize).sum())
+        .withItemCount(responseGroups.size());
+  }
+
+  public static GroupSummary previewInputGroups(String jobId, String outputSetGroup) {
+    if (!inputsCacheActive.contains(jobId) || !metadataCache.containsKey(jobId)) {
+      loadInputs(jobId, null);
+    }
+    Map<String, Map<String, InputsMetadata>> cachedGroups = metadataCache.get(jobId);
+    if (!cachedGroups.containsKey(outputSetGroup)) {
+      return new GroupSummary()
+          .withItems(new ConcurrentHashMap<>())
+          .withByteSize(0L)
+          .withItemCount(0);
+    }
+    Map<String, SetSummary> responseSets = new ConcurrentHashMap<>();
+    cachedGroups.get(outputSetGroup).forEach((setName, metadata) -> {
+      Long totalSize = metadata.inputs.values().stream()
+          .map(inputMetadata -> inputMetadata.byteSize)
+          .reduce(Long::sum).orElse(0L);
+      int totalItems = metadata.inputs.size();
+      responseSets.put(setName, new SetSummary()
+          .withItemCount(totalItems)
+          .withByteSize(totalSize));
+    });
+    return new GroupSummary()
+        .withItems(responseSets)
+        .withByteSize(responseSets.values().stream().mapToLong(SetSummary::getByteSize).sum())
+        .withItemCount(responseSets.size());
   }
 
   public String getS3Bucket() {
@@ -117,52 +176,68 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
   }
 
   public static List<Input> loadInputs(String jobId, String setName) {
-    return loadInputs(jobId, setName, null, -1).getItems();
+    return loadInputs(jobId, setName, null, null, -1).getItems();
   }
 
-  public static Page<Input> loadInputs(String jobId, String setName, String nextPageToken, int limit) {
+  public static Page<Input> loadInputs(String jobId, String setName, String outputSetGroup, String nextPageToken, int limit) {
     // Only cache inputs of jobs which are submitted already
     // we will cache data only when no pagination is requested
     if (inputsCacheActive.contains(jobId) && nextPageToken == null && limit == -1) {
-      List<Input> inputs = getFromInputCache(jobId, setName);
+      List<Input> inputs = getFromInputCache(jobId, setName, outputSetGroup);
       if (inputs == null) {
-        inputs = loadInputsAndWriteMetadata(jobId, setName, -1, null, Input.class).getItems();
-        putToInputCache(jobId, setName, inputs);
+        inputs = loadInputsAndWriteMetadata(jobId, setName, outputSetGroup,-1, null, Input.class).getItems();
+        putToInputCache(jobId, setName, outputSetGroup, inputs);
       }
       return new Page<>(inputs);
     }
-    return loadInputsAndWriteMetadata(jobId, setName, limit, nextPageToken, Input.class);
+    return loadInputsAndWriteMetadata(jobId, setName, outputSetGroup, limit, nextPageToken, Input.class);
   }
 
-  private synchronized static void putToInputCache(String jobId, String setName, List<Input> inputs) {
-    Map<String, List<Input>> cachedInputs = inputsCache.get(jobId);
+  private synchronized static void putToInputCache(String jobId, String setName, String outputSetGroup, List<Input> inputs) {
+    Map<String, Map<String, List<Input>>> cachedInputs = inputsCache.get(jobId);
     if (cachedInputs == null)
       cachedInputs = new ConcurrentHashMap<>();
-    cachedInputs.put(setName, inputs);
+    cachedInputs.computeIfAbsent(setName, k -> new ConcurrentHashMap<>()).put(outputSetGroup, inputs);
     inputsCache.put(jobId, cachedInputs);
   }
 
-  private static List<Input> getFromInputCache(String jobId, String setName) {
-    Map<String, List<Input>> inputs = inputsCache.get(jobId);
-    return inputs == null ? null: inputs.get(setName);
+  private static List<Input> getFromInputCache(String jobId, String setName, String outputSetGroup) {
+    Map<String, Map<String, List<Input>>> groups = inputsCache.get(jobId);
+    if (groups == null) {
+      return null;
+    }
+    Map<String, List<Input>> inputs = groups.get(outputSetGroup);
+    return inputs == null ? null : inputs.get(setName);
   }
 
-  private synchronized static void putToMetadataCache(String jobId, String setName, InputsMetadata metadata) {
-    Map<String, InputsMetadata> cachedMetadata = metadataCache.get(jobId);
-    if (cachedMetadata == null)
-      cachedMetadata = new ConcurrentHashMap<>();
-    cachedMetadata.put(setName, metadata);
-    metadataCache.put(jobId, cachedMetadata);
+  private synchronized static void putToMetadataCache(String jobId, String setName, String outputSetGroup, InputsMetadata metadata) {
+    Map<String, Map<String, InputsMetadata>> cachedGroups = metadataCache.get(jobId);
+    if(cachedGroups == null)
+      cachedGroups = new ConcurrentHashMap<>();
+    cachedGroups.computeIfAbsent(outputSetGroup, k -> new ConcurrentHashMap<>()).put(setName, metadata);
+    metadataCache.put(jobId, cachedGroups);
   }
 
-  private static InputsMetadata getFromMetadataCache(String jobId, String setName) {
-    Map<String, InputsMetadata> metadata = metadataCache.get(jobId);
+  private static InputsMetadata getFromMetadataCache(String jobId, String setName, String outputSetGroup) {
+    Map<String, Map<String, InputsMetadata>> groups = metadataCache.get(jobId);
+    if (groups == null) {
+      return null;
+    }
+    if (outputSetGroup == null) {
+      for (Map<String, InputsMetadata> group : groups.values()) {
+        InputsMetadata metadata = group.get(setName);
+        if (metadata != null) {
+          return metadata;
+        }
+      }
+    }
+    Map<String, InputsMetadata> metadata = groups.get(outputSetGroup);
     return metadata == null ? null : metadata.get(setName);
   }
 
-  private static <T extends Input> Page<T> loadInputsAndWriteMetadata(String jobId, String setName, int limit, String nextPageToken, Class<T> inputType) {
+  private static <T extends Input> Page<T> loadInputsAndWriteMetadata(String jobId, String setName, String outputSetGroup, int limit, String nextPageToken, Class<T> inputType) {
     try {
-      InputsMetadata metadata = loadMetadata(jobId, setName);
+      InputsMetadata metadata = loadMetadata(jobId, setName, outputSetGroup);
       Stream<T> inputs = metadata.inputs.entrySet().stream()
           .filter(input -> input.getValue().byteSize > 0)
           .map(metaEntry -> {
@@ -209,8 +284,12 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
   }
 
   private static Optional<InputsMetadata> loadMetadataIfExists(String jobId, String setName) {
+    return loadMetadataIfExists(jobId, setName, null);
+  }
+
+  private static Optional<InputsMetadata> loadMetadataIfExists(String jobId, String setName, String outputSetGroup) {
     try {
-      return Optional.of(loadMetadata(jobId, setName));
+      return Optional.of(loadMetadata(jobId, setName, outputSetGroup));
     }
     catch (IOException | S3Exception e) {
       return Optional.empty();
@@ -218,7 +297,11 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
   }
 
   static final InputsMetadata loadMetadata(String jobId, String setName) throws IOException, S3Exception {
-    InputsMetadata metadata = getFromMetadataCache(jobId, setName);
+    return loadMetadata(jobId, setName, null);
+  }
+
+  static final InputsMetadata loadMetadata(String jobId, String setName, String outputSetGroup) throws IOException, S3Exception {
+    InputsMetadata metadata = getFromMetadataCache(jobId, setName, outputSetGroup);
     if (metadata != null)
       return metadata;
 
@@ -228,7 +311,7 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
         InputsMetadata.class);
     logger.info("Loaded metadata for job {}. Took {}ms ...", jobId, Core.currentTimeMillis() - t1);
     if (inputsCacheActive.contains(jobId))
-      putToMetadataCache(jobId, setName, metadata);
+      putToMetadataCache(jobId, setName, outputSetGroup, metadata);
 
     return metadata;
   }
@@ -238,13 +321,13 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
     InputsMetadata referencedMetadata = loadMetadata(referencedJobId, setName);
     //Add the referencing job to the list of jobs referencing the metadata
     referencedMetadata.referencingJobs().add(referencingJobId);
-    storeMetadata(referencedJobId, referencedMetadata, setName);
+    storeMetadata(referencedJobId, referencedMetadata, setName, null);
   }
 
-  static final void storeMetadata(String jobId, InputsMetadata metadata, String setName) {
+  static final void storeMetadata(String jobId, InputsMetadata metadata, String setName, String outputSetGroup) {
     try {
       if (inputsCacheActive.contains(jobId))
-        putToMetadataCache(jobId, setName, metadata);
+        putToMetadataCache(jobId, setName, outputSetGroup, metadata);
       S3Client.getInstance().putObject(inputMetaS3Key(jobId, setName), "application/json", metadata.serialize());
     }
     catch (IOException e) {
@@ -258,15 +341,19 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
   }
 
   static final void storeMetadata(String jobId, List<Input> inputs, String referencedJobId, String setName) {
-    storeMetadata(jobId, inputs, referencedJobId, new S3Uri(defaultBucket(), inputS3Prefix(jobId, setName)), setName);
+    storeMetadata(jobId, inputs, referencedJobId, new S3Uri(defaultBucket(), inputS3Prefix(jobId, setName)), setName, null);
   }
 
-  static final void storeMetadata(String jobId, List<Input> inputs, String referencedJobId, S3Uri scannedFrom, String setName) {
+  static final void storeMetadata(String forJob, List<Input> inputs, Object o, S3Uri s3Uri, String setName) {
+    storeMetadata(forJob, inputs, null, s3Uri, setName, null);
+  }
+
+  static final void storeMetadata(String jobId, List<Input> inputs, String referencedJobId, S3Uri scannedFrom, String setName, String outputSetGroup) {
     logger.info("Storing inputs metadata for job {} ...", jobId);
     Map<String, InputMetadata> metadata = inputs.stream()
         .collect(Collectors.toMap(input -> (input.s3Bucket == null ? "" : "s3://" + input.s3Bucket + "/") + input.s3Key,
             input -> new InputMetadata(input.byteSize, input.compressed)));
-    storeMetadata(jobId, new InputsMetadata(metadata, new HashSet<>(Set.of(jobId)), referencedJobId, scannedFrom), setName);
+    storeMetadata(jobId, new InputsMetadata(metadata, new HashSet<>(Set.of(jobId)), referencedJobId, scannedFrom), setName, outputSetGroup);
   }
 
   static final List<Input> loadInputsInParallel(String bucketName, String inputS3Prefix) {
@@ -301,7 +388,7 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
 
   public static <T extends Input> List<T> loadInputsSample(String jobId, String setName, int limit, Class<T> inputType) {
     // requesting the first page and unwrap to list
-    return loadInputsAndWriteMetadata(jobId, setName, limit, null, inputType).getItems();
+    return loadInputsAndWriteMetadata(jobId, setName, null, limit, null, inputType).getItems();
   }
 
   private static <T extends Input> Page<T> loadAndTransformInputs(String bucketName, String inputS3Prefix, int limit, String nextPageToken, Class<T> inputType) {
@@ -354,7 +441,7 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
       S3Client.getInstance().deleteFolder(inputS3Prefix(owningJobId, setName));
     }
     else if (metadata != null)
-      storeMetadata(owningJobId, metadata, setName);
+      storeMetadata(owningJobId, metadata, setName, null);
   }
 
   private static Input createInput(String s3Bucket, String s3Key, long byteSize, boolean compressed) {

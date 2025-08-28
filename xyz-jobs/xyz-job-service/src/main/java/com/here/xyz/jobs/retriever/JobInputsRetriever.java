@@ -23,9 +23,7 @@ import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.util.pagination.Page;
 import com.here.xyz.util.pagination.PagedDataRetriever;
 
-import java.util.Base64;
 import java.util.List;
-import java.util.stream.Collectors;
 
 public class JobInputsRetriever implements PagedDataRetriever<Input, JobInputsRetriever.InputsParams> {
 
@@ -42,19 +40,27 @@ public class JobInputsRetriever implements PagedDataRetriever<Input, JobInputsRe
 
   @Override
   public Page<Input> getPage(InputsParams params, int pageSize, String pageToken) {
-    return Input.loadInputs(jobId, params.getSetName(), pageToken, pageSize);
+    return Input.loadInputs(jobId, params.getSetName(), params.getOutputSetGroup(), pageToken, pageSize);
   }
 
   public static class InputsParams {
 
     private String setName = "default";
+    private String outputSetGroup = null;
 
     public String getSetName() {
       return setName;
     }
 
-    public InputsParams setSetName(String setName) {
+    public InputsParams withSetName(String setName) {
       this.setName = setName;
+      return this;
+    }
+    public String getOutputSetGroup() {
+      return outputSetGroup;
+    }
+    public InputsParams withOutputSetGroup(String outputSetGroup) {
+      this.outputSetGroup = outputSetGroup;
       return this;
     }
   }

@@ -74,6 +74,18 @@ public class StepGraph implements StepExecution {
   }
 
   /**
+   * Returns a step within this graph matching the provided step outputSetGroup and setName.
+   *
+   * @return <code>Step</code> if found in the step graph, else return null
+   */
+  public Step getStep(String outputSetGroup, String setName) {
+    return stepStream()
+        .filter(step -> outputSetGroup.equals(step.getOutputSetGroup()) && step.getOutputSet(setName) != null)
+        .findFirst()
+        .orElse(null);
+  }
+
+  /**
    * Replaces a step within this graph by the provided step with the same ID.
    *
    * @param step The step to replace the existing step
