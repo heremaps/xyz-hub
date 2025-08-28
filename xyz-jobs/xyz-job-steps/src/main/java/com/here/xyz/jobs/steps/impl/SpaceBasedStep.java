@@ -88,6 +88,7 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
 
   public SpaceBasedStep(String spaceId) {
     this.spaceId = spaceId;
+    setOutputSetGroup(spaceId);
   }
 
   public String getSpaceId() {

@@ -21,6 +21,8 @@ package com.here.xyz.jobs.steps.impl;
 
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildSpaceTableIndexQuery;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.jobs.steps.execution.StepException;
 import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
@@ -47,7 +49,8 @@ public class CreateIndex extends SpaceBasedStep<CreateIndex> {
   @JsonView({Internal.class, Static.class})
   private int estimatedSeconds = -1;
 
-  public CreateIndex(String spaceId) {
+  @JsonCreator(mode = JsonCreator.Mode.PROPERTIES)
+  public CreateIndex(@JsonProperty(value = "spaceId", required = true) String spaceId) {
     super(spaceId);
   }
 

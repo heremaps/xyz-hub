@@ -19,6 +19,8 @@
 
 package com.here.xyz.jobs.steps.impl.transport;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.outputs.CreatedVersion;
 import com.here.xyz.jobs.steps.resources.Load;
@@ -45,7 +47,8 @@ public class GetNextSpaceVersion extends SpaceBasedStep<GetNextSpaceVersion> {
     setOutputSets(List.of(new OutputSet(VERSION, SYSTEM, true)));
   }
 
-  public GetNextSpaceVersion(String spaceId) {
+  @JsonCreator(mode = JsonCreator.Mode.PROPERTIES)
+  public GetNextSpaceVersion(@JsonProperty(value = "spaceId", required = true) String spaceId) {
     super(spaceId);
   }
 

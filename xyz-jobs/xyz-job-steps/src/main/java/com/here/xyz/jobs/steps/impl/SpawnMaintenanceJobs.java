@@ -19,6 +19,8 @@
 
 package com.here.xyz.jobs.steps.impl;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
@@ -39,7 +41,8 @@ import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SY
 public class SpawnMaintenanceJobs extends SpaceBasedStep<SpawnMaintenanceJobs> {
   private static final Logger logger = LogManager.getLogger();
 
-  public SpawnMaintenanceJobs(String spaceId) {
+  @JsonCreator(mode = JsonCreator.Mode.PROPERTIES)
+  public SpawnMaintenanceJobs(@JsonProperty(value = "spaceId", required = true) String spaceId) {
     super(spaceId);
   }
 

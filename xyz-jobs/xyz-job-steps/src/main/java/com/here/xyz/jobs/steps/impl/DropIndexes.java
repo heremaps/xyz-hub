@@ -22,6 +22,8 @@ package com.here.xyz.jobs.steps.impl;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildLoadSpaceTableIndicesQuery;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildSpaceTableDropIndexQueries;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.jobs.steps.execution.StepException;
 import com.here.xyz.jobs.steps.resources.Load;
@@ -53,9 +55,10 @@ public class DropIndexes extends SpaceBasedStep<DropIndexes> {
     //If not set, the step will drop all indexes of the space.
     private List<OnDemandIndex> indexWhiteList;
 
-  public DropIndexes(String spaceId) {
-    super(spaceId);
-  }
+  @JsonCreator(mode = JsonCreator.Mode.PROPERTIES)
+    public DropIndexes(@JsonProperty(value = "spaceId", required = true) String spaceId) {
+      super(spaceId);
+    }
 
   public List<OnDemandIndex> getIndexWhiteList() {
         return indexWhiteList;

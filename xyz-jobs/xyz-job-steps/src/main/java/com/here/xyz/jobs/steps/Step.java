@@ -67,6 +67,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -225,8 +226,10 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   }
 
   private void replaceOutputSet(String outputSetName, OutputSet outputSet) {
-    outputSets.removeIf(set -> set.name.equals(outputSetName));
-    outputSets.add(outputSet);
+    outputSets = Stream.concat(
+        outputSets.stream().filter(s -> !Objects.equals(s.name, outputSetName)),
+        Stream.of(outputSet)
+    ).toList();
   }
 
   /**
