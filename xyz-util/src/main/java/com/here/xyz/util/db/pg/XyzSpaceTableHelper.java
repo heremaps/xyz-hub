@@ -20,8 +20,8 @@
 package com.here.xyz.util.db.pg;
 
 import static com.here.xyz.models.hub.Space.TABLE_NAME;
-import static com.here.xyz.util.db.ConnectorParameters.TableLayout.V1;
-import static com.here.xyz.util.db.ConnectorParameters.TableLayout.V2;
+import static com.here.xyz.util.db.ConnectorParameters.TableLayout.OLD_LAYOUT;
+import static com.here.xyz.util.db.ConnectorParameters.TableLayout.NEW_LAYOUT;
 import static com.here.xyz.util.db.pg.IndexHelper.OnDemandIndex;
 import static com.here.xyz.util.db.pg.IndexHelper.buildSpaceTableIndexQueries;
 
@@ -43,7 +43,7 @@ public class XyzSpaceTableHelper {
 
   public static List<SQLQuery> buildCreateSpaceTableQueries(String schema, String table,  List<OnDemandIndex> onDemandIndices,
                                                             String spaceId, TableLayout layout) {
-    if (layout != TableLayout.V1 && layout != TableLayout.V2) {
+    if (layout != TableLayout.OLD_LAYOUT && layout != TableLayout.NEW_LAYOUT) {
       throw new IllegalArgumentException("Unsupported Table Layout: " + layout);
     }
 
@@ -54,7 +54,7 @@ public class XyzSpaceTableHelper {
     queries.add(buildColumnStorageAttributesQuery(schema, table, layout));
     queries.addAll(buildSpaceTableIndexQueries(schema, table, layout));
     queries.addAll(buildCreateHeadPartitionQuery(schema, table, layout));
-    queries.add(buildCreateHistoryPartitionQuery(schema, table, 0L, layout));
+    queries.add(buildCreateHistoryPartitionQuery(schema, table, 0L, true));
     queries.add(buildCreateSequenceQuery(schema, table, "version", layout));
     if(onDemandIndices != null && !onDemandIndices.isEmpty()) {
         for (OnDemandIndex onDemandIndex : onDemandIndices)
@@ -65,7 +65,7 @@ public class XyzSpaceTableHelper {
 
   public static SQLQuery buildColumnStorageAttributesQuery(String schema, String tableName, TableLayout layout) {
     //Not needed for V2 layout
-    if(layout == TableLayout.V1) {
+    if(layout == TableLayout.OLD_LAYOUT) {
       return new SQLQuery("ALTER TABLE ${schema}.${table} "
               + "ALTER COLUMN id SET STORAGE MAIN, "
               + "ALTER COLUMN jsondata SET STORAGE MAIN, "
@@ -82,7 +82,7 @@ public class XyzSpaceTableHelper {
               + "ALTER COLUMN author SET COMPRESSION lz4;")
               .withVariable(SCHEMA, schema)
               .withVariable(TABLE, tableName);
-    }else if(layout == TableLayout.V2) {
+    }else if(layout == TableLayout.NEW_LAYOUT) {
       //Not needed for V2 layout
       return new SQLQuery("");
     }
@@ -90,13 +90,13 @@ public class XyzSpaceTableHelper {
   }
 
   public static List<SQLQuery>  buildCreateHeadPartitionQuery(String schema, String rootTable, TableLayout layout) {
-    if(layout == TableLayout.V1)
+    if(layout == TableLayout.OLD_LAYOUT)
       return List.of(new SQLQuery("CREATE TABLE IF NOT EXISTS ${schema}.${partitionTable} "
               + "PARTITION OF ${schema}.${rootTable} FOR VALUES FROM (max_bigint()) TO (MAXVALUE)")
               .withVariable(SCHEMA, schema)
               .withVariable("rootTable", rootTable)
               .withVariable("partitionTable", rootTable + HEAD_TABLE_SUFFIX));
-    else if (layout == TableLayout.V2) {
+    else if (layout == TableLayout.NEW_LAYOUT) {
       SQLQuery headTableCreation = new SQLQuery("""
               CREATE TABLE IF NOT EXISTS ${schema}.${partitionTable}
                 PARTITION OF ${schema}.${rootTable} FOR VALUES FROM (max_bigint()) TO (MAXVALUE)
@@ -105,13 +105,14 @@ public class XyzSpaceTableHelper {
               .withVariable(SCHEMA, schema)
               .withVariable("rootTable", rootTable)
               .withVariable("partitionTable", rootTable + HEAD_TABLE_SUFFIX);
+
       SQLQuery headTablePartitionCreations = new SQLQuery("""
               DO $$
               BEGIN
                 FOR i IN 0..$partitionCountLoop$ LOOP
                   EXECUTE format('
-                    CREATE TABLE $schema$.$headTable$_p%s
-                      PARTITION OF $schema$.$headTable$
+                    CREATE TABLE IF NOT EXISTS $schema$."$headTable$_p%s"
+                      PARTITION OF $schema$."$headTable$"
                       FOR VALUES WITH (MODULUS $partitionCount$, REMAINDER %s);', i, i);
                 END LOOP;
               END $$;
@@ -130,26 +131,7 @@ public class XyzSpaceTableHelper {
   }
 
   public static SQLQuery buildCreateHistoryPartitionQuery(String schema, String rootTable, long partitionNo, boolean useSelect) {
-    return buildCreateHistoryPartitionQuery(schema, rootTable, partitionNo, V1, useSelect);
-  }
-
-  public static SQLQuery buildCreateHistoryPartitionQuery(String schema, String rootTable, long partitionNo, TableLayout layout) {
-    return buildCreateHistoryPartitionQuery(schema, rootTable, partitionNo, layout, true);
-  }
-
-  public static SQLQuery buildCreateHistoryPartitionQuery(String schema, String rootTable, long partitionNo, TableLayout layout, boolean useSelect) {
-    if(layout == TableLayout.V1)
-      return new SQLQuery(
-          (useSelect ? "SELECT" : "PERFORM") + " xyz_create_history_partition('" + schema + "', '" + rootTable + "', " + partitionNo + ", " + PARTITION_SIZE + ")");
-    else if (layout == TableLayout.V2) {
-      //TODO!
-      return new SQLQuery("");
-    }
-    throw new IllegalArgumentException("Unsupported Table Layout: " + layout);
-  }
-
-  public static SQLQuery buildCreateHistoryPartitionQuery(String schema, String rootTable, long partitionNo) {
-    return buildCreateHistoryPartitionQuery( schema, rootTable, partitionNo, true);
+    return new SQLQuery((useSelect ? "SELECT" : "PERFORM") + " xyz_create_history_partition('" + schema + "', '" + rootTable + "', " + partitionNo + ", " + PARTITION_SIZE + ")");
   }
 
   public static SQLQuery createConnectorSchema(String schema) {
@@ -160,7 +142,7 @@ public class XyzSpaceTableHelper {
   public static SQLQuery buildCreateSpaceTableQuery(String schema, String table, TableLayout layout) {
     String tableFields = null;
 
-    if(layout == V1) {
+    if(layout == OLD_LAYOUT) {
        tableFields = "id TEXT NOT NULL, "
               + "version BIGINT NOT NULL, "
               + "next_version BIGINT NOT NULL DEFAULT 9223372036854775807::BIGINT, "
@@ -171,16 +153,17 @@ public class XyzSpaceTableHelper {
               + "i BIGSERIAL, "
               + "CONSTRAINT ${uniqueConstraintName} UNIQUE (id, next_version), "
               + "CONSTRAINT ${primKeyConstraintName} PRIMARY KEY (id, version, next_version)";
-    } else if (layout == V2) {
-      tableFields = "id TEXT NOT NULL, "
-              + "version BIGINT NOT NULL, "
-              + "next_version BIGINT NOT NULL DEFAULT 9223372036854775807::BIGINT, "
-              + "operation CHAR NOT NULL, "
-              + "author TEXT, "
-              + "jsondata TEXT, "
-              + "geo geometry(GeometryZ, 4326), "
-              //+ "i BIGSERIAL, TODO: CHECK
-              //+ "CONSTRAINT ${uniqueConstraintName} UNIQUE (id, next_version) " //TODO: CHECK
+    } else if (layout == NEW_LAYOUT) {
+      tableFields = "id TEXT STORAGE MAIN COMPRESSION lz4 NOT NULL, "
+              + "version BIGINT STORAGE PLAIN NOT NULL, "
+              + "next_version BIGINT STORAGE PLAIN NOT NULL DEFAULT 9223372036854775807::BIGINT, "
+              + "operation CHAR STORAGE PLAIN NOT NULL, "
+              + "author TEXT STORAGE MAIN COMPRESSION lz4, "
+              + "jsondata TEXT STORAGE MAIN COMPRESSION lz4 , "
+              + "geo geometry(GeometryZ, 4326) STORAGE MAIN COMPRESSION lz4, "
+              //+ "searchable JSONB STORAGE MAIN COMPRESSION lz4, "
+              + "i BIGSERIAL, "
+              + "CONSTRAINT ${uniqueConstraintName} UNIQUE (id, next_version), "
               + "CONSTRAINT ${primKeyConstraintName} PRIMARY KEY (id, version, next_version)";
     }
 
@@ -194,16 +177,12 @@ public class XyzSpaceTableHelper {
   }
 
   public static SQLQuery buildCreateSequenceQuery(String schema, String table, String columnName, TableLayout layout) {
-    if(layout == TableLayout.V1)
+    if(layout == TableLayout.OLD_LAYOUT || layout == TableLayout.NEW_LAYOUT)
       return new SQLQuery("CREATE SEQUENCE IF NOT EXISTS ${schema}.${sequence} MINVALUE 1 OWNED BY ${schema}.${table}.${columnName}")
               .withVariable(SCHEMA, schema)
               .withVariable(TABLE, table)
               .withVariable("sequence", table + "_" + columnName + "_seq")
               .withVariable("columnName", columnName);
-    else if (layout == TableLayout.V2) {
-      //TODO!
-      return new SQLQuery("");
-    }
     throw new IllegalArgumentException("Unsupported Table Layout: " + layout);
   }
 
@@ -247,7 +226,7 @@ public class XyzSpaceTableHelper {
             .withVariable("versionSequence", table + versionSequenceSuffix)
             .withVariable(SCHEMA, schema);
 
-    if(layout == TableLayout.V1) {
+    if(layout == TableLayout.OLD_LAYOUT) {
       // Gets removed
       SQLQuery deleteSpaceMetaEntry = new SQLQuery("DELETE FROM xyz_config.space_meta WHERE h_id = #{table} AND schem = #{schema};")
               .withNamedParameter(SCHEMA, schema)
@@ -264,7 +243,7 @@ public class XyzSpaceTableHelper {
       queries.add(dropISequenceQuery);
       queries.add(dropVersionSequenceQuery);
       return queries;
-    }else if(layout == TableLayout.V2) {
+    }else if(layout == TableLayout.NEW_LAYOUT) {
       queries.add(dropTableQuery);
       queries.add(dropVersionSequenceQuery);
       return queries;

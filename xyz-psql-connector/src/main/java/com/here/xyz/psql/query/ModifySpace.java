@@ -25,7 +25,7 @@ import static com.here.xyz.events.ModifySpaceEvent.Operation.DELETE;
 import static com.here.xyz.events.ModifySpaceEvent.Operation.UPDATE;
 import static com.here.xyz.psql.query.helpers.versioning.GetNextVersion.VERSION_SEQUENCE_SUFFIX;
 import static com.here.xyz.responses.XyzError.ILLEGAL_ARGUMENT;
-import static com.here.xyz.util.db.ConnectorParameters.TableLayout.V2;
+import static com.here.xyz.util.db.ConnectorParameters.TableLayout.NEW_LAYOUT;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SCHEMA;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.TABLE;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildCreateSpaceTableQueries;
@@ -45,7 +45,7 @@ import java.util.ArrayList;
 import java.util.List;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildCleanUpQuery;
 import static com.here.xyz.util.db.pg.IndexHelper.getActivatedSearchableProperties;
-import static com.here.xyz.util.db.ConnectorParameters.TableLayout.V1;
+import static com.here.xyz.util.db.ConnectorParameters.TableLayout.OLD_LAYOUT;
 
 public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse> {
 
@@ -123,7 +123,7 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
 
     @Override
     protected SQLQuery buildQuery(ModifySpaceEvent event) throws SQLException {
-        if(getTableLayout().equals(ConnectorParameters.TableLayout.V1)){
+        if(getTableLayout().equals(ConnectorParameters.TableLayout.OLD_LAYOUT)){
             if (event.getOperation() == CREATE || event.getOperation() == UPDATE) {
                 List<SQLQuery> queries = new ArrayList<>();
                 final String table = getDefaultTable(event);
@@ -134,7 +134,7 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
                             = getActivatedSearchableProperties(event.getSpaceDefinition().getSearchableProperties());
 
                     queries.addAll(buildCreateSpaceTableQueries(getSchema(), table, activatedSearchableProperties,
-                            event.getSpace(), ConnectorParameters.TableLayout.V1));
+                            event.getSpace(), ConnectorParameters.TableLayout.OLD_LAYOUT));
                 }
 
                 //Write metadata
@@ -143,20 +143,20 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
                 return SQLQuery.batchOf(queries).withLock(table);
             }
             else if (event.getOperation() == DELETE) {
-                return SQLQuery.batchOf(buildCleanUpQuery(getSchema(), getDefaultTable(event), VERSION_SEQUENCE_SUFFIX, V1));
+                return SQLQuery.batchOf(buildCleanUpQuery(getSchema(), getDefaultTable(event), VERSION_SEQUENCE_SUFFIX, OLD_LAYOUT));
             }
-        }else if(getTableLayout().equals(ConnectorParameters.TableLayout.V2)){
+        }else if(getTableLayout().equals(ConnectorParameters.TableLayout.NEW_LAYOUT)){
             if (event.getOperation() == CREATE && event.getSpaceDefinition() != null) {
                 final String table = getDefaultTable(event);
                 List<SQLQuery> queries = new ArrayList<>(buildCreateSpaceTableQueries(getSchema(), table,
                         //No OnDemandIndices are supported in V2
-                        null, event.getSpace(), V2));
+                        null, event.getSpace(), NEW_LAYOUT));
                 return SQLQuery.batchOf(queries).withLock(table);
             }
             else if (event.getOperation() == DELETE)
-                return SQLQuery.batchOf(buildCleanUpQuery(getSchema(), getDefaultTable(event), VERSION_SEQUENCE_SUFFIX, V2));
+                return SQLQuery.batchOf(buildCleanUpQuery(getSchema(), getDefaultTable(event), VERSION_SEQUENCE_SUFFIX, NEW_LAYOUT));
         }
-        return null; //TODO: Check
+        throw new IllegalArgumentException("Unsupported Table Layout: " + getTableLayout());
     }
 
     @Override

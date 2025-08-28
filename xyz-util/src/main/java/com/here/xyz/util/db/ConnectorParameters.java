@@ -40,7 +40,7 @@ public class ConnectorParameters {
 
   private TableLayout tableLayout;
   public enum TableLayout {
-    V1, V2;
+    OLD_LAYOUT, NEW_LAYOUT;
   }
 
   public ConnectorParameters() {}

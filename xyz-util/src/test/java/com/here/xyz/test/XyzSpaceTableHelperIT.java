@@ -53,7 +53,7 @@ public class XyzSpaceTableHelperIT extends SQLITBase {
 
     @Test
     public void createTableComment() throws Exception {
-      TableLayout v2 = TableLayout.V2;
+      TableLayout v2 = TableLayout.NEW_LAYOUT;
 
       try (DataSourceProvider dsp = getDataSourceProvider()) {
           SQLQuery addTableComment = XyzSpaceTableHelper.buildAddTableCommentQuery(SCHEMA, TABLE, new TableComment(TABLE, v2));
@@ -65,7 +65,7 @@ public class XyzSpaceTableHelperIT extends SQLITBase {
                   TableComment comment;
                   try {
                       comment = XyzSerializable.deserialize(rs.getString("comment"), TableComment.class);
-                      Assertions.assertEquals(TableLayout.V2, comment.tableLayout());
+                      Assertions.assertEquals(TableLayout.NEW_LAYOUT, comment.tableLayout());
                       Assertions.assertEquals(TABLE, comment.spaceId());
                   } catch (JsonProcessingException e) {
                       throw new RuntimeException(e);

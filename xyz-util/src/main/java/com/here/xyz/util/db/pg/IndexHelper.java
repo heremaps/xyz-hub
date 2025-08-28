@@ -36,8 +36,8 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_DEFAULT;
-import static com.here.xyz.util.db.ConnectorParameters.TableLayout.V1;
-import static com.here.xyz.util.db.ConnectorParameters.TableLayout.V2;
+import static com.here.xyz.util.db.ConnectorParameters.TableLayout.OLD_LAYOUT;
+import static com.here.xyz.util.db.ConnectorParameters.TableLayout.NEW_LAYOUT;
 
 public class IndexHelper {
 
@@ -253,12 +253,14 @@ public class IndexHelper {
   }
 
   public static List<SQLQuery> buildSpaceTableIndexQueries(String schema, String table, TableLayout layout) {
-    if(layout == V1)
+    if(layout == OLD_LAYOUT)
       return Arrays.asList(SystemIndex.values()).stream()
               .map(index -> buildCreateIndexQuery(schema, table, index.getIndexContent(), index.getIndexType(), index.getIndexName(table)))
               .toList();
-    else if (layout == V2)
-      return List.of(new SQLQuery(""));
+    else if (layout == NEW_LAYOUT)
+      return List.of(SystemIndex.GEO, SystemIndex.NEXT_VERSION, SystemIndex.VERSION_ID).stream()
+              .map(index -> buildCreateIndexQuery(schema, table, index.getIndexContent(), index.getIndexType(), index.getIndexName(table)))
+              .toList();
 
     throw new IllegalArgumentException("Unsupported layout " + layout);
   }
@@ -272,7 +274,7 @@ public class IndexHelper {
    */
   @Deprecated
   public static List<SQLQuery> buildSpaceTableIndexQueries(String schema, String table, SQLQuery queryComment) {
-    return buildSpaceTableIndexQueries(schema, table, TableLayout.V1)
+    return buildSpaceTableIndexQueries(schema, table, TableLayout.OLD_LAYOUT)
             .stream()
             .map(q -> addQueryComment(q, queryComment))
             .toList();

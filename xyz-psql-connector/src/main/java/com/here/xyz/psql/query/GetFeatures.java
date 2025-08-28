@@ -36,6 +36,7 @@ import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.psql.DatabaseWriter.ModificationType;
 import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.util.db.ConnectorParameters;
 import com.here.xyz.util.db.SQLQuery;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -282,11 +283,22 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
   protected void handleFeature(ResultSet rs, StringBuilder result) throws SQLException {
     String geom = rs.getString("geo");
-    result.append(rs.getString("jsondata"));
+    if(getTableLayout().equals(ConnectorParameters.TableLayout.OLD_LAYOUT))
+      result.append(rs.getString("jsondata"));
+    else if(getTableLayout().equals(ConnectorParameters.TableLayout.NEW_LAYOUT))
+      result.append(injectValuesIntoNameSpace(rs.getString("jsondata"), rs.getLong("version"), rs.getString("author")));
     result.setLength(result.length() - 1);
     result.append(",\"geometry\":");
     result.append(geom == null ? "null" : geom);
     result.append("}");
+  }
+
+  private String injectValuesIntoNameSpace(String jsonData, long version, String author) {
+    String namespacePattern = "(\"@ns:com:here:xyz\"\\s*:\\s*\\{)";
+    //The NS always contains the updatedAt property, so we need a trailing comma.
+    String versionAuthor = "$1\"version\":" + version + ",\"author\":\"" + author + "\",";
+
+    return jsonData.replaceAll(namespacePattern, versionAuthor);
   }
 
   protected static class LazyParsableFeatureCollection {
@@ -334,6 +346,12 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
           .withNamedParameter("selection", selection.toArray(new String[0]));
     }
 
+    if(getTableLayout().equals(ConnectorParameters.TableLayout.NEW_LAYOUT)) {
+      //TODO: inject version into jsondata
+      return new SQLQuery("version, author, jsondata")
+              .withQueryFragment("innerJsonData", jsonData)
+              .withQueryFragment("featureVersion", getFeatureVersion(event, dataset));
+    }
     return new SQLQuery("jsonb_set(${{innerJsonData}}, '{properties, @ns:com:here:xyz, version}', to_jsonb(${{featureVersion}})) AS jsondata")
         .withQueryFragment("innerJsonData", jsonData)
         .withQueryFragment("featureVersion", getFeatureVersion(event, dataset));

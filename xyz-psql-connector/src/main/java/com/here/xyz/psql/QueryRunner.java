@@ -152,7 +152,7 @@ public abstract class QueryRunner<E extends Object, R extends Object> implements
   }
 
   public TableLayout getTableLayout() {
-    return tableLayout != null ? tableLayout : TableLayout.V1;
+    return tableLayout != null ? tableLayout : TableLayout.OLD_LAYOUT;
   }
 
   public void setTableLayout(TableLayout tableLayout) {
