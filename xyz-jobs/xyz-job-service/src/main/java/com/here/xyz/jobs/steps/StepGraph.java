@@ -23,6 +23,8 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.here.xyz.jobs.service.Config;
+import com.here.xyz.jobs.steps.Step.Visibility;
+import com.here.xyz.jobs.steps.outputs.Output;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
@@ -83,6 +85,14 @@ public class StepGraph implements StepExecution {
         .filter(step -> outputSetGroup.equals(step.getOutputSetGroup()) && step.getOutputSet(setName) != null)
         .findFirst()
         .orElse(null);
+  }
+
+  public List<Output> getStepOutputs(String outputSetGroup, String setName, Visibility visibility) {
+    return stepStream()
+        .filter(step -> outputSetGroup.equals(step.getOutputSetGroup()) && step.getOutputSet(setName) != null)
+        .findFirst()
+        .map(it -> it.loadOutputs(visibility))
+        .orElse(Collections.emptyList());
   }
 
   /**

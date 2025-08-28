@@ -627,7 +627,7 @@ public class Job implements XyzSerializable {
         outputSets.forEach(os -> {
           final String setName = os.name;
 
-          long itemCount = getSteps().getStep(group, setName).loadOutputs(Visibility.USER).size();
+          long itemCount = getSteps().getStepOutputs(group, setName, Visibility.USER).size();
 
           GroupSummary groupSummary = groups.computeIfAbsent(
               group,
@@ -667,7 +667,7 @@ public class Job implements XyzSerializable {
         outputSets.forEach(os -> {
           final String setName = os.name;
 
-          long itemCount = getSteps().getStep(group, setName).loadOutputs(Visibility.USER).size();
+          long itemCount = getSteps().getStepOutputs(group, setName, Visibility.USER).size();
 
           SetSummary setSummary = sets
               .computeIfAbsent(setName, s -> new SetSummary().withItemCount(0).withByteSize(0));

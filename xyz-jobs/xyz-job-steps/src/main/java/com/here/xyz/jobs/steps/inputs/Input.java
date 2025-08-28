@@ -92,59 +92,70 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
   }
 
   public static GroupedPayloadsPreview previewInputs(String jobId) {
-    if (!inputsCacheActive.contains(jobId) || !metadataCache.containsKey(jobId)) {
-      loadInputs(jobId, null);
-    }
+    ensureInputsLoaded(jobId);
     Map<String, Map<String, InputsMetadata>> cachedGroups = metadataCache.get(jobId);
 
     Map<String, GroupSummary> responseGroups = new ConcurrentHashMap<>();
     cachedGroups.forEach((groupName, metadataMap) -> {
-      Map<String, SetSummary> responseSets = new ConcurrentHashMap<>();
-      metadataMap.forEach((setName, metadata) -> {
-        Long totalSize = metadata.inputs.values().stream()
-            .map(inputMetadata -> inputMetadata.byteSize)
-            .reduce(Long::sum).orElse(0L);
-        int totalItems = metadata.inputs.size();
-        responseSets.put(setName, new SetSummary()
-            .withItemCount(totalItems)
-            .withByteSize(totalSize));
-      });
-      responseGroups.put(groupName, new GroupSummary()
-          .withItems(responseSets)
-          .withByteSize(responseSets.values().stream().mapToLong(SetSummary::getByteSize).sum())
-          .withItemCount(responseSets.size()));
+      Map<String, SetSummary> sets = summarizeSets(metadataMap);
+      responseGroups.put(groupName, groupSummaryOf(sets));
     });
+
+    long totalBytes = responseGroups.values().stream().mapToLong(GroupSummary::getByteSize).sum();
+    long totalGroups = responseGroups.values().stream().mapToLong(it -> it.getItems().size()).sum();
     return new GroupedPayloadsPreview()
         .withItems(responseGroups)
-        .withByteSize(responseGroups.values().stream().mapToLong(GroupSummary::getByteSize).sum())
-        .withItemCount(responseGroups.size());
+        .withByteSize(totalBytes)
+        .withItemCount(totalGroups);
   }
 
   public static GroupSummary previewInputGroups(String jobId, String outputSetGroup) {
+    ensureInputsLoaded(jobId);
+    Map<String, Map<String, InputsMetadata>> cachedGroups = metadataCache.get(jobId);
+
+    Map<String, InputsMetadata> group = cachedGroups.get(outputSetGroup);
+    if (group == null) {
+      return emptyGroupSummary();
+    }
+
+    Map<String, SetSummary> sets = summarizeSets(group);
+    return groupSummaryOf(sets);
+  }
+
+  private static void ensureInputsLoaded(String jobId) {
     if (!inputsCacheActive.contains(jobId) || !metadataCache.containsKey(jobId)) {
       loadInputs(jobId, null);
     }
-    Map<String, Map<String, InputsMetadata>> cachedGroups = metadataCache.get(jobId);
-    if (!cachedGroups.containsKey(outputSetGroup)) {
-      return new GroupSummary()
-          .withItems(new ConcurrentHashMap<>())
-          .withByteSize(0L)
-          .withItemCount(0);
-    }
-    Map<String, SetSummary> responseSets = new ConcurrentHashMap<>();
-    cachedGroups.get(outputSetGroup).forEach((setName, metadata) -> {
-      Long totalSize = metadata.inputs.values().stream()
-          .map(inputMetadata -> inputMetadata.byteSize)
-          .reduce(Long::sum).orElse(0L);
+  }
+
+  private static Map<String, SetSummary> summarizeSets(Map<String, InputsMetadata> metadataMap) {
+    Map<String, SetSummary> result = new ConcurrentHashMap<>();
+    metadataMap.forEach((setName, metadata) -> {
+      long totalSize = metadata.inputs.values().stream()
+          .mapToLong(im -> im.byteSize)
+          .sum();
       int totalItems = metadata.inputs.size();
-      responseSets.put(setName, new SetSummary()
+      result.put(setName, new SetSummary()
           .withItemCount(totalItems)
           .withByteSize(totalSize));
     });
+    return result;
+  }
+
+  private static GroupSummary groupSummaryOf(Map<String, SetSummary> sets) {
+    long byteSize = sets.values().stream().mapToLong(SetSummary::getByteSize).sum();
+    int itemCount = sets.size();
     return new GroupSummary()
-        .withItems(responseSets)
-        .withByteSize(responseSets.values().stream().mapToLong(SetSummary::getByteSize).sum())
-        .withItemCount(responseSets.size());
+        .withItems(sets)
+        .withByteSize(byteSize)
+        .withItemCount(itemCount);
+  }
+
+  private static GroupSummary emptyGroupSummary() {
+    return new GroupSummary()
+        .withItems(new ConcurrentHashMap<>())
+        .withByteSize(0L)
+        .withItemCount(0);
   }
 
   public String getS3Bucket() {
