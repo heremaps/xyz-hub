@@ -109,7 +109,14 @@ public abstract class DatabaseHandler extends StorageConnector {
     }
 
     public void initialize(DatabaseSettings dbSettings) {
+        if(dbSettings == null)
+            throw new NullPointerException("dbSettings cannot be null");
+
         if(dataSourceProvider ==  null) {
+            if(dbSettings.getScriptResourcePaths() == null || dbSettings.getScriptResourcePaths().isEmpty()) {
+                dbSettings.setScriptResourcePaths(SCRIPT_RESOURCE_PATHS);
+            }
+
             dataSourceProvider = new CachedPooledDataSources(dbSettings);
             retryAttempted = false;
             DataSourceProvider.setDefaultProvider(dataSourceProvider);
