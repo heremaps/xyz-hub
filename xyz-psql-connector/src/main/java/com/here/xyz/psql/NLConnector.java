@@ -47,7 +47,6 @@ import com.here.xyz.psql.query.GetFeaturesByBBox;
 import com.here.xyz.psql.query.GetFeaturesByGeometry;
 import com.here.xyz.psql.query.GetFeaturesById;
 import com.here.xyz.psql.query.IterateFeatures;
-import com.here.xyz.psql.query.LoadFeatures;
 import com.here.xyz.psql.query.ModifySpace;
 import com.here.xyz.psql.query.XyzEventBasedQueryRunner;
 import com.here.xyz.psql.query.helpers.versioning.GetNextVersion;
@@ -56,6 +55,7 @@ import com.here.xyz.responses.ChangesetsStatisticsResponse;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.changesets.ChangesetCollection;
+import com.here.xyz.util.Random;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.locationtech.jts.io.WKBWriter;
@@ -335,12 +335,14 @@ public class NLConnector extends PSQLXyzConnector {
 
       try (PreparedStatement ps = connection.prepareStatement(upsertSql)) {
         for (Feature feature : featureCollection.getFeatures()) {
+          ensureFeatureId(feature);
+
           ps.setString(1, feature.getId());
           ps.setBytes(2, new WKBWriter(3).write(feature.getGeometry().getJTSGeometry()));  // JSON string
           ps.setString(3, author);
           ps.setLong(4, version);
           //TODO: Do we need to ensure 3D geometries?
-          ps.setString(5, enrichFeature(feature));
+          ps.setString(5, enrichFeaturePayload(feature));
           ps.addBatch();
         }
 
@@ -355,7 +357,13 @@ public class NLConnector extends PSQLXyzConnector {
     }
   }
 
-  private String enrichFeature(Feature feature) {
+  private void ensureFeatureId(Feature feature) {
+    if(feature.getId() == null){
+      feature.setId(Random.randomAlphaNumeric(16));
+    }
+  }
+
+  private String enrichFeaturePayload(Feature feature) {
     //LFE is missing - so we do not have the createdAt from db | also patch possibility is missing
     //Ensure 3D geometry
 
