@@ -95,7 +95,7 @@ public abstract class DatabaseHandler extends StorageConnector {
     protected DatabaseSettings dbSettings;
 
     @Override
-    public void initialize(Event event) {
+    protected void initialize(Event event) {
         String connectorId = traceItem.getConnectorId();
         ConnectorParameters connectorParams = ConnectorParameters.fromEvent(event);
 
@@ -105,10 +105,15 @@ public abstract class DatabaseHandler extends StorageConnector {
             .withApplicationName(FunctionRuntime.getInstance().getApplicationName())
             .withScriptResourcePaths(SCRIPT_RESOURCE_PATHS);
 
-        dataSourceProvider = new CachedPooledDataSources(dbSettings);
-        retryAttempted = false;
+        initialize(dbSettings);
+    }
 
-        DataSourceProvider.setDefaultProvider(dataSourceProvider);
+    public void initialize(DatabaseSettings dbSettings) {
+        if(dataSourceProvider ==  null) {
+            dataSourceProvider = new CachedPooledDataSources(dbSettings);
+            retryAttempted = false;
+            DataSourceProvider.setDefaultProvider(dataSourceProvider);
+        }
     }
 
     protected <R, T extends com.here.xyz.psql.QueryRunner<?, R>> R run(T runner) throws SQLException, ErrorResponseException {
