@@ -95,7 +95,7 @@ public abstract class DatabaseHandler extends StorageConnector {
     protected DatabaseSettings dbSettings;
 
     @Override
-    protected void initialize(Event event) {
+    public void initialize(Event event) {
         String connectorId = traceItem.getConnectorId();
         ConnectorParameters connectorParams = ConnectorParameters.fromEvent(event);
 

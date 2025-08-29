@@ -385,10 +385,4 @@ public class NLConnector extends PSQLXyzConnector {
     feature.getProperties().getXyzNamespace().setUpdatedAt(currentTime);
     return feature.serialize().replace("\"geometry\":null,", "");
   }
-
-  public static void main(String[] args) {
-    Feature test = new Feature().withId("testId")
-            .withProperties(new Properties().withXyzNamespace(new XyzNamespace().withCreatedAt(123456789L)).with("x",1));
-    System.out.println(test.serialize());
-  }
 }
