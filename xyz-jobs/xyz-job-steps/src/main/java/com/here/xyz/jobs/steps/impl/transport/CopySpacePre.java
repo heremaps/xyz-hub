@@ -24,4 +24,4 @@ package com.here.xyz.jobs.steps.impl.transport;
  *
  * @TODO - Remove this step later
  */
-public class CopySpacePre extends GetNextSpaceVersion {}
+public class CopySpacePre extends GetNextSpaceVersion<CopySpacePre> {}
