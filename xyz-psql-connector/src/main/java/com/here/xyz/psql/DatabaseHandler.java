@@ -127,6 +127,7 @@ public abstract class DatabaseHandler extends StorageConnector {
             dataSourceProvider = new CachedPooledDataSources(dbSettings);
             retryAttempted = false;
             DataSourceProvider.setDefaultProvider(dataSourceProvider);
+            this.dbSettings = dbSettings;
         }
     }
 
