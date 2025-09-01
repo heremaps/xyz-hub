@@ -36,6 +36,7 @@ import com.here.xyz.events.EventNotification;
 import com.here.xyz.events.HealthCheckEvent;
 import com.here.xyz.responses.HealthStatus;
 import com.here.xyz.responses.XyzError;
+import com.here.xyz.util.Random;
 import com.here.xyz.util.runtime.FunctionRuntime;
 import com.here.xyz.util.runtime.LambdaFunctionRuntime;
 import java.nio.ByteBuffer;
@@ -150,8 +151,15 @@ public abstract class AbstractConnectorHandler{
 
   public Typed handleEvent(Event event) throws Exception {
       String connectorId = null;
+      boolean skipInit = false;
 
       start = System.currentTimeMillis();
+
+      if(LambdaFunctionRuntime.getInstance() instanceof LambdaFunctionRuntime runtime && runtime.isRecreateLambdaEnvForEachEvent()) {
+        skipInit = true;
+        new LambdaFunctionRuntime(runtime, Random.randomAlpha(4));
+      }
+
       streamId = streamId != null ? streamId : event.getStreamId();
 
       if (event.getConnectorParams() != null  && event.getConnectorParams().get("connectorId") != null)
@@ -160,7 +168,8 @@ public abstract class AbstractConnectorHandler{
       traceItem = new TraceItem(streamId, connectorId);
 
       checkEventTypeAllowed(event);
-      initialize(event);
+      if(!skipInit)
+        initialize(event);
 
       return processEvent(event);
   }

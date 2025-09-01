@@ -27,6 +27,7 @@ import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE;
 import static com.here.xyz.psql.query.XyzEventBasedQueryRunner.readTableFromEvent;
 import static com.here.xyz.responses.XyzError.NOT_IMPLEMENTED;
 
+import com.amazonaws.services.lambda.runtime.Context;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.connectors.StorageConnector;
@@ -66,6 +67,8 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import com.here.xyz.util.runtime.LambdaFunctionRuntime;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -105,10 +108,14 @@ public abstract class DatabaseHandler extends StorageConnector {
             .withApplicationName(FunctionRuntime.getInstance().getApplicationName())
             .withScriptResourcePaths(SCRIPT_RESOURCE_PATHS);
 
-        initialize(dbSettings);
+        initialize(dbSettings, null);
     }
 
-    public void initialize(DatabaseSettings dbSettings) {
+    public void initialize(DatabaseSettings dbSettings, Context context) {
+        if(context != null) {
+            new LambdaFunctionRuntime(context, null);
+        }
+
         if(dbSettings == null)
             throw new NullPointerException("dbSettings cannot be null");
 

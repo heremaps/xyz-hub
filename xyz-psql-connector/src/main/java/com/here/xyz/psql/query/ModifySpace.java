@@ -146,7 +146,7 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
                 return SQLQuery.batchOf(buildCleanUpQuery(getSchema(), getDefaultTable(event), VERSION_SEQUENCE_SUFFIX, OLD_LAYOUT));
             }
         }else if(getTableLayout().equals(ConnectorParameters.TableLayout.NEW_LAYOUT)){
-            if (event.getOperation() == CREATE && event.getSpaceDefinition() != null) {
+            if (event.getOperation() == CREATE) {
                 final String table = getDefaultTable(event);
                 List<SQLQuery> queries = new ArrayList<>(buildCreateSpaceTableQueries(getSchema(), table,
                         //No OnDemandIndices are supported in V2
