@@ -21,7 +21,11 @@ CREATE EXTENSION IF NOT EXISTS plv8;
 
 /**
  * @public
+ * @param {string} json_input The actual payload(s) (of the type that is specified by parameter input_type) to be written by the FeatureWriter
  * @param {string} input_type The type of the JSON input. Possible values: "FeatureCollection", "Features", "Feature", "Modifications"
+ * @param {string} author The ID of the user that is committing the change
+ * @param {boolean} return_result = false Whether to return all data that has been actually written. If `false` is specified, only an object containing the written count is returned like: `{"count": 42}`
+ * @param {number} version = null The version number to be used for the change. That must be a version larger than the current HEAD version or the current HEAD version. If not specified, HEAD + 1 will be used by default
  * @throws VersionConflictError, MergeConflictError, FeatureExistsError
  */
 CREATE OR REPLACE FUNCTION write_features(json_input TEXT, input_type TEXT, author TEXT, return_result BOOLEAN = false, version BIGINT = NULL,

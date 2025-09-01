@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -50,13 +50,13 @@ import com.here.xyz.hub.task.FeatureTask.GetStatistics;
 import com.here.xyz.hub.task.FeatureTask.IterateQuery;
 import com.here.xyz.hub.task.FeatureTask.SearchQuery;
 import com.here.xyz.hub.task.FeatureTask.TileQuery;
-import com.here.xyz.util.geo.GeoTools;
 import com.here.xyz.models.geojson.HQuad;
 import com.here.xyz.models.geojson.WebMercatorTile;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
 import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.models.hub.Ref;
+import com.here.xyz.util.geo.GeoTools;
 import com.here.xyz.util.geo.GeometryValidator;
 import com.here.xyz.util.service.HttpException;
 import io.vertx.core.http.HttpMethod;
@@ -138,44 +138,20 @@ public class FeatureQueryApi extends SpaceBasedApi {
       final boolean skipCache = Query.getBoolean(context, SKIP_CACHE, false);
       final boolean force2D = Query.getBoolean(context, FORCE_2D, false);
       final SpaceContext spaceContext = getSpaceContext(context);
-      final Integer v = Query.getInteger(context, Query.VERSION, null);
       final Ref ref = getRef(context);
 
-      List<String> sort = Query.getSort(context);
-      PropertiesQuery propertiesQuery = Query.getPropertiesQuery(context);
-      String handle = Query.getString(context, Query.HANDLE, null);
-      Integer[] part = Query.getPart(context);
-
-      //TODO: Streamline the following IterateFeaturesEvent creation
-      if (sort != null || propertiesQuery != null || part != null || ( handle != null && handle.startsWith("h07~"))) {
-        IterateFeaturesEvent event = new IterateFeaturesEvent();
-        event.withLimit(getLimit(context))
-            .withForce2D(force2D)
-            .withSelection(Query.getSelection(context))
-            .withSort(sort)
-            .withPart(part)
-            .withHandle(handle)
-            .withContext(spaceContext)
-            .withRef(ref)
-            .withV(v);
-
-        final SearchQuery task = new SearchQuery(event, context, ApiResponseType.FEATURE_COLLECTION, skipCache);
-        task.execute(this::sendResponse, this::sendErrorResponse);
-        return;
-      }
-
-      IterateFeaturesEvent event = new IterateFeaturesEvent()
+      IterateFeaturesEvent event = (IterateFeaturesEvent) new IterateFeaturesEvent()
+          .withNextPageToken(Query.getString(context, Query.HANDLE, null)) //TODO: Rename query param to nextPageToken!
           .withLimit(getLimit(context))
           .withForce2D(force2D)
           .withSelection(Query.getSelection(context))
           .withRef(ref)
-          .withV(v)
-          .withHandle(Query.getString(context, Query.HANDLE, null))
           .withContext(spaceContext);
 
       final IterateQuery task = new IterateQuery(event, context, ApiResponseType.FEATURE_COLLECTION, skipCache);
       task.execute(this::sendResponse, this::sendErrorResponse);
-    } catch (HttpException e) {
+    }
+    catch (HttpException e) {
       sendErrorResponse(context, e);
     }
   }
@@ -347,7 +323,7 @@ public class FeatureQueryApi extends SpaceBasedApi {
          case "tms"     : tileAddress = WebMercatorTile.forTMS(tileId); break;
          case "web"     : tileAddress = WebMercatorTile.forWeb(tileId); break;
          case "quadkey" : tileAddress = WebMercatorTile.forQuadkey(tileId); break;
-         case "here" : 
+         case "here" :
           if (tileId.contains("_")) {
             String[] levelRowColumnArray = tileId.split("_");
             if (levelRowColumnArray.length == 3) {
@@ -362,7 +338,7 @@ public class FeatureQueryApi extends SpaceBasedApi {
             hereTileAddress = new HQuad(tileId, Service.configuration.USE_BASE_4_H_TILES);
           }
           break;
-         
+
          default:
           throw new HttpException(BAD_REQUEST, String.format("Invalid path argument {type} of tile request '%s' != [tms,web,quadkey,here]",tileType));
         }
@@ -380,7 +356,7 @@ public class FeatureQueryApi extends SpaceBasedApi {
           event.setX(hereTileAddress.x);
           event.setY(hereTileAddress.y);
           event.setQuadkey(hereTileAddress.quadkey);
-        } 
+        }
         else
          throw new IllegalArgumentException();
 

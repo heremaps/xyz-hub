@@ -77,11 +77,8 @@ public class AnalyzeSpaceTable extends SpaceBasedStep<AnalyzeSpaceTable> {
   @Override
   protected void onAsyncSuccess() throws Exception {
     super.onAsyncSuccess();
-    logger.info("[{}] Re-activating the space {} and update contentUpdatedAt!", getGlobalStepId(), getSpaceId());
-    hubWebClient().patchSpace(getSpaceId(), Map.of(
-            "active", true,
-            "contentUpdatedAt", Core.currentTimeMillis()
-    ));
+    logger.info("[{}] Re-activating the space {}", getGlobalStepId(), getSpaceId());
+    hubWebClient().patchSpace(getSpaceId(), Map.of("active", true));
   }
 
   @Override

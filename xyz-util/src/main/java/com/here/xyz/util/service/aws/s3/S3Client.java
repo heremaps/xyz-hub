@@ -19,6 +19,7 @@
 
 package com.here.xyz.util.service.aws.s3;
 
+import static com.here.xyz.Payload.isGzipped;
 import static com.here.xyz.util.service.aws.AwsClientFactoryBase.s3;
 import static com.here.xyz.util.service.aws.AwsClientFactoryBase.s3Presigner;
 
@@ -131,6 +132,18 @@ public class S3Client {
     return S3ClientHelper.generateUploadURL(presigner, bucketName, key, Duration.ofSeconds(PRESIGNED_URL_EXPIRATION_SECONDS));
   }
 
+  public S3ObjectWithMetadata loadObjectContentWithMetadata(String s3Key) throws IOException {
+    Builder builder = GetObjectRequest.builder()
+        .bucket(bucketName)
+        .key(s3Key);
+
+    ResponseInputStream<GetObjectResponse> objectResponseStream = client.getObject(builder.build());
+    try (objectResponseStream) {
+      return new S3ObjectWithMetadata(objectResponseStream.readAllBytes(), objectResponseStream.response().contentType(),
+          objectResponseStream.response().metadata());
+    }
+  }
+
   public byte[] loadObjectContent(String s3Key) throws IOException {
     return loadObjectContent(s3Key, -1, -1);
   }
@@ -207,25 +220,31 @@ public class S3Client {
   }
 
   public void putObject(String s3Key, String contentType, byte[] content, boolean gzip) throws IOException {
-    byte[] finalContent = content;
-    if (gzip) {
+    putObject(s3Key, contentType, content, gzip, null);
+  }
+
+  public void putObject(String s3Key, String contentType, byte[] content, boolean gzip, Map<String, String> metadata) throws IOException {
+    if (gzip && !isGzipped(content)) {
       ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream(content.length);
       try (GZIPOutputStream gzipOutputStream = new GZIPOutputStream(byteArrayOutputStream)) {
         gzipOutputStream.write(content);
       }
-      finalContent = byteArrayOutputStream.toByteArray();
+      content = byteArrayOutputStream.toByteArray();
     }
 
     PutObjectRequest.Builder requestBuilder = PutObjectRequest.builder()
         .bucket(bucketName)
         .key(s3Key)
-        .contentLength((long) finalContent.length)
+        .contentLength((long) content.length)
         .contentType(contentType);
 
     if (gzip)
       requestBuilder.contentEncoding("gzip");
 
-    client.putObject(requestBuilder.build(), RequestBody.fromBytes(finalContent));
+    if (metadata != null && !metadata.isEmpty())
+      requestBuilder.metadata(metadata);
+
+    client.putObject(requestBuilder.build(), RequestBody.fromBytes(content));
   }
 
   public HeadObjectResponse loadMetadata(String key) {
@@ -287,4 +306,6 @@ public class S3Client {
     ListObjectsV2Response response = client.listObjectsV2(listRequest);
     return !response.contents().isEmpty();
   }
+
+  public record S3ObjectWithMetadata(byte[] content, String contentType, Map<String, String> metadata) {}
 }

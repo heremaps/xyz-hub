@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,7 +22,6 @@ package com.here.xyz.hub.rest;
 import static com.google.common.net.HttpHeaders.ACCEPT_ENCODING;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_GEO_JSON;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
-import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_MODIFIED;
@@ -254,10 +253,10 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         .when()
         .get(getSpacesPath() + "/x-psql-test/iterate?limit=500&handle=dguh45gh54g98h2gfherigfhdsfifg")
         .then()
-        .statusCode(BAD_GATEWAY.code())
+        .statusCode(BAD_REQUEST.code())
         .body("type", equalTo("ErrorResponse"))
-        .body("error", equalTo("BadGateway"))
-        .body("errorMessage", equalTo("Connector error."));
+        .body("error", equalTo("IllegalArgument"))
+        .body("errorMessage", equalTo("Error trying to decode the iteration nextPageToken."));
 
     //This special handle will (starting with xyz-psql-connector version 1.2.33) cause an error response, which must as well result in a Bad Gateway.
     given()
@@ -266,20 +265,21 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         .when()
         .get(getSpacesPath() + "/x-psql-test/iterate?limit=500&handle=test_errorResponse_dguh45gh54g98h2gfherigfhdsfifg")
         .then()
-        .statusCode(BAD_GATEWAY.code())
+        .statusCode(BAD_REQUEST.code())
         .body("type", equalTo("ErrorResponse"))
-        .body("error", equalTo("BadGateway"))
-        .body("errorMessage", equalTo("Connector error."));
+        .body("error", equalTo("IllegalArgument"))
+        .body("errorMessage", equalTo("Error trying to decode the iteration nextPageToken."));
+
     given()
         .accept(APPLICATION_GEO_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
         .get(getSpacesPath() + "/x-psql-test/iterate?limit=500&handle=test_exception_dguh45gh54g98h2gfherigfhdsfifg")
         .then()
-        .statusCode(BAD_GATEWAY.code())
+        .statusCode(BAD_REQUEST.code())
         .body("type", equalTo("ErrorResponse"))
-        .body("error", equalTo("BadGateway"))
-        .body("errorMessage", equalTo("Connector error."));
+        .body("error", equalTo("IllegalArgument"))
+        .body("errorMessage", equalTo("Error trying to decode the iteration nextPageToken."));
   }
 
   @Test

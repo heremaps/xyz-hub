@@ -42,6 +42,7 @@ import com.here.xyz.util.service.Initializable;
 import io.vertx.core.Future;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -345,18 +346,29 @@ public abstract class JobExecutor implements Initializable {
    * @param job The new job that is about to be started
    * @return An empty future (NOTE: If the job's graph was adjusted / shrunk, it will be also stored)
    */
-  private static Future<Void> reuseExistingJobIfPossible(Job job) {
+  private Future<Void> reuseExistingJobIfPossible(Job job) {
     logger.info("[{}] Checking for reusable existing jobs ...", job.getId());
     if (job.getResourceKeys().isEmpty() || job.getSteps().stepStream().anyMatch(step -> step instanceof DelegateStep))
       return Future.succeededFuture();
     return JobConfigClient.getInstance().loadJobs(job.getResourceKeys(), SUCCEEDED)
-        .compose(candidates -> Future.succeededFuture(candidates.stream()
-            .filter(candidate -> !job.getId().equals(candidate.getId())) //Do not try to compare the job to itself
-            .map(candidate -> fuseGraphs(job, candidate.getSteps()))
-            .max(comparingLong(candidateGraph -> candidateGraph.stepStream()
-                .filter(step -> step instanceof DelegateStep).count())) //Take the candidate with the largest matching subgraph
-            .orElse(null)))
+        .compose(candidates -> {
+          Set<String> candidateIds = candidates.stream().map(candidate -> candidate.getId()).collect(Collectors.toSet());
+          return Future.succeededFuture(candidates.stream()
+              .filter(candidate -> !job.getId().equals(candidate.getId())) //Do not try to compare the job to itself
+              .filter(candidate -> filterByExistingReferees(candidate, candidateIds))
+              .map(candidate -> fuseGraphs(job, candidate.getSteps()))
+              .max(comparingLong(candidateGraph -> candidateGraph.stepStream()
+                  .filter(step -> step instanceof DelegateStep).count())) //Take the candidate with the largest matching subgraph
+              .orElse(null));
+        })
         .compose(fusedGraph -> fusedGraph == null ? Future.succeededFuture() : job.withSteps(fusedGraph).store());
+  }
+
+  //TODO: Remove the following workaround once S3 reference-counting was fixed
+  private boolean filterByExistingReferees(Job candidate, Set<String> allCandidateIds) {
+    //Check for all DelegateSteps whether they are pointing to a job that actually still exists
+    return candidate.getSteps().stepStream().allMatch(step -> !(step instanceof DelegateStep delegateStep)
+        || allCandidateIds.contains(delegateStep.getDelegate().getJobId()));
   }
 
   public static void shutdown() throws InterruptedException {

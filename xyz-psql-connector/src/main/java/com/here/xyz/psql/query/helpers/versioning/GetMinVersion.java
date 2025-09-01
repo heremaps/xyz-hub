@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,7 +26,6 @@ import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.Event;
 import com.here.xyz.psql.query.XyzEventBasedQueryRunner;
 import com.here.xyz.util.db.SQLQuery;
-
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
@@ -39,15 +38,14 @@ public class GetMinVersion<E extends Event> extends XyzEventBasedQueryRunner<E, 
   @Override
   protected SQLQuery buildQuery(E event) throws SQLException, ErrorResponseException {
     return new SQLQuery("SELECT min(version) FROM ${schema}.${table}")
-            .withVariable(SCHEMA, getSchema())
-            .withVariable(TABLE, getDefaultTable(event));
+        .withVariable(SCHEMA, getSchema())
+        .withVariable(TABLE, getDefaultTable(event));
   }
 
   @Override
   public Long handle(ResultSet rs) throws SQLException {
-    if (rs.next()){
+    if (rs.next())
       return rs.getLong("min");
-    }
-    throw new SQLException("Unable to retrieve minVersion from space.");
+    return 0l;
   }
 }

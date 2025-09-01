@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,37 +17,22 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.httpconnector.util.jobs.outputs;
+package com.here.xyz.events;
 
-import java.net.URL;
+public class PutBlobTileEvent extends BinaryEvent<PutBlobTileEvent> {
 
-public class DownloadUrl extends Output<DownloadUrl> {
-  private URL url;
-  private long byteSize;
+  private String tileId;
 
-  public URL getUrl() {
-    return url;
+  public String getTileId() {
+    return tileId;
   }
 
-  public void setUrl(URL url) {
-    this.url = url;
+  public void setTileId(String tileId) {
+    this.tileId = tileId;
   }
 
-  public DownloadUrl withUrl(URL url) {
-    setUrl(url);
-    return this;
-  }
-
-  public long getByteSize() {
-    return byteSize;
-  }
-
-  public void setByteSize(long byteSize) {
-    this.byteSize = byteSize;
-  }
-
-  public DownloadUrl withByteSize(long byteSize) {
-    setByteSize(byteSize);
+  public PutBlobTileEvent withTileId(String tileId) {
+    setTileId(tileId);
     return this;
   }
 }

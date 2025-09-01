@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,14 +17,12 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.httpconnector.task;
+namespace com.here.xyz.bin;
 
-import com.here.xyz.httpconnector.config.JDBCMaintainer;
-import io.vertx.core.Future;
-
-public class MaintenanceHandler {
-
-    public static Future<Void> purgeOldVersions(String spaceId, Long minTagVersion) {
-        return JDBCMaintainer.getInstance().purgeOldVersions(spaceId, minTagVersion);
-    }
+table BinEvent {
+  event: string;
+  mime_type: string;
+  bytes: [ubyte];
 }
+
+root_type BinEvent;

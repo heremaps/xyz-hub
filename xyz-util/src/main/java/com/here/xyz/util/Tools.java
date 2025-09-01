@@ -17,13 +17,21 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.events;
+package com.here.xyz.util;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonTypeName;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ForkJoinPool;
 
-@JsonIgnoreProperties(ignoreUnknown = true)
-@JsonTypeName(value = "IterateChangesetsEvent")
-public final class IterateChangesetsEvent extends IterateFeaturesEvent<IterateChangesetsEvent> {
+public class Tools {
 
+  public static <R> R parallelize(Callable<R> task, int threads) throws ExecutionException, InterruptedException {
+    ForkJoinPool tmpPool = new ForkJoinPool(threads);
+    try {
+      return tmpPool.submit(task).get();
+    }
+    finally {
+      tmpPool.shutdown();
+    }
+  }
 }

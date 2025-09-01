@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,15 +19,14 @@
 
 package com.here.xyz.hub.connectors;
 
+import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.BINARY;
 import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT;
 import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT_FLATTENED;
 import static com.here.xyz.util.service.rest.TooManyRequestsException.ThrottlingReason.CONNECTOR;
-import static io.netty.handler.codec.http.HttpHeaderValues.APPLICATION_JSON;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
 import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
-import static io.netty.handler.codec.http.HttpResponseStatus.GATEWAY_TIMEOUT;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_IMPLEMENTED;
 import static io.netty.handler.codec.rtsp.RtspResponseStatuses.REQUEST_ENTITY_TOO_LARGE;
@@ -236,10 +235,10 @@ public class RpcClient {
    * @return Whether to expect a binary response from the storage connector
    */
   private boolean expectBinaryResponse(Event<?> event) {
-    return event instanceof GetFeaturesByTileEvent
-        && (((GetFeaturesByTileEvent) event).getResponseType() == MVT || ((GetFeaturesByTileEvent) event).getResponseType() == MVT_FLATTENED)
-        && getConnector().capabilities.mvtSupport
-        && Payload.compareVersions(getConnector().getRemoteFunction().protocolVersion, BinaryResponse.BINARY_SUPPORT_VERSION) >= 0;
+    return event instanceof GetFeaturesByTileEvent getTileEvent
+        && ((getTileEvent.getResponseType() == MVT || getTileEvent.getResponseType() == MVT_FLATTENED)
+                && getConnector().capabilities.mvtSupport
+        || getTileEvent.getResponseType() == BINARY && getConnector().capabilities.binaryTiles);
   }
 
   /**
@@ -524,7 +523,8 @@ public class RpcClient {
       return;
     }
 
-    if (APPLICATION_JSON.equals(binaryResponse.getMimeType())) {
+    if (binaryResponse.getMimeType() != null && binaryResponse.getMimeType().startsWith("application/")
+        && binaryResponse.getMimeType().endsWith("json")) {
       //In case we got a JSON string encoded within a BinaryResponse, it needs to be un-packed and continued with the JSON-decoding
       parseResponse(marker, binaryResponse.getBytes(), false, callback);
     }

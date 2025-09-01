@@ -74,7 +74,7 @@ class FeatureWriter {
     this.inputFeature = inputFeature;
     this.version = version;
     this.author = author || "ANONYMOUS";
-    this.baseVersion = (this.inputFeature.properties || {})[XYZ_NS]?.version;
+    this.baseVersion = queryContext().baseVersion != null ? queryContext().baseVersion : this.inputFeature.properties?.[XYZ_NS]?.version;
     this.featureHooks = featureHooks;
     this.enrichFeature();
 
@@ -89,7 +89,7 @@ class FeatureWriter {
       throw new IllegalArgumentException("MERGE can not be executed for spaces without history!");
 
     if (this.onVersionConflict && this.baseVersion == null)
-      throw new IllegalArgumentException("The provided Feature does not have a baseVersion but a version conflict detection was requested!");
+      throw new IllegalArgumentException(`No base version was provided, but a version conflict detection was requested! Please provide a base-version in the query-context or in the input-feature with ID ${this.inputFeature.id}.`);
 
     if (this.debugOutput)
       this.debugBox(JSON.stringify(this, null, 2));
@@ -220,14 +220,24 @@ class FeatureWriter {
         }
       }
       else {
-        switch (this.onNotExists) {
-          case "CREATE":
-            break; //NOTHING TO DO;
-          case "ERROR":
-            this._throwFeatureNotExistsError();
-          case "RETAIN":
-            return null;
+        let featureExists = false;
+        if (this.tables.length > 1) {
+          /*
+          We still don't know if the feature already exists or not, because in this case it could exist in the base table(s),
+          so here we have to actively check if the feature exists
+           */
+          featureExists = this.featureExistsInHead(this.inputFeature.id, "SUPER");
         }
+
+        if (!featureExists)
+          switch (this.onNotExists) {
+            case "CREATE":
+              break; //NOTHING TO DO;
+            case "ERROR":
+              this._throwFeatureNotExistsError();
+            case "RETAIN":
+              return null;
+          }
 
         /*
         If the space is a composite space a not existence in the extension does not necessarily mean,
@@ -332,7 +342,7 @@ class FeatureWriter {
           return null;
 
         let execution = this._upsertRow(execution => {
-          if (execution.action != ExecutionAction.UPDATED && this.onNotExists == "ERROR")
+          if (execution?.action != ExecutionAction.UPDATED && this.onNotExists == "ERROR")
             this._throwFeatureNotExistsError();
           return execution;
         });
@@ -500,6 +510,7 @@ class FeatureWriter {
   }
 
   loadFeature(id, version = "HEAD", context = this.context) {
+    //TODO: Also cache headFeatures for other contexts / queries to other table combinations
     if (version == "HEAD" && context == this.context && this.headFeature) //NOTE: Only cache for the defaults
       return this.headFeature;
 
@@ -737,6 +748,7 @@ class FeatureWriter {
   }
 
   _updateNextVersion() {
+    //TODO: Perform the following queries only once per feature even if this method is getting called multiple times
     if (this.onVersionConflict != null)
       return plv8.execute(`UPDATE "${this.schema}"."${this._targetTable()}"
                            SET next_version = $1
@@ -814,7 +826,8 @@ class FeatureWriter {
     if (execution != null) {
       if (execution.action != ExecutionAction.DELETED)
         result.features.push(execution.feature);
-      result[execution.action].push(execution.feature.id);
+      if (execution.action != ExecutionAction.NONE)
+        result[execution.action].push(execution.feature.id);
     }
   }
 
@@ -852,6 +865,7 @@ class ExecutionAction {
   static INSERTED = "inserted";
   static UPDATED = "updated";
   static DELETED = "deleted";
+  static NONE = "none"; //To choose if no change was executed, but the feature should be still part of the result (e.g., for features for which an update was requested but the content was not differing from the existing version)
 
   static fromOperation = {
     "I": this.INSERTED,

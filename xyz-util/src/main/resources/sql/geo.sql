@@ -185,7 +185,7 @@ BEGIN
     -- Return final long key
     RETURN here_quad(x, y, level);
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
 -----------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION here_quad_crl(qk TEXT, isbase4encoded boolean DEFAULT false)
     RETURNS TABLE(colX INTEGER, rowY INTEGER, level INTEGER, hkey BIGINT) AS $$
@@ -509,7 +509,7 @@ CREATE OR REPLACE FUNCTION for_geometry(geom geometry, in_level integer, quad_ty
     RETURNS TABLE(colX integer, rowY integer, level integer)
     LANGUAGE 'plpgsql'
     COST 100
-    VOLATILE PARALLEL UNSAFE
+    IMMUTABLE PARALLEL SAFE
     ROWS 1000
 
 AS $BODY$

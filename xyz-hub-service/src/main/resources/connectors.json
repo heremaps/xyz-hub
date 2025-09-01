@@ -133,6 +133,40 @@
     }
   },
   {
+    "id": "binary",
+    "params": {
+      "mvtSupport": false
+    },
+    "capabilities": {
+      "propertySearch": false,
+      "searchablePropertiesConfiguration": false,
+      "preserializedResponseSupport": false,
+      "enableAutoCache": true,
+      "maxPayloadSize": 1073741824,
+      "storageUtilizationReporting": true,
+      "mvtSupport": false,
+      "extensionSupport": false,
+      "binaryTiles": true
+    },
+    "connectionSettings": {
+      "maxConnections": 32
+    },
+    "remoteFunctions": {
+      "local": {
+        "type": "Embedded",
+        "id": "xyz-binary-local",
+        "className": "com.here.xyz.hub.connectors.BlobConnector",
+        "protocolVersion": "0.7.0"
+      }
+    },
+    "trusted": true,
+    "forwardParamsConfig": {
+      "cookies": ["here_access", "here_access_st"],
+      "headers": ["Authorization", "realm"],
+      "queryParams": ["apiKey"]
+    }
+  },
+  {
     "id": "c1",
     "params": {
       "connectorId" : "c1",

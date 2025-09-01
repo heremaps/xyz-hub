@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -229,7 +229,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     }
   }
 
-  abstract static class ReadQuery<T extends com.here.xyz.events.SearchForFeaturesEvent<?>, X extends FeatureTask<T, ?>> extends FeatureTask<T, X> {
+  abstract static class ReadQuery<T extends SearchForFeaturesEvent<?>, X extends FeatureTask<T, ?>> extends FeatureTask<T, X> {
 
     private ReadQuery(T event, RoutingContext context, ApiResponseType apiResponseTypeType, boolean skipCache) {
       super(event, context, apiResponseTypeType, skipCache);
@@ -468,7 +468,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     }
   }
 
-  public static class IterateQuery extends ReadQuery<IterateFeaturesEvent, IterateQuery> {
+  public static class IterateQuery extends ReadQuery<IterateFeaturesEvent<IterateFeaturesEvent>, IterateQuery> {
 
     public IterateQuery(IterateFeaturesEvent event, RoutingContext context, ApiResponseType apiResponseTypeType, boolean skipCache) {
       super(event, context, apiResponseTypeType, skipCache);

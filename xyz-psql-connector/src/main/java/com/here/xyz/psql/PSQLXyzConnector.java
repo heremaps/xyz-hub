@@ -21,13 +21,11 @@ package com.here.xyz.psql;
 
 import static com.here.xyz.responses.XyzError.EXCEPTION;
 import static com.here.xyz.responses.XyzError.ILLEGAL_ARGUMENT;
+import static com.here.xyz.responses.XyzError.NOT_FOUND;
 import static com.here.xyz.responses.XyzError.PAYLOAD_TO_LARGE;
 import static com.here.xyz.responses.XyzError.TIMEOUT;
-import static com.here.xyz.responses.XyzError.NOT_FOUND;
 
 import com.here.xyz.connectors.ErrorResponseException;
-import com.here.xyz.psql.query.GetFastStatistics;
-import com.here.xyz.util.runtime.FunctionRuntime;
 import com.here.xyz.events.DeleteChangesetsEvent;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.GetChangesetStatisticsEvent;
@@ -48,7 +46,9 @@ import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.events.WriteFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.psql.query.DeleteChangesets;
+import com.here.xyz.psql.query.EraseSpace;
 import com.here.xyz.psql.query.GetChangesetStatistics;
+import com.here.xyz.psql.query.GetFastStatistics;
 import com.here.xyz.psql.query.GetFeaturesByBBox;
 import com.here.xyz.psql.query.GetFeaturesByBBoxClustered;
 import com.here.xyz.psql.query.GetFeaturesByBBoxTweaked;
@@ -150,7 +150,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
   @Override
   protected FeatureCollection processIterateFeaturesEvent(IterateFeaturesEvent event) throws Exception {
-    return run(new IterateFeatures(event));
+    return run(new IterateFeatures<>(event));
   }
 
   @Override
@@ -165,7 +165,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
   @Override
   protected FeatureCollection processModifyFeaturesEvent(ModifyFeaturesEvent event) throws Exception {
-    return executeModifyFeatures(event);
+    return !event.isEraseContent() ? executeModifyFeatures(event) : run( new EraseSpace(event) );
   }
 
   @Override
@@ -206,6 +206,9 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
   @Override
   protected void handleProcessingException(Exception exception, Event event) throws Exception {
+    if (exception instanceof IllegalArgumentException)
+      throw new ErrorResponseException(ILLEGAL_ARGUMENT, exception.getMessage());
+
     if (!(exception instanceof SQLException sqlException))
       throw exception;
 
@@ -271,7 +274,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
         int messagePrefixLengthToReport = 75;
         throw new ErrorResponseException(NOT_FOUND, "Table not found in database: " + table +
                                                            (e.getMessage() == null || e.getMessage().length() <= messagePrefixLengthToReport
-                                                            ? "" 
+                                                            ? ""
                                                             : " - " + e.getMessage().substring(0,messagePrefixLengthToReport) ));
 
       case

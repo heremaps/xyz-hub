@@ -92,7 +92,6 @@ import org.locationtech.jts.io.ParseException;
  */
 public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
-  private static final long MAX_INPUT_BYTES_FOR_NON_EMPTY_IMPORT = 10l * 1024 * 1024 * 1024;
   private static final long MAX_INPUT_BYTES_FOR_SYNC_IMPORT = 100l * 1024 * 1024;
   private static final long MAX_INPUT_BYTES_FOR_KEEP_INDICES = 1l * 1024 * 1024 * 1024;
   private static final int MIN_FEATURE_COUNT_IN_TARGET_TABLE_FOR_KEEP_INDICES = 5_000_000;
@@ -128,6 +127,10 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
   @JsonView({Internal.class, Static.class})
   private boolean enableQuickValidation = true;
+
+  //Compilers can decide max allowed import size. Set default to 10G for normal use-case
+  @JsonIgnore
+  private long maxInputBytesForNonEmptyImport = 10l * 1024 * 1024 * 1024;
 
   {
     setOutputSets(List.of(new OutputSet(STATISTICS, USER, true)));
@@ -216,16 +219,38 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     return enableQuickValidation;
   }
 
+  public long getMaxInputBytesForNonEmptyImport() {
+    return maxInputBytesForNonEmptyImport;
+  }
+
+  public void setMaxInputBytesForNonEmptyImport(long maxInputBytesForNonEmptyImport) {
+    this.maxInputBytesForNonEmptyImport = maxInputBytesForNonEmptyImport;
+  }
+
+  public ImportFilesToSpace withMaxInputBytesForNonEmptyImport(long maxInputBytesForNonEmptyImport) {
+    setMaxInputBytesForNonEmptyImport(maxInputBytesForNonEmptyImport);
+    return this;
+  }
+
   public boolean keepIndices() {
     /*
      * The targetSpace needs to have more than MIN_FEATURE_COUNT_IN_TARGET_TABLE_FOR_KEEP_INDICES features
      * Reason: For tables with not that many records in its always faster to remove and recreate indices
      * +
-     * Incoming bytes have to be smaller as MAX_INPUT_BYTES_FOR_KEEP_INDICES
+     * Incoming bytes have to be smaller than MAX_INPUT_BYTES_FOR_KEEP_INDICES
      * Reason: if we write not that much, it's also with indices fast enough
      */
-    return loadTargetSpaceFeatureCount() >= MIN_FEATURE_COUNT_IN_TARGET_TABLE_FOR_KEEP_INDICES
-        && getUncompressedUploadBytesEstimation() <= MAX_INPUT_BYTES_FOR_KEEP_INDICES;
+    return loadTargetSpaceFeatureCount() > MIN_FEATURE_COUNT_IN_TARGET_TABLE_FOR_KEEP_INDICES
+            || getUncompressedUploadBytesEstimation() < MAX_INPUT_BYTES_FOR_KEEP_INDICES;
+  }
+
+  /*
+   * Use FeatureWriter if either is true
+   * - the target space is not empty
+   * - space is composite
+   */
+  public boolean useFeatureWriter() throws WebClientException {
+    return loadTargetSpaceFeatureCount() > 0 || space().getExtension() != null;
   }
 
   private long loadTargetSpaceFeatureCount() {
@@ -325,9 +350,9 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       if (entityPerLine == FeatureCollection && format == CSV_JSON_WKB)
         throw new ValidationException("Combination of entityPerLine 'FeatureCollection' and type 'Csv' is not supported!");
 
-      if (loadTargetSpaceFeatureCount() > 0 && getUncompressedUploadBytesEstimation() > MAX_INPUT_BYTES_FOR_NON_EMPTY_IMPORT)
+      if (loadTargetSpaceFeatureCount() > 0 && getUncompressedUploadBytesEstimation() > getMaxInputBytesForNonEmptyImport())
         throw new ValidationException("An import into a non empty space is not possible. "
-            + "The uncompressed size of the provided files exceeds the limit of " + MAX_INPUT_BYTES_FOR_NON_EMPTY_IMPORT + " bytes.");
+            + "The uncompressed size of the provided files exceeds the limit of " + getMaxInputBytesForNonEmptyImport() + " bytes.");
     }
     catch (WebClientException e) {
       throw new ValidationException("Error loading resource " + getSpaceId(), e);
@@ -356,6 +381,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
         infoLog(STEP_EXECUTE, this,"Create TriggerTable and Trigger");
         //Create Temp-ImportTable to avoid deserialization of JSON and fix missing row count
+        //FIXME: Use job owner as author
         runBatchWriteQuerySync(buildTemporaryTriggerTableBlock(space().getOwner(), newVersion), db(), 0);
       }
 
@@ -477,6 +503,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     if (isResume()) {
       infoLog(STEP_EXECUTE, this, "Reset SuccessMarker");
       runWriteQuerySync(buildResetJobTableItemsForResumeStatement(), db(), 0);
+      return true;
     }
     else {
       infoLog(STEP_EXECUTE, this, "Create temporary job table");
@@ -490,7 +517,6 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       //If no Inputs are present return 0
       return inputs.size() != 0;
     }
-    return true;
   }
 
   @Override
@@ -531,6 +557,9 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       registerOutputs(List.of(statistics), STATISTICS);
 
       cleanUpDbRelatedResources();
+
+      infoLog(STEP_ON_ASYNC_SUCCESS, this,"Set contentUpdatedAt on target space");
+      hubWebClient().patchSpace(getSpaceId(), Map.of("contentUpdatedAt", Core.currentTimeMillis()));
     }
     catch (SQLException e) {
       //relation "*_job_data" does not exist - can happen when we have received twice a SUCCESS_CALLBACK
@@ -579,9 +608,9 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   }
 
   private SQLQuery buildCreateImportTrigger(String targetAuthor, long newVersion) throws WebClientException {
-    if (loadTargetSpaceFeatureCount() <= 0)
-      return buildCreateImportTriggerForEmptyLayer(targetAuthor, newVersion);
-    return buildCreateImportTriggerForNonEmptyLayer(targetAuthor, newVersion);
+    if(useFeatureWriter())
+      return buildCreateImportTriggerWithFeatureWriter(targetAuthor, newVersion);
+    return buildCreateImportTriggerForInsertsOnly(targetAuthor, newVersion);
   }
 
   private SQLQuery buildTemporaryTriggerTableBlock(String targetAuthor, long newVersion) throws WebClientException {
@@ -591,7 +620,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     );
   }
 
-  private SQLQuery buildCreateImportTriggerForEmptyLayer(String targetAuthor, long targetSpaceVersion) throws WebClientException {
+  private SQLQuery buildCreateImportTriggerForInsertsOnly(String targetAuthor, long targetSpaceVersion) throws WebClientException {
     String triggerFunction = "import_from_s3_trigger_for_empty_layer";
     triggerFunction += entityPerLine == FeatureCollection ? "_geojsonfc" : "";
 
@@ -606,7 +635,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
         .withVariable("table", getTemporaryTriggerTableName(getId()));
   }
 
-  private SQLQuery buildCreateImportTriggerForNonEmptyLayer(String author, long newVersion) throws WebClientException {
+  private SQLQuery buildCreateImportTriggerWithFeatureWriter(String author, long newVersion) throws WebClientException {
     String triggerFunction = "import_from_s3_trigger_for_non_empty_layer";
     String superTable = space().getExtension() != null ? getRootTableName(superSpace()) : null;
 
@@ -625,7 +654,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
              ${{onMergeConflict}},
              ${{historyEnabled}},
              ${{context}},
-             ${{tables}},
+             '${{tables}}',
              '${{format}}',
              '${{entityPerLine}}'
              )
@@ -640,7 +669,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
             updateStrategy.onMergeConflict() == null ? "NULL" : "'" + updateStrategy.onMergeConflict() + "'")
         .withQueryFragment("historyEnabled", "" + (space().getVersionsToKeep() > 1))
         .withQueryFragment("context", superTable == null ? "NULL" : "'DEFAULT'")
-        .withQueryFragment("tables", String.join(",", tables.stream().map(table -> "'" + table + "'").toList()))
+        .withQueryFragment("tables", String.join(",", tables))
         .withQueryFragment("format", format.toString())
         .withQueryFragment("entityPerLine", entityPerLine.toString())
         .withVariable("schema", getSchema(db()))
@@ -705,6 +734,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   }
 
   private SQLQuery buildFeatureWriterQuery(String featureList, long targetVersion) throws WebClientException, JsonProcessingException {
+    Map<String, Object> queryContext = getQueryContext();
     return new SQLQuery("SELECT (write_features::JSONB->>'count')::INT AS count FROM ${{writeFeaturesQuery}};")
         .withQueryFragment("writeFeaturesQuery", new FeatureWriterQueryBuilder()
             .withInput(featureList, "Features")
@@ -713,8 +743,9 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
             .withVersion(targetVersion)
             .withUpdateStrategy(updateStrategy)
             .withIsPartial(false)
-            .withQueryContext(getQueryContext())
-            .build());
+            .withQueryContext(queryContext)
+            .build())
+        .withContext(queryContext); //TODO: That is a temporary workaround for a bug with ignored query contexts of nested queries
   }
 
   private SQLQuery buildProgressQuery(String schema, ImportFilesToSpace step) {

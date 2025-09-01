@@ -83,6 +83,12 @@ public class SpaceCopy implements JobCompilationInterceptor {
     return compile(jobId, source, target, null);
   }
 
+  private static boolean usingFilter( Filters filters )
+  {
+    return     (filters != null)
+            && (filters.getPropertyFilter() != null || filters.getSpatialFilter() != null);
+  }
+
   public static CompilationStepGraph compile(String jobId, DatasetDescription.Space source, DatasetDescription.Space target,
       Map<String, String> outputMetadata) {
     String sourceSpaceId = source.getId();
@@ -111,6 +117,10 @@ public class SpaceCopy implements JobCompilationInterceptor {
 
       long sourceFeatureCount = sourceStatistics.getCount().getValue(),
            targetFeatureCount = targetStatistics.getCount().getValue();
+
+      long MAX_FEATURE_NOT_USING_FILTER = 50_100_000l;
+      if( MAX_FEATURE_NOT_USING_FILTER <= sourceFeatureCount && !usingFilter(filters) )
+       throw new CompilationError( String.format("too many features (%d > %d) to copy from %s ", sourceFeatureCount, MAX_FEATURE_NOT_USING_FILTER ,sourceSpaceId) );
 
       int threadCount = threadCountCalc(sourceFeatureCount, targetFeatureCount);
 

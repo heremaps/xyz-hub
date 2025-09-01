@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,11 +30,16 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Properties;
+import io.restassured.response.ValidatableResponse;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -65,165 +70,171 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
     removeAll();
   }
 
+  //---------------------------- Changesets --------------------------------------------
+  //Version 0 is the *empty space* right after creating it
+
+  //Version 1
+  FeatureCollection changeset1 = new FeatureCollection().withFeatures(
+      Arrays.asList(
+          new Feature().withId("A").withProperties(new Properties().with("name", "A1")),
+          new Feature().withId("B").withProperties(new Properties().with("name", "B1"))
+      )
+  );
+
+  //Version 2
+  FeatureCollection changeset2 = new FeatureCollection().withFeatures(
+      Arrays.asList(
+          new Feature().withId("A").withProperties(new Properties().with("name", "A2")),
+          new Feature().withId("C").withProperties(new Properties().with("name", "C1"))
+      )
+  );
+
+  //Version 3
+  FeatureCollection changeset3 = new FeatureCollection().withFeatures(
+      Arrays.asList(
+          new Feature().withId("D").withProperties(new Properties().with("name", "D1")),
+          new Feature().withId("E").withProperties(new Properties().with("name", "E1"))
+      )
+  );
+
+  //Version 4
+  FeatureCollection changeset4 = new FeatureCollection().withFeatures(
+      Arrays.asList(
+          new Feature().withId("B").withProperties(new Properties().with("name", "B2"))
+      )
+  );
+
+  //Version 5
+  FeatureCollection changeset5 = new FeatureCollection().withFeatures(
+      Arrays.asList(
+          new Feature().withId("A").withProperties(new Properties().with("name", "A3"))
+      )
+  );
+
+  //Version 6
+  FeatureCollection changeset6 = new FeatureCollection().withFeatures(
+      Arrays.asList(
+          new Feature().withId("D").withProperties(new Properties().with("name", "D2"))
+      )
+  );
+
+  //Version 7
+  FeatureCollection changeset7 = new FeatureCollection().withFeatures(
+      Arrays.asList(
+          new Feature().withId("B").withProperties(new Properties().with("name", "B3"))
+      )
+  );
+
+  //Version 8
+  FeatureCollection changeset8 = new FeatureCollection().withFeatures(
+      Arrays.asList(
+          new Feature().withId("E").withProperties(new Properties().with("name", "E2"))
+      )
+  );
+
+  //Version 9
+  FeatureCollection changeset9 = new FeatureCollection().withFeatures(
+      Arrays.asList(
+          new Feature().withId("F").withProperties(new Properties().with("name", "F1"))
+      )
+  );
+
+  //Version 10 is a deletion (see below)
+
+  //Version 11
+  FeatureCollection changeset11 = new FeatureCollection().withFeatures(
+      Arrays.asList(
+          new Feature().withId("F").withProperties(new Properties().with("name", "F2"))
+      )
+  );
+  //---------------------------- Changesets --------------------------------------------
+
   private void addChangesets() {
-    //Version 0
-    FeatureCollection changeset0 = new FeatureCollection().withFeatures(
-            Arrays.asList(
-                    new Feature().withId("A").withProperties(new Properties().with("name", "A1")),
-                    new Feature().withId("B").withProperties(new Properties().with("name", "B1"))
-            )
-    );
-
-    //Version 1
-    FeatureCollection changeset1 = new FeatureCollection().withFeatures(
-            Arrays.asList(
-                    new Feature().withId("A").withProperties(new Properties().with("name", "A2")),
-                    new Feature().withId("C").withProperties(new Properties().with("name", "C1"))
-            )
-    );
-
-    //Version 2
-    FeatureCollection changeset2 = new FeatureCollection().withFeatures(
-            Arrays.asList(
-                    new Feature().withId("D").withProperties(new Properties().with("name", "D1")),
-                    new Feature().withId("E").withProperties(new Properties().with("name", "E1"))
-            )
-    );
-
-    //Version 3
-    FeatureCollection changeset3 = new FeatureCollection().withFeatures(
-            Arrays.asList(
-                    new Feature().withId("B").withProperties(new Properties().with("name", "B2"))
-            )
-    );
-
-    //Version 4
-    FeatureCollection changeset4 = new FeatureCollection().withFeatures(
-            Arrays.asList(
-                    new Feature().withId("A").withProperties(new Properties().with("name", "A3"))
-            )
-    );
-
-    //Version 5
-    FeatureCollection changeset5 = new FeatureCollection().withFeatures(
-            Arrays.asList(
-                    new Feature().withId("D").withProperties(new Properties().with("name", "D2"))
-            )
-    );
-
-    //Version 6
-    FeatureCollection changeset6 = new FeatureCollection().withFeatures(
-            Arrays.asList(
-                    new Feature().withId("B").withProperties(new Properties().with("name", "B3"))
-            )
-    );
-
-    //Version 7
-    FeatureCollection changeset7 = new FeatureCollection().withFeatures(
-            Arrays.asList(
-                    new Feature().withId("E").withProperties(new Properties().with("name", "E2"))
-            )
-    );
-
-    //Version 8
-    FeatureCollection changeset8 = new FeatureCollection().withFeatures(
-            Arrays.asList(
-                    new Feature().withId("F").withProperties(new Properties().with("name", "F1"))
-            )
-    );
-
-    //Version 9 is a deletion (see below)
-
-    //Version 10
-    FeatureCollection changeset10 = new FeatureCollection().withFeatures(
-            Arrays.asList(
-                    new Feature().withId("F").withProperties(new Properties().with("name", "F2"))
-            )
-    );
+    given()
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .body(changeset1.toString())
+        .post("/spaces/" + cleanUpSpaceId + "/features")
+        .then()
+        .statusCode(OK.code());
 
     given()
-            .contentType(APPLICATION_JSON)
-            .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-            .body(changeset0.toString())
-            .post("/spaces/" + cleanUpSpaceId + "/features")
-            .then()
-            .statusCode(OK.code());
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .body(changeset2.toString())
+        .post("/spaces/" + cleanUpSpaceId + "/features")
+        .then()
+        .statusCode(OK.code());
 
     given()
-            .contentType(APPLICATION_JSON)
-            .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-            .body(changeset1.toString())
-            .post("/spaces/" + cleanUpSpaceId + "/features")
-            .then()
-            .statusCode(OK.code());
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .body(changeset3.toString())
+        .post("/spaces/" + cleanUpSpaceId + "/features")
+        .then()
+        .statusCode(OK.code());
 
     given()
-            .contentType(APPLICATION_JSON)
-            .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-            .body(changeset2.toString())
-            .post("/spaces/" + cleanUpSpaceId + "/features")
-            .then()
-            .statusCode(OK.code());
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .body(changeset4.toString())
+        .post("/spaces/" + cleanUpSpaceId + "/features")
+        .then()
+        .statusCode(OK.code());
 
     given()
-            .contentType(APPLICATION_JSON)
-            .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-            .body(changeset3.toString())
-            .post("/spaces/" + cleanUpSpaceId + "/features")
-            .then()
-            .statusCode(OK.code());
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .body(changeset5.toString())
+        .post("/spaces/" + cleanUpSpaceId + "/features")
+        .then()
+        .statusCode(OK.code());
 
     given()
-            .contentType(APPLICATION_JSON)
-            .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-            .body(changeset4.toString())
-            .post("/spaces/" + cleanUpSpaceId + "/features")
-            .then()
-            .statusCode(OK.code());
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .body(changeset6.toString())
+        .post("/spaces/" + cleanUpSpaceId + "/features")
+        .then()
+        .statusCode(OK.code());
 
     given()
-            .contentType(APPLICATION_JSON)
-            .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-            .body(changeset5.toString())
-            .post("/spaces/" + cleanUpSpaceId + "/features")
-            .then()
-            .statusCode(OK.code());
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .body(changeset7.toString())
+        .post("/spaces/" + cleanUpSpaceId + "/features")
+        .then()
+        .statusCode(OK.code());
 
     given()
-            .contentType(APPLICATION_JSON)
-            .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-            .body(changeset6.toString())
-            .post("/spaces/" + cleanUpSpaceId + "/features")
-            .then()
-            .statusCode(OK.code());
-    given()
-            .contentType(APPLICATION_JSON)
-            .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-            .body(changeset7.toString())
-            .post("/spaces/" + cleanUpSpaceId + "/features")
-            .then()
-            .statusCode(OK.code());
-    given()
-            .contentType(APPLICATION_JSON)
-            .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-            .body(changeset8.toString())
-            .post("/spaces/" + cleanUpSpaceId + "/features")
-            .then()
-            .statusCode(OK.code());
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .body(changeset8.toString())
+        .post("/spaces/" + cleanUpSpaceId + "/features")
+        .then()
+        .statusCode(OK.code());
 
     given()
-            .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-            .delete("/spaces/" + cleanUpSpaceId + "/features/A")
-            .then()
-            .statusCode(NO_CONTENT.code());
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .body(changeset9.toString())
+        .post("/spaces/" + cleanUpSpaceId + "/features")
+        .then()
+        .statusCode(OK.code());
 
     given()
-            .contentType(APPLICATION_JSON)
-            .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-            .body(changeset10.toString())
-            .post("/spaces/" + cleanUpSpaceId + "/features")
-            .then()
-            .statusCode(OK.code());
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .delete("/spaces/" + cleanUpSpaceId + "/features/A")
+        .then()
+        .statusCode(NO_CONTENT.code());
+
+    given()
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .body(changeset11.toString())
+        .post("/spaces/" + cleanUpSpaceId + "/features")
+        .then()
+        .statusCode(OK.code());
   }
 
   private void addChangesetsMultipleTimes(int times) {
@@ -247,6 +258,26 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
     }
   }
 
+  private void checkFeaturesAreContainedIn(List<Map<String, Object>> loadedFeatures, FeatureCollection writtenFeatures) {
+    loadedFeatures.stream()
+        .allMatch(loadedFeature -> {
+          try {
+            return writtenFeatures.getFeatures().stream()
+                .anyMatch(writtenFeature -> Objects.equals(loadedFeature.get("id"), writtenFeature.getId()));
+          }
+          catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+          }
+        });
+  }
+
+  private static ValidatableResponse loadChangesets(long startVersion, long endVersion, long limit, String nextPageToken) {
+    return given()
+        .get("/spaces/" + cleanUpSpaceId + "/changesets?startVersion=" + startVersion + "&endVersion=" + endVersion + "&limit=" + limit + (nextPageToken != null ? "&pageToken=" + nextPageToken : ""))
+        .then()
+        .statusCode(OK.code());
+  }
+
   @Test
   public void deleteChangesets() throws InterruptedException {given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
@@ -266,8 +297,6 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
         .delete("/spaces/" + cleanUpSpaceId + "/changesets?version<2")
         .then()
         .statusCode(NO_CONTENT.code());
-
-    Thread.sleep(3_000);
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
@@ -377,41 +406,37 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void pageThroughChangesetCollectionVersion0To1() {
-    given()
-            .get("/spaces/" + cleanUpSpaceId + "/changesets?startVersion=1&endVersion=2&limit=2")
-            .then()
-            .statusCode(OK.code())
-            .body("startVersion", equalTo(1))
-            .body("endVersion", equalTo(1))
-            .body("versions.1.inserted.features.size()", equalTo(2))
-            .body("2", nullValue())
-            .body("nextPageToken", notNullValue());
+  public void pageThroughChangesetCollectionVersion1To2() {
+    long startVersion = 1;
+    long endVersion = 2;
+    long limit = 2;
 
-    given()
-            .get("/spaces/" + cleanUpSpaceId + "/changesets?startVersion=1&endVersion=2&limit=1&pageToken=1_B")
-            .then()
-            .statusCode(OK.code())
-            .body("startVersion", equalTo(2))
-            .body("endVersion", equalTo(2))
-            .body("versions.1", nullValue())
-            .body("versions.2.updated.features.size()", equalTo(1))
-            .body("nextPageToken", notNullValue());
+    ValidatableResponse response1 = loadChangesets(startVersion, endVersion, limit, null)
+        .body("startVersion", equalTo(1))
+        .body("endVersion", equalTo(1))
+        .body("versions.1.inserted.features.size()", equalTo(2))
+        .body("versions.1.updated.features.size()", equalTo(0))
+        .body("versions.2", nullValue())
+        .body("nextPageToken", notNullValue());
+    String nextPageToken = response1
+        .extract()
+        .path("nextPageToken");
+    List<Map<String, Object>> insertedFeaturesV1 = response1.extract().path("versions.1.inserted.features");
+    checkFeaturesAreContainedIn(insertedFeaturesV1, changeset1);
 
-    given()
-            .get("/spaces/" + cleanUpSpaceId + "/changesets?startVersion=0&endVersion=1&limit=1&pageToken=1_A")
-            .then()
-            .statusCode(OK.code())
-            .body("startVersion", equalTo(1))
-            .body("endVersion", equalTo(1))
-            .body("versions.1.inserted.features.size()", equalTo(1))
-            .body("versions.1.updated.features.size()", equalTo(0))
-            .body("nextPageToken", nullValue());
-
+    ValidatableResponse response2 = loadChangesets(startVersion, endVersion, limit, nextPageToken)
+        .body("startVersion", equalTo(2))
+        .body("endVersion", equalTo(2))
+        .body("versions.1", nullValue())
+        .body("versions.2.inserted.features.size()", equalTo(1))
+        .body("versions.2.updated.features.size()", equalTo(1))
+        .body("nextPageToken", nullValue());
+    List<Map<String, Object>> updatedFeaturesV2 = response2.extract().path("versions.2.updated.features");
+    checkFeaturesAreContainedIn(updatedFeaturesV2, changeset2);
   }
 
   @Test
-  public void pageThroughChangesetVersion0To1() {
+  public void pageThroughChangesetVersion1To4() {
     given()
             .get("/spaces/" + cleanUpSpaceId + "/changesets/1?limit=1")
             .then()
@@ -429,16 +454,18 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
             .body("updated.features.size()", equalTo(1))
             .body("nextPageToken", nullValue());
 
-    given()
+    String nextPageToken = given()
             .get("/spaces/" + cleanUpSpaceId + "/changesets/3?limit=1")
             .then()
             .statusCode(OK.code())
             .body("version", equalTo(3))
             .body("inserted.features.size()", equalTo(1))
-            .body("nextPageToken", notNullValue());
+            .body("nextPageToken", notNullValue())
+        .extract()
+        .path("nextPageToken");
 
     given()
-            .get("/spaces/" + cleanUpSpaceId + "/changesets/3?pageToken=3_D&limit=1")
+            .get("/spaces/" + cleanUpSpaceId + "/changesets/3?pageToken=" + nextPageToken + "&limit=1")
             .then()
             .statusCode(OK.code())
             .body("version", equalTo(3))

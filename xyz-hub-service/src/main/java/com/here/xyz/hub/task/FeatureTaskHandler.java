@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ package com.here.xyz.hub.task;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
+import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.BINARY;
 import static com.here.xyz.hub.rest.ApiResponseType.MVT;
 import static com.here.xyz.hub.rest.ApiResponseType.MVT_FLATTENED;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.BBOX;
@@ -35,7 +36,6 @@ import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
 import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
-import static io.netty.handler.codec.http.HttpResponseStatus.METHOD_NOT_ALLOWED;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_REQUIRED;
 
@@ -72,6 +72,7 @@ import com.here.xyz.hub.connectors.models.Space.ResolvableListenerConnectorRef;
 import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.ApiParam;
 import com.here.xyz.hub.rest.ApiResponseType;
+import com.here.xyz.hub.rest.FeatureApi;
 import com.here.xyz.hub.task.FeatureTask.ConditionalOperation;
 import com.here.xyz.hub.task.FeatureTask.ReadQuery;
 import com.here.xyz.hub.task.FeatureTask.TileQuery;
@@ -307,16 +308,8 @@ public class FeatureTaskHandler {
       }
 
       //Update the contentUpdatedAt timestamp to indicate that the data in this space was modified
-      if (task instanceof FeatureTask.ConditionalOperation) {
-        long now = Core.currentTimeMillis();
-        if (now - task.space.getContentUpdatedAt() > Space.CONTENT_UPDATED_AT_INTERVAL_MILLIS) {
-          task.space.setContentUpdatedAt(Core.currentTimeMillis());
-          task.space.volatilityAtLastContentUpdate = task.space.getVolatility();
-          Service.spaceConfigClient.store(task.getMarker(), task.space)
-              .onSuccess(v -> logger.info(task.getMarker(), "Updated contentUpdatedAt for space {}", task.space.getId()))
-              .onFailure(t -> logger.error(task.getMarker(), "Error while updating contentUpdatedAt for space {}", task.space.getId(), t));
-        }
-      }
+      if (task instanceof FeatureTask.ConditionalOperation)
+        task.space.updateContentUpdatedAt(task.getMarker());
       //Send event to potentially registered request-listeners
       if (requestListenerPayload != null)
         notifyListeners(task, eventType, requestListenerPayload);
@@ -960,6 +953,12 @@ public class FeatureTaskHandler {
         .compose(
             connector -> {
               task.storage = connector;
+
+              if (connector.capabilities.binaryTiles && task.getEvent() instanceof GetFeaturesByTileEvent getTileEvent) {
+                getTileEvent.setResponseType(BINARY);
+                task.responseType = ApiResponseType.BINARY;
+              }
+
               return Future.succeededFuture(connector);
             },
             t -> Future.failedFuture(new InvalidStorageException("Unable to load the definition for this storage."))
@@ -1176,6 +1175,7 @@ public class FeatureTaskHandler {
 
   static void processConditionalOp(ConditionalOperation task, Callback<ConditionalOperation> callback) throws Exception {
     try {
+
       task.modifyOp.process();
       final List<Feature> insert = new ArrayList<>();
       final List<Feature> update = new ArrayList<>();
@@ -1242,7 +1242,9 @@ public class FeatureTaskHandler {
       task.getEvent().setFailed(fails);
 
       // In case nothing was changed, set the response directly to skip calling the storage connector.
-      if (insert.size() == 0 && update.size() == 0 && delete.size() == 0) {
+      boolean eraseContent = FeatureApi.eraseContent( task.context );
+
+      if (!eraseContent && insert.size() == 0 && update.size() == 0 && delete.size() == 0) {
         FeatureCollection fc = new FeatureCollection();
         if( task.hasNonModified ){
           task.modifyOp.entries.stream().filter(e -> !e.isModified).forEach(e -> {

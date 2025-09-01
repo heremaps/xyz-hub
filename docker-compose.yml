@@ -11,22 +11,7 @@ services:
         depends_on:
             - "postgres"
             - "redis"
-            - "xyz-http-connector"
             - "aws-localstack"
-    xyz-http-connector:
-        image: "xyz-hub"
-        build:
-            context: ./
-            dockerfile: ./xyz-util/src/main/resources/docker/Dockerfile
-        container_name: xyz-http-connector
-        ports:
-            - "9090:9090"
-        environment:
-            - LOCALSTACK_ENDPOINT=http://localstack:4566
-        depends_on:
-            - "postgres"
-            - "aws-localstack"
-        command: java -cp xyz-hub-service.jar com.here.xyz.httpconnector.CService
     postgres:
         image: "xyz-postgres"
         build:

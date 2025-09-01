@@ -387,7 +387,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
 
   private void reportFailure(Exception e, boolean retryable, boolean async) {
     if (async)
-      retryable = retryable && onAsyncFailure();
+      retryable = retryable || onAsyncFailure();
 
     if (e instanceof StepException stepException)
       retryable = stepException.isRetryable();

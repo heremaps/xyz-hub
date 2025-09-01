@@ -23,6 +23,9 @@ import static com.here.xyz.jobs.steps.Step.InputSet.USER_INPUTS;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.CSV_GEOJSON;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.CSV_JSON_WKB;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.GEOJSON;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SystemIndex.NEXT_VERSION;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SystemIndex.OPERATION;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SystemIndex.VERSION_ID;
 
 import com.google.common.collect.Lists;
 import com.here.xyz.jobs.Job;
@@ -40,18 +43,16 @@ import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
 import com.here.xyz.jobs.steps.impl.AnalyzeSpaceTable;
 import com.here.xyz.jobs.steps.impl.CreateIndex;
 import com.here.xyz.jobs.steps.impl.DropIndexes;
-import com.here.xyz.jobs.steps.impl.MarkForMaintenance;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPerLine;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
+import com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper.SystemIndex;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -101,19 +102,23 @@ public class ImportFromFiles implements JobCompilationInterceptor {
     return compileImportSteps(importFilesStep);
   }
 
-  public static CompilationStepGraph compileWrapWithDropRecreateIndices(String spaceId, StepExecution stepExecution )
-  {
+  public static CompilationStepGraph compileWrapWithDropRecreateIndices(String spaceId, StepExecution stepExecution) {
+    return compileWrapWithDropRecreateIndices(spaceId, stepExecution, null);
+  }
+
+  public static CompilationStepGraph compileWrapWithDropRecreateIndices(String spaceId, StepExecution stepExecution, List<Index> keepIndices) {
     //NOTE: drop/create indices is also used by SpaceCopy compiler
 
     //NOTE: VIZ index will be created separately in a sequential step afterwards (see below)
-    List<XyzSpaceTableHelper.SystemIndex> indices = Stream.of(SystemIndex.values()).filter(index -> index != SystemIndex.VIZ).toList();
+    List<SystemIndex> indices = Stream.of(SystemIndex.values()).filter(index -> index != SystemIndex.VIZ).toList();
     //Split the work in three parallel tasks for now
     List<List<SystemIndex>> indexTasks = Lists.partition(indices, indices.size() / 3);
 
     CompilationStepGraph wrappedStepGraph = (CompilationStepGraph) new CompilationStepGraph()
-        .addExecution(new DropIndexes(spaceId).withSpaceDeactivation(true)) //Drop all existing indices
+        .addExecution(new DropIndexes(spaceId).withSpaceDeactivation(true).withIndexWhiteList(keepIndices)) //Drop existing indices
         .addExecution(stepExecution)
         //NOTE: Create *all* indices in parallel, make sure to (at least) keep the viz-index sequential #postgres-issue-with-partitions
+        //No need to filter out indices from "keepIndices" as create index query checks for "IF NOT EXISTS"
         .addExecution(new CompilationStepGraph() //Create all the base indices semi-parallel
             .addExecution(new CompilationStepGraph().withExecutions(toSequentialSteps(spaceId, indexTasks.get(0))))
             .addExecution(new CompilationStepGraph().withExecutions(toSequentialSteps(spaceId, indexTasks.get(1))))
@@ -132,7 +137,13 @@ public class ImportFromFiles implements JobCompilationInterceptor {
   }
 
   public static CompilationStepGraph compileImportSteps(ImportFilesToSpace importFilesStep) {
-    return compileWrapWithDropRecreateIndices(importFilesStep.getSpaceId(),importFilesStep );
+    try {
+      //Keep these indices if FeatureWriter is used
+      List<Index> whiteListIndex = importFilesStep.useFeatureWriter() ? List.of(VERSION_ID, NEXT_VERSION, OPERATION) : null;
+      return compileWrapWithDropRecreateIndices(importFilesStep.getSpaceId(), importFilesStep, whiteListIndex);
+    } catch (WebClientException e) {
+      throw new CompilationError("Unexpected error occurred during compilation", e);
+    }
   }
 
   private EntityPerLine getEntityPerLine(FileFormat format) {

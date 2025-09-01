@@ -614,7 +614,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/DatasetDescription'
         - type: object
-          description: The files dataset depicts a set of files which can be adressed by the user for uploading / downloading data.
+          description: The files dataset depicts a set of files which can be addressed by the user for uploading / downloading data.
           properties:
             type:
               description: The type is "Files"
@@ -627,7 +627,7 @@ components:
         - $ref: '#/components/schemas/FilesDataset'
         - type: object
           description: >-
-            The source files dataset depicts a set of files which can be adressed by the user for uploading data.
+            The source files dataset depicts a set of files which can be addressed by the user for uploading data.
             The options in "inputSettings" can be used to specify the input format the job should expect etc.
           properties:
             inputSettings:
@@ -1042,7 +1042,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/JobOutput'
         - type: object
-          description: Contains the downlaod url for the datasets of a jobs.
+          description: Contains the download url for the datasets of a jobs.
           properties:
             type:
               description: The type is "DownloadUrl"
@@ -1055,7 +1055,7 @@ components:
               example: https://foo.com/import/h3TGlF/part_1.csv
               type: string
             byteSize:
-              description: The size of the data to be downlaoded in bytes.
+              description: The size of the data to be downloaded in bytes.
               example: 409600
               type: number
     FeatureStatistics:
@@ -1075,7 +1075,7 @@ components:
               example: 28075
               type: number
             byteSize:
-              description: The size of the data to be downlaoded in bytes.
+              description: The size of the data to be downloaded in bytes.
               example: 409600
               type: number
     JobStatus:

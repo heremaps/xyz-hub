@@ -33,7 +33,6 @@ import com.here.xyz.hub.rest.ChangesetApi;
 import com.here.xyz.hub.rest.ConnectorApi;
 import com.here.xyz.hub.rest.FeatureApi;
 import com.here.xyz.hub.rest.FeatureQueryApi;
-import com.here.xyz.hub.rest.JobProxyApi;
 import com.here.xyz.hub.rest.SpaceApi;
 import com.here.xyz.hub.rest.SubscriptionApi;
 import com.here.xyz.hub.rest.TagApi;
@@ -131,19 +130,20 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
         route.addHandler(jwtHandler);
       }
 
-      new FeatureApi(rb);
+      FeatureApi featureApi = new FeatureApi(rb);
       new FeatureQueryApi(rb);
       new SpaceApi(rb);
       new ConnectorApi(rb);
       new SubscriptionApi(rb);
       new ChangesetApi(rb);
-      new JobProxyApi(rb);
       new TagApi(rb);
 
       final Router router = rb.createRouter();
 
       new HealthApi(vertx, router);
       new AdminApi(vertx, router, jwtHandler);
+
+      featureApi.activatePrivateRoutes(router, jwtHandler);
 
       //OpenAPI resources
       router.route("/hub/static/openapi/*").handler(createCorsHandler()).handler((routingContext -> {

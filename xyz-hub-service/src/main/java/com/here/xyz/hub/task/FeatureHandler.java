@@ -27,6 +27,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
 import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_REQUIRED;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static software.amazon.awssdk.utils.CollectionUtils.isNullOrEmpty;
 
 import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
@@ -106,7 +107,12 @@ public class FeatureHandler {
             else
               promise.fail(new RuntimeException("Received unexpected response from storage connector: " + ar.result().getClass().getSimpleName()));
           });
-      return promise.future();
+      return promise.future()
+          .compose(response -> {
+            if (!isNullOrEmpty(response.getInserted()) || !isNullOrEmpty(response.getUpdated()) || !isNullOrEmpty(response.getDeleted()))
+              space.updateContentUpdatedAt(marker);
+            return Future.succeededFuture(response);
+          });
 
       //TODO: (For later) In FeatureWriter (also return unmodified features?)
       //.then(FeatureTaskHandler::extractUnmodifiedFeatures)
@@ -141,7 +147,7 @@ public class FeatureHandler {
     }
   }
 
-  static void injectSpaceParams(Event event, Space space) {
+  public static void injectSpaceParams(Event event, Space space) {
     event.setSpace(space.getId());
     if (event instanceof ContextAwareEvent contextAwareEvent)
       contextAwareEvent.setVersionsToKeep(space.getVersionsToKeep());
@@ -206,7 +212,7 @@ public class FeatureHandler {
               "The resource contains " + currentSpaceCount + " features and cannot store any more features.");
   }
 
-  private static RpcClient getRpcClient(Connector refConnector) throws HttpException {
+  public static RpcClient getRpcClient(Connector refConnector) throws HttpException {
     try {
       return RpcClient.getInstanceFor(refConnector);
     }
