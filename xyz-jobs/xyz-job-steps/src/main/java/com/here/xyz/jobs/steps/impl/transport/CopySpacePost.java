@@ -25,6 +25,8 @@ import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_E
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_RESUME;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.inputs.InputFromOutput;
@@ -60,7 +62,8 @@ public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
     setOutputSets(List.of(new OutputSet(STATISTICS, USER, true)));
   }
 
-  public CopySpacePost(String spaceId) {
+  @JsonCreator(mode = JsonCreator.Mode.PROPERTIES)
+  public CopySpacePost(@JsonProperty(value = "spaceId", required = true) String spaceId) {
     super(spaceId);
   }
 

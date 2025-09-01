@@ -49,6 +49,7 @@ public class CompressFilesStepTest extends StepTest {
 
     CompressFiles step = new CompressFiles()
         .withJobId(JOB_ID)
+        .withOutputSetGroup("test")
         .withOutputSetVisibility(COMPRESSED_DATA, USER)
         .withInputSets(List.of(USER_INPUTS.get()));
 
@@ -67,6 +68,7 @@ public class CompressFilesStepTest extends StepTest {
 
     CompressFiles step = new CompressFiles()
         .withJobId(JOB_ID)
+        .withOutputSetGroup("test")
         .withOutputSetVisibility(COMPRESSED_DATA, USER)
         .withInputSets(List.of(USER_INPUTS.get()));
 
@@ -88,6 +90,7 @@ public class CompressFilesStepTest extends StepTest {
     CompressFiles step = new CompressFiles()
         .withArchiveFileNamePrefix("test_prefix")
         .withJobId(JOB_ID)
+        .withOutputSetGroup("test")
         .withOutputSetVisibility(COMPRESSED_DATA, USER)
         .withInputSets(List.of(USER_INPUTS.get()));
 
@@ -109,6 +112,7 @@ public class CompressFilesStepTest extends StepTest {
     CompressFiles step = new CompressFiles()
         .withArchiveFileNamePrefix(" ")
         .withJobId(JOB_ID)
+        .withOutputSetGroup("test")
         .withOutputSetVisibility(COMPRESSED_DATA, USER)
         .withInputSets(List.of(USER_INPUTS.get()));
 
@@ -121,6 +125,7 @@ public class CompressFilesStepTest extends StepTest {
     CompressFiles step = new CompressFiles()
         .withDesiredContainedFilesize(0)
         .withJobId(JOB_ID)
+        .withOutputSetGroup("test")
         .withOutputSetVisibility(COMPRESSED_DATA, USER)
         .withInputSets(List.of(USER_INPUTS.get()));
 
@@ -136,6 +141,7 @@ public class CompressFilesStepTest extends StepTest {
 
     CompressFiles step = new CompressFiles()
         .withJobId(JOB_ID)
+        .withOutputSetGroup("test")
         .withOutputSetVisibility(COMPRESSED_DATA, USER)
         .withInputSets(List.of(USER_INPUTS.get()));
 
@@ -162,6 +168,7 @@ public class CompressFilesStepTest extends StepTest {
     CompressFiles step = new CompressFiles()
         .withDesiredContainedFilesize(100 * 1024 * 1024)
         .withJobId(JOB_ID)
+        .withOutputSetGroup("test")
         .withOutputSetVisibility(COMPRESSED_DATA, USER)
         .withInputSets(List.of(USER_INPUTS.get()));
 
@@ -190,6 +197,7 @@ public class CompressFilesStepTest extends StepTest {
 
     CompressFiles step = new CompressFiles()
         .withJobId(JOB_ID)
+        .withOutputSetGroup("test")
         .withOutputSetVisibility(COMPRESSED_DATA, USER)
         .withInputSets(List.of(new Step.InputSet(JOB_ID, mockStepId, mockOutputStepName, false)));
 
@@ -212,6 +220,7 @@ public class CompressFilesStepTest extends StepTest {
 
     CompressFiles step = new CompressFiles()
         .withJobId(JOB_ID)
+        .withOutputSetGroup("test")
         .withOutputSetVisibility(COMPRESSED_DATA, USER)
         .withInputSets(List.of(USER_INPUTS.get()));
 
@@ -235,6 +244,7 @@ public class CompressFilesStepTest extends StepTest {
     CompressFiles step = new CompressFiles()
         .withGroupByMetadataKey("")
         .withJobId(JOB_ID)
+        .withOutputSetGroup("test")
         .withOutputSetVisibility(COMPRESSED_DATA, USER)
         .withInputSets(List.of(USER_INPUTS.get()));
 
@@ -269,6 +279,7 @@ public class CompressFilesStepTest extends StepTest {
         .withDesiredContainedFilesize(100 * 1024 * 1024)
         .withGroupByMetadataKey("layer")
         .withJobId(JOB_ID)
+        .withOutputSetGroup("test")
         .withOutputSetVisibility(COMPRESSED_DATA, USER)
         .withInputSets(List.of(new Step.InputSet(JOB_ID, mockStepId, mockOutputStepName, false, Map.of("layer", layer))));
 
@@ -299,6 +310,7 @@ public class CompressFilesStepTest extends StepTest {
     CompressFiles step = new CompressFiles()
         .withGroupByMetadataKey("layer")
         .withJobId(JOB_ID)
+        .withOutputSetGroup("test")
         .withOutputSetVisibility(COMPRESSED_DATA, USER)
         .withInputSets(List.of(new Step.InputSet(JOB_ID, mockStepId, mockOutputStepName, false, Map.of("layer", layer))));
 
@@ -331,6 +343,7 @@ public class CompressFilesStepTest extends StepTest {
     CompressFiles step = new CompressFiles()
         .withGroupByMetadataKey("layer")
         .withJobId(JOB_ID)
+        .withOutputSetGroup("test")
         .withOutputSetVisibility(COMPRESSED_DATA, USER)
         .withInputSets(List.of(
             new Step.InputSet(JOB_ID, mockStepId, mockOutputStepName, false, Map.of(
@@ -378,6 +391,7 @@ public class CompressFilesStepTest extends StepTest {
     CompressFiles step = new CompressFiles()
         .withGroupByMetadataKey("layer")
         .withJobId(JOB_ID)
+        .withOutputSetGroup("test")
         .withOutputSetVisibility(COMPRESSED_DATA, USER)
         .withInputSets(List.of(
             new Step.InputSet(JOB_ID, mockStepId, mockOutputStepName, false, Map.of(
@@ -428,6 +442,7 @@ public class CompressFilesStepTest extends StepTest {
         .withDesiredContainedFilesize(100 * 1024 * 1024)
         .withGroupByMetadataKey("layer")
         .withJobId(JOB_ID)
+        .withOutputSetGroup("test")
         .withOutputSetVisibility(COMPRESSED_DATA, USER)
         .withInputSets(List.of(
             new Step.InputSet(JOB_ID, mockStepId, mockOutputStepName, false, Map.of(
@@ -466,6 +481,7 @@ public class CompressFilesStepTest extends StepTest {
     CompressFiles step = new CompressFiles()
         .withGroupByMetadataKey("nonExistentKey")
         .withJobId(JOB_ID)
+        .withOutputSetGroup("test")
         .withOutputSetVisibility(COMPRESSED_DATA, USER)
         .withInputSets(List.of(new Step.InputSet(JOB_ID, mockStepId, mockOutputStepName, false, Map.of())));
 
@@ -549,6 +565,7 @@ public class CompressFilesStepTest extends StepTest {
     CompressFiles step = new CompressFiles()
         .withDesiredContainedFilesize(10)
         .withJobId(JOB_ID)
+        .withOutputSetGroup("test")
         .withOutputSetVisibility(COMPRESSED_DATA, USER)
         .withInputSets(List.of(USER_INPUTS.get()));
 
@@ -596,6 +613,7 @@ public class CompressFilesStepTest extends StepTest {
     CompressFiles step = new CompressFiles()
         .withDesiredContainedFilesize(1024 * 1024)
         .withJobId(JOB_ID)
+        .withOutputSetGroup("test")
         .withOutputSetVisibility(COMPRESSED_DATA, USER)
         .withInputSets(List.of(USER_INPUTS.get()));
 
@@ -636,6 +654,7 @@ public class CompressFilesStepTest extends StepTest {
     CompressFiles step = new CompressFiles()
         .withDesiredContainedFilesize(3)
         .withJobId(JOB_ID)
+        .withOutputSetGroup("test")
         .withOutputSetVisibility(COMPRESSED_DATA, USER)
         .withInputSets(List.of(USER_INPUTS.get()));
 
