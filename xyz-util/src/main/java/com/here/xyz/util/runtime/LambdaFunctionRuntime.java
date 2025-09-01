@@ -30,11 +30,14 @@ public class LambdaFunctionRuntime extends FunctionRuntime {
   private String streamId;
 
   public LambdaFunctionRuntime(LambdaFunctionRuntime runtime, String streamId) {
-    this.context = runtime.context;
-    this.streamId = streamId;
+    init(runtime.context , streamId);
   }
 
   public LambdaFunctionRuntime(Context context, String streamId) {
+    init(context, streamId);
+  }
+
+  private void init(Context context, String streamId) {
     if (context == null)
       throw new NullPointerException("Context is missing for LambdaConnectorRuntime.");
     this.context = context;
