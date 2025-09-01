@@ -47,9 +47,8 @@ public class CompressFilesStepTest extends StepTest {
   public void testOutputIsCompressed() throws Exception {
     uploadInputFile(JOB_ID, ByteStreams.toByteArray(inputStream("/testFiles/file2.geojson")), APPLICATION_JSON);
 
-    CompressFiles step = new CompressFiles()
+    CompressFiles step = new CompressFiles(JOB_ID)
         .withJobId(JOB_ID)
-        .withOutputSetGroup("test")
         .withOutputSetVisibility(COMPRESSED_DATA, USER)
         .withInputSets(List.of(USER_INPUTS.get()));
 
@@ -66,9 +65,8 @@ public class CompressFilesStepTest extends StepTest {
   public void testSingleFileCompression() throws Exception {
     uploadInputFile(JOB_ID, ByteStreams.toByteArray(inputStream("/testFiles/file2.geojson")), APPLICATION_JSON);
 
-    CompressFiles step = new CompressFiles()
+    CompressFiles step = new CompressFiles(JOB_ID)
         .withJobId(JOB_ID)
-        .withOutputSetGroup("test")
         .withOutputSetVisibility(COMPRESSED_DATA, USER)
         .withInputSets(List.of(USER_INPUTS.get()));
 
@@ -87,10 +85,9 @@ public class CompressFilesStepTest extends StepTest {
   public void testCompressionWithArchiveName() throws Exception {
     uploadInputFile(JOB_ID, ByteStreams.toByteArray(inputStream("/testFiles/file2.geojson")), APPLICATION_JSON);
 
-    CompressFiles step = new CompressFiles()
+    CompressFiles step = new CompressFiles(JOB_ID)
         .withArchiveFileNamePrefix("test_prefix")
         .withJobId(JOB_ID)
-        .withOutputSetGroup("test")
         .withOutputSetVisibility(COMPRESSED_DATA, USER)
         .withInputSets(List.of(USER_INPUTS.get()));
 
@@ -109,10 +106,9 @@ public class CompressFilesStepTest extends StepTest {
   public void testCompressionWithEmptyArchiveName() throws Exception {
     uploadInputFile(JOB_ID, ByteStreams.toByteArray(inputStream("/testFiles/file2.geojson")), APPLICATION_JSON);
 
-    CompressFiles step = new CompressFiles()
+    CompressFiles step = new CompressFiles(JOB_ID)
         .withArchiveFileNamePrefix(" ")
         .withJobId(JOB_ID)
-        .withOutputSetGroup("test")
         .withOutputSetVisibility(COMPRESSED_DATA, USER)
         .withInputSets(List.of(USER_INPUTS.get()));
 
@@ -122,10 +118,9 @@ public class CompressFilesStepTest extends StepTest {
   @Test
   public void testValidationThrowsErrorOnInvalidDesiredSize() throws Exception {
 
-    CompressFiles step = new CompressFiles()
+    CompressFiles step = new CompressFiles(JOB_ID)
         .withDesiredContainedFilesize(0)
         .withJobId(JOB_ID)
-        .withOutputSetGroup("test")
         .withOutputSetVisibility(COMPRESSED_DATA, USER)
         .withInputSets(List.of(USER_INPUTS.get()));
 
@@ -139,9 +134,8 @@ public class CompressFilesStepTest extends StepTest {
     uploadInputFile(JOB_ID, ByteStreams.toByteArray(inputStream("/testFiles/file1.geojson")), APPLICATION_JSON);
     uploadInputFile(JOB_ID, ByteStreams.toByteArray(inputStream("/testFiles/file2.geojson")), APPLICATION_JSON);
 
-    CompressFiles step = new CompressFiles()
+    CompressFiles step = new CompressFiles(JOB_ID)
         .withJobId(JOB_ID)
-        .withOutputSetGroup("test")
         .withOutputSetVisibility(COMPRESSED_DATA, USER)
         .withInputSets(List.of(USER_INPUTS.get()));
 
@@ -165,10 +159,9 @@ public class CompressFilesStepTest extends StepTest {
     uploadInputFile(JOB_ID, ByteStreams.toByteArray(inputStream("/testFiles/file2.geojson")), APPLICATION_JSON);
     uploadInputFile(JOB_ID, ByteStreams.toByteArray(inputStream("/testFiles/file2.geojson")), APPLICATION_JSON);
 
-    CompressFiles step = new CompressFiles()
+    CompressFiles step = new CompressFiles(JOB_ID)
         .withDesiredContainedFilesize(100 * 1024 * 1024)
         .withJobId(JOB_ID)
-        .withOutputSetGroup("test")
         .withOutputSetVisibility(COMPRESSED_DATA, USER)
         .withInputSets(List.of(USER_INPUTS.get()));
 
@@ -195,9 +188,8 @@ public class CompressFilesStepTest extends StepTest {
     uploadOutputFile(JOB_ID, mockStepId, mockOutputStepName,
         ByteStreams.toByteArray(inputStream("/testFiles/file2.geojson")), APPLICATION_JSON);
 
-    CompressFiles step = new CompressFiles()
+    CompressFiles step = new CompressFiles(JOB_ID)
         .withJobId(JOB_ID)
-        .withOutputSetGroup("test")
         .withOutputSetVisibility(COMPRESSED_DATA, USER)
         .withInputSets(List.of(new Step.InputSet(JOB_ID, mockStepId, mockOutputStepName, false)));
 
@@ -218,9 +210,8 @@ public class CompressFilesStepTest extends StepTest {
 
     uploadInputFile(JOB_ID, new byte[0], APPLICATION_JSON);
 
-    CompressFiles step = new CompressFiles()
+    CompressFiles step = new CompressFiles(JOB_ID)
         .withJobId(JOB_ID)
-        .withOutputSetGroup("test")
         .withOutputSetVisibility(COMPRESSED_DATA, USER)
         .withInputSets(List.of(USER_INPUTS.get()));
 
@@ -241,10 +232,9 @@ public class CompressFilesStepTest extends StepTest {
     uploadInputFile(JOB_ID, ByteStreams.toByteArray(inputStream("/testFiles/file1.geojson")), APPLICATION_JSON);
     uploadInputFile(JOB_ID, ByteStreams.toByteArray(inputStream("/testFiles/file2.geojson")), APPLICATION_JSON);
 
-    CompressFiles step = new CompressFiles()
+    CompressFiles step = new CompressFiles(JOB_ID)
         .withGroupByMetadataKey("")
         .withJobId(JOB_ID)
-        .withOutputSetGroup("test")
         .withOutputSetVisibility(COMPRESSED_DATA, USER)
         .withInputSets(List.of(USER_INPUTS.get()));
 
@@ -275,11 +265,10 @@ public class CompressFilesStepTest extends StepTest {
     uploadOutputFile(JOB_ID, mockStepId, mockOutputStepName,
         ByteStreams.toByteArray(inputStream("/testFiles/file2.geojson")), APPLICATION_JSON);
 
-    CompressFiles step = new CompressFiles()
+    CompressFiles step = new CompressFiles(JOB_ID)
         .withDesiredContainedFilesize(100 * 1024 * 1024)
         .withGroupByMetadataKey("layer")
         .withJobId(JOB_ID)
-        .withOutputSetGroup("test")
         .withOutputSetVisibility(COMPRESSED_DATA, USER)
         .withInputSets(List.of(new Step.InputSet(JOB_ID, mockStepId, mockOutputStepName, false, Map.of("layer", layer))));
 
@@ -307,10 +296,9 @@ public class CompressFilesStepTest extends StepTest {
     uploadOutputFile(JOB_ID, mockStepId, mockOutputStepName,
         ByteStreams.toByteArray(inputStream("/testFiles/file2.geojson")), APPLICATION_JSON);
 
-    CompressFiles step = new CompressFiles()
+    CompressFiles step = new CompressFiles(JOB_ID)
         .withGroupByMetadataKey("layer")
         .withJobId(JOB_ID)
-        .withOutputSetGroup("test")
         .withOutputSetVisibility(COMPRESSED_DATA, USER)
         .withInputSets(List.of(new Step.InputSet(JOB_ID, mockStepId, mockOutputStepName, false, Map.of("layer", layer))));
 
@@ -340,10 +328,9 @@ public class CompressFilesStepTest extends StepTest {
     uploadOutputFile(JOB_ID, mockStepId2, mockOutputStepName,
         ByteStreams.toByteArray(inputStream("/testFiles/file2.geojson")), APPLICATION_JSON);
 
-    CompressFiles step = new CompressFiles()
+    CompressFiles step = new CompressFiles(JOB_ID)
         .withGroupByMetadataKey("layer")
         .withJobId(JOB_ID)
-        .withOutputSetGroup("test")
         .withOutputSetVisibility(COMPRESSED_DATA, USER)
         .withInputSets(List.of(
             new Step.InputSet(JOB_ID, mockStepId, mockOutputStepName, false, Map.of(
@@ -388,10 +375,9 @@ public class CompressFilesStepTest extends StepTest {
     uploadOutputFile(JOB_ID, mockStepId2, mockOutputStepName,
         ByteStreams.toByteArray(inputStream("/testFiles/file2.geojson")), APPLICATION_JSON);
 
-    CompressFiles step = new CompressFiles()
+    CompressFiles step = new CompressFiles(JOB_ID)
         .withGroupByMetadataKey("layer")
         .withJobId(JOB_ID)
-        .withOutputSetGroup("test")
         .withOutputSetVisibility(COMPRESSED_DATA, USER)
         .withInputSets(List.of(
             new Step.InputSet(JOB_ID, mockStepId, mockOutputStepName, false, Map.of(
@@ -438,11 +424,10 @@ public class CompressFilesStepTest extends StepTest {
     uploadOutputFile(JOB_ID, mockStepId2, mockOutputStepName,
         ByteStreams.toByteArray(inputStream("/testFiles/file2.geojson")), APPLICATION_JSON);
 
-    CompressFiles step = new CompressFiles()
+    CompressFiles step = new CompressFiles(JOB_ID)
         .withDesiredContainedFilesize(100 * 1024 * 1024)
         .withGroupByMetadataKey("layer")
         .withJobId(JOB_ID)
-        .withOutputSetGroup("test")
         .withOutputSetVisibility(COMPRESSED_DATA, USER)
         .withInputSets(List.of(
             new Step.InputSet(JOB_ID, mockStepId, mockOutputStepName, false, Map.of(
@@ -478,10 +463,9 @@ public class CompressFilesStepTest extends StepTest {
     uploadOutputFile(JOB_ID, mockStepId, mockOutputStepName,
         ByteStreams.toByteArray(inputStream("/testFiles/file2.geojson")), APPLICATION_JSON);
 
-    CompressFiles step = new CompressFiles()
+    CompressFiles step = new CompressFiles(JOB_ID)
         .withGroupByMetadataKey("nonExistentKey")
         .withJobId(JOB_ID)
-        .withOutputSetGroup("test")
         .withOutputSetVisibility(COMPRESSED_DATA, USER)
         .withInputSets(List.of(new Step.InputSet(JOB_ID, mockStepId, mockOutputStepName, false, Map.of())));
 
@@ -498,7 +482,7 @@ public class CompressFilesStepTest extends StepTest {
 
   @Test
   public void testUnwrapPathWithLevelMinusOne() {
-    CompressFiles compressFiles = new CompressFiles().withUnwrapFolderLevel(-1);
+    CompressFiles compressFiles = new CompressFiles(JOB_ID).withUnwrapFolderLevel(-1);
     String originalPath = "folder/subfolder/files";
     String result = compressFiles.unwrapPath(originalPath);
     Assertions.assertEquals(originalPath, result);
@@ -506,7 +490,7 @@ public class CompressFilesStepTest extends StepTest {
 
   @Test
   public void testUnwrapPathWithLevelZero() {
-    CompressFiles compressFiles = new CompressFiles().withUnwrapFolderLevel(0);
+    CompressFiles compressFiles = new CompressFiles(JOB_ID).withUnwrapFolderLevel(0);
     String originalPath = "folder/subfolder/files";
     String result = compressFiles.unwrapPath(originalPath);
     Assertions.assertEquals(null, result);
@@ -514,7 +498,7 @@ public class CompressFilesStepTest extends StepTest {
 
   @Test
   public void testUnwrapPathWithOneLevel() {
-    CompressFiles compressFiles = new CompressFiles().withUnwrapFolderLevel(1);
+    CompressFiles compressFiles = new CompressFiles(JOB_ID).withUnwrapFolderLevel(1);
     String originalPath = "folder/subfolder/files";
     String result = compressFiles.unwrapPath(originalPath);
     Assertions.assertEquals("subfolder/files", result);
@@ -522,7 +506,7 @@ public class CompressFilesStepTest extends StepTest {
 
   @Test
   public void testUnwrapPathWithPositiveLevel() {
-    CompressFiles compressFiles = new CompressFiles().withUnwrapFolderLevel(2);
+    CompressFiles compressFiles = new CompressFiles(JOB_ID).withUnwrapFolderLevel(2);
     String originalPath = "folder/subfolder/files";
     String result = compressFiles.unwrapPath(originalPath);
     Assertions.assertEquals("files", result);
@@ -530,7 +514,7 @@ public class CompressFilesStepTest extends StepTest {
 
   @Test
   public void testUnwrapPathWithPositiveLevelEqualToParts() {
-    CompressFiles compressFiles = new CompressFiles().withUnwrapFolderLevel(3);
+    CompressFiles compressFiles = new CompressFiles(JOB_ID).withUnwrapFolderLevel(3);
     String originalPath = "folder/subfolder/files";
     String result = compressFiles.unwrapPath(originalPath);
     Assertions.assertEquals(null, result);
@@ -538,7 +522,7 @@ public class CompressFilesStepTest extends StepTest {
 
   @Test
   public void testUnwrapPathWithPositiveLevelGreaterThanParts() {
-    CompressFiles compressFiles = new CompressFiles().withUnwrapFolderLevel(5);
+    CompressFiles compressFiles = new CompressFiles(JOB_ID).withUnwrapFolderLevel(5);
     String originalPath = "folder/subfolder/files";
     String result = compressFiles.unwrapPath(originalPath);
     Assertions.assertEquals(null, result);
@@ -546,7 +530,7 @@ public class CompressFilesStepTest extends StepTest {
 
   @Test
   public void testUnwrapPathWithEmptyPath() {
-    CompressFiles compressFiles = new CompressFiles().withUnwrapFolderLevel(1);
+    CompressFiles compressFiles = new CompressFiles(JOB_ID).withUnwrapFolderLevel(1);
     String originalPath = "files";
     String result = compressFiles.unwrapPath(originalPath);
     Assertions.assertEquals(null, result);
@@ -562,10 +546,9 @@ public class CompressFilesStepTest extends StepTest {
     byte[] fileBytes = fileContent.getBytes();
     uploadInputFile(JOB_ID, fileBytes, APPLICATION_JSON);
 
-    CompressFiles step = new CompressFiles()
+    CompressFiles step = new CompressFiles(JOB_ID)
         .withDesiredContainedFilesize(10)
         .withJobId(JOB_ID)
-        .withOutputSetGroup("test")
         .withOutputSetVisibility(COMPRESSED_DATA, USER)
         .withInputSets(List.of(USER_INPUTS.get()));
 
@@ -610,10 +593,9 @@ public class CompressFilesStepTest extends StepTest {
     byte[] fileBytes = content.toString().getBytes();
     uploadInputFile(JOB_ID, fileBytes, APPLICATION_JSON);
 
-    CompressFiles step = new CompressFiles()
+    CompressFiles step = new CompressFiles(JOB_ID)
         .withDesiredContainedFilesize(1024 * 1024)
         .withJobId(JOB_ID)
-        .withOutputSetGroup("test")
         .withOutputSetVisibility(COMPRESSED_DATA, USER)
         .withInputSets(List.of(USER_INPUTS.get()));
 
@@ -651,10 +633,9 @@ public class CompressFilesStepTest extends StepTest {
 
     uploadInputFile(JOB_ID, fileBytes, APPLICATION_JSON);
 
-    CompressFiles step = new CompressFiles()
+    CompressFiles step = new CompressFiles(JOB_ID)
         .withDesiredContainedFilesize(3)
         .withJobId(JOB_ID)
-        .withOutputSetGroup("test")
         .withOutputSetVisibility(COMPRESSED_DATA, USER)
         .withInputSets(List.of(USER_INPUTS.get()));
 

@@ -83,8 +83,7 @@ public class DropIndexStepTest extends StepTest {
     createTestSpace(true);
     Assertions.assertFalse(getSystemIndices(SPACE_ID).isEmpty());
 
-    LambdaBasedStep step = new DropIndexes()
-            .withSpaceId(SPACE_ID)
+    LambdaBasedStep step = new DropIndexes(SPACE_ID)
             .withSpaceDeactivation(false)
             .withIndexWhiteList(List.of(SystemIndex.VERSION_ID, SystemIndex.OPERATION));
     sendLambdaStepRequestBlock(step, true);

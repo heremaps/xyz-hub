@@ -608,10 +608,17 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
 
   @JsonIgnore
   protected void setOutputSets(List<OutputSet> outputSets) {
+    setOutputSets(outputSets, false);
+  }
+
+  @JsonIgnore
+  protected void setOutputSets(List<OutputSet> outputSets, boolean ignoreStepId) {
     if (outputSets.stream().anyMatch(outputSet -> outputSet.visibility == USER) && outputSetGroup == null || outputSetGroup.isBlank()) {
       throw new IllegalStateException("you are registering user-facing output set, please first define outputset group value");
     }
-    outputSets.forEach(outputSet -> outputSet.setStepId(getId()));
+    if (!ignoreStepId) {
+      outputSets.forEach(outputSet -> outputSet.setStepId(getId()));
+    }
     this.outputSets = outputSets;
   }
 

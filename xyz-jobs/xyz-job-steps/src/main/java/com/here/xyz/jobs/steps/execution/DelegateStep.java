@@ -66,11 +66,11 @@ public class DelegateStep extends Step<DelegateStep> {
     NOTE: Only output-sets that are present on the compiled (new) step will be copied from the old one.
     The old step might contain further output-sets that won't be referenced.
      */
-    setOutputSetGroup(delegate.getOutputSetGroup());
+    setOutputSetGroup(delegator.getOutputSetGroup());
     setOutputSets(outputSets != null ? outputSets : delegator.getOutputSets().stream().map(compiledOutputSet -> {
       OutputSet delegateOutputSet = this.delegate.getOutputSets().stream().filter(outputSet -> outputSet.name.equals(compiledOutputSet.name)).findFirst().get();
       return new OutputSet(delegateOutputSet, this.delegate.getJobId(), compiledOutputSet.visibility);
-    }).toList());
+    }).toList(), true);
   }
 
   private Step unwrapDelegate(DelegateStep delegate) {

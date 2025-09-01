@@ -40,7 +40,7 @@ public class S3MetricsCollectorStepTest extends StepTest {
     public void testSingleFileMetricsCollection() throws Exception {
         uploadInputFile(JOB_ID, ByteStreams.toByteArray(inputStream("/testFiles/file1.geojson")), APPLICATION_JSON);
 
-        S3MetricsCollectorStep step = new S3MetricsCollectorStep()
+        S3MetricsCollectorStep step = new S3MetricsCollectorStep(JOB_ID)
                 .withJobId(JOB_ID)
                 .withOutputSetVisibility(S3_METRICS, USER)
                 .withInputSets(List.of(USER_INPUTS.get()));
@@ -62,7 +62,7 @@ public class S3MetricsCollectorStepTest extends StepTest {
         uploadInputFile(JOB_ID, ByteStreams.toByteArray(inputStream("/testFiles/file1.geojson")), APPLICATION_JSON);
         uploadInputFile(JOB_ID, ByteStreams.toByteArray(inputStream("/testFiles/file2.geojson")), APPLICATION_JSON);
 
-        S3MetricsCollectorStep step = new S3MetricsCollectorStep()
+        S3MetricsCollectorStep step = new S3MetricsCollectorStep(JOB_ID)
                 .withJobId(JOB_ID)
                 .withOutputSetVisibility(S3_METRICS, USER)
                 .withInputSets(List.of(USER_INPUTS.get()));
@@ -83,7 +83,7 @@ public class S3MetricsCollectorStepTest extends StepTest {
     public void testVersionAndTagAttributes() throws Exception {
         uploadInputFile(JOB_ID, ByteStreams.toByteArray(inputStream("/testFiles/file1.geojson")), APPLICATION_JSON);
 
-        S3MetricsCollectorStep step = new S3MetricsCollectorStep()
+        S3MetricsCollectorStep step = new S3MetricsCollectorStep(JOB_ID)
                 .withVersion(new Ref("1"))
                 .withProvidedTag("test-tag")
                 .withJobId(JOB_ID)
@@ -105,7 +105,7 @@ public class S3MetricsCollectorStepTest extends StepTest {
     @Test
     public void testEmptyInputs() throws Exception {
 
-        S3MetricsCollectorStep step = new S3MetricsCollectorStep()
+        S3MetricsCollectorStep step = new S3MetricsCollectorStep(JOB_ID)
                 .withJobId(JOB_ID)
                 .withOutputSetVisibility(S3_METRICS, USER)
                 .withInputSets(List.of(USER_INPUTS.get()));
@@ -122,7 +122,7 @@ public class S3MetricsCollectorStepTest extends StepTest {
         String jsonWithoutFeatures = "{\"type\": \"FeatureCollection\", \"features\": []}";
         uploadInputFile(JOB_ID, jsonWithoutFeatures.getBytes(), APPLICATION_JSON);
 
-        S3MetricsCollectorStep step = new S3MetricsCollectorStep()
+        S3MetricsCollectorStep step = new S3MetricsCollectorStep(JOB_ID)
                 .withJobId(JOB_ID)
                 .withOutputSetVisibility(S3_METRICS, USER)
                 .withInputSets(List.of(USER_INPUTS.get()));
@@ -144,7 +144,7 @@ public class S3MetricsCollectorStepTest extends StepTest {
     public void testBothOutputSetsHaveSameContent() throws Exception {
         uploadInputFile(JOB_ID, ByteStreams.toByteArray(inputStream("/testFiles/file1.geojson")), APPLICATION_JSON);
 
-        S3MetricsCollectorStep step = new S3MetricsCollectorStep()
+        S3MetricsCollectorStep step = new S3MetricsCollectorStep(JOB_ID)
                 .withJobId(JOB_ID)
                 .withInputSets(List.of(USER_INPUTS.get()));
 
@@ -165,7 +165,7 @@ public class S3MetricsCollectorStepTest extends StepTest {
     public void testMetadataUpload() throws Exception {
         uploadInputFile(JOB_ID, ByteStreams.toByteArray(inputStream("/testFiles/file1.geojson")), APPLICATION_JSON);
 
-        S3MetricsCollectorStep step = new S3MetricsCollectorStep()
+        S3MetricsCollectorStep step = new S3MetricsCollectorStep(JOB_ID)
                 .withJobId(JOB_ID)
                 .withOutputMetadata(Map.of("layerId", "address"))
                 .withInputSets(List.of(USER_INPUTS.get()));
