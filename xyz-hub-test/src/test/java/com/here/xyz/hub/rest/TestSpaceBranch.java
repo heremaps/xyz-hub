@@ -25,6 +25,7 @@ import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.geojson.implementation.Properties;
+import com.here.xyz.models.hub.Branch;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import io.restassured.response.ValidatableResponse;
@@ -42,25 +43,29 @@ import static io.restassured.RestAssured.given;
 public class TestSpaceBranch extends TestSpaceWithFeature {
 
   protected ValidatableResponse createBranch(String spaceId, String branchId, String ref) {
+
+    //TODO: Remove when service defaults to HEAD if not provided
+    ref = ref == null || ref.equals("HEAD") ? "HEAD" : !ref.contains(":") ? ref + ":HEAD" : ref;
+
     return given()
             .contentType(APPLICATION_JSON)
             .accept(APPLICATION_JSON)
             .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-            .body("{\"id\":\""+branchId+"\",\"baseRef\":\""+ref+"\"}")
+            .body(JsonObject.of("id", branchId, "baseRef", ref).encode())
             .when()
             .post(getSpaceBranchPath(spaceId, null))
             .then()
             .statusCode(OK.code());
   }
 
-  protected JsonArray getBranches(String spaceId) {
+  protected List<Branch> getBranches(String spaceId) {
     return given()
             .contentType(APPLICATION_JSON)
             .accept(APPLICATION_JSON)
             .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
             .when()
             .get(getSpaceBranchPath(spaceId, null))
-            .body().as(JsonArray.class);
+            .body().as(List.class);
   }
 
   protected void deleteBranch(String spaceId, String branchId) {
@@ -87,7 +92,8 @@ public class TestSpaceBranch extends TestSpaceWithFeature {
 
   protected FeatureCollection addFeaturesToBranch(String spaceId, String branchId, FeatureCollection featureCollection) throws WebClientException {
     return (FeatureCollection) HubWebClient.getInstance(RestAssuredConfig.config().fullHubUri)
-            .postFeatures(spaceId, featureCollection, Map.of("versionRef", branchId));
+            //TODO: query param to versionRef after it changed in service
+            .postFeatures(spaceId, featureCollection, branchId == null ? null : Map.of("branch", branchId));
   }
 
   protected FeatureCollection addFeatureToBranch(String spaceId, String branchId, Feature feature) throws WebClientException {
@@ -101,7 +107,7 @@ public class TestSpaceBranch extends TestSpaceWithFeature {
 
   protected void removeAllBranchesForSpace(String spaceId) {
     List<String> allBranchIds = getBranches(spaceId).stream()
-            .map(branch -> ((JsonObject) branch).getString("id"))
+            .map(branch -> branch.getId())
             .collect(Collectors.toList());
 
     for(String branchId : allBranchIds) {
