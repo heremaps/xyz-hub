@@ -25,14 +25,15 @@ const FeatureWriter = plv8.FeatureWriter;
 const DatabaseWriter = plv8.DatabaseWriter;
 
 
-global.queryContext = () => ({
-  schema: "public",
-  tables: ["composite-export-space", "composite-export-space-ext", "composite-export-space-ext-ext"],
-  context: "DEFAULT",
-  historyEnabled: false
-});
+global.queryContext = () => TestFeatureWriter.queryContext;
 
 class TestFeatureWriter {
+  static queryContext = {
+    "schema" : "public",
+    "historyEnabled" : true,
+    "batchMode" : true,
+    "tables" : [ "x-psql-test" ]
+  };
 
   inputFeature = {
     "id": "id4",
@@ -64,6 +65,29 @@ class TestFeatureWriter {
     featureHooks: null
   }];
 
+  sqlQueryJson = {
+    "namedParameters" : {
+      "author" : "XYZ-01234567-89ab-cdef-0123-456789aUSER1",
+      "responseDataExpected" : true,
+      "modifications" : "[{\"updateStrategy\":{\"onExists\":\"REPLACE\",\"onNotExists\":\"CREATE\"},\"featureData\":{\"type\":\"FeatureCollection\",\"features\":[{\"type\":\"Feature\",\"id\":\"F1\",\"geometry\":{\"type\":\"Point\",\"coordinates\":[2.0,2.0]},\"properties\":{\"b\":2}}]},\"partialUpdates\":true}]"
+    },
+    "queryId" : "a6ea901e-9e69-4ca2-afbe-29e4889e6317",
+    "context" : {
+      "schema" : "public",
+      "historyEnabled" : true,
+      "batchMode" : true,
+      "tables" : [ "x-psql-test" ]
+    },
+    "loggingEnabled" : false,
+    "text" : "SELECT write_features(#{modifications}, 'Modifications', #{author}, #{responseDataExpected});"
+  };
+
+  runFromSqlQueryJson() {
+    TestFeatureWriter.queryContext = this.sqlQueryJson.context;
+    let result = FeatureWriter.writeFeatureModifications(JSON.parse(this.sqlQueryJson.namedParameters.modifications || this.sqlQueryJson.namedParameters.featureModificationList || this.sqlQueryJson.namedParameters.jsonInput), this.sqlQueryJson.namedParameters.author, this.sqlQueryJson.namedParameters.version);
+    console.log("Returned result from FeatureWriter: ", result);
+  }
+
   run() {
     let result = FeatureWriter.writeFeature(this.inputFeature, null, "REPLACE", "CREATE", null, null, false, null);
     console.log("Returned result from FeatureWriter: ", result);
@@ -71,4 +95,5 @@ class TestFeatureWriter {
 
 }
 
-new TestFeatureWriter().run();
+// new TestFeatureWriter().run();
+new TestFeatureWriter().runFromSqlQueryJson();
