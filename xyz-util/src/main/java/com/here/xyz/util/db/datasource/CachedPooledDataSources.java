@@ -66,13 +66,25 @@ public class CachedPooledDataSources extends PooledDataSources {
   }
 
   private StaticDataSources getCachedDataSources() {
-    Map<String, StaticDataSources> cacheEntry = cache.get(dbSettings.getId());
+    String settingsId = dbSettings.getId();
     String cacheKey = dbSettings.getCacheKey();
-    if (cacheEntry == null || cacheEntry.get(cacheKey) == null)
-      Optional.ofNullable(cache.put(dbSettings.getId(), cacheEntry = createDataSources(dbSettings.getId(), cacheKey)))
-          .ifPresent(oldCacheEntry -> oldCacheEntry.forEach((k, oldDataSources) -> closeDataSources(dbSettings.getId(), oldDataSources)));
 
-    return cacheEntry.get(cacheKey);
+    Map<String, StaticDataSources> cacheEntry =
+            cache.computeIfAbsent(settingsId, id -> createDataSources(id, cacheKey));
+
+    for (String potentiallyOldCacheKey : cacheEntry.keySet()) {
+      if(!potentiallyOldCacheKey.equals(cacheKey))
+        return cache.computeIfPresent(settingsId, (id, oldCacheEntry) -> {
+          if (oldCacheEntry.containsKey(cacheKey))
+            return oldCacheEntry;
+          oldCacheEntry.forEach((oldCacheKey, oldDataSources) -> closeDataSources(id, oldDataSources));
+          return createDataSources(id, cacheKey);
+        }).get(cacheKey);
+      else
+        return cacheEntry.get(cacheKey);
+    }
+    //Should never happen
+    return null;
   }
 
   private Map<String, StaticDataSources> createDataSources(String settingsId, String cacheKey) {
