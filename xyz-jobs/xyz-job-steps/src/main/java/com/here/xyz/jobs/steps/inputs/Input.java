@@ -237,7 +237,7 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
     if (groups == null) {
       return null;
     }
-    if (outputSetGroup == null) {
+    if (DEFAULT_SET_GROUP.equals(outputSetGroup)) {
       for (Map<String, InputsMetadata> group : groups.values()) {
         InputsMetadata metadata = group.get(setName);
         if (metadata != null) {
@@ -279,7 +279,7 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
     final Page<T> inputs = loadInputsInParallel(defaultBucket(), inputS3Prefix(jobId, setName), limit, nextPageToken, inputType);
     //Only write metadata of jobs which are submitted already
     if (inputs != null && inputs.size() > 0 && inputsCacheActive.contains(jobId) && nextPageToken == null)
-      storeMetadata(jobId, (List<Input>) inputs, setName);
+      storeMetadata(jobId, (List<Input>) inputs.getItems(), setName);
 
     return inputs;
   }
@@ -298,7 +298,7 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
   }
 
   private static Optional<InputsMetadata> loadMetadataIfExists(String jobId, String setName) {
-    return loadMetadataIfExists(jobId, setName, null);
+    return loadMetadataIfExists(jobId, setName, DEFAULT_SET_GROUP);
   }
 
   private static Optional<InputsMetadata> loadMetadataIfExists(String jobId, String setName, String outputSetGroup) {
@@ -311,7 +311,7 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
   }
 
   static final InputsMetadata loadMetadata(String jobId, String setName) throws IOException, S3Exception {
-    return loadMetadata(jobId, setName, null);
+    return loadMetadata(jobId, setName, DEFAULT_SET_GROUP);
   }
 
   static final InputsMetadata loadMetadata(String jobId, String setName, String outputSetGroup) throws IOException, S3Exception {
@@ -335,7 +335,7 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
     InputsMetadata referencedMetadata = loadMetadata(referencedJobId, setName);
     //Add the referencing job to the list of jobs referencing the metadata
     referencedMetadata.referencingJobs().add(referencingJobId);
-    storeMetadata(referencedJobId, referencedMetadata, setName, null);
+    storeMetadata(referencedJobId, referencedMetadata, setName, DEFAULT_SET_GROUP);
   }
 
   static final void storeMetadata(String jobId, InputsMetadata metadata, String setName, String outputSetGroup) {
@@ -355,11 +355,11 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
   }
 
   static final void storeMetadata(String jobId, List<Input> inputs, String referencedJobId, String setName) {
-    storeMetadata(jobId, inputs, referencedJobId, new S3Uri(defaultBucket(), inputS3Prefix(jobId, setName)), setName, null);
+    storeMetadata(jobId, inputs, referencedJobId, new S3Uri(defaultBucket(), inputS3Prefix(jobId, setName)), setName, DEFAULT_SET_GROUP);
   }
 
-  static final void storeMetadata(String forJob, List<Input> inputs, Object o, S3Uri s3Uri, String setName) {
-    storeMetadata(forJob, inputs, null, s3Uri, setName, null);
+  static final void storeMetadata(String forJob, List<Input> inputs, String referencedJobId, S3Uri s3Uri, String setName) {
+    storeMetadata(forJob, inputs, referencedJobId, s3Uri, setName, DEFAULT_SET_GROUP);
   }
 
   static final void storeMetadata(String jobId, List<Input> inputs, String referencedJobId, S3Uri scannedFrom, String setName, String outputSetGroup) {
@@ -402,7 +402,7 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
 
   public static <T extends Input> List<T> loadInputsSample(String jobId, String setName, int limit, Class<T> inputType) {
     // requesting the first page and unwrap to list
-    return loadInputsAndWriteMetadata(jobId, setName, null, limit, null, inputType).getItems();
+    return loadInputsAndWriteMetadata(jobId, setName, DEFAULT_SET_GROUP, limit, null, inputType).getItems();
   }
 
   private static <T extends Input> Page<T> loadAndTransformInputs(String bucketName, String inputS3Prefix, int limit, String nextPageToken, Class<T> inputType) {
@@ -455,7 +455,7 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
       S3Client.getInstance().deleteFolder(inputS3Prefix(owningJobId, setName));
     }
     else if (metadata != null)
-      storeMetadata(owningJobId, metadata, setName, null);
+      storeMetadata(owningJobId, metadata, setName, DEFAULT_SET_GROUP);
   }
 
   private static Input createInput(String s3Bucket, String s3Key, long byteSize, boolean compressed) {

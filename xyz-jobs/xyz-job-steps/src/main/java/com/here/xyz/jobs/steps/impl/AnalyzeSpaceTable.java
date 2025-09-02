@@ -19,6 +19,8 @@
 
 package com.here.xyz.jobs.steps.impl;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.util.db.SQLQuery;
@@ -35,7 +37,8 @@ import org.apache.logging.log4j.Logger;
 public class AnalyzeSpaceTable extends SpaceBasedStep<AnalyzeSpaceTable> {
   private static final Logger logger = LogManager.getLogger();
 
-  public AnalyzeSpaceTable(String spaceId) {
+  @JsonCreator(mode = JsonCreator.Mode.PROPERTIES)
+  public AnalyzeSpaceTable(@JsonProperty(value = "spaceId", required = true) String spaceId) {
     super(spaceId);
   }
 
