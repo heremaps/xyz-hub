@@ -289,8 +289,7 @@ public class JobApi extends JobApiBase {
     final String name = Objects.requireNonNull(retrieveSetName(context));
     loadJob(context, jobId(context))
         .compose(job -> job.loadOutputs(name, group, pageLimit(context), context.queryParams().get("pageToken")))
-        .onSuccess(res -> sendResponse(context, OK.code(), res, new TypeReference<Page<Output>>() {
-        }))
+        .onSuccess(res -> sendResponse(context, OK.code(), res))
         .onFailure(err -> sendErrorResponse(context, err));
   }
 
@@ -299,8 +298,7 @@ public class JobApi extends JobApiBase {
     final String name = Objects.requireNonNull(retrieveSetName(context));
     loadJob(context, jobId(context))
         .compose(job -> job.loadInputs(name, group, pageLimit(context), context.queryParams().get("pageToken")))
-        .onSuccess(res -> sendResponse(context, OK.code(), res, new TypeReference<Page<Input>>() {
-        }))
+        .onSuccess(res -> sendResponse(context, OK.code(), res))
         .onFailure(err -> sendErrorResponse(context, err));
   }
 

@@ -1,12 +1,8 @@
 package com.here.xyz.jobs.steps.outputs;
 
-import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_DEFAULT;
-
-import com.fasterxml.jackson.annotation.JsonInclude;
 import com.here.xyz.XyzSerializable;
 import java.util.Map;
 
-@JsonInclude(NON_DEFAULT)
 public class GroupSummary implements XyzSerializable {
 
   private String type = "OutputGroup";
@@ -18,51 +14,51 @@ public class GroupSummary implements XyzSerializable {
     return type;
   }
 
-  public GroupSummary setType(String type) {
+  public void setType(String type) {
     this.type = type;
-    return this;
   }
 
   public GroupSummary withType(String type) {
-    return setType(type);
+    this.type = type;
+    return this;
   }
 
   public Map<String, SetSummary> getItems() {
     return items;
   }
 
-  public GroupSummary setItems(Map<String, SetSummary> items) {
+  public void setItems(Map<String, SetSummary> items) {
     this.items = items;
-    return this;
   }
 
   public GroupSummary withItems(Map<String, SetSummary> items) {
-    return setItems(items);
+    this.items = items;
+    return this;
   }
 
   public long getItemCount() {
     return itemCount;
   }
 
-  public GroupSummary setItemCount(long itemCount) {
+  public void setItemCount(long itemCount) {
     this.itemCount = itemCount;
-    return this;
   }
 
   public GroupSummary withItemCount(long itemCount) {
-    return setItemCount(itemCount);
+    this.itemCount = itemCount;
+    return this;
   }
 
   public long getByteSize() {
     return byteSize;
   }
 
-  public GroupSummary setByteSize(long byteSize) {
+  public void setByteSize(long byteSize) {
     this.byteSize = byteSize;
-    return this;
   }
 
   public GroupSummary withByteSize(long byteSize) {
-    return setByteSize(byteSize);
+    this.byteSize = byteSize;
+    return this;
   }
 }

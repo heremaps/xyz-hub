@@ -225,6 +225,10 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
     }
   }
 
+  public OutputSet getOutputSetOrNull(String outputSetName) {
+    return outputSets.stream().filter(set -> set.name.equals(outputSetName)).findFirst().orElse(null);
+  }
+
   private void replaceOutputSet(String outputSetName, OutputSet outputSet) {
     outputSets = Stream.concat(
         outputSets.stream().filter(s -> !Objects.equals(s.name, outputSetName)),
@@ -703,6 +707,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
    */
   public record InputSet(String jobId, String providerId, String name, boolean modelBased, Map<String, String> metadata) {
     public static final String DEFAULT_SET_NAME = "inputs"; //Depicts the input set used if no set name is defined
+    public static final String DEFAULT_SET_GROUP = "default"; //Depicts the input set used if no set name is defined
     public static final String USER_PROVIDER = "USER";
     public static final Supplier<InputSet> USER_INPUTS = () -> new InputSet();
 

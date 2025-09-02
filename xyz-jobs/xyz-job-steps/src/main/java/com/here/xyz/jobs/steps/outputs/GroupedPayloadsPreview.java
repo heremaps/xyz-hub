@@ -1,12 +1,8 @@
 package com.here.xyz.jobs.steps.outputs;
 
-import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_DEFAULT;
-
-import com.fasterxml.jackson.annotation.JsonInclude;
 import com.here.xyz.XyzSerializable;
 import java.util.Map;
 
-@JsonInclude(NON_DEFAULT)
 public class GroupedPayloadsPreview implements XyzSerializable {
 
   public static final String OUTPUT_TYPE = "JobOutputs";

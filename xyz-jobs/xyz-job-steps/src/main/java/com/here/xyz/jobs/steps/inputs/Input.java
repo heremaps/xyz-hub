@@ -19,6 +19,8 @@
 
 package com.here.xyz.jobs.steps.inputs;
 
+import static com.here.xyz.jobs.steps.Step.InputSet.DEFAULT_SET_GROUP;
+import static com.here.xyz.jobs.steps.Step.InputSet.DEFAULT_SET_NAME;
 import static com.here.xyz.jobs.util.S3Client.getBucketFromS3Uri;
 import static com.here.xyz.jobs.util.S3Client.getKeyFromS3Uri;
 
@@ -38,6 +40,7 @@ import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.aws.s3.S3ObjectSummary;
 import com.here.xyz.util.service.aws.s3.S3Uri;
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -93,7 +96,7 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
 
   public static GroupedPayloadsPreview previewInputs(String jobId) {
     ensureInputsLoaded(jobId);
-    Map<String, Map<String, InputsMetadata>> cachedGroups = metadataCache.get(jobId);
+    Map<String, Map<String, InputsMetadata>> cachedGroups = metadataCache.getOrDefault(jobId, Map.of());
 
     Map<String, GroupSummary> responseGroups = new ConcurrentHashMap<>();
     cachedGroups.forEach((groupName, metadataMap) -> {
@@ -124,7 +127,7 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
 
   private static void ensureInputsLoaded(String jobId) {
     if (!inputsCacheActive.contains(jobId) || !metadataCache.containsKey(jobId)) {
-      loadInputs(jobId, null);
+      loadInputs(jobId, DEFAULT_SET_NAME);
     }
   }
 
@@ -187,7 +190,7 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
   }
 
   public static List<Input> loadInputs(String jobId, String setName) {
-    return loadInputs(jobId, setName, null, null, -1).getItems();
+    return loadInputs(jobId, setName, DEFAULT_SET_GROUP, null, -1).getItems();
   }
 
   public static Page<Input> loadInputs(String jobId, String setName, String outputSetGroup, String nextPageToken, int limit) {
@@ -208,7 +211,7 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
     Map<String, Map<String, List<Input>>> cachedInputs = inputsCache.get(jobId);
     if (cachedInputs == null)
       cachedInputs = new ConcurrentHashMap<>();
-    cachedInputs.computeIfAbsent(setName, k -> new ConcurrentHashMap<>()).put(outputSetGroup, inputs);
+    cachedInputs.computeIfAbsent(setName, k -> new HashMap<>()).put(outputSetGroup, inputs);
     inputsCache.put(jobId, cachedInputs);
   }
 

@@ -1,11 +1,7 @@
 package com.here.xyz.jobs.steps.outputs;
 
-import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_DEFAULT;
-
-import com.fasterxml.jackson.annotation.JsonInclude;
 import com.here.xyz.XyzSerializable;
 
-@JsonInclude(NON_DEFAULT)
 public class SetSummary implements XyzSerializable {
 
   private String type = "OutputSet";

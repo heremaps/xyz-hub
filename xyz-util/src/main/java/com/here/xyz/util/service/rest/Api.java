@@ -304,11 +304,6 @@ public class Api {
         serializeAndSendResponse(context, statusCode, list, listItemTypeReference, Public.class);
     }
 
-    protected void sendResponse(RoutingContext context, int statusCode, Page<? extends XyzSerializable> list,
-        TypeReference listItemTypeReference) {
-        serializeAndSendResponse(context, statusCode, list, listItemTypeReference, Public.class);
-    }
-
     protected void sendInternalResponse(RoutingContext context, int statusCode, XyzSerializable object) {
         serializeAndSendResponse(context, statusCode, object, null, null); //TODO: Use Internal view here in future
     }
