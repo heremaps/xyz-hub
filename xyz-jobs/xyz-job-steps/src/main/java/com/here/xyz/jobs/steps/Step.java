@@ -643,10 +643,12 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
     if (visibility == USER && outputSetGroup == null || outputSetGroup.isBlank()) {
       throw new IllegalStateException("you are registering user-facing output set, please first define outputset group value");
     }
-    OutputSet outputSet = getOutputSet(outputSetName);
-    replaceOutputSet(outputSetName, new OutputSet(outputSet, outputSet.jobId, visibility)
-        .withStepId(outputSet.stepId)
-    );
+    OutputSet outputSet = getOutputSetOrNull(outputSetName);
+    if (outputSet != null) {
+      replaceOutputSet(outputSetName, new OutputSet(outputSet, outputSet.jobId, visibility)
+          .withStepId(outputSet.stepId)
+      );
+    }
     return (T) this;
   }
 
