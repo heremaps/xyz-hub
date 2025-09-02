@@ -123,7 +123,7 @@ public class BranchFeatureApiIT extends BranchApiIT {
             .body("id", equalTo(branch2));
     addFeatureToBranch(SPACE_ID, branch2, createSampleFeature("b2_1"));
     addFeatureToBranch(SPACE_ID, branch2, createSampleFeature("b2_2"));
-    fc = readFeaturesFromBranch(SPACE_ID, branch1);
+    fc = readFeaturesFromBranch(SPACE_ID, branch2);
     fIds = extractFeatureIds(fc);
     assertEquals(5, fc.getFeatures().size());
     assertTrue(fIds.containsAll(Set.of("main0", "b1_1", "b1_2", "b2_1", "b2_2")));
@@ -198,9 +198,9 @@ public class BranchFeatureApiIT extends BranchApiIT {
     if (endpoint.equals("features"))
       queryParams.put("id", List.of("main0", "f1"));
     else if (endpoint.equals("bbox"))
-      queryParams.put("bbox", "-10,-10,10,10");
+      queryParams.putAll(Map.of("west", "-10", "south", "-10", "east", "10", "north", "10"));
     else if (endpoint.equals("spatial"))
-      queryParams.putAll(Map.of("lat", "0", "lng", "0", "radius", "10"));
+      queryParams.putAll(Map.of("lat", "0", "lon", "0", "radius", "10"));
 
     given()
             .contentType(APPLICATION_JSON)

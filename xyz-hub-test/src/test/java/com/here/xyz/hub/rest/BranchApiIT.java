@@ -32,7 +32,8 @@ import org.junit.jupiter.api.Test;
 @Disabled
 public class BranchApiIT extends TestSpaceBranch {
 
-  protected String SPACE_ID = getClass().getSimpleName() + "_" + randomAlpha(5);
+  //Space ID should not contain underscore for branching to work
+  protected String SPACE_ID = getClass().getSimpleName() + "-" + randomAlpha(5);
 
   @BeforeEach
   public void setup() {
@@ -60,7 +61,7 @@ public class BranchApiIT extends TestSpaceBranch {
     long version2 = extractVersion(addFeatureToBranch(SPACE_ID, null, createSampleFeature("main2")));
     long version3 = extractVersion(addFeatureToBranch(SPACE_ID, null, createSampleFeature("main3")));
 
-    createBranch(SPACE_ID, "branch_main_" + version1, "" + version1)
+    createBranch(SPACE_ID, "branch_main_" + version1, "main:" + version1)
             //TODO: Also check version ref in the response
             .body("id", equalTo("branch_main_" + version1));
 
@@ -68,7 +69,7 @@ public class BranchApiIT extends TestSpaceBranch {
     createBranch(SPACE_ID, "branch_main_" + version2, "main:" + version2)
             .body("id", equalTo("branch_main_" + version2));
 
-    createBranch(SPACE_ID, "branch_main_" + version3, "main" + version3)
+    createBranch(SPACE_ID, "branch_main_" + version3, "main:" + version3)
             .body("id", equalTo("branch_main_" + version3));
   }
 
@@ -81,7 +82,7 @@ public class BranchApiIT extends TestSpaceBranch {
             .body("id", equalTo("b2_b1_head"));
 
     createBranch(SPACE_ID, "b3_b2_head", "b2_b1_head")
-            .body("id", equalTo("b2_b2_head"));
+            .body("id", equalTo("b3_b2_head"));
   }
 
   @Test
