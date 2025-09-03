@@ -39,7 +39,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureCollection> {
   boolean responseDataExpected;
@@ -72,18 +71,20 @@ public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureColl
       tables.add(rootTableName);
     }
 
-    Map<String, Object> queryContext = new FeatureWriterQueryContextBuilder()
+    FeatureWriterQueryContextBuilder queryContextBuilder = new FeatureWriterQueryContextBuilder()
         .withSchema(getSchema())
         .withTables(tables)
         .withTableBaseVersions(tableBaseVersions)
         .withSpaceContext(spaceContext)
         .withHistoryEnabled(event.getVersionsToKeep() > 1)
-        .withBatchMode(true)
-        .build();
+        .withBatchMode(true);
+
+    if (event.getRef() != null && event.getRef().isSingleVersion() && !event.getRef().isHead())
+      queryContextBuilder.withBaseVersion(event.getRef().getVersion());
 
     return new SQLQuery("SELECT write_features(#{modifications}, 'Modifications', #{author}, #{responseDataExpected});")
         .withLoggingEnabled(false)
-        .withContext(queryContext)
+        .withContext(queryContextBuilder.build())
         .withNamedParameter("modifications", XyzSerializable.serialize(event.getModifications()))
         .withNamedParameter("author", event.getAuthor())
         .withNamedParameter("responseDataExpected", event.isResponseDataExpected());
