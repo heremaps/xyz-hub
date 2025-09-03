@@ -110,7 +110,9 @@ class FeatureWriter {
    */
   deleteFeature() {
     if (this.context == "DEFAULT") {
-      if (!this.historyEnabled && this.featureExistsInHead(this.inputFeature.id) && !this.featureExistsInHead(this.inputFeature.id, "SUPER"))
+      let existingFeature = this.loadFeature(this.inputFeature.id);
+      if (!this.historyEnabled && existingFeature && !existingFeature.containingDatasets.some(dataset => dataset < this.tables.length - 1))
+        //Only delete the row directly iff the feature exists, but not in SUPER
         return this.deleteRow();
 
       this.onExists = "REPLACE";
@@ -234,15 +236,6 @@ class FeatureWriter {
         }
       }
       else {
-        let featureExists = false;
-        if (this.tables.length > 1) {
-          /*
-          We still don't know if the feature already exists or not, because in this case it could exist in the base table(s),
-          so here we have to actively check if the feature exists
-           */
-          featureExists = this.featureExistsInHead(this.inputFeature.id, "SUPER");
-        }
-
         if (!featureExists)
           switch (this.onNotExists) {
             case "CREATE":
