@@ -34,6 +34,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_DEFAULT;
 import static com.here.xyz.util.db.ConnectorParameters.TableLayout.OLD_LAYOUT;
@@ -258,9 +259,22 @@ public class IndexHelper {
               .map(index -> buildCreateIndexQuery(schema, table, index.getIndexContent(), index.getIndexType(), index.getIndexName(table)))
               .toList();
     else if (layout == NEW_LAYOUT)
-      return List.of(SystemIndex.GEO, SystemIndex.NEXT_VERSION, SystemIndex.VERSION_ID).stream()
-              .map(index -> buildCreateIndexQuery(schema, table, index.getIndexContent(), index.getIndexType(), index.getIndexName(table)))
-              .toList();
+      return Stream.concat(
+                    List.of(SystemIndex.GEO,
+                                    SystemIndex.NEXT_VERSION,
+                                    SystemIndex.VERSION_ID)
+                            .stream()
+                            .map(index -> buildCreateIndexQuery(
+                                    schema, table, index.getIndexContent(),
+                                    index.getIndexType(), index.getIndexName(table))
+                            ),
+                    Stream.of(
+                      //TODO: Remove this if new searchable properties implementation is done (extra column)
+                      buildCreateIndexQuery(schema, table, List.of("refquad"), "BTREE", "idx_" + table + "_refquad")
+                    )
+            )
+            .toList();
+
 
     throw new IllegalArgumentException("Unsupported layout " + layout);
   }

@@ -161,7 +161,7 @@ public class XyzSpaceTableHelper {
               + "author TEXT STORAGE MAIN COMPRESSION lz4, "
               + "jsondata TEXT STORAGE MAIN COMPRESSION lz4 , "
               + "geo geometry(GeometryZ, 4326) STORAGE MAIN COMPRESSION lz4, "
-              //+ "searchable JSONB STORAGE MAIN COMPRESSION lz4, "
+              + "refquad TEXT STORAGE MAIN COMPRESSION lz4, "
               + "i BIGSERIAL, "
               + "CONSTRAINT ${uniqueConstraintName} UNIQUE (id, next_version), "
               + "CONSTRAINT ${primKeyConstraintName} PRIMARY KEY (id, version, next_version)";

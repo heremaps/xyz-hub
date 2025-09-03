@@ -20,6 +20,7 @@
 package com.here.xyz.psql;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.DeleteChangesetsEvent;
 import com.here.xyz.events.GetChangesetStatisticsEvent;
@@ -34,12 +35,15 @@ import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.ModifySubscriptionEvent;
+import com.here.xyz.events.PropertyQuery;
+import com.here.xyz.events.PropertyQueryList;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.events.UpdateStrategy;
 import com.here.xyz.events.WriteFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.FeatureCollection.ModificationFailure;
+import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.psql.query.GetFastStatistics;
@@ -58,12 +62,13 @@ import com.here.xyz.responses.changesets.ChangesetCollection;
 import com.here.xyz.util.Random;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.io.WKBWriter;
-
 
 import java.sql.Array;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
@@ -77,6 +82,7 @@ import static com.here.xyz.responses.XyzError.NOT_IMPLEMENTED;
 
 public class NLConnector extends PSQLXyzConnector {
   private static final Logger logger = LogManager.getLogger();
+  private static final String refQuad = "refQuad";
 
   @Override
   protected StatisticsResponse processGetStatistics(GetStatisticsEvent event) throws Exception {
@@ -129,7 +135,27 @@ public class NLConnector extends PSQLXyzConnector {
 
   @Override
   protected FeatureCollection processSearchForFeaturesEvent(SearchForFeaturesEvent event) throws Exception {
-    throw new ErrorResponseException(NOT_IMPLEMENTED, "Method not implemented in NLConnector!");
+    String errorMessage = "Property based search supports only refQuad^=231230 search in NLConnector!";
+
+    if(event.getPropertiesQuery() != null && event.getPropertiesQuery().size() == 1) {
+
+      PropertyQueryList propertyQueries = event.getPropertiesQuery().get(0);
+      String key = propertyQueries.get(0).getKey();
+      PropertyQuery.QueryOperation operation = propertyQueries.get(0).getOperation();
+      List<Object> values = propertyQueries.get(0).getValues();
+
+      if(!key.equalsIgnoreCase("properties.refQuad"))
+        throw new ErrorResponseException(NOT_IMPLEMENTED, errorMessage);
+      if(!operation.equals(PropertyQuery.QueryOperation.BEGINS_WITH))
+        throw new ErrorResponseException(NOT_IMPLEMENTED, errorMessage);
+      if(values.size() != 1 || !(values.get(0) instanceof String))
+        throw new ErrorResponseException(NOT_IMPLEMENTED, errorMessage);
+
+      String refQuad = values.get(0).toString();
+
+      return getFeaturesByRefQuad(dbSettings.getSchema(), XyzEventBasedQueryRunner.readTableFromEvent(event), refQuad);
+    }
+    throw new ErrorResponseException(NOT_IMPLEMENTED, errorMessage);
   }
 
   @Override
@@ -173,18 +199,8 @@ public class NLConnector extends PSQLXyzConnector {
   private FeatureCollection writeFeatures(WriteFeaturesEvent event) throws Exception {
     Set<WriteFeaturesEvent.Modification> modifications = event.getModifications();
 
-    /*
-     * INSERT/UPDATE: UpdateStrategy[onExists=REPLACE, onNotExists=CREATE, onVersionConflict=null, onMergeConflict=null]
-     * DELETE: UpdateStrategy[onExists=DELETE, onNotExists=RETAIN, onVersionConflict=null, onMergeConflict=null]
-     *
-     * simple batch Upsert
-     * enrich: update TimeStamp, Version
-     *
-     **/
-
     List<String> idsToDelete = new ArrayList<>();
     FeatureCollection upsertFeatures = new FeatureCollection();
-    FeatureCollection responseFeatureCollection = new FeatureCollection();
 
     for (WriteFeaturesEvent.Modification modification : modifications) {
       validateUpdateStrategy(modification.getUpdateStrategy());
@@ -261,6 +277,49 @@ public class NLConnector extends PSQLXyzConnector {
     }
   }
 
+  private FeatureCollection getFeaturesByRefQuad(String schema, String table, String refQuad) throws SQLException, JsonProcessingException {
+    try (final Connection connection = dataSourceProvider.getWriter().getConnection()) {
+      String selection = """              
+                '{ "type": "FeatureCollection", "features": [' ||
+                   string_agg(
+                     regexp_replace(
+                       regexp_replace(                         
+                         -- Inject version and author into namespace
+                         jsondata,
+                         '("(@ns:com:here:xyz)"\\s*:\\s*\\{)',
+                         '\\1"version":' || version || ',"author":"' || coalesce(author, 'ANONYMOUS') || '",',
+                         'g'
+                       ),
+                       -- Add geometry at root level (after first {)
+                       '^{',
+                       '{' || '"geometry":' || coalesce(ST_AsGeoJSON(geo, 8), 'null') || ',',
+                       'g'
+                     ),
+                     ','
+                   )
+                   || '] }' AS featurecollection
+              """;
+
+      String searchQuery = "SELECT $selection$ FROM $table$ WHERE refquad >= '${{startRange}}' AND refquad < '$endRange$'"
+                .replace("$table$", "\"" + schema + "\".\"" + table + "\"")
+                .replace("$selection$", selection)
+                .replace("$startRange", refQuad)
+                .replace("$endRange$",  refQuad + "4");
+
+      try (PreparedStatement ps = connection.prepareStatement(searchQuery)) {
+
+        try (ResultSet rs = ps.executeQuery()) {
+          if(rs.next()){
+            return XyzSerializable.deserialize(rs.getString("featureCollection"), FeatureCollection.class);
+          }
+        }
+      }catch (SQLException e){
+        logger.error(e);
+      }
+    }
+    return null;
+  }
+
   private void batchUpsertFeatures(String schema, String table, FeatureCollection featureCollection, long version, String author,
           List<ModificationFailure> fails) throws SQLException, JsonProcessingException {
 //    String upsertSql = """
@@ -313,11 +372,12 @@ public class NLConnector extends PSQLXyzConnector {
 //              operation = 'U';
 //    """.replace("$table$", "\"" + schema + "\".\"" + table + "\"");
     String upsertSql = """
-          INSERT INTO $table$ (id, geo, operation, author, version, jsondata)
+          INSERT INTO $table$ (id, geo, operation, author, version, jsondata, refquad)
           VALUES (
              ?,
              ?,
              'I',
+             ?,
              ?,
              ?,
              ?
@@ -335,14 +395,25 @@ public class NLConnector extends PSQLXyzConnector {
 
       try (PreparedStatement ps = connection.prepareStatement(upsertSql)) {
         for (Feature feature : featureCollection.getFeatures()) {
+          Geometry geo = feature.getGeometry();
+
+          if (geo != null) {
+            //Avoid NaN values
+            for (Coordinate coord : geo.getJTSGeometry().getCoordinates()){
+              if(Double.valueOf(coord.z).isNaN())
+                coord.z= 0;
+            }
+          }
+
           ensureFeatureId(feature);
 
           ps.setString(1, feature.getId());
-          ps.setBytes(2, new WKBWriter(3).write(feature.getGeometry().getJTSGeometry()));  // JSON string
+          ps.setBytes(2, feature.getGeometry() == null ? null : new WKBWriter(3).write(feature.getGeometry().getJTSGeometry()));  // JSON string
           ps.setString(3, author);
           ps.setLong(4, version);
           //TODO: Do we need to ensure 3D geometries?
           ps.setString(5, enrichFeaturePayload(feature));
+          ps.setString(6, getRefQuad(feature));
           ps.addBatch();
         }
 
@@ -363,10 +434,12 @@ public class NLConnector extends PSQLXyzConnector {
     }
   }
 
+  private String getRefQuad(Feature feature) {
+    return feature.getProperties().get(refQuad);
+  }
+
   private String enrichFeaturePayload(Feature feature) {
     //LFE is missing - so we do not have the createdAt from db | also patch possibility is missing
-    //Ensure 3D geometry
-
     //TODO: check if we want to use the same timestamp for all features in one request
     long currentTime = System.currentTimeMillis();
     //Remove Geometry
