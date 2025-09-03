@@ -27,7 +27,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  *
  * @TODO - Remove this step later
  */
-public class CopySpacePre extends GetNextSpaceVersion {
+public class CopySpacePre extends GetNextSpaceVersion<CopySpacePre> {
 
   @JsonCreator(mode = JsonCreator.Mode.PROPERTIES)
   public CopySpacePre(@JsonProperty(value = "spaceId", required = true) String spaceId) {

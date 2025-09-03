@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -110,7 +110,8 @@ public class SpaceCopy implements JobCompilationInterceptor {
       Ref versionRef = source.getVersionRef(),
           resolvedVersionRef = hubWebClient().resolveRef(sourceSpaceId, sourceContext, versionRef);
 
-      GetNextSpaceVersion nextSpaceVersion = new GetNextSpaceVersion(targetSpaceId).withJobId(jobId);
+      GetNextSpaceVersion nextSpaceVersion = (GetNextSpaceVersion) new GetNextSpaceVersion(targetSpaceId)
+          .withJobId(jobId);
 
       CompilationStepGraph startGraph = new CompilationStepGraph();
       startGraph.addExecution(nextSpaceVersion);
@@ -159,7 +160,7 @@ public class SpaceCopy implements JobCompilationInterceptor {
       long DROPCREATEINDEX_THRESHOLD = 4_000_000;
 
       boolean useDropIndexOptimization =    sourceFeatureCount >= DROPCREATEINDEX_THRESHOLD
-                                            // target is empty and no filtering 
+                                            // target is empty and no filtering
                                          && targetFeatureCount <= 0
                                          && filters == null;
 
