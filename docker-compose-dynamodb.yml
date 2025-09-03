@@ -15,6 +15,7 @@ services:
             - "aws-localstack"
         environment:
             - SPACES_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-spaces
+            - BRANCHES_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-branches
             - CONNECTORS_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-connectors
             - PACKAGES_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-packages
             - SUBSCRIPTIONS_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-subscriptions
