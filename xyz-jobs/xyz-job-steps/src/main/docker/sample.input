@@ -1,0 +1,11 @@
+#  sourceCluster, targetCluster, layerHrn, layerTable, extendsHrn, extendsTable
+##dh-psql-db1-eu-west-1-sit,psql-db2-eu-west-1,hrn:here-dev:data::olp-here:m499-source-01:data-02,f84ff9888bc5b30fdd69ddbc0c460797
+##dh-psql-db1-eu-west-1-sit,psql-db2-eu-west-1,hrn:here-dev:data::olp-here:m499-drgnstn-target-08:base-01,61a3b4950b80b55cfb3d965f39ea8c23
+##dh-psql-db1-eu-west-1-sit,psql-db2-eu-west-1,hrn:here-dev:data::olp-here:m499-drgnstn-source-08:base-02,8ebed9f699714c785cf2f4faa96d9ba1
+#psql-local,psql-db2-eu-west-1,hrn:here-dev:data::olp-here:target-notest-01:data-03,159b2df0059930c1b9f6b2fa57a052b4
+#psql-local,psql-db2-eu-west-1,hrn:here-dev:data::olp-here:m499-source-01:data-03,c3b9b5b50fe90fef7e04b750b7618a16
+#psql-local,psql_db2_hashed,hrn:here-dev:data::olp-here:m499-source-01:data-03,c3b9b5b50fe90fef7e04b750b7618a16
+#psql-local,psql-db2-eu-west-1,hrn:here-dev:data::olp-here:m499-target-01:data-02,1899814733aaeeeb6d65cb694ab3f1d0
+psql,psql_db2_hashed,x-psql-test-extensible,93390276e8abdfa1d0cb65945f72d9fb
+psql_db2_hashed,psql,x-psql-test-extensible,93390276e8abdfa1d0cb65945f72d9fb
+#psql,psql_db2_hashed,x-psql-extending-test,a914b8af11639f6fe4bddb4824e1f847

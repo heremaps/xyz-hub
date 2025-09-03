@@ -1,0 +1,20 @@
+
+[default]
+region=eu-west-1
+output=json
+
+[profile iddev]
+region=eu-west-1
+
+[profile idprd]
+region=eu-west-1
+
+[profile iddev-cicdBot]
+region=eu-west-1
+role_arn=arn:aws:iam::609321179939:role/cicdBot
+source_profile = iddev
+
+[profile idprd-cicdBot]
+region=eu-west-1
+role_arn=arn:aws:iam::642003846144:role/cicdBot
+source_profile=idprd
