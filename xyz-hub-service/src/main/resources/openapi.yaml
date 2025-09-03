@@ -205,7 +205,7 @@ paths:
     get:
       tags:
         - Manage Branches
-      summary: List branches
+      summary: List Branches
       description: >-
         Lists the branches of the specified space.
       operationId: getBranches
@@ -219,7 +219,7 @@ paths:
     post:
       tags:
         - Manage Branches
-      summary: Create
+      summary: Create a Branch
       description: >-
         Create a branch, which points to a version of the space or to a version of
         another branch.
@@ -571,7 +571,7 @@ paths:
         - $ref: '#/components/parameters/Force2D'
         - $ref: '#/components/parameters/Context'
         - $ref: '#/components/parameters/VersionStar'
-        - $ref: '#/components/parameters/VersionRefStar'
+        - $ref: '#/components/parameters/VersionRef'
         - $ref: '#/components/parameters/Author'
       responses:
         '200':
@@ -728,7 +728,7 @@ paths:
         - $ref: '#/components/parameters/Transactional'
         - $ref: '#/components/parameters/PrefixId'
         - $ref: '#/components/parameters/Context'
-        - $ref: '#/components/parameters/Branch'
+        - $ref: '#/components/parameters/VersionRef'
       requestBody:
         $ref: '#/components/requestBodies/FeatureCollectionOrFeatureModificationListRequest'
       responses:
@@ -761,7 +761,7 @@ paths:
         - $ref: '#/components/parameters/SpaceId'
         - $ref: '#/components/parameters/Ids'
         - $ref: '#/components/parameters/Context'
-        - $ref: '#/components/parameters/Branch'
+        - $ref: '#/components/parameters/VersionRef'
         - name: eraseContent
           in: query
           description: >-
@@ -799,7 +799,7 @@ paths:
         - $ref: '#/components/parameters/Force2D'
         - $ref: '#/components/parameters/Context'
         - $ref: '#/components/parameters/VersionStar'
-        - $ref: '#/components/parameters/VersionRefStar'
+        - $ref: '#/components/parameters/VersionRef'
         - $ref: '#/components/parameters/Author'
       responses:
         '200':
@@ -821,7 +821,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/SpaceId'
         - $ref: '#/components/parameters/FeatureId'
-        - $ref: '#/components/parameters/Branch'
+        - $ref: '#/components/parameters/VersionRef'
       requestBody:
         $ref: '#/components/requestBodies/FeatureRequest'
       responses:
@@ -848,7 +848,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/SpaceId'
         - $ref: '#/components/parameters/FeatureId'
-        - $ref: '#/components/parameters/Branch'
+        - $ref: '#/components/parameters/VersionRef'
       requestBody:
         $ref: '#/components/requestBodies/FeatureRequest'
       responses:
@@ -878,7 +878,7 @@ paths:
         - $ref: '#/components/parameters/SpaceId'
         - $ref: '#/components/parameters/FeatureId'
         - $ref: '#/components/parameters/Context'
-        - $ref: '#/components/parameters/Branch'
+        - $ref: '#/components/parameters/VersionRef'
       responses:
         '204':
           $ref: '#/components/responses/EmptyResponse'
@@ -2001,44 +2001,6 @@ components:
           type: string
         example:
           tweaks.strength: "1-100 | [low,lowmed,med,medhigh,high]"
-    Branch:
-      name: branch
-      in: query
-      description: >-
-        The ID of the branch into which to write features.
-        
-        Default is: `main`
-      required: false
-      schema:
-        type: string
-        default: main
-    Ref:
-      name: ref
-      in: query
-      description: >-
-        The query parameter used to specify the target version reference when reading or writing features.
-        A reference describes a target branch and a version within that target branch.
-        References have the following syntax:
-
-
-        `[<branchName (optional, default: main)>:][<version (optional, default: HEAD)>]`
-
-
-        The "main"-branch is the space itself as it has been created in the first place.
-        Defining the branch as part of the reference only becomes necessary if further
-        branches have been created for the space, which should be addressed by the ref.
-
-
-        Samples:
-          - `main:42` points to version 42 of the "main"-branch 
-          - `myBranch:37` Points to version 37 of the branch with ID "myBranch"
-          - `42` points to version 42 of the "main"-branch
-          - `myBranch:HEAD` points to the latest version of the branch with ID "myBranch"
-          - `HEAD` points to the latest version of the "main"-branch
-          - `myBranch` points to the latest version of the branch with ID "myBranch"
-      required: false
-      schema:
-        type: string
     Version:
       name: version
       in: query
@@ -2050,21 +2012,51 @@ components:
     VersionRef:
       name: versionRef
       in: query
-      description: >-
-        The query parameter used to specify the version reference pointing to a branch/tag and/or a version.
+      description: |
+        The query parameter used to specify the target version reference when reading or writing features.
+        A reference describes a target tag or a branch and/or a version within that target branch.
+        
+        Default is: `main:HEAD`
+
+        <br>
+        Version references have the following syntax:
+
+        <br>
+        `[<branchName (optional, default: main)>:][<version (optional, default: HEAD)>] | [<tagName> (optional)]`
+
+        <br>
+        The "main"-branch is pointing to the space itself as it has been created in the first place.
+        Defining the branch as part of the reference only becomes necessary if further
+        branches have been created for the space, which should be addressed by the ref.
+
+        <br>
+        Depending on the use-case it can be necessary to specify a range of versions rather than
+        only one version. In such a case the version part of the Ref would look like:
+        `<start>..<end>`
+
+        Where `<start>` is the start of the range (exclusive) and `end` is the end of the range
+        (inclusive).
+        
+        Another way of specifying a version range is using the star-symbol: `*`
+
+        Using `*` refers to "all available versions" in the space or branch and is only
+        applicable in the cases in which a version range may be provided.
+
+        <br>
+        Samples:
+          - `main:42` points to version 42 of the "main"-branch 
+          - `myBranch:37` Points to version 37 of the branch with ID "myBranch"
+          - `42` points to version 42 of the "main"-branch
+          - `myBranch:HEAD` points to the latest version of the branch with ID "myBranch"
+          - `HEAD` points to the latest version of the "main"-branch
+          - `myBranch` points to the latest version of the branch with ID "myBranch"
+          - `myBranch:0..HEAD` points to all available versions of the branch with ID "myBranch"
+          - `myBranch:*` also points to all versions of branch "myBranch" (short form)
+          - `main:5..10` points to the versions in the interval `]5, 10]` of the "main"-branch
       required: false
       schema:
         type: string
-    VersionRefStar:
-      name: versionRef
-      in: query
-      description: >-
-        The query parameter used to specify the version reference pointing to a tag or a version
-        with also the possibility to use the star '*' to load all versions or 'HEAD' to load the
-        latest available version.
-      required: false
-      schema:
-        type: string
+        default: main:HEAD
     VersionPath:
       name: version
       in: path
