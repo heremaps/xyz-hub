@@ -110,8 +110,7 @@ public class SpaceCopy implements JobCompilationInterceptor {
       Ref versionRef = source.getVersionRef(),
           resolvedVersionRef = hubWebClient().resolveRef(sourceSpaceId, sourceContext, versionRef);
 
-      GetNextSpaceVersion nextSpaceVersion = (GetNextSpaceVersion) new GetNextSpaceVersion()
-          .withSpaceId(targetSpaceId)
+      GetNextSpaceVersion nextSpaceVersion = (GetNextSpaceVersion) new GetNextSpaceVersion(targetSpaceId)
           .withJobId(jobId);
 
       CompilationStepGraph startGraph = new CompilationStepGraph();
@@ -130,8 +129,7 @@ public class SpaceCopy implements JobCompilationInterceptor {
 
       for (int threadId = 0; threadId < threadCount; threadId++) {
 
-        CopySpace copySpaceStep = new CopySpace()
-            .withSpaceId(sourceSpaceId)
+        CopySpace copySpaceStep = new CopySpace(sourceSpaceId)
             .withTargetSpaceId(targetSpaceId)
             .withSourceVersionRef(resolvedVersionRef)
             .withPropertyFilter(filters != null ? filters.getPropertyFilter() : null)
@@ -152,8 +150,7 @@ public class SpaceCopy implements JobCompilationInterceptor {
       if (outputMetadata == null)
         outputMetadata = Map.of(target.getClass().getSimpleName().toLowerCase(), targetSpaceId);
 
-      CopySpacePost postCopySpace = new CopySpacePost()
-          .withSpaceId(targetSpaceId)
+      CopySpacePost postCopySpace = new CopySpacePost(targetSpaceId)
           .withJobId(jobId)
           .withOutputMetadata(outputMetadata)
           .withInputSets(List.of(new InputSet(nextSpaceVersion.getOutputSet(VERSION))));

@@ -32,6 +32,8 @@ import static com.here.xyz.jobs.steps.impl.transport.TransportTools.errorLog;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporaryJobTableName;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.PropertiesQuery;
@@ -113,6 +115,10 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
   @JsonView({Internal.class, Static.class})
   protected Ref providedVersionRef;
 
+  @JsonCreator(mode = JsonCreator.Mode.PROPERTIES)
+  public ExportSpaceToFiles(@JsonProperty(value = "spaceId", required = true) String spaceId) {
+    super(spaceId);
+  }
 
   public void setProvidedVersionRef(Ref providedVersionRef) {
     this.providedVersionRef = providedVersionRef;

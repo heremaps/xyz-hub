@@ -30,6 +30,7 @@ import static org.junit.Assert.assertTrue;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.jobs.datasets.filters.SpatialFilter;
+import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
 import com.here.xyz.jobs.steps.impl.StepTest;
 import com.here.xyz.jobs.steps.impl.transport.CopySpace;
 import com.here.xyz.jobs.steps.impl.transport.CopySpacePost;
@@ -195,8 +196,7 @@ public class CopySpaceStepsTest extends StepTest {
     long NrFeaturesInTarget = statsBefore.getCount().getValue();
     assertEquals( !emptyTarget ? NrFeaturesAtStartInTargetSpace : 0, NrFeaturesInTarget);
 
-    CopySpace step = new CopySpace()
-        .withSpaceId(sourceSpaceId)
+    CopySpace step = new CopySpace(sourceSpaceId)
         .withSourceVersionRef(resolvedRef)
         .withSpatialFilter( geo == null ? null : new SpatialFilter().withGeometry(geo).withClip(clip).withRadius(7) )
         .withPropertyFilter(PropertiesQuery.fromString(propertyFilter))
@@ -223,8 +223,7 @@ public class CopySpaceStepsTest extends StepTest {
 
   @Test
   public void copySpacePre() throws Exception {
-    CopySpacePre step = new CopySpacePre()
-        .withSpaceId(targetSpaceId)
+    CopySpacePre step = new CopySpacePre(targetSpaceId)
         .withJobId(JOB_ID);
 
     sendLambdaStepRequestBlock(step, true);
@@ -241,8 +240,7 @@ public class CopySpaceStepsTest extends StepTest {
 
   @Test
   public void copySpacePost() throws Exception {
-    CopySpacePost step = new CopySpacePost()
-        .withSpaceId(sourceSpaceId)
+    CopySpacePost step = new CopySpacePost(sourceSpaceId)
         .withJobId(JOB_ID);
 
     sendLambdaStepRequestBlock(step, true);
@@ -286,8 +284,7 @@ public class CopySpaceStepsTest extends StepTest {
 
     Ref resolvedRef = resolveRef(sourceSpaceId, new Ref(versionRef));
 
-    CountSpace step = new CountSpace()
-        .withSpaceId(sourceSpaceId)
+    CountSpace step = new CountSpace(sourceSpaceId)
         .withSpatialFilter( geo == null ? null : new SpatialFilter().withGeometry(geo) )
         .withPropertyFilter(PropertiesQuery.fromString(propertyFilter))
         .withJobId(JOB_ID);

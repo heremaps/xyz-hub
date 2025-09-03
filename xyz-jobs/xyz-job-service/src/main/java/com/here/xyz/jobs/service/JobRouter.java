@@ -64,8 +64,10 @@ public class JobRouter implements AbstractRouterBuilder {
       return OpenAPIContract.from(vertx, new JsonObject(om.readValue(CONTRACT_API, Map.class))).compose(contract -> {
         RouterBuilder rb = RouterBuilder.create(vertx, contract);
 
-        for (OpenAPIRoute route : rb.getRoutes())
-          route.addHandler(createBodyHandler());
+//        for (OpenAPIRoute route : rb.getRoutes())
+//          route.addHandler(createBodyHandler());
+
+        rb.rootHandler(createBodyHandler());
 
         initializeJobApi(rb);
 

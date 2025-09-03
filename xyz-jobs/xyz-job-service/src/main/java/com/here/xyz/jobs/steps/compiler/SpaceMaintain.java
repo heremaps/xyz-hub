@@ -55,9 +55,8 @@ public class SpaceMaintain implements JobCompilationInterceptor {
             IndexCompilerHelper.getActiveSearchableProperties(source.getId()).stream()).toList();
 
     //Drop indices which are not in the whitelist
-    DropIndexes dropIndexes = new DropIndexes()
+    DropIndexes dropIndexes = new DropIndexes(source.getId())
             .withSpaceDeactivation(false)
-            .withSpaceId(source.getId())
             .withIndexWhiteList(whiteList);
 
     //Create all indices that are defined - existing ones are getting skipped
@@ -67,7 +66,7 @@ public class SpaceMaintain implements JobCompilationInterceptor {
     if (!onDemandIndexSteps.isEmpty())
       stepGraph.addExecution(onDemandIndexSteps);
 
-    stepGraph.addExecution(new SpawnMaintenanceJobs().withSpaceId(source.getId()));
+    stepGraph.addExecution(new SpawnMaintenanceJobs(source.getId()));
 
     return stepGraph;
   }

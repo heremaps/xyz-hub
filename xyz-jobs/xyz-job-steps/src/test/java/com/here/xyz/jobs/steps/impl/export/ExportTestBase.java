@@ -54,8 +54,7 @@ public class ExportTestBase extends StepTest {
         FeatureCollection allExpectedFeatures = customReadFeaturesQuery(spaceId, hubPathAndQuery);
 
         //Create Step definition
-        ExportSpaceToFiles step = new ExportSpaceToFiles()
-            .withSpaceId(spaceId)
+        ExportSpaceToFiles step = new ExportSpaceToFiles(spaceId)
             .withJobId(JOB_ID);
 
         if(context != null)
@@ -105,13 +104,12 @@ public class ExportTestBase extends StepTest {
             throws IOException, InterruptedException {
 
         //Create Step definition
-        ExportSpaceToFiles step = new ExportChangedTiles()
+        ExportSpaceToFiles step = new ExportChangedTiles(spaceId)
                 .withQuadType(quadType)
                 .withTargetLevel(targetLevel)
                 .withVersionRef(versionRef)
                 .withPropertyFilter(propertiesQuery)
                 .withSpatialFilter(spatialFilter)
-                .withSpaceId(spaceId)
                 .withJobId(JOB_ID);
 
         //Send Lambda Requests

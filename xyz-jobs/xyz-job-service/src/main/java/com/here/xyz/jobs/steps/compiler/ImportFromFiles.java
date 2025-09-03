@@ -84,8 +84,7 @@ public class ImportFromFiles implements JobCompilationInterceptor {
     else
       throw new CompilationError("Unsupported import file format: " + sourceFormat.getClass().getSimpleName());
 
-    ImportFilesToSpace importFilesStep = new ImportFilesToSpace() //Perform import
-        .withSpaceId(spaceId)
+    ImportFilesToSpace importFilesStep = new ImportFilesToSpace(spaceId) //Perform import
         .withFormat(importStepFormat)
         .withEntityPerLine(getEntityPerLine(sourceFormat))
         .withJobId(job.getId())
@@ -116,7 +115,7 @@ public class ImportFromFiles implements JobCompilationInterceptor {
     List<List<SystemIndex>> indexTasks = Lists.partition(indices, indices.size() / 3);
 
     CompilationStepGraph wrappedStepGraph = (CompilationStepGraph) new CompilationStepGraph()
-        .addExecution(new DropIndexes().withSpaceId(spaceId).withSpaceDeactivation(true).withIndexWhiteList(keepIndices)) //Drop existing indices
+        .addExecution(new DropIndexes(spaceId).withSpaceDeactivation(true).withIndexWhiteList(keepIndices)) //Drop existing indices
         .addExecution(stepExecution)
         //NOTE: Create *all* indices in parallel, make sure to (at least) keep the viz-index sequential #postgres-issue-with-partitions
         //No need to filter out indices from "keepIndices" as create index query checks for "IF NOT EXISTS"
@@ -125,13 +124,13 @@ public class ImportFromFiles implements JobCompilationInterceptor {
             .addExecution(new CompilationStepGraph().withExecutions(toSequentialSteps(spaceId, indexTasks.get(1))))
             .addExecution(new CompilationStepGraph().withExecutions(toSequentialSteps(spaceId, indexTasks.get(2))))
             .withParallel(true))
-        .addExecution(new CreateIndex().withIndex(SystemIndex.VIZ).withSpaceId(spaceId));
+        .addExecution(new CreateIndex(spaceId).withIndex(SystemIndex.VIZ));
 
     CompilationStepGraph onDemandIndexSteps = IndexCompilerHelper.compileOnDemandIndexSteps(spaceId);
     if (!onDemandIndexSteps.isEmpty())
       wrappedStepGraph.addExecution(onDemandIndexSteps);
 
-    wrappedStepGraph.addExecution(new AnalyzeSpaceTable().withSpaceId(spaceId));
+    wrappedStepGraph.addExecution(new AnalyzeSpaceTable(spaceId));
 
     return wrappedStepGraph;
 
@@ -154,7 +153,7 @@ public class ImportFromFiles implements JobCompilationInterceptor {
   }
 
   private static List<StepExecution> toSequentialSteps(String spaceId, List<SystemIndex> indices) {
-    return indices.stream().map(index -> new CreateIndex().withIndex(index).withSpaceId(spaceId)).collect(Collectors.toList());
+    return indices.stream().map(index -> new CreateIndex(spaceId).withIndex(index)).collect(Collectors.toList());
   }
 
   private void checkIfSpaceIsAccessible(String spaceId) throws CompilationError {
