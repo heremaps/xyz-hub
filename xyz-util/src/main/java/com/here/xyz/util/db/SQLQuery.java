@@ -53,6 +53,7 @@ import javax.sql.DataSource;
 import org.apache.commons.dbutils.QueryRunner;
 import org.apache.commons.dbutils.ResultSetHandler;
 import org.apache.commons.dbutils.StatementConfiguration;
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -62,6 +63,7 @@ import org.apache.logging.log4j.Logger;
 @JsonInclude(NON_DEFAULT)
 public class SQLQuery {
   private static final Logger logger = LogManager.getLogger();
+  private static final Level QUERY_LEVEL = Level.forName("QUERY", 60);
   private static final String VAR_PREFIX = "\\$\\{";
   private static final String VAR_SUFFIX = "\\}";
   private static final String FRAGMENT_PREFIX = "${{";
@@ -1017,7 +1019,7 @@ public class SQLQuery {
     executionContext.attemptExecution();
     try {
       if (loggingEnabled)
-        logger.info("Sending query to database {} {}, substituted query-text: {}",
+        logger.log(QUERY_LEVEL, "Sending query to database {} {}, substituted query-text: {}",
             executionContext.useReplica ? "reader" : "writer",
             dataSourceProvider.getDatabaseSettings() != null
                 ? dataSourceProvider.getDatabaseSettings().getId() : "unknown",
