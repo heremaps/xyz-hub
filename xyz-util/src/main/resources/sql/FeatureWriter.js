@@ -73,7 +73,7 @@ class FeatureWriter {
     this.historyEnabled = queryContext().historyEnabled;
 
     this.inputFeature = inputFeature;
-    this.version = version;
+    this.version = Number(version);
     this.author = author || "ANONYMOUS";
     this.baseVersion = queryContext().baseVersion != null ? queryContext().baseVersion : this.inputFeature.properties?.[XYZ_NS]?.version;
     this.featureHooks = featureHooks;
@@ -547,7 +547,7 @@ class FeatureWriter {
     let feature = resultSet[0].jsondata;
     feature.id = resultSet[0].id;
     feature.geometry = resultSet[0].geo;
-    feature.properties[XYZ_NS].version = resultSet[0].version;
+    feature.properties[XYZ_NS].version = Number(resultSet[0].version);
     Object.defineProperty(feature, "operation", {
       value: resultSet[0].operation,
       enumerable: false
@@ -746,7 +746,7 @@ class FeatureWriter {
   static getNextVersion() {
     const VERSION_SEQUENCE_SUFFIX = "_version_seq";
     let fullQualifiedSequenceName = `"${queryContext().schema}"."${(this._targetTable() + VERSION_SEQUENCE_SUFFIX)}"`;
-    return plv8.execute("SELECT nextval($1)", [fullQualifiedSequenceName])[0].nextval;
+    return Number(plv8.execute("SELECT nextval($1)", [fullQualifiedSequenceName])[0].nextval);
   }
 
   static _targetTable(context = queryContext().context) {

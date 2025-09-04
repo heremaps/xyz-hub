@@ -29,6 +29,7 @@ let pgClient = new Client({
 
 let clientConnected = false;
 pgClient.connect().then(err => {
+  //pgClient.query(`SET search_path = "public", "topology", "hub.common", "hub.geo", "hub.feature_writer", "hub.h3", "hub.ext"`);
   clientConnected = true;
   console.log(err);
 });
