@@ -92,8 +92,7 @@ public class TestSpaceBranch extends TestSpaceWithFeature {
 
   protected FeatureCollection addFeaturesToBranch(String spaceId, String branchId, FeatureCollection featureCollection) throws WebClientException {
     return (FeatureCollection) HubWebClient.getInstance(RestAssuredConfig.config().fullHubUri)
-            //TODO: query param to versionRef after it changed in service
-            .postFeatures(spaceId, featureCollection, branchId == null ? null : Map.of("branch", branchId));
+            .postFeatures(spaceId, featureCollection, branchId == null ? null : Map.of("versionRef", branchId));
   }
 
   protected FeatureCollection addFeatureToBranch(String spaceId, String branchId, Feature feature) throws WebClientException {
