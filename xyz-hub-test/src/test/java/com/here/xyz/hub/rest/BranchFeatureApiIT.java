@@ -19,6 +19,7 @@
 
 package com.here.xyz.hub.rest;
 
+import static com.here.xyz.util.Random.randomAlpha;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.restassured.RestAssured.given;
@@ -37,13 +38,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 @Disabled
-public class BranchFeatureApiIT extends BranchApiIT {
+public class BranchFeatureApiIT extends TestSpaceBranch {
   /*
   - Write features on
     - main
@@ -61,6 +64,22 @@ public class BranchFeatureApiIT extends BranchApiIT {
 
   - Try to read/write features after deleting an intermediate branch
    */
+
+  private String SPACE_ID = getClass().getSimpleName() + "-" + randomAlpha(5);
+
+  @BeforeEach
+  public void setup() {
+    createSpaceWithVersionsToKeep(SPACE_ID, 10000);
+
+    //Add one sample feature, to allow branching on the space
+    addFeature(SPACE_ID, createSampleFeature("main0"));
+  }
+
+  @AfterEach
+  public void cleanUp() {
+    removeSpace(SPACE_ID);
+    removeAllBranchesForSpace(SPACE_ID);
+  }
 
   @Test
   public void writeFeaturesToBranch() throws Exception {

@@ -33,7 +33,7 @@ import org.junit.jupiter.api.Test;
 public class BranchApiIT extends TestSpaceBranch {
 
   //Space ID should not contain underscore for branching to work
-  protected String SPACE_ID = getClass().getSimpleName() + "-" + randomAlpha(5);
+  private String SPACE_ID = getClass().getSimpleName() + "-" + randomAlpha(5);
 
   @BeforeEach
   public void setup() {
