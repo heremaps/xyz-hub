@@ -129,6 +129,7 @@ public class ChangesetApi extends SpaceBasedApi {
       SpaceConnectorBasedHandler.execute(getMarker(context),
               space -> Authorization.authorizeManageSpacesRights(context, space.getId(), space.getOwner()).map(space),
               new DeleteChangesetsEvent()
+                  .withStreamId(getMarker(context).getName())
                   .withSpace(spaceId)
                   .withMinVersion(minVersion))
 
@@ -166,6 +167,7 @@ public class ChangesetApi extends SpaceBasedApi {
     long limit = Query.getLong(context, Query.LIMIT, IterateChangesets.DEFAULT_LIMIT);
 
     return new IterateChangesetsEvent()
+        .withStreamId(getMarker(context).getName())
         .withSpace(getSpaceId(context))
         .withRef(versionRef)
         .withNextPageToken(pageToken)
