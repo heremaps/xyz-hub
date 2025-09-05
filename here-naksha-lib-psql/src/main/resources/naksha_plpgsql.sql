@@ -354,7 +354,7 @@ END $$;
 -- https://www.movable-type.co.uk/scripts/geohash.html
 CREATE OR REPLACE FUNCTION nk_grid_for_geometry(_geo geometry) RETURNS text LANGUAGE 'plpgsql' IMMUTABLE AS $$ BEGIN
   -- noinspection SqlResolve
-  RETURN ST_GeoHash(ST_Centroid(_geo),7);
+  RETURN ST_GeoHash(_geo,7);
 END $$;
 
 -- Creates a GRID (Geo-Hash Reference ID) from the given feature and geometry.
@@ -369,7 +369,7 @@ BEGIN
      AND (_feature->'referencePoint'->>'type' = 'Point') THEN
     ref_point = ST_Force3D(ST_GeomFromGeoJSON(_feature->'referencePoint'));
   ELSIF _geo IS NOT NULL THEN
-    ref_point = ST_Centroid(_geo);
+    ref_point = _geo;
   END IF;
   IF ref_point IS NOT NULL THEN
     RETURN nk_grid_for_geometry(ref_point);
