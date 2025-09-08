@@ -36,14 +36,21 @@ import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.ModifySubscriptionEvent;
 import com.here.xyz.events.PropertyQuery;
+import com.here.xyz.events.PropertyQuery.QueryOperation;
 import com.here.xyz.events.PropertyQueryList;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.events.UpdateStrategy;
 import com.here.xyz.events.WriteFeaturesEvent;
+import com.here.xyz.models.geojson.WebMercatorTile;
+import com.here.xyz.models.geojson.coordinates.BBox;
+import com.here.xyz.models.geojson.coordinates.LinearRingCoordinates;
+import com.here.xyz.models.geojson.coordinates.PolygonCoordinates;
+import com.here.xyz.models.geojson.coordinates.Position;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.FeatureCollection.ModificationFailure;
 import com.here.xyz.models.geojson.implementation.Geometry;
+import com.here.xyz.models.geojson.implementation.Polygon;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.psql.query.GetFastStatistics;
@@ -82,7 +89,8 @@ import static com.here.xyz.responses.XyzError.NOT_IMPLEMENTED;
 
 public class NLConnector extends PSQLXyzConnector {
   private static final Logger logger = LogManager.getLogger();
-  private static final String refQuad = "refQuad";
+  private static final String REF_QUAD_PROPERTY_KEY = "properties.refQuad";
+  private static final String REF_QUAD_COUNT_SELECTION_KEY = "f.refQuadCount";
 
   @Override
   protected StatisticsResponse processGetStatistics(GetStatisticsEvent event) throws Exception {
@@ -141,19 +149,31 @@ public class NLConnector extends PSQLXyzConnector {
 
       PropertyQueryList propertyQueries = event.getPropertiesQuery().get(0);
       String key = propertyQueries.get(0).getKey();
-      PropertyQuery.QueryOperation operation = propertyQueries.get(0).getOperation();
+      QueryOperation operation = propertyQueries.get(0).getOperation();
       List<Object> values = propertyQueries.get(0).getValues();
+      String selectionValue = null;
+      List selection = event.getSelection();
 
-      if(!key.equalsIgnoreCase("properties.refQuad"))
-        throw new ErrorResponseException(NOT_IMPLEMENTED, errorMessage);
-      if(!operation.equals(PropertyQuery.QueryOperation.BEGINS_WITH))
-        throw new ErrorResponseException(NOT_IMPLEMENTED, errorMessage);
       if(values.size() != 1 || !(values.get(0) instanceof String))
         throw new ErrorResponseException(NOT_IMPLEMENTED, errorMessage);
 
-      String refQuad = values.get(0).toString();
+      if(!key.equalsIgnoreCase(REF_QUAD_PROPERTY_KEY) || !operation.equals(PropertyQuery.QueryOperation.BEGINS_WITH))
+        throw new ErrorResponseException(NOT_IMPLEMENTED, errorMessage);
 
-      return getFeaturesByRefQuad(dbSettings.getSchema(), XyzEventBasedQueryRunner.readTableFromEvent(event), refQuad);
+      if(selection != null && !selection.contains(REF_QUAD_COUNT_SELECTION_KEY))
+        throw new ErrorResponseException(NOT_IMPLEMENTED, errorMessage);
+      else if(selection != null){
+        selectionValue = selection.get(0).toString();
+        if (!selectionValue.equals(REF_QUAD_COUNT_SELECTION_KEY))
+          throw new ErrorResponseException(NOT_IMPLEMENTED, errorMessage);
+      }
+
+      String refQuad = values.get(0).toString();
+      if(selectionValue == null)
+        return getFeaturesByRefQuad(dbSettings.getSchema(), XyzEventBasedQueryRunner.readTableFromEvent(event), refQuad,
+                event.getLimit());
+      return getFeatureCountByRefQuad(dbSettings.getSchema(), XyzEventBasedQueryRunner.readTableFromEvent(event), refQuad,
+              event.getLimit());
     }
     throw new ErrorResponseException(NOT_IMPLEMENTED, errorMessage);
   }
@@ -277,36 +297,12 @@ public class NLConnector extends PSQLXyzConnector {
     }
   }
 
-  private FeatureCollection getFeaturesByRefQuad(String schema, String table, String refQuad) throws SQLException, JsonProcessingException {
+  private FeatureCollection getFeaturesByRefQuad(String schema, String table, String refQuad, long limit)
+          throws SQLException, JsonProcessingException {
     try (final Connection connection = dataSourceProvider.getWriter().getConnection()) {
-      String selection = """              
-                '{ "type": "FeatureCollection", "features": [' ||
-                   string_agg(
-                     regexp_replace(
-                       regexp_replace(                         
-                         -- Inject version and author into namespace
-                         jsondata,
-                         '("(@ns:com:here:xyz)"\\s*:\\s*\\{)',
-                         '\\1"version":' || version || ',"author":"' || coalesce(author, 'ANONYMOUS') || '",',
-                         'g'
-                       ),
-                       -- Add geometry at root level (after first {)
-                       '^{',
-                       '{' || '"geometry":' || coalesce(ST_AsGeoJSON(geo, 8), 'null') || ',',
-                       'g'
-                     ),
-                     ','
-                   )
-                   || '] }' AS featurecollection
-              """;
+      String query = createReadByRefQuadQuery(schema, table, refQuad, limit, false);
 
-      String searchQuery = "SELECT $selection$ FROM $table$ WHERE refquad >= '${{startRange}}' AND refquad < '$endRange$'"
-                .replace("$table$", "\"" + schema + "\".\"" + table + "\"")
-                .replace("$selection$", selection)
-                .replace("$startRange", refQuad)
-                .replace("$endRange$",  refQuad + "4");
-
-      try (PreparedStatement ps = connection.prepareStatement(searchQuery)) {
+      try (PreparedStatement ps = connection.prepareStatement(query)) {
 
         try (ResultSet rs = ps.executeQuery()) {
           if(rs.next()){
@@ -315,12 +311,166 @@ public class NLConnector extends PSQLXyzConnector {
         }
       }catch (SQLException e){
         logger.error(e);
+        throw e;
       }
     }
+    //should not happen - but for compiler
     return null;
   }
 
-  private void batchUpsertFeatures(String schema, String table, FeatureCollection featureCollection, long version, String author,
+  private FeatureCollection getFeatureCountByRefQuad(String schema, String table, String refQuad, long limit)
+          throws SQLException {
+    try (final Connection connection = dataSourceProvider.getWriter().getConnection()) {
+
+      String query = createReadByRefQuadQuery(schema, table, refQuad, limit, true);
+
+      try (PreparedStatement ps = connection.prepareStatement(query)) {
+
+        try (ResultSet rs = ps.executeQuery()) {
+          if(rs.next()){
+            BBox bBox = WebMercatorTile.forQuadkey(refQuad).getBBox(false);
+            LinearRingCoordinates lrc = new LinearRingCoordinates();
+            lrc.add(new Position(bBox.minLon(), bBox.minLat()));
+            lrc.add(new Position(bBox.maxLon(), bBox.minLat()));
+            lrc.add(new Position(bBox.maxLon(), bBox.maxLat()));
+            lrc.add(new Position(bBox.minLon(), bBox.maxLat()));
+            lrc.add(new Position(bBox.minLon(), bBox.minLat()));
+
+            PolygonCoordinates polygonCoordinates = new PolygonCoordinates();
+            polygonCoordinates.add(lrc);
+
+            return new FeatureCollection().withFeatures(List.of(
+                    new Feature()
+                       .withId(refQuad)
+                       .withGeometry(
+                               new Polygon().withCoordinates(polygonCoordinates)
+                       )
+                       .withProperties(
+                            new Properties()
+                                    .with("count", rs.getLong("cnt")
+                            ))
+            ));
+          }
+        }
+      }catch (SQLException e){
+        logger.error(e);
+        throw e;
+      }
+    }
+    //should not happen - but for compiler
+    return null;
+  }
+
+  private String createReadByRefQuadQuery(String schema, String table, String refQuad,
+                                          long limit, boolean returnCount) {
+    String innerSelect = "SELECT * FROM \"" + schema + "\".\"" + table + "\" " +
+            "WHERE refquad >= '" + refQuad + "' AND refquad < '" + refQuad + "4' " +
+            "LIMIT " + limit;
+
+    String selection;
+    if (returnCount) {
+      selection = "count(1) as cnt";
+    } else {
+      selection = """
+            '{ "type": "FeatureCollection", "features": [' ||
+             COALESCE(
+               string_agg(
+                 regexp_replace(
+                   regexp_replace(
+                     -- Inject version and author into namespace
+                     jsondata,
+                     '("(@ns:com:here:xyz)"\\s*:\\s*\\{)',
+                     '\\1"version":' || version || ',"author":"' || coalesce(author, 'ANONYMOUS') || '",',
+                     'g'
+                   ),
+                   -- Add geometry at root level (after first {)
+                   '^{',
+                   '{' || '"geometry":' || coalesce(ST_AsGeoJSON(geo, 8), 'null') || ',',
+                   'g'
+                 ),
+                 ','
+               ),
+               ''   --No rows found - deliver empty fc
+             )
+             || '] }' AS featureCollection
+            """;
+    }
+
+    return "SELECT " + selection + " FROM (" + innerSelect + ") t";
+  }
+
+  private void batchUpsertFeatures(
+          String schema,
+          String table,
+          FeatureCollection featureCollection,
+          long version,
+          String author,
+          List<ModificationFailure> fails
+  ) throws SQLException, JsonProcessingException {
+
+    // Build the MERGE SQL dynamically with a VALUES clause
+    String mergeSql = """
+        MERGE INTO %s.%s AS t
+        USING (
+          VALUES %s
+        ) AS s(id, geo, operation, author, version, jsondata, refquad)
+        ON (t.id = s.id AND t.next_version = 9223372036854775807)
+        WHEN MATCHED THEN
+          UPDATE SET
+            jsondata  = s.jsondata,
+            geo       = s.geo,
+            version   = s.version,
+            author    = s.author,
+            operation = 'U'
+        WHEN NOT MATCHED THEN
+          INSERT (id, geo, operation, author, version, jsondata, refquad)
+          VALUES (s.id, s.geo, s.operation, s.author, s.version, s.jsondata, s.refquad);
+        """.formatted(schema, table, buildValuesPlaceholders(featureCollection.getFeatures().size()));
+
+    try (Connection connection = dataSourceProvider.getWriter().getConnection()) {
+      connection.setAutoCommit(false);
+
+      try (PreparedStatement ps = connection.prepareStatement(mergeSql)) {
+        int paramIndex = 1;
+        for (Feature feature : featureCollection.getFeatures()) {
+          Geometry geo = feature.getGeometry();
+
+          if (geo != null) {
+            for (Coordinate coord : geo.getJTSGeometry().getCoordinates()) {
+              if (Double.isNaN(coord.z))
+                coord.z = 0; // avoid NaN
+            }
+          }
+
+          ensureFeatureId(feature);
+
+          ps.setString(paramIndex++, feature.getId());
+          ps.setBytes(paramIndex++, geo == null ? null : new WKBWriter(3).write(geo.getJTSGeometry()));
+          ps.setString(paramIndex++, "I"); // operation always insert initially
+          ps.setString(paramIndex++, author);
+          ps.setLong(paramIndex++, version);
+          ps.setString(paramIndex++, enrichFeaturePayload(feature));
+          ps.setString(paramIndex++, getRefQuad(feature));
+        }
+
+        int updated = ps.executeUpdate();
+        connection.commit();
+        logger.info("Successfully upserted {} features.", updated);
+
+      } catch (SQLException e) {
+        connection.rollback();
+        logger.error("Upsert failed", e);
+        fails.add(new ModificationFailure().withMessage("Upsert failed: " + e.getMessage()));
+      }
+    }
+  }
+
+  private String buildValuesPlaceholders(int rowCount) {
+    String row = "(?, ?, ?, ?, ?, ?, ?)";
+    return String.join(", ", java.util.Collections.nCopies(rowCount, row));
+  }
+
+  private void batchUpsertFeatures1(String schema, String table, FeatureCollection featureCollection, long version, String author,
           List<ModificationFailure> fails) throws SQLException, JsonProcessingException {
 //    String upsertSql = """
 //          INSERT INTO $table$ (id, jsondata, operation, version, geo)
@@ -435,7 +585,7 @@ public class NLConnector extends PSQLXyzConnector {
   }
 
   private String getRefQuad(Feature feature) {
-    return feature.getProperties().get(refQuad);
+    return feature.getProperties().get(REF_QUAD_PROPERTY_KEY);
   }
 
   private String enrichFeaturePayload(Feature feature) {
