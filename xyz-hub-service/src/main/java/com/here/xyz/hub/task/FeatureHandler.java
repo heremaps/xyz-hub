@@ -45,6 +45,7 @@ import com.here.xyz.hub.connectors.models.Space.ConnectorType;
 import com.here.xyz.hub.connectors.models.Space.ResolvableListenerConnectorRef;
 import com.here.xyz.hub.rest.Api;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space.Extension;
 import com.here.xyz.models.hub.Space.ListenerConnectorRef;
 import com.here.xyz.responses.StatisticsResponse;
@@ -84,7 +85,7 @@ public class FeatureHandler {
   private static final LongAdder globalInflightRequestMemory = new LongAdder();
 
   public static Future<FeatureCollection> writeFeatures(Marker marker, Space space, Set<Modification> modifications, SpaceContext spaceContext,
-      String author, boolean responseDataExpected) {
+      String author, boolean responseDataExpected, Ref baseRef) {
     try {
       throttle(space);
 
@@ -93,7 +94,8 @@ public class FeatureHandler {
           .withModifications(modifications)
           .withContext(spaceContext)
           .withAuthor(author)
-          .withResponseDataExpected(responseDataExpected);
+          .withResponseDataExpected(responseDataExpected)
+          .withRef(baseRef);
 
       injectMinVersion(marker, space.getId(), event);
 

@@ -482,13 +482,14 @@ public class FeatureApi extends SpaceBasedApi {
       String author, boolean responseDataExpected) throws HttpException {
     checkModificationOnSuper(spaceContext);
     String spaceId = getSpaceId(context);
+    Ref baseRef = getBaseRef(context);
     return Space.resolveSpace(getMarker(context), spaceId)
         .compose(space -> {
           if (space == null)
             return Future.failedFuture(new DetailedHttpException("E318441", Map.of("resourceId", spaceId)));
 
           Set<Modification> modifications = inputModifications instanceof FeatureModificationList featureModificationList
-              ? toModifications(context, space, featureModificationList, isConflictDetectionEnabled(context))
+              ? toModifications(context, space, featureModificationList, isConflictDetectionEnabled(context, baseRef))
               : (Set<Modification>) inputModifications;
           boolean isDelete = hasDeletion(modifications);
           boolean isWrite = hasWrite(modifications);
@@ -510,7 +511,7 @@ public class FeatureApi extends SpaceBasedApi {
                 .compose(v -> resolveExtendedSpaces(getMarker(context), space))
                 .compose(v -> enforceUsageQuotas(context, space, spaceContext, isDelete && !isWrite))
                 //Perform the actual feature writing
-                .compose(v -> FeatureHandler.writeFeatures(getMarker(context), space, modifications, spaceContext, author, responseDataExpected))
+                .compose(v -> FeatureHandler.writeFeatures(getMarker(context), space, modifications, spaceContext, author, responseDataExpected, baseRef))
                 .recover(t -> {
                   if (t instanceof TooManyRequestsException throttleException)
                     XYZHubRESTVerticle.addStreamInfo(context, "THR", throttleException.reason); //Set the throttling reason at the stream-info header
@@ -730,6 +731,7 @@ public class FeatureApi extends SpaceBasedApi {
       ApiResponseType apiResponseTypeType, IfExists ifExists, IfNotExists ifNotExists, boolean transactional, ConflictResolution cr,
       List<Map<String, Object>> featureModifications, SpaceContext spaceContext) {
     try {
+      Ref baseRef = getBaseRef(context);
       checkModificationOnSuper(spaceContext);
 
       String author = getAuthor(context);
@@ -737,8 +739,9 @@ public class FeatureApi extends SpaceBasedApi {
           .withAuthor(author)
           .withTransaction(transactional)
           .withContext(spaceContext)
-          .withConflictDetectionEnabled(isConflictDetectionEnabled(context))
-          .withEraseContent(eraseContent(context));
+          .withConflictDetectionEnabled(isConflictDetectionEnabled(context, baseRef))
+          .withEraseContent(eraseContent(context))
+          .withRef(baseRef);
       int bodySize = context.getBody() != null ? context.getBody().length() : 0;
 
       ConditionalOperation task = buildConditionalOperation(event, context, apiResponseTypeType, featureModifications, ifNotExists,
@@ -773,7 +776,16 @@ public class FeatureApi extends SpaceBasedApi {
     return fixNormalizedTags(normalizeTags(new ArrayList<>(queryParam(ADD_TAGS, context))));
   }
 
-  private static boolean isConflictDetectionEnabled(RoutingContext context) {
+  protected Ref getBaseRef(RoutingContext context) throws HttpException {
+    Ref baseRef = super.getRef(context);
+    if (!baseRef.isSingleVersion())
+      throw new HttpException(BAD_REQUEST, "A version range can not be used as the base version for a write operation.");
+    return baseRef;
+  }
+
+  private static boolean isConflictDetectionEnabled(RoutingContext context, Ref baseRef) {
+    if (!baseRef.isHead())
+      return true;
     return Query.getBoolean(context, CONFLICT_DETECTION, false);
   }
 
@@ -801,7 +813,7 @@ public class FeatureApi extends SpaceBasedApi {
     if (featureModifications == null)
       return new ConditionalOperation(event, context, apiResponseTypeType, ifNotExists, ifExists, transactional, cr, requireResourceExists, bodySize);
 
-    final List<FeatureEntry> featureEntries = ModifyFeatureOp.convertToFeatureEntries(featureModifications, ifNotExists, ifExists, cr);
+    final List<FeatureEntry> featureEntries = ModifyFeatureOp.convertToFeatureEntries(featureModifications, ifNotExists, ifExists, cr, event.getRef());
     final ModifyFeatureOp modifyFeatureOp = new ModifyFeatureOp(featureEntries, transactional);
     return new ConditionalOperation(event, context, apiResponseTypeType, modifyFeatureOp, requireResourceExists, bodySize);
   }

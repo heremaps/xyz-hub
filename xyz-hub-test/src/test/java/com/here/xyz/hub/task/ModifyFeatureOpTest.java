@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 
 package com.here.xyz.hub.task;
 
+import static com.here.xyz.models.hub.Ref.HEAD;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
@@ -31,6 +32,7 @@ import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.hub.FeatureModificationList.ConflictResolution;
 import com.here.xyz.models.hub.FeatureModificationList.IfExists;
 import com.here.xyz.models.hub.FeatureModificationList.IfNotExists;
+import com.here.xyz.models.hub.Ref;
 import com.here.xyz.util.service.HttpException;
 import io.vertx.core.json.JsonObject;
 import java.io.IOException;
@@ -69,7 +71,7 @@ public class ModifyFeatureOpTest {
       Map<String, Object> featureCollection = Collections.singletonMap("features", features);
 
       List<FeatureEntry> entries = ModifyFeatureOp.convertToFeatureEntries(Collections.singletonList(Collections.singletonMap("featureData", featureCollection)),
-          IfNotExists.CREATE, IfExists.MERGE, ConflictResolution.ERROR);
+          IfNotExists.CREATE, IfExists.MERGE, ConflictResolution.ERROR, new Ref(HEAD));
       ModifyFeatureOp op = new ModifyFeatureOp(entries, true);
       final Entry<Feature> entry = op.entries.get(0);
       entry.head = head;
@@ -102,7 +104,7 @@ public class ModifyFeatureOpTest {
       Map<String, Object> featureCollection = Collections.singletonMap("features", features);
 
       List<FeatureEntry> entries = ModifyFeatureOp.convertToFeatureEntries(Collections.singletonList(Collections.singletonMap("featureData", featureCollection)),
-          IfNotExists.CREATE, IfExists.MERGE, ConflictResolution.ERROR);
+          IfNotExists.CREATE, IfExists.MERGE, ConflictResolution.ERROR, new Ref(HEAD));
       ModifyFeatureOp op = new ModifyFeatureOp(entries, true);
       final Entry<Feature> entry = op.entries.get(0);
       entry.head = base;
@@ -132,7 +134,7 @@ public class ModifyFeatureOpTest {
       Map<String, Object> featureCollection = Collections.singletonMap("features", features);
 
       List<FeatureEntry> entries = ModifyFeatureOp.convertToFeatureEntries(Collections.singletonList(Collections.singletonMap("featureData", featureCollection)),
-          IfNotExists.CREATE, IfExists.MERGE, ConflictResolution.ERROR);
+          IfNotExists.CREATE, IfExists.MERGE, ConflictResolution.ERROR, new Ref(HEAD));
       ModifyFeatureOp op = new ModifyFeatureOp(entries, true);
       final Entry<Feature> entry = op.entries.get(0);
       op.process();
