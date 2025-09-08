@@ -193,7 +193,7 @@ public class DatabaseWriter {
             throw new WriteFeatureException(UPDATE_ERROR_ID_MISSING);
 
         if (event.isConflictDetectionEnabled() && event.getVersionsToKeep() == 1)
-            query.setNamedParameter("baseVersion", feature.getProperties().getXyzNamespace().getVersion());
+            query.setNamedParameter("baseVersion", getBaseVersion(event, feature.getProperties().getXyzNamespace().getVersion()));
 
         /*
         NOTE: If versioning is activated for the space, always only inserts are performed,
@@ -208,8 +208,9 @@ public class DatabaseWriter {
     }
 
     private static void fillInsertQueryFromFeature(SQLQuery query, ModificationType action, Feature feature, ModifyFeaturesEvent event, long version) throws SQLException {
-        long baseVersion = feature.getProperties().getXyzNamespace().getVersion();
-        query
+      long baseVersion = getBaseVersion(event, feature.getProperties().getXyzNamespace().getVersion());
+
+      query
             .withNamedParameter("id", feature.getId())
             .withNamedParameter("version", version)
             .withNamedParameter("operation", resolveOperation(action, feature).shortValue)
@@ -227,7 +228,14 @@ public class DatabaseWriter {
             query.setNamedParameter("geo", null);
     }
 
-    private static boolean getDeletedFlagFromFeature(Feature f) {
+  private static long getBaseVersion(ModifyFeaturesEvent event, long baseVersionFromFeature) {
+    long baseVersion = baseVersionFromFeature;
+    if (event.getRef() != null && event.getRef().isSingleVersion() && !event.getRef().isHead())
+      baseVersion = event.getRef().getVersion();
+    return baseVersion;
+  }
+
+  private static boolean getDeletedFlagFromFeature(Feature f) {
         return f.getProperties() == null ? false :
             f.getProperties().getXyzNamespace() == null ? false : f.getProperties().getXyzNamespace().isDeleted();
     }

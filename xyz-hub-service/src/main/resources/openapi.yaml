@@ -16,7 +16,7 @@ tags:
   - name: Read Features
     description: Read only endpoints for features.
   - name: Write Features
-    description: Read and write endpoints for features.
+    description: Write endpoints for features.
   - name: Manage Connectors
     description: Read and write endpoints for connectors.
   - name: Manage Subscriptions
@@ -204,12 +204,19 @@ paths:
       tags:
         - Manage Changesets
       summary: Get Changesets
-      description: >-
+      description: |
         Retrieves a subset of existing Changesets from the space's history.
         The subset can be defined either by a "startVersion" and an "endVersion"
         or by providing a version ref that references a version range
         e.g., "5..6" or "0..HEAD"
         
+
+        The version range can be specified using the `versionRef` query-parameter as follows:
+        `<start>..<end>`
+        
+        Where `<start>` is the start of the range (exclusive) and `<end>` is the end of the range
+        (inclusive).
+
 
         Each successful write transaction to the space is stored as one single Changeset,
         which can contain modifications applied to one or more features.
@@ -306,7 +313,9 @@ paths:
     get:
       tags:
         - Manage Changesets
-      summary: Get ChangesetStatistics (deprecated)
+      summary: |
+        `[Deprecated]` Get ChangesetStatistics
+      deprecated: true
       description: >-
         NOTE: This endpoint is <b>deprecated</b>. Use <code>/spaces/{spaceId}/statistics</code> instead to gather information about the min / max version of a space.<br /><br />
         Returns statistics about changesets.
@@ -451,8 +460,7 @@ paths:
         - $ref: '#/components/parameters/PropertiesSelection'
         - $ref: '#/components/parameters/Force2D'
         - $ref: '#/components/parameters/Context'
-        - $ref: '#/components/parameters/VersionStar'
-        - $ref: '#/components/parameters/VersionRefStar'
+        - $ref: '#/components/parameters/VersionRef'
         - $ref: '#/components/parameters/Author'
       responses:
         '200':
@@ -473,6 +481,7 @@ paths:
       operationId: putFeatures
       parameters:
         - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/VersionRef'
       requestBody:
         $ref: '#/components/requestBodies/FeatureCollectionRequest'
       responses:
@@ -608,6 +617,7 @@ paths:
         - $ref: '#/components/parameters/Transactional'
         - $ref: '#/components/parameters/PrefixId'
         - $ref: '#/components/parameters/Context'
+        - $ref: '#/components/parameters/VersionRef'
       requestBody:
         $ref: '#/components/requestBodies/FeatureCollectionOrFeatureModificationListRequest'
       responses:
@@ -640,6 +650,7 @@ paths:
         - $ref: '#/components/parameters/SpaceId'
         - $ref: '#/components/parameters/Ids'
         - $ref: '#/components/parameters/Context'
+        - $ref: '#/components/parameters/VersionRef'
         - name: eraseContent
           in: query
           description: >-
@@ -677,7 +688,7 @@ paths:
         - $ref: '#/components/parameters/Force2D'
         - $ref: '#/components/parameters/Context'
         - $ref: '#/components/parameters/VersionStar'
-        - $ref: '#/components/parameters/VersionRefStar'
+        - $ref: '#/components/parameters/VersionRef'
         - $ref: '#/components/parameters/Author'
       responses:
         '200':
@@ -699,6 +710,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/SpaceId'
         - $ref: '#/components/parameters/FeatureId'
+        - $ref: '#/components/parameters/VersionRef'
       requestBody:
         $ref: '#/components/requestBodies/FeatureRequest'
       responses:
@@ -725,6 +737,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/SpaceId'
         - $ref: '#/components/parameters/FeatureId'
+        - $ref: '#/components/parameters/VersionRef'
       requestBody:
         $ref: '#/components/requestBodies/FeatureRequest'
       responses:
@@ -754,6 +767,7 @@ paths:
         - $ref: '#/components/parameters/SpaceId'
         - $ref: '#/components/parameters/FeatureId'
         - $ref: '#/components/parameters/Context'
+        - $ref: '#/components/parameters/VersionRef'
       responses:
         '204':
           $ref: '#/components/responses/EmptyResponse'
@@ -1411,17 +1425,15 @@ components:
     EndVersion:
       name: endVersion
       in: query
-      description: Defines the end of the version-range [version <= endVersion].
+      description: |
+        `[Deprecated]` Please define the version range using the versionRef query parameter.
+        
+        
+        Defines the end of the version-range [version <= endVersion].
       required: false
       schema:
         type: integer
-    EndVersionNotRequired:
-      name: endVersion
-      in: query
-      description: Defines the end of the version-range [version <= endVersion].
-      required: false
-      schema:
-        type: integer
+      deprecated: true
     FeatureId:
       name: featureId
       in: path
@@ -1763,17 +1775,15 @@ components:
     StartVersion:
       name: startVersion
       in: query
-      description: Defines the start of the version-range [version >= startVersion].
+      description: |
+        `[Deprecated]` Please define the version range using the versionRef query parameter.
+        
+        
+        Defines the start of the version-range [version >= startVersion].
       required: false
       schema:
         type: integer
-    StartVersionNotRequired:
-      name: startVersion
-      in: query
-      description: Defines the start of the version-range [version >= startVersion].
-      required: false
-      schema:
-        type: integer
+      deprecated: true
     TileId:
       name: tileId
       in: path
@@ -1880,18 +1890,33 @@ components:
     VersionRef:
       name: versionRef
       in: query
-      description: >-
-        The query parameter used to specify the version reference pointing to a tag or a version.
-      required: false
-      schema:
-        type: string
-    VersionRefStar:
-      name: versionRef
-      in: query
-      description: >-
-        The query parameter used to specify the version reference pointing to a tag or a version
-        with also the possibility to use the star '*' to load all versions or 'HEAD' to load the
-        latest available version.
+      description: |
+        The query parameter used to specify the target version reference when reading or writing features.
+        A reference describes a target tag or a version.
+        
+        Default is: `HEAD`
+
+        <br>
+        Depending on the use-case it can be necessary to specify a range of versions rather than
+        only one version. In such a case the version part of the Ref would look like:
+        `<start>..<end>`
+
+        Where `<start>` is the start of the range (exclusive) and `<end>` is the end of the range
+        (inclusive).
+
+        Another way of specifying a version range is using the star-symbol: `*`
+
+        Using `*` refers to "all available versions" in the space or branch and is only
+        applicable in the cases in which a version range may be provided.
+
+        <br>
+        Samples:
+          - `42` points to version 42
+          - `HEAD` points to the latest version
+          - `myTag` points to the version of the tag with ID "myTag"
+          - `0..HEAD` points to all available versions
+          - `*` also points to all versions (short form)
+          - `5..10` points to the versions in the interval `]5, 10]`
       required: false
       schema:
         type: string
@@ -2226,7 +2251,7 @@ components:
                 createdAt: 1560417151751
                 updatedAt: 1561480482869
     SpacesResponse:
-      description: The list of spaces.
+      description: A list of spaces.
       content:
         application/json:
           schema:

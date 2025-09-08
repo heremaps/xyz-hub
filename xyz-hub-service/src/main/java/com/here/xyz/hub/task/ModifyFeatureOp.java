@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.models.hub.FeatureModificationList.ConflictResolution;
 import com.here.xyz.models.hub.FeatureModificationList.IfExists;
 import com.here.xyz.models.hub.FeatureModificationList.IfNotExists;
+import com.here.xyz.models.hub.Ref;
 import com.here.xyz.util.service.HttpException;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.json.JsonObject;
@@ -64,7 +65,7 @@ public class ModifyFeatureOp extends ModifyOp<Feature, FeatureEntry> {
    * @return the list of feature entries, which can be empty
    * @throws HttpException in case the parameters ifExists, ifNotExists and conflictResolution extracted from the featureModification contains invalid values
    */
-  public static List<FeatureEntry> convertToFeatureEntries(List<Map<String, Object>> featureModifications, IfNotExists ifNotExists, IfExists ifExists, ConflictResolution conflictResolution)
+  public static List<FeatureEntry> convertToFeatureEntries(List<Map<String, Object>> featureModifications, IfNotExists ifNotExists, IfExists ifExists, ConflictResolution conflictResolution, Ref baseRef)
       throws HttpException {
     if (featureModifications == null)
       return Collections.emptyList();
@@ -87,7 +88,7 @@ public class ModifyFeatureOp extends ModifyOp<Feature, FeatureEntry> {
       if (featureIds != null)
         features.addAll(idsToFeatures(featureIds));
 
-      result.addAll(features.stream().map(feature -> new FeatureEntry(feature, ne, e, cr)).collect(Collectors.toList()));
+      result.addAll(features.stream().map(feature -> new FeatureEntry(feature, ne, e, cr, baseRef)).collect(Collectors.toList()));
     }
 
     return result;
@@ -98,8 +99,11 @@ public class ModifyFeatureOp extends ModifyOp<Feature, FeatureEntry> {
   }
 
   public static class FeatureEntry extends ModifyOp.Entry<Feature> {
-    public FeatureEntry(Map<String, Object> input, IfNotExists ifNotExists, IfExists ifExists, ConflictResolution cr) {
+    public FeatureEntry(Map<String, Object> input, IfNotExists ifNotExists, IfExists ifExists, ConflictResolution cr, Ref requestBaseRef) {
       super(input, ifNotExists, ifExists, cr);
+      //Override the inputVersion if one was defined at request level
+      if (!requestBaseRef.isHead())
+        this.inputVersion = requestBaseRef.getVersion();
     }
 
     @Override

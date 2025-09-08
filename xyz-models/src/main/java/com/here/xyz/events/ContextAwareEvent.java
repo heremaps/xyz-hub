@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,18 +20,33 @@
 
 package com.here.xyz.events;
 
+import static com.here.xyz.models.hub.Ref.HEAD;
 import static com.here.xyz.models.hub.Space.DEFAULT_VERSIONS_TO_KEEP;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import com.here.xyz.models.hub.Ref;
 
 @JsonInclude(Include.NON_DEFAULT)
 public abstract class ContextAwareEvent<T extends ContextAwareEvent> extends Event<T> {
-
   private SpaceContext context = SpaceContext.DEFAULT;
   private int versionsToKeep = DEFAULT_VERSIONS_TO_KEEP;
+  private Ref ref = new Ref(HEAD);
   private String author;
   private long minVersion;
+
+  public Ref getRef() {
+    return ref;
+  }
+
+  public void setRef(Ref ref) {
+    this.ref = ref;
+  }
+
+  public T withRef(Ref ref) {
+    setRef(ref);
+    return (T) this;
+  }
 
   public String getAuthor() {
     return author;
