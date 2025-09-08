@@ -20,7 +20,6 @@
 package com.here.xyz.test.featurewriter;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
-import static com.here.xyz.test.featurewriter.TestSuite.TEST_FEATURE_GEOMETRY;
 import static com.here.xyz.test.featurewriter.TestSuite.TEST_FEATURE_ID;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SCHEMA;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.TABLE;
@@ -121,7 +120,7 @@ public abstract class SpaceWriter extends SQLITBase {
 
   public SpaceTableRow getFeatureRow(SpaceContext context) throws Exception {
     try (DataSourceProvider dsp = getDataSourceProvider()) {
-      return new SQLQuery("SELECT id, version, next_version, operation, author, jsondata, geo " + " FROM ${schema}.${table} "
+      return new SQLQuery("SELECT id, version, next_version, operation, author, jsondata, ST_AsGeojson(geo) AS geo " + " FROM ${schema}.${table} "
           + "WHERE id = #{id} AND next_version = #{MAX_BIGINT}")
           .withVariable(SCHEMA, dsp.getDatabaseSettings().getSchema())
           .withVariable(TABLE, context == SUPER ? superSpaceId() : spaceId())
@@ -137,7 +136,7 @@ public abstract class SpaceWriter extends SQLITBase {
                       Operation.valueOf(rs.getString("operation")),
                       rs.getString("author"),
                       XyzSerializable.deserialize(rs.getString("jsondata"), Map.class),
-                      TEST_FEATURE_GEOMETRY //TODO: Read & transform geo from row, when it becomes relevant
+                      rs.getString("geo") == null ? null : XyzSerializable.deserialize(rs.getString("geo"))
                     )
                   : null;
             }
