@@ -189,7 +189,7 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
                   "  ON CONFLICT (id,schem)" +
                   "  DO " +
                   "  UPDATE" +
-                  "     SET meta = COALESCE(s_m.meta,'{}'::jsonb) || (#{extend})::jsonb" +
+                  "     SET meta = COALESCE(s_m.meta - 'extends','{}'::jsonb ,'{}'::jsonb) || (#{extend})::jsonb" +
                   "  WHERE 1=1" +
                   "     AND s_m.id = #{spaceid}" +
                   "     AND s_m.schem = #{schema};");
@@ -204,11 +204,18 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
 
     public SQLQuery buildCleanUpQuery(ModifySpaceEvent event) {
         String table = getDefaultTable(event);
+
+//MMSUP-1092  tmp workaroung on db9 - skip deletion from spaceMetaTable
+//TODO: remove spaceMetaTable from overall code
+        String deleteMetadata = "DELETE FROM ${configSchema}.${spaceMetaTable} WHERE h_id = #{table} AND schem = #{schema};",
+               storageID = event.getSpaceDefinition().getStorage().getId();
+
+        if( "psql-db9-eu-west-1".equals(storageID) )
+         deleteMetadata = "";
+//MMSUP-1092
+
         SQLQuery q = new SQLQuery("${{deleteMetadata}} ${{dropTable}} ${{dropISequence}} ${{dropVersionSequence}}")
-            .withQueryFragment(
-                "deleteMetadata",
-                "DELETE FROM ${configSchema}.${spaceMetaTable} WHERE h_id = #{table} AND schem = #{schema};"
-            )
+            .withQueryFragment("deleteMetadata", deleteMetadata)
             .withQueryFragment("dropTable", "DROP TABLE IF EXISTS ${schema}.${table};")
             .withQueryFragment("dropISequence", "DROP SEQUENCE IF EXISTS ${schema}.${iSequence};")
             .withQueryFragment("dropVersionSequence", "DROP SEQUENCE IF EXISTS ${schema}.${versionSequence};");
