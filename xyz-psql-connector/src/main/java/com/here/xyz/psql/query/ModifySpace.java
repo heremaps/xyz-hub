@@ -208,7 +208,9 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
 //MMSUP-1092  tmp workaroung on db9 - skip deletion from spaceMetaTable
 //TODO: remove spaceMetaTable from overall code
         String deleteMetadata = "DELETE FROM ${configSchema}.${spaceMetaTable} WHERE h_id = #{table} AND schem = #{schema};",
-               storageID = event.getSpaceDefinition().getStorage().getId();
+               storageID = event.getSpaceDefinition() != null && event.getSpaceDefinition().getStorage() != null
+                           ? event.getSpaceDefinition().getStorage().getId()
+                           : "no-connector-info-available";
 
         if( "psql-db9-eu-west-1".equals(storageID) )
          deleteMetadata = "";
