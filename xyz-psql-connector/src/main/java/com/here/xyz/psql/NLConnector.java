@@ -89,7 +89,7 @@ import static com.here.xyz.responses.XyzError.NOT_IMPLEMENTED;
 
 public class NLConnector extends PSQLXyzConnector {
   private static final Logger logger = LogManager.getLogger();
-  private static final String REF_QUAD_PROPERTY_KEY = "properties.refQuad";
+  private static final String REF_QUAD_PROPERTY_KEY = "refQuad";
   private static final String REF_QUAD_COUNT_SELECTION_KEY = "f.refQuadCount";
 
   @Override
@@ -157,7 +157,7 @@ public class NLConnector extends PSQLXyzConnector {
       if(values.size() != 1 || !(values.get(0) instanceof String))
         throw new ErrorResponseException(NOT_IMPLEMENTED, errorMessage);
 
-      if(!key.equalsIgnoreCase(REF_QUAD_PROPERTY_KEY) || !operation.equals(PropertyQuery.QueryOperation.BEGINS_WITH))
+      if(!key.equalsIgnoreCase("properties." + REF_QUAD_PROPERTY_KEY) || !operation.equals(PropertyQuery.QueryOperation.BEGINS_WITH))
         throw new ErrorResponseException(NOT_IMPLEMENTED, errorMessage);
 
       if(selection != null && !selection.contains(REF_QUAD_COUNT_SELECTION_KEY))
