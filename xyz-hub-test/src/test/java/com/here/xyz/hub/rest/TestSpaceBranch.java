@@ -45,7 +45,7 @@ public class TestSpaceBranch extends TestSpaceWithFeature {
   protected ValidatableResponse createBranch(String spaceId, String branchId, String ref) {
 
     //TODO: Remove when service defaults to HEAD if not provided
-    ref = ref == null || ref.equals("HEAD") ? "HEAD" : !ref.contains(":") ? ref + ":HEAD" : ref;
+    // ref = ref == null || ref.equals("HEAD") ? "HEAD" : !ref.contains(":") ? ref + ":HEAD" : ref;
 
     return given()
             .contentType(APPLICATION_JSON)

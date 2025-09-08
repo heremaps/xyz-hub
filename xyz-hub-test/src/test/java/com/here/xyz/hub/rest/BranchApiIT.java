@@ -28,6 +28,9 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 @Disabled
 public class BranchApiIT extends TestSpaceBranch {
@@ -52,6 +55,14 @@ public class BranchApiIT extends TestSpaceBranch {
   @Test
   public void createSimpleBranchOnMainHead() {
     createBranch(SPACE_ID, "branch_main_head", null)
+            .body("id", equalTo("branch_main_head"));
+  }
+
+  @ParameterizedTest
+  @NullAndEmptySource
+  @ValueSource(strings = {"HEAD", "1", "main", "main:HEAD", "main:1"})
+  public void createBranchWithDifferentBaseRef(String baseRef) {
+    createBranch(SPACE_ID, "branch_main_head", baseRef)
             .body("id", equalTo("branch_main_head"));
   }
 
