@@ -71,6 +71,10 @@ public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureColl
         .withBatchMode(true)
         .with("debug", "true".equals(System.getenv("FW_DEBUG")))
         .with("queryId", FunctionRuntime.getInstance().getStreamId())
+        .with("PARTITION_SIZE", PARTITION_SIZE)
+        .with("minVersion", event.getMinVersion())
+        .with("versionsToKeep", event.getVersionsToKeep())
+        .with("pw", getDataSourceProvider().getDatabaseSettings().getPassword())
         .build();
 
     return new SQLQuery("SELECT write_features(#{modifications}, 'Modifications', #{author}, #{responseDataExpected});")

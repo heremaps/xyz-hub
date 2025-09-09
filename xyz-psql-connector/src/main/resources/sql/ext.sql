@@ -17,6 +17,25 @@
  * License-Filename: LICENSE
  */
 
+/*
+ * Copyright (C) 2017-2025 HERE Europe B.V.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ * License-Filename: LICENSE
+ */
+
 ---------------------------------------------------------------------------------
 -- xyz_index_status							:	select * from xyz_index_status();
 -- xyz_create_idxs_over_dblink				:	select xyz_create_idxs_over_dblink('xyz', 20, 0, 2, ARRAY['postgres'], 'psql', 'xxx', 'xyz', 'localhost', 5432, 'xyz,h3,public,topology');
@@ -1966,11 +1985,11 @@ $BODY$
         -- Delete old changesets from the history to keep only as many versions as specified through "versionsToKeep" if necessary
         IF version % 1000 = 0 THEN -- Perform the check only on every 1000th transaction
             minVersion := version - versionsToKeep + 1;
-			IF minTagVersion != -1 THEN
-				minVersion := least(minTagVersion, minVersion);
-			END IF;        
+            IF minTagVersion != -1 THEN
+                minVersion := least(minTagVersion, minVersion);
+            END IF;
             IF minVersion > 0 THEN
-                PERFORM asyncify('SELECT xyz_delete_changesets(''' || schema || ''', ''' || tableName || ''', ' ||  partitionSize || ', ' || minVersion || ')', pw);
+                EXECUTE xyz_delete_changesets_async(schema, tableName, partitionSize, minVersion, pw);
             END IF;
         END IF;
 
@@ -2144,6 +2163,16 @@ BEGIN
     RAISE NOTICE 'Partition no % was successfully created (or existed already) for %.%.',
         partitionNo, schema, rootTable;
 END
+$BODY$
+LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION xyz_delete_changesets_async(schema TEXT, tableName TEXT, partitionSize BIGINT, minVersion BIGINT, pw TEXT)
+    RETURNS VOID AS
+$BODY$
+BEGIN
+    PERFORM asyncify('SELECT xyz_delete_changesets(''' || schema || ''', ''' || tableName || ''', ' ||  partitionSize || ', ' || minVersion || ')', pw);
+END;
 $BODY$
 LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
