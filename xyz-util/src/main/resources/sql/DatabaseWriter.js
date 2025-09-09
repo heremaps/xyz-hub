@@ -211,6 +211,9 @@ class DatabaseWriter {
                               WHEN $6::JSONB IS NULL THEN NULL
                               ELSE xyz_reduce_precision(ST_Force3D(ST_GeomFromGeoJSON($6::JSONB)), false) END)`;
 
+    this._createHistoryPartition(version);
+    this._purgeOldChangesets(version);
+
     let method = "insertHistoryRow";
     if (!this.plans[method]) {
       this.plans[method] = this._preparePlan(sql, ["TEXT", "BIGINT", "CHAR", "TEXT", "JSONB", "JSONB", "BIGINT"]);
@@ -234,6 +237,45 @@ class DatabaseWriter {
 
     if (!this.batchMode)
       return this.execute()[0];
+  }
+
+  _PARTITION_SIZE() {
+    return queryContext().PARTITION_SIZE || 100000; //TODO: Ensure the partition size is always set in the query context
+  }
+
+  /**
+   * If the current history partition is nearly full, create the next one already
+   * @param version The version that is about to be written
+   * @private
+   */
+  _createHistoryPartition(version) {
+    const PARTITION_SIZE = this._PARTITION_SIZE();
+    if (version % PARTITION_SIZE > PARTITION_SIZE - 50)
+      plv8.execute(`SELECT xyz_create_history_partition($1, $2, $3::BIGINT, $4::BIGINT);`,
+          [this.schema, this.table, Math.floor(version / PARTITION_SIZE) + 1, PARTITION_SIZE]);
+  }
+
+  _purgeOldChangesets(version) {
+    const PARTITION_SIZE = this._PARTITION_SIZE();
+    let minVersion = queryContext().minVersion;
+    let pw = queryContext().pw;
+    let versionsToKeep = queryContext().versionsToKeep;
+
+    if (!pw)
+      //TODO: Ensure that all necessary queryContext fields are set from all places
+      return;
+
+    if (version % 1000 == 0) {
+      let minAvailableVersion = version - versionsToKeep + 1;
+      if (minVersion != -1)
+        minVersion = Math.min(minVersion, minAvailableVersion);
+      else
+        minVersion = minAvailableVersion;
+
+      if (minVersion > 0)
+        plv8.execute(`SELECT xyz_delete_changesets_async($1, $2, $3::BIGINT, $4::BIGINT, $5);`,
+            [this.schema, this.table, PARTITION_SIZE, minVersion, pw]);
+    }
   }
 
   /**
