@@ -94,7 +94,8 @@ class FeatureWriter {
       throw new IllegalArgumentException("MERGE can not be executed for spaces without history!");
 
     if (this.onVersionConflict && this.baseVersion == null)
-      throw new IllegalArgumentException(`No base version was provided, but a version conflict detection was requested! Please provide a base-version in the request or in the input-feature with ID ${this.inputFeature.id}.`);
+      if (this.featureExistsInHead(this.inputFeature.id)) //TODO: Remove that workaround, once the global base version can be defined and the "conflictDetection" param was deprecated
+        throw new IllegalArgumentException(`No base version was provided, but a version conflict detection was requested! Please provide a base-version in the request or in the input-feature with ID ${this.inputFeature.id}.`);
 
     if (this.debug)
       this.debugBox(JSON.stringify(this, null, 2));
