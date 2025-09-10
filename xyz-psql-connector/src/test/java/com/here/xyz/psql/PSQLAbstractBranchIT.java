@@ -19,13 +19,20 @@
 
 package com.here.xyz.psql;
 
+import static com.here.xyz.events.ModifyBranchEvent.Operation.CREATE;
+import static com.here.xyz.events.ModifyBranchEvent.Operation.MERGE;
+import static com.here.xyz.events.ModifyBranchEvent.Operation.REBASE;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.events.ModifyBranchEvent;
 import com.here.xyz.events.UpdateStrategy;
 import com.here.xyz.events.WriteFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.hub.Ref;
+import com.here.xyz.util.db.SQLQuery;
 import java.sql.Connection;
+import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeAll;
@@ -53,12 +60,31 @@ public abstract class PSQLAbstractBranchIT extends PSQLAbstractIT {
     );
   }
 
-  protected ModifyBranchEvent eventForCreate(ModifyBranchEvent.Operation operation, Ref ref) {
+  protected ModifyBranchEvent eventForCreate(Ref baseRef) {
     return new ModifyBranchEvent()
-            .withOperation(operation)
+            .withOperation(CREATE)
             .withSpace(TEST_SPACE_ID)
-            .withBaseRef(ref);
+            .withBaseRef(baseRef);
   }
+
+  protected ModifyBranchEvent eventForMerge(int nodeId, Ref baseRef, int targetNodeId) {
+    return new ModifyBranchEvent()
+            .withOperation(MERGE)
+            .withSpace(TEST_SPACE_ID)
+            .withNodeId(nodeId)
+            .withMergeTargetNodeId(targetNodeId)
+            .withBaseRef(baseRef);
+  }
+
+  protected ModifyBranchEvent eventForRebase(int nodeId, Ref baseRef, Ref newBaseRef) {
+    return new ModifyBranchEvent()
+            .withOperation(REBASE)
+            .withSpace(TEST_SPACE_ID)
+            .withNodeId(nodeId)
+            .withBaseRef(baseRef)
+            .withNewBaseRef(newBaseRef);
+  }
+
 
   protected Long extractVersion(FeatureCollection featureCollection) throws JsonProcessingException {
     if (featureCollection == null || featureCollection.getFeatures() == null || featureCollection.getFeatures().isEmpty())
@@ -68,17 +94,39 @@ public abstract class PSQLAbstractBranchIT extends PSQLAbstractIT {
   }
 
   protected boolean checkIfBranchTableExists(int branchNodeId, int baseNodeId, long baseVersion) throws Exception {
-    return checkIfBranchTableExists(TEST_SPACE_ID, branchNodeId, baseNodeId, baseVersion);
+    return checkIfTableExists(getBranchTableName(TEST_SPACE_ID, branchNodeId, baseNodeId, baseVersion));
   }
 
-  private boolean checkIfBranchTableExists(String spaceId, int branchNodeId, int baseNodeId, long baseVersion) throws Exception {
+  protected boolean checkIfTableExists(String tableName) throws Exception {
     try (Connection connection = getDataSourceProvider().getReader().getConnection()) {
-      String tableName = spaceId + "_" + baseNodeId + "_" + baseVersion + "_" + branchNodeId;
       return connection
               .getMetaData()
               .getTables(null, PG_SCHEMA, tableName, null)
               .next();
     }
+  }
+
+  protected List<FeatureRow> getAllRowFromTable(String tableName) throws SQLException {
+    return new SQLQuery("SELECT id, version FROM ${schema}.${table} ")
+            .withVariable("schema", PG_SCHEMA)
+            .withVariable("table", tableName)
+            .run(getDataSourceProvider(), rs -> {
+              List<FeatureRow> allFeatureIdAndVersion = new ArrayList<>();
+              while(rs.next()) {
+                allFeatureIdAndVersion.add(new FeatureRow(rs.getString("id"), rs.getLong("version")));
+              }
+              return allFeatureIdAndVersion;
+            });
+  }
+
+  public record FeatureRow(String id, long version) {}
+
+  protected String getBranchTableName(String spaceId, int branchNodeId, Ref ref) {
+    return getBranchTableName(spaceId, branchNodeId, Integer.parseInt(ref.getBranch().replace("~", "")), ref.getVersion());
+  }
+
+  protected String getBranchTableName(String spaceId, int branchNodeId, int baseNodeId, long baseVersion) {
+    return spaceId + "_" + baseNodeId + "_" + baseVersion + "_" + branchNodeId;
   }
 
   protected Ref getBaseRef(int nodeId) {

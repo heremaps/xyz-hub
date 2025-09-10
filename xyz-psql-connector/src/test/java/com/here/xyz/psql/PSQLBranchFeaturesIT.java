@@ -19,7 +19,6 @@
 
 package com.here.xyz.psql;
 
-import static com.here.xyz.events.ModifyBranchEvent.Operation.CREATE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -30,18 +29,22 @@ import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.GetFeaturesByTileEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
+import com.here.xyz.events.ModifyBranchEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.events.SelectiveEvent;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.hub.Ref;
-import java.util.ArrayList;
+import com.here.xyz.responses.ModifiedBranchResponse;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -49,17 +52,23 @@ import org.junit.jupiter.params.provider.MethodSource;
 public class PSQLBranchFeaturesIT extends PSQLAbstractBranchIT {
 
   private static final String MAIN_1 = "main_1";
+  private static final String MAIN_2 = "main_2";
   private static final String B1_1 = "b1_1";
+  private static final String B1_2 = "b1_2";
   private static final String B2_1 = "b2_1";
+  private static final String B2_2 = "b2_2";
 
-  private List<Ref> branchPath;
+  private Map<String, Long> idVersionMap;
+  private Ref branch1_baseRef;
+  private Ref branch2_baseRef;
+
   private enum ReadEventType {
     ID, SEARCH, ITERATE, BBOX, TILE, GEOMETRY
   }
 
   @BeforeEach
   public void setup() throws Exception {
-    branchPath = new ArrayList<>();
+    idVersionMap = new HashMap<>();
     invokeCreateTestSpace(defaultTestConnectorParams, TEST_SPACE_ID);
     setupBranch();
   }
@@ -70,39 +79,147 @@ public class PSQLBranchFeaturesIT extends PSQLAbstractBranchIT {
   }
 
   public void setupBranch() throws Exception {
-    //Add feature to main branch
-    long main_v1 = extractVersion(deserializeResponse(writeFeature("main_1")));
+    //Add features to main branch
+    long main_v1 = extractVersion(deserializeResponse(writeFeature(MAIN_1)));
+    long main_v2 = extractVersion(deserializeResponse(writeFeature(MAIN_2)));
+    idVersionMap.put(MAIN_1, main_v1);
+    idVersionMap.put(MAIN_2, main_v2);
 
-    //Create branch b1 on main
+    //Create branch b1 on main, version 1
     Ref b1_baseRef = getBaseRef(0, main_v1);
-    invokeLambda(eventForCreate(CREATE, b1_baseRef)); // Returns node ID - 1
-    branchPath.add(b1_baseRef);
+    invokeLambda(eventForCreate(b1_baseRef)); // Returns node ID - 1
+    branch1_baseRef = b1_baseRef;
 
-    //Add feature to branch b1
-    long b1_v2 = extractVersion(deserializeResponse(writeFeature("b1_1", 1, List.of(b1_baseRef))));
+    //Add features to branch b1
+    long b1_v2 = extractVersion(deserializeResponse(writeFeature(B1_1, 1, List.of(b1_baseRef))));
+    long b1_v3 = extractVersion(deserializeResponse(writeFeature(B1_2, 1, List.of(b1_baseRef))));
+    idVersionMap.put(B1_1, b1_v2);
+    idVersionMap.put(B1_2, b1_v3);
 
-    //Create branch b2 on b1
+    //Create branch b2 on b1, version 2
     Ref b2_baseRef = getBaseRef(1, b1_v2);
-    invokeLambda(eventForCreate(CREATE, b2_baseRef)); // Returns node ID - 2
-    branchPath.add(b2_baseRef);
+    invokeLambda(eventForCreate(b2_baseRef)); // Returns node ID - 2
+    branch2_baseRef = b2_baseRef;
 
     //Add feature to branch b2
-    long b2_v3 = extractVersion(deserializeResponse(writeFeature("b2_1", 2, List.of(b1_baseRef,b2_baseRef))));
+    long b2_v3 = extractVersion(deserializeResponse(writeFeature(B2_1, 2, List.of(b1_baseRef,b2_baseRef))));
+    long b2_v4 = extractVersion(deserializeResponse(writeFeature(B2_2, 2, List.of(b1_baseRef,b2_baseRef))));
+    idVersionMap.put(B2_1, b2_v3);
+    idVersionMap.put(B2_2, b2_v4);
   }
 
+  @Test
+  public void checkBranchTableData() throws Exception {
+
+    String mainTable = TEST_SPACE_ID;
+    assertTrue(checkIfTableExists(mainTable));
+    assertEquals(Set.of(MAIN_1, MAIN_2), extractFeatureIds(getAllRowFromTable(mainTable)));
+
+    String branch1Table = getBranchTableName(TEST_SPACE_ID, 1, branch1_baseRef);
+    assertTrue(checkIfTableExists(branch1Table));
+    assertEquals(Set.of(B1_1, B1_2), extractFeatureIds(getAllRowFromTable(branch1Table)));
+
+    String branch2Table = getBranchTableName(TEST_SPACE_ID, 2, branch2_baseRef);
+    assertTrue(checkIfTableExists(branch2Table));
+    assertEquals(Set.of(B2_1, B2_2), extractFeatureIds(getAllRowFromTable(branch2Table)));
+  }
 
   @ParameterizedTest()
   @MethodSource("withEventTypeAndNodeId")
   public void readFeaturesFromBranch(ReadEventType eventType, int nodeId) throws Exception {
     FeatureCollection fc = deserializeResponse(invokeLambda(getReadFeaturesEventFor(eventType, nodeId)));
-    Set<String> expectedFeatureIds = nodeId == 0 ? Set.of(MAIN_1) : nodeId == 1 ? Set.of(MAIN_1, B1_1) : Set.of(MAIN_1, B1_1, B2_1);
+    Set<String> actualFeatureIds = extractFeatureIds(fc);
+
+    Set<String> expectedFeatureIds = nodeId == 0 ? Set.of(MAIN_1, MAIN_2)
+            : nodeId == 1 ? Set.of(MAIN_1, B1_1, B1_2) : Set.of(MAIN_1, B1_1, B2_1, B2_2);
+
+    Set<String> notExpectedFeatureIds = nodeId == 0 ? Set.of(B1_1, B1_2, B2_1, B2_2)
+            : nodeId == 1 ? Set.of(MAIN_2, B2_1, B2_2) : Set.of(MAIN_2, B2_2);
 
     assertEquals(expectedFeatureIds.size(), fc.getFeatures().size());
-    assertTrue(expectedFeatureIds.containsAll(extractFeatureIds(fc)));
+    assertTrue(expectedFeatureIds.containsAll(actualFeatureIds));
+    assertTrue(notExpectedFeatureIds.stream().noneMatch(actualFeatureIds::contains));
   }
 
   //TODO: Add more tests for search, tiles and spatial
 
+  @Test
+  public void mergeBranchToMain() throws Exception {
+    //Merge b1 to main
+    ModifyBranchEvent mergeB1ToMain = eventForMerge(1, branch1_baseRef, 0);
+    invokeLambda(mergeB1ToMain);
+
+    FeatureCollection fc1 = deserializeResponse(invokeLambda(getReadFeaturesEventFor(ReadEventType.SEARCH, 0)));
+    Set<String> actualFeatureIds1 = extractFeatureIds(fc1);
+    Set<String> expectedFeatureIds1 = Set.of(MAIN_1, MAIN_2, B1_1, B1_2);
+
+    assertEquals(expectedFeatureIds1, actualFeatureIds1);
+
+    //Merge b2 to main after merging b1
+    ModifyBranchEvent mergeB2ToMain = eventForMerge(2, branch2_baseRef, 0);
+    invokeLambda(mergeB2ToMain);
+
+    FeatureCollection fc2 = deserializeResponse(invokeLambda(getReadFeaturesEventFor(ReadEventType.SEARCH, 0)));
+    Set<String> actualFeatureIds2 = extractFeatureIds(fc2);
+    Set<String> expectedFeatureIds2 = Set.of(MAIN_1, MAIN_2, B1_1, B1_2, B2_1, B2_2);
+
+    assertEquals(expectedFeatureIds2, actualFeatureIds2);
+
+  }
+
+  @Test
+  public void mergeBranchToMainInReverse() throws Exception {
+    //Merge b2 to main
+    ModifyBranchEvent mergeB2ToMain = eventForMerge(2, branch2_baseRef, 0);
+    invokeLambda(mergeB2ToMain);
+
+    FeatureCollection fc1 = deserializeResponse(invokeLambda(getReadFeaturesEventFor(ReadEventType.SEARCH, 0)));
+    Set<String> actualFeatureIds1 = extractFeatureIds(fc1);
+    Set<String> expectedFeatureIds1 = Set.of(MAIN_1, MAIN_2, B1_1, B2_1, B2_2);
+
+    assertEquals(expectedFeatureIds1, actualFeatureIds1);
+
+    //Merge b1 to main after merging b2
+    ModifyBranchEvent mergeB1ToMain = eventForMerge(1, branch1_baseRef, 0);
+    invokeLambda(mergeB1ToMain);
+
+    FeatureCollection fc2 = deserializeResponse(invokeLambda(getReadFeaturesEventFor(ReadEventType.SEARCH, 0)));
+    Set<String> actualFeatureIds2 = extractFeatureIds(fc2);
+    Set<String> expectedFeatureIds2 = Set.of(MAIN_1, MAIN_2, B1_1, B1_2, B2_1, B2_2);
+
+    assertEquals(expectedFeatureIds2, actualFeatureIds2);
+
+  }
+
+  @Test
+  public void rebaseBranchToMain() throws Exception {
+    // Rebase branch1 to main, version=2
+    Ref newBaseRef = getBaseRef(0, idVersionMap.get(MAIN_2));
+    ModifiedBranchResponse res = deserializeResponse(invokeLambda(eventForRebase(1, branch2_baseRef, newBaseRef)));
+
+    FeatureCollection fc = deserializeResponse(invokeLambda(
+            getReadFeaturesEventFor(ReadEventType.SEARCH, res.getNodeId(), List.of(newBaseRef))));
+    Set<String> actualFeatureIds = extractFeatureIds(fc);
+    Set<String> expectedFeatureIds = Set.of(MAIN_1, MAIN_2, B1_1, B1_2);
+
+    assertEquals(expectedFeatureIds, actualFeatureIds);
+
+  }
+
+  @Test
+  public void rebaseBranchToBaseBranch() throws Exception {
+    // Rebase branch2 to branch1, version=3
+    Ref newBaseRef = getBaseRef(1, idVersionMap.get(B1_2));
+    ModifiedBranchResponse res = deserializeResponse(invokeLambda(eventForRebase(2, branch2_baseRef, newBaseRef)));
+    System.out.println(res);
+    FeatureCollection fc = deserializeResponse(invokeLambda(
+            getReadFeaturesEventFor(ReadEventType.SEARCH, res.getNodeId(), List.of(branch1_baseRef, newBaseRef))));
+    Set<String> actualFeatureIds = extractFeatureIds(fc);
+    Set<String> expectedFeatureIds = Set.of(MAIN_1, B1_1, B1_2, B2_1, B2_2);
+
+    assertEquals(expectedFeatureIds, actualFeatureIds);
+
+  }
 
   private static Stream<Arguments> withEventTypeAndNodeId() {
     return Stream.of(ReadEventType.values())
@@ -111,8 +228,15 @@ public class PSQLBranchFeaturesIT extends PSQLAbstractBranchIT {
   }
 
   private Event getReadFeaturesEventFor(ReadEventType type, int nodeId) {
+    List<Ref> branchPath = nodeId == 1 ? List.of(branch1_baseRef)
+            : nodeId == 2 ? List.of(branch1_baseRef, branch2_baseRef) : List.of();
+
+    return getReadFeaturesEventFor(type, nodeId, branchPath);
+  }
+
+  private Event getReadFeaturesEventFor(ReadEventType type, int nodeId, List<Ref> branchPath) {
     SelectiveEvent event = switch (type) {
-      case ID -> new GetFeaturesByIdEvent().withIds(List.of(MAIN_1, B1_1, B2_1));
+      case ID -> new GetFeaturesByIdEvent().withIds(List.of(MAIN_1, MAIN_2, B1_1, B1_2, B2_1, B2_2));
       case SEARCH -> new SearchForFeaturesEvent();
       case ITERATE -> new IterateFeaturesEvent();
       case BBOX -> new GetFeaturesByBBoxEvent().withBbox(new BBox(-10, -10, 10, 10));
@@ -122,7 +246,8 @@ public class PSQLBranchFeaturesIT extends PSQLAbstractBranchIT {
 
     return event
             .withNodeId(nodeId)
-            .withBranchPath(branchPath.subList(0, nodeId))
+            .withBranchPath(branchPath)
+            .withVersionsToKeep(1000)
             .withSpace(TEST_SPACE_ID);
   }
 
@@ -132,6 +257,10 @@ public class PSQLBranchFeaturesIT extends PSQLAbstractBranchIT {
             .stream()
             .map(feature -> feature.getId())
             .collect(Collectors.toSet());
+  }
+
+  private Set<String> extractFeatureIds(List<FeatureRow> featureRows) {
+    return featureRows.stream().map(featureRow -> featureRow.id()).collect(Collectors.toSet());
   }
 
 }
