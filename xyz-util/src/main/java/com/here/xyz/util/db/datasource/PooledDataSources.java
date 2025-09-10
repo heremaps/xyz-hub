@@ -102,8 +102,13 @@ public class PooledDataSources extends DataSourceProvider {
 
       QueryRunner runner = new QueryRunner();
       try {
+        int lock_timeout = ( extendedSettings.statementTimeoutSeconds - 7 > 5 
+                             ? extendedSettings.statementTimeoutSeconds - 7 
+                             : extendedSettings.statementTimeoutSeconds );
+
         runner.execute(connection, "SET enable_seqscan = off;");
         runner.execute(connection, "SET statement_timeout = " + (extendedSettings.statementTimeoutSeconds * 1000) + ";");
+        runner.execute(connection, "SET lock_timeout = " + (lock_timeout * 1000) + ";");
         runner.execute(connection, "SET search_path = " + compiledSearchPath + ";");
       }
       catch (SQLException e) {
