@@ -316,7 +316,7 @@ class DatabaseWriter {
     this.resultParsers[method].push(deletedRows => {
       if (deletedRows == 0) {
         if (onVersionConflict != null) {
-          this.debugBox("HandleConflict for id: " + inputFeature.id);
+          plv8.elog(NOTICE, "FW_LOG HandleConflict for deletion of id: " + inputFeature.id);
           //handleDeleteVersionConflict //TODO: throw some conflict error here that can be caught & handled by FeatureWriter
           return null;
         }
@@ -344,23 +344,6 @@ class DatabaseWriter {
 
   _throwFeatureNotExistsError(featureId) {
     throw new FeatureNotExistsException(`Feature with ID ${featureId} not exists!`);
-  }
-
-  //TODO: deduplicate
-  debugBox(message) {
-    if (!this.debugOutput)
-      return;
-
-    let width = 140;
-    let leftRightBuffer = 2;
-    let maxLineLength = width - leftRightBuffer * 2;
-    let lines = message.split("\n").map(line => !line ? line : line.match(new RegExp(`.{1,${maxLineLength}}`, "g"))).flat();
-    let longestLine = lines.map(line => line.length).reduce((a, b) => Math.max(a, b), -Infinity);
-    let leftPadding = new Array(Math.floor((width - longestLine) / 2)).join(" ");
-    lines = lines.map(line => "#" + leftPadding + line
-        + new Array(width - leftPadding.length - line.length - 1).join(" ") + "#");
-    if(this.debugOutput)
-      plv8.elog(NOTICE, "\n" + new Array(width + 1).join("#") + "\n" + lines.join("\n") + "\n" + new Array(width + 1).join("#"));
   }
 }
 
