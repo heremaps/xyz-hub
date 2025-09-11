@@ -102,8 +102,9 @@ class DatabaseWriter {
    * @returns {FeatureModificationExecutionResult}
    */
   upsertRow(inputFeature, version, operation, author, onExists, resultHandler) {
+    let uniqueConstraintExists = queryContext().uniqueConstraintExists !== false;
     this.enrichTimestamps(inputFeature, true);
-    let onConflict = onExists == "REPLACE"
+    let onConflict = onExists == "REPLACE" && uniqueConstraintExists
         ? ` ON CONFLICT (id, next_version) DO UPDATE SET
           version = greatest(tbl.version, EXCLUDED.version),
           operation = CASE WHEN $3 = 'H' THEN 'J' ELSE 'U' END,
@@ -127,6 +128,11 @@ class DatabaseWriter {
       this.plans[method] = this._preparePlan(sql, ["TEXT", "BIGINT", "CHAR", "TEXT", "JSONB", "JSONB"]);
       this.parameterSets[method] = [];
       this.resultParsers[method] = [];
+    }
+
+    if (inputFeature == null) {
+      plv8.elog(NOTICE, `FW_LOG [${queryContext().queryId}] Can not write a feature that is null`);
+      throw new XyzException("Can not write a feature that is null");
     }
 
     this.parameterSets[method].push([
@@ -174,6 +180,11 @@ class DatabaseWriter {
       this.resultParsers[method] = [];
     }
 
+    if (inputFeature == null) {
+      plv8.elog(NOTICE, `FW_LOG [${queryContext().queryId}] Can not write a feature that is null`);
+      throw new XyzException("Can not write a feature that is null");
+    }
+
     this.parameterSets[method].push([
       version,
       "U" /*TODO set version operation*/,
@@ -219,6 +230,11 @@ class DatabaseWriter {
       this.plans[method] = this._preparePlan(sql, ["TEXT", "BIGINT", "CHAR", "TEXT", "JSONB", "JSONB", "BIGINT"]);
       this.parameterSets[method] = [];
       this.resultParsers[method] = [];
+    }
+
+    if (inputFeature == null) {
+      plv8.elog(NOTICE, `FW_LOG [${queryContext().queryId}] Can not write a feature that is null`);
+      throw new XyzException("Can not write a feature that is null");
     }
 
     this.parameterSets[method].push([

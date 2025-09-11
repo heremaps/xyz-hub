@@ -816,10 +816,6 @@ class FeatureWriter {
    * @returns {FeatureModificationExecutionResult}
    */
   _insertHistoryRow(resultHandler = IDENTITY_HANDLER) {
-    if (this.inputFeature == null) {
-      this.debugBox("Can not write a feature that is null");
-      throw new XyzException("Can not write a feature that is null");
-    }
     this._updateNextVersion();
     return FeatureWriter.dbWriter.insertHistoryRow(this.inputFeature, this.baseFeature, this.version, this.operation, this.author, resultHandler);
   }
