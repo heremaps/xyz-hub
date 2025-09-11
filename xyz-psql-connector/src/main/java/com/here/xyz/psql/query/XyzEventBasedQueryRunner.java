@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,6 +33,8 @@ public abstract class XyzEventBasedQueryRunner<E extends Event, R extends Object
   public XyzEventBasedQueryRunner(E event) throws SQLException, ErrorResponseException {
     super(event);
     preferPrimaryDataSource = event.getPreferPrimaryDataSource();
+    if (event != null && event.getSpace() != null)
+      extraQueryLabels.put("spaceId", event.getSpace());
   }
 
   public static String readTableFromEvent(Event event) {
