@@ -25,6 +25,7 @@ import static com.here.xyz.hub.rest.ApiParam.Query.END_VERSION;
 import static com.here.xyz.hub.rest.ApiParam.Query.START_VERSION;
 import static com.here.xyz.models.hub.Ref.HEAD;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
+import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 
 import com.here.xyz.events.DeleteChangesetsEvent;
 import com.here.xyz.events.GetChangesetStatisticsEvent;
@@ -158,7 +159,7 @@ public class ChangesetApi extends SpaceBasedApi {
         space.getOwner()).map(space);
 
     getChangesetStatistics(getMarker(context), changesetAuthorization, getSpaceId(context))
-        .onSuccess(result -> sendResponse(context, HttpResponseStatus.OK, result))
+        .onSuccess(result -> sendResponse(context, OK.code(), result))
         .onFailure(t -> sendErrorResponse(context, t));
   }
 
@@ -196,7 +197,7 @@ public class ChangesetApi extends SpaceBasedApi {
         ((ChangesetCollection) result).getEndVersion() == -1)
       sendErrorResponse(context, new HttpException(NOT_FOUND, "The requested resource does not exist."));
     else
-      sendResponseWithXyzSerialization(context, HttpResponseStatus.OK, result);
+      sendResponse(context, OK.code(), result);
   }
 
   private long getVersionFromPathParam(RoutingContext context) {

@@ -439,7 +439,7 @@ public class FeatureApi extends SpaceBasedApi {
 
   private void sendWriteFeaturesResponse(RoutingContext context, ApiResponseType responseType, FeatureCollection featureCollection) {
     switch (responseType) {
-      case EMPTY -> sendResponse(context, 200, (XyzSerializable) null);
+      case EMPTY -> sendResponse(context, 200, null);
       case FEATURE_COLLECTION -> sendResponse(context, 200, featureCollection);
       case FEATURE -> {
         try {
@@ -779,7 +779,7 @@ public class FeatureApi extends SpaceBasedApi {
 
   public static boolean eraseContent(RoutingContext context) {
    final List<String> featureIds = new ArrayList<>(new HashSet<>(queryParam(FEATURE_ID, context)));
-   return Query.getBoolean(context, ERASE_CONTENT, false) && featureIds.isEmpty(); 
+   return Query.getBoolean(context, ERASE_CONTENT, false) && featureIds.isEmpty();
   }
 
   private static void checkModificationOnSuper(SpaceContext spaceContext) throws HttpException {

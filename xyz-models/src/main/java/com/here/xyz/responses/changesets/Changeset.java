@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ package com.here.xyz.responses.changesets;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.responses.XyzResponse;
 
@@ -30,12 +31,19 @@ import com.here.xyz.responses.XyzResponse;
  */
 @JsonInclude(Include.NON_DEFAULT)
 public class Changeset extends XyzResponse<Changeset> {
+  @JsonView({Public.class})
   long version = -1;
+  @JsonView({Public.class})
   String author;
+  @JsonView({Public.class})
   long createdAt;
+  @JsonView({Public.class})
   private FeatureCollection inserted;
+  @JsonView({Public.class})
   private FeatureCollection updated;
+  @JsonView({Public.class})
   private FeatureCollection deleted;
+  @JsonView({Public.class})
   private String nextPageToken;
 
   public long getVersion() {
