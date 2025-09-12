@@ -76,8 +76,7 @@ public class JobAdminApi extends JobApiBase {
 
   private void getJob(RoutingContext context) {
     loadJob(jobId(context))
-        //TODO: Use internal serialization here
-        .onSuccess(job -> sendResponseWithXyzSerialization(context, OK, job))
+        .onSuccess(job -> sendInternalResponse(context, OK.code(), job))
         .onFailure(t -> sendErrorResponse(context, t));
   }
 
@@ -88,7 +87,7 @@ public class JobAdminApi extends JobApiBase {
 
   private void deleteJob(RoutingContext context) throws HttpException {
     getJobFromBody(context).deleteJobResources()
-        .onSuccess(v -> sendResponseWithXyzSerialization(context, NO_CONTENT, null))
+        .onSuccess(v -> sendResponse(context, NO_CONTENT.code(), null))
         .onFailure(t -> sendErrorResponse(context, t));
   }
 
@@ -96,7 +95,7 @@ public class JobAdminApi extends JobApiBase {
     Step step = getStepFromBody(context);
     loadJob(jobId(context))
         .compose(job -> job.updateStep(step).mapEmpty())
-        .onSuccess(v -> sendResponseWithXyzSerialization(context, OK, null))
+        .onSuccess(v -> sendResponse(context, OK.code(), null))
         .onFailure(t -> sendErrorResponse(context, t));
   }
 
@@ -151,7 +150,7 @@ public class JobAdminApi extends JobApiBase {
     else
       logger.error("The event does not include a detail field: {}", event);
 
-    sendResponseWithXyzSerialization(context, NO_CONTENT, null);
+    sendResponse(context, NO_CONTENT.code(), null);
   }
 
   /**
