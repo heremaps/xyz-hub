@@ -26,6 +26,7 @@ import static com.here.xyz.util.db.pg.IndexHelper.OnDemandIndex;
 import static com.here.xyz.util.db.pg.IndexHelper.buildSpaceTableIndexQueries;
 
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.util.Hasher;
 import com.here.xyz.util.db.ConnectorParameters.TableLayout;
 import com.here.xyz.util.db.SQLQuery;
@@ -216,7 +217,7 @@ public class XyzSpaceTableHelper {
             .withVariable(TABLE, table);
   }
 
-  public static List<SQLQuery>  buildCleanUpQuery(String schema, String table, String versionSequenceSuffix, TableLayout layout) {
+  public static List<SQLQuery>  buildCleanUpQuery(ModifySpaceEvent event, String schema, String table, String versionSequenceSuffix, TableLayout layout) {
     List<SQLQuery> queries = new ArrayList<>();
 
     SQLQuery dropTableQuery = new SQLQuery("DROP TABLE IF EXISTS ${schema}.${table} ") //TODO: Why not use CASCADE
@@ -227,8 +228,17 @@ public class XyzSpaceTableHelper {
             .withVariable(SCHEMA, schema);
 
     if(layout == TableLayout.OLD_LAYOUT) {
+      //MMSUP-1092  tmp workaroung on db9 - skip deletion from spaceMetaTable
+      //TODO: remove spaceMetaTable from overall code
+      String storageID = event.getSpaceDefinition() != null && event.getSpaceDefinition().getStorage() != null
+                      ? event.getSpaceDefinition().getStorage().getId()
+                      : "no-connector-info-available";
+      //Remove also event as parameter and cleanUp deleteSpaceMetaEntry
+      //MMSUP-1092
+
       // Gets removed
-      SQLQuery deleteSpaceMetaEntry = new SQLQuery("DELETE FROM xyz_config.space_meta WHERE h_id = #{table} AND schem = #{schema};")
+      SQLQuery deleteSpaceMetaEntry = "psql-db9-eu-west-1".equals(storageID) ? new SQLQuery("") :
+              new SQLQuery("DELETE FROM xyz_config.space_meta WHERE h_id = #{table} AND schem = #{schema};")
               .withNamedParameter(SCHEMA, schema)
               .withNamedParameter(TABLE, table);
 

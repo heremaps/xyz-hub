@@ -143,7 +143,7 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
                 return SQLQuery.batchOf(queries).withLock(table);
             }
             else if (event.getOperation() == DELETE) {
-                return SQLQuery.batchOf(buildCleanUpQuery(getSchema(), getDefaultTable(event), VERSION_SEQUENCE_SUFFIX, OLD_LAYOUT));
+                return SQLQuery.batchOf(buildCleanUpQuery(event, getSchema(), getDefaultTable(event), VERSION_SEQUENCE_SUFFIX, OLD_LAYOUT));
             }
         }else if(getTableLayout().equals(ConnectorParameters.TableLayout.NEW_LAYOUT)){
             if (event.getOperation() == CREATE) {
@@ -154,7 +154,7 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
                 return SQLQuery.batchOf(queries).withLock(table);
             }
             else if (event.getOperation() == DELETE)
-                return SQLQuery.batchOf(buildCleanUpQuery(getSchema(), getDefaultTable(event), VERSION_SEQUENCE_SUFFIX, NEW_LAYOUT));
+                return SQLQuery.batchOf(buildCleanUpQuery(event, getSchema(), getDefaultTable(event), VERSION_SEQUENCE_SUFFIX, NEW_LAYOUT));
         }
         throw new IllegalArgumentException("Unsupported Table Layout: " + getTableLayout());
     }
@@ -215,36 +215,5 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
           q.setNamedParameter(TABLE, getDefaultTable(event));
 
           return q;
-    }
-
-    public SQLQuery buildCleanUpQuery(ModifySpaceEvent event) {
-        String table = getDefaultTable(event);
-
-//MMSUP-1092  tmp workaroung on db9 - skip deletion from spaceMetaTable
-//TODO: remove spaceMetaTable from overall code
-        String deleteMetadata = "DELETE FROM ${configSchema}.${spaceMetaTable} WHERE h_id = #{table} AND schem = #{schema};",
-               storageID = event.getSpaceDefinition() != null && event.getSpaceDefinition().getStorage() != null
-                           ? event.getSpaceDefinition().getStorage().getId()
-                           : "no-connector-info-available";
-
-        if( "psql-db9-eu-west-1".equals(storageID) )
-         deleteMetadata = "";
-//MMSUP-1092
-
-        SQLQuery q = new SQLQuery("${{deleteMetadata}} ${{dropTable}} ${{dropISequence}} ${{dropVersionSequence}}")
-            .withQueryFragment("deleteMetadata", deleteMetadata)
-            .withQueryFragment("dropTable", "DROP TABLE IF EXISTS ${schema}.${table};")
-            .withQueryFragment("dropISequence", "DROP SEQUENCE IF EXISTS ${schema}.${iSequence};")
-            .withQueryFragment("dropVersionSequence", "DROP SEQUENCE IF EXISTS ${schema}.${versionSequence};");
-
-        return q
-            .withVariable(SCHEMA, getSchema())
-            .withVariable(TABLE, table)
-            .withNamedParameter(SCHEMA, getSchema())
-            .withNamedParameter(TABLE, table)
-            .withVariable("configSchema", XYZ_CONFIG_SCHEMA)
-            .withVariable("spaceMetaTable", SPACE_META_TABLE)
-            .withVariable("iSequence", table + I_SEQUENCE_SUFFIX)
-            .withVariable("versionSequence", getDefaultTable(event) + VERSION_SEQUENCE_SUFFIX);
     }
 }
