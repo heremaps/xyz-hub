@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -77,6 +77,14 @@ public abstract class BranchConfigClient implements Initializable {
    * @return The specified branch
    */
   public abstract Future<Branch> load(String spaceId, String branchId);
+
+  /**
+   * Loads & returns all branches having the specified branch ID.
+   * NOTE: There could be multiple branches having the same ID but belonging to different spaces.
+   * @param branchId The branch ID for which to find the branches
+   * @return All branch existing objects that are having the specified branch ID
+   */
+  public abstract Future<List<Branch>> loadBranches(String branchId);
 
   /**
    * Deletes a specific branch of a space.

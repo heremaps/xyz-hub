@@ -35,6 +35,8 @@ public class Branch implements XyzSerializable {
   public static final Branch MAIN_BRANCH = new Branch().withId(MAIN).withNodeId(0);
   @JsonView({Public.class, Static.class})
   private String id;
+  @JsonView({Internal.class, Static.class})
+  private String spaceId;
   @JsonView({Public.class, Static.class})
   private Ref baseRef;
   @JsonView({Public.class, Static.class})
@@ -59,6 +61,19 @@ public class Branch implements XyzSerializable {
 
   public Branch withId(String id) {
     setId(id);
+    return this;
+  }
+
+  public String getSpaceId() {
+    return spaceId;
+  }
+
+  public void setSpaceId(String spaceId) {
+    this.spaceId = spaceId;
+  }
+
+  public Branch withSpaceId(String spaceId) {
+    setSpaceId(spaceId);
     return this;
   }
 
