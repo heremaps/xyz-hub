@@ -222,6 +222,7 @@ public class NLConnector extends PSQLXyzConnector {
     List<String> idsToDelete = new ArrayList<>();
     FeatureCollection upsertFeatures = new FeatureCollection();
 
+
     for (WriteFeaturesEvent.Modification modification : modifications) {
       validateUpdateStrategy(modification.getUpdateStrategy());
 
@@ -261,6 +262,9 @@ public class NLConnector extends PSQLXyzConnector {
   private void validateUpdateStrategy(UpdateStrategy updateStrategy) throws ErrorResponseException {
     List<UpdateStrategy.OnExists> supportedOnExistsStrategies = List.of(UpdateStrategy.OnExists.REPLACE, UpdateStrategy.OnExists.DELETE);
     List<UpdateStrategy.OnNotExists> supportedOnNotExistsStrategies = List.of(UpdateStrategy.OnNotExists.CREATE, UpdateStrategy.OnNotExists.RETAIN);
+
+    if(updateStrategy == null || updateStrategy.onExists() == null || updateStrategy.onNotExists() == null)
+      throw new ErrorResponseException(NOT_IMPLEMENTED, "UpdateStrategy with OnExists and OnNotExists must be provided in NLConnector!");
 
     if (updateStrategy.onVersionConflict() != null || updateStrategy.onMergeConflict() != null)
       throw new ErrorResponseException(NOT_IMPLEMENTED, "onVersionConflict and onMergeConflict are not supported in NLConnector!");
@@ -408,13 +412,13 @@ public class NLConnector extends PSQLXyzConnector {
           List<ModificationFailure> fails
   ) throws SQLException, JsonProcessingException {
 
-    // Build the MERGE SQL dynamically with a VALUES clause
     String mergeSql = """
         MERGE INTO %s.%s AS t
         USING (
-          VALUES %s
+          VALUES (?, ?, ?, ?, ?, ?, ?)
         ) AS s(id, geo, operation, author, version, jsondata, refquad)
         ON (t.id = s.id AND t.next_version = 9223372036854775807)
+        --ON (t.id = s.id AND t.version = s.version AND t.next_version = 9223372036854775807)
         WHEN MATCHED THEN
           UPDATE SET
             jsondata  = s.jsondata,
@@ -425,13 +429,12 @@ public class NLConnector extends PSQLXyzConnector {
         WHEN NOT MATCHED THEN
           INSERT (id, geo, operation, author, version, jsondata, refquad)
           VALUES (s.id, s.geo, s.operation, s.author, s.version, s.jsondata, s.refquad);
-        """.formatted(schema, table, buildValuesPlaceholders(featureCollection.getFeatures().size()));
+        """.formatted(schema, table);
 
     try (Connection connection = dataSourceProvider.getWriter().getConnection()) {
       connection.setAutoCommit(false);
 
       try (PreparedStatement ps = connection.prepareStatement(mergeSql)) {
-        int paramIndex = 1;
         for (Feature feature : featureCollection.getFeatures()) {
           Geometry geo = feature.getGeometry();
 
@@ -443,17 +446,17 @@ public class NLConnector extends PSQLXyzConnector {
           }
 
           ensureFeatureId(feature);
-
-          ps.setString(paramIndex++, feature.getId());
-          ps.setBytes(paramIndex++, geo == null ? null : new WKBWriter(3).write(geo.getJTSGeometry()));
-          ps.setString(paramIndex++, "I"); // operation always insert initially
-          ps.setString(paramIndex++, author);
-          ps.setLong(paramIndex++, version);
-          ps.setString(paramIndex++, enrichFeaturePayload(feature));
-          ps.setString(paramIndex++, getRefQuad(feature));
+          ps.setString(1, feature.getId());
+          ps.setBytes(2, geo == null ? null : new WKBWriter(3).write(geo.getJTSGeometry()));
+          ps.setString(3, "I"); // operation always insert initially
+          ps.setString(4, author);
+          ps.setLong(5, version);
+          ps.setString(6, enrichFeaturePayload(feature));
+          ps.setString(7, getRefQuad(feature));
+          ps.addBatch();
         }
 
-        int updated = ps.executeUpdate();
+        int[] updated = ps.executeBatch();
         connection.commit();
         logger.info("Successfully upserted {} features.", updated);
 
@@ -463,11 +466,6 @@ public class NLConnector extends PSQLXyzConnector {
         fails.add(new ModificationFailure().withMessage("Upsert failed: " + e.getMessage()));
       }
     }
-  }
-
-  private String buildValuesPlaceholders(int rowCount) {
-    String row = "(?, ?, ?, ?, ?, ?, ?)";
-    return String.join(", ", java.util.Collections.nCopies(rowCount, row));
   }
 
   private void batchUpsertFeatures1(String schema, String table, FeatureCollection featureCollection, long version, String author,
