@@ -47,25 +47,6 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 @Disabled
 public class BranchFeatureApiIT extends TestSpaceBranch {
-  /*
-  - Write features on
-    - main
-    - branch of main
-    - branch of a branch of main
-
-  - Read features for the above cases and validate
-
-  - Check if all the read feature endpoints are working as expected
-    - iterate
-    - search
-    - id
-    - tile
-    - spatial
-
-  - Try to read/write features after deleting an intermediate branch
-   */
-
-  private String SPACE_ID = getClass().getSimpleName() + "-" + randomAlpha(5);
 
   @BeforeEach
   public void setup() {
@@ -83,136 +64,79 @@ public class BranchFeatureApiIT extends TestSpaceBranch {
 
   @Test
   public void writeFeaturesToBranch() throws Exception {
-    String branchId = "branch_main";
-    createBranch(SPACE_ID, branchId, null)
-            .body("id", equalTo(branchId));
+    createBranch(SPACE_ID, B1_MAIN, null)
+            .body("id", equalTo(B1_MAIN));
 
-    FeatureCollection fc;
-    Set<String> fIds;
+    //Checking if features from main exists without adding new features to branch
+    addFeaturesToBranchAndVerify(B1_MAIN, Set.of(), Set.of("main0"));
 
-    fc = readFeaturesFromBranch(SPACE_ID, branchId);
-    fIds = extractFeatureIds(fc);
-    assertEquals(1, fc.getFeatures().size());
-    assertTrue(fIds.contains("main0"));
+    // Add new features to branch
+    addFeaturesToBranchAndVerify(B1_MAIN, Set.of("f1", "f2"), Set.of("main0", "f1", "f2"));
 
-    // Add Features to branch
-    addFeatureToBranch(SPACE_ID, branchId, createSampleFeature("f1"));
-    addFeatureToBranch(SPACE_ID, branchId, createSampleFeature("f2"));
-    fc = readFeaturesFromBranch(SPACE_ID, branchId);
-    fIds = extractFeatureIds(fc);
-    assertEquals(3, fc.getFeatures().size());
-    assertTrue(fIds.containsAll(Set.of("main0", "f1", "f2")));
+    // Add new features to main
+    addFeaturesToBranchAndVerify(null, Set.of("main1"), Set.of("main0", "main1"));
 
-    // Add Features to main
-    addFeatureToBranch(SPACE_ID, null, createSampleFeature("main1"));
-    fc = readFeaturesFromBranch(SPACE_ID, branchId);
-    fIds = extractFeatureIds(fc);
-    assertEquals(3, fc.getFeatures().size());
-    assertTrue(fIds.containsAll(Set.of("main0", "f1", "f2")));
-    assertFalse(fIds.contains("main1"));
+    // Check that new feature on main does not exist on branch
+    addFeaturesToBranchAndVerify(B1_MAIN, Set.of(), Set.of("main0", "f1", "f2"));
+
   }
 
   @Test
   public void writeFeaturesToBranchOfBranch() throws Exception {
-    String branch1 = "b1_main";
-    String branch2 = "b2_b1";
+    //Create branch1
+    createBranch(SPACE_ID, B1_MAIN, null)
+            .body("id", equalTo(B1_MAIN));
 
-    FeatureCollection fc;
-    Set<String> fIds;
+    //Checking if features from main exists without adding new features to branch
+    addFeaturesToBranchAndVerify(B1_MAIN, Set.of(), Set.of("main0"));
 
-    // Create branch1
-    createBranch(SPACE_ID, branch1, null)
-            .body("id", equalTo(branch1));
+    //Add features to branch b1
+    addFeaturesToBranchAndVerify(B1_MAIN, Set.of("b1_1", "b1_2"), Set.of("main0", "b1_1", "b1_2"));
 
-    fc = readFeaturesFromBranch(SPACE_ID, branch1);
-    fIds = extractFeatureIds(fc);
-    assertEquals(1, fc.getFeatures().size());
-    assertTrue(fIds.contains("main0"));
+    //Create and add features to branch2
+    createBranch(SPACE_ID, B2_B1, B1_MAIN )
+            .body("id", equalTo(B2_B1));
 
-    // Add Features to branch1
-    addFeatureToBranch(SPACE_ID, branch1, createSampleFeature("b1_1"));
-    addFeatureToBranch(SPACE_ID, branch1, createSampleFeature("b1_2"));
-    fc = readFeaturesFromBranch(SPACE_ID, branch1);
-    fIds = extractFeatureIds(fc);
-    assertEquals(3, fc.getFeatures().size());
-    assertTrue(fIds.containsAll(Set.of("main0", "b1_1", "b1_2")));
-
-    // Create and add features to branch2
-    createBranch(SPACE_ID, branch2, branch1)
-            .body("id", equalTo(branch2));
-    addFeatureToBranch(SPACE_ID, branch2, createSampleFeature("b2_1"));
-    addFeatureToBranch(SPACE_ID, branch2, createSampleFeature("b2_2"));
-    fc = readFeaturesFromBranch(SPACE_ID, branch2);
-    fIds = extractFeatureIds(fc);
-    assertEquals(5, fc.getFeatures().size());
-    assertTrue(fIds.containsAll(Set.of("main0", "b1_1", "b1_2", "b2_1", "b2_2")));
-
+    addFeaturesToBranchAndVerify(B2_B1, Set.of("b2_1", "b2_2"), Set.of("main0", "b1_1", "b1_2", "b2_1", "b2_2"));
 
     // Add Features to main
-    addFeatureToBranch(SPACE_ID, null, createSampleFeature("main1"));
+    addFeaturesToBranchAndVerify(null, Set.of("main1"), Set.of("main0", "main1"));
 
-    // Read features from branch1
-    fc = readFeaturesFromBranch(SPACE_ID, branch1);
-    fIds = extractFeatureIds(fc);
-    assertEquals(3, fc.getFeatures().size());
-    assertFalse(fIds.contains("main1"), "should not contains new features from parent branches");
+    // Read features from branch b1
+    addFeaturesToBranchAndVerify(B1_MAIN, Set.of(), Set.of("main0", "b1_1", "b1_2"));
 
-    // Read features from branch2
-    fc = readFeaturesFromBranch(SPACE_ID, branch2);
-    fIds = extractFeatureIds(fc);
-    assertEquals(5, fc.getFeatures().size());
-    assertFalse(fIds.contains("main1"), "should not contains new features from parent branches");
+    // Read features from branch b22
+    addFeaturesToBranchAndVerify(B2_B1, Set.of(), Set.of("main0", "b1_1", "b1_2", "b2_1", "b2_2"));
 
   }
 
   @Test
   public void operateOnBranchAfterDeletingIntermediateBranch() throws Exception {
-    String branch1 = "b1_main";
-    String branch2 = "b2_b1";
-
-    FeatureCollection fc;
-    Set<String> fIds;
-
     // Create and add features to branch1
-    createBranch(SPACE_ID, branch1, null)
-            .body("id", equalTo(branch1));
-    addFeatureToBranch(SPACE_ID, branch1, createSampleFeature("b1_1"));
-    addFeatureToBranch(SPACE_ID, branch1, createSampleFeature("b1_2"));
-    fc = readFeaturesFromBranch(SPACE_ID, branch1);
-    fIds = extractFeatureIds(fc);
-    assertEquals(3, fc.getFeatures().size());
-    assertTrue(fIds.containsAll(Set.of("main0", "b1_1", "b1_2")));
+    createBranch(SPACE_ID, B1_MAIN, null)
+            .body("id", equalTo(B1_MAIN));
+    addFeaturesToBranchAndVerify(B1_MAIN, Set.of("b1_1", "b1_2"), Set.of("main0", "b1_1", "b1_2"));
 
     // Create and add features to branch2
-    createBranch(SPACE_ID, branch2, branch1)
-            .body("id", equalTo(branch2));
-    addFeatureToBranch(SPACE_ID, branch2, createSampleFeature("b2_1"));
-    addFeatureToBranch(SPACE_ID, branch2, createSampleFeature("b2_2"));
-    fc = readFeaturesFromBranch(SPACE_ID, branch1);
-    fIds = extractFeatureIds(fc);
-    assertEquals(5, fc.getFeatures().size());
-    assertTrue(fIds.containsAll(Set.of("main0", "b1_1", "b1_2", "b2_1", "b2_2")));
+    createBranch(SPACE_ID, B2_B1, B1_MAIN)
+            .body("id", equalTo(B2_B1));
+    addFeaturesToBranchAndVerify(B2_B1, Set.of("b2_1", "b2_2"), Set.of("main0", "b1_1", "b1_2", "b2_1", "b2_2"));
 
     //Delete branch1, then add features to branch2
-    deleteBranch(SPACE_ID, branch1);
-    addFeatureToBranch(SPACE_ID, branch2, createSampleFeature("b2_3"));
-    fc = readFeaturesFromBranch(SPACE_ID, branch2);
-    fIds = extractFeatureIds(fc);
-    assertEquals(6, fc.getFeatures().size());
-    assertTrue(fIds.containsAll(Set.of("main0", "b1_1", "b1_2", "b2_1", "b2_2", "b2_3")));
+    deleteBranch(SPACE_ID, B1_MAIN);
+    addFeaturesToBranchAndVerify(B2_B1, Set.of("b2_3"), Set.of("main0", "b1_1", "b1_2", "b2_1", "b2_2", "b2_3"));
   }
 
   @ParameterizedTest
   @ValueSource(strings = {"features", "iterate", "search", "bbox", "tile", "spatial"})
   public void readFeaturesFromBranch(String endpoint) throws Exception {
-    String branchId = "branch_main";
-    createBranch(SPACE_ID, branchId, null)
-            .body("id", equalTo(branchId));
-    addFeatureToBranch(SPACE_ID, branchId, createSampleFeature("f1"));
+    createBranch(SPACE_ID, B1_MAIN, null)
+            .body("id", equalTo(B1_MAIN));
+    addFeatureToBranch(SPACE_ID, B1_MAIN, createSampleFeature("f1"));
 
     String uri = getSpacesPath() + "/" + SPACE_ID + "/" + endpoint + (endpoint.equals("tile") ? "/quadkey/0" : "");
     Map<String, Object> queryParams = new HashMap<>();
-    queryParams.put("versionRef", branchId);
+    queryParams.put("versionRef", B1_MAIN);
 
     if (endpoint.equals("features"))
       queryParams.put("id", List.of("main0", "f1"));
@@ -239,6 +163,16 @@ public class BranchFeatureApiIT extends TestSpaceBranch {
             .stream()
             .map(feature -> feature.getId())
             .collect(Collectors.toSet());
+  }
+
+  private void addFeaturesToBranchAndVerify(String branchId, Set<String> newFeatures, Set<String> expectedFeatures) throws Exception {
+    for(String featureId : newFeatures) {
+      addFeatureToBranch(SPACE_ID, branchId, createSampleFeature(featureId));
+    }
+
+    FeatureCollection fc = readFeaturesFromBranch(SPACE_ID, branchId);
+    Set<String> actualFeatures = extractFeatureIds(fc);
+    assertEquals(expectedFeatures, actualFeatures);
   }
 
 }
