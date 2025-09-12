@@ -24,6 +24,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
+import com.fasterxml.jackson.annotation.JsonView;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
@@ -40,19 +41,30 @@ import java.util.List;
 @JsonInclude(Include.NON_EMPTY)
 public class FeatureCollection extends XyzResponse<FeatureCollection> {
 
+  @JsonView({Public.class})
   private LazyParsable<List<Feature>> features;
+  @JsonView({Public.class})
   private BBox bbox;
   private Boolean partial;
+  @JsonView({Public.class})
   @Deprecated
   private String handle;
+  @JsonView({Public.class})
   private String nextPageToken;
+  @JsonView({Public.class})
   @Deprecated
   private Long count;
+  @JsonView({Public.class})
   private List<String> inserted;
+  @JsonView({Public.class})
   private List<String> updated;
+  @JsonView({Public.class})
   private List<String> deleted;
+  @JsonView({Public.class})
   private List<Feature> oldFeatures;
+  @JsonView({Public.class})
   private List<ModificationFailure> failed;
+  @JsonView({Public.class})
   @JsonInclude(Include.NON_EMPTY)
   private Long version;
 

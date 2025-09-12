@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonTypeName;
+import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.responses.XyzResponse;
 import java.util.Map;
 
@@ -30,13 +31,17 @@ import java.util.Map;
 @JsonTypeName(value = "ChangesetCollection")
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 public class ChangesetCollection extends XyzResponse<ChangesetCollection> {
+  @JsonView({Public.class})
   private long startVersion;
+  @JsonView({Public.class})
   private long endVersion;
 
+  @JsonView({Public.class})
   @JsonTypeInfo(use = JsonTypeInfo.Id.NONE)
   @JsonInclude(JsonInclude.Include.ALWAYS)
   private Map<Long, Changeset> versions;
 
+  @JsonView({Public.class})
   private String nextPageToken;
 
   @SuppressWarnings("unused")

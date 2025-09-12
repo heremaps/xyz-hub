@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,14 +20,20 @@
 package com.here.xyz.responses;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonView;
 
+@Deprecated
 public class ChangesetsStatisticsResponse extends XyzResponse<ChangesetsStatisticsResponse> {
+  @JsonView({Public.class})
   private Long minVersion;
+  @JsonView({Public.class})
   private Long maxVersion;
+  @JsonView({Public.class})
   @JsonInclude
   public final String DEPRECATION_NOTE = "This endpoint is deprecated and will be removed in the next releases. "
       + "Please use '{resource}/statistics' instead of '{resource}/changesets/statistics'.";
 
+  @JsonView({Public.class})
   @JsonInclude(JsonInclude.Include.NON_NULL)
   private Long minTagVersion;
 

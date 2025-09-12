@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,6 +28,8 @@ import com.here.xyz.util.db.datasource.DatabaseSettings;
 import com.here.xyz.util.runtime.FunctionRuntime;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.HashMap;
+import java.util.Map;
 import org.apache.commons.dbutils.ResultSetHandler;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -48,6 +50,7 @@ public abstract class QueryRunner<E extends Object, R extends Object> implements
   private boolean useReadReplica;
   private DataSourceProvider dataSourceProvider;
   private TableLayout tableLayout;
+  protected Map<String, String> extraQueryLabels = new HashMap<>();
 
   /*
   NOTE:
@@ -97,8 +100,11 @@ public abstract class QueryRunner<E extends Object, R extends Object> implements
   private SQLQuery prepareQuery() throws SQLException, ErrorResponseException {
     if (query == null)
       query = buildQuery(input);
+
+    extraQueryLabels.forEach((identifier, value) -> query.withLabel(identifier, value));
     return query
         .withQueryId(FunctionRuntime.getInstance().getStreamId())
+        .withLabel("queryClass", this.getClass().getSimpleName())
         .withTimeout(calculateTimeout())
         .withMaximumRetries(2);
   }

@@ -49,6 +49,7 @@ import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.jobs.util.S3Client;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Tag;
 import com.here.xyz.responses.StatisticsResponse;
@@ -246,6 +247,10 @@ public class StepTestBase {
       System.out.println("Hub Error: " + e.getMessage());
     }
     return null;
+  }
+
+  protected void putFeatureToSpace(String spaceId, Feature feature) {
+    putFeatureCollectionToSpace(spaceId, new FeatureCollection().withFeatures(List.of(feature)));
   }
 
   protected void putFeatureCollectionToSpace(String spaceId, FeatureCollection fc) {
@@ -604,7 +609,7 @@ public class StepTestBase {
     }
   }
 
-  protected long loadHeadVersion(String spaceId) throws WebClientException {
-    return hubWebClient().loadSpaceStatistics(spaceId).getMaxVersion().getValue();
+  protected Ref resolveRef(String spaceId, Ref ref) throws WebClientException {
+    return hubWebClient().resolveRef(spaceId, ref);
   }
 }

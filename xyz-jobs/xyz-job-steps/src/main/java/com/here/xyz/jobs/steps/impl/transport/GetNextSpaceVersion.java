@@ -19,25 +19,24 @@
 
 package com.here.xyz.jobs.steps.impl.transport;
 
-import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
-import com.here.xyz.jobs.steps.outputs.CreatedVersion;
-import com.here.xyz.jobs.steps.resources.Load;
-import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
-import com.here.xyz.util.db.SQLQuery;
-import com.here.xyz.util.web.XyzWebClient;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
-import java.sql.SQLException;
-import java.util.List;
-
 import static com.here.xyz.jobs.steps.Step.Visibility.SYSTEM;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_RESUME;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
 
-public class GetNextSpaceVersion extends SpaceBasedStep<GetNextSpaceVersion> {
+import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
+import com.here.xyz.jobs.steps.outputs.CreatedVersion;
+import com.here.xyz.jobs.steps.resources.Load;
+import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
+import com.here.xyz.util.db.SQLQuery;
+import com.here.xyz.util.web.XyzWebClient;
+import java.sql.SQLException;
+import java.util.List;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+public class GetNextSpaceVersion<T extends GetNextSpaceVersion> extends SpaceBasedStep<T> {
   private static final Logger logger = LogManager.getLogger();
   public static final String VERSION = "version";
 

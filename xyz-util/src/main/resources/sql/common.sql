@@ -108,7 +108,13 @@ CREATE OR REPLACE FUNCTION coalesce_subscript(anyarray) RETURNS integer AS $BODY
     WHERE $1[i] IS NOT NULL
     ORDER BY i
     LIMIT 1;
-$BODY$ LANGUAGE SQL IMMUTABLE;
+$BODY$ LANGUAGE SQL IMMUTABLE
+PARALLEL SAFE;
+
+CREATE OR REPLACE FUNCTION array_reverse(anyarray) RETURNS anyarray LANGUAGE SQL IMMUTABLE STRICT PARALLEL SAFE AS $BODY$
+    SELECT array_agg(val ORDER BY ordinality DESC)
+    FROM unnest($1) WITH ORDINALITY AS t(val, ordinality);
+$BODY$;
 
 /**
  * This function can be used to write logs, if we run in Async mode.
@@ -192,7 +198,8 @@ BEGIN
 	END IF;
 END;
 $BODY$
-LANGUAGE plpgsql VOLATILE;
+LANGUAGE plpgsql STABLE
+PARALLEL SAFE;
 
 /**
  * This function can be used to get the count of a table.
@@ -220,4 +227,5 @@ BEGIN
     RETURN NEXT;
 END;
 $BODY$
-LANGUAGE plpgsql VOLATILE;
+LANGUAGE plpgsql STABLE
+PARALLEL SAFE;

@@ -17,6 +17,25 @@
  * License-Filename: LICENSE
  */
 
+/*
+ * Copyright (C) 2017-2025 HERE Europe B.V.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ * License-Filename: LICENSE
+ */
+
 ---------------------------------------------------------------------------------
 -- xyz_index_status							:	select * from xyz_index_status();
 -- xyz_create_idxs_over_dblink				:	select xyz_create_idxs_over_dblink('xyz', 20, 0, 2, ARRAY['postgres'], 'psql', 'xxx', 'xyz', 'localhost', 5432, 'xyz,h3,public,topology');
@@ -98,6 +117,18 @@
 --			where spaceid != 'idx_in_progess' order by count desc
 ------------------------------------------------
 ------------------------------------------------
+--
+-- used by xyz-psql-connector\src\main\java\com\here\xyz\psql\DatabaseWriter.java
+-- and will be obsolet with removal of java code
+--
+-- xyz_write_versioned_modification_operation
+-- xyz_simple_upsert
+-- xyz_simple_update
+-- xyz_simple_delete
+-- xyz_simple_conflictCheck
+-- xyz_geoFromWkb
+--
+
 CREATE OR REPLACE FUNCTION xyz_reduce_precision(geo GEOMETRY, enable_logging boolean = TRUE)
     RETURNS GEOMETRY AS
 $BODY$
@@ -126,7 +157,7 @@ BEGIN
 
 END
 $BODY$
-LANGUAGE plpgsql immutable;
+LANGUAGE plpgsql immutable parallel safe;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR  REPLACE FUNCTION xyz_random_string(length integer)
@@ -147,7 +178,7 @@ $BODY$
         RETURN result;
     END;
 $BODY$
-LANGUAGE plpgsql VOLATILE;
+LANGUAGE plpgsql VOLATILE PARALLEL RESTRICTED;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_index_dissolve_datatype(propkey text)
@@ -176,7 +207,7 @@ $BODY$
 		RETURN NULL;
 	END;
 $BODY$
-  LANGUAGE plpgsql VOLATILE;
+  LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_index_get_plain_propkey(propkey text)
@@ -205,7 +236,7 @@ $BODY$
 		RETURN propkey;
 	END;
 $BODY$
-  LANGUAGE plpgsql VOLATILE;
+  LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_count_estimation(query text)
@@ -225,7 +256,7 @@ BEGIN
     RETURN rows;
 END;
 $BODY$
-    LANGUAGE plpgsql VOLATILE;
+    LANGUAGE plpgsql VOLATILE PARALLEL RESTRICTED;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_qk_child_calculation(quadkey text,resolution integer, result text[])
@@ -249,7 +280,7 @@ BEGIN
 	RETURN result;
 END;
 $BODY$
-LANGUAGE plpgsql VOLATILE;
+LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 create or replace function xyz_qk_envelope2lrc(geo geometry, lvl integer)
@@ -290,7 +321,7 @@ begin
 
 end;
 $body$
-language plpgsql immutable;
+language plpgsql immutable parallel safe;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_space_bbox(
@@ -343,7 +374,7 @@ $BODY$
 		RETURN bboxx;
         END;
 $BODY$
-  LANGUAGE plpgsql VOLATILE;
+  LANGUAGE plpgsql VOLATILE PARALLEL RESTRICTED;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_index_list_all_available(
@@ -402,7 +433,7 @@ $BODY$
 		END LOOP;
 	END
 $BODY$
-  LANGUAGE plpgsql VOLATILE;
+  LANGUAGE plpgsql STABLE PARALLEL RESTRICTED;
  ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_index_check_comments(
@@ -572,7 +603,7 @@ $BODY$
 		RETURN jsonarray;
         END;
 $BODY$
-  LANGUAGE plpgsql VOLATILE;
+  LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_property_path(propertypath TEXT)
@@ -603,7 +634,7 @@ $BODY$
 		RETURN jsonpath;
         END;
 $BODY$
-  LANGUAGE plpgsql VOLATILE;
+  LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_property_datatype(
@@ -651,7 +682,7 @@ $BODY$
 			RETURN 'unknown';
 	END;
 $BODY$
-  LANGUAGE plpgsql VOLATILE;
+  LANGUAGE plpgsql VOLATILE PARALLEL RESTRICTED;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_property_statistic_v2(
@@ -757,7 +788,7 @@ BEGIN
            tableName  !~ '.+\_p[0-9]'; -- It's a history partition
 END
 $BODY$
-LANGUAGE plpgsql VOLATILE;
+LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_statistic_all_spaces(
@@ -887,7 +918,7 @@ $BODY$
 		END LOOP;
         END;
 $BODY$
-  LANGUAGE plpgsql VOLATILE;
+  LANGUAGE plpgsql VOLATILE PARALLEL RESTRICTED;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_index_creation_on_property(
@@ -972,7 +1003,7 @@ $BODY$
 		END IF;
         END;
 $BODY$
-  LANGUAGE plpgsql VOLATILE;
+  LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_index_name_for_property(
@@ -1015,7 +1046,7 @@ $BODY$
 		RETURN idx_name;
 	END;
 $BODY$
-  LANGUAGE plpgsql VOLATILE;
+  LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_index_find_missing_system_indexes(
@@ -1057,7 +1088,7 @@ $BODY$
 			) B WHERE idx_available IS NULL OR jsonb_array_length(idx_available) < 2;
 	END;
 $BODY$
-  LANGUAGE plpgsql VOLATILE;
+  LANGUAGE plpgsql STABLE PARALLEL RESTRICTED;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_index_name_dissolve_to_property(IN idx_name text, space_id text)
@@ -1094,7 +1125,7 @@ $BODY$
 		RETURN NEXT;
 	END;
 $BODY$
-  LANGUAGE plpgsql VOLATILE;
+  LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_index_property_available(
@@ -1134,7 +1165,7 @@ $BODY$
 		return ret is not null;
 	END;
 $BODY$
-  LANGUAGE plpgsql VOLATILE;
+  LANGUAGE plpgsql STABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_property_statistic(
@@ -1288,7 +1319,7 @@ $BODY$
 	END IF;
   END;
 $BODY$
-  LANGUAGE plpgsql VOLATILE;
+  LANGUAGE plpgsql IMMUTABLE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_statistic_xl_space(
@@ -1545,7 +1576,7 @@ begin
  end if;
 end
 $body$
-language plpgsql immutable;
+language plpgsql immutable PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION _prj_flatten(jdoc jsonb, depth integer )
@@ -1576,14 +1607,14 @@ with
  )
  select level, jkey, jval from outdata
 $body$
-LANGUAGE sql IMMUTABLE;
+LANGUAGE sql IMMUTABLE PARALLEL SAFE;
 
 CREATE OR REPLACE FUNCTION prj_flatten(jdoc jsonb)
 RETURNS TABLE(level integer, jkey text, jval jsonb) AS
 $body$
  select * from _prj_flatten( jdoc, 100 )
 $body$
-LANGUAGE sql IMMUTABLE;
+LANGUAGE sql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION _prj_diff( left_jdoc jsonb, right_jdoc jsonb )
@@ -1629,14 +1660,14 @@ with
  )
 select * from outdiff order by jkey
 $body$
-LANGUAGE sql IMMUTABLE;
+LANGUAGE sql IMMUTABLE PARALLEL SAFE;
 
 CREATE OR REPLACE FUNCTION prj_diff( left_jdoc jsonb, right_jdoc jsonb )
 RETURNS jsonb AS
 $body$
  select jsonb_agg( jsonb_build_array( jkey, jval_l, jval_r ) ) from _prj_diff( left_jdoc, right_jdoc ) d
 $body$
-LANGUAGE sql IMMUTABLE;
+LANGUAGE sql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION prj_input_validate(plist text[])
@@ -1648,7 +1679,7 @@ select array_agg( i.jpth ) from
   group by 1 having count(1) = 1
 ) i
 $body$
-LANGUAGE sql IMMUTABLE;
+LANGUAGE sql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION prj_rebuild_elem( jpath text, jval jsonb )
@@ -1659,7 +1690,7 @@ $body$
  from
   ( select fn, ( fn ~ '^\d+$' ) as ia  from regexp_split_to_table( jpath, '\.') fn ) i
 $body$
-LANGUAGE sql IMMUTABLE;
+LANGUAGE sql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 create or replace function prj_jmerge(CurrentData jsonb,newData jsonb)
@@ -1685,7 +1716,7 @@ $body$
    else newData
  end
 $body$
-language sql immutable;
+language sql immutable PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 create or replace function prj_build( jpaths text[], indata jsonb )
@@ -1717,7 +1748,7 @@ begin
  return rval;
 end
 $body$
-language plpgsql immutable;
+language plpgsql immutable PARALLEL SAFE;
 ------------------------------------------------
 ---------------- QUADKEY_FUNCTIONS -------------
 ------------------------------------------------
@@ -1738,7 +1769,7 @@ BEGIN
 
   RETURN next;
 END;
-$$ LANGUAGE plpgsql IMMUTABLE;
+$$ LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_qk_lrc2qk(rowY integer, colX integer, level integer )  RETURNS text AS $$
@@ -1767,7 +1798,7 @@ BEGIN
 
   return qk;
 END;
-$$ LANGUAGE plpgsql IMMUTABLE;
+$$ LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_qk_qk2lrc( qid text )
@@ -1791,7 +1822,7 @@ BEGIN
 
  RETURN next;
 END;
-$$ LANGUAGE plpgsql IMMUTABLE;
+$$ LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_qk_lrc2bbox(rowY integer, colX integer, level integer)
@@ -1799,7 +1830,7 @@ CREATE OR REPLACE FUNCTION xyz_qk_lrc2bbox(rowY integer, colX integer, level int
 $$
  select st_transform(ST_TileEnvelope(level, colX, rowY), 4326)
 $$
-LANGUAGE sql IMMUTABLE;
+LANGUAGE sql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_qk_qk2bbox( qid text )
@@ -1812,7 +1843,7 @@ BEGIN
 	)A;
  return geo;
 END;
-$$ LANGUAGE plpgsql IMMUTABLE;
+$$ LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_qk_point2qk( geo geometry(Point,4326), level integer )
@@ -1823,7 +1854,7 @@ BEGIN
 	select * from xyz_qk_point2lrc( geo, level ) into xyzTile;
  return xyz_qk_lrc2qk(xyzTile.rowY, xyzTile.colX, level);
 END;
-$$ LANGUAGE plpgsql IMMUTABLE;
+$$ LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_qk_bbox2zooml( geometry )
@@ -1832,7 +1863,7 @@ $body$ -- select round( ( ln( 360 ) - ln( st_xmax(i.env) - st_xmin(i.env) )  )/ 
  select round( ( 5.88610403145016 - ln( st_xmax(i.env) - st_xmin(i.env) )  )/ 0.693147180559945 )::integer as zm
  from ( select st_envelope( $1 ) as env ) i
 $body$
-LANGUAGE sql IMMUTABLE;
+LANGUAGE sql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------ftm - fast tile mode ------------------------------------------
 CREATE OR REPLACE FUNCTION ftm_SimplifyPreserveTopology( geo geometry, tolerance float)
@@ -1840,7 +1871,7 @@ CREATE OR REPLACE FUNCTION ftm_SimplifyPreserveTopology( geo geometry, tolerance
 $BODY$
  select case ST_NPoints( geo ) < 20 when true then geo else st_simplifypreservetopology( geo, tolerance ) end
 $BODY$
-  LANGUAGE sql IMMUTABLE;
+  LANGUAGE sql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION ftm_Simplify( geo geometry, tolerance float)
@@ -1848,7 +1879,7 @@ CREATE OR REPLACE FUNCTION ftm_Simplify( geo geometry, tolerance float)
 $BODY$
  select case ST_NPoints( geo ) < 20 when true then geo else (select case st_issimple( i.g ) when true then i.g else null end from ( select st_simplify( geo, tolerance,false ) as g ) i ) end
 $BODY$
-  LANGUAGE sql IMMUTABLE;
+  LANGUAGE sql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_postgis_selectivity( tbl regclass, att_name text, geom geometry )
@@ -1873,7 +1904,7 @@ BEGIN
     RETURN 9223372036854775807::BIGINT;
 END
 $BODY$
-LANGUAGE plpgsql VOLATILE;
+LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION operation_2_human_readable(operation CHAR) RETURNS TEXT AS
@@ -1882,7 +1913,7 @@ BEGIN
     RETURN CASE WHEN operation = 'I' OR operation = 'H' THEN 'insert' ELSE (CASE WHEN operation = 'U' OR operation = 'J' THEN 'update' ELSE 'delete' END) END;
 END
 $BODY$
-LANGUAGE plpgsql VOLATILE;
+LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_isHideOperation(operation CHAR) RETURNS BOOLEAN AS
@@ -1891,7 +1922,7 @@ BEGIN
     RETURN operation = 'H' OR operation = 'J';
 END
 $BODY$
-LANGUAGE plpgsql VOLATILE;
+LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_write_versioned_modification_operation(id TEXT, version BIGINT, operation CHAR, jsondata JSONB, geo GEOMETRY, schema TEXT, tableName TEXT, concurrencyCheck BOOLEAN, partitionSize BIGINT, versionsToKeep INT, pw TEXT, baseVersion BIGINT, minTagVersion BIGINT)
@@ -1954,11 +1985,11 @@ $BODY$
         -- Delete old changesets from the history to keep only as many versions as specified through "versionsToKeep" if necessary
         IF version % 1000 = 0 THEN -- Perform the check only on every 1000th transaction
             minVersion := version - versionsToKeep + 1;
-			IF minTagVersion != -1 THEN
-				minVersion := least(minTagVersion, minVersion);
-			END IF;        
+            IF minTagVersion != -1 THEN
+                minVersion := least(minTagVersion, minVersion);
+            END IF;
             IF minVersion > 0 THEN
-                PERFORM asyncify('SELECT xyz_delete_changesets(''' || schema || ''', ''' || tableName || ''', ' ||  partitionSize || ', ' || minVersion || ')', pw);
+                EXECUTE xyz_delete_changesets_async(schema, tableName, partitionSize, minVersion, pw);
             END IF;
         END IF;
 
@@ -2094,7 +2125,7 @@ $BODY$
             END;
     END
 $BODY$
-LANGUAGE plpgsql VOLATILE;
+LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_geoFromWkb(geo GEOMETRY)
@@ -2104,7 +2135,7 @@ $BODY$
         RETURN CASE WHEN geo::geometry IS NULL THEN NULL ELSE xyz_reduce_precision( ST_Force3D(ST_GeomFromWKB(geo::BYTEA, 4326)) ) END;
     END
 $BODY$
-LANGUAGE plpgsql VOLATILE;
+LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 DO $$
@@ -2132,6 +2163,16 @@ BEGIN
     RAISE NOTICE 'Partition no % was successfully created (or existed already) for %.%.',
         partitionNo, schema, rootTable;
 END
+$BODY$
+LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION xyz_delete_changesets_async(schema TEXT, tableName TEXT, partitionSize BIGINT, minVersion BIGINT, pw TEXT)
+    RETURNS VOID AS
+$BODY$
+BEGIN
+    PERFORM asyncify('SELECT xyz_delete_changesets(''' || schema || ''', ''' || tableName || ''', ' ||  partitionSize || ', ' || minVersion || ')', pw);
+END;
 $BODY$
 LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
@@ -2227,7 +2268,7 @@ BEGIN
     END IF;
 END
 $BODY$
-LANGUAGE plpgsql VOLATILE;
+LANGUAGE plpgsql STABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_get_root_table(tableName TEXT) RETURNS TEXT AS
@@ -2240,7 +2281,7 @@ BEGIN
     END IF;
 END
 $BODY$
-LANGUAGE plpgsql VOLATILE;
+LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_table_exists(schema TEXT, tableName TEXT) RETURNS BOOLEAN AS
@@ -2253,7 +2294,7 @@ BEGIN
     RETURN existsResult.tableExists;
 END
 $BODY$
-LANGUAGE plpgsql VOLATILE;
+LANGUAGE plpgsql STABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 -- **NOTE:** This variant of the asyncify function is only to be called from JDBC
@@ -2381,889 +2422,7 @@ BEGIN
     return labels;
 END
 $BODY$
-LANGUAGE plpgsql VOLATILE;
-------------------------------------------------
-------------------------------------------------
-CREATE OR REPLACE FUNCTION htile(qk text, isbase4encoded boolean) RETURNS TABLE(rowy integer, colx integer, lev integer, hkey bigint)
-    LANGUAGE plpgsql IMMUTABLE STRICT
-    AS $$
-declare
-    level integer;
-begin
-    --if(quadkey == nu7ll || !quadkey.matches("[0123]{1,31}"))
-    --  throw new IllegalArgumentException("Quadkey '"+quadkey+"' is invalid!");
-	IF NOT isBase4Encoded THEN
-		qk = htile_number_to_base(qk::bigint, 4);
-    END IF;
-
-    lev = length(qk);
-    --	RAISE NOTICE 'test % ',lev;
-    hkey = htiles_convert_qk_to_longk(qk);
-
-    /** Remove first level bit and convert to x */
-    colX = htiles_utils_modify_bits(hkey & ((1::bigint << lev * 2) - 1),'extract');
-    /** Remove first level bit and convert to y */
-    rowY = htiles_utils_modify_bits(hkey & ((1::bigint << lev * 2) - 1) >> 1, 'extract');
-
-	RETURN next;
-end
-$$;
-------------------------------------------------
-------------------------------------------------
-CREATE OR REPLACE FUNCTION htile(x integer, y integer, level integer) RETURNS bigint
-    LANGUAGE plpgsql IMMUTABLE STRICT
-    AS $$
-begin
-    return htiles_convert_xy_to_long_key(x, y) | (1::bigint << (level * 2));
-end
-$$;
-------------------------------------------------
-------------------------------------------------
-CREATE OR REPLACE FUNCTION htile_bbox(rowy integer, colx integer, lev integer) RETURNS public.geometry
-    LANGUAGE plpgsql IMMUTABLE STRICT
-    AS $$
-declare
-    height float;
-	width float;
-	minX float;
-    minY float;
-    maxX float;
-    maxY float;
-begin
-	IF lev = 0 THEN
-	    height = 180;
-    ELSE
-		height = 360.0 / (1 << lev);
-    END IF;
-
-	width =  360.0 / (1 << lev);
-	minX = width * colX - 180;
-    minY = height * rowY - 90;
-    maxX = width * (colX + 1) - 180;
-    maxY = height * (rowY + 1) - 90;
-
-    --	RAISE NOTICE '% % % % ',minX,minY,maxX,maxY;
-    return st_setsrid(ST_MakeEnvelope( minX, minY, maxX, maxY ),4326);
-end
-$$;
-------------------------------------------------
-------------------------------------------------
-CREATE OR REPLACE FUNCTION htile_number_to_base(num bigint, base integer) RETURNS text
-    LANGUAGE sql IMMUTABLE STRICT
-    AS $$
-WITH RECURSIVE n(i, n, r) AS (
-    SELECT -1, num, 0
-  UNION ALL
-    SELECT i + 1, n / base, (n % base)::INT
-    FROM n
-    WHERE n > 0
-)
-SELECT substring(string_agg(ch, ''),2)
-FROM (
-         SELECT CASE
-                    WHEN r BETWEEN 0 AND 9 THEN r::TEXT
-                    WHEN r BETWEEN 10 AND 35 THEN chr(ascii('a') + r - 10)
-                    ELSE '%'
-                END ch
-         FROM n
-            WHERE i >= 0
-         ORDER BY i DESC
-     ) ch
-$$;
-------------------------------------------------
-------------------------------------------------
-CREATE OR REPLACE FUNCTION htiles_convert_qk_to_longk(qk text) RETURNS bigint
-    LANGUAGE plpgsql IMMUTABLE STRICT
-    AS $$
-declare
-    level integer;
-	k integer;
-	hkey bigint;
-begin
-	level = length(qk);
-	hkey = 0;
-	k = level -1;
-
-    FOR i IN 1 .. level
-	LOOP
-		-- RAISE NOTICE '% %',i,substring(qk,level-(i-1),1)::integer;
-		hkey = hkey+ (substring(qk,level-(i-1),1)::bigint << (i-1) * 2);
-    END LOOP;
-    RETURN hkey | (1::bigint << (level * 2));
-end
-$$;
-------------------------------------------------
-------------------------------------------------
-CREATE OR REPLACE FUNCTION htiles_convert_xy_to_long_key(x integer, y integer) RETURNS bigint
-    LANGUAGE plpgsql IMMUTABLE STRICT
-    AS $$
-begin
-    x = htiles_utils_modify_bits(x,'interleave');
-    y = htiles_utils_modify_bits(y,'interleave');
-    return x | (y << 1);
-end
-$$;
-------------------------------------------------
-------------------------------------------------
-CREATE OR REPLACE FUNCTION htiles_utils_modify_bits(num bigint, bmode text) RETURNS bigint
-    LANGUAGE plpgsql IMMUTABLE STRICT
-    AS $$
-declare
-    magicNumbers bigint[] := ARRAY[
-		6148914691236517205,	--110000101001000100100010100011010010001001000110110010100010111001000000101
-		3689348814741910323,	--11001100110011001100110011001100110011001100110011001100110011
-		1085102592571150095,	--111100001111000011110000111100001111000011110000111100001111
-		71777214294589695,		--11111111000000001111111100000000111111110000000011111111
-		281470681808895,		--111111111111111100000000000000001111111111111111
-		4294967295				--11111111111111111111111111111111
-	];
-begin
-	if bmode = 'interleave' THEN
-		num = (num | (num << 16)) & magicNumbers[5];
-		num = (num | (num << 8)) & magicNumbers[4];
-		num = (num | (num << 4)) & magicNumbers[3];
-		num = (num | (num << 2)) & magicNumbers[2];
-		num = (num | (num << 1)) & magicNumbers[1];
-	elseif bmode = 'extract' THEN
-		num = num & magicNumbers[1];
-		num = (num | (num >> 1)) & magicNumbers[2];
-		num = (num | (num >> 2)) & magicNumbers[3];
-		num = (num | (num >> 4)) & magicNumbers[4];
-		num = (num | (num >> 8)) & magicNumbers[5];
-		num = (num | (num >> 16)) & magicNumbers[6];
-else
-		RAISE EXCEPTION 'Invalid mode - choose "interleave" or "extract"';
-end if;
-	-- RAISE NOTICE 'HKey %',num;
-    return num;
-end
-$$;
-------------------------------------------------
-------------------------------------------------
-CREATE OR REPLACE FUNCTION number_from_base(num text, base integer) RETURNS numeric
-    LANGUAGE sql IMMUTABLE STRICT
-    AS $$
-SELECT sum(exp * cn)
-FROM (
-         SELECT base::NUMERIC ^ (row_number() OVER () - 1) exp,
-         CASE
-           WHEN ch BETWEEN '0' AND '9' THEN ascii(ch) - ascii('0')
-           WHEN ch BETWEEN 'a' AND 'z' THEN 10 + ascii(ch) - ascii('a')
-         END cn
-         FROM regexp_split_to_table(reverse(lower(num)), '') ch(ch)
-     ) sub
-$$;
-------------------------------------------------
-------------------------------------------------
-CREATE OR REPLACE FUNCTION htile_bbox(qk text)
-    returns geometry AS
-$body$
-    select htile_bbox(rowy, colx, lev) from htile( qk,true )
-$body$
-    language sql immutable strict;
-
-CREATE OR REPLACE FUNCTION tile_bbox(htile boolean, qk text) returns geometry
-LANGUAGE plpgsql immutable AS
-$_$
-begin
-    if not htile then
-      return xyz_qk_qk2bbox( qk );
-    else
-      return htile_bbox( qk );
-    end if;
-end
-$_$;
-
-------------------------------------------------
-------------------------------------------------
-CREATE OR REPLACE FUNCTION htile_s_inhabited(iqk text, mlevel integer, _tbl regclass) RETURNS TABLE(qk text)
-    LANGUAGE plpgsql STABLE
-    AS $_$
-declare
-    bFound boolean := false;
-begin
-
-    if length( iqk ) >= mlevel then
-      execute format( 'select exists ( select 1 from %1$s r where st_intersects(r.geo, htile_bbox( %2$L )))', _tbl, iqk ) into bFound;
-	   if bfound then
-	     return query select iqk;
-	   end if;
-	  return;
-   end if;
-
-
-    for lastDigit in 0..3 loop
-        qk = iqk || lastDigit;
-        execute format( 'select exists ( select 1 from %1$s r where st_intersects(r.geo, htile_bbox( %2$L )))', _tbl, qk ) into bFound;
-
-        if bFound then
-            if length( qk ) >= mlevel then
-                return next;
-            else
-                return query
-                    select r.qk from htile_s_inhabited(qk, mlevel, _tbl ) r;
-            end if;
-        end if;
-    end loop;
-end
-$_$;
-
-------------------------------------------------
-------------------------------------------------
-CREATE OR REPLACE FUNCTION qk_s_inhabited(iqk text, mlevel integer, _tbl regclass) RETURNS TABLE(qk text)
-    LANGUAGE plpgsql STABLE
-    AS $_$
-declare
-    bFound boolean := false;
-begin
-
-    if length( iqk ) >= mlevel then
-       execute format( 'select exists ( select 1 from %1$s r where st_intersects(r.geo, xyz_qk_qk2bbox( %2$L )))', _tbl, iqk ) into bFound;
-	   if bfound then
-	     return query select iqk;
-		 end if;
-		 return;
-	  end if;
-
-
-    for lastDigit in 0..3 loop
-        qk = iqk || lastDigit;
-
-        execute format( 'select exists ( select 1 from %1$s r where st_intersects(r.geo, xyz_qk_qk2bbox( %2$L )))', _tbl, qk ) into bFound;
-
-        if bFound then
-            if length( qk ) >= mlevel then
-                return next;
-        else
-            return query
-                select r.qk from qk_s_inhabited(qk, mlevel, _tbl ) r;
-            end if;
-        end if;
-    end loop;
-end
-$_$;
-------------------------------------------------
-------------------------------------------------
-CREATE OR REPLACE FUNCTION qk_s_get_fc_of_tiles_v1(here_tile_qk boolean, tile_list text[], _tbl regclass, base64enc boolean, clipped boolean ) RETURNS TABLE(tile_id text, tile_content text)
-    LANGUAGE plpgsql stable
-    AS $_$
-declare
-    result record;
-    tile text;
-    fkt_qk2box text := 'xyz_qk_qk2bbox';
-    plainjs text    := 'jsonb_build_object(''type'',''FeatureCollection'',''features'', jsonb_agg(feature) )::text';
-    plaingeo text   := 'geo';
-    feature_count bigint := 0;
-begin
-
-    if here_tile_qk then
-        fkt_qk2box = 'htile_bbox';
-    end if;
-
-    if clipped then
-         plaingeo = 'ST_Intersection(ST_MakeValid( geo ),' || fkt_qk2box || '((%2$L)))';
-    end if;
-
-    if base64enc then
-         plainjs = 'regexp_replace( encode( replace(' || plainjs || ',''\'',''\\'')::bytea, ''base64'' ),''\n'','''',''g'')';
-    end if;
-
-    foreach tile in array tile_list
-    loop
-        begin
-            execute format(
-                        'SELECT %2$L,' || plainjs || ', count(1) as cnt'
-                        ||' from( '
-                        ||' select jsonb_set(jsondata,''{geometry}'',ST_AsGeojson(' || plaingeo ||',8)::jsonb) as feature'
-                        ||'	 from %1$s '
-                        ||'  where ST_Intersects(geo, ' || fkt_qk2box || '(%2$L))'
-                        ||' ) A', _tbl, tile)
-            INTO tile_id, tile_content, feature_count;
-
-            if feature_count > 0 then
-                return next;
-            end if;
-        end;
-    end loop;
-end
-$_$;
-------------------------------------------------
-------------------------------------------------
-CREATE OR REPLACE FUNCTION qk_s_get_fc_of_tiles_v2(here_tile_qk boolean, tile_list text[], _tbl regclass, base64enc boolean, clipped boolean ) RETURNS TABLE(tile_id text, tile_content text)
-    LANGUAGE plpgsql stable
-    AS $_$
-declare
-    fkt_qk2box text := 'xyz_qk_qk2bbox';
-    plainjs text    := 'jsonb_build_object(''type'',''FeatureCollection'',''features'', features )::text';
-    plaingeo text   := 'geo';
-begin
-    if here_tile_qk then
-       fkt_qk2box = 'htile_bbox';
-    end if;
-
-    if clipped then
-        plaingeo = 'ST_Intersection(ST_MakeValid(d.geo), bbox) as geo';
-    end if;
-
-    if base64enc then
-        plainjs = 'regexp_replace( encode( replace(' || plainjs || ',''\'',''\\'')::bytea, ''base64'' ),''\n'','''',''g'')';
-    end if;
-
-    return query execute
-         format(
-              ' select qk,' || plainjs
-           || ' from'
-           || ' ( select qk, jsonb_agg( jsonb_set(jsondata,''{geometry}'',ST_AsGeojson(geo,8)::jsonb ) ) as features'
-           || '   from'
-           || '   ( select qk, d.jsondata,' || plaingeo
-           || '     from'
-           || '      unnest( %2$L::text[] ) qk,'
-           || '      lateral ' || fkt_qk2box || '( qk ) bbox,'
-           || '      lateral ( select jsondata, geo from %1$s d where st_intersects( d.geo, bbox ) ) d'
-           || '   ) o'
-           || '   group by qk'
-           || ' ) oo' , _tbl, tile_list );
-end
-$_$;
-------------------------------------------------
-------------------------------------------------
-
-------------------------------------------------
-------------------------------------------------
-CREATE OR REPLACE FUNCTION qk_s_inhabited_txt(iqk text, mlevel integer, sql_with_geo text) RETURNS TABLE(qk text)
- LANGUAGE plpgsql STABLE
-    AS $_$
-declare
-    bFound boolean := false;
-begin
-
-    if length( iqk ) >= mlevel then
-      execute format( 'select exists ( select 1 from ( %1$s ) r where st_intersects(r.geo, xyz_qk_qk2bbox( %2$L )))', sql_with_geo, iqk ) into bFound;
-	   if bfound then
-	     return query select iqk;
-		 end if;
-		 return;
-	  end if;
-
-    for lastDigit in 0..3 loop
-        qk = iqk || lastDigit;
-
-        execute
-        	format( 'select exists ( select 1 from ( %1$s ) r where st_intersects(r.geo, xyz_qk_qk2bbox( %2$L )))', sql_with_geo, qk )
-        	into bFound;
-
-        if bFound then
-            if length( qk ) >= mlevel then
-                return next;
-            else
-                return query
-                    select r.qk from qk_s_inhabited_txt(qk, mlevel, sql_with_geo ) r;
-            end if;
-        end if;
-    end loop;
-end
-$_$;
-
-------------------------------------------------
-------------------------------------------------
-
-CREATE OR REPLACE FUNCTION htile_s_inhabited_txt(iqk text, mlevel integer, sql_with_geo text) RETURNS TABLE(qk text)
-    LANGUAGE plpgsql STABLE
-    AS $_$
-declare
-    bFound boolean := false;
-begin
-
-    if length( iqk ) >= mlevel then
-      execute format( 'select exists ( select 1 from ( %1$s ) r where st_intersects(r.geo, htile_bbox( %2$L )))', sql_with_geo, iqk ) into bFound;
-	   if bfound then
-	     return query select iqk;
-	   end if;
-	  return;
-	end if;
-
-    for lastDigit in 0..3 loop
-        qk = iqk || lastDigit;
-
-        execute
-            format( 'select exists ( select 1 from ( %1$s ) r where st_intersects(r.geo, htile_bbox( %2$L )))', sql_with_geo, qk )
-            into bFound;
-
-        if bFound then
-            if length( qk ) >= mlevel then
-                return next;
-            else
-                return query
-                    select r.qk from htile_s_inhabited_txt(qk, mlevel, sql_with_geo ) r;
-            end if;
-        end if;
-    end loop;
-end
-$_$;
-
-CREATE OR REPLACE FUNCTION tile_s_inhabited_txt(htile boolean, iqk text, mlevel integer, sql_with_geo text) RETURNS TABLE(qk text)
-    LANGUAGE plpgsql STABLE
-    AS $_$
-declare
-    bFound boolean := false;
-begin
-    if not htile then
-      return query
-	     select o.qk from qk_s_inhabited_txt( iqk, mlevel, sql_with_geo ) o;
-    else
-      return query
- 	     select o.qk from htile_s_inhabited_txt( iqk, mlevel, sql_with_geo ) o;
-
-    end if;
-
-end
-$_$;
-
-------------------------------------------------
-------------------------------------------------
-
-CREATE OR REPLACE FUNCTION qk_s_get_fc_of_tiles_txt_v5(
-	here_tile_qk boolean,
-	tile_list text[],
-	sql_with_jsondata_geo text,
-	base64enc boolean,
-	clipped boolean,
-    includeEmpty boolean)
-    RETURNS TABLE(tile_id text, tile_content text)
-    LANGUAGE 'plpgsql' stable
-AS $BODY$
-declare
-result record;
-    tile text;
-    fkt_qk2box text := 'xyz_qk_qk2bbox';
-	  plainjs text 	:= ' ''{"type": "FeatureCollection", "features":['' || xx.fc || '']}'' ';
-    plaingeo text   := 'geo';
-begin
-    if here_tile_qk then
-        fkt_qk2box = 'htile_bbox';
-    end if;
-    if clipped then
-         plaingeo = 'ST_Intersection(ST_MakeValid( geo ),' || fkt_qk2box || '((%2$L)))';
-    end if;
-    if base64enc then
-         plainjs = 'replace( encode( convert_to( ' || plainjs || ',''UTF-8'' ), ''base64'' ),chr(10),'''')';
-    end if;
-    foreach tile in array tile_list
-    loop
-        begin
-            execute format(
-                'SELECT %2$L,' || plainjs
-                ||' from( '
-                ||'   select string_agg(feature::text,'','') as fc '
-                ||'   from( '
-                ||'    select jsonb_set(jsondata,''{geometry}'',ST_AsGeojson(' || plaingeo ||', 8)::jsonb) as feature'
-                ||'	     from ( %1$s ) o '
-                ||'    where ST_Intersects(geo, ' || fkt_qk2box || '(%2$L))'
-                ||'   ) oo '
-                ||')xx ', sql_with_jsondata_geo, tile)
-             INTO tile_id, tile_content;
-            if tile_content IS NOT null then
-				return next;
-            else
-                if includeEmpty then
-                    tile_id := tile;
-                    if base64enc then
-                        --empty b64_fc
-                        tile_content := null; --'eyJ0eXBlIjogIkZlYXR1cmVDb2xsZWN0aW9uIiwgImZlYXR1cmVzIjpbXX0=';
-                    else
-                        tile_content := null; --'{"type": "FeatureCollection", "features":[]}';
-                    end if;
-                    return next;
-                end if;
-            end if;
-        end;
-    end loop;
-end
-$BODY$;
-
-CREATE OR REPLACE FUNCTION qk_s_get_fc_of_tiles_txt(here_tile_qk boolean, tile_list text[], sql_with_jsondata_geo text, base64enc boolean, clipped boolean, includeEmpty boolean) RETURNS TABLE(tile_id text, tile_content text)
-LANGUAGE sql stable
-AS $_$
-    select tile_id, tile_content from qk_s_get_fc_of_tiles_txt_v5( here_tile_qk, tile_list, sql_with_jsondata_geo, base64enc, clipped, includeEmpty )
-$_$;
-
-------------------------------------------------
-------------------------------------------------
-
-CREATE OR REPLACE FUNCTION qk_s_get_featurelist_of_tiles_txt_v1(
-	here_tile_qk boolean,
-	tile_list text[],
-	sql_with_jsondata_geo text,
-	clipped boolean,
-    includeEmpty boolean)
-    RETURNS TABLE(tile_id text, jsondata jsonb, geo geometry)
-    LANGUAGE 'plpgsql' stable
-AS $BODY$
-declare
-result record;
-    tile text;
-    fkt_qk2box text := 'xyz_qk_qk2bbox';
-    plaingeo text   := 'geo';
-begin
-    if here_tile_qk then
-        fkt_qk2box = 'htile_bbox';
-    end if;
-
-    if clipped then
-         plaingeo = 'ST_Intersection(ST_MakeValid( geo ),' || fkt_qk2box || '((%2$L)))';
-    end if;
-
-    foreach tile in array tile_list
-    loop
-        begin
-            return query execute
-						 format(
-                'SELECT %2$L, xx.* '
-                ||' from( '
-                ||'   select * '
-                ||'   from( '
-                ||'    select jsondata, (' || plaingeo ||') as geo'
-                ||'	   from ( %1$s ) o '
-                ||'    where ST_Intersects(geo, ' || fkt_qk2box || '(%2$L))'
-                ||'   ) oo '
-                ||') xx ', sql_with_jsondata_geo, tile);
-
-				    if not found AND includeEmpty then
-               tile_id := tile;
-							 jsondata := null;
-							 geo := null;
-               return next;
-						end if;
-        end;
-    end loop;
-end
-$BODY$;
-
-CREATE OR REPLACE FUNCTION qk_s_get_featurelist_of_tiles_txt(here_tile_qk boolean, tile_list text[], sql_with_jsondata_geo text, clipped boolean, includeEmpty boolean) RETURNS TABLE(tile_id text, jsondata jsonb, geo geometry)
-LANGUAGE sql stable
-AS $_$
-    select tile_id, jsondata, geo from qk_s_get_featurelist_of_tiles_txt_v1( here_tile_qk, tile_list, sql_with_jsondata_geo, clipped, includeEmpty )
-$_$;
-
-
-------------------------------------------------
-------------------------------------------------
-
-CREATE OR REPLACE FUNCTION _strip_conversion( tileqry_with_geo text ) -- temp workaround to fix sideefect slowing down tilequery DS-758
-	RETURNS text AS
-$$
- select replace(tileqry_with_geo,'st_geomfromtext(st_astext(geo,8),4326) as geo','geo')
-$$
-LANGUAGE sql IMMUTABLE;
-
-
-create or replace function exp_build_sql_inhabited_txt(htile boolean, iqk text, mlevel integer, sql_with_jsondata_geo text, sql_qk_tileqry_with_geo text, max_tiles integer, base64enc boolean, clipped boolean, includeEmpty boolean)
- returns table(qk text, mlev integer, sql_with_jsdata_geo text, max_tls integer, bucket integer, nrbuckets integer, nrsubtiles integer, tiles_total integer, tile_list text[], s3sql text)
-language plpgsql stable
-as $_$
-declare
-    v_clipped   text := 'false';
-    v_base64enc text := 'false';
-    v_includeEmpty text := 'false';
-begin
-
-    if clipped then
-        v_clipped = 'true';
-    end if;
-
-    if base64enc then
-       v_base64enc = 'true';
-    end if;
-
-    if includeEmpty then
-       v_includeEmpty = 'true';
-    end if;
-
-    if not htile then
-      return query
-         with
-          indata   as ( select exp_build_sql_inhabited_txt.iqk as iqk,
-                               exp_build_sql_inhabited_txt.mlevel as mlevel,
-                               _strip_conversion(exp_build_sql_inhabited_txt.sql_with_jsondata_geo) as sql_export_data,
-                               _strip_conversion(coalesce( exp_build_sql_inhabited_txt.sql_qk_tileqry_with_geo, exp_build_sql_inhabited_txt.sql_with_jsondata_geo)) as sql_qks,
-                               exp_build_sql_inhabited_txt.max_tiles as max_tiles
-                      ),
-        ibuckets as
-        ( select rr.bucket::integer, (count(1) over ())::integer as nrbuckets, count(1)::integer as nrsubtiles, rr.tiles_total::integer , array_agg(rr.qk) as tlist
-          from ( select count(1) over () tiles_total, ((row_number() over ()) - 1) / i.max_tiles as bucket, r.qk from indata i, qk_s_inhabited_txt(i.iqk, i.mlevel, i.sql_qks ) r ) rr
-            group by rr.bucket, rr.tiles_total
-        )
-        select r.iqk as qk, r.mlevel, r.sql_export_data, r.max_tiles, l.*,
-		       format('select tile_id, tile_content from qk_s_get_fc_of_tiles_txt(false,%1$L::text[],%2$L,%3$s,%4$s,%5$s)',l.tlist,r.sql_export_data,v_base64enc,v_clipped,v_includeEmpty) as s3sql
-        from ibuckets l, indata r
-        order by bucket;
-    else
-      return query
-         with
-          indata   as ( select exp_build_sql_inhabited_txt.iqk as iqk,
-                               exp_build_sql_inhabited_txt.mlevel as mlevel,
-                               _strip_conversion(exp_build_sql_inhabited_txt.sql_with_jsondata_geo) as sql_export_data,
-                               _strip_conversion(coalesce( exp_build_sql_inhabited_txt.sql_qk_tileqry_with_geo, exp_build_sql_inhabited_txt.sql_with_jsondata_geo)) as sql_qks,
-                               exp_build_sql_inhabited_txt.max_tiles as max_tiles
-                      ),
-        ibuckets as
-        ( select rr.bucket::integer, (count(1) over ())::integer as nrbuckets, count(1)::integer as nrsubtiles, rr.tiles_total::integer , array_agg(rr.qk) as tlist
-          from ( select count(1) over () tiles_total, ((row_number() over ()) - 1) / i.max_tiles as bucket, r.qk from indata i, htile_s_inhabited_txt(i.iqk, i.mlevel, i.sql_qks ) r ) rr
-            group by rr.bucket, rr.tiles_total
-        )
-        select r.iqk as qk, r.mlevel, r.sql_export_data, r.max_tiles, l.*,
-		       format('select htiles_convert_qk_to_longk(tile_id)::text as tile_id, tile_content from qk_s_get_fc_of_tiles_txt(true,%1$L::text[],%2$L,%3$s,%4$s,%5$s)',l.tlist,r.sql_export_data,v_base64enc,v_clipped,v_includeEmpty) as s3sql
-        from ibuckets l, indata r
-        order by bucket;
-    end if;
-end
-$_$;
-------------------------------------------------
-------------------------------------------------
-
-------------------------------------------------
-------------------------------------------------
-
-create or replace function exp2_build_sql_inhabited_txt(htile boolean, iqk text, mlevel integer, sql_with_jsondata_geo text, sql_qk_tileqry_with_geo text, max_tiles integer, clipped boolean, includeEmpty boolean)
- returns table(qk text, mlev integer, sql_with_jsdata_geo text, max_tls integer, bucket integer, nrbuckets integer, nrsubtiles integer, tiles_total integer, tile_list text[], s3sql text)
-language plpgsql stable
-as $_$
-declare
-    v_clipped   text := 'false';
-    v_includeEmpty text := 'false';
-begin
-
-    if clipped then
-        v_clipped = 'true';
-    end if;
-
-    if includeEmpty then
-       v_includeEmpty = 'true';
-    end if;
-
-    if not htile then
-      return query
-         with
-          indata   as ( select exp2_build_sql_inhabited_txt.iqk as iqk,
-                               exp2_build_sql_inhabited_txt.mlevel as mlevel,
-                               _strip_conversion(exp2_build_sql_inhabited_txt.sql_with_jsondata_geo) as sql_export_data,
-                               _strip_conversion(coalesce( exp2_build_sql_inhabited_txt.sql_qk_tileqry_with_geo, exp2_build_sql_inhabited_txt.sql_with_jsondata_geo)) as sql_qks,
-                               exp2_build_sql_inhabited_txt.max_tiles as max_tiles
-                      ),
-        ibuckets as
-        ( select rr.bucket::integer, (count(1) over ())::integer as nrbuckets, count(1)::integer as nrsubtiles, rr.tiles_total::integer , array_agg(rr.qk) as tlist
-          from ( select count(1) over () tiles_total, ((row_number() over ()) - 1) / i.max_tiles as bucket, r.qk from indata i, qk_s_inhabited_txt(i.iqk, i.mlevel, i.sql_qks ) r ) rr
-            group by rr.bucket, rr.tiles_total
-        )
-        select r.iqk as qk, r.mlevel, r.sql_export_data, r.max_tiles, l.*,
-		       format('select tile_id, jsondata, geo from qk_s_get_featurelist_of_tiles_txt(false,%1$L::text[],%2$L,%3$s,%4$s)',l.tlist,r.sql_export_data,v_clipped,v_includeEmpty) as s3sql
-        from ibuckets l, indata r
-        order by bucket;
-    else
-      return query
-         with
-          indata   as ( select exp2_build_sql_inhabited_txt.iqk as iqk,
-                               exp2_build_sql_inhabited_txt.mlevel as mlevel,
-                               _strip_conversion(exp2_build_sql_inhabited_txt.sql_with_jsondata_geo) as sql_export_data,
-                               _strip_conversion(coalesce( exp2_build_sql_inhabited_txt.sql_qk_tileqry_with_geo, exp2_build_sql_inhabited_txt.sql_with_jsondata_geo)) as sql_qks,
-                               exp2_build_sql_inhabited_txt.max_tiles as max_tiles
-                      ),
-        ibuckets as
-        ( select rr.bucket::integer, (count(1) over ())::integer as nrbuckets, count(1)::integer as nrsubtiles, rr.tiles_total::integer , array_agg(rr.qk) as tlist
-          from ( select count(1) over () tiles_total, ((row_number() over ()) - 1) / i.max_tiles as bucket, r.qk from indata i, htile_s_inhabited_txt(i.iqk, i.mlevel, i.sql_qks ) r ) rr
-            group by rr.bucket, rr.tiles_total
-        )
-        select r.iqk as qk, r.mlevel, r.sql_export_data, r.max_tiles, l.*,
-		       format('select htiles_convert_qk_to_longk(tile_id)::text as tile_id, jsondata, st_geomfromtext(st_astext(geo,8),4326) as geo from qk_s_get_featurelist_of_tiles_txt(true,%1$L::text[],%2$L,%3$s,%4$s)',l.tlist,r.sql_export_data,v_clipped,v_includeEmpty) as s3sql
-        from ibuckets l, indata r
-        order by bucket;
-    end if;
-end
-$_$;
-
-------------------------------------------------
-------------------------------------------------
-
-
-
-/*
-Sample:
-
-select
- (aws_s3.query_export_to_s3( o.s3sql, 'iml-http-connector-sit-s3bucket-9bnjg7jo97un', format('test-mnah-499/space/%s/%s/%s-%s', 'testdyn2' ,o.qk,o.bucket,o.nrbuckets) ,'eu-west-1','format csv')).* ,
- o.*
-from exp_build_sql_inhabited_txt(true, '013200030201', 12,
-'
- select jsondata, geo from public."011420244443dfc61dfeaeb154c06b39"
- where 1 = 1
-   and jsondata->''properties''->''irand'' = to_jsonb( 4 )
-'
-, 7) o
-*/
-------------------------------------------------
-------------------------------------------------
-
-CREATE OR REPLACE FUNCTION exp_qk_weight(
-	htile boolean,
-	startqk text,
-	mlevel integer,
-	mweight double precision,
-	tbls regclass[],
-	sql_qk_tileqry_with_geo text)
-RETURNS TABLE(lev integer, qk text, weight double precision, reltuples bigint)
-LANGUAGE 'plpgsql' stable
-AS $BODY$
-begin
-
-  return query
-   with
-	 hddata as ( select array_agg( coalesce( to_regclass( format('%I.%I',c.relnamespace::regnamespace::text, c.relname::text || '_head') ), c.oid::regclass ) ) as headtbl
-                 from pg_class c, (select unnest(tbls) as tbl)
-                 r	where c.oid = r.tbl
-			   ),
-    indata as  ( select r.tbl, greatest( c.reltuples::bigint, 1) as reltuples from pg_class c , (select unnest( headtbl ) as tbl from hddata ) r	where c.oid = r.tbl ),
-	iindata as ( select tbl, x.reltuples, x.reltuples::float/max(x.reltuples) over () as rweight, sum(x.reltuples) over () as total from indata x ),
-    qkdata as
-    (
-       with recursive t( lev, qk, ew ) as
-       (  select length(startQk) as lev, startQk as qk, 1.0::double precision as ew
-           union all
-            select t.lev+1 as lev, o.qk, o.ew
-            from t, lateral ( select ii.qk, (select sum( u.reltuples * xyz_postgis_selectivity( u.tbl, 'geo', tile_bbox(htile,ii.qk) ) ) / sum( u.reltuples) from iindata u ) as ew
-                              from tile_s_inhabited_txt(htile, t.qk, t.lev+1, sql_qk_tileqry_with_geo ) ii
-                            ) o
-            where 1 = 1
-                and t.ew > mweight
-                and t.lev < least( mlevel, 12 )
-       )
-       select t.lev, t.qk, t.ew from t
-       where 1 = 1
-           and ( t.ew <= mweight or t.lev = least( mlevel, 12 ) )
-    )
-    select r.*, l.reltuples::bigint from qkdata r, (select max(s.total) as reltuples from iindata s) l;
-
-end
-$BODY$;
-
-CREATE OR REPLACE FUNCTION exp_qk_weight(
-	htile boolean,
-	startqk text,
-	mlevel integer,
-	mweight double precision,
-	tbl regclass,
-	sql_qk_tileqry_with_geo text)
-RETURNS TABLE(lev integer, qk text, weight double precision, reltuples bigint)
-language sql stable
-as $_$
-  select * from exp_qk_weight( htile, startqk, mlevel, mweight, array[tbl], sql_qk_tileqry_with_geo )
-$_$;
-
-
-------------------------------------------------
-------------------------------------------------
-CREATE OR REPLACE FUNCTION exp_type_download_precalc(
-	esitmated_count bigint,
-	sql_with_jsondata_geo text,
-	tbl regclass)
-RETURNS int
-    LANGUAGE 'plpgsql' stable
-AS $BODY$
-declare
-    start_parallelization_threshold integer := 500000;
-    max_threads integer := 8;
-	cnt bigint;
-begin
-	if esitmated_count IS null then
-		 execute format('select count(1) from (%1$s) q1', _strip_conversion(sql_with_jsondata_geo) ) into cnt;
-    else
-		cnt := esitmated_count;
-    end if;
-
-	if cnt < start_parallelization_threshold THEN
-		return 1;
-    else
-		return max_threads;
-    end if;
-end
-$BODY$;
-------------------------------------------------
-------------------------------------------------
-
-CREATE OR REPLACE FUNCTION exp_type_vml_precalc(
-	htile boolean,
-	iqk text,
-	mlevel integer,
-	sql_with_jsondata_geo text,
-    sql_qk_tileqry_with_geo text,
-	esitmated_count bigint,
-	tbl regclass)
-RETURNS  TABLE(tilelist text[])
-    LANGUAGE 'plpgsql' volatile
-AS $BODY$
-declare
-	-- defines how much rows a table need till we start parallelization
-    start_parallelization_threshold integer := 500000;
-	-- defines how much features should be in one tile as maximum
-	max_features_in_tile decimal := 5000000;
-	-- default weight - may get overridden
-	_weight decimal := 0.1;
-	max_tiles integer := 5000;
-	calc_weighted_fc decimal;
-	tbllist regclass[];
-	atbl regclass;
-	rtup bigint;
-	sum_rtup bigint := 0;
-begin
-
-    with
-     indata as ( select c.relnamespace::regnamespace::text as s, c.relname::text as t from pg_class c where c.oid = tbl ),
-     iindata as
-     ( select row_number() over () as idx, r.* from
-	     (	select i.s as schem, unnest( array_remove( array[i.t, m.meta#>>'{extends,intermediateTable}', m.meta#>>'{extends,extendedTable}'], null ) ) as tbl from xyz_config.space_meta m right join indata i on ( m.schem = i.s and m.h_id = regexp_replace( i.t, '_head$', '' )) ) r
-     )
-     select array_agg( to_regclass( format('%I.%I',ii.schem, ii.tbl) ) ) from iindata ii
-		 into tbllist;
-
--- always check if analyse is needed for tables involved
-    for atbl in
-      select tl from unnest( tbllist ) tl
-	loop
-       select c.reltuples::bigint from pg_class c where oid = tbl
-            into rtup;
-
-       if rtup = -1 then
-		    RAISE NOTICE 'ANALYSE NEEDED % - %',rtup, atbl;
-         execute format('ANALYSE %s',atbl);
-         select c.reltuples::bigint from pg_class c where oid = atbl
-            into rtup;
-       end if;
-
-       sum_rtup = sum_rtup + rtup;
-
-	end loop;
-
-    if esitmated_count is null or esitmated_count = 0 THEN
-		 esitmated_count = sum_rtup;
-    end if;
-
-    if esitmated_count < start_parallelization_threshold THEN
-        return query select ARRAY[''];
-        return; -- exit function
-    elseif sql_qk_tileqry_with_geo is not null and length(sql_qk_tileqry_with_geo) > 0 THEN
-        sql_with_jsondata_geo := sql_qk_tileqry_with_geo;
-    end if;
-
-    calc_weighted_fc := esitmated_count * _weight;
-
-    if calc_weighted_fc > max_features_in_tile then
-            _weight := (max_features_in_tile / esitmated_count) ;
-    end if;
-
-    return query select coalesce( ARRAY_AGG(qk), ARRAY[''] )  from (
-        select qk from exp_qk_weight(htile, iqk, mlevel, _weight, tbllist, _strip_conversion(sql_with_jsondata_geo)
-    ) order by weight DESC) a;
-end
-$BODY$;
+LANGUAGE plpgsql STABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION streamId() RETURNS TEXT AS
@@ -3273,7 +2432,7 @@ BEGIN
 EXCEPTION WHEN OTHERS THEN RETURN 'no-streamId';
 END
 $BODY$
-    LANGUAGE plpgsql VOLATILE;
+    LANGUAGE plpgsql VOLATILE PARALLEL RESTRICTED;
 
 CREATE OR REPLACE FUNCTION streamId(sid TEXT) RETURNS VOID AS
 $BODY$
@@ -3281,5 +2440,5 @@ BEGIN
     PERFORM set_config('xyz.streamId', sid, true);
 END
 $BODY$
-LANGUAGE plpgsql VOLATILE;
+LANGUAGE plpgsql VOLATILE PARALLEL RESTRICTED;
 

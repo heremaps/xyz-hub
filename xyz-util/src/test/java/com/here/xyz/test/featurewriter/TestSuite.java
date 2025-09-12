@@ -68,7 +68,7 @@ import org.junit.jupiter.api.BeforeEach;
 
 public abstract class TestSuite {
   public static final String TEST_FEATURE_ID = "id1";
-  public static final Point TEST_FEATURE_GEOMETRY = new Point().withCoordinates(new PointCoordinates(8, 50));
+  public static final Point TEST_FEATURE_GEOMETRY = new Point().withCoordinates(new PointCoordinates(8, 50, 0));
   private static final TestArgs EMPTY_ARGS = new TestArgs("EMPTY_ARGS", false, false, false, false, false, false, UserIntent.WRITE, null, null, null, null, null, null);
 
   protected String testName;
@@ -174,7 +174,8 @@ public abstract class TestSuite {
   }
 
   protected static Feature deletedFeature(long version) {
-    Feature feature = featureWithEmptyProperties();
+    Feature feature = featureWithEmptyProperties()
+        .withGeometry(null);
     feature.getProperties().withXyzNamespace(new XyzNamespace()
         .withDeleted(true)
         .withVersion(version));

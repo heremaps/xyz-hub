@@ -102,8 +102,9 @@ class DatabaseWriter {
    * @returns {FeatureModificationExecutionResult}
    */
   upsertRow(inputFeature, version, operation, author, onExists, resultHandler) {
+    let uniqueConstraintExists = queryContext().uniqueConstraintExists !== false;
     this.enrichTimestamps(inputFeature, true);
-    let onConflict = onExists == "REPLACE"
+    let onConflict = onExists == "REPLACE" && uniqueConstraintExists
         ? ` ON CONFLICT (id, next_version) DO UPDATE SET
           version = greatest(tbl.version, EXCLUDED.version),
           operation = CASE WHEN $3 = 'H' THEN 'J' ELSE 'U' END,
@@ -127,6 +128,11 @@ class DatabaseWriter {
       this.plans[method] = this._preparePlan(sql, ["TEXT", "BIGINT", "CHAR", "TEXT", "JSONB", "JSONB"]);
       this.parameterSets[method] = [];
       this.resultParsers[method] = [];
+    }
+
+    if (inputFeature == null) {
+      plv8.elog(NOTICE, `FW_LOG [${queryContext().queryId}] Can not write a feature that is null`);
+      throw new XyzException("Can not write a feature that is null");
     }
 
     this.parameterSets[method].push([
@@ -174,6 +180,11 @@ class DatabaseWriter {
       this.resultParsers[method] = [];
     }
 
+    if (inputFeature == null) {
+      plv8.elog(NOTICE, `FW_LOG [${queryContext().queryId}] Can not write a feature that is null`);
+      throw new XyzException("Can not write a feature that is null");
+    }
+
     this.parameterSets[method].push([
       version,
       "U" /*TODO set version operation*/,
@@ -195,7 +206,7 @@ class DatabaseWriter {
    * @param {function(FeatureModificationExecutionResult) : FeatureModificationExecutionResult} resultHandler
    * @returns {FeatureModificationExecutionResult}
    */
-  insertHistoryRow(inputFeature, version, operation, author, resultHandler) {
+  insertHistoryRow(inputFeature, baseFeature, version, operation, author, resultHandler) {
     //TODO: Check if it makes sense to get the previous creation timestamp by loading the feature in case the operation != "I" / "H" (rather than doing the in-lined SELECT
     //TODO: Improve performance by reading geo inside JS and then pass it separately and use TEXT / WKB / BYTEA
     this.enrichTimestamps(inputFeature, true);
@@ -205,18 +216,25 @@ class DatabaseWriter {
                           CASE WHEN $3::CHAR = 'I' OR $3::CHAR = 'H' THEN
                               $5::JSONB - 'geometry'
                           ELSE 
-                              jsonb_set($5::JSONB - 'geometry', '{properties, ${XYZ_NS}, createdAt}',
-                                        (SELECT jsondata->'properties'->'${XYZ_NS}'->'createdAt' FROM "${this.schema}"."${this.table}" WHERE id = $1 AND next_version = $2::BIGINT))
+                              jsonb_set($5::JSONB - 'geometry', '{properties, ${XYZ_NS}, createdAt}', to_jsonb($7::BIGINT))
                           END,
                           CASE
                               WHEN $6::JSONB IS NULL THEN NULL
                               ELSE xyz_reduce_precision(ST_Force3D(ST_GeomFromGeoJSON($6::JSONB)), false) END)`;
 
+    this._createHistoryPartition(version);
+    this._purgeOldChangesets(version);
+
     let method = "insertHistoryRow";
     if (!this.plans[method]) {
-      this.plans[method] = this._preparePlan(sql, ["TEXT", "BIGINT", "CHAR", "TEXT", "JSONB", "JSONB"]);
+      this.plans[method] = this._preparePlan(sql, ["TEXT", "BIGINT", "CHAR", "TEXT", "JSONB", "JSONB", "BIGINT"]);
       this.parameterSets[method] = [];
       this.resultParsers[method] = [];
+    }
+
+    if (inputFeature == null) {
+      plv8.elog(NOTICE, `FW_LOG [${queryContext().queryId}] Can not write a feature that is null`);
+      throw new XyzException("Can not write a feature that is null");
     }
 
     this.parameterSets[method].push([
@@ -225,7 +243,8 @@ class DatabaseWriter {
       operation,
       author,
       inputFeature,
-      inputFeature.geometry
+      inputFeature.geometry,
+      baseFeature ? baseFeature.properties[XYZ_NS].createdAt : -1
     ]);
     this.resultParsers[method].push(result => {
       //FIXME: Extract written creation timestamp if applicable
@@ -234,6 +253,45 @@ class DatabaseWriter {
 
     if (!this.batchMode)
       return this.execute()[0];
+  }
+
+  _PARTITION_SIZE() {
+    return queryContext().PARTITION_SIZE || 100000; //TODO: Ensure the partition size is always set in the query context
+  }
+
+  /**
+   * If the current history partition is nearly full, create the next one already
+   * @param version The version that is about to be written
+   * @private
+   */
+  _createHistoryPartition(version) {
+    const PARTITION_SIZE = this._PARTITION_SIZE();
+    if (version % PARTITION_SIZE > PARTITION_SIZE - 50)
+      plv8.execute(`SELECT xyz_create_history_partition($1, $2, $3::BIGINT, $4::BIGINT);`,
+          [this.schema, this.table, Math.floor(version / PARTITION_SIZE) + 1, PARTITION_SIZE]);
+  }
+
+  _purgeOldChangesets(version) {
+    const PARTITION_SIZE = this._PARTITION_SIZE();
+    let minVersion = queryContext().minVersion;
+    let pw = queryContext().pw;
+    let versionsToKeep = queryContext().versionsToKeep;
+
+    if (!pw)
+      //TODO: Ensure that all necessary queryContext fields are set from all places
+      return;
+
+    if (version % 1000 == 0) {
+      let minAvailableVersion = version - versionsToKeep + 1;
+      if (minVersion != -1)
+        minVersion = Math.min(minVersion, minAvailableVersion);
+      else
+        minVersion = minAvailableVersion;
+
+      if (minVersion > 0)
+        plv8.execute(`SELECT xyz_delete_changesets_async($1, $2, $3::BIGINT, $4::BIGINT, $5);`,
+            [this.schema, this.table, PARTITION_SIZE, minVersion, pw]);
+    }
   }
 
   /**
@@ -274,7 +332,7 @@ class DatabaseWriter {
     this.resultParsers[method].push(deletedRows => {
       if (deletedRows == 0) {
         if (onVersionConflict != null) {
-          this.debugBox("HandleConflict for id: " + inputFeature.id);
+          plv8.elog(NOTICE, "FW_LOG HandleConflict for deletion of id: " + inputFeature.id);
           //handleDeleteVersionConflict //TODO: throw some conflict error here that can be caught & handled by FeatureWriter
           return null;
         }
@@ -303,23 +361,6 @@ class DatabaseWriter {
   _throwFeatureNotExistsError(featureId) {
     throw new FeatureNotExistsException(`Feature with ID ${featureId} not exists!`);
   }
-
-  //TODO: deduplicate
-  debugBox(message) {
-    if (!this.debugOutput)
-      return;
-
-    let width = 140;
-    let leftRightBuffer = 2;
-    let maxLineLength = width - leftRightBuffer * 2;
-    let lines = message.split("\n").map(line => !line ? line : line.match(new RegExp(`.{1,${maxLineLength}}`, "g"))).flat();
-    let longestLine = lines.map(line => line.length).reduce((a, b) => Math.max(a, b), -Infinity);
-    let leftPadding = new Array(Math.floor((width - longestLine) / 2)).join(" ");
-    lines = lines.map(line => "#" + leftPadding + line
-        + new Array(width - leftPadding.length - line.length - 1).join(" ") + "#");
-    if(this.debugOutput)
-      plv8.elog(NOTICE, "\n" + new Array(width + 1).join("#") + "\n" + lines.join("\n") + "\n" + new Array(width + 1).join("#"));
-  }
 }
 
 class FeatureModificationExecutionResult {
@@ -340,5 +381,7 @@ class FeatureModificationExecutionResult {
 
 plv8.DatabaseWriter = DatabaseWriter;
 
-if (plv8.global)
+if (plv8.global) {
   global.DatabaseWriter = DatabaseWriter;
+  global.FeatureModificationExecutionResult = FeatureModificationExecutionResult;
+}
