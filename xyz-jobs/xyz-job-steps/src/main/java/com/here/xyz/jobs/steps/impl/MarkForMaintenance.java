@@ -19,8 +19,6 @@
 
 package com.here.xyz.jobs.steps.impl;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
@@ -41,11 +39,6 @@ public class MarkForMaintenance extends SpaceBasedStep<MarkForMaintenance> {
   private static final Logger logger = LogManager.getLogger();
   @JsonView({Internal.class, Static.class})
   private boolean idxCreationCompleted;
-
-  @JsonCreator(mode = JsonCreator.Mode.PROPERTIES)
-  public MarkForMaintenance(@JsonProperty(value = "spaceId", required = true) String spaceId) {
-    super(spaceId);
-  }
 
   public void setIdxCreationCompleted(boolean idxCreationCompleted) {
     this.idxCreationCompleted = idxCreationCompleted;

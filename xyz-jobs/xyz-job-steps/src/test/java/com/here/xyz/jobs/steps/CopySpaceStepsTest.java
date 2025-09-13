@@ -196,7 +196,8 @@ public class CopySpaceStepsTest extends StepTest {
     long NrFeaturesInTarget = statsBefore.getCount().getValue();
     assertEquals( !emptyTarget ? NrFeaturesAtStartInTargetSpace : 0, NrFeaturesInTarget);
 
-    CopySpace step = new CopySpace(sourceSpaceId)
+    CopySpace step = new CopySpace()
+        .withSpaceId(sourceSpaceId)
         .withSourceVersionRef(resolvedRef)
         .withSpatialFilter( geo == null ? null : new SpatialFilter().withGeometry(geo).withClip(clip).withRadius(7) )
         .withPropertyFilter(PropertiesQuery.fromString(propertyFilter))
@@ -223,7 +224,8 @@ public class CopySpaceStepsTest extends StepTest {
 
   @Test
   public void copySpacePre() throws Exception {
-    CopySpacePre step = new CopySpacePre(targetSpaceId)
+    CopySpacePre step = new CopySpacePre()
+        .withSpaceId(targetSpaceId)
         .withJobId(JOB_ID);
 
     sendLambdaStepRequestBlock(step, true);
@@ -240,7 +242,8 @@ public class CopySpaceStepsTest extends StepTest {
 
   @Test
   public void copySpacePost() throws Exception {
-    CopySpacePost step = new CopySpacePost(sourceSpaceId)
+    CopySpacePost step = new CopySpacePost()
+        .withSpaceId(sourceSpaceId)
         .withJobId(JOB_ID);
 
     sendLambdaStepRequestBlock(step, true);
@@ -284,9 +287,10 @@ public class CopySpaceStepsTest extends StepTest {
 
     Ref resolvedRef = resolveRef(sourceSpaceId, new Ref(versionRef));
 
-    CountSpace step = new CountSpace(sourceSpaceId)
+    CountSpace step = new CountSpace()
         .withSpatialFilter( geo == null ? null : new SpatialFilter().withGeometry(geo) )
         .withPropertyFilter(PropertiesQuery.fromString(propertyFilter))
+        .withSpaceId(sourceSpaceId)
         .withJobId(JOB_ID);
 
     step.setVersionRef(resolvedRef);

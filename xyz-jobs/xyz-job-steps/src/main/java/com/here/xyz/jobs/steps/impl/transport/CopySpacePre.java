@@ -19,8 +19,6 @@
 
 package com.here.xyz.jobs.steps.impl.transport;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * This step is kept for BWC.
@@ -29,8 +27,4 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  */
 public class CopySpacePre extends GetNextSpaceVersion<CopySpacePre> {
 
-  @JsonCreator(mode = JsonCreator.Mode.PROPERTIES)
-  public CopySpacePre(@JsonProperty(value = "spaceId", required = true) String spaceId) {
-    super(spaceId);
-  }
 }

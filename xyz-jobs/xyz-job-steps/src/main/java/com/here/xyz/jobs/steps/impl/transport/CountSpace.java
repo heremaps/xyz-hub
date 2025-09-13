@@ -26,8 +26,6 @@ import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildTempora
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporaryJobTableName;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.jobs.datasets.filters.SpatialFilter;
@@ -65,11 +63,6 @@ public class CountSpace extends TaskedSpaceBasedStep<CountSpace> {
   private PropertiesQuery propertyFilter;
 
   private boolean realCount = true;
-
-  @JsonCreator(mode = JsonCreator.Mode.PROPERTIES)
-  public CountSpace(@JsonProperty(value = "spaceId", required = true) String spaceId) {
-    super(spaceId);
-  }
 
   public SpatialFilter getSpatialFilter() {
     return spatialFilter;

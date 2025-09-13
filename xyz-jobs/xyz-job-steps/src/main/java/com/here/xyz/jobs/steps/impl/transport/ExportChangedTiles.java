@@ -31,8 +31,6 @@ import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporary
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
 import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.jobs.datasets.filters.SpatialFilter;
@@ -100,11 +98,6 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
 
   @JsonView({Internal.class, Static.class})
   private boolean clipOnTileBoundaries;
-
-  @JsonCreator(mode = JsonCreator.Mode.PROPERTIES)
-  public ExportChangedTiles(@JsonProperty(value = "spaceId", required = true) String spaceId) {
-    super(spaceId);
-  }
 
   public boolean isClipOnTileBoundaries() {
     return clipOnTileBoundaries;

@@ -40,9 +40,7 @@ import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporary
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
 import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.events.UpdateStrategy;
@@ -134,11 +132,6 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
   {
     setOutputSets(List.of(new OutputSet(STATISTICS, USER, true)));
-  }
-
-  @JsonCreator(mode = JsonCreator.Mode.PROPERTIES)
-  public ImportFilesToSpace(@JsonProperty(value = "spaceId", required = true) String spaceId) {
-    super(spaceId);
   }
 
   public Format getFormat() {

@@ -476,33 +476,33 @@ public class JobPlayground {
   }
 
   public static void runDropIndexStep(String spaceId) throws IOException {
-    runStep(new DropIndexes(spaceId));
+    runStep(new DropIndexes().withSpaceId(spaceId));
   }
 
   public static void runImportFilesToSpaceStep(String spaceId, ImportFilesToSpace.Format format) throws IOException {
-    runStep(new ImportFilesToSpace(spaceId).withFormat(format).withUpdateStrategy(UpdateStrategy.DEFAULT_UPDATE_STRATEGY));
+    runStep(new ImportFilesToSpace().withSpaceId(spaceId).withFormat(format).withUpdateStrategy(UpdateStrategy.DEFAULT_UPDATE_STRATEGY));
   }
 
   public static void runCreateIndexStep(String spaceId, SystemIndex index) throws IOException {
-    runStep(new CreateIndex(spaceId).withIndex(index));
+    runStep(new CreateIndex().withSpaceId(spaceId).withIndex(index));
   }
 
   public static void runAnalyzeSpaceTableStep(String spaceId) throws IOException {
-    runStep(new AnalyzeSpaceTable(spaceId));
+    runStep(new AnalyzeSpaceTable().withSpaceId(spaceId));
   }
 
   public static void runMarkForMaintenanceStep(String spaceId) throws IOException {
-    runStep(new MarkForMaintenance(spaceId));
+    runStep(new MarkForMaintenance().withSpaceId(spaceId));
   }
 
   public static void runCopySpaceStep(String sourceSpaceId, String targetSpaceId) throws IOException, WebClientException {
     //NOTE: The source version must always be a resolved one when using the copy step directly
     long headVersion = hubWebClient.loadSpaceStatistics(sourceSpaceId).getMaxVersion().getValue();
-    runStep(new CopySpace(sourceSpaceId).withTargetSpaceId(targetSpaceId).withSourceVersionRef(new Ref(headVersion)));
+    runStep(new CopySpace().withSpaceId(sourceSpaceId).withTargetSpaceId(targetSpaceId).withSourceVersionRef(new Ref(headVersion)));
   }
 
   public static void runExportSpaceToFilesStep(String sourceSpaceId) throws IOException {
-    runStep(new ExportSpaceToFiles(sourceSpaceId));
+    runStep(new ExportSpaceToFiles().withSpaceId(sourceSpaceId));
   }
 
   private static void runStep(LambdaBasedStep step) throws IOException {

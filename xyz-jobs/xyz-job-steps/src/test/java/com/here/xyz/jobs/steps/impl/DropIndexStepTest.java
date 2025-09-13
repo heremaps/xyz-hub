@@ -37,7 +37,7 @@ public class DropIndexStepTest extends StepTest {
     createTestSpace(true);
     Assertions.assertFalse(getAllExistingIndices(SPACE_ID).isEmpty());
 
-    LambdaBasedStep step = new DropIndexes(SPACE_ID);
+    LambdaBasedStep step = new DropIndexes().withSpaceId(SPACE_ID);
     sendLambdaStepRequestBlock(step, true);
 
     //no indexes should remain
@@ -51,7 +51,8 @@ public class DropIndexStepTest extends StepTest {
     //three on-demand indices should be created with the space creation
     Assertions.assertEquals(3, getOnDemandIndices(SPACE_ID).size());
 
-    LambdaBasedStep step = new DropIndexes(SPACE_ID)
+    LambdaBasedStep step = new DropIndexes()
+      .withSpaceId(SPACE_ID)
       .withSpaceDeactivation(false)
       .withIndexWhiteList(
                 List.of(
@@ -69,7 +70,8 @@ public class DropIndexStepTest extends StepTest {
     createTestSpace(true);
     Assertions.assertFalse(getSystemIndices(SPACE_ID).isEmpty());
 
-    LambdaBasedStep step = new DropIndexes(SPACE_ID)
+    LambdaBasedStep step = new DropIndexes()
+            .withSpaceId(SPACE_ID)
             .withSpaceDeactivation(false)
             .withIndexWhiteList(List.of());
     sendLambdaStepRequestBlock(step, true);
@@ -83,7 +85,8 @@ public class DropIndexStepTest extends StepTest {
     createTestSpace(true);
     Assertions.assertFalse(getSystemIndices(SPACE_ID).isEmpty());
 
-    LambdaBasedStep step = new DropIndexes(SPACE_ID)
+    LambdaBasedStep step = new DropIndexes()
+            .withSpaceId(SPACE_ID)
             .withSpaceDeactivation(false)
             .withIndexWhiteList(List.of(SystemIndex.VERSION_ID, SystemIndex.OPERATION));
     sendLambdaStepRequestBlock(step, true);
@@ -99,7 +102,8 @@ public class DropIndexStepTest extends StepTest {
 
     List<Index> whiteListIndexes = new ArrayList<>(List.of(SystemIndex.values()));
     whiteListIndexes.add(new OnDemandIndex().withPropertyPath("foo1"));
-    LambdaBasedStep step = new DropIndexes(SPACE_ID)
+    LambdaBasedStep step = new DropIndexes()
+            .withSpaceId(SPACE_ID)
             .withSpaceDeactivation(false)
             .withIndexWhiteList(whiteListIndexes);
     sendLambdaStepRequestBlock(step, true);

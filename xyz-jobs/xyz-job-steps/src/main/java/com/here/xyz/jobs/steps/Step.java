@@ -617,9 +617,6 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
 
   @JsonIgnore
   protected void setOutputSets(List<OutputSet> outputSets, boolean ignoreStepId) {
-    if (outputSets.stream().anyMatch(outputSet -> outputSet.visibility == USER) && outputSetGroup == null || outputSetGroup.isBlank()) {
-      throw new IllegalStateException("you are registering user-facing output set, please first define outputset group value");
-    }
     if (!ignoreStepId) {
       outputSets.forEach(outputSet -> outputSet.setStepId(getId()));
     }
@@ -640,9 +637,6 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   }
 
   public T withOutputSetVisibility(String outputSetName, Visibility visibility) {
-    if (visibility == USER && outputSetGroup == null || outputSetGroup.isBlank()) {
-      throw new IllegalStateException("you are registering user-facing output set, please first define outputset group value");
-    }
     OutputSet outputSet = getOutputSetOrNull(outputSetName);
     if (outputSet != null) {
       replaceOutputSet(outputSetName, new OutputSet(outputSet, outputSet.jobId, visibility)

@@ -153,7 +153,8 @@ public class ImportStepTest extends StepTest {
 
   @Test
   public void testImport_inNonEmpty_CSV_GEOJSON_Entity_FeatureCollection() throws Exception {
-    Assertions.assertThrows(BaseHttpServerVerticle.ValidationException.class, () -> new ImportFilesToSpace(SPACE_ID)
+    Assertions.assertThrows(BaseHttpServerVerticle.ValidationException.class, () -> new ImportFilesToSpace()
+            .withSpaceId(SPACE_ID)
             .withFormat(Format.CSV_JSON_WKB)
             .withEntityPerLine(EntityPerLine.FeatureCollection)
             .validate());
@@ -180,7 +181,8 @@ public class ImportStepTest extends StepTest {
     uploadInputFile(JOB_ID, ByteStreams.toByteArray(this.getClass().getResourceAsStream("/testFiles/file1" + fileExtension)), contentType);
     uploadInputFile(JOB_ID, ByteStreams.toByteArray(this.getClass().getResourceAsStream("/testFiles/file2" + fileExtension)), contentType);
 
-    LambdaBasedStep step = new ImportFilesToSpace(SPACE_ID)
+    LambdaBasedStep step = new ImportFilesToSpace()
+        .withSpaceId(SPACE_ID)
         .withJobId(JOB_ID)
         .withFormat(format)
         .withEntityPerLine(entityPerLine)
@@ -201,7 +203,8 @@ public class ImportStepTest extends StepTest {
 
   private void executeImportStepWithManyFiles(Format format, int fileCount, int featureCountPerFile, boolean runAsync) throws IOException, InterruptedException {
     uploadFiles(JOB_ID, fileCount, featureCountPerFile, format);
-    LambdaBasedStep step = new ImportFilesToSpace(SPACE_ID)
+    LambdaBasedStep step = new ImportFilesToSpace()
+        .withSpaceId(SPACE_ID)
         .withJobId(JOB_ID)
         .withFormat(format)
         .withInputSets(List.of(USER_INPUTS.get()));

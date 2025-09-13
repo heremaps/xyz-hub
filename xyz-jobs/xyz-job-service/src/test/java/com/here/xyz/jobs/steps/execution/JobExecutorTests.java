@@ -412,12 +412,14 @@ public class JobExecutorTests {
   public StepExecution stepGenerator(Class stepType, String jobId, String sourceId, Set<String> inputStepIds) {
 
     return switch (stepType.getSimpleName()) {
-      case "ExportSpaceToFiles" -> new ExportSpaceToFiles(sourceId)
+      case "ExportSpaceToFiles" -> new ExportSpaceToFiles()
+          .withSpaceId(sourceId)
           .withJobId(jobId)
           .withOutputSetVisibility(EXPORTED_DATA, SYSTEM);
 
       case "ImportFilesToSpace" -> {
-        ImportFilesToSpace importFilesToSpace = new ImportFilesToSpace(sourceId)
+        ImportFilesToSpace importFilesToSpace = new ImportFilesToSpace()
+            .withSpaceId(sourceId)
             .withFormat(GEOJSON)
             .withJobId(jobId);
         if (inputStepIds != null)

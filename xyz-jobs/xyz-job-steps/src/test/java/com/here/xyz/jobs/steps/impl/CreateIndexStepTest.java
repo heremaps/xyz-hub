@@ -36,7 +36,7 @@ public class CreateIndexStepTest extends StepTest {
         Assertions.assertTrue(getAllExistingIndices(SPACE_ID).isEmpty());
 
         SystemIndex systemIndex = SystemIndex.GEO;
-        LambdaBasedStep step = new CreateIndex(SPACE_ID).withIndex(SystemIndex.GEO);
+        LambdaBasedStep step = new CreateIndex().withSpaceId(SPACE_ID).withIndex(SystemIndex.GEO);
 
         sendLambdaStepRequestBlock(step, true);
 
@@ -52,7 +52,7 @@ public class CreateIndexStepTest extends StepTest {
 
         OnDemandIndex onDemandIndex = new OnDemandIndex().withPropertyPath("foo");
 
-        LambdaBasedStep step = new CreateIndex(SPACE_ID).withIndex(onDemandIndex);
+        LambdaBasedStep step = new CreateIndex().withSpaceId(SPACE_ID).withIndex(onDemandIndex);
 
         sendLambdaStepRequestBlock(step, true);
 

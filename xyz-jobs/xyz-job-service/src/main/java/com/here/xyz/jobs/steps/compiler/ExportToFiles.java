@@ -57,7 +57,8 @@ public class ExportToFiles implements JobCompilationInterceptor {
   }
 
   public static ExportSpaceToFiles compile(Space source) {
-    return new ExportSpaceToFiles(source.getId())
+    return new ExportSpaceToFiles()
+        .withSpaceId(source.getId())
         .withProvidedVersionRef(source.getVersionRef())
         .withSpatialFilter(source.getFilters() != null ? source.getFilters().getSpatialFilter() : null)
         .withPropertyFilter(source.getFilters() != null ? source.getFilters().getPropertyFilter() : null)

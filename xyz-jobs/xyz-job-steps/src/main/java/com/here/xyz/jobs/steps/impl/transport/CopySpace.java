@@ -26,8 +26,6 @@ import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_E
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_RESUME;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.jobs.datasets.filters.SpatialFilter;
@@ -89,11 +87,6 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
   private int estimatedSeconds = -1;
   @JsonView({Internal.class, Static.class}) //TODO: Remove static
   private long targetVersion = 0;
-
-  @JsonCreator(mode = JsonCreator.Mode.PROPERTIES)
-  public CopySpace(@JsonProperty(value = "spaceId", required = true) String spaceId) {
-    super(spaceId);
-  }
 
   public static double calculateNeededCopyAcus(long nrFeatureSource) {
     final double maxAcus = 5;

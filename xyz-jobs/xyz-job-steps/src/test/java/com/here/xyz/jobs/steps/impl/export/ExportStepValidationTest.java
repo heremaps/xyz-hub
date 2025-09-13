@@ -65,7 +65,8 @@ public class ExportStepValidationTest extends StepTest {
                 .withRadius(5500)
                 .withClip(true);
 
-        LambdaBasedStep step = new ExportSpaceToFiles(SPACE_ID)
+        LambdaBasedStep step = new ExportSpaceToFiles()
+                .withSpaceId(SPACE_ID)
                 .withVersionRef(new Ref(1))
                 .withSpatialFilter(spatialFilter)
                 .withJobId(JOB_ID);
@@ -80,7 +81,8 @@ public class ExportStepValidationTest extends StepTest {
                 .withGeometry(new Point().withCoordinates(new PointCoordinates(50 ,8)))
                 .withRadius(17899);
 
-        LambdaBasedStep step = new ExportSpaceToFiles(SPACE_ID)
+        LambdaBasedStep step = new ExportSpaceToFiles()
+                .withSpaceId(SPACE_ID)
                 .withVersionRef(new Ref(1))
                 .withSpatialFilter(spatialFilter)
                 .withJobId(JOB_ID);
@@ -102,7 +104,8 @@ public class ExportStepValidationTest extends StepTest {
         SpatialFilter spatialFilter = new SpatialFilter()
                 .withGeometry(new Polygon().withCoordinates(bbox));
 
-        LambdaBasedStep step = new ExportSpaceToFiles(SPACE_ID)
+        LambdaBasedStep step = new ExportSpaceToFiles()
+                .withSpaceId(SPACE_ID)
                 .withVersionRef(new Ref(1))
                 .withSpatialFilter(spatialFilter)
                 .withJobId(JOB_ID);
@@ -113,14 +116,16 @@ public class ExportStepValidationTest extends StepTest {
 
     @Test
     public void testInvalidVersionRef(){
-        LambdaBasedStep step1 = new ExportSpaceToFiles(SPACE_ID)
+        LambdaBasedStep step1 = new ExportSpaceToFiles()
+                .withSpaceId(SPACE_ID)
                 .withVersionRef(new Ref(5))
                 .withJobId(JOB_ID);
 
         //Check ExceptionType - Ref Version higher than SpaceVersion
         Assertions.assertThrows(ValidationException.class, () -> step1.validate());
 
-        LambdaBasedStep step2 = new ExportSpaceToFiles(SPACE_ID)
+        LambdaBasedStep step2 = new ExportSpaceToFiles()
+                .withSpaceId(SPACE_ID)
                 .withVersionRef(new Ref("1..5"))
                 .withJobId(JOB_ID);
 

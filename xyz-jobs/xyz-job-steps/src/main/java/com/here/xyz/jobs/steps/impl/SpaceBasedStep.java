@@ -86,13 +86,28 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
   @JsonIgnore
   protected StatisticsResponse spaceStatistics;
 
-  public SpaceBasedStep(String spaceId) {
+  public void setSpaceId(String spaceId) {
     this.spaceId = spaceId;
     setOutputSetGroup(spaceId);
   }
 
   public String getSpaceId() {
     return spaceId;
+  }
+
+  public T withSpaceId(String spaceId) {
+    setSpaceId(spaceId);
+    setOutputSetGroup(spaceId);
+    return (T) this;
+  }
+
+  @Override
+  public String getOutputSetGroup() {
+    if (super.getOutputSetGroup() == null || super.getOutputSetGroup().isEmpty()) {
+      return getSpaceId();
+    } else {
+      return super.getOutputSetGroup();
+    }
   }
 
   protected final String getRootTableName(Space space) throws WebClientException {
