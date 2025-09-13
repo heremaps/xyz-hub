@@ -22,6 +22,7 @@ package com.here.xyz.psql.query;
 import static com.here.xyz.responses.XyzError.CONFLICT;
 import static com.here.xyz.responses.XyzError.EXCEPTION;
 import static com.here.xyz.responses.XyzError.NOT_FOUND;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.PARTITION_SIZE;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
@@ -34,18 +35,25 @@ import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import com.here.xyz.util.db.pg.FeatureWriterQueryBuilder.FeatureWriterQueryContextBuilder;
 import com.here.xyz.util.db.pg.SQLError;
+import com.here.xyz.util.runtime.FunctionRuntime;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureCollection> {
+  private static final Logger logger = LogManager.getLogger();
   boolean responseDataExpected;
+  private String rootTable;
+  private boolean uniqueConstraintExists = false;
 
   public WriteFeatures(WriteFeaturesEvent event) throws SQLException, ErrorResponseException {
     super(event);
     responseDataExpected = event.isResponseDataExpected();
+    rootTable = getDefaultTable(event);
   }
 
   @Override
@@ -67,6 +75,13 @@ public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureColl
         .withSpaceContext(spaceContext)
         .withHistoryEnabled(event.getVersionsToKeep() > 1)
         .withBatchMode(true)
+        .with("debug", "true".equals(System.getenv("FW_DEBUG")))
+        .with("queryId", FunctionRuntime.getInstance().getStreamId())
+        .with("PARTITION_SIZE", PARTITION_SIZE)
+        .with("minVersion", event.getMinVersion())
+        .with("versionsToKeep", event.getVersionsToKeep())
+        .with("uniqueConstraintExists", uniqueConstraintExists)
+        .with("pw", getDataSourceProvider().getDatabaseSettings().getPassword())
         .build();
 
     return new SQLQuery("SELECT write_features(#{modifications}, 'Modifications', #{author}, #{responseDataExpected});")
@@ -79,6 +94,19 @@ public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureColl
 
   @Override
   protected FeatureCollection run(DataSourceProvider dataSourceProvider) throws ErrorResponseException {
+    //TODO: Remove this workaround once all constraints have been adjusted accordingly
+    try {
+      uniqueConstraintExists = new SQLQuery("SELECT 1 FROM pg_catalog.pg_constraint "
+          + "WHERE connamespace::regnamespace::text = #{schema} AND conname = #{constraintName}")
+          .withNamedParameter("schema", getSchema())
+          .withNamedParameter("constraintName", rootTable + "_unique")
+          .run(dataSourceProvider, rs -> rs.next());
+    }
+    catch (SQLException e) {
+      logger.error("Error evaluating whether the table has a unique constraint");
+      //ignore and continue with uniqueConstraintExists = false
+    }
+
     try {
       return super.run(dataSourceProvider);
     }

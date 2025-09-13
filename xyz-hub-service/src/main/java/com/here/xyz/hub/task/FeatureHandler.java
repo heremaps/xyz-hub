@@ -19,6 +19,7 @@
 
 package com.here.xyz.hub.task;
 
+import static com.here.xyz.hub.task.FeatureTaskHandler.injectMinVersion;
 import static com.here.xyz.util.service.rest.TooManyRequestsException.ThrottlingReason.MEMORY;
 import static com.here.xyz.util.service.rest.TooManyRequestsException.ThrottlingReason.STORAGE_QUEUE_FULL;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
@@ -93,6 +94,8 @@ public class FeatureHandler {
           .withContext(spaceContext)
           .withAuthor(author)
           .withResponseDataExpected(responseDataExpected);
+
+      injectMinVersion(marker, space.getId(), event);
 
       //Enrich event with properties from the space
       injectSpaceParams(event, space);

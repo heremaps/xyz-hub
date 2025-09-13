@@ -242,7 +242,7 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
         dataOut = new ErrorResponse()
             .withStreamId(this.streamId)
             .withError(EXCEPTION)
-            .withErrorMessage("Unexpected exception occurred.");
+            .withErrorMessage("Unexpected exception occurred: " + e.getMessage());
       }
       catch (OutOfMemoryError e) {
        throw e;

@@ -26,7 +26,8 @@ const IDENTITY_HANDLER = r => r;
  * The unified implementation of the database-based feature writer.
  */
 class FeatureWriter {
-  debugOutput = false; //TODO: Read from queryContext
+  debug = false;
+  queryId;
 
   //Context input fields
   schema;
@@ -64,6 +65,9 @@ class FeatureWriter {
   };
 
   constructor(inputFeature, version, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial, featureHooks) {
+    this.debug = !!queryContext().debug;
+    this.queryId = queryContext().queryId;
+
     // if (isPartial && onNotExists == "CREATE")
     //   throw new IllegalArgumentException("onNotExists must not be \"CREATE\" for partial writes.");
 
@@ -90,9 +94,10 @@ class FeatureWriter {
       throw new IllegalArgumentException("MERGE can not be executed for spaces without history!");
 
     if (this.onVersionConflict && this.baseVersion == null)
-      throw new IllegalArgumentException(`No base version was provided, but a version conflict detection was requested! Please provide a base-version in the query-context or in the input-feature with ID ${this.inputFeature.id}.`);
+      if (this.featureExistsInHead(this.inputFeature.id)) //TODO: Remove that workaround, once the global base version can be defined and the "conflictDetection" param was deprecated
+        throw new IllegalArgumentException(`No base version was provided, but a version conflict detection was requested! Please provide a base-version in the request or in the input-feature with ID ${this.inputFeature.id}.`);
 
-    if (this.debugOutput)
+    if (this.debug)
       this.debugBox(JSON.stringify(this, null, 2));
   }
 
@@ -627,7 +632,7 @@ class FeatureWriter {
       geometry.push(0);
   }
 
-  diff(minuend, subtrahend, ignoreXyzNs = true) {
+  diff(minuend, subtrahend, ignoreXyzNs = true, keyPath = []) {
     let diff = Array.isArray(subtrahend) ? [] : {};
 
     if (minuend == null)
@@ -643,7 +648,7 @@ class FeatureWriter {
       if (subtrahend.hasOwnProperty(key)) {
         if (typeof subtrahend[key] == "object" && subtrahend[key] !== null) {
           //Recursively diff nested objects
-          let nestedDiff = this.diff(minuend[key] || (Array.isArray(subtrahend[key]) ? [] : {}), subtrahend[key], false);
+          let nestedDiff = this.diff(minuend[key] || (Array.isArray(subtrahend[key]) ? [] : {}), subtrahend[key], false, [...keyPath, key]);
 
           if (Object.keys(nestedDiff).length > 0)
             diff[key] = nestedDiff;
@@ -656,7 +661,7 @@ class FeatureWriter {
 
     //Check for removed properties
     for (let key in minuend)
-      if (minuend.hasOwnProperty(key) && !subtrahend.hasOwnProperty(key))
+      if (minuend.hasOwnProperty(key) && !subtrahend.hasOwnProperty(key) && !(keyPath.includes("coordinates") && minuend.length == 3 && minuend[2] == 0 && subtrahend.length == 2))
         diff[key] = null;
 
     if (ignoreXyzNs && diff.properties && diff.properties[XYZ_NS]) {
@@ -684,10 +689,18 @@ class FeatureWriter {
       if (inputDiff.hasOwnProperty(key)) {
         if (inputDiff[key] === null)
           delete target[key];
-        else if (typeof inputDiff[key] == "object" && !Array.isArray(inputDiff[key]) && inputDiff[key] !== null) {
-          if (!target[key])
-            target[key] = {};
-          target[key] = this.patch(target[key], inputDiff[key]);
+        else if (typeof inputDiff[key] == "object" && inputDiff[key] !== null) {
+          if (!Array.isArray(inputDiff[key])) {
+            if (!target[key])
+              target[key] = {};
+            target[key] = this.patch(target[key], inputDiff[key]);
+          }
+          else {
+            if (!target[key] || !Array.isArray(target[key]))
+              target[key] = inputDiff[key];
+            else
+              target[key] = this.patch(target[key], inputDiff[key]);
+          }
         }
         else
           target[key] = inputDiff[key];
@@ -726,19 +739,25 @@ class FeatureWriter {
   }
 
   debugBox(message) {
-    if (!this.debugOutput)
+    if (!this.debug)
       return;
+    let boxMode = false;
+
+    message = `FW_LOG [${this.queryId}] ` + message;
 
     let width = 140;
-    let leftRightBuffer = 2;
-    let maxLineLength = width - leftRightBuffer * 2;
-    let lines = message.split("\n").map(line => !line ? line : line.match(new RegExp(`.{1,${maxLineLength}}`, "g"))).flat();
-    let longestLine = lines.map(line => line.length).reduce((a, b) => Math.max(a, b), -Infinity);
-    let leftPadding = new Array(Math.floor((width - longestLine) / 2)).join(" ");
-    lines = lines.map(line => "#" + leftPadding + line
-        + new Array(width - leftPadding.length - line.length - 1).join(" ") + "#");
-    if(this.debugOutput)
+    if (boxMode) {
+      let leftRightBuffer = 2;
+      let maxLineLength = width - leftRightBuffer * 2;
+      let lines = message.split("\n").map(line => !line ? line : line.match(new RegExp(`.{1,${maxLineLength}}`, "g"))).flat();
+      let longestLine = lines.map(line => line.length).reduce((a, b) => Math.max(a, b), -Infinity);
+      let leftPadding = new Array(Math.floor((width - longestLine) / 2)).join(" ");
+      lines = lines.map(line => "#" + leftPadding + line
+          + new Array(width - leftPadding.length - line.length - 1).join(" ") + "#");
       plv8.elog(NOTICE, "\n" + new Array(width + 1).join("#") + "\n" + lines.join("\n") + "\n" + new Array(width + 1).join("#"));
+    }
+    else
+      plv8.elog(NOTICE, "\n" + new Array(width + 1).join("#") + "\n" + message + "\n" + new Array(width + 1).join("#"));
   }
 
   //Low level DB / table facing helper methods:

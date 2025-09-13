@@ -33,6 +33,7 @@ import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.XyzSerializable.Internal;
 import com.here.xyz.XyzSerializable.Public;
 import com.here.xyz.XyzSerializable.SerializationView;
 import com.here.xyz.responses.ErrorResponse;
@@ -109,7 +110,7 @@ public class Api {
     protected <R> Handler<RoutingContext> handle(ThrowingTask<R, RoutingContext> taskHandler) {
         return handleErrors(context -> {
             taskHandler.execute(context)
-                    .onSuccess(response -> sendResponseWithXyzSerialization(context, OK, response))
+                    .onSuccess(response -> sendResponse(context, OK.code(), response))
                     .onFailure(t -> {
                         if (t instanceof HttpException httpException)
                             sendErrorResponse(context, httpException);
@@ -243,43 +244,6 @@ public class Api {
         sendResponseBytes(context, httpResponse, response);
     }
 
-    /**
-     * @deprecated Please use {@link #sendResponse(RoutingContext, int, XyzSerializable)} or {@link #sendResponse(RoutingContext, int, List)} instead.
-     * @param context
-     * @param status
-     * @param o
-     */
-    protected void sendResponseWithXyzSerialization(RoutingContext context, HttpResponseStatus status, Object o) {
-        sendResponseWithXyzSerialization(context, status, o, null);
-    }
-
-    /**
-     * @deprecated Please use {@link #sendResponse(RoutingContext, int, XyzSerializable)} or {@link #sendResponse(RoutingContext, int, List)} instead.
-     * @param context
-     * @param status
-     * @param o
-     * @param type
-     */
-    @Deprecated
-    protected void sendResponseWithXyzSerialization(RoutingContext context, HttpResponseStatus status, Object o, TypeReference type) {
-        HttpServerResponse httpResponse = context.response().setStatusCode(status.code());
-
-        byte[] response;
-        try {
-            if (o == null)
-                response = new byte[]{};
-            else
-                response = o instanceof ByteArrayOutputStream bos ? bos.toByteArray() : (type == null ? XyzSerializable.serialize(o)
-                    : XyzSerializable.serialize(o, type)).getBytes();
-        }
-        catch (EncodeException e) {
-            sendErrorResponse(context, new HttpException(INTERNAL_SERVER_ERROR, "Could not serialize response.", e));
-            return;
-        }
-
-        sendResponseBytes(context, httpResponse, response);
-    }
-
     protected void sendResponseBytes(RoutingContext context, HttpServerResponse httpResponse, byte[] response) {
         if (response.length == 0)
             httpResponse.setStatusCode(NO_CONTENT.code()).end();
@@ -291,11 +255,18 @@ public class Api {
         }
     }
 
-    protected void sendResponse(RoutingContext context, int statusCode, XyzSerializable object) {
+    protected void sendResponse(RoutingContext context, int statusCode, Object object) {
+      if (object == null || object instanceof XyzSerializable)
+        sendResponse(context, statusCode, (XyzSerializable) object);
+      else if (object instanceof List)
+        sendResponse(context, statusCode, (List<? extends XyzSerializable>) object);
+    }
+
+    private void sendResponse(RoutingContext context, int statusCode, XyzSerializable object) {
         serializeAndSendResponse(context, statusCode, object, null, Public.class);
     }
 
-    protected void sendResponse(RoutingContext context, int statusCode, List<? extends XyzSerializable> list) {
+    private void sendResponse(RoutingContext context, int statusCode, List<? extends XyzSerializable> list) {
         serializeAndSendResponse(context, statusCode, list, null, Public.class);
     }
 
@@ -305,16 +276,16 @@ public class Api {
     }
 
     protected void sendInternalResponse(RoutingContext context, int statusCode, XyzSerializable object) {
-        serializeAndSendResponse(context, statusCode, object, null, null); //TODO: Use Internal view here in future
+        serializeAndSendResponse(context, statusCode, object, null, Internal.class);
     }
 
     protected void sendInternalResponse(RoutingContext context, int statusCode, List<? extends XyzSerializable> list) {
-        serializeAndSendResponse(context, statusCode, list, null, null); //TODO: Use Internal view here in future
+        serializeAndSendResponse(context, statusCode, list, null, Internal.class);
     }
 
     protected void sendInternalResponse(RoutingContext context, int statusCode, List<? extends XyzSerializable> list,
         TypeReference listItemTypeReference) {
-        serializeAndSendResponse(context, statusCode, list, listItemTypeReference, null); //TODO: Use Internal view here in future
+        serializeAndSendResponse(context, statusCode, list, listItemTypeReference, Internal.class);
     }
 
     private void serializeAndSendResponse(RoutingContext context, int statusCode, Object object,
