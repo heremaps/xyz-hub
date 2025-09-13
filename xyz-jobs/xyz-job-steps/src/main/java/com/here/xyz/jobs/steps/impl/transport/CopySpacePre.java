@@ -19,9 +19,12 @@
 
 package com.here.xyz.jobs.steps.impl.transport;
 
+
 /**
  * This step is kept for BWC.
  *
  * @TODO - Remove this step later
  */
-public class CopySpacePre extends GetNextSpaceVersion<CopySpacePre> {}
+public class CopySpacePre extends GetNextSpaceVersion<CopySpacePre> {
+
+}

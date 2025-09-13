@@ -9,7 +9,6 @@
 2. Build & deploy the Job Step Lambda into the localstack by running the run-config `xyz-job-steps [install]`
 3. Start the XYZ Hub Service by running the run-config `HubService`
 4. Start the XYZ Job Service by running the run-config `JobService`
-5. Start the XYZ Connector service by running the run-config `CService`
 
 ## Troubleshooting
 

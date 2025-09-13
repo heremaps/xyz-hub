@@ -30,6 +30,7 @@ import static org.junit.Assert.assertTrue;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.jobs.datasets.filters.SpatialFilter;
+import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
 import com.here.xyz.jobs.steps.impl.StepTest;
 import com.here.xyz.jobs.steps.impl.transport.CopySpace;
 import com.here.xyz.jobs.steps.impl.transport.CopySpacePost;
@@ -287,9 +288,9 @@ public class CopySpaceStepsTest extends StepTest {
     Ref resolvedRef = resolveRef(sourceSpaceId, new Ref(versionRef));
 
     CountSpace step = new CountSpace()
-        .withSpaceId(sourceSpaceId)
         .withSpatialFilter( geo == null ? null : new SpatialFilter().withGeometry(geo) )
         .withPropertyFilter(PropertiesQuery.fromString(propertyFilter))
+        .withSpaceId(sourceSpaceId)
         .withJobId(JOB_ID);
 
     step.setVersionRef(resolvedRef);

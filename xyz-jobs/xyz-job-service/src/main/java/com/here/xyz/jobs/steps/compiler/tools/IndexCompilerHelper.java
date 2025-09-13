@@ -46,8 +46,8 @@ public class IndexCompilerHelper {
         for(OnDemandIndex index : activatedSearchableProperties) {
             // Create an OnDemandIndex step for each activated searchable property
             onDemandIndicesGraph.addExecution(new CreateIndex()
-                    .withIndex(index)
-                    .withSpaceId(spaceId));
+                    .withSpaceId(spaceId)
+                    .withIndex(index));
         }
         return onDemandIndicesGraph;
     }

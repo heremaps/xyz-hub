@@ -55,7 +55,7 @@ public class ExportTestBase extends StepTest {
 
         //Create Step definition
         ExportSpaceToFiles step = new ExportSpaceToFiles()
-            .withSpaceId(spaceId)
+            .withSpaceId(SPACE_ID)
             .withJobId(JOB_ID);
 
         if(context != null)
