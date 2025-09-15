@@ -25,7 +25,7 @@
         <groupId>com.here.xyz</groupId>
         <artifactId>xyz-hub</artifactId>
         <relativePath>../pom.xml</relativePath>
-        <version>3.20.5-SNAPSHOT</version>
+        <version>3.20.10-SNAPSHOT</version>
     </parent>
 
     <licenses>
@@ -111,6 +111,7 @@
                             <goal>shade</goal>
                         </goals>
                         <configuration>
+                            <createDependencyReducedPom>false</createDependencyReducedPom>
                             <finalName>benchmarks</finalName>
                             <transformers>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
@@ -137,6 +138,4 @@
             </plugin>
         </plugins>
     </build>
-
-
 </project>

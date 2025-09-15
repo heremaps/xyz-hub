@@ -62,13 +62,6 @@ public class BaseTest {
     protected NLConnector nlConnector;
     protected PSQLXyzConnector psqlConnector;
 
-    static {
-        org.apache.logging.log4j.core.config.Configurator.setRootLevel(
-                org.apache.logging.log4j.Level.ERROR);
-        org.apache.logging.log4j.core.config.Configurator.setLevel(
-                "com.here.xyz", org.apache.logging.log4j.Level.ERROR);
-    }
-
     protected void setupTest() throws Exception {
         DatabaseSettings dbSettings = createDBSettings(PG_HOST, PG_USER, PG_DB, PG_PASSWORD, PG_MAX_POOLSIZE);
 
