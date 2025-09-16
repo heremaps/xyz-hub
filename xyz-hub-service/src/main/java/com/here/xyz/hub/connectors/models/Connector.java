@@ -274,8 +274,9 @@ public class Connector extends com.here.xyz.models.hub.Connector {
         if (o == null || getClass() != o.getClass()) return false;
         if (!super.equals(o)) return false;
         AWSLambda awsLambda = (AWSLambda) o;
-        return className.equals(awsLambda.className) && lambdaARN.equals(awsLambda.lambdaARN) &&
-            Objects.equals(roleARN, awsLambda.roleARN);
+        return Objects.equals(className, awsLambda.className)
+                && Objects.equals(lambdaARN, awsLambda.lambdaARN)
+                && Objects.equals(roleARN, awsLambda.roleARN);
       }
 
       @Override
