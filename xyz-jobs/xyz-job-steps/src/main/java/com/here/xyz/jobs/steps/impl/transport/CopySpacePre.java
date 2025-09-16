@@ -19,7 +19,6 @@
 
 package com.here.xyz.jobs.steps.impl.transport;
 
-
 /**
  * This step is kept for BWC.
  *

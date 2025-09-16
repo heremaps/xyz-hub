@@ -43,7 +43,9 @@ public class S3MetricsCollectorStep extends SyncLambdaStep<S3MetricsCollectorSte
     @JsonView({XyzSerializable.Internal.class, XyzSerializable.Static.class})
     private String providedTag;
 
-    private S3MetricsCollectorStep() {}
+    private S3MetricsCollectorStep() {
+      setOutputSets(List.of(new Step.OutputSet(S3_METRICS, Step.Visibility.USER, true)));
+    }
 
     public S3MetricsCollectorStep(String outputSetGroup) {
       setOutputSetGroup(outputSetGroup);

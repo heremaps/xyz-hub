@@ -66,9 +66,9 @@ public class ExportStepValidationTest extends StepTest {
                 .withClip(true);
 
         LambdaBasedStep step = new ExportSpaceToFiles()
-                .withSpaceId(SPACE_ID)
                 .withVersionRef(new Ref(1))
                 .withSpatialFilter(spatialFilter)
+                .withSpaceId(SPACE_ID)
                 .withJobId(JOB_ID);
 
         //Check ExceptionType - Geometry is null, leads into ValidationError
@@ -82,9 +82,9 @@ public class ExportStepValidationTest extends StepTest {
                 .withRadius(17899);
 
         LambdaBasedStep step = new ExportSpaceToFiles()
-                .withSpaceId(SPACE_ID)
                 .withVersionRef(new Ref(1))
                 .withSpatialFilter(spatialFilter)
+                .withSpaceId(SPACE_ID)
                 .withJobId(JOB_ID);
 
         Assertions.assertThrows(ValidationException.class, () -> step.validate());
@@ -105,9 +105,9 @@ public class ExportStepValidationTest extends StepTest {
                 .withGeometry(new Polygon().withCoordinates(bbox));
 
         LambdaBasedStep step = new ExportSpaceToFiles()
-                .withSpaceId(SPACE_ID)
                 .withVersionRef(new Ref(1))
                 .withSpatialFilter(spatialFilter)
+                .withSpaceId(SPACE_ID)
                 .withJobId(JOB_ID);
 
         //Check ExceptionType - Geometry is null, leads into ValidationError
@@ -117,16 +117,16 @@ public class ExportStepValidationTest extends StepTest {
     @Test
     public void testInvalidVersionRef(){
         LambdaBasedStep step1 = new ExportSpaceToFiles()
-                .withSpaceId(SPACE_ID)
                 .withVersionRef(new Ref(5))
+                .withSpaceId(SPACE_ID)
                 .withJobId(JOB_ID);
 
         //Check ExceptionType - Ref Version higher than SpaceVersion
         Assertions.assertThrows(ValidationException.class, () -> step1.validate());
 
         LambdaBasedStep step2 = new ExportSpaceToFiles()
-                .withSpaceId(SPACE_ID)
                 .withVersionRef(new Ref("1..5"))
+                .withSpaceId(SPACE_ID)
                 .withJobId(JOB_ID);
 
         //Check ExceptionType - Ref EndVersion is higher than max SpaceVersion

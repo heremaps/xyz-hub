@@ -84,7 +84,9 @@ public class CompressFiles extends SyncLambdaStep<CompressFiles> {
   @JsonView({Internal.class, Static.class})
   private int unwrapFolderLevel = -1;
 
-  private CompressFiles() {}
+  private CompressFiles() {
+    setOutputSets(List.of(new OutputSet(COMPRESSED_DATA, Visibility.SYSTEM, ARCHIVE_FILE_SUFFIX)));
+  }
 
   public CompressFiles(String outputSetGroup) {
     setOutputSetGroup(outputSetGroup);
