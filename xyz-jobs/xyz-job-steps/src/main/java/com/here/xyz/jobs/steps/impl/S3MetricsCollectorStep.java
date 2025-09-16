@@ -19,8 +19,6 @@
 
 package com.here.xyz.jobs.steps.impl;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.steps.Step;
@@ -45,8 +43,9 @@ public class S3MetricsCollectorStep extends SyncLambdaStep<S3MetricsCollectorSte
     @JsonView({XyzSerializable.Internal.class, XyzSerializable.Static.class})
     private String providedTag;
 
-    @JsonCreator(mode = JsonCreator.Mode.PROPERTIES)
-    public S3MetricsCollectorStep(@JsonProperty(value = "outputSetGroup", required = true) String outputSetGroup) {
+    private S3MetricsCollectorStep() {}
+
+    public S3MetricsCollectorStep(String outputSetGroup) {
       setOutputSetGroup(outputSetGroup);
       setOutputSets(List.of(new Step.OutputSet(S3_METRICS, Step.Visibility.USER, true)));
     }

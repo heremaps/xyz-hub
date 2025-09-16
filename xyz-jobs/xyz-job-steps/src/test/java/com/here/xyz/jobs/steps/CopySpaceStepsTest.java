@@ -288,9 +288,9 @@ public class CopySpaceStepsTest extends StepTest {
     Ref resolvedRef = resolveRef(sourceSpaceId, new Ref(versionRef));
 
     CountSpace step = new CountSpace()
+        .withSpaceId(sourceSpaceId)
         .withSpatialFilter( geo == null ? null : new SpatialFilter().withGeometry(geo) )
         .withPropertyFilter(PropertiesQuery.fromString(propertyFilter))
-        .withSpaceId(sourceSpaceId)
         .withJobId(JOB_ID);
 
     step.setVersionRef(resolvedRef);

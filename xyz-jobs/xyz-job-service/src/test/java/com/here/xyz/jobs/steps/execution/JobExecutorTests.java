@@ -419,8 +419,8 @@ public class JobExecutorTests {
 
       case "ImportFilesToSpace" -> {
         ImportFilesToSpace importFilesToSpace = new ImportFilesToSpace()
-            .withSpaceId(sourceId)
             .withFormat(GEOJSON)
+            .withSpaceId(sourceId)
             .withJobId(jobId);
         if (inputStepIds != null)
           importFilesToSpace.setInputSets(inputStepIds.stream().map(stepId -> new InputSet(stepId, EXPORTED_DATA, false)).toList());

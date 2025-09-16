@@ -19,8 +19,6 @@
 
 package com.here.xyz.jobs.steps.impl.transport;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.jobs.steps.execution.SyncLambdaStep;
 import com.here.xyz.jobs.steps.inputs.Input;
@@ -86,8 +84,9 @@ public class CompressFiles extends SyncLambdaStep<CompressFiles> {
   @JsonView({Internal.class, Static.class})
   private int unwrapFolderLevel = -1;
 
-  @JsonCreator(mode = JsonCreator.Mode.PROPERTIES)
-  public CompressFiles(@JsonProperty(value = "outputSetGroup", required = true) String outputSetGroup) {
+  private CompressFiles() {}
+
+  public CompressFiles(String outputSetGroup) {
     setOutputSetGroup(outputSetGroup);
     setOutputSets(List.of(new OutputSet(COMPRESSED_DATA, Visibility.SYSTEM, ARCHIVE_FILE_SUFFIX)));
   }

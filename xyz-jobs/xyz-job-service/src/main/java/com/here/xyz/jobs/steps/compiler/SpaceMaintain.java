@@ -56,8 +56,8 @@ public class SpaceMaintain implements JobCompilationInterceptor {
 
     //Drop indices which are not in the whitelist
     DropIndexes dropIndexes = new DropIndexes()
-            .withSpaceId(source.getId())
             .withSpaceDeactivation(false)
+            .withSpaceId(source.getId())
             .withIndexWhiteList(whiteList);
 
     //Create all indices that are defined - existing ones are getting skipped
