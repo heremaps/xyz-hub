@@ -49,7 +49,7 @@ import static com.here.xyz.responses.XyzError.EXCEPTION;
 /**
  *
  */
-public class EntryConnectorHandler implements RequestStreamHandler{
+public abstract class EntryConnectorHandler extends AbstractConnectorHandler implements RequestStreamHandler{
     private static final Logger logger = LogManager.getLogger();
 
     /**

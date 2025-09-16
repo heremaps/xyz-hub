@@ -94,7 +94,7 @@ public class EmbeddedFunctionClient extends RemoteFunctionClient {
       String className = null;
       try {
         className = ((Connector.RemoteFunctionConfig.Embedded) remoteFunction).className;
-        final Class<?> mainClass = Class.forName(EntryConnectorHandler.class.getName());
+        final Class<?> mainClass = Class.forName(className);
         final RequestStreamHandler reqHandler = (RequestStreamHandler) mainClass.newInstance();
         final ByteArrayOutputStream output = new ByteArrayOutputStream();
         reqHandler.handleRequest(new ByteArrayInputStream(fc.bytes), output,

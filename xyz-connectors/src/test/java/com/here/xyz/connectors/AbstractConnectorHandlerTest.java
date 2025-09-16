@@ -92,7 +92,7 @@ public class AbstractConnectorHandlerTest {
 
   @Test
   public void testMaxUncompressedResponseSize() throws IOException {
-    EntryConnectorHandler ech = new EntryConnectorHandler();
+    TestStorageConnector ech = new TestStorageConnector();
 
     HealthCheckEvent event = new HealthCheckEvent();
     event.setConnectorParams(new HashMap<>(Map.of(
@@ -115,8 +115,7 @@ public class AbstractConnectorHandlerTest {
 
   @Test
   public void testWriteLargeDataOut() throws IOException {
-
-    EntryConnectorHandler ech = new EntryConnectorHandler();
+    TestStorageConnector ech = new TestStorageConnector();
 
     GetFeaturesByBBoxEvent event = new GetFeaturesByBBoxEvent();
 
@@ -144,7 +143,7 @@ public class AbstractConnectorHandlerTest {
   }
 
   @SuppressWarnings("rawtypes")
-  public static class TestStorageConnector extends AbstractConnectorHandler {
+  public static class TestStorageConnector extends EntryConnectorHandler {
 
     @Override
     public Typed processEvent(Event event) throws JsonProcessingException {
@@ -165,7 +164,7 @@ public class AbstractConnectorHandlerTest {
     else
       event.getConnectorParams().put("className", TestStorageConnector.class.getName());
 
-    EntryConnectorHandler ech = new EntryConnectorHandler();
+    TestStorageConnector ech = new TestStorageConnector();
 
     ByteArrayInputStream is = new ByteArrayInputStream(event.serialize().getBytes());
     ByteArrayOutputStream os = new ByteArrayOutputStream();

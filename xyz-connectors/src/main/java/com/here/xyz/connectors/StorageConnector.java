@@ -58,7 +58,7 @@ import com.here.xyz.responses.changesets.ChangesetCollection;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-public abstract class StorageConnector extends AbstractConnectorHandler {
+public abstract class StorageConnector extends EntryConnectorHandler {
   private static final Logger logger = LogManager.getLogger();
 
   @Override
