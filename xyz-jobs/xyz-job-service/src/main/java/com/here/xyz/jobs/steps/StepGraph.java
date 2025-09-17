@@ -80,7 +80,7 @@ public class StepGraph implements StepExecution {
    *
    * @return <code>Step</code> if found in the step graph, else return null
    */
-  public Step getStep(String outputSetGroup, String setName) {
+  public Step getStepOrNull(String outputSetGroup, String setName) {
     return stepStream()
         .filter(step -> outputSetGroup.equals(step.getOutputSetGroup()) && step.getOutputSetOrNull(setName) != null)
         .findFirst()

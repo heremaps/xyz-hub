@@ -25,8 +25,6 @@ import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.util.pagination.Page;
 import com.here.xyz.util.pagination.PagedDataRetriever;
 
-import java.util.ArrayList;
-import java.util.Base64;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -49,7 +47,11 @@ public class JobOutputsRetriever implements PagedDataRetriever<Output, JobOutput
   @Override
   public Page<Output> getPage(OutputsParams params, int limit, String nextPageToken) {
 
-    Step<?> step = job.getSteps().getStep(params.outputSetGroup, params.setName);
+    Step<?> step = job.getSteps().getStepOrNull(params.outputSetGroup, params.setName);
+
+    if (step == null) {
+      throw new IllegalArgumentException("Nothing was found by requested group and name");
+    }
 
     return step.loadUserOutputsPage(params.setName, limit, nextPageToken);
   }
