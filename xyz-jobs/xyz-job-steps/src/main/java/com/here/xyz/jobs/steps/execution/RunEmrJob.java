@@ -414,7 +414,8 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
 
         if (file.isDirectory()) {
           logger.info("[EMR-local] Folder detected {} ", file);
-          uploadEMRResultsToS3(file, s3TargetPath + file.getName());
+          s3TargetPath = s3TargetPath.replaceAll("/$", "");
+          uploadEMRResultsToS3(file, s3TargetPath + "/" + file.getName());
           continue;
         }
 

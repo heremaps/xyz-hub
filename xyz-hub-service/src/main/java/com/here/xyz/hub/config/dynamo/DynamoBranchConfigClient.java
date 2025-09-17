@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,8 @@
 
 package com.here.xyz.hub.config.dynamo;
 
+import static com.here.xyz.util.service.aws.dynamo.DynamoClient.queryIndex;
+
 import com.amazonaws.services.dynamodbv2.document.Item;
 import com.amazonaws.services.dynamodbv2.document.Table;
 import com.amazonaws.services.dynamodbv2.document.spec.DeleteItemSpec;
@@ -28,6 +30,7 @@ import com.here.xyz.XyzSerializable.Static;
 import com.here.xyz.hub.config.BranchConfigClient;
 import com.here.xyz.models.hub.Branch;
 import com.here.xyz.util.service.aws.dynamo.DynamoClient;
+import com.here.xyz.util.service.aws.dynamo.IndexDefinition;
 import io.vertx.core.Future;
 import java.util.LinkedList;
 import java.util.List;
@@ -37,6 +40,7 @@ import org.apache.logging.log4j.Logger;
 
 public class DynamoBranchConfigClient extends BranchConfigClient {
   private static final Logger logger = LogManager.getLogger();
+  public static final IndexDefinition ID_GSI = new IndexDefinition("id");
   private DynamoClient dynamoClient;
   private Table branchTable;
 
@@ -82,6 +86,14 @@ public class DynamoBranchConfigClient extends BranchConfigClient {
   }
 
   @Override
+  public Future<List<Branch>> loadBranches(String branchId) {
+    return dynamoClient.executeQueryAsync(() -> queryIndex(branchTable, ID_GSI, branchId)
+        .stream()
+        .map(branchItem -> XyzSerializable.fromMap(branchItem.asMap(), Branch.class))
+        .toList());
+  }
+
+  @Override
   public Future<Void> delete(String spaceId, String branchId) {
     return dynamoClient.executeQueryAsync(() -> {
       branchTable.deleteItem(new DeleteItemSpec().withPrimaryKey("spaceId", spaceId, "id", branchId));
@@ -93,7 +105,7 @@ public class DynamoBranchConfigClient extends BranchConfigClient {
   public Future<Void> init() {
     if (dynamoClient.isLocal()) {
       try {
-        dynamoClient.createTable(branchTable.getTableName(), "spaceId:S,id:S", "spaceId,id", null, null);
+        dynamoClient.createTable(branchTable.getTableName(), "spaceId:S,id:S", "spaceId,id", List.of(ID_GSI), null);
       }
       catch (AmazonDynamoDBException e) {
         logger.error("Failure during creating table on " + getClass().getSimpleName() + "#init()", e);

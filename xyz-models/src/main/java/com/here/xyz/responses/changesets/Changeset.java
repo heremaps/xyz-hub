@@ -28,6 +28,7 @@ import com.here.xyz.events.UpdateStrategy.OnMergeConflict;
 import com.here.xyz.events.UpdateStrategy.OnNotExists;
 import com.here.xyz.events.UpdateStrategy.OnVersionConflict;
 import com.here.xyz.events.WriteFeaturesEvent.Modification;
+import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.responses.XyzResponse;
 import java.util.HashSet;
@@ -39,12 +40,19 @@ import java.util.Set;
  */
 @JsonInclude(Include.NON_DEFAULT)
 public class Changeset extends XyzResponse<Changeset> {
+  @JsonView({Public.class})
   long version = -1;
+  @JsonView({Public.class})
   String author;
+  @JsonView({Public.class})
   long createdAt;
+  @JsonView({Public.class})
   private FeatureCollection inserted;
+  @JsonView({Public.class})
   private FeatureCollection updated;
+  @JsonView({Public.class})
   private FeatureCollection deleted;
+  @JsonView({Public.class})
   private String nextPageToken;
 
   public long getVersion() {

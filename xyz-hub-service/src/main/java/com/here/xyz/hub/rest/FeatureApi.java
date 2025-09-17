@@ -439,7 +439,7 @@ public class FeatureApi extends SpaceBasedApi {
 
   private void sendWriteFeaturesResponse(RoutingContext context, ApiResponseType responseType, FeatureCollection featureCollection) {
     switch (responseType) {
-      case EMPTY -> sendResponse(context, 200, (XyzSerializable) null);
+      case EMPTY -> sendResponse(context, 200, null);
       case FEATURE_COLLECTION -> sendResponse(context, 200, featureCollection);
       case FEATURE -> {
         try {

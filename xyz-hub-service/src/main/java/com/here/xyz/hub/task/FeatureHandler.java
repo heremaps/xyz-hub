@@ -19,6 +19,7 @@
 
 package com.here.xyz.hub.task;
 
+import static com.here.xyz.hub.task.FeatureTaskHandler.injectMinVersion;
 import static com.here.xyz.hub.task.FeatureTask.resolveBranchFor;
 import static com.here.xyz.util.service.rest.TooManyRequestsException.ThrottlingReason.MEMORY;
 import static com.here.xyz.util.service.rest.TooManyRequestsException.ThrottlingReason.STORAGE_QUEUE_FULL;
@@ -95,6 +96,8 @@ public class FeatureHandler {
           .withAuthor(author)
           .withResponseDataExpected(responseDataExpected)
           .withRef(baseRef);
+
+      injectMinVersion(marker, space.getId(), event);
 
       //Enrich event with properties from the space
       injectSpaceParams(event, space);

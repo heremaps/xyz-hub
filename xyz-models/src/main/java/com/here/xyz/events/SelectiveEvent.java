@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,7 +24,6 @@ import java.util.List;
 public class SelectiveEvent<T extends SelectiveEvent> extends ContextAwareEvent<T> {
   private List<String> selection;
   private boolean force2D;
-  private long minVersion;
 
   @SuppressWarnings("unused")
   public List<String> getSelection() {
@@ -39,19 +38,6 @@ public class SelectiveEvent<T extends SelectiveEvent> extends ContextAwareEvent<
   @SuppressWarnings("unused")
   public T withSelection(List<String> selection) {
     setSelection(selection);
-    return (T) this;
-  }
-
-  public long getMinVersion() {
-    return minVersion;
-  }
-
-  public void setMinVersion(long minVersion) {
-    this.minVersion = minVersion;
-  }
-
-  public T withMinVersion(long minVersion) {
-    setMinVersion(minVersion);
     return (T) this;
   }
 

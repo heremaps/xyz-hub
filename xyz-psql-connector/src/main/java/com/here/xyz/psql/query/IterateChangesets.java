@@ -27,6 +27,7 @@ import com.here.xyz.events.IterateChangesetsEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.hub.Ref;
+import com.here.xyz.psql.query.helpers.versioning.GetHeadVersion;
 import com.here.xyz.psql.query.helpers.versioning.GetMinVersion;
 import com.here.xyz.responses.changesets.Changeset;
 import com.here.xyz.responses.changesets.ChangesetCollection;
@@ -98,15 +99,21 @@ public class IterateChangesets extends IterateFeatures<IterateChangesetsEvent, C
 
   @Override
   public ChangesetCollection run(DataSourceProvider dataSourceProvider) throws SQLException, ErrorResponseException {
+    long headVersion = new GetHeadVersion<>(event).withDataSourceProvider(dataSourceProvider).run();
+    long minAvailableVersion = headVersion - event.getVersionsToKeep() + 1;
+
     long minVersion = event.getMinVersion();
     long startVersion = event.getRef().getStart().getVersion();
 
-    if (startVersion < minVersion) {
-      Long minDbVersion = new GetMinVersion<>(event).withDataSourceProvider(dataSourceProvider).run();
-      minVersion = Math.min(minDbVersion, minVersion);
+    if (minAvailableVersion > minVersion || minAvailableVersion > startVersion) {
+      if (startVersion < minVersion) {
+        Long minDbVersion = new GetMinVersion<>(event).withDataSourceProvider(dataSourceProvider).run();
+        minVersion = Math.min(minDbVersion, minVersion);
+      }
+
+      startVersion = Math.max(startVersion, minVersion);
     }
 
-    startVersion = Math.max(startVersion, minVersion);
     //Use the updated ref
     event.setRef(new Ref(new Ref(startVersion), event.getRef().getEnd()));
     return super.run(dataSourceProvider);

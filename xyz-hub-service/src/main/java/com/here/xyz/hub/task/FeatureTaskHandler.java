@@ -1539,12 +1539,13 @@ public class FeatureTaskHandler {
     callback.call(task);
   }
 
-  protected static Future<Long> getMinTagVersion(Marker marker, String space) {
-    return Service.tagConfigClient.getTags(marker, space, true)
-            .map(tags -> {
-              if (tags == null || tags.isEmpty()) return null;
-              return tags.stream().mapToLong(Tag::getVersion).min().orElseThrow();
-            });
+  protected static Future<Long> getMinTagVersion(Marker marker, String spaceId) {
+    return Service.tagConfigClient.getTags(marker, spaceId, true)
+        .map(tags -> {
+          if (tags == null || tags.isEmpty())
+            return null;
+          return tags.stream().mapToLong(Tag::getVersion).min().orElseThrow();
+        });
   }
 
   private static void defineGlobalSearchableField(StatisticsResponse response, FeatureTask task) {
@@ -1765,25 +1766,24 @@ public class FeatureTaskHandler {
   }
 
   static void injectMinVersion(final ConditionalOperation task, final Callback<ConditionalOperation> callback) {
-    if (task.getEvent() instanceof ModifyFeaturesEvent){
-      Promise<Void> p = Promise.promise();
-
-      getMinTagVersion(task.getMarker(), task.space.getId())
-          .onSuccess(minTagVersion -> {
-
-            if (minTagVersion != null) {
-              task.getEvent().setMinVersion(minTagVersion);
-            }else
-              task.getEvent().setMinVersion(-1l);
-          })
+    if (task.getEvent() instanceof ModifyFeaturesEvent)
+      injectMinVersion(task.getMarker(), task.space.getId(), task.getEvent())
           .onSuccess(tag -> callback.call(task))
           .onFailure(t -> {
-                logger.error(task.getMarker(), "Error while population minVersion.", t);
-                callback.exception(t instanceof HttpException ? t : new HttpException(INTERNAL_SERVER_ERROR, "Error while population minVersion.", t));
+            logger.error(task.getMarker(), "Error while injecting minVersion into event.", t);
+            callback.exception(t instanceof HttpException ? t : new HttpException(INTERNAL_SERVER_ERROR, "Unexpected error.", t));
           });
-    }
   }
 
+  public static Future<Long> injectMinVersion(Marker marker, String spaceId, ContextAwareEvent event) {
+    return getMinTagVersion(marker, spaceId)
+        .onSuccess(minTagVersion -> {
+          if (minTagVersion != null)
+            event.setMinVersion(minTagVersion);
+          else
+            event.setMinVersion(-1l);
+        });
+  }
 
   private static SnsAsyncClient getSnsClient() {
     if (snsClient == null)

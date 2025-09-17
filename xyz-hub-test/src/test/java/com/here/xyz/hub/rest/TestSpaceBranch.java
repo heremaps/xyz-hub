@@ -19,6 +19,12 @@
 
 package com.here.xyz.hub.rest;
 
+import static com.here.xyz.util.Random.randomAlpha;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
+import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
+import static io.netty.handler.codec.http.HttpResponseStatus.OK;
+import static io.restassured.RestAssured.given;
+
 import com.google.common.base.Strings;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Feature;
@@ -29,23 +35,24 @@ import com.here.xyz.models.hub.Branch;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import io.restassured.response.ValidatableResponse;
-import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
-
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
-import static io.netty.handler.codec.http.HttpResponseStatus.OK;
-import static io.restassured.RestAssured.given;
-
 public class TestSpaceBranch extends TestSpaceWithFeature {
+
+  protected static final String B1_MAIN = "b1_main";
+  protected static final String B2_B1 = "b2_b1";
+  protected static final String B3_B2 = "b3_b2";
+
+  //Space ID should not contain underscore for branching to work
+  protected String SPACE_ID = getClass().getSimpleName() + "-" + randomAlpha(5);
 
   protected ValidatableResponse createBranch(String spaceId, String branchId, String ref) {
 
     //TODO: Remove when service defaults to HEAD if not provided
-    // ref = ref == null || ref.equals("HEAD") ? "HEAD" : !ref.contains(":") ? ref + ":HEAD" : ref;
+     ref = ref == null || ref.equals("HEAD") ? "HEAD" : !ref.contains(":") ? ref + ":HEAD" : ref;
 
     return given()
             .contentType(APPLICATION_JSON)
@@ -68,6 +75,23 @@ public class TestSpaceBranch extends TestSpaceWithFeature {
             .body().as(List.class);
   }
 
+  protected Branch getBranch(String spaceId, String branchId) {
+    return getBranch(spaceId, branchId, OK.code())
+            .extract()
+            .body().as(Branch.class);
+  }
+
+  protected ValidatableResponse getBranch(String spaceId, String branchId, int expectedStatusCode) {
+    return given()
+            .contentType(APPLICATION_JSON)
+            .accept(APPLICATION_JSON)
+            .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+            .when()
+            .get(getSpaceBranchPath(spaceId, branchId))
+            .then()
+            .statusCode(expectedStatusCode);
+  }
+
   protected void deleteBranch(String spaceId, String branchId) {
     given()
             .contentType(APPLICATION_JSON)
@@ -75,11 +99,11 @@ public class TestSpaceBranch extends TestSpaceWithFeature {
             .when()
             .delete(getSpaceBranchPath(spaceId, branchId))
             .then()
-            .statusCode(OK.code());
+            .statusCode(NO_CONTENT.code());
   }
 
-  protected void rebaseBranch(String spaceId, String branchId, String newRef) {
-    given()
+  protected ValidatableResponse rebaseBranch(String spaceId, String branchId, String newRef) {
+    return given()
             .contentType(APPLICATION_JSON)
             .accept(APPLICATION_JSON)
             .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
@@ -100,8 +124,9 @@ public class TestSpaceBranch extends TestSpaceWithFeature {
   }
 
   protected FeatureCollection readFeaturesFromBranch(String spaceId, String branchId) throws WebClientException {
+    String versionRef = branchId == null ? "" : "?versionRef=" + branchId;
     return HubWebClient.getInstance(RestAssuredConfig.config().fullHubUri)
-            .customReadFeaturesQuery(spaceId, "/iterate?versionRef=" + branchId);
+            .customReadFeaturesQuery(spaceId, "/iterate" + versionRef);
   }
 
   protected void removeAllBranchesForSpace(String spaceId) {

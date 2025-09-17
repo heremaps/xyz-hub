@@ -19,7 +19,6 @@
 
 package com.here.xyz.psql;
 
-import static com.here.xyz.events.ModifyBranchEvent.Operation.CREATE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -46,7 +45,7 @@ public class PSQLBranchesIT extends PSQLAbstractBranchIT {
   @Test
   public void createBranchOnMainHead() throws Exception {
 
-    ModifyBranchEvent mbe = eventForCreate(CREATE, getBaseRef(0));
+    ModifyBranchEvent mbe = eventForCreate(getBaseRef(0));
 
     ModifiedBranchResponse res1 = deserializeResponse(invokeLambda(mbe));
     assertEquals(1, res1.getNodeId());
@@ -68,17 +67,17 @@ public class PSQLBranchesIT extends PSQLAbstractBranchIT {
     long v2 = extractVersion(deserializeResponse(writeFeature("f2")));
     long v3 = extractVersion(deserializeResponse(writeFeature("f3")));
 
-    ModifiedBranchResponse res1 = deserializeResponse(invokeLambda(eventForCreate(CREATE, getBaseRef(0, v1))));
+    ModifiedBranchResponse res1 = deserializeResponse(invokeLambda(eventForCreate(getBaseRef(0, v1))));
     assertEquals(1, res1.getNodeId());
     assertEquals(getBaseRef(0, v1).toString(), res1.getBaseRef().toString());
     assertTrue(checkIfBranchTableExists(1, 0, v1));
 
-    ModifiedBranchResponse res2 = deserializeResponse(invokeLambda(eventForCreate(CREATE, getBaseRef(0, v2))));
+    ModifiedBranchResponse res2 = deserializeResponse(invokeLambda(eventForCreate(getBaseRef(0, v2))));
     assertEquals(2, res2.getNodeId());
     assertEquals(getBaseRef(0, v2).toString(), res2.getBaseRef().toString());
     assertTrue(checkIfBranchTableExists(2, 0, v2));
 
-    ModifiedBranchResponse res3 = deserializeResponse(invokeLambda(eventForCreate(CREATE, getBaseRef(0, v3))));
+    ModifiedBranchResponse res3 = deserializeResponse(invokeLambda(eventForCreate(getBaseRef(0, v3))));
     assertEquals(3, res3.getNodeId());
     assertEquals(getBaseRef(0, v3).toString(), res3.getBaseRef().toString());
     assertTrue(checkIfBranchTableExists(3, 0, v3));
@@ -94,7 +93,7 @@ public class PSQLBranchesIT extends PSQLAbstractBranchIT {
 
     //Create branch b1 on main version 1
     Ref b1_baseRef = getBaseRef(baseNodeId, main_v1);
-    ModifiedBranchResponse b1_main = deserializeResponse(invokeLambda(eventForCreate(CREATE, b1_baseRef)));
+    ModifiedBranchResponse b1_main = deserializeResponse(invokeLambda(eventForCreate(b1_baseRef)));
     assertEquals(b1_baseRef, b1_main.getBaseRef());
     assertTrue(checkIfBranchTableExists(b1_main.getNodeId(), baseNodeId, main_v1));
 
@@ -103,7 +102,7 @@ public class PSQLBranchesIT extends PSQLAbstractBranchIT {
 
     //Create branch b2 on branch b1 version 2
     Ref b2_baseRef = getBaseRef(b1_main.getNodeId(), b1_v2);
-    ModifiedBranchResponse b2_b1 = deserializeResponse(invokeLambda(eventForCreate(CREATE, b2_baseRef)));
+    ModifiedBranchResponse b2_b1 = deserializeResponse(invokeLambda(eventForCreate(b2_baseRef)));
     assertEquals(b2_baseRef, b2_b1.getBaseRef());
     assertTrue(checkIfBranchTableExists(b2_b1.getNodeId(), b1_main.getNodeId(), b1_v2));
 
@@ -112,7 +111,7 @@ public class PSQLBranchesIT extends PSQLAbstractBranchIT {
 
     //Create branch b3 on branch b2 version 3
     Ref b3_baseRef = getBaseRef(b2_b1.getNodeId(), b2_v3);
-    ModifiedBranchResponse b3_b2 = deserializeResponse(invokeLambda(eventForCreate(CREATE, b3_baseRef)));
+    ModifiedBranchResponse b3_b2 = deserializeResponse(invokeLambda(eventForCreate(b3_baseRef)));
     assertEquals(b3_baseRef, b3_b2.getBaseRef());
     assertTrue(checkIfBranchTableExists(b3_b2.getNodeId(), b2_b1.getNodeId(), b2_v3));
 

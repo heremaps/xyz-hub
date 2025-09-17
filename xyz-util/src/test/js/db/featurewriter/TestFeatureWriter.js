@@ -67,19 +67,18 @@ class TestFeatureWriter {
 
   sqlQueryJson = {
     "namedParameters" : {
-      "author" : "XYZ-01234567-89ab-cdef-0123-456789aUSER1",
-      "responseDataExpected" : true,
-      "modifications" : "[{\"updateStrategy\":{\"onExists\":\"REPLACE\",\"onNotExists\":\"CREATE\"},\"featureData\":{\"type\":\"FeatureCollection\",\"features\":[{\"type\":\"Feature\",\"id\":\"F1\",\"geometry\":{\"type\":\"Point\",\"coordinates\":[2.0,2.0]},\"properties\":{\"b\":2}}]},\"partialUpdates\":true}]"
+      "featureModificationList" : "[ {\n  \"updateStrategy\" : {\n    \"onExists\" : \"REPLACE\",\n    \"onNotExists\" : \"ERROR\",\n    \"onVersionConflict\" : \"MERGE\",\n    \"onMergeConflict\" : \"ERROR\"\n  },\n  \"featureData\" : {\n    \"type\" : \"FeatureCollection\",\n    \"features\" : [ {\n      \"type\" : \"Feature\",\n      \"id\" : \"id1\",\n      \"geometry\" : {\n        \"type\" : \"Point\",\n        \"coordinates\" : [ 0.0, 10.0 ]\n      },\n      \"properties\" : {\n        \"@ns:com:here:xyz\" : {\n          \"version\" : 1\n        },\n        \"prop1\" : \"value1\"\n      }\n    } ]\n  },\n  \"partialUpdates\" : false\n} ]",
+      "author" : "ANONYMOUS",
+      "responseDataExpected" : true
     },
-    "queryId" : "a6ea901e-9e69-4ca2-afbe-29e4889e6317",
+    "queryId" : "786f0a6b-8f42-4736-accb-f4cc4e1918fe",
     "context" : {
       "schema" : "public",
       "historyEnabled" : true,
-      "batchMode" : true,
-      "tables" : [ "x-psql-test" ]
+      "batchMode" : false,
+      "tables" : [ "FWMerge" ]
     },
-    "loggingEnabled" : false,
-    "text" : "SELECT write_features(#{modifications}, 'Modifications', #{author}, #{responseDataExpected});"
+    "text" : "SELECT write_features(#{featureModificationList}, 'Modifications', #{author}, #{responseDataExpected});"
   };
 
   runFromSqlQueryJson() {
