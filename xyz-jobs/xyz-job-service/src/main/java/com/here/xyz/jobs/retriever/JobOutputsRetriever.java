@@ -27,9 +27,11 @@ import com.here.xyz.util.pagination.PagedDataRetriever;
 
 import java.util.List;
 import java.util.stream.Collectors;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class JobOutputsRetriever implements PagedDataRetriever<Output, JobOutputsRetriever.OutputsParams> {
-
+  private static final Logger logger = LogManager.getLogger();
   private final Job job;
 
   public JobOutputsRetriever(Job job) {
@@ -46,7 +48,7 @@ public class JobOutputsRetriever implements PagedDataRetriever<Output, JobOutput
 
   @Override
   public Page<Output> getPage(OutputsParams params, int limit, String nextPageToken) {
-
+    logger.info("Loading outputs for job {} with group {} and name {} by token [{}] with limit [{}]", job.getId(), params.outputSetGroup, params.setName, nextPageToken, limit);
     Step<?> step = job.getSteps().getStepOrNull(params.outputSetGroup, params.setName);
 
     if (step == null) {

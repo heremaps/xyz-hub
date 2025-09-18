@@ -267,6 +267,8 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
 
     Page<S3ObjectSummary> page = S3Client.getInstance().scanFolder(toS3Path(outputSet), nextPageToken, limit);
 
+    logger.info("[{}] Loading step outputs page with token [{}] and limit [{}]", getGlobalStepId(), nextPageToken, limit);
+
     List<Output> outputs = page.getItems().stream()
         .filter(s3ObjectSummary -> !s3ObjectSummary.isEmpty())
         .map(s3ObjectSummary -> outputSet.modelBased
