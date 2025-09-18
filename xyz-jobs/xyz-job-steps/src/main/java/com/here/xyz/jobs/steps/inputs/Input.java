@@ -249,37 +249,57 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
     return metadata == null ? null : metadata.get(setName);
   }
 
-  private static <T extends Input> Page<T> loadInputsAndWriteMetadata(String jobId, String setName, String outputSetGroup, int limit, String nextPageToken, Class<T> inputType) {
+  private static <T extends Input> Page<T> loadInputsAndWriteMetadata(String jobId, String setName, String outputSetGroup, int limit,
+      String nextPageToken, Class<T> inputType) {
     try {
       InputsMetadata metadata = loadMetadata(jobId, setName, outputSetGroup);
-      Stream<T> inputs = metadata.inputs.entrySet().stream()
-          .filter(input -> input.getValue().byteSize > 0)
+
+      List<Map.Entry<String, InputMetadata>> entries = metadata.inputs.entrySet().stream()
+          .filter(e -> e.getValue().byteSize > 0)
+          .sorted(Map.Entry.comparingByKey())
+          .toList();
+
+      int total = entries.size();
+      long offsetLong = 0L;
+      if (nextPageToken != null && !nextPageToken.isEmpty()) {
+        try {
+          offsetLong = Long.parseLong(nextPageToken);
+        } catch (NumberFormatException ignore) {}
+      }
+      int offset = (int) Math.max(0L, Math.min(offsetLong, total));
+
+      int toExclusive;
+      if (limit > 0) {
+        toExclusive = Math.min(offset + limit, total);
+      } else {
+        toExclusive = total;
+      }
+
+      List<T> pageItems = entries.subList(offset, toExclusive).stream()
           .map(metaEntry -> {
             final String metaKey = metaEntry.getKey();
             String s3Bucket = getBucketFromS3Uri(metaKey);
             String s3Key;
-            if (s3Bucket != null)
+            if (s3Bucket != null) {
               s3Key = getKeyFromS3Uri(metaKey);
-            else
+            } else {
               s3Key = metaKey;
-            return (T) createInput(s3Bucket, s3Key, metaEntry.getValue().byteSize, metaEntry.getValue().compressed);
-          });
+            }
+            InputMetadata im = metaEntry.getValue();
+            return (T) createInput(s3Bucket, s3Key, im.byteSize, im.compressed);
+          })
+          .collect(Collectors.toList());
 
-      // Apply pagination if nextPageToken is provided
-      if (nextPageToken != null) {
-        // Skip elements until we reach the token position
-        long skipCount = Long.parseLong(nextPageToken);
-        inputs = inputs.skip(skipCount);
-      }
-
-      return new Page<T>((limit > 0 ? inputs.unordered().limit(limit) : inputs).toList());
+      String newNextToken = (toExclusive < total) ? String.valueOf(toExclusive) : null;
+      return new Page<T>(pageItems, newNextToken);
+    } catch (IOException | S3Exception ignore) {
     }
-    catch (IOException | S3Exception ignore) {}
 
     final Page<T> inputs = loadInputsInParallel(defaultBucket(), inputS3Prefix(jobId, setName), limit, nextPageToken, inputType);
     //Only write metadata of jobs which are submitted already
-    if (inputs != null && inputs.size() > 0 && inputsCacheActive.contains(jobId) && nextPageToken == null)
+    if (inputs != null && inputs.size() > 0 && inputsCacheActive.contains(jobId) && nextPageToken == null) {
       storeMetadata(jobId, (List<Input>) inputs.getItems(), setName);
+    }
 
     return inputs;
   }
