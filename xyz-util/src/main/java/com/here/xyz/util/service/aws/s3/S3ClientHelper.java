@@ -97,8 +97,8 @@ public class S3ClientHelper {
             .bucket(bucketName)
             .prefix(folderPath);
 
-        if (nextPageToken != null) {
-            requestBuilder.startAfter(nextPageToken);
+        if (nextPageToken != null && !nextPageToken.isEmpty()) {
+            requestBuilder.continuationToken(nextPageToken);
         }
         if (limit > 0) {
             requestBuilder.maxKeys(limit);
@@ -108,7 +108,7 @@ public class S3ClientHelper {
         List<S3Object> responseItems = response.contents();
 
         Page<S3ObjectSummary> summaries = new Page<>();
-        summaries.setNextPageToken(response.nextContinuationToken());
+        summaries.setNextPageToken(response.isTruncated() ? response.nextContinuationToken() : null);
         summaries.setItems(
             responseItems.stream()
                 .map((it) -> S3ObjectSummary.fromS3Object(it, bucketName))
