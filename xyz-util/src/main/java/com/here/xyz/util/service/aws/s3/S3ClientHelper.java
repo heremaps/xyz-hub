@@ -69,9 +69,9 @@ public class S3ClientHelper {
     public static List<S3ObjectSummary> scanFolder(S3Client client, String bucketName, String folderPath) {
         List<S3Object> summaries = new ArrayList<>();
         ListObjectsV2Request listObjectsV2Request = ListObjectsV2Request.builder()
-            .bucket(bucketName)
-            .prefix(folderPath)
-            .build();
+              .bucket(bucketName)
+              .prefix(folderPath)
+              .build();
 
         ListObjectsV2Response listResponse;
 
@@ -80,8 +80,8 @@ public class S3ClientHelper {
             summaries.addAll(listResponse.contents());
 
             listObjectsV2Request = listObjectsV2Request.toBuilder()
-                .continuationToken(listResponse.nextContinuationToken())
-                .build();
+                  .continuationToken(listResponse.nextContinuationToken())
+                  .build();
 
         } while (listResponse.isTruncated());
 

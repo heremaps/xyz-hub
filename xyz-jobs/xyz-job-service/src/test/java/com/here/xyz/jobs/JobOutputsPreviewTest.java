@@ -5,25 +5,28 @@ import com.here.xyz.jobs.steps.execution.fusion.OutputSetsTestStep;
 import com.here.xyz.jobs.steps.outputs.GroupSummary;
 import com.here.xyz.jobs.steps.outputs.GroupedPayloadsPreview;
 import com.here.xyz.jobs.steps.outputs.SetSummary;
+import com.here.xyz.util.service.Core;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import org.junit.AfterClass;
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 public class JobOutputsPreviewTest {
 
-  @org.junit.BeforeClass
+  @BeforeClass
   public static void initVertx() {
-    com.here.xyz.util.service.Core.vertx = Vertx.vertx();
+    Core.vertx = Vertx.vertx();
   }
 
-  @org.junit.AfterClass
+  @AfterClass
   public static void closeVertx() {
-    if (com.here.xyz.util.service.Core.vertx != null) {
-      com.here.xyz.util.service.Core.vertx.close();
-      com.here.xyz.util.service.Core.vertx = null;
+    if (Core.vertx != null) {
+      Core.vertx.close();
+      Core.vertx = null;
     }
   }
 

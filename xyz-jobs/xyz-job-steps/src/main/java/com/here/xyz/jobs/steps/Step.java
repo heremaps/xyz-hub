@@ -703,7 +703,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
    */
   public record InputSet(String jobId, String providerId, String name, boolean modelBased, Map<String, String> metadata) {
     public static final String DEFAULT_SET_NAME = "inputs"; //Depicts the input set used if no set name is defined
-    public static final String DEFAULT_SET_GROUP = "default"; //Depicts the input set used if no set name is defined
+    public static final String DEFAULT_SET_GROUP = "default"; //Depicts the output set group used if no set name is defined
     public static final String USER_PROVIDER = "USER";
     public static final Supplier<InputSet> USER_INPUTS = () -> new InputSet();
 
