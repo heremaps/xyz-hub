@@ -105,11 +105,11 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
     });
 
     long totalBytes = responseGroups.values().stream().mapToLong(GroupSummary::getByteSize).sum();
-    long totalGroups = responseGroups.values().stream().mapToLong(it -> it.getItems().size()).sum();
+    long totalItems = responseGroups.values().stream().mapToLong(GroupSummary::getItemCount).sum();
     return new GroupedPayloadsPreview()
         .withItems(responseGroups)
         .withByteSize(totalBytes)
-        .withItemCount(totalGroups);
+        .withItemCount(totalItems);
   }
 
   public static GroupSummary previewInputGroups(String jobId, String outputSetGroup) {
@@ -147,7 +147,7 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
 
   private static GroupSummary groupSummaryOf(Map<String, SetSummary> sets) {
     long byteSize = sets.values().stream().mapToLong(SetSummary::getByteSize).sum();
-    int itemCount = sets.size();
+    long itemCount = sets.values().stream().mapToLong(SetSummary::getItemCount).sum();
     return new GroupSummary()
         .withItems(sets)
         .withByteSize(byteSize)
