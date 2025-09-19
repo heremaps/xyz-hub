@@ -620,30 +620,30 @@ public class Job implements XyzSerializable {
     return ASYNC.run(() -> {
       final Map<String, GroupSummary> groups = new HashMap<>();
 
-      getSteps().stepStream().forEach(step -> {
+      final List<Step> stepsList = getSteps().stepStream().collect(Collectors.toList());
+
+      for (Step step : stepsList) {
         String group = step.getOutputSetGroup();
-        List<OutputSet> outputSets = step.getOutputSets();
+        GroupSummary groupSummary = groups.computeIfAbsent(group, g -> new GroupSummary().withItems(new HashMap<>()).withItemCount(0));
+        for (Object osObj : step.getOutputSets()) {
+          Step.OutputSet os = (Step.OutputSet) osObj;
+          groupSummary.getItems().computeIfAbsent(os.name, s -> new SetSummary().withItemCount(0).withByteSize(0));
+        }
+      }
 
-        outputSets.forEach(os -> {
-          final String setName = os.name;
-
-          long itemCount = getSteps().getStepOutputs(group, setName, Visibility.USER).size();
-
-          GroupSummary groupSummary = groups.computeIfAbsent(
-              group,
-              g -> new GroupSummary()
-                  .withItems(new HashMap<>())
-                  .withItemCount(itemCount)
-          );
-
-          SetSummary setSummary = groupSummary.getItems()
-              .computeIfAbsent(setName, s -> new SetSummary().withItemCount(0).withByteSize(0));
-
-          setSummary.setItemCount(setSummary.getItemCount() + itemCount);
-
+      for (Map.Entry<String, GroupSummary> entry : groups.entrySet()) {
+        String group = entry.getKey();
+        GroupSummary groupSummary = entry.getValue();
+        for (Map.Entry<String, SetSummary> setEntry : groupSummary.getItems().entrySet()) {
+          String setName = setEntry.getKey();
+          long itemCount = stepsList.stream()
+              .filter(step -> group.equals(step.getOutputSetGroup()) && step.getOutputSetOrNull(setName) != null)
+              .mapToLong(step -> step.loadOutputsPage(Visibility.USER, setName, Integer.MAX_VALUE, null).getItems().size())
+              .sum();
+          setEntry.getValue().setItemCount(itemCount);
           groupSummary.setItemCount(groupSummary.getItemCount() + itemCount);
-        });
-      });
+        }
+      }
 
       long totalItems = groups.values().stream().mapToLong(GroupSummary::getItemCount).sum();
       long totalBytes = groups.values().stream().mapToLong(GroupSummary::getByteSize).sum();
@@ -660,21 +660,25 @@ public class Job implements XyzSerializable {
     return ASYNC.run(() -> {
       final Map<String, SetSummary> sets = new HashMap<>();
 
-      getSteps().stepStream().filter(step -> step.getOutputSetGroup().equals(outputSetGroup)).forEach(step -> {
-        String group = step.getOutputSetGroup();
-        List<OutputSet> outputSets = step.getOutputSets();
+      final java.util.List<Step> stepsList = getSteps().stepStream().collect(java.util.stream.Collectors.toList());
 
-        outputSets.forEach(os -> {
-          final String setName = os.name;
+      for (Step step : stepsList) {
+        if (outputSetGroup.equals(step.getOutputSetGroup())) {
+          List<Step.OutputSet> outputSets = step.getOutputSets();
+          for (Step.OutputSet os : outputSets) {
+            sets.computeIfAbsent(os.name, s -> new SetSummary().withItemCount(0).withByteSize(0));
+          }
+        }
+      }
 
-          long itemCount = getSteps().getStepOutputs(group, setName, Visibility.USER).size();
-
-          SetSummary setSummary = sets
-              .computeIfAbsent(setName, s -> new SetSummary().withItemCount(0).withByteSize(0));
-
-          setSummary.setItemCount(setSummary.getItemCount() + itemCount);
-        });
-      });
+      for (java.util.Map.Entry<String, SetSummary> entry : sets.entrySet()) {
+        String setName = entry.getKey();
+        long itemCount = stepsList.stream()
+            .filter(step -> outputSetGroup.equals(step.getOutputSetGroup()) && step.getOutputSetOrNull(setName) != null)
+            .mapToLong(step -> step.loadOutputsPage(Visibility.USER, setName, Integer.MAX_VALUE, null).getItems().size())
+            .sum();
+        entry.getValue().setItemCount(itemCount);
+      }
 
       long totalItems = sets.values().stream().mapToLong(SetSummary::getItemCount).sum();
       long totalBytes = sets.values().stream().mapToLong(SetSummary::getByteSize).sum();
