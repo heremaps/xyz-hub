@@ -127,7 +127,15 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
 
   private static void ensureInputsLoaded(String jobId) {
     if (!inputsCacheActive.contains(jobId) || !metadataCache.containsKey(jobId)) {
-      loadInputs(jobId, DEFAULT_SET_NAME);
+      try {
+        for (String setName : loadAllInputSetNames(jobId)) {
+          InputsMetadata metadata = loadMetadata(jobId, setName, DEFAULT_SET_GROUP);
+          putToMetadataCache(jobId, setName, DEFAULT_SET_GROUP, metadata);
+        }
+      }
+      catch (Exception ignore) {
+        loadInputs(jobId, DEFAULT_SET_NAME);
+      }
     }
   }
 
@@ -211,7 +219,7 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
     Map<String, Map<String, List<Input>>> cachedInputs = inputsCache.get(jobId);
     if (cachedInputs == null)
       cachedInputs = new ConcurrentHashMap<>();
-    cachedInputs.computeIfAbsent(setName, k -> new HashMap<>()).put(outputSetGroup, inputs);
+    cachedInputs.computeIfAbsent(outputSetGroup, k -> new HashMap<>()).put(setName, inputs);
     inputsCache.put(jobId, cachedInputs);
   }
 
