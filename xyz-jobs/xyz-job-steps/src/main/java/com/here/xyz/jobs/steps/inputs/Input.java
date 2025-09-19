@@ -127,15 +127,7 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
 
   private static void ensureInputsLoaded(String jobId) {
     if (!inputsCacheActive.contains(jobId) || !metadataCache.containsKey(jobId)) {
-      try {
-        for (String setName : loadAllInputSetNames(jobId)) {
-          InputsMetadata metadata = loadMetadata(jobId, setName, DEFAULT_SET_GROUP);
-          putToMetadataCache(jobId, setName, DEFAULT_SET_GROUP, metadata);
-        }
-      }
-      catch (Exception ignore) {
-        loadInputs(jobId, DEFAULT_SET_NAME);
-      }
+      loadInputs(jobId, DEFAULT_SET_NAME);
     }
   }
 
@@ -352,8 +344,9 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
     metadata = XyzSerializable.deserialize(S3Client.getInstance().loadObjectContent(inputMetaS3Key(jobId, setName)),
         InputsMetadata.class);
     logger.info("Loaded metadata for job {}. Took {}ms ...", jobId, Core.currentTimeMillis() - t1);
-    if (inputsCacheActive.contains(jobId))
-      putToMetadataCache(jobId, setName, outputSetGroup, metadata);
+    // The in-memory metadata cache should be populated even when the inputs cache is not activated.
+    // This allows preview endpoints to work based on S3-stored metadata.
+    putToMetadataCache(jobId, setName, outputSetGroup, metadata);
 
     return metadata;
   }
