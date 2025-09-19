@@ -31,11 +31,8 @@ import java.util.List;
 /**
  * A simplified synchronous version of the {@link LambdaBasedStep}.
  */
-@JsonSubTypes({
-    @JsonSubTypes.Type(value = CompressFiles.class),
-    @JsonSubTypes.Type(value = S3MetricsCollectorStep.class)
-})
-public abstract class SyncLambdaStep<T extends SyncLambdaStep> extends LambdaBasedStep<T> {
+
+public abstract class SyncExecutionStep<T extends SyncExecutionStep> extends LambdaBasedStep<T> {
 
   @Override
   public AsyncExecutionState getExecutionState() throws UnknownStateException {

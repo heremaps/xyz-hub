@@ -22,7 +22,7 @@ package com.here.xyz.jobs.steps.impl;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.steps.Step;
-import com.here.xyz.jobs.steps.execution.SyncLambdaStep;
+import com.here.xyz.jobs.steps.execution.SyncExecutionStep;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.inputs.InputFromOutput;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
@@ -33,7 +33,7 @@ import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-public class S3MetricsCollectorStep extends SyncLambdaStep<S3MetricsCollectorStep> {
+public class S3MetricsCollectorStep extends SyncExecutionStep<S3MetricsCollectorStep> {
     public static final String S3_METRICS = "metrics";
     private static final Logger logger = LogManager.getLogger();
 

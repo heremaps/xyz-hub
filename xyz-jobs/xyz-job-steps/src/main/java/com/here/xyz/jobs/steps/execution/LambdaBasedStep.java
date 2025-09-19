@@ -48,6 +48,8 @@ import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.ProcessUpdate;
 import com.here.xyz.jobs.steps.execution.db.DatabaseBasedStep;
+import com.here.xyz.jobs.steps.impl.S3MetricsCollectorStep;
+import com.here.xyz.jobs.steps.impl.transport.CompressFiles;
 import com.here.xyz.jobs.steps.impl.transport.TaskedSpaceBasedStep;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.util.StepWebClient;
@@ -84,7 +86,9 @@ import software.amazon.awssdk.services.sfn.model.TaskTimedOutException;
 @JsonSubTypes({
     @JsonSubTypes.Type(value = DatabaseBasedStep.class),
     @JsonSubTypes.Type(value = RunEmrJob.class),
-    @JsonSubTypes.Type(value = SyncLambdaStep.class)
+    @JsonSubTypes.Type(value = CompressFiles.class),
+    @JsonSubTypes.Type(value = S3MetricsCollectorStep.class),
+    @JsonSubTypes.Type(value = EcsTaskStep.class)
 })
 public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T> {
   private static final String TASK_TOKEN_TEMPLATE = "$$.Task.Token";
@@ -674,7 +678,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     }
   }
 
-  public static class LambdaStepRequest implements XyzSerializable {
+  public static class  LambdaStepRequest implements XyzSerializable {
     private RequestType type;
     private LambdaBasedStep step;
     private ProcessUpdate processUpdate;

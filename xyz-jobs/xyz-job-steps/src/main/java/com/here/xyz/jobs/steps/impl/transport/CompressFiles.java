@@ -20,7 +20,7 @@
 package com.here.xyz.jobs.steps.impl.transport;
 
 import com.fasterxml.jackson.annotation.JsonView;
-import com.here.xyz.jobs.steps.execution.SyncLambdaStep;
+import com.here.xyz.jobs.steps.execution.SyncExecutionStep;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
@@ -44,7 +44,7 @@ import java.util.zip.ZipOutputStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-public class CompressFiles extends SyncLambdaStep<CompressFiles> {
+public class CompressFiles extends SyncExecutionStep<CompressFiles> {
 
   public static final String COMPRESSED_DATA = "compressed-data";
   private static final int DEFAULT_BUFFER_SIZE = 8192;

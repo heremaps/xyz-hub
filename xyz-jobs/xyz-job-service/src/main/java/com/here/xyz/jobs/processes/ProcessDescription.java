@@ -23,7 +23,8 @@ import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.here.xyz.Typed;
 
 @JsonSubTypes({
-        @JsonSubTypes.Type(value = Maintain.class)
+        @JsonSubTypes.Type(value = Maintain.class),
+        @JsonSubTypes.Type(value = Ecsosphere.class)
 })
 public abstract class ProcessDescription implements Typed {
 
