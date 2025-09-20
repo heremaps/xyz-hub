@@ -106,7 +106,7 @@ public class ExportStepTest extends ExportTestBase {
         ExportSpaceToFiles step = XyzSerializable.deserialize("""
                 {
                     "type": "ExportSpaceToFiles",
-                    "spaceId": %s,
+                    "spaceId": "%s",
                     "spatialFilter": {
                         "geometry": {
                             "type": "Polygon",
