@@ -106,7 +106,7 @@ public class ExportStepTest extends ExportTestBase {
         ExportSpaceToFiles step = XyzSerializable.deserialize("""
                 {
                     "type": "ExportSpaceToFiles",
-                    "spaceId": "testSpaceId",
+                    "spaceId": %s,
                     "spatialFilter": {
                         "geometry": {
                             "type": "Polygon",
@@ -138,7 +138,7 @@ public class ExportStepTest extends ExportTestBase {
                         "clipped": true
                     }
                 }
-                """, ExportSpaceToFiles.class);
+                """.formatted(SPACE_ID), ExportSpaceToFiles.class);
 
         Assertions.assertTrue(GeometryValidator.isWorldBoundingBox(step.getSpatialFilter().getGeometry()));
     }

@@ -4,11 +4,10 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 
 import com.here.xyz.XyzSerializable;
-import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
-public class Page<T> implements Serializable, XyzSerializable {
+public class Page<T> implements XyzSerializable {
 
   @JsonInclude(Include.NON_NULL)
   private List<T> items;

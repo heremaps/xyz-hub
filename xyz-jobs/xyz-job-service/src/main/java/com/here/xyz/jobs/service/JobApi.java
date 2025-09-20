@@ -59,7 +59,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public class JobApi extends JobApiBase {
-  static final Integer DEFAULT_PAGE_SIZE = 1000; // Depicts the default page size
+  static final Integer DEFAULT_PAGE_SIZE = 100; // Depicts the default page size
   protected static final Logger logger = LogManager.getLogger();
 
   protected JobApi() {}
