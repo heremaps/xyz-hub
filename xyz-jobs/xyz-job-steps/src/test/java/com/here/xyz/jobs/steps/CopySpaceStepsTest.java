@@ -30,6 +30,7 @@ import static org.junit.Assert.assertTrue;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.jobs.datasets.filters.SpatialFilter;
+import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
 import com.here.xyz.jobs.steps.impl.StepTest;
 import com.here.xyz.jobs.steps.impl.transport.CopySpace;
 import com.here.xyz.jobs.steps.impl.transport.CopySpacePost;
