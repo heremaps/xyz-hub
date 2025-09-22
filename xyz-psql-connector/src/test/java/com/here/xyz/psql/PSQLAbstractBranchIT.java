@@ -55,6 +55,7 @@ public abstract class PSQLAbstractBranchIT extends PSQLAbstractIT {
             .withNodeId(nodeId)
             .withBranchPath(branchPath)
             .withResponseDataExpected(true)
+        .withVersionsToKeep(1000)
             .withModifications(Set.of(new WriteFeaturesEvent.Modification()
                     .withUpdateStrategy(UpdateStrategy.DEFAULT_UPDATE_STRATEGY)
                     .withFeatureData(new FeatureCollection().withFeatures(List.of(newTestFeature(featureId))))))

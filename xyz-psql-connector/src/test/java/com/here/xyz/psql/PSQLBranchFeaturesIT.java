@@ -135,10 +135,9 @@ public class PSQLBranchFeaturesIT extends PSQLAbstractBranchIT {
             : nodeId == 1 ? Set.of(MAIN_1, B1_1, B1_2) : Set.of(MAIN_1, B1_1, B2_1, B2_2);
 
     Set<String> notExpectedFeatureIds = nodeId == 0 ? Set.of(B1_1, B1_2, B2_1, B2_2)
-            : nodeId == 1 ? Set.of(MAIN_2, B2_1, B2_2) : Set.of(MAIN_2, B2_2);
+            : nodeId == 1 ? Set.of(MAIN_2, B2_1, B2_2) : Set.of(MAIN_2, B1_2);
 
-    assertEquals(expectedFeatureIds.size(), fc.getFeatures().size());
-    assertTrue(expectedFeatureIds.containsAll(actualFeatureIds));
+    assertEquals(expectedFeatureIds, actualFeatureIds);
     assertTrue(notExpectedFeatureIds.stream().noneMatch(actualFeatureIds::contains));
   }
 
