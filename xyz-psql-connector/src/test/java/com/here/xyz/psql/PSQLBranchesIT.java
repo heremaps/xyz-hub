@@ -20,6 +20,7 @@
 package com.here.xyz.psql;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import com.here.xyz.events.ModifyBranchEvent;
@@ -58,6 +59,16 @@ public class PSQLBranchesIT extends PSQLAbstractBranchIT {
     ModifiedBranchResponse res3 = deserializeResponse(invokeLambda(mbe));
     assertEquals(3, res3.getNodeId());
     assertTrue(checkIfBranchTableExists(3, 0, 0));
+  }
+
+  @Test
+  public void deleteBranch() throws Exception {
+    ModifiedBranchResponse createRes = deserializeResponse(invokeLambda(eventForCreate(getBaseRef(0))));
+    assertEquals(1, createRes.getNodeId());
+    assertTrue(checkIfBranchTableExists(1, 0, 0));
+
+    invokeLambda(eventForDelete(1, getBaseRef(0)));
+    assertFalse(checkIfBranchTableExists(1, 0, 0));
   }
 
   @Test

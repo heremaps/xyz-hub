@@ -20,6 +20,7 @@
 package com.here.xyz.psql;
 
 import static com.here.xyz.events.ModifyBranchEvent.Operation.CREATE;
+import static com.here.xyz.events.ModifyBranchEvent.Operation.DELETE;
 import static com.here.xyz.events.ModifyBranchEvent.Operation.MERGE;
 import static com.here.xyz.events.ModifyBranchEvent.Operation.REBASE;
 
@@ -64,6 +65,14 @@ public abstract class PSQLAbstractBranchIT extends PSQLAbstractIT {
     return new ModifyBranchEvent()
             .withOperation(CREATE)
             .withSpace(TEST_SPACE_ID)
+            .withBaseRef(baseRef);
+  }
+
+  protected ModifyBranchEvent eventForDelete(int nodeId, Ref baseRef) {
+    return new ModifyBranchEvent()
+            .withOperation(DELETE)
+            .withSpace(TEST_SPACE_ID)
+            .withNodeId(nodeId)
             .withBaseRef(baseRef);
   }
 

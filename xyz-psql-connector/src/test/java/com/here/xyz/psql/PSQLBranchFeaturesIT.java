@@ -28,6 +28,7 @@ import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.GetFeaturesByTileEvent;
+import com.here.xyz.events.IterateChangesetsEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.ModifyBranchEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
@@ -41,13 +42,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
+import org.junitpioneer.jupiter.cartesian.CartesianTest;
+import org.junitpioneer.jupiter.cartesian.CartesianTest.Enum;
+import org.junitpioneer.jupiter.cartesian.CartesianTest.Values;
 
 public class PSQLBranchFeaturesIT extends PSQLAbstractBranchIT {
 
@@ -63,7 +64,7 @@ public class PSQLBranchFeaturesIT extends PSQLAbstractBranchIT {
   private Ref branch2_baseRef;
 
   private enum ReadEventType {
-    ID, SEARCH, ITERATE, BBOX, TILE, GEOMETRY
+    ID, SEARCH, ITERATE, BBOX, TILE, GEOMETRY, CHANGESET
   }
 
   @BeforeEach
@@ -124,9 +125,9 @@ public class PSQLBranchFeaturesIT extends PSQLAbstractBranchIT {
     assertEquals(Set.of(B2_1, B2_2), extractFeatureIds(getAllRowFromTable(branch2Table)));
   }
 
-  @ParameterizedTest()
-  @MethodSource("withEventTypeAndNodeId")
-  public void readFeaturesFromBranch(ReadEventType eventType, int nodeId) throws Exception {
+  @CartesianTest
+  public void readFeaturesFromBranch(@Enum(names = {"ID", "SEARCH", "ITERATE", "BBOX", "TILE", "GEOMETRY"}) ReadEventType eventType,
+                                     @Values(ints = {0, 1, 2}) int nodeId) throws Exception {
     FeatureCollection fc = deserializeResponse(invokeLambda(getReadFeaturesEventFor(eventType, nodeId)));
     Set<String> actualFeatureIds = extractFeatureIds(fc);
 
@@ -141,30 +142,17 @@ public class PSQLBranchFeaturesIT extends PSQLAbstractBranchIT {
     assertTrue(notExpectedFeatureIds.stream().noneMatch(actualFeatureIds::contains));
   }
 
-  //TODO: Add more tests for search, tiles and spatial
-
   @Test
   public void mergeBranchToMain() throws Exception {
     //Merge b1 to main
     ModifyBranchEvent mergeB1ToMain = eventForMerge(1, branch1_baseRef, 0);
     invokeLambda(mergeB1ToMain);
-
-    FeatureCollection fc1 = deserializeResponse(invokeLambda(getReadFeaturesEventFor(ReadEventType.SEARCH, 0)));
-    Set<String> actualFeatureIds1 = extractFeatureIds(fc1);
-    Set<String> expectedFeatureIds1 = Set.of(MAIN_1, MAIN_2, B1_1, B1_2);
-
-    assertEquals(expectedFeatureIds1, actualFeatureIds1);
+    executeReadFeaturesEvent(getReadFeaturesEventFor(ReadEventType.SEARCH, 0), Set.of(MAIN_1, MAIN_2, B1_1, B1_2));
 
     //Merge b2 to main after merging b1
     ModifyBranchEvent mergeB2ToMain = eventForMerge(2, branch2_baseRef, 0);
     invokeLambda(mergeB2ToMain);
-
-    FeatureCollection fc2 = deserializeResponse(invokeLambda(getReadFeaturesEventFor(ReadEventType.SEARCH, 0)));
-    Set<String> actualFeatureIds2 = extractFeatureIds(fc2);
-    Set<String> expectedFeatureIds2 = Set.of(MAIN_1, MAIN_2, B1_1, B1_2, B2_1, B2_2);
-
-    assertEquals(expectedFeatureIds2, actualFeatureIds2);
-
+    executeReadFeaturesEvent(getReadFeaturesEventFor(ReadEventType.SEARCH, 0), Set.of(MAIN_1, MAIN_2, B1_1, B1_2, B2_1, B2_2));
   }
 
   @Test
@@ -172,23 +160,12 @@ public class PSQLBranchFeaturesIT extends PSQLAbstractBranchIT {
     //Merge b2 to main
     ModifyBranchEvent mergeB2ToMain = eventForMerge(2, branch2_baseRef, 0);
     invokeLambda(mergeB2ToMain);
-
-    FeatureCollection fc1 = deserializeResponse(invokeLambda(getReadFeaturesEventFor(ReadEventType.SEARCH, 0)));
-    Set<String> actualFeatureIds1 = extractFeatureIds(fc1);
-    Set<String> expectedFeatureIds1 = Set.of(MAIN_1, MAIN_2, B1_1, B2_1, B2_2);
-
-    assertEquals(expectedFeatureIds1, actualFeatureIds1);
+    executeReadFeaturesEvent(getReadFeaturesEventFor(ReadEventType.SEARCH, 0), Set.of(MAIN_1, MAIN_2, B1_1, B2_1, B2_2));
 
     //Merge b1 to main after merging b2
     ModifyBranchEvent mergeB1ToMain = eventForMerge(1, branch1_baseRef, 0);
     invokeLambda(mergeB1ToMain);
-
-    FeatureCollection fc2 = deserializeResponse(invokeLambda(getReadFeaturesEventFor(ReadEventType.SEARCH, 0)));
-    Set<String> actualFeatureIds2 = extractFeatureIds(fc2);
-    Set<String> expectedFeatureIds2 = Set.of(MAIN_1, MAIN_2, B1_1, B1_2, B2_1, B2_2);
-
-    assertEquals(expectedFeatureIds2, actualFeatureIds2);
-
+    executeReadFeaturesEvent(getReadFeaturesEventFor(ReadEventType.SEARCH, 0), Set.of(MAIN_1, MAIN_2, B1_1, B1_2, B2_1, B2_2));
   }
 
   @Test
@@ -196,14 +173,9 @@ public class PSQLBranchFeaturesIT extends PSQLAbstractBranchIT {
     // Rebase branch1 to main, version=2
     Ref newBaseRef = getBaseRef(0, idVersionMap.get(MAIN_2));
     ModifiedBranchResponse res = deserializeResponse(invokeLambda(eventForRebase(1, branch2_baseRef, newBaseRef)));
-
-    FeatureCollection fc = deserializeResponse(invokeLambda(
-            getReadFeaturesEventFor(ReadEventType.SEARCH, res.getNodeId(), List.of(newBaseRef))));
-    Set<String> actualFeatureIds = extractFeatureIds(fc);
-    Set<String> expectedFeatureIds = Set.of(MAIN_1, MAIN_2, B1_1, B1_2);
-
-    assertEquals(expectedFeatureIds, actualFeatureIds);
-
+    executeReadFeaturesEvent(
+            getReadFeaturesEventFor(ReadEventType.SEARCH, res.getNodeId(), List.of(newBaseRef)),
+            Set.of(MAIN_1, MAIN_2, B1_1, B1_2));
   }
 
   @Test
@@ -211,20 +183,20 @@ public class PSQLBranchFeaturesIT extends PSQLAbstractBranchIT {
     // Rebase branch2 to branch1, version=3
     Ref newBaseRef = getBaseRef(1, idVersionMap.get(B1_2));
     ModifiedBranchResponse res = deserializeResponse(invokeLambda(eventForRebase(2, branch2_baseRef, newBaseRef)));
-    System.out.println(res);
-    FeatureCollection fc = deserializeResponse(invokeLambda(
-            getReadFeaturesEventFor(ReadEventType.SEARCH, res.getNodeId(), List.of(branch1_baseRef, newBaseRef))));
-    Set<String> actualFeatureIds = extractFeatureIds(fc);
-    Set<String> expectedFeatureIds = Set.of(MAIN_1, B1_1, B1_2, B2_1, B2_2);
-
-    assertEquals(expectedFeatureIds, actualFeatureIds);
-
+    executeReadFeaturesEvent(
+            getReadFeaturesEventFor(ReadEventType.SEARCH, res.getNodeId(), List.of(branch1_baseRef, newBaseRef)),
+            Set.of(MAIN_1, B1_1, B1_2, B2_1, B2_2));
   }
 
-  private static Stream<Arguments> withEventTypeAndNodeId() {
-    return Stream.of(ReadEventType.values())
-            .flatMap(eventType -> Stream.of(0, 1, 2)
-                    .map(nodeId -> Arguments.of(eventType, nodeId)));
+  @Test
+  @Disabled
+  public void updateFeaturesOnBranch() throws Exception {
+    //Update features on branch 1
+    writeFeature(MAIN_1, 1, List.of(branch1_baseRef));
+    writeFeature(B1_2, 1, List.of(branch1_baseRef));
+    System.out.println(invokeLambda(getReadFeaturesEventFor(ReadEventType.SEARCH, 1)));
+    String res = invokeLambda(getReadFeaturesEventFor(ReadEventType.CHANGESET, 1));
+    System.out.println(res);
   }
 
   private Event getReadFeaturesEventFor(ReadEventType type, int nodeId) {
@@ -242,6 +214,7 @@ public class PSQLBranchFeaturesIT extends PSQLAbstractBranchIT {
       case BBOX -> new GetFeaturesByBBoxEvent().withBbox(new BBox(-10, -10, 10, 10));
       case TILE -> new GetFeaturesByTileEvent().withTid("0").withBbox(new BBox(-10, -10, 10, 10));
       case GEOMETRY -> new GetFeaturesByGeometryEvent();
+      case CHANGESET -> new IterateChangesetsEvent().withRef(new Ref(0, 1000));
     };
 
     return event
@@ -261,6 +234,12 @@ public class PSQLBranchFeaturesIT extends PSQLAbstractBranchIT {
 
   private Set<String> extractFeatureIds(List<FeatureRow> featureRows) {
     return featureRows.stream().map(featureRow -> featureRow.id()).collect(Collectors.toSet());
+  }
+
+  private void executeReadFeaturesEvent(Event event, Set<String> expectedFeatureIds) throws Exception {
+    FeatureCollection fc = deserializeResponse(invokeLambda(event));
+    Set<String> actualFeatureIds = extractFeatureIds(fc);
+    assertEquals(expectedFeatureIds, actualFeatureIds);
   }
 
 }

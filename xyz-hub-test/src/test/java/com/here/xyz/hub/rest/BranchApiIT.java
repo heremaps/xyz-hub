@@ -19,9 +19,10 @@
 
 package com.here.xyz.hub.rest;
 
-import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
@@ -124,9 +125,10 @@ public class BranchApiIT extends TestSpaceBranch {
   public void deleteBranchOnMain() {
     createBranch(SPACE_ID, B1_MAIN, null)
             .body("id", equalTo(B1_MAIN));
+    assertTrue(getBranchIds(SPACE_ID).contains(B1_MAIN));
 
     deleteBranch(SPACE_ID, B1_MAIN);
-    getBranch(SPACE_ID, B1_MAIN, NOT_FOUND.code());
+    assertFalse(getBranchIds(SPACE_ID).contains(B1_MAIN));
   }
 
   @Test

@@ -65,6 +65,10 @@ public class TestSpaceBranch extends TestSpaceWithFeature {
             .statusCode(OK.code());
   }
 
+  protected List<String> getBranchIds(String spaceId) {
+    return getBranches(spaceId).stream().map(Branch::getId).toList();
+  }
+
   protected List<Branch> getBranches(String spaceId) {
     return given()
             .contentType(APPLICATION_JSON)
@@ -72,24 +76,11 @@ public class TestSpaceBranch extends TestSpaceWithFeature {
             .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
             .when()
             .get(getSpaceBranchPath(spaceId, null))
-            .body().as(List.class);
-  }
-
-  protected Branch getBranch(String spaceId, String branchId) {
-    return getBranch(spaceId, branchId, OK.code())
-            .extract()
-            .body().as(Branch.class);
-  }
-
-  protected ValidatableResponse getBranch(String spaceId, String branchId, int expectedStatusCode) {
-    return given()
-            .contentType(APPLICATION_JSON)
-            .accept(APPLICATION_JSON)
-            .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-            .when()
-            .get(getSpaceBranchPath(spaceId, branchId))
             .then()
-            .statusCode(expectedStatusCode);
+            .statusCode(OK.code())
+            .extract()
+            .jsonPath()
+            .getList("", Branch.class);
   }
 
   protected void deleteBranch(String spaceId, String branchId) {
