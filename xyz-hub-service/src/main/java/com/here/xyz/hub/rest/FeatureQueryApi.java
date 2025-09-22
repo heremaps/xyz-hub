@@ -91,6 +91,7 @@ public class FeatureQueryApi extends SpaceBasedApi {
   private void getStatistics(final RoutingContext context) {
     try {
       new GetStatistics(new GetStatisticsEvent()
+                .withRef(getRef(context))
                 .withContext(getSpaceContext(context))
                 .withFastMode(Query.getBoolean(context, FAST_MODE, false)),
               context,
@@ -102,8 +103,8 @@ public class FeatureQueryApi extends SpaceBasedApi {
   }
 
   //TODO: Add caching
-  public static Future<StatisticsResponse> getStatistics(Marker marker, String spaceId, SpaceContext context, boolean fastMode,
-      boolean skipCache) {
+  public static Future<StatisticsResponse> getStatistics(Marker marker, String spaceId, SpaceContext context, Ref ref,
+      boolean fastMode, boolean skipCache) {
     try {
       Promise<XyzResponse> promise = Promise.promise();
 
@@ -111,10 +112,18 @@ public class FeatureQueryApi extends SpaceBasedApi {
           .withContext(context)
           .withFastMode(fastMode)
           .withSpace(spaceId)
+          .withRef(ref)
           .withStreamId(marker.getName());
 
       Space.resolveSpace(marker, spaceId)
-          .compose(space -> Space.resolveConnector(marker, space.getStorage().getId()))
+          .compose(space -> {
+            try {
+              FeatureTask.resolveBranchFor(statisticsEvent, space);
+            } catch (Exception e) {
+              //Ignore any errors when resolving branch ref
+            }
+            return Space.resolveConnector(marker, space.getStorage().getId());
+          })
           .compose(connector -> {
             RpcClient.getInstanceFor(connector)
                 .execute(marker, statisticsEvent, promise);

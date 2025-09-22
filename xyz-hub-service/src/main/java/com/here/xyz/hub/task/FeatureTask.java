@@ -158,7 +158,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
       callback.call(task);
   }
 
-  static void resolveBranchFor(ContextAwareEvent<?> event, Space space) throws HttpException {
+  public static void resolveBranchFor(ContextAwareEvent<?> event, Space space) throws HttpException {
     Branch referencedBranch = null;
     if (!event.getRef().isMainBranch()) {
       referencedBranch = getReferencedBranch(space, event.getRef());

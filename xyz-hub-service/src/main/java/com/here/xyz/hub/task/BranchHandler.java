@@ -169,7 +169,7 @@ public class BranchHandler {
   private static Future<Ref> resolveRef(Marker marker, String spaceId, Ref ref) {
     if (!ref.isHead()) //TODO: Also support tags
       return Future.succeededFuture(ref);
-    return FeatureQueryApi.getStatistics(marker, spaceId, EXTENSION, true, false)
+    return FeatureQueryApi.getStatistics(marker, spaceId, EXTENSION, ref, true, false)
         .map(statistics -> new Ref(ref.getBranch() + ":" + statistics.getMaxVersion().getValue()));
   }
 
