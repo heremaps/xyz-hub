@@ -36,7 +36,9 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 
 public abstract class PSQLAbstractBranchIT extends PSQLAbstractIT {
 
@@ -45,13 +47,27 @@ public abstract class PSQLAbstractBranchIT extends PSQLAbstractIT {
     initEnv(null);
   }
 
+  @BeforeEach
+  public void setup() throws Exception {
+    invokeCreateTestSpace(null, TEST_SPACE_ID());
+  }
+
+  @AfterEach
+  public void shutdown() throws Exception {
+    invokeDeleteTestSpaces(null, List.of(TEST_SPACE_ID()));
+  }
+
+  protected final String TEST_SPACE_ID() {
+    return getClass().getSimpleName();
+  }
+
   protected String writeFeature(String featureId) throws Exception {
     return writeFeature(featureId, 0, null);
   }
 
   protected String writeFeature(String featureId, int nodeId, List<Ref> branchPath) throws Exception {
     return invokeLambda(new WriteFeaturesEvent()
-            .withSpace(TEST_SPACE_ID)
+            .withSpace(TEST_SPACE_ID())
             .withNodeId(nodeId)
             .withBranchPath(branchPath)
             .withResponseDataExpected(true)
@@ -65,14 +81,14 @@ public abstract class PSQLAbstractBranchIT extends PSQLAbstractIT {
   protected ModifyBranchEvent eventForCreate(Ref baseRef) {
     return new ModifyBranchEvent()
             .withOperation(CREATE)
-            .withSpace(TEST_SPACE_ID)
+            .withSpace(TEST_SPACE_ID())
             .withBaseRef(baseRef);
   }
 
   protected ModifyBranchEvent eventForDelete(int nodeId, Ref baseRef) {
     return new ModifyBranchEvent()
             .withOperation(DELETE)
-            .withSpace(TEST_SPACE_ID)
+            .withSpace(TEST_SPACE_ID())
             .withNodeId(nodeId)
             .withBaseRef(baseRef);
   }
@@ -80,7 +96,7 @@ public abstract class PSQLAbstractBranchIT extends PSQLAbstractIT {
   protected ModifyBranchEvent eventForMerge(int nodeId, Ref baseRef, int targetNodeId) {
     return new ModifyBranchEvent()
             .withOperation(MERGE)
-            .withSpace(TEST_SPACE_ID)
+            .withSpace(TEST_SPACE_ID())
             .withNodeId(nodeId)
             .withMergeTargetNodeId(targetNodeId)
             .withBaseRef(baseRef);
@@ -89,7 +105,7 @@ public abstract class PSQLAbstractBranchIT extends PSQLAbstractIT {
   protected ModifyBranchEvent eventForRebase(int nodeId, Ref baseRef, Ref newBaseRef) {
     return new ModifyBranchEvent()
             .withOperation(REBASE)
-            .withSpace(TEST_SPACE_ID)
+            .withSpace(TEST_SPACE_ID())
             .withNodeId(nodeId)
             .withBaseRef(baseRef)
             .withNewBaseRef(newBaseRef);
@@ -104,7 +120,7 @@ public abstract class PSQLAbstractBranchIT extends PSQLAbstractIT {
   }
 
   protected boolean checkIfBranchTableExists(int branchNodeId, int baseNodeId, long baseVersion) throws Exception {
-    return checkIfTableExists(getBranchTableName(TEST_SPACE_ID, branchNodeId, baseNodeId, baseVersion));
+    return checkIfTableExists(getBranchTableName(TEST_SPACE_ID(), branchNodeId, baseNodeId, baseVersion));
   }
 
   protected boolean checkIfTableExists(String tableName) throws Exception {

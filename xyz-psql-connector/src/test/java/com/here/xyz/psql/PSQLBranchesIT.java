@@ -27,21 +27,9 @@ import com.here.xyz.events.ModifyBranchEvent;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.responses.ModifiedBranchResponse;
 import java.util.List;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 public class PSQLBranchesIT extends PSQLAbstractBranchIT {
-
-  @BeforeEach
-  public void setup() throws Exception {
-    invokeCreateTestSpace(defaultTestConnectorParams, TEST_SPACE_ID);
-  }
-
-  @AfterEach
-  public void shutdown() throws Exception {
-    invokeDeleteTestSpace();
-  }
 
   @Test
   public void createBranchOnMainHead() throws Exception {

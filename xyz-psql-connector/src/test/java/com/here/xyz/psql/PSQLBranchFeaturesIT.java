@@ -42,7 +42,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
@@ -69,14 +68,9 @@ public class PSQLBranchFeaturesIT extends PSQLAbstractBranchIT {
 
   @BeforeEach
   public void setup() throws Exception {
+    super.setup();
     idVersionMap = new HashMap<>();
-    invokeCreateTestSpace(defaultTestConnectorParams, TEST_SPACE_ID);
     setupBranch();
-  }
-
-  @AfterEach
-  public void shutdown() throws Exception {
-    invokeDeleteTestSpace();
   }
 
   public void setupBranch() throws Exception {
@@ -87,24 +81,22 @@ public class PSQLBranchFeaturesIT extends PSQLAbstractBranchIT {
     idVersionMap.put(MAIN_2, main_v2);
 
     //Create branch b1 on main, version 1
-    Ref b1_baseRef = getBaseRef(0, main_v1);
-    invokeLambda(eventForCreate(b1_baseRef)); // Returns node ID - 1
-    branch1_baseRef = b1_baseRef;
+    branch1_baseRef = getBaseRef(0, main_v1);
+    invokeLambda(eventForCreate(branch1_baseRef)); //Returns node ID: 1
 
     //Add features to branch b1
-    long b1_v2 = extractVersion(deserializeResponse(writeFeature(B1_1, 1, List.of(b1_baseRef))));
-    long b1_v3 = extractVersion(deserializeResponse(writeFeature(B1_2, 1, List.of(b1_baseRef))));
+    long b1_v2 = extractVersion(deserializeResponse(writeFeature(B1_1, 1, List.of(branch1_baseRef))));
+    long b1_v3 = extractVersion(deserializeResponse(writeFeature(B1_2, 1, List.of(branch1_baseRef))));
     idVersionMap.put(B1_1, b1_v2);
     idVersionMap.put(B1_2, b1_v3);
 
     //Create branch b2 on b1, version 2
-    Ref b2_baseRef = getBaseRef(1, b1_v2);
-    invokeLambda(eventForCreate(b2_baseRef)); // Returns node ID - 2
-    branch2_baseRef = b2_baseRef;
+    branch2_baseRef = getBaseRef(1, b1_v2);
+    invokeLambda(eventForCreate(branch2_baseRef)); //Returns node ID: 2
 
-    //Add feature to branch b2
-    long b2_v3 = extractVersion(deserializeResponse(writeFeature(B2_1, 2, List.of(b1_baseRef,b2_baseRef))));
-    long b2_v4 = extractVersion(deserializeResponse(writeFeature(B2_2, 2, List.of(b1_baseRef,b2_baseRef))));
+    //Add features to branch b2
+    long b2_v3 = extractVersion(deserializeResponse(writeFeature(B2_1, 2, List.of(branch1_baseRef, branch2_baseRef))));
+    long b2_v4 = extractVersion(deserializeResponse(writeFeature(B2_2, 2, List.of(branch1_baseRef, branch2_baseRef))));
     idVersionMap.put(B2_1, b2_v3);
     idVersionMap.put(B2_2, b2_v4);
   }
@@ -112,15 +104,15 @@ public class PSQLBranchFeaturesIT extends PSQLAbstractBranchIT {
   @Test
   public void checkBranchTableData() throws Exception {
 
-    String mainTable = TEST_SPACE_ID;
+    String mainTable = TEST_SPACE_ID();
     assertTrue(checkIfTableExists(mainTable));
     assertEquals(Set.of(MAIN_1, MAIN_2), extractFeatureIds(getAllRowFromTable(mainTable)));
 
-    String branch1Table = getBranchTableName(TEST_SPACE_ID, 1, branch1_baseRef);
+    String branch1Table = getBranchTableName(TEST_SPACE_ID(), 1, branch1_baseRef);
     assertTrue(checkIfTableExists(branch1Table));
     assertEquals(Set.of(B1_1, B1_2), extractFeatureIds(getAllRowFromTable(branch1Table)));
 
-    String branch2Table = getBranchTableName(TEST_SPACE_ID, 2, branch2_baseRef);
+    String branch2Table = getBranchTableName(TEST_SPACE_ID(), 2, branch2_baseRef);
     assertTrue(checkIfTableExists(branch2Table));
     assertEquals(Set.of(B2_1, B2_2), extractFeatureIds(getAllRowFromTable(branch2Table)));
   }
@@ -220,7 +212,7 @@ public class PSQLBranchFeaturesIT extends PSQLAbstractBranchIT {
             .withNodeId(nodeId)
             .withBranchPath(branchPath)
             .withVersionsToKeep(1000)
-            .withSpace(TEST_SPACE_ID);
+            .withSpace(TEST_SPACE_ID());
   }
 
   private Set<String> extractFeatureIds(FeatureCollection featureCollection) throws JsonProcessingException {
