@@ -19,7 +19,6 @@
 
 package com.here.xyz.hub.rest;
 
-import static com.here.xyz.util.Random.randomAlpha;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.restassured.RestAssured.given;
@@ -27,12 +26,9 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -45,7 +41,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
-@Disabled
 public class BranchFeatureApiIT extends TestSpaceBranch {
 
   @BeforeEach
@@ -81,6 +76,7 @@ public class BranchFeatureApiIT extends TestSpaceBranch {
 
   }
 
+  @Disabled
   @Test
   public void writeFeaturesToBranchOfBranch() throws Exception {
     //Create branch1
@@ -110,6 +106,7 @@ public class BranchFeatureApiIT extends TestSpaceBranch {
 
   }
 
+  @Disabled
   @Test
   public void operateOnBranchAfterDeletingIntermediateBranch() throws Exception {
     // Create and add features to branch1
