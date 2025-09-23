@@ -19,6 +19,7 @@
 
 package com.here.xyz.hub.rest;
 
+import static com.here.xyz.models.hub.Ref.HEAD;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 
@@ -28,6 +29,7 @@ import com.here.xyz.Typed;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.hub.task.BranchHandler;
 import com.here.xyz.models.hub.Branch;
+import com.here.xyz.models.hub.Ref;
 import com.here.xyz.util.service.HttpException;
 import io.vertx.core.Future;
 import io.vertx.ext.web.RoutingContext;
@@ -92,10 +94,13 @@ public class BranchApi extends SpaceBasedApi {
       throw new HttpException(BAD_REQUEST, "Unable to parse an empty body.");
 
     try {
-      return XyzSerializable.deserialize(body, Branch.class);
+      Branch branch = XyzSerializable.deserialize(body, Branch.class);
+      if (branch.getBaseRef() == null)
+        branch.setBaseRef(new Ref(HEAD));
+      return branch;
     }
     catch (JsonProcessingException e) {
-      throw new HttpException(BAD_REQUEST, "Unable to parse the body.");
+      throw new HttpException(BAD_REQUEST, "Unable to parse the body.", e);
     }
   }
 

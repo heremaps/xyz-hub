@@ -19,6 +19,7 @@
 
 package com.here.xyz.models.hub;
 
+import static com.here.xyz.models.hub.Ref.HEAD;
 import static com.here.xyz.models.hub.Ref.MAIN;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -38,7 +39,7 @@ public class Branch implements XyzSerializable {
   @JsonView({Internal.class, Static.class})
   private String spaceId;
   @JsonView({Public.class, Static.class})
-  private Ref baseRef;
+  private Ref baseRef = new Ref(HEAD);
   @JsonView({Public.class, Static.class})
   private String description;
   @JsonView({Static.class})

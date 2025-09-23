@@ -198,7 +198,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     }
   }
 
-  protected static Branch getReferencedBranch(Space space, Ref ref) throws HttpException {
+  public static Branch getReferencedBranch(Space space, Ref ref) throws HttpException {
     Map<String, Branch> branches = space.getBranches();
     if (!branches.containsKey(ref.getBranch()))
       throw new HttpException(NOT_FOUND, "Branch \"" + ref.getBranch() + "\" was not found on resource \"" + space.getId() + "\".");
