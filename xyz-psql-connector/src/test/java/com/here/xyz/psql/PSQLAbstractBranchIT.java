@@ -66,15 +66,24 @@ public abstract class PSQLAbstractBranchIT extends PSQLAbstractIT {
   }
 
   protected String writeFeature(String featureId, int nodeId, List<Ref> branchPath) throws Exception {
+    return writeFeature(featureId, nodeId, branchPath, false);
+  }
+
+  protected String writeFeature(String featureId, int nodeId, List<Ref> branchPath, boolean addRandomProperties) throws Exception {
+    return writeFeature(featureId, nodeId, branchPath, addRandomProperties, UpdateStrategy.DEFAULT_UPDATE_STRATEGY);
+  }
+
+  protected String writeFeature(String featureId, int nodeId, List<Ref> branchPath, boolean addRandomProperties,
+                                UpdateStrategy updateStrategy) throws Exception {
     return invokeLambda(new WriteFeaturesEvent()
             .withSpace(TEST_SPACE_ID())
             .withNodeId(nodeId)
             .withBranchPath(branchPath)
             .withResponseDataExpected(true)
-        .withVersionsToKeep(1000)
+            .withVersionsToKeep(1000)
             .withModifications(Set.of(new WriteFeaturesEvent.Modification()
-                    .withUpdateStrategy(UpdateStrategy.DEFAULT_UPDATE_STRATEGY)
-                    .withFeatureData(new FeatureCollection().withFeatures(List.of(newTestFeature(featureId))))))
+                    .withUpdateStrategy(updateStrategy)
+                    .withFeatureData(new FeatureCollection().withFeatures(List.of(newTestFeature(featureId, addRandomProperties))))))
     );
   }
 

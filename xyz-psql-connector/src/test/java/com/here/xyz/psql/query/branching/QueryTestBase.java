@@ -31,6 +31,7 @@ import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Point;
+import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.psql.query.GetFeaturesById;
 import com.here.xyz.util.Random;
@@ -168,8 +169,13 @@ public abstract class QueryTestBase {
   }
 
   protected static Feature newTestFeature(String id) {
+    return newTestFeature(id, false);
+  }
+
+  protected static Feature newTestFeature(String id, boolean addRandomProperties) {
     return new Feature()
-        .withId(id)
-        .withGeometry(new Point().withCoordinates(new PointCoordinates(0, 0)));
+            .withId(id)
+            .withProperties(addRandomProperties ? new Properties().with("name", id + Random.randomAlpha(5)) : null)
+            .withGeometry(new Point().withCoordinates(new PointCoordinates(0, 0)));
   }
 }

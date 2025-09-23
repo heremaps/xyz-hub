@@ -19,6 +19,7 @@
 
 package com.here.xyz.psql;
 
+import static com.here.xyz.events.UpdateStrategy.DEFAULT_DELETE_STRATEGY;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -36,6 +37,7 @@ import com.here.xyz.events.SelectiveEvent;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.hub.Ref;
+import com.here.xyz.responses.changesets.ChangesetCollection;
 import com.here.xyz.responses.ModifiedBranchResponse;
 import java.util.HashMap;
 import java.util.List;
@@ -43,7 +45,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junitpioneer.jupiter.cartesian.CartesianTest;
 import org.junitpioneer.jupiter.cartesian.CartesianTest.Enum;
@@ -180,14 +181,47 @@ public class PSQLBranchFeaturesIT extends PSQLAbstractBranchIT {
   }
 
   @Test
-  @Disabled
   public void updateFeaturesOnBranch() throws Exception {
     //Update features on branch 1
-    writeFeature(MAIN_1, 1, List.of(branch1_baseRef));
-    writeFeature(B1_2, 1, List.of(branch1_baseRef));
-    System.out.println(invokeLambda(getReadFeaturesEventFor(ReadEventType.SEARCH, 1)));
-    String res = invokeLambda(getReadFeaturesEventFor(ReadEventType.CHANGESET, 1));
-    System.out.println(res);
+    long b1_v4 = extractVersion(deserializeResponse(writeFeature(MAIN_1, 1, List.of(branch1_baseRef), true)));
+    long b1_v5 = extractVersion(deserializeResponse(writeFeature(B1_1, 1, List.of(branch1_baseRef), true)));
+
+    ChangesetCollection cc = deserializeResponse(invokeLambda(getReadFeaturesEventFor(ReadEventType.CHANGESET, 1)));
+    assertTrue(cc.getVersions().containsKey(b1_v4));
+    assertEquals(Set.of(MAIN_1), extractFeatureIds(cc.getVersions().get(b1_v4).getUpdated()));
+
+    assertTrue(cc.getVersions().containsKey(b1_v5));
+    assertEquals(Set.of(B1_1), extractFeatureIds(cc.getVersions().get(b1_v5).getUpdated()));
+  }
+
+  @Test
+  public void deleteFeaturesOnBranch() throws Exception {
+    //Update features on branch 1
+    writeFeature(MAIN_1, 1, List.of(branch1_baseRef), false, DEFAULT_DELETE_STRATEGY);
+    long b1_v4 = 4L;
+
+    writeFeature(B1_1, 1, List.of(branch1_baseRef), false, DEFAULT_DELETE_STRATEGY);
+    long b1_v5 = 5L;
+
+    ChangesetCollection cc = deserializeResponse(invokeLambda(getReadFeaturesEventFor(ReadEventType.CHANGESET, 1)));
+    assertTrue(cc.getVersions().containsKey(b1_v4));
+    assertEquals(Set.of(MAIN_1), extractFeatureIds(cc.getVersions().get(b1_v4).getDeleted()));
+
+    assertTrue(cc.getVersions().containsKey(b1_v5));
+    assertEquals(Set.of(B1_1), extractFeatureIds(cc.getVersions().get(b1_v5).getDeleted()));
+
+    executeReadFeaturesEvent(getReadFeaturesEventFor(ReadEventType.SEARCH, 1), Set.of(B1_2));
+  }
+
+  @Test
+  public void addSameFeatureToBaseAndBranch() throws Exception {
+
+    String newFeature = "same_feature";
+    long main_v3 = extractVersion(deserializeResponse(writeFeature(newFeature)));
+    long b1_v4 = extractVersion(deserializeResponse(writeFeature(newFeature, 1, List.of(branch1_baseRef))));
+
+    executeReadFeaturesEvent(getReadFeaturesEventFor(ReadEventType.SEARCH, 0), Set.of(MAIN_1, MAIN_2, newFeature));
+    executeReadFeaturesEvent(getReadFeaturesEventFor(ReadEventType.SEARCH, 1), Set.of(MAIN_1, B1_1, B1_2, newFeature));
   }
 
   private Event getReadFeaturesEventFor(ReadEventType type, int nodeId) {
