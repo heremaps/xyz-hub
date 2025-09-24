@@ -117,7 +117,7 @@ paths:
       operationId: "postNamedJobInputs"
       parameters:
         - $ref: "#/components/parameters/JobId"
-        - $ref: "#/components/parameters/SetGroup"
+        - $ref: "#/components/parameters/Group"
         - $ref: "#/components/parameters/ResponseMode"
       requestBody:
         $ref: "#/components/requestBodies/JobInputRequest"
@@ -136,11 +136,11 @@ paths:
       operationId: getNamedJobInputGroups
       parameters:
         - $ref: '#/components/parameters/JobId'
-        - $ref: '#/components/parameters/SetGroup'
+        - $ref: '#/components/parameters/Group'
         - $ref: "#/components/parameters/ResponseMode"
       responses:
         '200':
-          $ref: '#/components/responses/InputGroupResponse'
+          $ref: '#/components/responses/JobPayloadsResponse'
         '400':
           $ref: '#/components/responses/ErrorResponse400'
         '404':
@@ -154,8 +154,8 @@ paths:
       operationId: getJobInputSetItems
       parameters:
         - $ref: '#/components/parameters/JobId'
-        - $ref: '#/components/parameters/SetGroup'
-        - $ref: '#/components/parameters/OutputSetName'
+        - $ref: '#/components/parameters/Group'
+        - $ref: '#/components/parameters/Name'
         - $ref: '#/components/parameters/PageToken'
         - $ref: '#/components/parameters/Limit'
       responses:
@@ -191,10 +191,10 @@ paths:
       operationId: getJobOutputGroup
       parameters:
         - $ref: '#/components/parameters/JobId'
-        - $ref: '#/components/parameters/SetGroup'
+        - $ref: '#/components/parameters/Group'
       responses:
         '200':
-          $ref: '#/components/responses/OutputGroupResponse'
+          $ref: '#/components/responses/JobPayloadsResponse'
         '400':
           $ref: '#/components/responses/ErrorResponse400'
         '404':
@@ -209,8 +209,8 @@ paths:
       operationId: getJobOutputSetItems
       parameters:
         - $ref: '#/components/parameters/JobId'
-        - $ref: '#/components/parameters/SetGroup'
-        - $ref: '#/components/parameters/OutputSetName'
+        - $ref: '#/components/parameters/Group'
+        - $ref: '#/components/parameters/Name'
         - $ref: '#/components/parameters/PageToken'
         - $ref: '#/components/parameters/Limit'
       responses:
@@ -292,14 +292,14 @@ components:
       required: false
       schema:
         $ref: '#/components/schemas/JobState'
-    SetGroup:
+    Group:
       name: group
       in: path
       description: The group name (e.g., "topology", "address").
       required: true
       schema:
         type: string
-    OutputSetName:
+    Name:
       name: name
       in: path
       description: The set name within the group (e.g., "exportedData", "statistics").
@@ -457,17 +457,12 @@ components:
                   oneOf:
                     - $ref: "#/components/schemas/UploadUrl"
               - $ref: '#/components/schemas/JobPayloads'
-    InputGroupResponse:
+    JobPayloadsResponse:
       description: The job inputs (array or page wrapper when X-Response-Mode=paginated)
       content:
         application/json:
           schema:
-            oneOf:
-              - type: array
-                items:
-                  oneOf:
-                    - $ref: "#/components/schemas/UploadUrl"
-              - $ref: '#/components/schemas/GroupPayloads'
+            $ref: '#/components/schemas/GroupPayloads'
     JobOutputsResponse:
       description: The job outputs (array or page wrapper when X-Response-Mode=paginated)
       content:
@@ -480,12 +475,6 @@ components:
                     - $ref: "#/components/schemas/DownloadUrl"
                     - $ref: "#/components/schemas/FeatureStatistics"
               - $ref: '#/components/schemas/JobPayloads'
-    OutputGroupResponse:
-      description: Summary for a single output group with its sets.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/GroupPayloads'
     OutputItemsPageResponse:
       description: A page of items from an output set.
       content:
