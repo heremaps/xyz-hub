@@ -30,9 +30,9 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.steps.Config;
-import com.here.xyz.jobs.steps.outputs.GroupSummary;
-import com.here.xyz.jobs.steps.outputs.GroupedPayloadsPreview;
-import com.here.xyz.jobs.steps.outputs.SetSummary;
+import com.here.xyz.jobs.steps.GroupPayloads;
+import com.here.xyz.jobs.steps.JobPayloads;
+import com.here.xyz.jobs.steps.SetPayloads;
 import com.here.xyz.jobs.steps.payloads.StepPayload;
 import com.here.xyz.jobs.util.S3Client;
 import com.here.xyz.util.pagination.Page;
@@ -94,26 +94,25 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
     return Config.instance.JOBS_S3_BUCKET;
   }
 
-  public static GroupedPayloadsPreview previewInputs(String jobId) {
+  public static JobPayloads previewInputs(String jobId) {
     ensureInputsLoaded(jobId);
     Map<String, Map<String, InputsMetadata>> cachedGroups = metadataCache.getOrDefault(jobId, Map.of());
 
-    Map<String, GroupSummary> responseGroups = new ConcurrentHashMap<>();
+    Map<String, GroupPayloads> responseGroups = new ConcurrentHashMap<>();
     cachedGroups.forEach((groupName, metadataMap) -> {
-      Map<String, SetSummary> sets = summarizeSets(metadataMap);
+      Map<String, SetPayloads> sets = summarizeSets(metadataMap);
       responseGroups.put(groupName, groupSummaryOf(sets));
     });
 
-    long totalBytes = responseGroups.values().stream().mapToLong(GroupSummary::getByteSize).sum();
-    long totalItems = responseGroups.values().stream().mapToLong(GroupSummary::getItemCount).sum();
-    return new GroupedPayloadsPreview()
-        .withItems(responseGroups)
+    long totalBytes = responseGroups.values().stream().mapToLong(GroupPayloads::getByteSize).sum();
+    long totalItems = responseGroups.values().stream().mapToLong(GroupPayloads::getItemCount).sum();
+    return new JobPayloads()
+        .withGroups(responseGroups)
         .withByteSize(totalBytes)
-        .withItemCount(totalItems)
-        .withType(GroupedPayloadsPreview.INPUT_TYPE);
+        .withItemCount(totalItems);
   }
 
-  public static GroupSummary previewInputGroups(String jobId, String outputSetGroup) {
+  public static GroupPayloads previewInputGroups(String jobId, String outputSetGroup) {
     ensureInputsLoaded(jobId);
     Map<String, Map<String, InputsMetadata>> cachedGroups = metadataCache.get(jobId);
 
@@ -122,7 +121,7 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
       return emptyGroupSummary();
     }
 
-    Map<String, SetSummary> sets = summarizeSets(group);
+    Map<String, SetPayloads> sets = summarizeSets(group);
     return groupSummaryOf(sets);
   }
 
@@ -132,37 +131,34 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
     }
   }
 
-  private static Map<String, SetSummary> summarizeSets(Map<String, InputsMetadata> metadataMap) {
-    Map<String, SetSummary> result = new ConcurrentHashMap<>();
+  private static Map<String, SetPayloads> summarizeSets(Map<String, InputsMetadata> metadataMap) {
+    Map<String, SetPayloads> result = new ConcurrentHashMap<>();
     metadataMap.forEach((setName, metadata) -> {
       long totalSize = metadata.inputs.values().stream()
           .mapToLong(im -> im.byteSize)
           .sum();
       int totalItems = metadata.inputs.size();
-      result.put(setName, new SetSummary()
+      result.put(setName, new SetPayloads()
           .withItemCount(totalItems)
-          .withByteSize(totalSize)
-          .withType(SetSummary.INPUT_TYPE));
+          .withByteSize(totalSize));
     });
     return result;
   }
 
-  private static GroupSummary groupSummaryOf(Map<String, SetSummary> sets) {
-    long byteSize = sets.values().stream().mapToLong(SetSummary::getByteSize).sum();
-    long itemCount = sets.values().stream().mapToLong(SetSummary::getItemCount).sum();
-    return new GroupSummary()
-        .withItems(sets)
+  private static GroupPayloads groupSummaryOf(Map<String, SetPayloads> sets) {
+    long byteSize = sets.values().stream().mapToLong(SetPayloads::getByteSize).sum();
+    long itemCount = sets.values().stream().mapToLong(SetPayloads::getItemCount).sum();
+    return new GroupPayloads()
+        .withSets(sets)
         .withByteSize(byteSize)
-        .withItemCount(itemCount)
-        .withType(GroupSummary.INPUT_TYPE);
+        .withItemCount(itemCount);
   }
 
-  private static GroupSummary emptyGroupSummary() {
-    return new GroupSummary()
-        .withItems(new ConcurrentHashMap<>())
+  private static GroupPayloads emptyGroupSummary() {
+    return new GroupPayloads()
+        .withSets(new ConcurrentHashMap<>())
         .withByteSize(0L)
-        .withItemCount(0)
-        .withType(GroupSummary.INPUT_TYPE);
+        .withItemCount(0);
   }
 
   public String getS3Bucket() {

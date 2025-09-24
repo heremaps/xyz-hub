@@ -59,10 +59,10 @@ import com.here.xyz.jobs.steps.execution.JobExecutor;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.inputs.ModelBasedInput;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
-import com.here.xyz.jobs.steps.outputs.GroupedPayloadsPreview;
+import com.here.xyz.jobs.steps.JobPayloads;
 import com.here.xyz.jobs.steps.outputs.Output;
-import com.here.xyz.jobs.steps.outputs.GroupSummary;
-import com.here.xyz.jobs.steps.outputs.SetSummary;
+import com.here.xyz.jobs.steps.GroupPayloads;
+import com.here.xyz.jobs.steps.SetPayloads;
 import com.here.xyz.jobs.steps.resources.ExecutionResource;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.ResourcesRegistry.StaticLoad;
@@ -607,39 +607,37 @@ public class Job implements XyzSerializable {
     return ASYNC.run(() -> createOutputsRetriever().getPage(params, limit, nextPageToken));
   }
 
-  public Future<GroupedPayloadsPreview> composeInputsPreview() {
-    return ASYNC.run(() -> Input.previewInputs(this.id).withType(GroupedPayloadsPreview.INPUT_TYPE));
+  public Future<JobPayloads> composeInputsPreview() {
+    return ASYNC.run(() -> Input.previewInputs(this.id));
   }
 
-  public Future<GroupSummary> composeInputGroupPreview(String outputSetGroup) {
+  public Future<GroupPayloads> composeInputGroupPreview(String outputSetGroup) {
     return ASYNC.run(() -> Input.previewInputGroups(this.id, outputSetGroup));
   }
 
-  public Future<GroupedPayloadsPreview> composeOutputsPreview() {
+  public Future<JobPayloads> composeOutputsPreview() {
     return ASYNC.run(() -> {
-      final Map<String, GroupSummary> groups = new HashMap<>();
+      final Map<String, GroupPayloads> groups = new HashMap<>();
 
       final List<Step> stepsList = getSteps().stepStream().collect(Collectors.toList());
 
       for (Step step : stepsList) {
         String group = step.getOutputSetGroup();
-        GroupSummary groupSummary = groups.computeIfAbsent(group, g -> new GroupSummary()
-            .withItems(new HashMap<>())
-            .withItemCount(0)
-            .withType(GroupSummary.OUTPUT_TYPE));
+        GroupPayloads groupSummary = groups.computeIfAbsent(group, g -> new GroupPayloads()
+            .withSets(new HashMap<>())
+            .withItemCount(0));
         for (Object osObj : step.getOutputSets()) {
           Step.OutputSet os = (Step.OutputSet) osObj;
-          groupSummary.getSets().computeIfAbsent(os.name, s -> new SetSummary()
+          groupSummary.getSets().computeIfAbsent(os.name, s -> new SetPayloads()
               .withItemCount(0)
-              .withByteSize(0)
-              .withType(SetSummary.OUTPUT_TYPE));
+              .withByteSize(0));
         }
       }
 
-      for (Map.Entry<String, GroupSummary> entry : groups.entrySet()) {
+      for (Map.Entry<String, GroupPayloads> entry : groups.entrySet()) {
         String group = entry.getKey();
-        GroupSummary groupSummary = entry.getValue();
-        for (Map.Entry<String, SetSummary> setEntry : groupSummary.getSets().entrySet()) {
+        GroupPayloads groupSummary = entry.getValue();
+        for (Map.Entry<String, SetPayloads> setEntry : groupSummary.getSets().entrySet()) {
           String setName = setEntry.getKey();
           long itemCount = stepsList.stream()
               .filter(step -> group.equals(step.getOutputSetGroup()) && step.getOutputSetOrNull(setName) != null)
@@ -650,20 +648,19 @@ public class Job implements XyzSerializable {
         }
       }
 
-      long totalItems = groups.values().stream().mapToLong(GroupSummary::getItemCount).sum();
-      long totalBytes = groups.values().stream().mapToLong(GroupSummary::getByteSize).sum();
+      long totalItems = groups.values().stream().mapToLong(GroupPayloads::getItemCount).sum();
+      long totalBytes = groups.values().stream().mapToLong(GroupPayloads::getByteSize).sum();
 
-      return new GroupedPayloadsPreview()
-          .withType(GroupedPayloadsPreview.OUTPUT_TYPE)
-          .withItems(groups)
+      return new JobPayloads()
+          .withGroups(groups)
           .withItemCount(totalItems)
           .withByteSize(totalBytes);
     });
   }
 
-  public Future<GroupSummary> composeOutputGroupPreview(String outputSetGroup) {
+  public Future<GroupPayloads> composeOutputGroupPreview(String outputSetGroup) {
     return ASYNC.run(() -> {
-      final Map<String, SetSummary> sets = new HashMap<>();
+      final Map<String, SetPayloads> sets = new HashMap<>();
 
       final java.util.List<Step> stepsList = getSteps().stepStream().collect(java.util.stream.Collectors.toList());
 
@@ -671,15 +668,14 @@ public class Job implements XyzSerializable {
         if (outputSetGroup.equals(step.getOutputSetGroup())) {
           List<Step.OutputSet> outputSets = step.getOutputSets();
           for (Step.OutputSet os : outputSets) {
-            sets.computeIfAbsent(os.name, s -> new SetSummary()
+            sets.computeIfAbsent(os.name, s -> new SetPayloads()
                 .withItemCount(0)
-                .withByteSize(0)
-                .withType(SetSummary.OUTPUT_TYPE));
+                .withByteSize(0));
           }
         }
       }
 
-      for (java.util.Map.Entry<String, SetSummary> entry : sets.entrySet()) {
+      for (java.util.Map.Entry<String, SetPayloads> entry : sets.entrySet()) {
         String setName = entry.getKey();
         long itemCount = stepsList.stream()
             .filter(step -> outputSetGroup.equals(step.getOutputSetGroup()) && step.getOutputSetOrNull(setName) != null)
@@ -688,14 +684,13 @@ public class Job implements XyzSerializable {
         entry.getValue().setItemCount(itemCount);
       }
 
-      long totalItems = sets.values().stream().mapToLong(SetSummary::getItemCount).sum();
-      long totalBytes = sets.values().stream().mapToLong(SetSummary::getByteSize).sum();
+      long totalItems = sets.values().stream().mapToLong(SetPayloads::getItemCount).sum();
+      long totalBytes = sets.values().stream().mapToLong(SetPayloads::getByteSize).sum();
 
-      return new GroupSummary()
-          .withItems(sets)
+      return new GroupPayloads()
+          .withSets(sets)
           .withItemCount(totalItems)
-          .withByteSize(totalBytes)
-          .withType(GroupSummary.OUTPUT_TYPE);
+          .withByteSize(totalBytes);
     });
   }
 

@@ -445,7 +445,7 @@ components:
           schema:
             oneOf:
               - $ref: "#/components/schemas/UploadUrl"
-              - $ref: '#/components/schemas/GroupedPayloadsPreview'
+              - $ref: '#/components/schemas/JobPayloads'
     JobInputsResponse:
       description: The job inputs (array or page wrapper when X-Response-Mode=paginated)
       content:
@@ -456,7 +456,7 @@ components:
                 items:
                   oneOf:
                     - $ref: "#/components/schemas/UploadUrl"
-              - $ref: '#/components/schemas/GroupedPayloadsPreview'
+              - $ref: '#/components/schemas/JobPayloads'
     InputGroupResponse:
       description: The job inputs (array or page wrapper when X-Response-Mode=paginated)
       content:
@@ -467,7 +467,7 @@ components:
                 items:
                   oneOf:
                     - $ref: "#/components/schemas/UploadUrl"
-              - $ref: '#/components/schemas/GroupSummary'
+              - $ref: '#/components/schemas/GroupPayloads'
     JobOutputsResponse:
       description: The job outputs (array or page wrapper when X-Response-Mode=paginated)
       content:
@@ -479,13 +479,13 @@ components:
                   oneOf:
                     - $ref: "#/components/schemas/DownloadUrl"
                     - $ref: "#/components/schemas/FeatureStatistics"
-              - $ref: '#/components/schemas/GroupedPayloadsPreview'
+              - $ref: '#/components/schemas/JobPayloads'
     OutputGroupResponse:
       description: Summary for a single output group with its sets.
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/GroupSummary'
+            $ref: '#/components/schemas/GroupPayloads'
     OutputItemsPageResponse:
       description: A page of items from an output set.
       content:
@@ -938,19 +938,14 @@ components:
           description: The type of the Output
           example: DownloadUrl
           type: string
-    GroupedPayloadsPreview:
+    JobPayloads:
       type: object
       description: Summary of grouped payloads (inputs/outputs) for a job.
       properties:
-        type:
-          type: string
-          description: A descriptive type label.
-          enum: [ JobOutputs, JobInputs ]
-          example: JobOutputs
         groups:
           type: object
           additionalProperties:
-            $ref: '#/components/schemas/GroupSummary'
+            $ref: '#/components/schemas/GroupPayloads'
         itemCount:
           type: number
           description: Total items across all groups.
@@ -959,18 +954,14 @@ components:
           type: number
           description: Total size of items across all groups in bytes.
           example: 10485760
-    GroupSummary:
+    GroupPayloads:
       type: object
       description: A named group containing multiple output/input sets.
       properties:
-        type:
-          type: string
-          enum: [ OutputGroup, InputGroup ]
-          example: OutputGroup
         sets:
           type: object
           additionalProperties:
-            $ref: '#/components/schemas/SetSummary'
+            $ref: '#/components/schemas/SetPayloads'
         itemCount:
           type: number
           description: Total items in the group.
@@ -980,14 +971,10 @@ components:
           description: Total size of the group's items in bytes.
           example: 7340032
 
-    SetSummary:
+    SetPayloads:
       type: object
       description: Summary for a single set within a group.
       properties:
-        type:
-          type: string
-          enum: [ OutputSet, InputSet ]
-          example: OutputSet
         itemCount:
           type: number
           description: Number of items in the set.

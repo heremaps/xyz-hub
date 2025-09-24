@@ -2,9 +2,9 @@ package com.here.xyz.jobs;
 
 import com.here.xyz.jobs.steps.StepGraph;
 import com.here.xyz.jobs.steps.execution.fusion.OutputSetsTestStep;
-import com.here.xyz.jobs.steps.outputs.GroupSummary;
-import com.here.xyz.jobs.steps.outputs.GroupedPayloadsPreview;
-import com.here.xyz.jobs.steps.outputs.SetSummary;
+import com.here.xyz.jobs.steps.GroupPayloads;
+import com.here.xyz.jobs.steps.JobPayloads;
+import com.here.xyz.jobs.steps.SetPayloads;
 import com.here.xyz.util.service.Core;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
@@ -62,7 +62,7 @@ public class JobOutputsPreviewTest {
   public void composeOutputGroupPreview_shouldSumPerSetAcrossStepsCorrectly() throws Exception {
     Job job = buildJobForTest();
 
-    GroupSummary group = await(job.composeOutputGroupPreview("group1"));
+    GroupPayloads group = await(job.composeOutputGroupPreview("group1"));
 
     Assert.assertEquals(10L, group.getItemCount());
     Assert.assertNotNull(group.getSets());
@@ -77,17 +77,17 @@ public class JobOutputsPreviewTest {
   public void composeOutputsPreview_shouldAggregateGroupsAndSetsCorrectly() throws Exception {
     Job job = buildJobForTest();
 
-    GroupedPayloadsPreview preview = await(job.composeOutputsPreview());
+    JobPayloads preview = await(job.composeOutputsPreview());
 
     Assert.assertEquals(10L, preview.getItemCount());
     Assert.assertNotNull(preview.getGroups());
     Assert.assertEquals(1, preview.getGroups().size());
 
-    GroupSummary group1 = preview.getGroups().get("group1");
+    GroupPayloads group1 = preview.getGroups().get("group1");
     Assert.assertNotNull(group1);
     Assert.assertEquals(10L, group1.getItemCount());
 
-    Map<String, SetSummary> sets = group1.getSets();
+    Map<String, SetPayloads> sets = group1.getSets();
     Assert.assertEquals(2, sets.size());
     Assert.assertEquals(5L, sets.get("setA").getItemCount());
     Assert.assertEquals(5L, sets.get("setB").getItemCount());

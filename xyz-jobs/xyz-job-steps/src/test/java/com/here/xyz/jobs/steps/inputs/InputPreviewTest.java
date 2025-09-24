@@ -1,8 +1,8 @@
 package com.here.xyz.jobs.steps.inputs;
 
-import com.here.xyz.jobs.steps.outputs.GroupSummary;
-import com.here.xyz.jobs.steps.outputs.GroupedPayloadsPreview;
-import com.here.xyz.jobs.steps.outputs.SetSummary;
+import com.here.xyz.jobs.steps.GroupPayloads;
+import com.here.xyz.jobs.steps.JobPayloads;
+import com.here.xyz.jobs.steps.SetPayloads;
 import com.here.xyz.util.service.aws.s3.S3Uri;
 import java.lang.reflect.Field;
 import java.util.HashMap;
@@ -83,12 +83,12 @@ public class InputPreviewTest {
 
   @Test
   public void testPreviewInputGroupsSummariesAndSums() {
-    GroupSummary groupB = Input.previewInputGroups(JOB_ID, "groupB");
+    GroupPayloads groupB = Input.previewInputGroups(JOB_ID, "groupB");
 
     Assertions.assertEquals(110L, groupB.getByteSize(), "Total bytes in groupB should be the sum of all set byte sizes.");
     Assertions.assertEquals(4L, groupB.getItemCount(), "Item count in groupB should be the total number of inputs across sets.");
 
-    Map<String, SetSummary> items = groupB.getSets();
+    Map<String, SetPayloads> items = groupB.getSets();
     Assertions.assertEquals(2, items.size());
     Assertions.assertEquals(1L, items.get("set2").getItemCount());
     Assertions.assertEquals(50L, items.get("set2").getByteSize());
@@ -98,7 +98,7 @@ public class InputPreviewTest {
 
   @Test
   public void testPreviewNonExistingGroupReturnsEmptySummary() {
-    GroupSummary none = Input.previewInputGroups(JOB_ID, "no-such-group");
+    GroupPayloads none = Input.previewInputGroups(JOB_ID, "no-such-group");
     Assertions.assertNotNull(none);
     Assertions.assertEquals(0L, none.getByteSize());
     Assertions.assertEquals(0L, none.getItemCount());
@@ -107,19 +107,19 @@ public class InputPreviewTest {
 
   @Test
   public void testPreviewInputsAggregatesAcrossGroups() {
-    GroupedPayloadsPreview preview = Input.previewInputs(JOB_ID);
+    JobPayloads preview = Input.previewInputs(JOB_ID);
 
     Assertions.assertEquals(410L, preview.getByteSize());
     Assertions.assertEquals(6L, preview.getItemCount());
 
-    Map<String, GroupSummary> groups = preview.getGroups();
+    Map<String, GroupPayloads> groups = preview.getGroups();
     Assertions.assertEquals(2, groups.size());
 
-    GroupSummary groupA = groups.get("groupA");
+    GroupPayloads groupA = groups.get("groupA");
     Assertions.assertEquals(300L, groupA.getByteSize());
     Assertions.assertEquals(2L, groupA.getItemCount());
 
-    GroupSummary groupB = groups.get("groupB");
+    GroupPayloads groupB = groups.get("groupB");
     Assertions.assertEquals(110L, groupB.getByteSize());
     Assertions.assertEquals(4L, groupB.getItemCount());
   }
