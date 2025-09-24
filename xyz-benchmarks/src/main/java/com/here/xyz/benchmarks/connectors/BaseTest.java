@@ -64,8 +64,9 @@ public class BaseTest {
 
     protected void setupTest() throws Exception {
         DatabaseSettings dbSettings = createDBSettings(PG_HOST, PG_USER, PG_DB, PG_PASSWORD, PG_MAX_POOLSIZE);
+        boolean seedingMode = true;
 
-        nlConnector = initConnector("NLConnector", new NLConnector(), dbSettings);
+        nlConnector = initConnector("NLConnector", new NLConnector(), dbSettings, seedingMode);
         psqlConnector = initConnector("PsqlConnector", new PSQLXyzConnector(), dbSettings);
 
         if(SPACE_ID.equalsIgnoreCase("")) {

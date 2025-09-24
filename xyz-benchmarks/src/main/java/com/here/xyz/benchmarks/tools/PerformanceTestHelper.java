@@ -2,7 +2,6 @@ package com.here.xyz.benchmarks.tools;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.Typed;
-import com.here.xyz.XyzSerializable;
 import com.here.xyz.connectors.StorageConnector;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.GetFeaturesByIdEvent;
@@ -44,11 +43,11 @@ public class PerformanceTestHelper {
 
     private static final Logger logger = LogManager.getLogger();
 
-    public static Typed createSpace(DatabaseHandler connector, String spaceName) throws Exception {
+    public static Typed createSpace(StorageConnector connector, String spaceName) throws Exception {
         return modifySpace(connector, spaceName, CREATE);
     }
 
-    public static Typed deleteSpace(DatabaseHandler connector, String spaceName) throws Exception {
+    public static Typed deleteSpace(StorageConnector connector, String spaceName) throws Exception {
         return modifySpace(connector, spaceName, DELETE);
     }
 
@@ -137,10 +136,12 @@ public class PerformanceTestHelper {
         return xyzResponse;
     }
 
-    public static Typed modifySpace(DatabaseHandler connector, String spaceName, Operation operation) throws Exception {
+    public static Typed modifySpace(StorageConnector connector, String spaceName, Operation operation) throws Exception {
 
         ModifySpaceEvent modifySpaceEvent = new ModifySpaceEvent()
-                .withSpaceDefinition(new Space().withId(spaceName)) //needed for PSQLConnector
+                .withSpaceDefinition(new Space()
+                        .withId(spaceName)
+                        .withVersionsToKeep(10_000_000)) //needed for PSQLConnector
                 .withSpace(spaceName)
                 .withOperation(operation);
 
@@ -163,9 +164,15 @@ public class PerformanceTestHelper {
     }
 
     public static <T extends DatabaseHandler> T initConnector(String functionName, T connector, DatabaseSettings dbSettings) {
+      return initConnector(functionName, connector, dbSettings, false);
+    }
+
+    public static <T extends DatabaseHandler> T initConnector(String functionName, T connector, DatabaseSettings dbSettings, boolean seedingMode) {
         SimulatedContext context = new SimulatedContext(functionName, null)
                 .withIsRecreateLambdaEnvForEachEvent(true);
         connector.initialize(dbSettings,context);
+        if(connector instanceof NLConnector nlConnector)
+          nlConnector.setSeedingMode(seedingMode);
         return connector;
     }
 
@@ -173,13 +180,17 @@ public class PerformanceTestHelper {
         return generateRandomFeatureCollection(featureCnt, xmin, ymin, xmax, ymax, AVG_PAYLOAD_BYTE_SIZE, false);
     }
 
-    public static FeatureCollection generateRandomFeatureCollection(int featureCnt, float xmin, float ymin, float xmax, float ymax, int payloadByteSize, boolean createIds)
+    public static FeatureCollection generateRandomFeatureCollection(int featureCnt, float xmin, float ymin, float xmax, float ymax, int payloadByteSize,  boolean createIds) throws JsonProcessingException {
+      return generateRandomFeatureCollection(featureCnt, xmin, ymin, xmax, ymax, payloadByteSize, 0, createIds);
+    }
+
+    public static FeatureCollection generateRandomFeatureCollection(int featureCnt, float xmin, float ymin, float xmax, float ymax, int payloadByteSize, int startId, boolean createIds)
             throws JsonProcessingException {
 
         FeatureCollection fc = new FeatureCollection();
         ThreadLocalRandom random = ThreadLocalRandom.current();
 
-        for (int i = 0; i < featureCnt; i++) {
+        for (int i = startId; i < featureCnt; i++) {
             double x = xmin + random.nextDouble() * (xmax - xmin);
             double y = ymin + random.nextDouble() * (ymax - ymin);
 
@@ -191,7 +202,9 @@ public class PerformanceTestHelper {
 
             Properties properties = new Properties()
                     .with("payload", payload)
-                    .with("refQuad", WebMercatorTile.getTileFromLatLonLev(y, x, 20).asQuadkey());
+                    .with("refQuad", WebMercatorTile.getTileFromLatLonLev(y, x, 20).asQuadkey())
+                    .with("version", 1)
+                    .with("globalVersion", 1);
 
             Feature feature = new Feature()
                     .withId(createIds ? "id_" + i : null)

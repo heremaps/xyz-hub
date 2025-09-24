@@ -35,6 +35,7 @@ import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.ModifySubscriptionEvent;
+import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.PropertyQuery;
 import com.here.xyz.events.PropertyQuery.QueryOperation;
 import com.here.xyz.events.PropertyQueryList;
@@ -59,6 +60,7 @@ import com.here.xyz.psql.query.GetFeaturesByGeometry;
 import com.here.xyz.psql.query.GetFeaturesById;
 import com.here.xyz.psql.query.IterateFeatures;
 import com.here.xyz.psql.query.ModifySpace;
+import com.here.xyz.psql.query.WriteFeatures;
 import com.here.xyz.psql.query.XyzEventBasedQueryRunner;
 import com.here.xyz.psql.query.helpers.versioning.GetNextVersion;
 import com.here.xyz.responses.BinaryResponse;
@@ -80,6 +82,7 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static com.here.xyz.util.db.ConnectorParameters.TableLayout.NEW_LAYOUT;
 import static com.here.xyz.events.UpdateStrategy.OnExists;
@@ -89,8 +92,11 @@ import static com.here.xyz.responses.XyzError.NOT_IMPLEMENTED;
 
 public class NLConnector extends PSQLXyzConnector {
   private static final Logger logger = LogManager.getLogger();
+  private static final String GLOBAL_VERSION_PROPERTY_KEY = "globalVersion";
   private static final String REF_QUAD_PROPERTY_KEY = "refQuad";
   private static final String REF_QUAD_COUNT_SELECTION_KEY = "f.refQuadCount";
+  //If seedingMode is active, we do not use the FeatureWriter, but a simple batch upsert and delete
+  private boolean seedingMode = true;
 
   @Override
   protected StatisticsResponse processGetStatistics(GetStatisticsEvent event) throws Exception {
@@ -143,40 +149,90 @@ public class NLConnector extends PSQLXyzConnector {
 
   @Override
   protected FeatureCollection processSearchForFeaturesEvent(SearchForFeaturesEvent event) throws Exception {
-    String errorMessage = "Property based search supports only refQuad^=231230 search in NLConnector!";
+    if (event.getPropertiesQuery() != null && !event.getPropertiesQuery().isEmpty()) {
+      PropertiesQueryInput propertiesQueryInput = getRefQuadAndGlobalVersion(event.getPropertiesQuery());
+      String selectionValue = getSelectionValue(event.getSelection());
 
-    if(event.getPropertiesQuery() != null && event.getPropertiesQuery().size() == 1) {
+      logger.info("refquad: {}, globalVersion: {}, selection: {}", propertiesQueryInput.refQuad,
+              propertiesQueryInput.globalVersions, selectionValue);
 
-      PropertyQueryList propertyQueries = event.getPropertiesQuery().get(0);
-      String key = propertyQueries.get(0).getKey();
-      QueryOperation operation = propertyQueries.get(0).getOperation();
-      List<Object> values = propertyQueries.get(0).getValues();
-      String selectionValue = null;
-      List selection = event.getSelection();
+      if (selectionValue == null) {
+        return getFeaturesByRefQuad(dbSettings.getSchema(), XyzEventBasedQueryRunner.readTableFromEvent(event),
+                propertiesQueryInput, event.getLimit());
+      }else {
+        //Call Count Query
+        if (propertiesQueryInput.globalVersions != null)
+          throw new IllegalArgumentException("Selection cant get combined with globalVersion!");
 
-      if(values.size() != 1 || !(values.get(0) instanceof String))
-        throw new ErrorResponseException(NOT_IMPLEMENTED, errorMessage);
-
-      if(!key.equalsIgnoreCase("properties." + REF_QUAD_PROPERTY_KEY) || !operation.equals(PropertyQuery.QueryOperation.BEGINS_WITH))
-        throw new ErrorResponseException(NOT_IMPLEMENTED, errorMessage);
-
-      if(selection != null && !selection.contains(REF_QUAD_COUNT_SELECTION_KEY))
-        throw new ErrorResponseException(NOT_IMPLEMENTED, errorMessage);
-      else if(selection != null){
-        selectionValue = selection.get(0).toString();
-        if (!selectionValue.equals(REF_QUAD_COUNT_SELECTION_KEY))
-          throw new ErrorResponseException(NOT_IMPLEMENTED, errorMessage);
+        return getFeatureCountByRefQuad(dbSettings.getSchema(),
+                XyzEventBasedQueryRunner.readTableFromEvent(event),
+                propertiesQueryInput.refQuad, event.getLimit());
       }
-
-      String refQuad = values.get(0).toString();
-      if(selectionValue == null)
-        return getFeaturesByRefQuad(dbSettings.getSchema(), XyzEventBasedQueryRunner.readTableFromEvent(event), refQuad,
-                event.getLimit());
-      return getFeatureCountByRefQuad(dbSettings.getSchema(), XyzEventBasedQueryRunner.readTableFromEvent(event), refQuad,
-              event.getLimit());
     }
-    throw new ErrorResponseException(NOT_IMPLEMENTED, errorMessage);
+
+    throw new IllegalArgumentException("Search without propertiesQuery is not supported in NLConnector!");
   }
+
+  public boolean isSeedingMode() {
+    return seedingMode;
+  }
+
+  public void setSeedingMode(boolean seedingMode) {
+    this.seedingMode = seedingMode;
+  }
+
+  private String getSelectionValue(List<String> selection){
+    String errorMessageSelection = "Property based search supports only selection=" + REF_QUAD_COUNT_SELECTION_KEY
+            + " search in NLConnector!";
+    String selectionValue = null;
+
+    if (selection != null && !selection.contains(REF_QUAD_COUNT_SELECTION_KEY))
+      throw new IllegalArgumentException(errorMessageSelection);
+    else if (selection != null) {
+      selectionValue = selection.get(0).toString();
+      if (!selectionValue.equals(REF_QUAD_COUNT_SELECTION_KEY))
+        throw new IllegalArgumentException(errorMessageSelection);
+    }
+
+    return selectionValue;
+  }
+
+  private PropertiesQueryInput getRefQuadAndGlobalVersion(PropertiesQuery propertiesQuery) {
+    String errorMessageProperties = "Property based search supports only p." + REF_QUAD_PROPERTY_KEY
+            + "^=... (and optional globalVersion=...) search in NLConnector!";
+    String refQuad = null;
+    List<Integer> globalVersions = new ArrayList<>();
+
+    for (PropertyQueryList propertyQueries : propertiesQuery) {
+      for (PropertyQuery pq : propertyQueries) {
+        String key = pq.getKey();
+        QueryOperation operation = pq.getOperation();
+        List<Object> values = pq.getValues();
+
+        if (key.equalsIgnoreCase("properties." + REF_QUAD_PROPERTY_KEY)
+                && operation.equals(PropertyQuery.QueryOperation.BEGINS_WITH)) {
+          if (!(values.get(0) instanceof String))
+            throw new IllegalArgumentException("p." + REF_QUAD_PROPERTY_KEY + " must be a single String!");
+          refQuad = values.get(0).toString();
+        }
+        else if (key.equalsIgnoreCase("properties." + GLOBAL_VERSION_PROPERTY_KEY)
+                && operation.equals(PropertyQuery.QueryOperation.EQUALS)) {
+          for(Object v : values){
+            if(!(v instanceof Integer globalVersion))
+              throw new IllegalArgumentException("Value for 'p." + GLOBAL_VERSION_PROPERTY_KEY + "' must be an Integer or a List<Integer>!");
+            globalVersions.add(globalVersion);
+          }
+        }
+        else {
+          throw new IllegalArgumentException(errorMessageProperties);
+        }
+      }
+    }
+    return new PropertiesQueryInput(refQuad, globalVersions);
+  }
+
+  public record PropertiesQueryInput(String refQuad, List<Integer> globalVersions) {}
+
 
   @Override
   protected BinaryResponse processBinaryGetFeaturesByTileEvent(GetFeaturesByTileEvent event) throws Exception {
@@ -222,6 +278,14 @@ public class NLConnector extends PSQLXyzConnector {
     List<String> idsToDelete = new ArrayList<>();
     FeatureCollection upsertFeatures = new FeatureCollection();
 
+    if(!seedingMode){
+      //Use FeatureWriter
+      return run(new WriteFeatures(
+              event.withMinVersion(event.getMinVersion())
+                      .withVersionsToKeep(100_000)
+                      .withResponseDataExpected(false)
+      ).withTableLayout(NEW_LAYOUT));
+    }
 
     for (WriteFeaturesEvent.Modification modification : modifications) {
       validateUpdateStrategy(modification.getUpdateStrategy());
@@ -301,10 +365,10 @@ public class NLConnector extends PSQLXyzConnector {
     }
   }
 
-  private FeatureCollection getFeaturesByRefQuad(String schema, String table, String refQuad, long limit)
+  private FeatureCollection getFeaturesByRefQuad(String schema, String table, PropertiesQueryInput propertiesQueryInput, long limit)
           throws SQLException, JsonProcessingException {
     try (final Connection connection = dataSourceProvider.getWriter().getConnection()) {
-      String query = createReadByRefQuadQuery(schema, table, refQuad, limit, false);
+      String query = createReadByRefQuadQuery(schema, table, propertiesQueryInput.refQuad, propertiesQueryInput.globalVersions, limit);
 
       try (PreparedStatement ps = connection.prepareStatement(query)) {
 
@@ -326,7 +390,7 @@ public class NLConnector extends PSQLXyzConnector {
           throws SQLException {
     try (final Connection connection = dataSourceProvider.getWriter().getConnection()) {
 
-      String query = createReadByRefQuadQuery(schema, table, refQuad, limit, true);
+      String query = createReadByRefQuadCountQuery(schema, table, refQuad, limit);
 
       try (PreparedStatement ps = connection.prepareStatement(query)) {
 
@@ -365,11 +429,34 @@ public class NLConnector extends PSQLXyzConnector {
     return null;
   }
 
-  private String createReadByRefQuadQuery(String schema, String table, String refQuad,
+  private String createReadByRefQuadCountQuery(String schema, String table, String refQuad, long limit) {
+    return createReadByRefQuadQuery(schema, table, refQuad, null, limit, true);
+  }
+
+  private String createReadByRefQuadQuery(String schema, String table, String refQuad, List<Integer> globalVersions, long limit) {
+    return createReadByRefQuadQuery(schema, table, refQuad, globalVersions, limit, false);
+  }
+
+  private String createReadByRefQuadQuery(String schema, String table, String refQuad, List<Integer> globalVersions,
                                           long limit, boolean returnCount) {
-    String innerSelect = "SELECT * FROM \"" + schema + "\".\"" + table + "\" " +
-            "WHERE refquad >= '" + refQuad + "' AND refquad < '" + refQuad + "4' " +
-            "LIMIT " + limit;
+    StringBuilder innerSelect = new StringBuilder();
+    innerSelect.append("SELECT * FROM \"")
+            .append(schema).append("\".\"").append(table).append("\" ")
+            .append("WHERE 1=1 ");
+
+    if (refQuad != null) {
+      innerSelect.append("AND refquad >= '").append(refQuad)
+              .append("' AND refquad < '").append(refQuad).append("4'");
+    }
+
+    if (globalVersions != null && !globalVersions.isEmpty()) {
+      String joinedVersions = globalVersions.stream()
+              .map(String::valueOf)
+              .collect(Collectors.joining(","));
+      innerSelect.append(" AND global_version IN (").append(joinedVersions).append(")");
+    }
+
+    innerSelect.append(" LIMIT ").append(limit);
 
     String selection;
     if (returnCount) {
@@ -415,9 +502,9 @@ public class NLConnector extends PSQLXyzConnector {
     String mergeSql = """
         MERGE INTO %s.%s AS t
         USING (
-          VALUES (?, ?, ?, ?, ?, ?, ?)
-        ) AS s(id, geo, operation, author, version, jsondata, refquad)
-        ON (t.id = s.id AND t.next_version = 9223372036854775807)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ) AS s(id, geo, operation, author, version, jsondata, refquad, global_version)
+        ON (t.id = s.id AND t.next_version = 9223372036854775807 AND t.global_version = s.global_version)
         --ON (t.id = s.id AND t.version = s.version AND t.next_version = 9223372036854775807)
         WHEN MATCHED THEN
           UPDATE SET
@@ -425,10 +512,11 @@ public class NLConnector extends PSQLXyzConnector {
             geo       = s.geo,
             version   = s.version,
             author    = s.author,
-            operation = 'U'
+            operation = 'U',
+            global_version = s.global_version
         WHEN NOT MATCHED THEN
-          INSERT (id, geo, operation, author, version, jsondata, refquad)
-          VALUES (s.id, s.geo, s.operation, s.author, s.version, s.jsondata, s.refquad);
+          INSERT (id, geo, operation, author, version, jsondata, refquad, global_version)
+          VALUES (s.id, s.geo, s.operation, s.author, s.version, s.jsondata, s.refquad, s.global_version);
         """.formatted(schema, table);
 
     try (Connection connection = dataSourceProvider.getWriter().getConnection()) {
@@ -453,6 +541,7 @@ public class NLConnector extends PSQLXyzConnector {
           ps.setLong(5, version);
           ps.setString(6, enrichFeaturePayload(feature));
           ps.setString(7, getRefQuad(feature));
+          ps.setInt(8, getGlobalVersion(feature));
           ps.addBatch();
         }
 
@@ -460,114 +549,6 @@ public class NLConnector extends PSQLXyzConnector {
         connection.commit();
         logger.info("Successfully upserted {} features.", updated);
 
-      } catch (SQLException e) {
-        connection.rollback();
-        logger.error("Upsert failed", e);
-        fails.add(new ModificationFailure().withMessage("Upsert failed: " + e.getMessage()));
-      }
-    }
-  }
-
-  private void batchUpsertFeatures1(String schema, String table, FeatureCollection featureCollection, long version, String author,
-          List<ModificationFailure> fails) throws SQLException, JsonProcessingException {
-//    String upsertSql = """
-//          INSERT INTO $table$ (id, jsondata, operation, version, geo)
-//          VALUES (
-//             ?,
-//             regexp_replace(
-//               -- remove geometry
-//               regexp_replace(
-//                 -- override timestamps if NS present
-//                 regexp_replace(
-//                   -- add NS if not present
-//                   ?,
-//                   E'"@ns:com:here:xyz":\\\\{[^}]*\\\\}',
-//                   '"@ns:com:here:xyz":{"createdAt":' || (extract(epoch from now())*1000)::bigint ||
-//                   ',"updatedAt":' || (extract(epoch from now())*1000)::bigint || '}',
-//                   'g'
-//                 ),
-//                 E'"properties":\\\\{((?!@ns:com:here:xyz).)*\\\\}',
-//                 E'"properties":{' ||
-//                   '"@ns:com:here:xyz":{"createdAt":' || (extract(epoch from now())*1000)::bigint ||
-//                   ',"updatedAt":' || (extract(epoch from now())*1000)::bigint || '},',
-//                 'g'
-//               ),
-//               E'"geometry":\\\\{[^}]*\\\\},?',
-//               '',
-//               'g'
-//             ),
-//             'I',
-//             ?,
-//             ?
-//           )
-//          ON CONFLICT (id, next_version) DO UPDATE
-//            SET jsondata =
-//              -- replace createdAt with existing value, updatedAt with now()
-//              regexp_replace(
-//                regexp_replace(
-//                  EXCLUDED.jsondata,
-//                  E'("@ns:com:here:xyz":\\\\{[^}]*"createdAt":)[0-9]+',
-//                  E'\\\\1' || substring(
-//                    $table$.jsondata
-//                      FROM E'"@ns:com:here:xyz":\\\\{[^}]*"createdAt":([0-9]+)'
-//                  )
-//                ),
-//                E'("updatedAt":)[0-9]+',
-//                E'\\\\1' || extract(epoch from now())::bigint
-//              ),
-//              geo = EXCLUDED.geo,
-//              version = EXCLUDED.version,
-//              operation = 'U';
-//    """.replace("$table$", "\"" + schema + "\".\"" + table + "\"");
-    String upsertSql = """
-          INSERT INTO $table$ (id, geo, operation, author, version, jsondata, refquad)
-          VALUES (
-             ?,
-             ?,
-             'I',
-             ?,
-             ?,
-             ?,
-             ?
-           )
-          ON CONFLICT (id, next_version) DO UPDATE
-            SET jsondata = EXCLUDED.jsondata,
-              geo = EXCLUDED.geo,
-              version = EXCLUDED.version,
-              author = EXCLUDED.author,
-              operation = 'U';
-    """.replace("$table$", "\"" + schema + "\".\"" + table + "\"");
-
-    try (Connection connection = dataSourceProvider.getWriter().getConnection()) {
-      connection.setAutoCommit(false);
-
-      try (PreparedStatement ps = connection.prepareStatement(upsertSql)) {
-        for (Feature feature : featureCollection.getFeatures()) {
-          Geometry geo = feature.getGeometry();
-
-          if (geo != null) {
-            //Avoid NaN values
-            for (Coordinate coord : geo.getJTSGeometry().getCoordinates()){
-              if(Double.valueOf(coord.z).isNaN())
-                coord.z= 0;
-            }
-          }
-
-          ensureFeatureId(feature);
-
-          ps.setString(1, feature.getId());
-          ps.setBytes(2, feature.getGeometry() == null ? null : new WKBWriter(3).write(feature.getGeometry().getJTSGeometry()));  // JSON string
-          ps.setString(3, author);
-          ps.setLong(4, version);
-          //TODO: Do we need to ensure 3D geometries?
-          ps.setString(5, enrichFeaturePayload(feature));
-          ps.setString(6, getRefQuad(feature));
-          ps.addBatch();
-        }
-
-        int[] fcCount = ps.executeBatch();
-        connection.commit();
-        logger.info("Successfully upserted {} features.", fcCount.length);
       } catch (SQLException e) {
         connection.rollback();
         logger.error("Upsert failed", e);
@@ -584,6 +565,11 @@ public class NLConnector extends PSQLXyzConnector {
 
   private String getRefQuad(Feature feature) {
     return feature.getProperties().get(REF_QUAD_PROPERTY_KEY);
+  }
+
+  private Integer getGlobalVersion(Feature feature) {
+    Integer globalVersion = feature.getProperties().get(GLOBAL_VERSION_PROPERTY_KEY);
+    return globalVersion == null ? -1 : globalVersion;
   }
 
   private String enrichFeaturePayload(Feature feature) {
