@@ -109,7 +109,8 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
     return new GroupedPayloadsPreview()
         .withItems(responseGroups)
         .withByteSize(totalBytes)
-        .withItemCount(totalItems);
+        .withItemCount(totalItems)
+        .withType(GroupedPayloadsPreview.INPUT_TYPE);
   }
 
   public static GroupSummary previewInputGroups(String jobId, String outputSetGroup) {
@@ -140,7 +141,8 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
       int totalItems = metadata.inputs.size();
       result.put(setName, new SetSummary()
           .withItemCount(totalItems)
-          .withByteSize(totalSize));
+          .withByteSize(totalSize)
+          .withType(SetSummary.INPUT_TYPE));
     });
     return result;
   }
@@ -151,14 +153,16 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
     return new GroupSummary()
         .withItems(sets)
         .withByteSize(byteSize)
-        .withItemCount(itemCount);
+        .withItemCount(itemCount)
+        .withType(GroupSummary.INPUT_TYPE);
   }
 
   private static GroupSummary emptyGroupSummary() {
     return new GroupSummary()
         .withItems(new ConcurrentHashMap<>())
         .withByteSize(0L)
-        .withItemCount(0);
+        .withItemCount(0)
+        .withType(GroupSummary.INPUT_TYPE);
   }
 
   public String getS3Bucket() {

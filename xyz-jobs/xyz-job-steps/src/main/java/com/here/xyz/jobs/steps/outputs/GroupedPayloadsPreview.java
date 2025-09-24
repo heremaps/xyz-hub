@@ -9,7 +9,7 @@ public class GroupedPayloadsPreview implements XyzSerializable {
   public static final String INPUT_TYPE = "JobInputs";
 
   private String type;
-  private Map<String, GroupSummary> items;
+  private Map<String, GroupSummary> groups;
   private long itemCount;
   private long byteSize;
 
@@ -26,17 +26,17 @@ public class GroupedPayloadsPreview implements XyzSerializable {
     return setType(type);
   }
 
-  public Map<String, GroupSummary> getItems() {
-    return items;
+  public Map<String, GroupSummary> getGroups() {
+    return groups;
   }
 
-  public GroupedPayloadsPreview setItems(Map<String, GroupSummary> items) {
-    this.items = items;
+  public GroupedPayloadsPreview setGroups(Map<String, GroupSummary> groups) {
+    this.groups = groups;
     return this;
   }
 
   public GroupedPayloadsPreview withItems(Map<String, GroupSummary> items) {
-    return setItems(items);
+    return setGroups(items);
   }
 
   public long getItemCount() {

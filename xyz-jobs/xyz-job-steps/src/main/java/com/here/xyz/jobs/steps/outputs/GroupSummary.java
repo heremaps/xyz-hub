@@ -5,8 +5,11 @@ import java.util.Map;
 
 public class GroupSummary implements XyzSerializable {
 
-  private String type = "OutputGroup";
-  private Map<String, SetSummary> items;
+  public static final String OUTPUT_TYPE = "OutputGroup";
+  public static final String INPUT_TYPE = "InputGroup";
+
+  private Map<String, SetSummary> sets;
+  private String type;
   private long itemCount;
   private long byteSize;
 
@@ -23,16 +26,16 @@ public class GroupSummary implements XyzSerializable {
     return this;
   }
 
-  public Map<String, SetSummary> getItems() {
-    return items;
+  public Map<String, SetSummary> getSets() {
+    return sets;
   }
 
-  public void setItems(Map<String, SetSummary> items) {
-    this.items = items;
+  public void setSets(Map<String, SetSummary> sets) {
+    this.sets = sets;
   }
 
   public GroupSummary withItems(Map<String, SetSummary> items) {
-    this.items = items;
+    this.sets = items;
     return this;
   }
 

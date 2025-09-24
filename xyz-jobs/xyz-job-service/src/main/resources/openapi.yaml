@@ -945,8 +945,9 @@ components:
         type:
           type: string
           description: A descriptive type label.
+          enum: [ JobOutputs, JobInputs ]
           example: JobOutputs
-        items:
+        groups:
           type: object
           additionalProperties:
             $ref: '#/components/schemas/GroupSummary'
@@ -964,9 +965,9 @@ components:
       properties:
         type:
           type: string
-          enum: [ SetGroup ]
-          example: SetGroup
-        items:
+          enum: [ OutputGroup, InputGroup ]
+          example: OutputGroup
+        sets:
           type: object
           additionalProperties:
             $ref: '#/components/schemas/SetSummary'
@@ -985,7 +986,7 @@ components:
       properties:
         type:
           type: string
-          enum: [ OutputSet ]
+          enum: [ OutputSet, InputSet ]
           example: OutputSet
         itemCount:
           type: number

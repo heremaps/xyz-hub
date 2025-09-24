@@ -4,7 +4,9 @@ import com.here.xyz.XyzSerializable;
 
 public class SetSummary implements XyzSerializable {
 
-  private String type = "OutputSet";
+  public static final String OUTPUT_TYPE = "OutputSet";
+  public static final String INPUT_TYPE = "InputSet";
+  private String type;
   private long itemCount;
   private long byteSize;
 

@@ -65,10 +65,10 @@ public class JobOutputsPreviewTest {
     GroupSummary group = await(job.composeOutputGroupPreview("group1"));
 
     Assert.assertEquals(10L, group.getItemCount());
-    Assert.assertNotNull(group.getItems());
-    Assert.assertEquals(2, group.getItems().size());
-    Assert.assertEquals(5L, group.getItems().get("setA").getItemCount());
-    Assert.assertEquals(5L, group.getItems().get("setB").getItemCount());
+    Assert.assertNotNull(group.getSets());
+    Assert.assertEquals(2, group.getSets().size());
+    Assert.assertEquals(5L, group.getSets().get("setA").getItemCount());
+    Assert.assertEquals(5L, group.getSets().get("setB").getItemCount());
 
     Assert.assertEquals(0L, group.getByteSize());
   }
@@ -80,14 +80,14 @@ public class JobOutputsPreviewTest {
     GroupedPayloadsPreview preview = await(job.composeOutputsPreview());
 
     Assert.assertEquals(10L, preview.getItemCount());
-    Assert.assertNotNull(preview.getItems());
-    Assert.assertEquals(1, preview.getItems().size());
+    Assert.assertNotNull(preview.getGroups());
+    Assert.assertEquals(1, preview.getGroups().size());
 
-    GroupSummary group1 = preview.getItems().get("group1");
+    GroupSummary group1 = preview.getGroups().get("group1");
     Assert.assertNotNull(group1);
     Assert.assertEquals(10L, group1.getItemCount());
 
-    Map<String, SetSummary> sets = group1.getItems();
+    Map<String, SetSummary> sets = group1.getSets();
     Assert.assertEquals(2, sets.size());
     Assert.assertEquals(5L, sets.get("setA").getItemCount());
     Assert.assertEquals(5L, sets.get("setB").getItemCount());

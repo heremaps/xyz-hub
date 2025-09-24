@@ -88,7 +88,7 @@ public class InputPreviewTest {
     Assertions.assertEquals(110L, groupB.getByteSize(), "Total bytes in groupB should be the sum of all set byte sizes.");
     Assertions.assertEquals(4L, groupB.getItemCount(), "Item count in groupB should be the total number of inputs across sets.");
 
-    Map<String, SetSummary> items = groupB.getItems();
+    Map<String, SetSummary> items = groupB.getSets();
     Assertions.assertEquals(2, items.size());
     Assertions.assertEquals(1L, items.get("set2").getItemCount());
     Assertions.assertEquals(50L, items.get("set2").getByteSize());
@@ -102,7 +102,7 @@ public class InputPreviewTest {
     Assertions.assertNotNull(none);
     Assertions.assertEquals(0L, none.getByteSize());
     Assertions.assertEquals(0L, none.getItemCount());
-    Assertions.assertTrue(none.getItems() == null || none.getItems().isEmpty());
+    Assertions.assertTrue(none.getSets() == null || none.getSets().isEmpty());
   }
 
   @Test
@@ -112,7 +112,7 @@ public class InputPreviewTest {
     Assertions.assertEquals(410L, preview.getByteSize());
     Assertions.assertEquals(6L, preview.getItemCount());
 
-    Map<String, GroupSummary> groups = preview.getItems();
+    Map<String, GroupSummary> groups = preview.getGroups();
     Assertions.assertEquals(2, groups.size());
 
     GroupSummary groupA = groups.get("groupA");

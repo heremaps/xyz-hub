@@ -53,7 +53,6 @@ import com.here.xyz.jobs.processes.ProcessDescription;
 import com.here.xyz.jobs.service.JobService;
 import com.here.xyz.jobs.steps.JobCompiler;
 import com.here.xyz.jobs.steps.Step;
-import com.here.xyz.jobs.steps.Step.OutputSet;
 import com.here.xyz.jobs.steps.Step.Visibility;
 import com.here.xyz.jobs.steps.StepGraph;
 import com.here.xyz.jobs.steps.execution.JobExecutor;
@@ -624,17 +623,23 @@ public class Job implements XyzSerializable {
 
       for (Step step : stepsList) {
         String group = step.getOutputSetGroup();
-        GroupSummary groupSummary = groups.computeIfAbsent(group, g -> new GroupSummary().withItems(new HashMap<>()).withItemCount(0));
+        GroupSummary groupSummary = groups.computeIfAbsent(group, g -> new GroupSummary()
+            .withItems(new HashMap<>())
+            .withItemCount(0)
+            .withType(GroupSummary.OUTPUT_TYPE));
         for (Object osObj : step.getOutputSets()) {
           Step.OutputSet os = (Step.OutputSet) osObj;
-          groupSummary.getItems().computeIfAbsent(os.name, s -> new SetSummary().withItemCount(0).withByteSize(0));
+          groupSummary.getSets().computeIfAbsent(os.name, s -> new SetSummary()
+              .withItemCount(0)
+              .withByteSize(0)
+              .withType(SetSummary.OUTPUT_TYPE));
         }
       }
 
       for (Map.Entry<String, GroupSummary> entry : groups.entrySet()) {
         String group = entry.getKey();
         GroupSummary groupSummary = entry.getValue();
-        for (Map.Entry<String, SetSummary> setEntry : groupSummary.getItems().entrySet()) {
+        for (Map.Entry<String, SetSummary> setEntry : groupSummary.getSets().entrySet()) {
           String setName = setEntry.getKey();
           long itemCount = stepsList.stream()
               .filter(step -> group.equals(step.getOutputSetGroup()) && step.getOutputSetOrNull(setName) != null)
@@ -666,7 +671,10 @@ public class Job implements XyzSerializable {
         if (outputSetGroup.equals(step.getOutputSetGroup())) {
           List<Step.OutputSet> outputSets = step.getOutputSets();
           for (Step.OutputSet os : outputSets) {
-            sets.computeIfAbsent(os.name, s -> new SetSummary().withItemCount(0).withByteSize(0));
+            sets.computeIfAbsent(os.name, s -> new SetSummary()
+                .withItemCount(0)
+                .withByteSize(0)
+                .withType(SetSummary.OUTPUT_TYPE));
           }
         }
       }
@@ -686,7 +694,8 @@ public class Job implements XyzSerializable {
       return new GroupSummary()
           .withItems(sets)
           .withItemCount(totalItems)
-          .withByteSize(totalBytes);
+          .withByteSize(totalBytes)
+          .withType(GroupSummary.OUTPUT_TYPE);
     });
   }
 
