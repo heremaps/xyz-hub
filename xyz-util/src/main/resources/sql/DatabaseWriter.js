@@ -22,6 +22,7 @@ class DatabaseWriter {
   schema;
   table;
 
+  tableLayout;
   /**
    * @type {boolean}
    */
@@ -39,10 +40,11 @@ class DatabaseWriter {
    */
   resultParsers = {};
 
-  constructor(schema, table, batchMode = false) {
+  constructor(schema, table, batchMode = false, tableLayout) {
     this.schema = schema;
     this.table = table;
     this.batchMode = batchMode;
+    this.tableLayout = tableLayout;
   }
 
   /**
@@ -210,24 +212,41 @@ class DatabaseWriter {
     //TODO: Check if it makes sense to get the previous creation timestamp by loading the feature in case the operation != "I" / "H" (rather than doing the in-lined SELECT
     //TODO: Improve performance by reading geo inside JS and then pass it separately and use TEXT / WKB / BYTEA
     this.enrichTimestamps(inputFeature, true);
-    let sql = `INSERT INTO "${this.schema}"."${this.table}"
-                      (id, version, operation, author, jsondata, geo)
-                  VALUES ($1, $2, $3, $4,
-                          CASE WHEN $3::CHAR = 'I' OR $3::CHAR = 'H' THEN
-                              $5::JSONB - 'geometry'
-                          ELSE 
-                              jsonb_set($5::JSONB - 'geometry', '{properties, ${XYZ_NS}, createdAt}', to_jsonb($7::BIGINT))
-                          END,
-                          CASE
-                              WHEN $6::JSONB IS NULL THEN NULL
-                              ELSE xyz_reduce_precision(ST_Force3D(ST_GeomFromGeoJSON($6::JSONB)), false) END)`;
+    let extraCols = '';
+    let extraVals = '';
+
+    if (this.tableLayout === 'NEW_LAYOUT') {
+      extraCols = ', refquad, global_version';
+      extraVals = ', $8, $9';
+    }
+
+    const sql = `INSERT INTO "${this.schema}"."${this.table}"
+                (id, version, operation, author, jsondata, geo ${extraCols})
+            VALUES ($1, $2, $3, $4,
+                CASE WHEN $3::CHAR = 'I' OR $3::CHAR = 'H' THEN
+                    $5::JSONB - 'geometry'
+                ELSE 
+                    jsonb_set($5::JSONB - 'geometry',
+                              '{properties, ${XYZ_NS}, createdAt}',
+                              to_jsonb($7::BIGINT))
+                END,
+                CASE WHEN $6::JSONB IS NULL THEN NULL
+                ELSE xyz_reduce_precision(ST_Force3D(ST_GeomFromGeoJSON($6::JSONB)), false)
+                END ${extraVals}
+            )`;
 
     this._createHistoryPartition(version);
     this._purgeOldChangesets(version);
 
     let method = "insertHistoryRow";
     if (!this.plans[method]) {
-      this.plans[method] = this._preparePlan(sql, ["TEXT", "BIGINT", "CHAR", "TEXT", "JSONB", "JSONB", "BIGINT"]);
+      const paramTypes = ["TEXT", "BIGINT", "CHAR", "TEXT", "JSONB", "JSONB", "BIGINT"];
+
+      if (this.tableLayout === 'NEW_LAYOUT') {
+        paramTypes.push("TEXT", "INTEGER");
+      }
+
+      this.plans[method] = this._preparePlan(sql, paramTypes);
       this.parameterSets[method] = [];
       this.resultParsers[method] = [];
     }
@@ -237,7 +256,7 @@ class DatabaseWriter {
       throw new XyzException("Can not write a feature that is null");
     }
 
-    this.parameterSets[method].push([
+    const params = [
       inputFeature.id,
       version,
       operation,
@@ -245,7 +264,17 @@ class DatabaseWriter {
       inputFeature,
       inputFeature.geometry,
       baseFeature ? baseFeature.properties[XYZ_NS].createdAt : -1
-    ]);
+    ];
+
+    if (this.tableLayout === 'NEW_LAYOUT') {
+      params.push(
+        inputFeature.properties.refQuad,
+        inputFeature.properties.globalVersion
+      );
+    }
+
+    this.parameterSets[method].push(params);
+
     this.resultParsers[method].push(result => {
       //FIXME: Extract written creation timestamp if applicable
       return resultHandler(new FeatureModificationExecutionResult(inputFeature.properties[XYZ_NS].deleted ? ExecutionAction.DELETED : ExecutionAction.fromOperation[operation], inputFeature, version, author));

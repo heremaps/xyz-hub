@@ -96,7 +96,7 @@ public class NLConnector extends PSQLXyzConnector {
   private static final String REF_QUAD_PROPERTY_KEY = "refQuad";
   private static final String REF_QUAD_COUNT_SELECTION_KEY = "f.refQuadCount";
   //If seedingMode is active, we do not use the FeatureWriter, but a simple batch upsert and delete
-  private boolean seedingMode = true;
+  private boolean seedingMode = false;
 
   @Override
   protected StatisticsResponse processGetStatistics(GetStatisticsEvent event) throws Exception {
