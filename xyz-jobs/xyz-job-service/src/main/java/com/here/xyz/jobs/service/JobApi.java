@@ -361,10 +361,7 @@ public class JobApi extends JobApiBase {
   }
 
   protected Integer pageLimit(RoutingContext context) {
-    String requestedLimit = context.queryParams().get("pageSize");
-    if (requestedLimit == null) {
-      requestedLimit = context.queryParams().get("limit");
-    }
+    String requestedLimit = context.queryParams().get("limit");
     return requestedLimit == null ? DEFAULT_PAGE_SIZE : Integer.parseInt(requestedLimit);
   }
 

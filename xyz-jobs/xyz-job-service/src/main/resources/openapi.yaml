@@ -157,7 +157,7 @@ paths:
         - $ref: '#/components/parameters/SetGroup'
         - $ref: '#/components/parameters/OutputSetName'
         - $ref: '#/components/parameters/PageToken'
-        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/Limit'
       responses:
         '200':
           $ref: '#/components/responses/InputItemsPageResponse'
@@ -212,7 +212,7 @@ paths:
         - $ref: '#/components/parameters/SetGroup'
         - $ref: '#/components/parameters/OutputSetName'
         - $ref: '#/components/parameters/PageToken'
-        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/Limit'
       responses:
         '200':
           $ref: '#/components/responses/OutputItemsPageResponse'
@@ -313,10 +313,10 @@ components:
       required: false
       schema:
         type: string
-    PageSize:
-      name: pageSize
+    Limit:
+      name: limit
       in: query
-      description: Maximum number of items to return.
+      description: Maximum number of items to return per requested page.
       required: false
       schema:
         type: integer
