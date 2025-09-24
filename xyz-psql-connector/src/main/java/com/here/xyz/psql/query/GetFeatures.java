@@ -244,10 +244,8 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
               : new SQLQuery("AND version <= ${{endVersion}}::BIGINT")
                   .withQueryFragment("endVersion", "" + (ref.getEnd().getVersion() - baseVersion))); //TODO: That's a workaround for a minor bug in SQLQuery
 
-    return new SQLQuery("AND ${{version}} <= ${{requestedVersion}}::BIGINT")
-        //FIXME: Change the direction of the comparison, so that the index can be used. so instead of adding to the left side, subtract from the right side
-        .withQueryFragment("version", "version + " + baseVersion + "::BIGINT") //TODO: That's a workaround for a minor bug in SQLQuery
-        .withQueryFragment("requestedVersion", "" + ref.getVersion()); //TODO: That's a workaround for a minor bug in SQLQuery
+    return new SQLQuery("AND version <= ${{requestedVersion}}::BIGINT")
+        .withQueryFragment("requestedVersion", "" + (ref.getVersion() - baseVersion)); //TODO: That's a workaround for a minor bug in SQLQuery
   }
 
   private SQLQuery buildNextVersionFragment(SelectiveEvent event, Ref ref, long baseVersion) {
