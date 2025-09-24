@@ -949,7 +949,7 @@ public class FeatureTaskHandler {
 
     final String storageId = task.space.getStorage().getId();
     XYZHubRESTVerticle.addStreamInfo(task.context, "SID", storageId);
-    return Space.resolveConnector(task.getMarker(), storageId)
+    return task.space.resolveStorage(task.getMarker())
         .compose(
             connector -> {
               task.storage = connector;
