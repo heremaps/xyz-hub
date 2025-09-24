@@ -840,7 +840,19 @@ public class SpaceTaskHandler {
     Service.subscriptionConfigClient.getBySource(task.getMarker(), spaceId)
         .compose(subscriptions -> {
           if (!subscriptions.isEmpty()) {
-            return TagApi.createTag(task.getMarker(), spaceId, Service.configuration.SUBSCRIPTION_TAG, author);
+            final Future<Tag> tagFuture = TagApi.createTag(task.getMarker(), spaceId, Service.configuration.SUBSCRIPTION_TAG, author);
+            Future<Void> spaceFuture = Future.succeededFuture();
+
+            if (task.responseSpaces.get(0).getVersionsToKeep() == 1) {
+              task.responseSpaces.get(0).setVersionsToKeep(2);
+              spaceFuture = Service
+                  .spaceConfigClient
+                  .get(task.getMarker(), spaceId)
+                  .map(space -> (Space) space.withVersionsToKeep(2))
+                  .compose(space -> Service.spaceConfigClient.store(task.getMarker(), space));
+            }
+
+            return Future.all(tagFuture, spaceFuture);
           }
 
           return Future.succeededFuture();
