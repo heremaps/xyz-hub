@@ -801,7 +801,8 @@ class FeatureWriter {
 
   _loadFeature(id, version, tables) {
     let tableAliases = tables.map((table, i) => "t" + (tables.length - i - 1));
-    let whereConditions = tables.map((table, i) => `WHERE id = $1 AND ${version == "HEAD" ? `next_version = ${MAX_BIG_INT}` : `version = ${version - this.tableBaseVersions[i]}`} AND operation != $2`).reverse();
+     let branchTableMaxVersion = i => i == tables.length - 1 || FeatureWriter._isComposite() ? "" : `AND version <= ${this.tableBaseVersions[i + 1] - this.tableBaseVersions[i]}`;
+    let whereConditions = tables.map((table, i) => `WHERE id = $1 AND ${version == "HEAD" ? `next_version = ${MAX_BIG_INT}` : `version = ${version - this.tableBaseVersions[i]}`} ${branchTableMaxVersion(i)} AND operation != $2`).reverse();
     let tableBaseVersions = tables.map((table, i) => this.tableBaseVersions[i]).reverse();
 
     let sql = `
