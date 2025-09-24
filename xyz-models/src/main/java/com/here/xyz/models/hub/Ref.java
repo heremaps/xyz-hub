@@ -57,7 +57,7 @@ public class Ref implements XyzSerializable {
         //Check if the provided ref depicts a branch or a version
         if (isValidVersionOrRange(refParts[0]))
           versionPart = refParts[0];
-        else {
+        else if (Tag.isValidId(refParts[0])) {
           tag = refParts[0];
           return;
         }

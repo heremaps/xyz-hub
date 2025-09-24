@@ -19,7 +19,10 @@
 
 package com.here.xyz.hub.task;
 
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
 import static com.here.xyz.models.hub.Branch.MAIN_BRANCH;
+import static com.here.xyz.models.hub.Space.TABLE_NAME;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
@@ -65,6 +68,8 @@ import com.here.xyz.models.hub.FeatureModificationList.ConflictResolution;
 import com.here.xyz.models.hub.FeatureModificationList.IfExists;
 import com.here.xyz.models.hub.FeatureModificationList.IfNotExists;
 import com.here.xyz.models.hub.Ref;
+import com.here.xyz.psql.query.XyzEventBasedQueryRunner;
+import com.here.xyz.psql.query.branching.BranchManager;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.geo.GeometryValidator;
 import com.here.xyz.util.service.HttpException;
@@ -158,7 +163,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
       callback.call(task);
   }
 
-  static void resolveBranchFor(ContextAwareEvent<?> event, Space space) throws HttpException {
+  public static void resolveBranchFor(ContextAwareEvent<?> event, Space space) throws HttpException {
     Branch referencedBranch = null;
     if (!event.getRef().isMainBranch()) {
       referencedBranch = getReferencedBranch(space, event.getRef());
@@ -176,13 +181,24 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
       }
     }
 
-    if (referencedBranch != null)
-      event
-          .withNodeId(referencedBranch.getNodeId())
-          .withBranchPath(getBranchPath(space, referencedBranch));
+    if (referencedBranch != null) {
+      LinkedList<Ref> branchPath = (LinkedList<Ref>) getBranchPath(space, referencedBranch);
+      event.withNodeId(referencedBranch.getNodeId())
+              .withBranchPath(branchPath);
+
+      //TODO: Remove this hack when SpaceContext support is removed from branching
+      if (event.getContext() == SUPER)  {
+        Ref lastRef = branchPath.removeLast();
+        event.setNodeId(BranchManager.getNodeId(lastRef));
+      } else if (event.getContext() == EXTENSION) {
+        event.setConnectorParams(Map.copyOf(space.getResolvedStorageConnector().params));
+        event.getParams().put(TABLE_NAME, XyzEventBasedQueryRunner.readBranchTableFromEvent(event));
+        event.setNodeId(0);
+      }
+    }
   }
 
-  protected static Branch getReferencedBranch(Space space, Ref ref) throws HttpException {
+  public static Branch getReferencedBranch(Space space, Ref ref) throws HttpException {
     Map<String, Branch> branches = space.getBranches();
     if (!branches.containsKey(ref.getBranch()))
       throw new HttpException(NOT_FOUND, "Branch \"" + ref.getBranch() + "\" was not found on resource \"" + space.getId() + "\".");

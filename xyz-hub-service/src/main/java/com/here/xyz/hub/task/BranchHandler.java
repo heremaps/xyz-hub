@@ -24,6 +24,7 @@ import static com.here.xyz.events.ModifyBranchEvent.Operation.CREATE;
 import static com.here.xyz.events.ModifyBranchEvent.Operation.DELETE;
 import static com.here.xyz.events.ModifyBranchEvent.Operation.MERGE;
 import static com.here.xyz.events.ModifyBranchEvent.Operation.REBASE;
+import static com.here.xyz.hub.task.FeatureTask.getReferencedBranch;
 import static com.here.xyz.models.hub.Branch.MAIN_BRANCH;
 import static com.here.xyz.models.hub.Branch.State.IN_CONFLICT;
 import static com.here.xyz.models.hub.Ref.HEAD;
@@ -40,6 +41,7 @@ import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.MergedBranchResponse;
 import com.here.xyz.responses.ModifiedBranchResponse;
 import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.util.service.HttpException;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import java.util.ArrayList;
@@ -167,9 +169,25 @@ public class BranchHandler {
   }
 
   private static Future<Ref> resolveRef(Marker marker, String spaceId, Ref ref) {
-    if (!ref.isHead()) //TODO: Also support tags
+    if (ref.isTag()) {
+      //TODO: Also support tags
+      //The ref was parsed as a tag, but it still could be depicting a branch ID, trying to resolve it ...
+      return Space.resolveSpace(marker, spaceId)
+          .compose(space -> {
+            try {
+              //TODO: Resolve HEAD of the branch
+              Ref branchRef = Ref.fromBranchId(ref.getTag());
+              getReferencedBranch(space, branchRef);
+              return Future.succeededFuture(branchRef);
+            }
+            catch (HttpException e) {
+              return Future.failedFuture(e);
+            }
+          });
+    }
+    if (!ref.isHead())
       return Future.succeededFuture(ref);
-    return FeatureQueryApi.getStatistics(marker, spaceId, EXTENSION, true, false)
+    return FeatureQueryApi.getStatistics(marker, spaceId, EXTENSION, ref, true, false)
         .map(statistics -> new Ref(ref.getBranch() + ":" + statistics.getMaxVersion().getValue()));
   }
 

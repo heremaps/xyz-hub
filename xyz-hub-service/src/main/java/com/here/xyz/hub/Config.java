@@ -473,5 +473,5 @@ public class Config extends BaseConfig {
    */
   public ConnectorMapping DEFAULT_CONNECTOR_MAPPING_STRATEGY = RANDOM;
 
-  public boolean USE_WRITE_FEATURES_EVENT = true;
+  public boolean USE_WRITE_FEATURES_EVENT = false;
 }
