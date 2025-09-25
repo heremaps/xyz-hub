@@ -35,11 +35,13 @@ import com.here.xyz.jobs.steps.JobPayloads;
 import com.here.xyz.jobs.steps.SetPayloads;
 import com.here.xyz.jobs.steps.payloads.StepPayload;
 import com.here.xyz.jobs.util.S3Client;
+import com.here.xyz.util.db.ECPSTool;
 import com.here.xyz.util.pagination.Page;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.aws.s3.S3ObjectSummary;
 import com.here.xyz.util.service.aws.s3.S3Uri;
 import java.io.IOException;
+import java.security.GeneralSecurityException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -52,6 +54,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ForkJoinPool;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import javax.crypto.IllegalBlockSizeException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
@@ -266,7 +269,7 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
       long offsetLong = 0L;
       if (nextPageToken != null && !nextPageToken.isEmpty()) {
         try {
-          offsetLong = Long.parseLong(nextPageToken);
+          offsetLong = Long.parseLong(decodeToken(nextPageToken));
         } catch (NumberFormatException ignore) {}
       }
       int offset = (int) Math.max(0L, Math.min(offsetLong, total));
@@ -294,7 +297,7 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
           .collect(Collectors.toList());
 
       String newNextToken = (toExclusive < total) ? String.valueOf(toExclusive) : null;
-      return new Page<T>(pageItems, newNextToken);
+      return new Page<T>(pageItems, encodeToken(newNextToken));
     } catch (IOException | S3Exception ignore) {
     }
 
@@ -305,6 +308,29 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
     }
 
     return inputs;
+  }
+
+  private static String encodeToken(String tokenContent) {
+    if(tokenContent == null) {
+      return null;
+    }
+    try {
+      return ECPSTool.encrypt(Input.class.getSimpleName(), tokenContent, true);
+    }
+    catch (GeneralSecurityException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  private static String decodeToken(String token) {
+    try {
+      return ECPSTool.decrypt(Input.class.getSimpleName(), token, true);
+    }
+    catch (GeneralSecurityException | IllegalArgumentException e) {
+      if ( e instanceof IllegalBlockSizeException || (e.getCause() != null && e.getCause() instanceof IllegalBlockSizeException))
+        throw new IllegalArgumentException("Invalid nextPageToken provided for iterate");
+      throw new IllegalArgumentException("Error trying to decode the iteration nextPageToken.");
+    }
   }
 
   public static final S3Uri loadResolvedUserInputPrefixUri(String jobId, String setName) {

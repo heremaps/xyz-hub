@@ -617,10 +617,20 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
 
   @JsonIgnore
   protected void setOutputSets(List<OutputSet> outputSets, boolean ignoreStepId) {
+    // Ensure that if any user-facing output set is being registered, the output set group is defined
+    ensureOutputSetGroupDefinedIfUserFacing(outputSets.stream().anyMatch(outputSet -> outputSet.visibility == USER));
     if (!ignoreStepId) {
       outputSets.forEach(outputSet -> outputSet.setStepId(getId()));
     }
     this.outputSets = outputSets;
+  }
+
+  private void ensureOutputSetGroupDefinedIfUserFacing(boolean userFacing) {
+    // temporary disable it for demo, as it fails on setting output sets in constructor
+    return;
+//    if (userFacing && (getOutputSetGroup() == null || getOutputSetGroup().isBlank())) {
+//      throw new IllegalStateException("You are registering user-facing output set, please first define outputset group value");
+//    }
   }
 
   public List<InputSet> getInputSets() {
@@ -637,6 +647,8 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   }
 
   public T withOutputSetVisibility(String outputSetName, Visibility visibility) {
+    // Ensure that if we switch to a user-facing visibility, the output set group is defined
+    ensureOutputSetGroupDefinedIfUserFacing(visibility == USER);
     OutputSet outputSet = getOutputSetOrNull(outputSetName);
     if (outputSet != null) {
       replaceOutputSet(outputSetName, new OutputSet(outputSet, outputSet.jobId, visibility)

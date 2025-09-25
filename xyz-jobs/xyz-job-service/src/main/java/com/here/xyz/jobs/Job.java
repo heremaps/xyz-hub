@@ -60,6 +60,7 @@ import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.inputs.ModelBasedInput;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.JobPayloads;
+import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.jobs.steps.GroupPayloads;
 import com.here.xyz.jobs.steps.SetPayloads;
@@ -80,6 +81,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -639,12 +641,23 @@ public class Job implements XyzSerializable {
         GroupPayloads groupSummary = entry.getValue();
         for (Map.Entry<String, SetPayloads> setEntry : groupSummary.getSets().entrySet()) {
           String setName = setEntry.getKey();
-          long itemCount = stepsList.stream()
+          AtomicLong itemCount = new AtomicLong();
+          AtomicLong byteSize = new AtomicLong();
+          stepsList.stream()
               .filter(step -> group.equals(step.getOutputSetGroup()) && step.getOutputSetOrNull(setName) != null)
-              .mapToLong(step -> step.loadOutputsPage(Visibility.USER, setName, Integer.MAX_VALUE, null).getItems().size())
-              .sum();
-          setEntry.getValue().setItemCount(itemCount);
-          groupSummary.setItemCount(groupSummary.getItemCount() + itemCount);
+              .forEach(step -> {
+                Page<?> page = step.loadOutputsPage(Visibility.USER, setName, Integer.MAX_VALUE, null);
+                itemCount.addAndGet(page.getItems().size());
+                for (Object item : page.getItems()) {
+                  if (item instanceof DownloadUrl) {
+                    byteSize.addAndGet(((DownloadUrl) item).getByteSize());
+                  }
+                }
+              });
+          setEntry.getValue().setItemCount(itemCount.get());
+          setEntry.getValue().setByteSize(byteSize.get());
+          groupSummary.setItemCount(groupSummary.getItemCount() + itemCount.get());
+          groupSummary.setByteSize(groupSummary.getByteSize() + setEntry.getValue().getByteSize());
         }
       }
 
