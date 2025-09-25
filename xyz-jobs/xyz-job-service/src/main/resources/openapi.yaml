@@ -95,9 +95,9 @@ paths:
     get:
       tags:
         - "Manage Jobs"
-      summary: "List job inputs"
-      description: "Lists the available inputs of a job"
-      operationId: "getJobInputs"
+      summary: "List job inputs (flat or preview)"
+      description: "Lists the available inputs of a job in flat mode, or a preview of the input groups with sets in paginated mode"
+      operationId: "getJobInputPayloadsPreview"
       parameters:
         - $ref: "#/components/parameters/JobId"
         - $ref: "#/components/parameters/ResponseMode"
@@ -130,14 +130,13 @@ paths:
           $ref: "#/components/responses/ErrorResponse404"
     get:
       tags:
-        - Manage Jobs
-      summary: Get input group summary
-      description: Returns a summary for a specific input group with its sets.
-      operationId: getNamedJobInputGroups
+        - "Manage Jobs"
+      summary: "Get input group preview"
+      description: "Returns a preview for a specific input group with its sets and statistics"
+      operationId: "getJobInputGroupPayloadsPreview"
       parameters:
         - $ref: '#/components/parameters/JobId'
         - $ref: '#/components/parameters/Group'
-        - $ref: "#/components/parameters/ResponseMode"
       responses:
         '200':
           $ref: '#/components/responses/JobPayloadsResponse'
@@ -148,10 +147,10 @@ paths:
   /jobs/{jobId}/inputs/{group}/{name}:
     get:
       tags:
-        - Manage Jobs
-      summary: List items in an input set (paged)
-      description: Returns a paginated list of items within an input set.
-      operationId: getJobInputSetItems
+        - "Manage Jobs"
+      summary: "List items of the job (paged)"
+      description: "Returns a paginated list of items within a group and input set."
+      operationId: "getJobPaginatedInputs"
       parameters:
         - $ref: '#/components/parameters/JobId'
         - $ref: '#/components/parameters/Group'
@@ -169,9 +168,9 @@ paths:
     get:
       tags:
         - "Manage Jobs"
-      summary: "List job outputs"
-      description: "Lists the outputs of a job"
-      operationId: "getJobOutputs"
+      summary: "List job outputs (flat or preview)"
+      description: "Lists the outputs of a job, or a preview of the output groups with sets in paginated mode"
+      operationId: "getJobOutputPayloadsPreview"
       parameters:
         - $ref: "#/components/parameters/JobId"
         - $ref: "#/components/parameters/ResponseMode"
@@ -185,10 +184,10 @@ paths:
   /jobs/{jobId}/outputs/{group}:
     get:
       tags:
-        - Manage Jobs
-      summary: Get output group summary
-      description: Returns a summary for a specific output group with its sets.
-      operationId: getJobOutputGroup
+        - "Manage Jobs"
+      summary: "Get output group preview"
+      description: "Returns a summary for a specific output group with its sets and statistics"
+      operationId: "getJobOutputGroupPayloadsPreview"
       parameters:
         - $ref: '#/components/parameters/JobId'
         - $ref: '#/components/parameters/Group'
@@ -203,10 +202,10 @@ paths:
   /jobs/{jobId}/outputs/{group}/{name}:
     get:
       tags:
-        - Manage Jobs
-      summary: List items in an output set (paged)
-      description: Returns a paginated list of items within an output set.
-      operationId: getJobOutputSetItems
+        - "Manage Jobs"
+      summary: "List output items (paged)"
+      description: "Returns a paginated list of items within an output set."
+      operationId: "getJobPaginatedOutputs"
       parameters:
         - $ref: '#/components/parameters/JobId'
         - $ref: '#/components/parameters/Group'

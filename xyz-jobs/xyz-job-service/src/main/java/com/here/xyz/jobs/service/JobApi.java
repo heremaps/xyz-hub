@@ -44,7 +44,6 @@ import com.here.xyz.jobs.steps.inputs.InputsFromS3;
 import com.here.xyz.jobs.steps.inputs.ModelBasedInput;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.Output;
-import com.here.xyz.util.pagination.Page;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.service.HttpException;
 import com.here.xyz.util.service.errors.DetailedHttpException;
@@ -69,13 +68,15 @@ public class JobApi extends JobApiBase {
     rb.getRoute("getJob").setDoValidation(false).addHandler(handleErrors(this::getJob));
     rb.getRoute("deleteJob").setDoValidation(false).addHandler(handleErrors(this::deleteJob));
     rb.getRoute("postJobInputs").setDoValidation(false).addHandler(handleErrors(this::postJobInput));
-    rb.getRoute("getJobInputs").setDoValidation(false).addHandler(handleErrors(this::getJobInputs));
+    // has also deprecated flat mode
+    rb.getRoute("getJobInputPayloadsPreview").setDoValidation(false).addHandler(handleErrors(this::getJobInputPayloadsPreview));
     rb.getRoute("postNamedJobInputs").setDoValidation(false).addHandler(handleErrors(this::postJobInput));
-    rb.getRoute("getNamedJobInputGroups").setDoValidation(false).addHandler(handleErrors(this::getNamedJobInputGroups));
-    rb.getRoute("getJobOutputs").setDoValidation(false).addHandler(handleErrors(this::getJobOutputs));
-    rb.getRoute("getJobOutputGroup").setDoValidation(false).addHandler(handleErrors(this::getJobOutputGroup));
-    rb.getRoute("getJobOutputSetItems").setDoValidation(false).addHandler(handleErrors(this::getJobOutputSetItems));
-    rb.getRoute("getJobInputSetItems").setDoValidation(false).addHandler(handleErrors(this::getJobInputSetItems));
+    rb.getRoute("getJobInputGroupPayloadsPreview").setDoValidation(false).addHandler(handleErrors(this::getJobInputGroupPayloadsPreview));
+    // has also deprecated flat mode
+    rb.getRoute("getJobOutputPayloadsPreview").setDoValidation(false).addHandler(handleErrors(this::getJobOutputPayloadsPreview));
+    rb.getRoute("getJobOutputGroupPayloadsPreview").setDoValidation(false).addHandler(handleErrors(this::getJobOutputGroupPayloadsPreview));
+    rb.getRoute("getJobPaginatedOutputs").setDoValidation(false).addHandler(handleErrors(this::getJobPaginatedOutputs));
+    rb.getRoute("getJobPaginatedInputs").setDoValidation(false).addHandler(handleErrors(this::getJobPaginatedInputs));
     rb.getRoute("patchJobStatus").setDoValidation(false).addHandler(handleErrors(this::patchJobStatus));
     rb.getRoute("getJobStatus").setDoValidation(false).addHandler(handleErrors(this::getJobStatus));
   }
@@ -218,7 +219,7 @@ public class JobApi extends JobApiBase {
     return Future.succeededFuture(null);
   }
 
-  protected void getJobInputs(final RoutingContext context) {
+  protected void getJobInputPayloadsPreview(final RoutingContext context) {
     final boolean paginatedMode = isPaginatedRequest(context);
 
     if (paginatedMode) {
@@ -236,26 +237,15 @@ public class JobApi extends JobApiBase {
     }
   }
 
-  protected void getNamedJobInputGroups(final RoutingContext context) {
-    final boolean paginatedMode = isPaginatedRequest(context);
-
-    if (paginatedMode) {
+  protected void getJobInputGroupPayloadsPreview(final RoutingContext context) {
       String group = retrieveSetGroup(context);
       loadJob(context, jobId(context))
           .compose(job -> job.composeInputGroupPreview(group))
           .onSuccess(summary -> sendResponse(context, OK.code(), summary))
           .onFailure(err -> sendErrorResponse(context, err));
-    } else {
-      final String name = retrieveSetName(context);
-      loadJob(context, jobId(context))
-          .compose(job -> job.loadInputs(name)
-          .onSuccess(items -> sendResponse(context, OK.code(), items, new TypeReference<List<Input>>() {
-          }))
-          .onFailure(err -> sendErrorResponse(context, err)));
-    }
   }
 
-  protected void getJobOutputs(final RoutingContext context) {
+  protected void getJobOutputPayloadsPreview(final RoutingContext context) {
     final boolean paginatedMode = isPaginatedRequest(context);
 
     if (paginatedMode) {
@@ -271,7 +261,7 @@ public class JobApi extends JobApiBase {
     }
   }
 
-  protected void getJobOutputGroup(final RoutingContext context) {
+  protected void getJobOutputGroupPayloadsPreview(final RoutingContext context) {
     final String group = Objects.requireNonNull(retrieveSetGroup(context));
     loadJob(context, jobId(context))
         .compose(job -> job.composeOutputGroupPreview(group))
@@ -279,7 +269,7 @@ public class JobApi extends JobApiBase {
         .onFailure(err -> sendErrorResponse(context, err));
   }
 
-  protected void getJobOutputSetItems(final RoutingContext context) {
+  protected void getJobPaginatedOutputs(final RoutingContext context) {
     final String group = Objects.requireNonNull(retrieveSetGroup(context));
     final String name = Objects.requireNonNull(retrieveSetName(context));
     loadJob(context, jobId(context))
@@ -288,7 +278,7 @@ public class JobApi extends JobApiBase {
         .onFailure(err -> sendErrorResponse(context, err));
   }
 
-  protected void getJobInputSetItems(final RoutingContext context) {
+  protected void getJobPaginatedInputs(final RoutingContext context) {
     final String group = Objects.requireNonNull(retrieveSetGroup(context));
     final String name = Objects.requireNonNull(retrieveSetName(context));
     loadJob(context, jobId(context))
