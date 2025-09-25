@@ -815,7 +815,7 @@ public class FeatureApi extends SpaceBasedApi {
     if (featureModifications == null)
       return new ConditionalOperation(event, context, apiResponseTypeType, ifNotExists, ifExists, transactional, cr, requireResourceExists, bodySize);
 
-    final List<FeatureEntry> featureEntries = ModifyFeatureOp.convertToFeatureEntries(featureModifications, ifNotExists, ifExists, cr);
+    final List<FeatureEntry> featureEntries = ModifyFeatureOp.convertToFeatureEntries(featureModifications, ifNotExists, ifExists, cr, event.getRef());
     final ModifyFeatureOp modifyFeatureOp = new ModifyFeatureOp(featureEntries, transactional);
     return new ConditionalOperation(event, context, apiResponseTypeType, modifyFeatureOp, requireResourceExists, bodySize);
   }

@@ -189,8 +189,13 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
       //TODO: Remove this hack when SpaceContext support is removed from branching
       if (event.getContext() == SUPER)  {
         Ref lastRef = branchPath.removeLast();
+        long baseVersion = lastRef.getVersion();
+        Ref requestedRef = event.getRef();
+        if (requestedRef.isHead() || requestedRef.getVersion() > baseVersion)
+          event.setRef(new Ref(baseVersion));
         event.setNodeId(BranchManager.getNodeId(lastRef));
-      } else if (event.getContext() == EXTENSION) {
+      }
+      else if (event.getContext() == EXTENSION) {
         event.setConnectorParams(Map.copyOf(space.getResolvedStorageConnector().params));
         event.getParams().put(TABLE_NAME, XyzEventBasedQueryRunner.readBranchTableFromEvent(event));
         event.setNodeId(0);

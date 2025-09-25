@@ -1040,7 +1040,7 @@ public class FeatureTaskHandler {
 
     try {
       List<Map<String, Object>> featureModifications = getFeatureModifications(task);
-      List<FeatureEntry> featureEntries = ModifyFeatureOp.convertToFeatureEntries(featureModifications, task.ifNotExists, task.ifExists, task.conflictResolution);
+      List<FeatureEntry> featureEntries = ModifyFeatureOp.convertToFeatureEntries(featureModifications, task.ifNotExists, task.ifExists, task.conflictResolution, task.getEvent().getRef());
       task.modifyOp = new ModifyFeatureOp(featureEntries, task.transactional);
       callback.call(task);
     } catch (HttpException e) {

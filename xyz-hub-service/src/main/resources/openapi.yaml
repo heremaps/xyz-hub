@@ -318,17 +318,141 @@ paths:
           $ref: '#/components/responses/ErrorResponse403'
         '404':
           $ref: '#/components/responses/ErrorResponse404'
+  '/spaces/{spaceId}/branches':
+    get:
+      tags:
+        - Manage Branches
+      summary: List Branches
+      description: >-
+        Lists the branches of the specified space.
+      operationId: getBranches
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+      responses:
+        '200':
+          $ref: '#/components/responses/BranchesResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+    post:
+      tags:
+        - Manage Branches
+      summary: Create a Branch
+      description: >-
+        Create a branch, which points to a version of the space or to a version of
+        another branch.
+      operationId: postBranch
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+      requestBody:
+        $ref: '#/components/requestBodies/BranchRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/BranchResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+  '/spaces/{spaceId}/branches/{branchId}':
+    patch:
+      tags:
+        - Manage Branches
+      summary: Update a Branch
+      description: >-
+        Update the ID or the baseRef of a branch.
+        Changing the base reference of a branch performs a "rebase"-operation. Under some
+        circumstances such an operation can take a bit longer than usual, in that case a special
+        response will be sent which contains a token to check the status of the operation.
+
+        Depending on the content of the branch, there can be conflicts during a "rebase"-operation.
+        In that case the response will be a conflict-response which contains a description of the
+        occurred conflicts. These conflicts then have to be solved in order to continue with the
+        "rebase"-operation.
+      operationId: patchBranch
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/BranchId'
+      requestBody:
+        $ref: '#/components/requestBodies/BranchRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/BranchResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+    post:
+      tags:
+        - Manage Branches
+      summary: Execute an operation on a Branch
+      description: >-
+        Execute an operation on the specified branch. Supported operation types are:
+
+
+        - Merge
+      operationId: execBranchOperation
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/BranchId'
+      requestBody:
+        $ref: '#/components/requestBodies/BranchOperationRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/BranchResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+    delete:
+      tags:
+        - Manage Branches
+      summary: Delete a branch
+      description: >-
+        Deletes a branch.
+      operationId: deleteBranch
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/BranchId'
+      responses:
+        '200':
+          $ref: '#/components/responses/BranchResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
   '/spaces/{spaceId}/changesets':
     get:
       tags:
         - Manage Changesets
       summary: Get Changesets
-      description: >-
+      description: |
         Retrieves a subset of existing Changesets from the space's history.
         The subset can be defined either by a "startVersion" and an "endVersion"
         or by providing a version ref that references a version range of
         a specific branch: e.g., "main:5..6" or "myBranch:0..HEAD".
         
+
+        The version range can be specified using the `versionRef` query-parameter as follows:
+        `<start>..<end>`
+        
+        Where `<start>` is the start of the range (exclusive) and `<end>` is the end of the range
+        (inclusive).
+
 
         Each successful write transaction to the space is stored as one single Changeset,
         which can contain modifications applied to one or more features.
@@ -425,7 +549,9 @@ paths:
     get:
       tags:
         - Manage Changesets
-      summary: Get ChangesetStatistics (deprecated)
+      summary: |
+        `[Deprecated]` Get ChangesetStatistics
+      deprecated: true
       description: >-
         NOTE: This endpoint is <b>deprecated</b>. Use <code>/spaces/{spaceId}/statistics</code> instead to gather information about the min / max version of a space.<br /><br />
         Returns statistics about changesets.
@@ -570,7 +696,6 @@ paths:
         - $ref: '#/components/parameters/PropertiesSelection'
         - $ref: '#/components/parameters/Force2D'
         - $ref: '#/components/parameters/Context'
-        - $ref: '#/components/parameters/VersionStar'
         - $ref: '#/components/parameters/VersionRef'
         - $ref: '#/components/parameters/Author'
       responses:
@@ -1536,17 +1661,15 @@ components:
     EndVersion:
       name: endVersion
       in: query
-      description: Defines the end of the version-range [version <= endVersion].
+      description: |
+        `[Deprecated]` Please define the version range using the versionRef query parameter.
+        
+        
+        Defines the end of the version-range [version <= endVersion].
       required: false
       schema:
         type: integer
-    EndVersionNotRequired:
-      name: endVersion
-      in: query
-      description: Defines the end of the version-range [version <= endVersion].
-      required: false
-      schema:
-        type: integer
+      deprecated: true
     FeatureId:
       name: featureId
       in: path
@@ -1895,17 +2018,15 @@ components:
     StartVersion:
       name: startVersion
       in: query
-      description: Defines the start of the version-range [version >= startVersion].
+      description: |
+        `[Deprecated]` Please define the version range using the versionRef query parameter.
+        
+        
+        Defines the start of the version-range [version >= startVersion].
       required: false
       schema:
         type: integer
-    StartVersionNotRequired:
-      name: startVersion
-      in: query
-      description: Defines the start of the version-range [version >= startVersion].
-      required: false
-      schema:
-        type: integer
+      deprecated: true
     TileId:
       name: tileId
       in: path
@@ -2034,7 +2155,7 @@ components:
         only one version. In such a case the version part of the Ref would look like:
         `<start>..<end>`
 
-        Where `<start>` is the start of the range (exclusive) and `end` is the end of the range
+        Where `<start>` is the start of the range (exclusive) and `<end>` is the end of the range
         (inclusive).
         
         Another way of specifying a version range is using the star-symbol: `*`
@@ -2044,15 +2165,19 @@ components:
 
         <br>
         Samples:
-          - `main:42` points to version 42 of the "main"-branch 
+          - `main:42` points to version 42 of the "main"-branch
+          - `myTag` points to the version of the tag with ID "myTag"
           - `myBranch:37` Points to version 37 of the branch with ID "myBranch"
           - `42` points to version 42 of the "main"-branch
           - `myBranch:HEAD` points to the latest version of the branch with ID "myBranch"
           - `HEAD` points to the latest version of the "main"-branch
           - `myBranch` points to the latest version of the branch with ID "myBranch"
           - `myBranch:0..HEAD` points to all available versions of the branch with ID "myBranch"
+          - `0..HEAD` also points to all available versions of the "main"-branch
+          - `*` also points to all versions (short form)
           - `myBranch:*` also points to all versions of branch "myBranch" (short form)
           - `main:5..10` points to the versions in the interval `]5, 10]` of the "main"-branch
+          - `5..10` also points to the versions in the interval `]5, 10]` of the "main"-branch
       required: false
       schema:
         type: string

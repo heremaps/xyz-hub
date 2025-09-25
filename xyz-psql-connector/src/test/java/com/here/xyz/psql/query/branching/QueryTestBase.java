@@ -174,8 +174,8 @@ public abstract class QueryTestBase {
 
   protected static Feature newTestFeature(String id, boolean addRandomProperties) {
     return new Feature()
-            .withId(id)
-            .withProperties(addRandomProperties ? new Properties().with("name", id + Random.randomAlpha(5)) : null)
+        .withId(id)
+        .withProperties(addRandomProperties ? new Properties().with("name", id + Random.randomAlpha(5)) : null)
             .withGeometry(new Point().withCoordinates(new PointCoordinates(0, 0)));
   }
 }
