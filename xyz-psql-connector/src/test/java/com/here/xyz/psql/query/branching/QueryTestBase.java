@@ -172,6 +172,8 @@ public abstract class QueryTestBase {
     return newTestFeature(id, false);
   }
 
+  //TODO: Get rid of randomness in features, modify tests to verify specific explicit use-cases instead
+  @Deprecated
   protected static Feature newTestFeature(String id, boolean addRandomProperties) {
     return new Feature()
         .withId(id)
