@@ -116,6 +116,9 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
     ensureInputsLoaded(jobId);
     Map<String, Map<String, InputsMetadata>> cachedGroups = metadataCache.get(jobId);
 
+    if(cachedGroups == null) {
+      return emptyGroupSummary();
+    }
     Map<String, InputsMetadata> group = cachedGroups.get(outputSetGroup);
     if (group == null) {
       return emptyGroupSummary();
