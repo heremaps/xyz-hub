@@ -24,6 +24,7 @@ import static com.here.xyz.util.db.ConnectorParameters.TableLayout.OLD_LAYOUT;
 import static com.here.xyz.util.db.ConnectorParameters.TableLayout.NEW_LAYOUT;
 import static com.here.xyz.util.db.pg.IndexHelper.OnDemandIndex;
 import static com.here.xyz.util.db.pg.IndexHelper.buildSpaceTableIndexQueries;
+import static com.here.xyz.util.db.pg.IndexHelper.buildOnDemandIndexCreationQuery;
 
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ModifySpaceEvent;
@@ -39,6 +40,9 @@ public class XyzSpaceTableHelper {
   public static final String SCHEMA = "schema";
   public static final String TABLE = "table";
   public static final String HEAD_TABLE_SUFFIX = "_head";
+  public static final String SEARCHABLE_COLUMN = "searchable";
+  public static final String REF_QUAD_PROPERTY = "refQuad";
+  public static final String GLOBAL_VERSION_PROPERTY = "globalVersion";
   public static final long HEAD_TABLE_PARTION_COUNT = 10;
   public static final long PARTITION_SIZE = 100_000;
 
@@ -59,8 +63,13 @@ public class XyzSpaceTableHelper {
     queries.add(buildCreateSequenceQuery(schema, table, "version", layout));
     if(onDemandIndices != null && !onDemandIndices.isEmpty()) {
         for (OnDemandIndex onDemandIndex : onDemandIndices)
-            queries.add(IndexHelper.buildOnDemandIndexCreationQuery(schema, table, onDemandIndex.getPropertyPath(), false));
+            queries.add(buildOnDemandIndexCreationQuery(schema, table, onDemandIndex.getPropertyPath(), false));
     }
+    if(layout == NEW_LAYOUT) {
+      queries.add(buildOnDemandIndexCreationQuery(schema, table, REF_QUAD_PROPERTY, SEARCHABLE_COLUMN ,false));
+      queries.add(buildOnDemandIndexCreationQuery(schema, table, GLOBAL_VERSION_PROPERTY, SEARCHABLE_COLUMN , false));
+    }
+
     return queries;
   }
 
@@ -162,8 +171,7 @@ public class XyzSpaceTableHelper {
               + "author TEXT STORAGE MAIN COMPRESSION lz4, "
               + "jsondata TEXT STORAGE MAIN COMPRESSION lz4 , "
               + "geo geometry(GeometryZ, 4326) STORAGE MAIN COMPRESSION lz4, "
-              + "refquad TEXT STORAGE MAIN COMPRESSION lz4, "
-              + "global_version INT STORAGE PLAIN, "
+              + "searchable JSONB STORAGE MAIN COMPRESSION lz4,"
               + "i BIGSERIAL, "
 //              + "CONSTRAINT ${uniqueConstraintName} UNIQUE (id, next_version), "
               + "CONSTRAINT ${primKeyConstraintName} PRIMARY KEY (id, version, next_version)";

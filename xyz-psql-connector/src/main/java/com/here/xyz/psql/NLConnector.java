@@ -22,6 +22,7 @@ package com.here.xyz.psql;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.connectors.ErrorResponseException;
+import com.here.xyz.connectors.StorageConnector;
 import com.here.xyz.events.DeleteChangesetsEvent;
 import com.here.xyz.events.GetChangesetStatisticsEvent;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
@@ -69,10 +70,12 @@ import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.changesets.ChangesetCollection;
 import com.here.xyz.util.Random;
+import io.vertx.core.json.JsonObject;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.io.WKBWriter;
+import org.postgresql.util.PGobject;
 
 import java.sql.Array;
 import java.sql.Connection;
@@ -181,6 +184,11 @@ public class NLConnector extends PSQLXyzConnector {
     this.seedingMode = seedingMode;
   }
 
+  public StorageConnector withSeedingMode(boolean seedingMode) {
+    setSeedingMode(seedingMode);
+    return this;
+  }
+
   private String getSelectionValue(List<String> selection){
     String errorMessageSelection = "Property based search supports only selection=" + REF_QUAD_COUNT_SELECTION_KEY
             + " search in NLConnector!";
@@ -278,7 +286,7 @@ public class NLConnector extends PSQLXyzConnector {
     List<String> idsToDelete = new ArrayList<>();
     FeatureCollection upsertFeatures = new FeatureCollection();
 
-    if(!seedingMode){
+    if(!seedingMode /* TBD: && event.getVersionsToKeep() > 1*/){
       //Use FeatureWriter
       return run(new WriteFeatures(
               event.withMinVersion(event.getMinVersion())
@@ -314,7 +322,7 @@ public class NLConnector extends PSQLXyzConnector {
     if(!upsertFeatures.getFeatures().isEmpty()) {
       //retrieve Version
       Long version = run(new GetNextVersion<>(event));
-      batchUpsertFeatures(dbSettings.getSchema(), XyzEventBasedQueryRunner.readTableFromEvent(event), upsertFeatures, version, event.getAuthor(), fails);
+      batchMergeFeatures(dbSettings.getSchema(), XyzEventBasedQueryRunner.readTableFromEvent(event), upsertFeatures, version, event.getAuthor(), fails);
       //TODO: Add upsertedIds to responseFeatureCollection?
     }
 
@@ -445,15 +453,21 @@ public class NLConnector extends PSQLXyzConnector {
             .append("WHERE 1=1 ");
 
     if (refQuad != null) {
-      innerSelect.append("AND refquad >= '").append(refQuad)
-              .append("' AND refquad < '").append(refQuad).append("4'");
+      innerSelect.append("AND searchable->'refQuad' >= to_jsonb('")
+              .append(refQuad)
+              .append("'::text) AND searchable->'refQuad' < to_jsonb('")
+              .append(refQuad)
+              .append("4'::text)");
     }
 
     if (globalVersions != null && !globalVersions.isEmpty()) {
+      //Maybe use "AND searchable->'globalVersion' <@ to_jsonb(ARRAY[1,2,3])" + GIN Index
       String joinedVersions = globalVersions.stream()
-              .map(String::valueOf)
+              .map(v -> "to_jsonb(" + v + ")")
               .collect(Collectors.joining(","));
-      innerSelect.append(" AND global_version IN (").append(joinedVersions).append(")");
+      innerSelect.append(" AND (searchable->'globalVersion') IN (")
+              .append(joinedVersions)
+              .append(")");
     }
 
     innerSelect.append(" LIMIT ").append(limit);
@@ -490,7 +504,7 @@ public class NLConnector extends PSQLXyzConnector {
     return "SELECT " + selection + " FROM (" + innerSelect + ") t";
   }
 
-  private void batchUpsertFeatures(
+  private void batchMergeFeatures(
           String schema,
           String table,
           FeatureCollection featureCollection,
@@ -502,10 +516,10 @@ public class NLConnector extends PSQLXyzConnector {
     String mergeSql = """
         MERGE INTO %s.%s AS t
         USING (
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ) AS s(id, geo, operation, author, version, jsondata, refquad, global_version)
-        ON (t.id = s.id AND t.next_version = 9223372036854775807 AND t.global_version = s.global_version)
-        --ON (t.id = s.id AND t.version = s.version AND t.next_version = 9223372036854775807)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        ) AS s(id, geo, operation, author, version, jsondata, searchable)
+        --ON (t.id = s.id AND t.next_version = 9223372036854775807 AND t.global_version = s.global_version)
+        ON (t.id = s.id AND t.version = s.version AND t.next_version = 9223372036854775807)
         WHEN MATCHED THEN
           UPDATE SET
             jsondata  = s.jsondata,
@@ -513,10 +527,10 @@ public class NLConnector extends PSQLXyzConnector {
             version   = s.version,
             author    = s.author,
             operation = 'U',
-            global_version = s.global_version
+            searchable = s.searchable
         WHEN NOT MATCHED THEN
-          INSERT (id, geo, operation, author, version, jsondata, refquad, global_version)
-          VALUES (s.id, s.geo, s.operation, s.author, s.version, s.jsondata, s.refquad, s.global_version);
+          INSERT (id, geo, operation, author, version, jsondata, searchable)
+          VALUES (s.id, s.geo, s.operation, s.author, s.version, s.jsondata, s.searchable);
         """.formatted(schema, table);
 
     try (Connection connection = dataSourceProvider.getWriter().getConnection()) {
@@ -540,8 +554,7 @@ public class NLConnector extends PSQLXyzConnector {
           ps.setString(4, author);
           ps.setLong(5, version);
           ps.setString(6, enrichFeaturePayload(feature));
-          ps.setString(7, getRefQuad(feature));
-          ps.setInt(8, getGlobalVersion(feature));
+          ps.setObject(7, getSearchableObject(feature));
           ps.addBatch();
         }
 
@@ -561,6 +574,19 @@ public class NLConnector extends PSQLXyzConnector {
     if(feature.getId() == null){
       feature.setId(Random.randomAlphaNumeric(16));
     }
+  }
+
+  private PGobject getSearchableObject(Feature feature) throws SQLException {
+    PGobject jsonObject = new PGobject();
+    jsonObject.setType("jsonb");
+
+    JsonObject searchable = new JsonObject();
+    if(feature.getProperties().get(REF_QUAD_PROPERTY_KEY) != null)
+      searchable.put(REF_QUAD_PROPERTY_KEY, feature.getProperties().get(REF_QUAD_PROPERTY_KEY));
+    if(feature.getProperties().get(GLOBAL_VERSION_PROPERTY_KEY) != null)
+      searchable.put(GLOBAL_VERSION_PROPERTY_KEY, feature.getProperties().get(GLOBAL_VERSION_PROPERTY_KEY));
+    jsonObject.setValue(searchable.toString());
+    return jsonObject;
   }
 
   private String getRefQuad(Feature feature) {

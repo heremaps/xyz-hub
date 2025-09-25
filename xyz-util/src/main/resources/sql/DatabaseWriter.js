@@ -216,8 +216,8 @@ class DatabaseWriter {
     let extraVals = '';
 
     if (this.tableLayout === 'NEW_LAYOUT') {
-      extraCols = ', refquad, global_version';
-      extraVals = ', $8, $9';
+      extraCols = ', searchable';
+      extraVals = ', $8::JSONB ';
     }
 
     const sql = `INSERT INTO "${this.schema}"."${this.table}"
@@ -243,7 +243,7 @@ class DatabaseWriter {
       const paramTypes = ["TEXT", "BIGINT", "CHAR", "TEXT", "JSONB", "JSONB", "BIGINT"];
 
       if (this.tableLayout === 'NEW_LAYOUT') {
-        paramTypes.push("TEXT", "INTEGER");
+        paramTypes.push("JSONB");
       }
 
       this.plans[method] = this._preparePlan(sql, paramTypes);
@@ -267,10 +267,11 @@ class DatabaseWriter {
     ];
 
     if (this.tableLayout === 'NEW_LAYOUT') {
-      params.push(
-        inputFeature.properties.refQuad,
-        inputFeature.properties.globalVersion
-      );
+      const searchable = {
+        refQuad: inputFeature.properties.refQuad,
+        globalVersion: inputFeature.properties.globalVersion
+      };
+      params.push(searchable);
     }
 
     this.parameterSets[method].push(params);

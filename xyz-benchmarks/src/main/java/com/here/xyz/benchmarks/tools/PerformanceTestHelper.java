@@ -1,5 +1,6 @@
 package com.here.xyz.benchmarks.tools;
 
+import com.amazonaws.services.dynamodbv2.xspec.S;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.Typed;
 import com.here.xyz.connectors.StorageConnector;
@@ -86,13 +87,13 @@ public class PerformanceTestHelper {
         return xyzResponse;
     }
 
-    public static Typed readFeaturesByRefQuad(DatabaseHandler connector, String spaceName, String refQuad, int limit)
+    public static Typed readFeaturesByRefQuad(StorageConnector connector, String spaceName, String refQuad, int limit)
             throws Exception {
 
         return readFeaturesByRefQuad(connector, spaceName, refQuad, limit, false);
     }
 
-    public static Typed readFeaturesByRefQuad(DatabaseHandler connector, String spaceName, String refQuad, int limit, boolean isCount)
+    public static Typed readFeaturesByRefQuad(StorageConnector connector, String spaceName, String refQuad, int limit, boolean isCount)
             throws Exception {
 
         Event searchForFeaturesEvent = new SearchForFeaturesEvent()
