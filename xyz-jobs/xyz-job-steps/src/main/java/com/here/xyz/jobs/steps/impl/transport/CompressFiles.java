@@ -89,8 +89,8 @@ public class CompressFiles extends SyncLambdaStep<CompressFiles> {
   }
 
   public CompressFiles(String outputSetGroup) {
+    this();
     setOutputSetGroup(outputSetGroup);
-    setOutputSets(List.of(new OutputSet(COMPRESSED_DATA, Visibility.SYSTEM, ARCHIVE_FILE_SUFFIX)));
   }
 
   @Override

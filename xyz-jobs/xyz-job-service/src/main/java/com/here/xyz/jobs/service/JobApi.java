@@ -59,7 +59,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public class JobApi extends JobApiBase {
-  static final Integer DEFAULT_PAGE_SIZE = 100; // Depicts the default page size
   protected static final Logger logger = LogManager.getLogger();
 
   protected JobApi() {}
@@ -256,10 +255,6 @@ public class JobApi extends JobApiBase {
     }
   }
 
-  private boolean isPaginatedRequest(RoutingContext context) {
-    return "paginated".equalsIgnoreCase(context.request().getHeader("X-Response-Mode"));
-  }
-
   protected void getJobOutputs(final RoutingContext context) {
     final boolean paginatedMode = isPaginatedRequest(context);
 
@@ -288,7 +283,7 @@ public class JobApi extends JobApiBase {
     final String group = Objects.requireNonNull(retrieveSetGroup(context));
     final String name = Objects.requireNonNull(retrieveSetName(context));
     loadJob(context, jobId(context))
-        .compose(job -> job.loadOutputs(name, group, pageLimit(context), context.queryParams().get("pageToken")))
+        .compose(job -> job.loadOutputs(name, group, limit(context), pageToken(context)))
         .onSuccess(res -> sendResponse(context, OK.code(), res))
         .onFailure(err -> sendErrorResponse(context, err));
   }
@@ -297,9 +292,9 @@ public class JobApi extends JobApiBase {
     final String group = Objects.requireNonNull(retrieveSetGroup(context));
     final String name = Objects.requireNonNull(retrieveSetName(context));
     loadJob(context, jobId(context))
-        .compose(job -> job.loadInputs(name, group, pageLimit(context), context.queryParams().get("pageToken")))
+        .compose(job -> job.loadInputs(name, group, limit(context), pageToken(context))
         .onSuccess(res -> sendResponse(context, OK.code(), res))
-        .onFailure(err -> sendErrorResponse(context, err));
+        .onFailure(err -> sendErrorResponse(context, err)));
   }
 
   protected void patchJobStatus(final RoutingContext context) throws HttpException {
@@ -358,11 +353,6 @@ public class JobApi extends JobApiBase {
 
   protected String retrieveSetGroup(RoutingContext context) {
     return context.pathParam("group");
-  }
-
-  protected Integer pageLimit(RoutingContext context) {
-    String requestedLimit = context.queryParams().get("limit");
-    return requestedLimit == null ? DEFAULT_PAGE_SIZE : Integer.parseInt(requestedLimit);
   }
 
   protected Input getJobInputFromBody(RoutingContext context) throws HttpException {

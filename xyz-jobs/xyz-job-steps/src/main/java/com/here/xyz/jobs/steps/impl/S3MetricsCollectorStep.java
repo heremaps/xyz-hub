@@ -48,8 +48,8 @@ public class S3MetricsCollectorStep extends SyncLambdaStep<S3MetricsCollectorSte
     }
 
     public S3MetricsCollectorStep(String outputSetGroup) {
+      this();
       setOutputSetGroup(outputSetGroup);
-      setOutputSets(List.of(new Step.OutputSet(S3_METRICS, Step.Visibility.USER, true)));
     }
 
     @Override

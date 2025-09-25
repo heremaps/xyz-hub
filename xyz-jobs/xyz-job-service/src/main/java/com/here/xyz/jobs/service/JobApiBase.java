@@ -22,7 +22,7 @@ package com.here.xyz.jobs.service;
 import static com.here.xyz.jobs.service.JobApiBase.ApiParam.Path.JOB_ID;
 import static com.here.xyz.jobs.service.JobApiBase.ApiParam.Query.RESOURCE;
 import static com.here.xyz.jobs.service.JobApiBase.ApiParam.Path.LIMIT;
-import static com.here.xyz.jobs.service.JobApiBase.ApiParam.Path.NEXT_PAGE_TOKEN;
+import static com.here.xyz.jobs.service.JobApiBase.ApiParam.Path.PAGE_TOKEN;
 import static com.here.xyz.jobs.service.JobApiBase.ApiParam.Query.NEWER_THAN;
 import static com.here.xyz.jobs.service.JobApiBase.ApiParam.Query.SOURCE_TYPE;
 import static com.here.xyz.jobs.service.JobApiBase.ApiParam.Query.STATE;
@@ -44,17 +44,23 @@ import java.util.List;
 import java.util.Set;
 
 public class JobApiBase extends Api {
+  static final Integer DEFAULT_PAGE_SIZE = 100; // Depicts the default page size
 
   protected static String jobId(RoutingContext context) {
     return context.pathParam(JOB_ID);
   }
 
-  protected static String limit(RoutingContext context) {
-    return context.pathParam(LIMIT);
+  protected static Integer limit(RoutingContext context) {
+    String requestedLimit = context.queryParams().get(LIMIT);
+    return requestedLimit == null ? DEFAULT_PAGE_SIZE : Integer.parseInt(requestedLimit);
   }
 
-  protected static String nextPageToken(RoutingContext context) {
-    return context.pathParam(NEXT_PAGE_TOKEN);
+  protected static String pageToken(RoutingContext context) {
+    return context.queryParams().get(PAGE_TOKEN);
+  }
+
+  protected boolean isPaginatedRequest(RoutingContext context) {
+    return "paginated".equalsIgnoreCase(context.request().getHeader("X-Response-Mode"));
   }
 
   protected void getJobs(final RoutingContext context, boolean internal) {
@@ -139,7 +145,7 @@ public class JobApiBase extends Api {
     public static class Path {
       static final String SPACE_ID = "spaceId";
       static final String JOB_ID = "jobId";
-      static final String NEXT_PAGE_TOKEN = "nextPageToken";
+      static final String PAGE_TOKEN = "pageToken";
       static final String LIMIT = "limit";
     }
 
