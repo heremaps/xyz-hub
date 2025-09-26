@@ -35,6 +35,7 @@ import com.here.xyz.events.GetStorageStatisticsEvent;
 import com.here.xyz.events.IterateChangesetsEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
+import com.here.xyz.events.ModifyBranchEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.ModifySubscriptionEvent;
@@ -47,6 +48,7 @@ import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.responses.ChangesetsStatisticsResponse;
+import com.here.xyz.responses.ModifiedBranchResponse;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.StorageStatistics;
 import com.here.xyz.responses.SuccessResponse;
@@ -60,7 +62,7 @@ import org.apache.commons.lang3.RandomStringUtils;
  * A connector for testing handling of error responses in the service.
  */
 public class TestStorageConnector extends StorageConnector {
-  //NOTE: this is is a special space ID. For it the connector will return a feature with a random id for each tile request.
+  //NOTE: this is a special space ID. For it the connector will return a feature with a random id for each tile request.
   public static final String RANDOM_FEATURE_SPACE = "random_feature_test";
   public static final String ILLEGAL_ARGUMENT_SPACE = "illegal_argument_test";
   public static final String HUGE_RESPONSE_SPACE = "huge_response_test_";
@@ -180,6 +182,11 @@ public class TestStorageConnector extends StorageConnector {
 
   @Override
   protected ChangesetsStatisticsResponse processGetChangesetsStatisticsEvent(GetChangesetStatisticsEvent event) throws Exception {
+    throw new ErrorResponseException(event.getStreamId(), XyzError.forValue(event.getSpace()), event.getSpace() + " message.");
+  }
+
+  @Override
+  protected ModifiedBranchResponse processModifyBranchEvent(ModifyBranchEvent event) throws ErrorResponseException {
     throw new ErrorResponseException(event.getStreamId(), XyzError.forValue(event.getSpace()), event.getSpace() + " message.");
   }
 

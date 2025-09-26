@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@ import static io.restassured.RestAssured.given;
 import com.google.common.base.Strings;
 import com.here.xyz.hub.auth.TestAuthenticator;
 import org.junit.After;
+import org.junit.jupiter.api.AfterEach;
 
 public class TestWithSpaceCleanup extends RestAssuredTest {
 
@@ -56,6 +57,7 @@ public class TestWithSpaceCleanup extends RestAssuredTest {
   }
 
   @After
+  @AfterEach
   public void tearDownTest() {
     if (cleanUpId != null)
       removeSpace(cleanUpId);

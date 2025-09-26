@@ -21,6 +21,7 @@ class DatabaseWriter {
 
   schema;
   table;
+  tableBaseVersion;
 
   tableLayout;
   /**
@@ -40,9 +41,10 @@ class DatabaseWriter {
    */
   resultParsers = {};
 
-  constructor(schema, table, batchMode = false, tableLayout) {
+  constructor(schema, table, tableBaseVersion, batchMode = false, tableLayout) {
     this.schema = schema;
     this.table = table;
+    this.tableBaseVersion = tableBaseVersion;
     this.batchMode = batchMode;
     this.tableLayout = tableLayout;
   }
@@ -256,6 +258,8 @@ class DatabaseWriter {
       throw new XyzException("Can not write a feature that is null");
     }
 
+    let createdAtFromExistingFeature = baseFeature ? baseFeature.properties[XYZ_NS].createdAt : -1;
+
     const params = [
       inputFeature.id,
       version,
@@ -263,7 +267,7 @@ class DatabaseWriter {
       author,
       inputFeature,
       inputFeature.geometry,
-      baseFeature ? baseFeature.properties[XYZ_NS].createdAt : -1
+      createdAtFromExistingFeature
     ];
 
     if (this.tableLayout === 'NEW_LAYOUT') {
@@ -275,10 +279,12 @@ class DatabaseWriter {
     }
 
     this.parameterSets[method].push(params);
-
     this.resultParsers[method].push(result => {
-      //FIXME: Extract written creation timestamp if applicable
-      return resultHandler(new FeatureModificationExecutionResult(inputFeature.properties[XYZ_NS].deleted ? ExecutionAction.DELETED : ExecutionAction.fromOperation[operation], inputFeature, version, author));
+      let executedAction = inputFeature.properties[XYZ_NS].deleted ? ExecutionAction.DELETED : ExecutionAction.fromOperation[operation];
+      if (executedAction == ExecutionAction.UPDATED && createdAtFromExistingFeature > -1)
+        //Inject createdAt
+        inputFeature.properties[XYZ_NS].createdAt = createdAtFromExistingFeature;
+      return resultHandler(new FeatureModificationExecutionResult(executedAction, inputFeature, version + this.tableBaseVersion, author));
     });
 
     if (!this.batchMode)

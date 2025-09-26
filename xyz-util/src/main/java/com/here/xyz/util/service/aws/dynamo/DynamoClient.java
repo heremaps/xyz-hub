@@ -25,6 +25,7 @@ import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBAsync;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBAsyncClientBuilder;
 import com.amazonaws.services.dynamodbv2.document.DynamoDB;
+import com.amazonaws.services.dynamodbv2.document.Item;
 import com.amazonaws.services.dynamodbv2.document.Table;
 import com.amazonaws.services.dynamodbv2.model.AttributeDefinition;
 import com.amazonaws.services.dynamodbv2.model.AttributeValue;
@@ -87,6 +88,15 @@ public class DynamoClient {
     client = builder.build();
     db = new DynamoDB(client);
     tableName = new ARN(tableArn).getResourceWithoutType();
+  }
+
+  public static List<Item> queryIndex(Table table, IndexDefinition index, String hashKeyValue) {
+    List<Item> items = new ArrayList<>();
+    table.getIndex(index.getName())
+        .query(index.getHashKey(), hashKeyValue)
+        .pages()
+        .forEach(page -> page.forEach(item -> items.add(item)));
+    return items;
   }
 
   public Table getTable() {

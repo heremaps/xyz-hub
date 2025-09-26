@@ -20,6 +20,7 @@
 package com.here.xyz.hub.task;
 
 import static com.here.xyz.hub.task.FeatureTaskHandler.injectMinVersion;
+import static com.here.xyz.hub.task.FeatureTask.resolveBranchFor;
 import static com.here.xyz.util.service.rest.TooManyRequestsException.ThrottlingReason.MEMORY;
 import static com.here.xyz.util.service.rest.TooManyRequestsException.ThrottlingReason.STORAGE_QUEUE_FULL;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
@@ -32,7 +33,6 @@ import static software.amazon.awssdk.utils.CollectionUtils.isNullOrEmpty;
 
 import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
-import com.here.xyz.events.Event;
 import com.here.xyz.events.GetStatisticsEvent;
 import com.here.xyz.events.WriteFeaturesEvent;
 import com.here.xyz.events.WriteFeaturesEvent.Modification;
@@ -152,10 +152,12 @@ public class FeatureHandler {
     }
   }
 
-  public static void injectSpaceParams(Event event, Space space) {
+  public static void injectSpaceParams(ContextAwareEvent event, Space space) throws HttpException {
+    //Resolve a potential branch
+    resolveBranchFor(event, space);
+
     event.setSpace(space.getId());
-    if (event instanceof ContextAwareEvent contextAwareEvent)
-      contextAwareEvent.setVersionsToKeep(space.getVersionsToKeep());
+    event.setVersionsToKeep(space.getVersionsToKeep());
 
     Map<String, Object> storageParams = new HashMap<>();
     if (space.getStorage().getParams() != null)

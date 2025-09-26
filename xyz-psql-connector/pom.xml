@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  ~ Copyright (C) 2017-2024 HERE Europe B.V.
+  ~ Copyright (C) 2017-2025 HERE Europe B.V.
   ~
   ~ Licensed under the Apache License, Version 2.0 (the "License");
   ~ you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@
     <groupId>com.here.xyz</groupId>
     <artifactId>xyz-hub</artifactId>
     <relativePath>../pom.xml</relativePath>
-    <version>3.20.11-SNAPSHOT</version>
+    <version>3.20.12-SNAPSHOT</version>
   </parent>
 
   <licenses>
@@ -288,6 +288,12 @@
       <version>3.25.5</version>
     </dependency>
 
+    <!-- Util -->
+    <dependency>
+      <artifactId>guava</artifactId>
+      <groupId>com.google.guava</groupId>
+    </dependency>
+
     <!-- Test -->
     <dependency>
       <artifactId>junit-jupiter-api</artifactId>
@@ -299,6 +305,17 @@
       <artifactId>junit-vintage-engine</artifactId>
       <scope>test</scope>
     </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-params</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.junit-pioneer</groupId>
+      <artifactId>junit-pioneer</artifactId>
+      <scope>test</scope>
+    </dependency>
+
     <dependency>
       <groupId>io.rest-assured</groupId>
       <artifactId>json-path</artifactId>

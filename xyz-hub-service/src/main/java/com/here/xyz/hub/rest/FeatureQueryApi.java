@@ -41,6 +41,8 @@ import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.hub.Service;
+import com.here.xyz.hub.connectors.RpcClient;
+import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.ApiParam.Path;
 import com.here.xyz.hub.rest.ApiParam.Query;
 import com.here.xyz.hub.task.FeatureTask;
@@ -56,15 +58,20 @@ import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
 import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.models.hub.Ref;
+import com.here.xyz.responses.StatisticsResponse;
+import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.geo.GeoTools;
 import com.here.xyz.util.geo.GeometryValidator;
 import com.here.xyz.util.service.HttpException;
+import io.vertx.core.Future;
+import io.vertx.core.Promise;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.ext.web.ParsedHeaderValue;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.router.RouterBuilder;
 import java.io.IOException;
 import java.util.List;
+import org.apache.logging.log4j.Marker;
 
 public class FeatureQueryApi extends SpaceBasedApi {
 
@@ -84,6 +91,7 @@ public class FeatureQueryApi extends SpaceBasedApi {
   private void getStatistics(final RoutingContext context) {
     try {
       new GetStatistics(new GetStatisticsEvent()
+                .withRef(getRef(context))
                 .withContext(getSpaceContext(context))
                 .withFastMode(Query.getBoolean(context, FAST_MODE, false)),
               context,
@@ -91,6 +99,45 @@ public class FeatureQueryApi extends SpaceBasedApi {
       ).execute(this::sendResponse, this::sendErrorResponse);
     } catch (HttpException e) {
       sendErrorResponse(context, e);
+    }
+  }
+
+  //TODO: Add caching
+  public static Future<StatisticsResponse> getStatistics(Marker marker, String spaceId, SpaceContext context, Ref ref,
+      boolean fastMode, boolean skipCache) {
+    try {
+      Promise<XyzResponse> promise = Promise.promise();
+
+      GetStatisticsEvent statisticsEvent = new GetStatisticsEvent()
+          .withContext(context)
+          .withFastMode(fastMode)
+          .withSpace(spaceId)
+          .withRef(ref)
+          .withStreamId(marker.getName());
+
+      Space.resolveSpace(marker, spaceId)
+          .compose(space -> {
+            try {
+              FeatureTask.resolveBranchFor(statisticsEvent, space);
+            } catch (Exception e) {
+              //Ignore any errors when resolving branch ref
+            }
+            return Space.resolveConnector(marker, space.getStorage().getId());
+          })
+          .compose(connector -> {
+            RpcClient.getInstanceFor(connector)
+                .execute(marker, statisticsEvent, promise);
+            return Future.succeededFuture();
+          })
+          .onFailure(t -> promise.fail(t));
+
+      return promise.future()
+          .onFailure(t -> logger.error(t))
+          .map(response -> (StatisticsResponse) response);
+
+    }
+    catch (Exception e) {
+      return Future.failedFuture(e);
     }
   }
 
@@ -108,11 +155,11 @@ public class FeatureQueryApi extends SpaceBasedApi {
       final SearchForFeaturesEvent event = new SearchForFeaturesEvent();
       event.withPropertiesQuery(propertiesQuery)
           .withLimit(getLimit(context))
-          .withRef(getRef(context))
           .withForce2D(force2D)
           .withSelection(Query.getSelection(context))
           .withContext(spaceContext)
-          .withAuthor(author);
+          .withAuthor(author)
+          .withRef(getRef(context));
 
       final SearchQuery task = new SearchQuery(event, context, ApiResponseType.FEATURE_COLLECTION, skipCache);
       task.execute(this::sendResponse, this::sendErrorResponse);

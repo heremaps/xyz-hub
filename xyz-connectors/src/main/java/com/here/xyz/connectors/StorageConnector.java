@@ -39,6 +39,7 @@ import com.here.xyz.events.HealthCheckEvent;
 import com.here.xyz.events.IterateChangesetsEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
+import com.here.xyz.events.ModifyBranchEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.ModifySubscriptionEvent;
@@ -52,6 +53,7 @@ import com.here.xyz.responses.ChangesetsStatisticsResponse;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.StorageStatistics;
+import com.here.xyz.responses.ModifiedBranchResponse;
 import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.responses.changesets.ChangesetCollection;
@@ -123,6 +125,8 @@ public abstract class StorageConnector extends EntryConnectorHandler {
         return processDeleteChangesetsEvent((DeleteChangesetsEvent) event);
       if (event instanceof OneTimeActionEvent)
         return processOneTimeActionEvent((OneTimeActionEvent) event);
+      if (event instanceof ModifyBranchEvent mbe)
+        return processModifyBranchEvent(mbe);
 
       return new ErrorResponse()
           .withStreamId(streamId)
@@ -246,4 +250,6 @@ public abstract class StorageConnector extends EntryConnectorHandler {
   protected abstract ChangesetsStatisticsResponse processGetChangesetsStatisticsEvent(GetChangesetStatisticsEvent event) throws Exception;
 
   protected abstract void handleProcessingException(Exception exception, Event event) throws Exception;
+
+  protected abstract ModifiedBranchResponse processModifyBranchEvent(ModifyBranchEvent event) throws ErrorResponseException;
 }

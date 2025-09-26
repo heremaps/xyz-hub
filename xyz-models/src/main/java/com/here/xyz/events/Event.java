@@ -47,6 +47,7 @@ import java.util.Set;
  */
 @JsonSubTypes({
     @JsonSubTypes.Type(value = ModifySpaceEvent.class, name = "ModifySpaceEvent"),
+    @JsonSubTypes.Type(value = ModifyBranchEvent.class, name = "ModifyBranchEvent"),
     @JsonSubTypes.Type(value = ModifySubscriptionEvent.class, name = "ModifySubscriptionEvent"),
     @JsonSubTypes.Type(value = ModifyFeaturesEvent.class, name = "ModifyFeaturesEvent"),
     @JsonSubTypes.Type(value = WriteFeaturesEvent.class, name = "WriteFeaturesEvent"),

@@ -69,6 +69,8 @@ public class XyzSpaceTableHelper {
       queries.add(buildOnDemandIndexCreationQuery(schema, table, REF_QUAD_PROPERTY, SEARCHABLE_COLUMN ,false));
       queries.add(buildOnDemandIndexCreationQuery(schema, table, GLOBAL_VERSION_PROPERTY, SEARCHABLE_COLUMN , false));
     }
+    if (isMainTable)
+      queries.add(buildCreateSequenceQuery(schema, table, "branches", "id", 1));
 
     return queries;
   }
@@ -149,7 +151,7 @@ public class XyzSpaceTableHelper {
                 .withVariable(SCHEMA, schema);
   }
 
-  public static SQLQuery buildCreateSpaceTableQuery(String schema, String table, TableLayout layout) {
+  private static SQLQuery buildCreateSpaceTableQuery(String schema, String table, TableLayout layout) {
     String tableFields = null;
 
     if(layout == OLD_LAYOUT) {
@@ -188,12 +190,21 @@ public class XyzSpaceTableHelper {
 
   public static SQLQuery buildCreateSequenceQuery(String schema, String table, String columnName, TableLayout layout) {
     if(layout == TableLayout.OLD_LAYOUT || layout == TableLayout.NEW_LAYOUT)
-      return new SQLQuery("CREATE SEQUENCE IF NOT EXISTS ${schema}.${sequence} MINVALUE 1 OWNED BY ${schema}.${table}.${columnName}")
+      return buildCreateSequenceQuery(schema, table, columnName, columnName, 1);
+    throw new IllegalArgumentException("Unsupported Table Layout: " + layout);
+  }
+
+  public static String sequenceName(String table, String sequenceName) {
+    return table + "_" + sequenceName + "_seq";
+  }
+
+  public static SQLQuery buildCreateSequenceQuery(String schema, String table, String sequenceName, String ownedByColumn, int startValue) {
+      return new SQLQuery("CREATE SEQUENCE IF NOT EXISTS ${schema}.${sequence} MINVALUE #{startValue} OWNED BY ${schema}.${table}.${columnName}")
               .withVariable(SCHEMA, schema)
               .withVariable(TABLE, table)
-              .withVariable("sequence", table + "_" + columnName + "_seq")
-              .withVariable("columnName", columnName);
-    throw new IllegalArgumentException("Unsupported Table Layout: " + layout);
+              .withVariable("sequence", sequenceName(table, sequenceName))
+              .withVariable("columnName", ownedByColumn)
+          .withNamedParameter("startValue", startValue);
   }
 
   public static String getTableNameForSpaceId(String spaceId, boolean hashed) {

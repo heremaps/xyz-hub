@@ -24,6 +24,7 @@ import static com.here.xyz.psql.DatabaseWriter.ModificationType.INSERT;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.INSERT_HIDE_COMPOSITE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE_HIDE_COMPOSITE;
+import static com.here.xyz.psql.query.XyzEventBasedQueryRunner.readBranchTableFromEvent;
 import static com.here.xyz.util.db.SQLQuery.XyzSqlErrors.XYZ_CONFLICT;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.PARTITION_SIZE;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SCHEMA;
@@ -37,7 +38,6 @@ import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
-import com.here.xyz.psql.query.XyzEventBasedQueryRunner;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DatabaseSettings;
 import com.here.xyz.util.runtime.FunctionRuntime;
@@ -60,7 +60,7 @@ public class DatabaseWriter {
         return new SQLQuery("SELECT xyz_write_versioned_modification_operation(#{id}, #{version}, #{operation}, #{jsondata}, #{geo}, "
             + "#{schema}, #{table}, #{concurrencyCheck}, #{partitionSize}, #{versionsToKeep}, #{pw}, #{baseVersion}, #{minTagVersion})")
             .withNamedParameter(SCHEMA, dbSettings.getSchema())
-            .withNamedParameter(TABLE, XyzEventBasedQueryRunner.readTableFromEvent(event))
+            .withNamedParameter(TABLE, readBranchTableFromEvent(event))
             .withNamedParameter("concurrencyCheck", event.isConflictDetectionEnabled())
             .withNamedParameter("partitionSize", PARTITION_SIZE)
             .withNamedParameter("versionsToKeep", event.getVersionsToKeep())
@@ -97,7 +97,7 @@ public class DatabaseWriter {
     private static SQLQuery setCommonParams(SQLQuery writeQuery, DatabaseHandler dbHandler, ModifyFeaturesEvent event) {
         return writeQuery
             .withNamedParameter(SCHEMA, dbHandler.getDatabaseSettings().getSchema())
-            .withNamedParameter(TABLE, XyzEventBasedQueryRunner.readTableFromEvent(event))
+            .withNamedParameter(TABLE, readBranchTableFromEvent(event))
             .withNamedParameter("concurrencyCheck", event.isConflictDetectionEnabled());
     }
 
@@ -384,7 +384,7 @@ public class DatabaseWriter {
     }
 
     private static void logException(Exception e, ModificationType action, ModifyFeaturesEvent event){
-        String table = XyzEventBasedQueryRunner.readTableFromEvent(event);
+        String table = readBranchTableFromEvent(event);
         String message = e != null && e.getMessage() != null && e.getMessage().contains("does not exist")
             //If table doesn't exist yet
             ? "{} Failed to perform {} - table {} does not exists"

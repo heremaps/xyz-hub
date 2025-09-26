@@ -32,6 +32,7 @@ class FeatureWriter {
   //Context input fields
   schema;
   tables;
+  tableBaseVersions;
   context;
   historyEnabled;
 
@@ -73,8 +74,8 @@ class FeatureWriter {
 
     this.schema = queryContext().schema;
     this.tables = queryContext().tables;
+    this.tableBaseVersions = FeatureWriter._tableBaseVersions();
     this.context = queryContext().context;
-
     this.historyEnabled = queryContext().historyEnabled;
 
     this.inputFeature = inputFeature;
@@ -262,8 +263,11 @@ class FeatureWriter {
             return this.deleteFeature();
         }
 
-        if (this.operation != "D")
+        if (this.operation != "D") {
+          if (featureExists && !FeatureWriter._isComposite())
+            this.operation = "U";
           return this._insertHistoryRow();
+        }
       }
     }
   }
@@ -491,6 +495,13 @@ class FeatureWriter {
       }
       case "RETAIN":
         return null; //TODO: Check status-quo impl whether we should return the existing HEAD instead
+      case "CONTINUE": {
+        this.onVersionConflict = null;
+        //Set the feature to conflicting state and write it to the branch
+        this.inputFeature.properties[XYZ_NS].conflicting = true;
+        //TODO: Handle deletions?
+        return this.writeRow();
+      }
     }
   }
 
@@ -771,7 +782,7 @@ class FeatureWriter {
   static getNextVersion() {
     const VERSION_SEQUENCE_SUFFIX = "_version_seq";
     let fullQualifiedSequenceName = `"${queryContext().schema}"."${(this._targetTable() + VERSION_SEQUENCE_SUFFIX)}"`;
-    return Number(plv8.execute("SELECT nextval($1)", [fullQualifiedSequenceName])[0].nextval);
+    return Number(plv8.execute("SELECT nextval($1)", [fullQualifiedSequenceName])[0].nextval) + this._tableBaseVersions().at(-1);
   }
 
   static _targetTable(context = queryContext().context) {
@@ -782,13 +793,22 @@ class FeatureWriter {
     return FeatureWriter._targetTable(context);
   }
 
+  static _tableBaseVersions() {
+    return queryContext().tableBaseVersions
+        ? queryContext().tableBaseVersions
+        //In the legacy composite mode, the base version for all tables was always 0
+        : queryContext().tables.map(table => 0);
+  }
+
   static _isComposite() {
-    return queryContext().tables.length > 1;
+    return queryContext().tables.length > 1 && this._tableBaseVersions().at(-1) == 0
   }
 
   _loadFeature(id, version, tables) {
     let tableAliases = tables.map((table, i) => "t" + (tables.length - i - 1));
-    let whereCondition = `WHERE id = $1 AND ${version == "HEAD" ? "next_version" : "version"} = $2 AND operation != $3`;
+     let branchTableMaxVersion = i => i == tables.length - 1 || FeatureWriter._isComposite() ? "" : `AND version <= ${this.tableBaseVersions[i + 1] - this.tableBaseVersions[i]}`;
+    let whereConditions = tables.map((table, i) => `WHERE id = $1 AND ${version == "HEAD" ? `next_version = ${MAX_BIG_INT}` : `version = ${version - this.tableBaseVersions[i]}`} ${branchTableMaxVersion(i)} AND operation != $2`).reverse();
+    let tableBaseVersions = tables.map((table, i) => this.tableBaseVersions[i]).reverse();
 
     let sql = `
         SELECT
@@ -803,18 +823,18 @@ class FeatureWriter {
         FROM (
             SELECT
                 ARRAY[${tableAliases.map(alias => alias + ".id").join(", ")}] AS id_array,
-                ARRAY[${tableAliases.map(alias => alias + ".version").join(", ")}] AS version_array,
+                ARRAY[${tableAliases.map((alias, i) => alias + `.version + ${tableBaseVersions[i]}`).join(", ")}] AS version_array,
                 ARRAY[${tableAliases.map(alias => alias + ".author").join(", ")}] AS author_array,
                 ARRAY[${tableAliases.map(alias => alias + ".jsondata").join(", ")}] AS jsondata_array,
                 ARRAY[${tableAliases.map(alias => alias + ".geo").join(", ")}] AS geo_array,
                 ARRAY[${tableAliases.map(alias => alias + ".operation").join(", ")}] AS operation_array,
                 coalesce_subscript(ARRAY[${tableAliases.map(alias => alias + ".id").join(", ")}]) AS index
-            FROM (SELECT * FROM "${this.schema}"."${tables[tables.length - 1]}" ${whereCondition}) AS ${tableAliases[0]}
-                ${tables.slice(0, -1).reverse().map((baseTable, i) => `FULL JOIN (SELECT * FROM "${this.schema}"."${baseTable}" ${whereCondition}) AS ${tableAliases[i + 1]} USING (id) `).join("\n")}
+            FROM (SELECT * FROM "${this.schema}"."${tables.at(-1)}" ${whereConditions[0]}) AS ${tableAliases[0]}
+                ${tables.slice(0, -1).reverse().map((baseTable, i) => `FULL JOIN (SELECT * FROM "${this.schema}"."${baseTable}" ${whereConditions[i + 1]}) AS ${tableAliases[i + 1]} USING (id) `).join("\n")}
         );
     `;
 
-    return plv8.execute(sql, [id, version == "HEAD" ? MAX_BIG_INT : version, "D"]);
+    return plv8.execute(sql, [id, "D"]);
   }
 
   /**
@@ -823,7 +843,7 @@ class FeatureWriter {
    */
   _insertHistoryRow(resultHandler = IDENTITY_HANDLER) {
     this._updateNextVersion();
-    return FeatureWriter.dbWriter.insertHistoryRow(this.inputFeature, this.baseFeature, this.version, this.operation, this.author, resultHandler);
+    return FeatureWriter.dbWriter.insertHistoryRow(this.inputFeature, this.baseFeature, this.version - this.tableBaseVersions.at(-1), this.operation, this.author, resultHandler);
   }
 
   _updateNextVersion() {
@@ -869,6 +889,7 @@ class FeatureWriter {
       result.inserted = result.inserted.concat(featureCollections[i].inserted);
       result.updated = result.updated.concat(featureCollections[i].updated);
       result.deleted = result.deleted.concat(featureCollections[i].deleted);
+      result.conflicting = result.conflicting.concat(featureCollections[i].conflicting)
     }
 
     return result;
@@ -884,7 +905,7 @@ class FeatureWriter {
    * @returns {FeatureCollection}
    */
   static writeFeatures(inputFeatures, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial, featureHooks, version = FeatureWriter.getNextVersion()) {
-    FeatureWriter.dbWriter = new DatabaseWriter(queryContext().schema, FeatureWriter._targetTable(), FW_BATCH_MODE(), queryContext().tableLayout);
+    FeatureWriter.dbWriter = new DatabaseWriter(queryContext().schema, FeatureWriter._targetTable(), FeatureWriter._tableBaseVersions().at(-1), FW_BATCH_MODE(), queryContext().tableLayout);
     let result = this.newFeatureCollection();
     for (let feature of inputFeatures) {
       let execution = new FeatureWriter(feature, version, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial, featureHooks).writeFeature();
@@ -906,6 +927,8 @@ class FeatureWriter {
         result.features.push(execution.feature);
       if (execution.action != ExecutionAction.NONE)
         result[execution.action].push(execution.feature.id);
+      if (execution.feature.properties[XYZ_NS].conflicting)
+        result.conflicting.push(execution.feature.id);
     }
   }
 
@@ -915,7 +938,8 @@ class FeatureWriter {
       features: [],
       inserted: [],
       updated: [],
-      deleted: []
+      deleted: [],
+      conflicting: []
     };
   }
 

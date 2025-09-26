@@ -47,6 +47,23 @@ import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildCleanUpQuery;
 import static com.here.xyz.util.db.pg.IndexHelper.getActivatedSearchableProperties;
 import static com.here.xyz.util.db.ConnectorParameters.TableLayout.OLD_LAYOUT;
 
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.here.xyz.connectors.ErrorResponseException;
+import com.here.xyz.events.ModifySpaceEvent;
+import com.here.xyz.events.ModifySpaceEvent.Operation;
+import com.here.xyz.psql.query.branching.BranchManager;
+import com.here.xyz.responses.SuccessResponse;
+import com.here.xyz.util.db.ConnectorParameters;
+import com.here.xyz.util.db.SQLQuery;
+import com.here.xyz.util.db.datasource.DataSourceProvider;
+import com.here.xyz.util.db.pg.IndexHelper;
+import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
+import com.here.xyz.util.runtime.FunctionRuntime;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
+
 public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse> {
 
     /**
@@ -59,6 +76,7 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
     private Operation operation;
     private String spaceId;
     private boolean dryRun;
+    private String rootTable;
 
     public ModifySpace(ModifySpaceEvent event) throws SQLException, ErrorResponseException {
         super(event);
@@ -67,6 +85,7 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
         setUseReadReplica(false);
         operation = event.getOperation();
         spaceId = event.getSpace();
+        rootTable = getDefaultTable(event);
     }
 
     private void validateModifySpaceEvent(ModifySpaceEvent event) throws ErrorResponseException {
@@ -163,6 +182,10 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
     public SuccessResponse write(DataSourceProvider dataSourceProvider) throws SQLException, ErrorResponseException {
         if (dryRun)
             return new SuccessResponse().withStatus("OK");
+
+        if (operation == DELETE)
+          new BranchManager(getDataSourceProvider(), FunctionRuntime.getInstance().getStreamId(), spaceId, getSchema(), rootTable)
+              .deleteAllBranchTables();
 
         SuccessResponse response = super.write(dataSourceProvider);
 

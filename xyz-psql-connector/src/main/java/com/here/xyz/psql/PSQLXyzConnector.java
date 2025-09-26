@@ -19,6 +19,7 @@
 
 package com.here.xyz.psql;
 
+import static com.here.xyz.psql.query.branching.BranchManager.getNodeId;
 import static com.here.xyz.responses.XyzError.EXCEPTION;
 import static com.here.xyz.responses.XyzError.ILLEGAL_ARGUMENT;
 import static com.here.xyz.responses.XyzError.NOT_FOUND;
@@ -39,6 +40,7 @@ import com.here.xyz.events.HealthCheckEvent;
 import com.here.xyz.events.IterateChangesetsEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
+import com.here.xyz.events.ModifyBranchEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.ModifySubscriptionEvent;
@@ -63,9 +65,14 @@ import com.here.xyz.psql.query.ModifySpace;
 import com.here.xyz.psql.query.SearchForFeatures;
 import com.here.xyz.psql.query.WriteFeatures;
 import com.here.xyz.psql.query.XyzEventBasedQueryRunner;
+import com.here.xyz.psql.query.branching.BranchManager;
+import com.here.xyz.psql.query.branching.BranchManager.BranchOperationResult;
+import com.here.xyz.psql.query.branching.BranchManager.MergeOperationResult;
 import com.here.xyz.responses.BinaryResponse;
 import com.here.xyz.responses.ChangesetsStatisticsResponse;
 import com.here.xyz.responses.HealthStatus;
+import com.here.xyz.responses.MergedBranchResponse;
+import com.here.xyz.responses.ModifiedBranchResponse;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.StorageStatistics;
 import com.here.xyz.responses.SuccessResponse;
@@ -202,6 +209,43 @@ public class PSQLXyzConnector extends DatabaseHandler {
   @Override
   protected ChangesetsStatisticsResponse processGetChangesetsStatisticsEvent(GetChangesetStatisticsEvent event) throws Exception {
     return run(new GetChangesetStatistics(event));
+  }
+
+  @Override
+  protected ModifiedBranchResponse processModifyBranchEvent(ModifyBranchEvent event) throws ErrorResponseException {
+    BranchManager branchManager = new BranchManager(dataSourceProvider, streamId, event.getSpace(), getDatabaseSettings().getSchema(),
+        XyzEventBasedQueryRunner.readTableFromEvent(event));
+    try {
+      return switch (event.getOperation()) {
+        case CREATE -> new ModifiedBranchResponse()
+            .withNodeId(getNodeId(branchManager.createBranch(event.getBaseRef())))
+            .withBaseRef(event.getBaseRef());
+        case REBASE -> {
+          BranchOperationResult result = branchManager.rebase(event.getNodeId(), event.getBaseRef(), event.getNewBaseRef());
+          yield new ModifiedBranchResponse()
+              .withNodeId(result.nodeId())
+              .withBaseRef(result.baseRef())
+              .withConflicting(result.conflicting());
+        }
+        case DELETE -> {
+          branchManager.deleteBranch(event.getNodeId());
+          yield new ModifiedBranchResponse()
+              .withNodeId(-1);
+        }
+        case MERGE -> {
+          MergeOperationResult result = branchManager.merge(event.getNodeId(), event.getBaseRef(), event.getMergeTargetNodeId(), false);
+          yield new MergedBranchResponse()
+              .withMergedSourceVersion(result.mergedSourceVersion())
+              .withResolvedMergeTargetRef(result.resolvedMergeTargetRef())
+              .withNodeId(result.nodeId())
+              .withBaseRef(result.baseRef())
+              .withConflicting(result.conflicting());
+        }
+      };
+    }
+    catch (SQLException e) {
+      throw new ErrorResponseException(EXCEPTION, "Unexpected exception during branching operation", e);
+    }
   }
 
   @Override
