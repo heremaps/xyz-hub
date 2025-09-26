@@ -21,7 +21,7 @@ package com.here.xyz.test.featurewriter.sql;
 
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SCHEMA;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.TABLE;
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildCreateSpaceTableQueries;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildCreateSpaceTableQueriesForTests;
 
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
@@ -67,8 +67,8 @@ public class SQLSpaceWriter extends SpaceWriter {
     try (DataSourceProvider dsp = SQLITBase.getDataSourceProvider()) {
       List<SQLQuery> queries = new ArrayList<>();
       if (composite)
-        queries.addAll(buildCreateSpaceTableQueries(dsp.getDatabaseSettings().getSchema(), superSpaceId(), null, superSpaceId(), OLD_LAYOUT));
-      queries.addAll(buildCreateSpaceTableQueries(dsp.getDatabaseSettings().getSchema(), spaceId(), null, spaceId(), OLD_LAYOUT));
+        queries.addAll(buildCreateSpaceTableQueriesForTests(dsp.getDatabaseSettings().getSchema(), superSpaceId()));
+      queries.addAll(buildCreateSpaceTableQueriesForTests(dsp.getDatabaseSettings().getSchema(), spaceId()));
       SQLQuery.batchOf(queries).writeBatch(dsp);
     }
   }

@@ -78,7 +78,7 @@ public class BranchManager {
       //TODO: Also check if baseRef.getVersion() == 0 and "simplify" the baseRef to the previous level then - throw an exception if (finally) the baseRef is: ~0:0, because no branch may be created of that one
     }
     int newNodeId = getNewNodeId();
-    SQLQuery.batchOf(buildCreateBranchTableQueries(schema, branchTableName(getNodeId(baseRef), baseRef.getVersion(), newNodeId)))
+    SQLQuery.batchOf(buildCreateBranchTableQueries(schema, branchTableName(getNodeId(baseRef), baseRef.getVersion(), newNodeId), spaceId))
         .writeBatch(dataSourceProvider);
 
     long newHeadVersion = baseRef.getVersion();

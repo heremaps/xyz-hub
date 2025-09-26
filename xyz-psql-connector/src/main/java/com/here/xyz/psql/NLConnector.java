@@ -164,7 +164,7 @@ public class NLConnector extends PSQLXyzConnector {
                 propertiesQueryInput, event.getLimit());
       }else {
         //Call Count Query
-        if (propertiesQueryInput.globalVersions != null)
+        if (!propertiesQueryInput.globalVersions.isEmpty())
           throw new IllegalArgumentException("Selection cant get combined with globalVersion!");
 
         return getFeatureCountByRefQuad(dbSettings.getSchema(),

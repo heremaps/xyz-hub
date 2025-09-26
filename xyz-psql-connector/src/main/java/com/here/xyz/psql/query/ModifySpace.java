@@ -153,7 +153,7 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
                             = getActivatedSearchableProperties(event.getSpaceDefinition().getSearchableProperties());
 
                     queries.addAll(buildCreateSpaceTableQueries(getSchema(), table, activatedSearchableProperties,
-                            event.getSpace(), ConnectorParameters.TableLayout.OLD_LAYOUT));
+                            event.getSpace(), OLD_LAYOUT));
                 }
 
                 //Write metadata

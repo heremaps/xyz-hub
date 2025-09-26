@@ -99,10 +99,10 @@ public class ReadTests extends BaseTest {
 
     public static void main(String[] args) throws Exception {
         String[] jmhArgs = {
-//                ".*ReadTests.testReadByRefQuadWithNLConnector.*",
+                ".*ReadTests.testReadByRefQuadWithNLConnector.*",
 //                ".*ReadTests.testReadByTileWithNLConnector.*",
 //                ".*ReadTests.testReadByTileWithPSQLConnector.*"
-                ".*ReadTests.testReadByIdsWithNLConnector.*",
+//                ".*ReadTests.testReadByIdsWithNLConnector.*",
 //                ".*ReadTests.testReadByIdsWithPSQLConnector.*"
         };
         org.openjdk.jmh.Main.main(jmhArgs);

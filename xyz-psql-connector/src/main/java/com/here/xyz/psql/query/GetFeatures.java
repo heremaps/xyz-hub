@@ -190,6 +190,14 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
         .withQueryFragment("baseVersion", "" + baseVersion) //TODO: That's a workaround for a minor bug in SQLQuery
         .withQueryFragment("featureVersion", isCompositeQuery(event) ? getFeatureVersion(event, dataset) : "version");
 
+
+    if(getTableLayout().equals(ConnectorParameters.TableLayout.NEW_LAYOUT)) {
+      jsonDataWithVersion = new SQLQuery("author, ${{innerJsonData}} AS jsondata")
+              .withQueryFragment("innerJsonData", buildJsonDataFragment(event))
+              .withQueryFragment("baseVersion", "" + baseVersion) //TODO: That's a workaround for a minor bug in SQLQuery
+              .withQueryFragment("featureVersion", isCompositeQuery(event) ? getFeatureVersion(event, dataset) : "version");
+    }
+
     return new SQLQuery("id, ${{version}}, ${{jsonData}}, ${{geo}}, ${{dataset}}")
         .withQueryFragment("jsonData", jsonDataWithVersion)
         .withQueryFragment("geo", buildGeoFragment(event))
@@ -446,14 +454,6 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
           + "END "
           + "FROM prj_build(#{selection}, jsondata))")
           .withNamedParameter("selection", selection.toArray(new String[0]));
-    }
-
-    if(getTableLayout().equals(ConnectorParameters.TableLayout.NEW_LAYOUT)) {
-      //TODO: inject version into jsondata
-      //TODO: Check after merge
-      return new SQLQuery("version, author, jsondata")
-              .withQueryFragment("innerJsonData", jsonData)
-              .withQueryFragment("featureVersion", getFeatureVersion(event, dataset));
     }
     return jsonData;
   }

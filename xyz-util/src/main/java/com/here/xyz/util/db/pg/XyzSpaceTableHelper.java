@@ -46,7 +46,34 @@ public class XyzSpaceTableHelper {
   public static final long HEAD_TABLE_PARTION_COUNT = 10;
   public static final long PARTITION_SIZE = 100_000;
 
-  public static List<SQLQuery> buildCreateSpaceTableQueries(String schema, String table,  List<OnDemandIndex> onDemandIndices,
+  public static List<SQLQuery> buildCreateSpaceTableQueriesForTests(String schema, String table) {
+    //In test`s we spaceId is always the same as table name
+    return buildCreateSpaceTableQueries(schema, table, List.of(), table, OLD_LAYOUT);
+  }
+  public static List<SQLQuery> buildCreateSpaceTableQueries(String schema, String table, String spaceId) {
+    return buildCreateSpaceTableQueries(schema, table, List.of(), spaceId, OLD_LAYOUT);
+  }
+
+  public static List<SQLQuery> buildCreateSpaceTableQueries(String schema, String table, String spaceId, TableLayout layout) {
+    return buildCreateSpaceTableQueries(schema, table, List.of(), spaceId, layout);
+  }
+
+  public static List<SQLQuery> buildCreateSpaceTableQueries(String schema, String table, List<OnDemandIndex> onDemandIndices,
+      String spaceId, TableLayout layout) {
+    return buildCreateSpaceTableQueries(schema, table, true, onDemandIndices, spaceId, layout);
+  }
+
+  //TODO: Check from where to get the on-demand index info in case of branch creations (see onDemandIndices param below)
+  public static List<SQLQuery> buildCreateBranchTableQueries(String schema, String table, String spaceId) {
+    return buildCreateSpaceTableQueries(schema, table, false, List.of(), spaceId);
+  }
+
+  public static List<SQLQuery> buildCreateSpaceTableQueries(String schema, String table, boolean isMainTable,  List<OnDemandIndex> onDemandIndices,
+                                                            String spaceId) {
+    return buildCreateSpaceTableQueries(schema, table, isMainTable, onDemandIndices, spaceId, OLD_LAYOUT);
+  }
+
+  public static List<SQLQuery> buildCreateSpaceTableQueries(String schema, String table, boolean isMainTable,  List<OnDemandIndex> onDemandIndices,
                                                             String spaceId, TableLayout layout) {
     if (layout != TableLayout.OLD_LAYOUT && layout != TableLayout.NEW_LAYOUT) {
       throw new IllegalArgumentException("Unsupported Table Layout: " + layout);
