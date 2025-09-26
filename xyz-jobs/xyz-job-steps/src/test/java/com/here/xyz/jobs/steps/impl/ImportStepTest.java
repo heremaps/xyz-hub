@@ -156,7 +156,8 @@ public class ImportStepTest extends StepTest {
     Assertions.assertThrows(BaseHttpServerVerticle.ValidationException.class, () -> new ImportFilesToSpace()
             .withFormat(Format.CSV_JSON_WKB)
             .withEntityPerLine(EntityPerLine.FeatureCollection)
-            .withSpaceId(SPACE_ID).validate());
+            .withSpaceId(SPACE_ID)
+            .validate());
   }
 
   private void executeImportStep(Format format, int featureCountSource,

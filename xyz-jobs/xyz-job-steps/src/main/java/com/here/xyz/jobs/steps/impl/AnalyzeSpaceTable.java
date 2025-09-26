@@ -34,6 +34,7 @@ import org.apache.logging.log4j.Logger;
 
 public class AnalyzeSpaceTable extends SpaceBasedStep<AnalyzeSpaceTable> {
   private static final Logger logger = LogManager.getLogger();
+
   @Override
   public List<Load> getNeededResources() {
     try {

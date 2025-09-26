@@ -18,6 +18,7 @@
  */
 package com.here.xyz.util.service.aws.s3;
 
+import com.here.xyz.util.pagination.Page;
 import java.net.URL;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -62,12 +63,15 @@ public class S3ClientHelper {
                 .build()).url();
     }
 
+    /**
+     * Scan all contents of a folder in an S3 bucket.
+     */
     public static List<S3ObjectSummary> scanFolder(S3Client client, String bucketName, String folderPath) {
         List<S3Object> summaries = new ArrayList<>();
         ListObjectsV2Request listObjectsV2Request = ListObjectsV2Request.builder()
-                .bucket(bucketName)
-                .prefix(folderPath)
-                .build();
+              .bucket(bucketName)
+              .prefix(folderPath)
+              .build();
 
         ListObjectsV2Response listResponse;
 
@@ -76,12 +80,41 @@ public class S3ClientHelper {
             summaries.addAll(listResponse.contents());
 
             listObjectsV2Request = listObjectsV2Request.toBuilder()
-                    .continuationToken(listResponse.nextContinuationToken())
-                    .build();
+                  .continuationToken(listResponse.nextContinuationToken())
+                  .build();
 
         } while (listResponse.isTruncated());
 
         return summaries.stream().map((it) -> S3ObjectSummary.fromS3Object(it, bucketName)).collect(Collectors.toList());
+    }
+
+    /**
+     * Scan a folder in an S3 bucket with pagination support.
+     */
+    public static Page<S3ObjectSummary> scanFolder(S3Client client, String bucketName, String folderPath,
+        String nextPageToken, int limit) {
+        ListObjectsV2Request.Builder requestBuilder = ListObjectsV2Request.builder()
+            .bucket(bucketName)
+            .prefix(folderPath);
+
+        if (nextPageToken != null && !nextPageToken.isEmpty()) {
+            requestBuilder.continuationToken(nextPageToken);
+        }
+        if (limit > 0) {
+            requestBuilder.maxKeys(limit);
+        }
+
+        ListObjectsV2Response response = client.listObjectsV2(requestBuilder.build());
+        List<S3Object> responseItems = response.contents();
+
+        Page<S3ObjectSummary> summaries = new Page<>();
+        summaries.setNextPageToken(response.isTruncated() ? response.nextContinuationToken() : null);
+        summaries.setItems(
+            responseItems.stream()
+                .map((it) -> S3ObjectSummary.fromS3Object(it, bucketName))
+                .collect(Collectors.toList()));
+
+        return summaries;
     }
 
     public static void deleteObject(S3Client client, String bucketName, String key) {
