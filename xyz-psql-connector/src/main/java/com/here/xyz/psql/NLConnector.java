@@ -96,6 +96,7 @@ import static com.here.xyz.responses.XyzError.NOT_IMPLEMENTED;
 public class NLConnector extends PSQLXyzConnector {
   private static final Logger logger = LogManager.getLogger();
   private static final String GLOBAL_VERSION_PROPERTY_KEY = "globalVersion";
+  private static final String GLOBAL_VERSION_SEARCH_KEY = "globalVersions";
   private static final String REF_QUAD_PROPERTY_KEY = "refQuad";
   private static final String REF_QUAD_COUNT_SELECTION_KEY = "f.refQuadCount";
   //If seedingMode is active, we do not use the FeatureWriter, but a simple batch upsert and delete
@@ -203,7 +204,7 @@ public class NLConnector extends PSQLXyzConnector {
 
   private PropertiesQueryInput getRefQuadAndGlobalVersion(PropertiesQuery propertiesQuery) {
     String errorMessageProperties = "Property based search supports only p." + REF_QUAD_PROPERTY_KEY
-            + "^=... (and optional globalVersion=...) search in NLConnector!";
+            + "^=... (and optional globalVersions=...) search in NLConnector!";
     String refQuad = null;
     List<Integer> globalVersions = new ArrayList<>();
 
@@ -219,12 +220,21 @@ public class NLConnector extends PSQLXyzConnector {
             throw new IllegalArgumentException("p." + REF_QUAD_PROPERTY_KEY + " must be a single String!");
           refQuad = values.get(0).toString();
         }
-        else if (key.equalsIgnoreCase("properties." + GLOBAL_VERSION_PROPERTY_KEY)
+        else if (key.equalsIgnoreCase("properties." + GLOBAL_VERSION_SEARCH_KEY)
                 && operation.equals(PropertyQuery.QueryOperation.EQUALS)) {
           for(Object v : values){
-            if(!(v instanceof Integer globalVersion))
-              throw new IllegalArgumentException("Value for 'p." + GLOBAL_VERSION_PROPERTY_KEY + "' must be an Integer or a List<Integer>!");
-            globalVersions.add(globalVersion);
+            if(v instanceof Integer globalVersion)
+              globalVersions.add(globalVersion);
+            else if(v instanceof List<?> globalVersionList){
+              for(Object vv : globalVersionList){
+                if(vv instanceof Integer globalVersion)
+                  globalVersions.add(globalVersion);
+                else
+                  throw new IllegalArgumentException("Value for 'p." + GLOBAL_VERSION_SEARCH_KEY + "' must be an Integer or a List<Integer>!");
+              }
+            }
+            else
+              throw new IllegalArgumentException("Value for 'p." + GLOBAL_VERSION_SEARCH_KEY + "' must be an Integer or a List<Integer>!");
           }
         }
         else {
@@ -400,22 +410,24 @@ public class NLConnector extends PSQLXyzConnector {
 
         try (ResultSet rs = ps.executeQuery()) {
           if(rs.next()){
-            BBox bBox = WebMercatorTile.forQuadkey(refQuad).getBBox(false);
-            LinearRingCoordinates lrc = new LinearRingCoordinates();
-            lrc.add(new Position(bBox.minLon(), bBox.minLat()));
-            lrc.add(new Position(bBox.maxLon(), bBox.minLat()));
-            lrc.add(new Position(bBox.maxLon(), bBox.maxLat()));
-            lrc.add(new Position(bBox.minLon(), bBox.maxLat()));
-            lrc.add(new Position(bBox.minLon(), bBox.minLat()));
-
             PolygonCoordinates polygonCoordinates = new PolygonCoordinates();
-            polygonCoordinates.add(lrc);
+
+            if(refQuad != null){
+              BBox bBox = WebMercatorTile.forQuadkey(refQuad).getBBox(false);
+              LinearRingCoordinates lrc = new LinearRingCoordinates();
+              lrc.add(new Position(bBox.minLon(), bBox.minLat()));
+              lrc.add(new Position(bBox.maxLon(), bBox.minLat()));
+              lrc.add(new Position(bBox.maxLon(), bBox.maxLat()));
+              lrc.add(new Position(bBox.minLon(), bBox.maxLat()));
+              lrc.add(new Position(bBox.minLon(), bBox.minLat()));
+              polygonCoordinates.add(lrc);
+            }
 
             return new FeatureCollection().withFeatures(List.of(
                     new Feature()
                        .withId(refQuad)
                        .withGeometry(
-                               new Polygon().withCoordinates(polygonCoordinates)
+                               refQuad == null ? null : new Polygon().withCoordinates(polygonCoordinates)
                        )
                        .withProperties(
                             new Properties()
