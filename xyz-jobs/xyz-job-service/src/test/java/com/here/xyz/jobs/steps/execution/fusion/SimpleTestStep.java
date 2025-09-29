@@ -33,6 +33,7 @@ public class SimpleTestStep<T extends SimpleTestStep> extends TestStep<T> {
     this.paramA = paramA;
     this.paramB = paramB;
     this.paramC = paramC;
+    setOutputSetGroup("test");
   }
 
   public SimpleTestStep(String paramA) {

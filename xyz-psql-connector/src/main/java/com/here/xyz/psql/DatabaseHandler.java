@@ -264,7 +264,8 @@ public abstract class DatabaseHandler extends StorageConnector {
                 upsertIds)));
             upserts.forEach(f -> {
                 if (existingIds.contains(f.getId())) {
-                    f.getProperties().getXyzNamespace().withCreatedAt(0);
+                    //todo: check intension of setting createdAt to 0
+                    //f.getProperties().getXyzNamespace().withCreatedAt(0);
                     updates.add(f);
                 }
                 else {

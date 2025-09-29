@@ -24,6 +24,7 @@ import static com.here.xyz.util.service.aws.AwsClientFactoryBase.s3;
 import static com.here.xyz.util.service.aws.AwsClientFactoryBase.s3Presigner;
 
 import com.amazonaws.regions.Regions;
+import com.here.xyz.util.pagination.Page;
 import com.here.xyz.util.service.BaseConfig;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -272,8 +273,20 @@ public class S3Client {
         .collect(Collectors.toList());
   }
 
+  /**
+   * Retrieves all objects from a specified folder path in an S3 bucket
+   * Note: This method automatically handles pagination
+   */
   public List<S3ObjectSummary> scanFolder(String folderPath) {
     return S3ClientHelper.scanFolder(client, bucketName, folderPath);
+  }
+
+  /**
+   * Retrieves objects from a specified folder path in an S3 bucket with pagination support
+   * Note: This version allows for controlled pagination through the nextPageToken and limit parameters
+   */
+  public Page<S3ObjectSummary> scanFolder(String folderPath, String nextPageToken, int limit) {
+    return S3ClientHelper.scanFolder(client, bucketName, folderPath, nextPageToken, limit);
   }
 
   /**

@@ -26,6 +26,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.nullValue;
 
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
@@ -53,6 +54,19 @@ public class ModifyFeatureCompositeSpaceIT extends TestCompositeSpace {
       .statusCode(OK.code())
       .body("features[0].id", equalTo(feature.getId()));
   }
+
+  public void patchFeature(String spaceId, Feature feature) {
+    given()
+      .contentType(APPLICATION_GEO_JSON)
+      .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+      .body(feature.serialize())
+      .when()
+      .patch("/spaces/" + spaceId + "/features/"+ feature.getId())
+      .then()
+      .statusCode(OK.code())
+      .body("id", equalTo(feature.getId()));
+  }
+
 
   @Test
   public void getFromDelta() {
@@ -99,6 +113,26 @@ public class ModifyFeatureCompositeSpaceIT extends TestCompositeSpace {
         .body("id", equalTo(feature.getId()))
         .body("properties.name", equalTo("xyz"));
   }
+
+  @Test
+  public void patchOnDelta() {
+   Feature feature = newFeature();
+   postFeature("x-psql-test-ext", feature.withProperties(new Properties().with("name", "abc")));
+   patchFeature("x-psql-test-ext", feature.withProperties(new Properties().with("name2", "def")));
+
+   given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .when()
+        .get("/spaces/x-psql-test-ext/features/" + feature.getId())
+        .then()
+        .statusCode(OK.code())
+        .body("id", equalTo(feature.getId()))
+        .body("properties.name", equalTo("abc"))
+        .body( "properties.@ns:com:here:xyz.createdAt",greaterThan(0L))
+        .body( "properties.@ns:com:here:xyz.updatedAt",greaterThan(0L));
+
+  }
+
 
   @Test
   public void getOnlyOnDelta() {

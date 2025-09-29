@@ -82,6 +82,14 @@ public class EraseSpace extends XyzQueryRunner<ModifyFeaturesEvent, FeatureColle
                     END $b2$
                 """, schema, table ); //TODO: use withNamedParameter when replacement issue is fixed.
 
+//MMSUP-1092  tmp workaroung reduce timeouts on db9 - skip reading pg_class, drop old partitions on db9
+//TODO: reinclude dropOtherPartitions, when timeouts on pg_class (db9) is fixed
+
+         dropOtherPartitions = "";
+
+//MMSUP-1092
+
+
         SQLQuery q = new SQLQuery("${{truncateTable}}; ${{dropOtherPartitions}}; ${{analyseTruncatedTable}}")
             .withQueryFragment("truncateTable", "TRUNCATE TABLE ${schema}.${table}")
             .withQueryFragment("dropOtherPartitions", dropOtherPartitions )
@@ -114,7 +122,6 @@ public class EraseSpace extends XyzQueryRunner<ModifyFeaturesEvent, FeatureColle
                     END $b2$
                 """, schema, table ); //TODO: use withNamedParameter when replacement issue is fixed.
         
-
         SQLQuery q = new SQLQuery("${{truncateTable}}; ${{resetVersionSequence}}; DO $b1$ BEGIN ${{recreateTableP0}}; END $b1$; ${{dropOtherPartitions}}; ${{analyseTruncatedTable}}")
             .withQueryFragment("truncateTable", "TRUNCATE TABLE ${schema}.${table} RESTART IDENTITY")
             .withQueryFragment("resetVersionSequence", "ALTER SEQUENCE ${schema}.${versionSequence} RESTART WITH 1")
