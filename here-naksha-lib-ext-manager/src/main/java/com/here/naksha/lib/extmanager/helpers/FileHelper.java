@@ -21,19 +21,32 @@ package com.here.naksha.lib.extmanager.helpers;
 import com.here.naksha.lib.extmanager.FileClient;
 import java.io.File;
 import java.io.IOException;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.stream.Collectors;
 
 public class FileHelper implements FileClient {
   @Override
-  public File getFile(String path) {
-    return new File(path);
+  public File getFile(String path) throws IOException {
+    Path filePath = toPath(path);
+    if (!Files.exists(filePath)) {
+      throw new IOException("Local file not found: " + filePath.toAbsolutePath());
+    }
+    return filePath.toFile();
   }
 
   @Override
   public String getFileContent(String path) throws IOException {
-    Path file = new File(path).toPath();
-    return Files.readAllLines(file).stream().collect(Collectors.joining());
+    Path filePath = toPath(path);
+    return Files.readAllLines(filePath).stream().collect(Collectors.joining());
+  }
+
+  private Path toPath(String path) {
+    if (path.startsWith("file://")) {
+      return Paths.get(URI.create(path));
+    }
+    return Paths.get(path);
   }
 }

@@ -56,7 +56,7 @@ public class ExtensionCacheTest extends BaseSetup {
     FileClient fileClient1 =extensionCache.getJarClient("s3://bucket/test1.jar");
     Assertions.assertEquals(fileClient, fileClient1);
 
-    fileClient =extensionCache.getJarClient("file://bucket/test.jar");
+    fileClient =extensionCache.getJarClient("file:///bucket/test.jar");
     Assertions.assertTrue(fileClient instanceof FileHelper);
 
     Assertions.assertThrows(UnsupportedOperationException.class,()->extensionCache.getJarClient("error://bucket/test.jar"));

@@ -204,7 +204,7 @@ public class ExtensionCache {
     try {
       file = client.getFile(extension.getUrl());
     } catch (IOException | SdkClientException e) {
-      logger.error("Failed to fetch jar {} ", extension.getUrl());
+      logger.error("Failed to fetch jar {}: {}", extension.getUrl(), e.getMessage(), e);
     }
     return new KVPair<Extension, File>(extension, file);
   }

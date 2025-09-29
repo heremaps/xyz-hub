@@ -49,8 +49,9 @@ import com.here.naksha.lib.core.util.json.Json;
 import com.here.naksha.lib.core.util.storage.RequestHelper;
 import com.here.naksha.lib.core.view.ViewDeserialize;
 import com.here.naksha.lib.extmanager.ExtensionManager;
+import com.here.naksha.lib.extmanager.FileClient;
 import com.here.naksha.lib.extmanager.IExtensionManager;
-import com.here.naksha.lib.extmanager.helpers.AmazonS3Helper;
+import com.here.naksha.lib.extmanager.helpers.FileClientFactory;
 import com.here.naksha.lib.hub.storages.NHAdminStorage;
 import com.here.naksha.lib.hub.storages.NHSpaceStorage;
 import com.here.naksha.lib.psql.PsqlStorage;
@@ -69,6 +70,8 @@ public class NakshaHub implements INaksha {
   public static final @NotNull String DEF_CFG_ID = "default-config";
 
   private static final @NotNull Logger logger = LoggerFactory.getLogger(NakshaHub.class);
+
+  private static final ObjectMapper objectMapper = new ObjectMapper();
 
   /**
    * The NakshaHub config.
@@ -331,51 +334,36 @@ public class NakshaHub implements INaksha {
     }
 
     final ExtensionConfigParams extensionConfigParams = nakshaHubConfig.extensionConfigParams;
-    if (!extensionConfigParams.extensionRootPath.startsWith("s3://"))
-      throw new UnsupportedOperationException(
-          "ExtensionRootPath must be a valid s3 bucket url which should be prefixed with s3://");
 
-    List<Extension> extList = loadExtensionConfigFromS3(extensionConfigParams.getExtensionRootPath(), extensionIds);
+    List<Extension> extList = loadExtensionConfig(extensionConfigParams.extensionRootPath, extensionIds);
+
     return new ExtensionConfig(
         System.currentTimeMillis() + extensionConfigParams.getIntervalMs(),
         extList,
         extensionConfigParams.getWhiteListClasses());
   }
 
-  private List<Extension> loadExtensionConfigFromS3(String extensionRootPath, Set<String> extensionIds) {
-    AmazonS3Helper s3Helper = new AmazonS3Helper();
+  private List<Extension> loadExtensionConfig(String extensionRootPath, Set<String> extensionIds) {
     List<Extension> extList = new ArrayList<>();
-    extensionIds.forEach(extensionId -> {
-      String env = extensionId.split(":")[0];
-      String extensionIdWotEnv = extensionId.split(":")[1];
-      String filePath = extensionRootPath + extensionIdWotEnv + "/" + "latest-" + env.toLowerCase() + ".txt";
-      String version;
-      try {
-        version = s3Helper.getFileContent(filePath);
-      } catch (Exception e) {
-        logger.error("Failed to read extension content from {}", filePath, e);
-        return;
-      }
+    FileClient fileClient = FileClientFactory.create(extensionRootPath);
 
-      filePath = extensionRootPath + extensionIdWotEnv + "/" + extensionIdWotEnv + "-" + version + "."
-          + env.toLowerCase() + ".json";
-      String exJson;
+    for (String extensionId : extensionIds) {
+      String extEnv = extensionId.split(":")[0];
+      String extensionIdWotEnv = extensionId.split(":")[1];
       try {
-        exJson = s3Helper.getFileContent(filePath);
-      } catch (Exception e) {
-        logger.error("Failed to read extension meta data from {} ", filePath, e);
-        return;
-      }
-      Extension extension;
-      try {
-        extension = new ObjectMapper().readValue(exJson, Extension.class);
-        extension.setEnv(env);
+        String version = fileClient.getFileContent(
+            extensionRootPath + extensionIdWotEnv + "/latest-" + extEnv.toLowerCase() + ".txt");
+        String exJson = fileClient.getFileContent(extensionRootPath + extensionIdWotEnv + "/"
+            + extensionIdWotEnv + "-" + version + "." + extEnv.toLowerCase() + ".json");
+        Extension extension = objectMapper.readValue(exJson, Extension.class);
+        extension.setEnv(extEnv);
         extList.add(extension);
+
       } catch (Exception e) {
-        logger.error("Failed to convert extension meta data to Extension object. {} ", exJson, e);
-        return;
+        logger.error("Failed loading extension {} at {}", extensionId, extensionRootPath, e);
       }
-    });
+    }
+
     return extList;
   }
 

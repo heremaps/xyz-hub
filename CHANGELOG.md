@@ -1,3 +1,6 @@
+## Naksha_2.2.13
+- Local testing support for extensions.
+
 ## Naksha_2.2.12
 - Geo-hash is now generated directly from the geometry instead of centroid.
 - This fixes the error "Geohash requires inputs in decimal degrees" that occurred when using the centroid.
