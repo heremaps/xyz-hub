@@ -209,27 +209,24 @@ class DatabaseWriter {
    * @returns {FeatureModificationExecutionResult}
    */
   insertHistoryRow(inputFeature, baseFeature, version, operation, author, resultHandler) {
-    //TODO: Check if it makes sense to get the previous creation timestamp by loading the feature in case the operation != "I" / "H" (rather than doing the in-lined SELECT
     //TODO: Improve performance by reading geo inside JS and then pass it separately and use TEXT / WKB / BYTEA
-    this.enrichTimestamps(inputFeature, true);
+    this.enrichTimestamps(inputFeature, operation == "I" || operation == "H", baseFeature);
     let sql = `INSERT INTO "${this.schema}"."${this.table}"
                       (id, version, operation, author, jsondata, geo)
                   VALUES ($1, $2, $3, $4,
-                          CASE WHEN $3::CHAR = 'I' OR $3::CHAR = 'H' THEN
-                              $5::JSONB - 'geometry'
-                          ELSE 
-                              jsonb_set($5::JSONB - 'geometry', '{properties, ${XYZ_NS}, createdAt}', to_jsonb($7::BIGINT))
-                          END,
-                          CASE
-                              WHEN $6::JSONB IS NULL THEN NULL
-                              ELSE xyz_reduce_precision(ST_Force3D(ST_GeomFromGeoJSON($6::JSONB)), false) END)`;
+                          $5::JSONB - 'geometry',
+                          CASE WHEN $6::JSONB IS NULL THEN
+                              NULL
+                          ELSE
+                              xyz_reduce_precision(ST_Force3D(ST_GeomFromGeoJSON($6::JSONB)), false)
+                          END)`;
 
     this._createHistoryPartition(version);
     this._purgeOldChangesets(version);
 
     let method = "insertHistoryRow";
     if (!this.plans[method]) {
-      this.plans[method] = this._preparePlan(sql, ["TEXT", "BIGINT", "CHAR", "TEXT", "JSONB", "JSONB", "BIGINT"]);
+      this.plans[method] = this._preparePlan(sql, ["TEXT", "BIGINT", "CHAR", "TEXT", "JSONB", "JSONB"]);
       this.parameterSets[method] = [];
       this.resultParsers[method] = [];
     }
@@ -239,21 +236,16 @@ class DatabaseWriter {
       throw new XyzException("Can not write a feature that is null");
     }
 
-    let createdAtFromExistingFeature = baseFeature ? baseFeature.properties[XYZ_NS].createdAt : -1;
     this.parameterSets[method].push([
       inputFeature.id,
       version,
       operation,
       author,
       inputFeature,
-      inputFeature.geometry,
-      createdAtFromExistingFeature
+      inputFeature.geometry
     ]);
     this.resultParsers[method].push(result => {
       let executedAction = inputFeature.properties[XYZ_NS].deleted ? ExecutionAction.DELETED : ExecutionAction.fromOperation[operation];
-      if (executedAction == ExecutionAction.UPDATED && createdAtFromExistingFeature > -1)
-        //Inject createdAt
-        inputFeature.properties[XYZ_NS].createdAt = createdAtFromExistingFeature;
       return resultHandler(new FeatureModificationExecutionResult(executedAction, inputFeature, version + this.tableBaseVersion, author));
     });
 
@@ -351,7 +343,7 @@ class DatabaseWriter {
       return this.execute()[0];
   }
 
-  enrichTimestamps(feature, isCreation = false) {
+  enrichTimestamps(feature, isCreation = false, baseFeature = null) {
     let now = Date.now();
     feature.properties = {
       ...feature.properties,
@@ -362,6 +354,8 @@ class DatabaseWriter {
     };
     if (isCreation)
       feature.properties[XYZ_NS].createdAt = now;
+    else if (baseFeature)
+      feature.properties[XYZ_NS].createdAt = baseFeature.properties[XYZ_NS].createdAt ? baseFeature.properties[XYZ_NS].createdAt : -1;
   }
 
   _throwFeatureNotExistsError(featureId) {
