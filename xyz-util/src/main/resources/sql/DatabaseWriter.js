@@ -258,7 +258,8 @@ class DatabaseWriter {
       throw new XyzException("Can not write a feature that is null");
     }
 
-    let createdAtFromExistingFeature = baseFeature ? baseFeature.properties[XYZ_NS].createdAt : -1;
+    let createdAtFromExistingFeature = (baseFeature && baseFeature.properties[XYZ_NS].createdAt)?
+      baseFeature.properties[XYZ_NS].createdAt : -1;
 
     const params = [
       inputFeature.id,
