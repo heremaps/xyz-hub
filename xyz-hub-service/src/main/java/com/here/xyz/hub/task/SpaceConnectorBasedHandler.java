@@ -19,8 +19,10 @@
 
 package com.here.xyz.hub.task;
 
+import static com.here.xyz.hub.task.FeatureTask.resolveBranchFor;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 
+import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.DeleteChangesetsEvent;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.GetChangesetStatisticsEvent;
@@ -132,8 +134,19 @@ public class SpaceConnectorBasedHandler {
                 if (minTag != null)
                   iterateChangesetsEvent.setMinVersion(minTag.getVersion());
               }
-              return Future.succeededFuture(space);
-            });
+              return Future.succeededFuture();
+            })
+            .compose(v -> {
+              if (event instanceof ContextAwareEvent<?> contextAwareEvent)
+                try {
+                  resolveBranchFor(contextAwareEvent, space);
+                }
+                catch (HttpException e) {
+                  return Future.failedFuture(e);
+                }
+              return Future.succeededFuture();
+            })
+            .map(space);
       }
       else
         return Future.succeededFuture(space);

@@ -35,11 +35,12 @@ import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.psql.query.branching.QueryTestBase;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzResponse;
 import java.util.List;
 
-public class Helper {
+public class Helper extends QueryTestBase {
 
     protected static <T extends XyzResponse> T deserializeResponse(String jsonResponse) throws JsonProcessingException, ErrorResponseException {
       XyzResponse response = XyzSerializable.deserialize(jsonResponse);

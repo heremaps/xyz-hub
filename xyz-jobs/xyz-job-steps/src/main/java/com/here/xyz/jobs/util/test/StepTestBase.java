@@ -20,7 +20,7 @@
 package com.here.xyz.jobs.util.test;
 
 import static com.google.common.net.HttpHeaders.CONTENT_TYPE;
-import static com.here.xyz.jobs.steps.Step.InputSet.DEFAULT_INPUT_SET_NAME;
+import static com.here.xyz.jobs.steps.Step.InputSet.DEFAULT_SET_NAME;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.START_EXECUTION;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.SUCCESS_CALLBACK;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporaryJobTableName;
@@ -459,7 +459,7 @@ public class StepTestBase {
   }
 
   public void uploadInputFile(String jobId, byte[] bytes, S3ContentType contentType) throws IOException {
-    uploadFileToS3(inputS3Prefix(jobId, DEFAULT_INPUT_SET_NAME) + "/" + UUID.randomUUID(), contentType, bytes, false);
+    uploadFileToS3(inputS3Prefix(jobId, DEFAULT_SET_NAME) + "/" + UUID.randomUUID(), contentType, bytes, false);
   }
 
   protected void uploadFileToS3(String s3Key, S3ContentType contentType, byte[] data, boolean gzip) throws IOException {

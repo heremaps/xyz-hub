@@ -206,6 +206,15 @@ public class XyzSpaceTableHelper {
   }
 
   public static List<SQLQuery> buildCreateSpaceTableQueries(String schema, String table, List<OnDemandIndex> onDemandIndices) {
+    return buildCreateSpaceTableQueries(schema, table, true, onDemandIndices);
+  }
+
+  //TODO: Check from where to get the on-demand index info in case of branch creations (see onDemandIndices param below)
+  public static List<SQLQuery> buildCreateBranchTableQueries(String schema, String table) {
+    return buildCreateSpaceTableQueries(schema, table, false, List.of());
+  }
+
+  private static List<SQLQuery> buildCreateSpaceTableQueries(String schema, String table, boolean isMainTable, List<OnDemandIndex> onDemandIndices) {
     List<SQLQuery> queries = new ArrayList<>();
 
     queries.add(createConnectorSchema(schema));
@@ -219,6 +228,8 @@ public class XyzSpaceTableHelper {
       for(OnDemandIndex onDemandIndex : onDemandIndices)
         queries.add(IndexHelper.buildOnDemandIndexCreationQuery(schema, table, onDemandIndex.getPropertyPath(), false));
     }
+    if (isMainTable)
+      queries.add(buildCreateSequenceQuery(schema, table, "branches", "id", 1));
 
     return queries;
   }
@@ -272,7 +283,7 @@ public class XyzSpaceTableHelper {
             .withVariable(SCHEMA, schema);
   }
 
-  public static SQLQuery buildCreateSpaceTableQuery(String schema, String table) {
+  private static SQLQuery buildCreateSpaceTableQuery(String schema, String table) {
     String tableFields = "id TEXT NOT NULL, "
         + "version BIGINT NOT NULL, "
         + "next_version BIGINT NOT NULL DEFAULT 9223372036854775807::BIGINT, "
@@ -295,11 +306,20 @@ public class XyzSpaceTableHelper {
   }
 
   public static SQLQuery buildCreateSequenceQuery(String schema, String table, String columnName) {
-    return new SQLQuery("CREATE SEQUENCE IF NOT EXISTS ${schema}.${sequence} MINVALUE 1 OWNED BY ${schema}.${table}.${columnName}")
+    return buildCreateSequenceQuery(schema, table, columnName, columnName, 1);
+  }
+
+  public static String sequenceName(String table, String sequenceName) {
+    return table + "_" + sequenceName + "_seq";
+  }
+
+  public static SQLQuery buildCreateSequenceQuery(String schema, String table, String sequenceName, String ownedByColumn, int startValue) {
+      return new SQLQuery("CREATE SEQUENCE IF NOT EXISTS ${schema}.${sequence} MINVALUE #{startValue} OWNED BY ${schema}.${table}.${columnName}")
         .withVariable(SCHEMA, schema)
         .withVariable(TABLE, table)
-        .withVariable("sequence", table + "_" + columnName + "_seq")
-        .withVariable("columnName", columnName);
+        .withVariable("sequence", sequenceName(table, sequenceName))
+        .withVariable("columnName", ownedByColumn)
+          .withNamedParameter("startValue", startValue);
   }
 
   public static String getTableNameForSpaceId(String spaceId, boolean hashed) {

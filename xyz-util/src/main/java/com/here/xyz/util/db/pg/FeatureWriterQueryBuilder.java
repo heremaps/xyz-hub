@@ -42,6 +42,7 @@ public class FeatureWriterQueryBuilder {
   private UpdateStrategy updateStrategy = null;
   private boolean isPartial = false;
   private Map<String, Object> queryContext;
+  private boolean select = false;
 
   public FeatureWriterQueryBuilder() {}
 
@@ -105,6 +106,11 @@ public class FeatureWriterQueryBuilder {
     return this;
   }
 
+  public FeatureWriterQueryBuilder withSelect(boolean select) {
+    this.select = select;
+    return this;
+  }
+
   public SQLQuery build() {
     if (input == null)
       throw new IllegalArgumentException("No input has been set for the FeatureWriter.");
@@ -118,8 +124,10 @@ public class FeatureWriterQueryBuilder {
     if (queryContext == null)
       throw new IllegalArgumentException("No queryContext has been set for the FeatureWriter.");
 
+    String selectTerm = select ? "SELECT " : "";
+
     if (input instanceof List inputList && inputList.get(0) instanceof Modification) {
-      return new SQLQuery("write_features(#{jsonInput}, 'Modifications', #{author}, #{returnResult}, #{version})")
+      return new SQLQuery(selectTerm + "write_features(#{jsonInput}, 'Modifications', #{author}, #{returnResult}, #{version})")
           .withContext(queryContext)
           .withNamedParameter("jsonInput", XyzSerializable.serialize(inputList))
           .withNamedParameter("author", author)
@@ -127,7 +135,7 @@ public class FeatureWriterQueryBuilder {
           .withNamedParameter("version", version <= 0 ? null : version);
     }
 
-    return new SQLQuery("""
+    return new SQLQuery(selectTerm + """
         write_features(
           #{jsonInput}, #{inputType}, #{author}, #{returnResult}, #{version},
           #{onExists}, #{onNotExists}, #{onVersionConflict}, #{onMergeConflict}, #{isPartial}
@@ -161,6 +169,11 @@ public class FeatureWriterQueryBuilder {
 
     public FeatureWriterQueryContextBuilder withTables(List<String> tables) {
       queryContext.put("tables", tables);
+      return this;
+    }
+
+    public FeatureWriterQueryContextBuilder withTableBaseVersions(List<Long> tableBaseVersions) {
+      queryContext.put("tableBaseVersions", tableBaseVersions);
       return this;
     }
 

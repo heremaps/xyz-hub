@@ -21,6 +21,7 @@ class DatabaseWriter {
 
   schema;
   table;
+  tableBaseVersion;
 
   /**
    * @type {boolean}
@@ -39,9 +40,10 @@ class DatabaseWriter {
    */
   resultParsers = {};
 
-  constructor(schema, table, batchMode = false) {
+  constructor(schema, table, tableBaseVersion, batchMode = false) {
     this.schema = schema;
     this.table = table;
+    this.tableBaseVersion = tableBaseVersion;
     this.batchMode = batchMode;
   }
 
@@ -237,6 +239,7 @@ class DatabaseWriter {
       throw new XyzException("Can not write a feature that is null");
     }
 
+    let createdAtFromExistingFeature = baseFeature ? baseFeature.properties[XYZ_NS].createdAt : -1;
     this.parameterSets[method].push([
       inputFeature.id,
       version,
@@ -244,11 +247,14 @@ class DatabaseWriter {
       author,
       inputFeature,
       inputFeature.geometry,
-      baseFeature ? baseFeature.properties[XYZ_NS].createdAt : -1
+      createdAtFromExistingFeature
     ]);
     this.resultParsers[method].push(result => {
-      //FIXME: Extract written creation timestamp if applicable
-      return resultHandler(new FeatureModificationExecutionResult(inputFeature.properties[XYZ_NS].deleted ? ExecutionAction.DELETED : ExecutionAction.fromOperation[operation], inputFeature, version, author));
+      let executedAction = inputFeature.properties[XYZ_NS].deleted ? ExecutionAction.DELETED : ExecutionAction.fromOperation[operation];
+      if (executedAction == ExecutionAction.UPDATED && createdAtFromExistingFeature > -1)
+        //Inject createdAt
+        inputFeature.properties[XYZ_NS].createdAt = createdAtFromExistingFeature;
+      return resultHandler(new FeatureModificationExecutionResult(executedAction, inputFeature, version + this.tableBaseVersion, author));
     });
 
     if (!this.batchMode)

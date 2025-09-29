@@ -23,6 +23,8 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.here.xyz.jobs.service.Config;
+import com.here.xyz.jobs.steps.Step.Visibility;
+import com.here.xyz.jobs.steps.outputs.Output;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
@@ -71,6 +73,26 @@ public class StepGraph implements StepExecution {
         .filter(step -> stepId.equals(step.getId()))
         .findFirst()
         .orElse(null);
+  }
+
+  /**
+   * Returns a step within this graph matching the provided step outputSetGroup and setName.
+   *
+   * @return <code>Step</code> if found in the step graph, else return null
+   */
+  public Step getStepOrNull(String outputSetGroup, String setName) {
+    return stepStream()
+        .filter(step -> outputSetGroup.equals(step.getOutputSetGroup()) && step.getOutputSetOrNull(setName) != null)
+        .findFirst()
+        .orElse(null);
+  }
+
+  public List<Output> getStepOutputs(String outputSetGroup, String setName, Visibility visibility) {
+    return stepStream()
+        .filter(step -> outputSetGroup.equals(step.getOutputSetGroup()) && step.getOutputSetOrNull(setName) != null)
+        .findFirst()
+        .map(it -> it.loadOutputs(visibility))
+        .orElse(Collections.emptyList());
   }
 
   /**

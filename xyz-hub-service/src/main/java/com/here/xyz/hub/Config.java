@@ -258,6 +258,11 @@ public class Config extends BaseConfig {
   public String SETTINGS_DYNAMODB_TABLE_ARN;
 
   /**
+   * The ARN of the branches table in DynamoDB.
+   */
+  public String BRANCHES_DYNAMODB_TABLE_ARN;
+
+  /**
    * The ARN of the admin message topic.
    */
   public ARN ADMIN_MESSAGE_TOPIC_ARN;
