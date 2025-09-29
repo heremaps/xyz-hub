@@ -6,26 +6,6 @@
     "configurations": [
         {
             "type": "java",
-            "name": "atest",
-            "request": "launch",
-            "mainClass": "com.here.xyz.psql.tools.atest",
-            "projectName": "xyz-psql-connector"
-        },
-        {
-            "type": "java",
-            "name": "Launch Current File",
-            "request": "launch",
-            "mainClass": "${file}"
-        },
-        {
-            "type": "java",
-            "name": "JobPlayground",
-            "request": "launch",
-            "mainClass": "com.here.xyz.jobs.JobPlayground",
-            "projectName": "xyz-job-service"
-        },
-        {
-            "type": "java",
             "request": "attach",
             "name": "Attach by Process ID",
             "processId": "${command:PickJavaProcess}",
@@ -82,20 +62,6 @@
         },
         {
             "type": "java",
-            "name": "xyz-http-connector",
-            "request": "launch",
-            "mainClass": "com.here.xyz.httpconnector.CService",
-            "projectName": "xyz-hub-service",
-            "vmArgs": "-Xms1280m -Xmx1280m",
-            "args": [
-                "--xxdebug"
-            ],
-            "envFile": "${workspaceFolder}${pathSeparator}.vscode${pathSeparator}xyz-http-connector.env-vars.txt",
-            "env": {},
-            "sourcePaths": []
-        },
-        {
-            "type": "java",
             "name": "JobService",
             "request": "launch",
             "mainClass": "com.here.xyz.jobs.service.JobService",
@@ -111,11 +77,6 @@
     ],
     "compounds": [
         {
-            "name": "xyz-suite",
-            "configurations": ["xyz-http-connector","xyzhub-service"],
-            "stopAll": true
-        },
-        {
             "name": "attach iml",
             "configurations": ["Attach jobapi","Attach proxy"],
             "stopAll": true
@@ -127,7 +88,7 @@
         },
         {
             "name": "all-jobs-suite",
-            "configurations": ["xyz-http-connector","xyzhub-service","JobService"],
+            "configurations": ["xyzhub-service","JobService"],
             "stopAll": true
         }
     ]
