@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class Connector {
@@ -73,6 +74,11 @@ public class Connector {
    */
   public String owner;
   public Map<String, Set<String>> allowedEventTypes;
+
+  /**
+   * A regular expression that matches all mimetypes for which no compression should be applied in the response phase.
+   */
+  public Pattern blockMimetypeCompression = null;
 
   @JsonIgnoreProperties(ignoreUnknown = true)
   public static class StorageCapabilities {
