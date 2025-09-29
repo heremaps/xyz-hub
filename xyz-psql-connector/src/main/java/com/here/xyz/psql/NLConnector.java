@@ -225,10 +225,14 @@ public class NLConnector extends PSQLXyzConnector {
           for(Object v : values){
             if(v instanceof Integer globalVersion)
               globalVersions.add(globalVersion);
+            else if(v instanceof Long globalVersion)
+              globalVersions.add(globalVersion.intValue());
             else if(v instanceof List<?> globalVersionList){
               for(Object vv : globalVersionList){
                 if(vv instanceof Integer globalVersion)
                   globalVersions.add(globalVersion);
+                else if(vv instanceof Long globalVersion)
+                  globalVersions.add(globalVersion.intValue());
                 else
                   throw new IllegalArgumentException("Value for 'p." + GLOBAL_VERSION_SEARCH_KEY + "' must be an Integer or a List<Integer>!");
               }

@@ -30,7 +30,6 @@ import com.here.xyz.util.service.aws.lambda.SimulatedContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HexFormat;
 import java.util.List;
@@ -40,6 +39,8 @@ import java.util.concurrent.ThreadLocalRandom;
 
 import static com.here.xyz.events.ModifySpaceEvent.Operation.CREATE;
 import static com.here.xyz.events.ModifySpaceEvent.Operation.DELETE;
+import static com.here.xyz.events.PropertyQuery.QueryOperation.EQUALS;
+import static com.here.xyz.events.PropertyQuery.QueryOperation.BEGINS_WITH;
 
 public class PerformanceTestHelper {
   public static final String DEFAULT_HOST = "localhost";
@@ -116,13 +117,13 @@ public class PerformanceTestHelper {
     if (refQuad != null)
       queries.add(new PropertyQuery()
               .withKey("properties.refQuad")
-              .withOperation(PropertyQuery.QueryOperation.BEGINS_WITH)
+              .withOperation(BEGINS_WITH)
               .withValues(List.of(refQuad)));
 
     if (globalVersions != null)
       queries.add(new PropertyQuery()
               .withKey("properties.globalVersions")
-              .withOperation(PropertyQuery.QueryOperation.EQUALS)
+              .withOperation(EQUALS)
               .withValues(Collections.singletonList(globalVersions)));
 
     propertiesQuery.add(queries);
