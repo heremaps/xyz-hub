@@ -163,13 +163,9 @@ public class NLConnector extends PSQLXyzConnector {
         return getFeaturesByRefQuad(dbSettings.getSchema(), XyzEventBasedQueryRunner.readTableFromEvent(event),
                 propertiesQueryInput, event.getLimit());
       }else {
-        //Call Count Query
-        if (!propertiesQueryInput.globalVersions.isEmpty())
-          throw new IllegalArgumentException("Selection cant get combined with globalVersion!");
-
         return getFeatureCountByRefQuad(dbSettings.getSchema(),
                 XyzEventBasedQueryRunner.readTableFromEvent(event),
-                propertiesQueryInput.refQuad, event.getLimit());
+                propertiesQueryInput.refQuad, propertiesQueryInput.globalVersions, event.getLimit());
       }
     }
 
@@ -394,11 +390,11 @@ public class NLConnector extends PSQLXyzConnector {
     return null;
   }
 
-  private FeatureCollection getFeatureCountByRefQuad(String schema, String table, String refQuad, long limit)
+  private FeatureCollection getFeatureCountByRefQuad(String schema, String table, String refQuad, List<Integer> globalVersions, long limit)
           throws SQLException {
     try (final Connection connection = dataSourceProvider.getWriter().getConnection()) {
 
-      String query = createReadByRefQuadCountQuery(schema, table, refQuad, limit);
+      String query = createReadByRefQuadCountQuery(schema, table, refQuad, globalVersions, limit);
 
       try (PreparedStatement ps = connection.prepareStatement(query)) {
 
@@ -437,8 +433,8 @@ public class NLConnector extends PSQLXyzConnector {
     return null;
   }
 
-  private String createReadByRefQuadCountQuery(String schema, String table, String refQuad, long limit) {
-    return createReadByRefQuadQuery(schema, table, refQuad, null, limit, true);
+  private String createReadByRefQuadCountQuery(String schema, String table, String refQuad,List<Integer> globalVersions, long limit) {
+    return createReadByRefQuadQuery(schema, table, refQuad, globalVersions, limit, true);
   }
 
   private String createReadByRefQuadQuery(String schema, String table, String refQuad, List<Integer> globalVersions, long limit) {
@@ -551,7 +547,7 @@ public class NLConnector extends PSQLXyzConnector {
           ps.setString(1, feature.getId());
           ps.setBytes(2, geo == null ? null : new WKBWriter(3).write(geo.getJTSGeometry()));
           ps.setString(3, "I"); // operation always insert initially
-          ps.setString(4, author);
+          ps.setString(4, author == null ? "ANONYMOUS" : author);
           ps.setLong(5, version);
           ps.setString(6, enrichFeaturePayload(feature));
           ps.setObject(7, getSearchableObject(feature));
