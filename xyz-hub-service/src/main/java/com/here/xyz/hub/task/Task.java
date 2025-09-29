@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -71,6 +71,11 @@ public abstract class Task<T extends Event, X extends Task<T, ?>> {
    * The response type that should be produced by this task.
    */
   public ApiResponseType responseType;
+
+  /**
+   * Whether no compression should be applied at REST level for the response.
+   */
+  public boolean preventCompression;
 
   /**
    * Describes, if the response was loaded from cache.

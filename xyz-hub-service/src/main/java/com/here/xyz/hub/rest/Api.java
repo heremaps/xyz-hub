@@ -405,7 +405,7 @@ public abstract class Api extends com.here.xyz.util.service.rest.Api {
       final String acceptedContentEncoding = task.context.request().getHeader(ACCEPT_ENCODING);
       String acceptEncoding = acceptedContentEncoding == null ? acceptedContentEncoding : acceptedContentEncoding.toLowerCase();
       if (acceptedContentEncoding != null && (acceptEncoding.contains("gzip") || acceptEncoding.contains("*"))
-          && !acceptEncoding.contains("gzip;q=0")) {
+          && !acceptEncoding.contains("gzip;q=0") && !task.preventCompression) {
         httpResponse.putHeader(CONTENT_ENCODING, "gzip");
         if (!isGzipped(response))
           response = compress(response);
