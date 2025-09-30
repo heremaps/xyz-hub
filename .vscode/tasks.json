@@ -1,0 +1,30 @@
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
+    // for the documentation about the tasks.json format
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "iml-job-steps [install]",
+            "type": "shell",
+            "command": "mvn clean install -DskipTests=true -Plocal -f ${workspaceFolder}${pathSeparator}xyz-jobs${pathSeparator}xyz-job-steps",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "jobServiceSetup",
+            "type": "shell",
+            "command": "docker run --rm -it --entrypoint '' -v .${pathSeparator}localSetup.sh:/aws/localSetup.sh --add-host host.docker.internal=host-gateway amazon/aws-cli ./localSetup.sh true",
+            "options": {
+                "cwd": "${workspaceFolder}${pathSeparator}xyz-jobs${pathSeparator}xyz-job-service${pathSeparator}target${pathSeparator}classes"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "jobSetup",
+            "dependsOn": ["jobServiceSetup", "iml-job-steps [install]"],
+            "problemMatcher": []
+        }
+    ]
+} 
