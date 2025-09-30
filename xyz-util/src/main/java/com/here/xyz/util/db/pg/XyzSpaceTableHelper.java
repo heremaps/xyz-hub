@@ -229,7 +229,7 @@ public class XyzSpaceTableHelper {
         queries.add(IndexHelper.buildOnDemandIndexCreationQuery(schema, table, onDemandIndex.getPropertyPath(), false));
     }
     if (isMainTable)
-      queries.add(buildCreateSequenceQuery(schema, table, "branches", "id", 1));
+      queries.add(buildCreateBranchSequenceQuery(schema, table));
 
     return queries;
   }
@@ -307,6 +307,10 @@ public class XyzSpaceTableHelper {
 
   public static SQLQuery buildCreateSequenceQuery(String schema, String table, String columnName) {
     return buildCreateSequenceQuery(schema, table, columnName, columnName, 1);
+  }
+
+  public static SQLQuery buildCreateBranchSequenceQuery(String schema, String table) {
+    return buildCreateSequenceQuery(schema, table, "branches", "id", 1);
   }
 
   public static String sequenceName(String table, String sequenceName) {
