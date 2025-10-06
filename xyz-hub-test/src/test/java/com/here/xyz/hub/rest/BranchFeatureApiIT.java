@@ -76,7 +76,6 @@ public class BranchFeatureApiIT extends TestSpaceBranch {
 
   }
 
-  @Disabled
   @Test
   public void writeFeaturesToBranchOfBranch() throws Exception {
     //Create branch1
@@ -106,9 +105,13 @@ public class BranchFeatureApiIT extends TestSpaceBranch {
 
   }
 
+
+  // We should test the behavior on the branches when the definition of middle branch is changed (merged, rebased, deleted)
+  // in context with multi-level branching
   @Disabled
-  @Test
-  public void operateOnBranchAfterDeletingIntermediateBranch() throws Exception {
+  @ParameterizedTest
+  @ValueSource(strings = {"merge", "rebase", "delete"})
+  public void multilevelBranchingWithChangedMiddleBranch(String operation) throws Exception {
     // Create and add features to branch1
     createBranch(SPACE_ID, B1_MAIN, null)
             .body("id", equalTo(B1_MAIN));
@@ -119,8 +122,14 @@ public class BranchFeatureApiIT extends TestSpaceBranch {
             .body("id", equalTo(B2_B1));
     addFeaturesToBranchAndVerify(B2_B1, Set.of("b2_1", "b2_2"), Set.of("main0", "b1_1", "b1_2", "b2_1", "b2_2"));
 
-    //Delete branch1, then add features to branch2
-    deleteBranch(SPACE_ID, B1_MAIN);
+    //Add features to main and update the middle branch config
+    addFeaturesToBranchAndVerify(null, Set.of("main1"), Set.of("main0", "main1"));
+    switch (operation) {
+      case "rebase" -> rebaseBranch(SPACE_ID, B1_MAIN, "2");
+      case "merge" -> mergeBranch(SPACE_ID, B1_MAIN, "main");
+      case "delete" -> deleteBranch(SPACE_ID, B1_MAIN);
+    }
+
     addFeaturesToBranchAndVerify(B2_B1, Set.of("b2_3"), Set.of("main0", "b1_1", "b1_2", "b2_1", "b2_2", "b2_3"));
   }
 

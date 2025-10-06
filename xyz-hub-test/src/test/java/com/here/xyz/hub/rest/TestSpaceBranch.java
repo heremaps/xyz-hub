@@ -101,6 +101,18 @@ public class TestSpaceBranch extends TestSpaceWithFeature {
             .statusCode(OK.code());
   }
 
+  protected ValidatableResponse mergeBranch(String spaceId, String branchId, String targetBranchId) {
+    return given()
+            .contentType(APPLICATION_JSON)
+            .accept(APPLICATION_JSON)
+            .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+            .body("{\"type\":\"Merge\",\"baseRef\":\""+targetBranchId+"\"}")
+            .when()
+            .patch(getSpaceBranchPath(spaceId, branchId))
+            .then()
+            .statusCode(OK.code());
+  }
+
   protected FeatureCollection addFeaturesToBranch(String spaceId, String branchId, FeatureCollection featureCollection) throws WebClientException {
     return (FeatureCollection) HubWebClient.getInstance(RestAssuredConfig.config().fullHubUri)
             .postFeatures(spaceId, featureCollection, branchId == null ? null : Map.of("versionRef", branchId));

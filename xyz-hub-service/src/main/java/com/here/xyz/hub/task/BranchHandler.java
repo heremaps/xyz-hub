@@ -178,7 +178,7 @@ public class BranchHandler {
               //TODO: Resolve HEAD of the branch
               Ref branchRef = Ref.fromBranchId(ref.getTag());
               getReferencedBranch(space, branchRef);
-              return Future.succeededFuture(branchRef);
+              return resolveRefHeadVersion(marker, spaceId, branchRef);
             }
             catch (HttpException e) {
               return Future.failedFuture(e);
@@ -187,8 +187,15 @@ public class BranchHandler {
     }
     if (!ref.isHead())
       return Future.succeededFuture(ref);
-    return FeatureQueryApi.getStatistics(marker, spaceId, EXTENSION, ref, true, false)
-        .map(statistics -> new Ref(ref.getBranch() + ":" + statistics.getMaxVersion().getValue()));
+    return resolveRefHeadVersion(marker, spaceId, ref);
+  }
+
+  private static Future<Ref> resolveRefHeadVersion(Marker marker, String spaceId, Ref ref) {
+    if (ref.isHead())
+      return FeatureQueryApi.getStatistics(marker, spaceId, EXTENSION, ref, true, false)
+              .map(statistics -> new Ref(ref.getBranch() + ":" + statistics.getMaxVersion().getValue()));
+    else
+      return Future.succeededFuture(ref);
   }
 
   public static Future<Void> deleteBranch(Marker marker, String spaceId, String branchId) {
