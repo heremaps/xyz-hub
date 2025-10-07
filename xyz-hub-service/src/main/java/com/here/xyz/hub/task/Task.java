@@ -73,11 +73,6 @@ public abstract class Task<T extends Event, X extends Task<T, ?>> {
   public ApiResponseType responseType;
 
   /**
-   * Whether no compression should be applied at REST level for the response.
-   */
-  public boolean preventCompression;
-
-  /**
    * Describes, if the response was loaded from cache.
    */
   private boolean cacheHit;
