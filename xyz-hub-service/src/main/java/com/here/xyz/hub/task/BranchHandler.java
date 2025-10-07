@@ -175,7 +175,6 @@ public class BranchHandler {
       return Space.resolveSpace(marker, spaceId)
           .compose(space -> {
             try {
-              //TODO: Resolve HEAD of the branch
               Ref branchRef = Ref.fromBranchId(ref.getTag());
               getReferencedBranch(space, branchRef);
               return resolveRefHeadVersion(marker, spaceId, branchRef);
@@ -185,8 +184,6 @@ public class BranchHandler {
             }
           });
     }
-    if (!ref.isHead())
-      return Future.succeededFuture(ref);
     return resolveRefHeadVersion(marker, spaceId, ref);
   }
 

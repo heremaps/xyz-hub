@@ -106,9 +106,9 @@ public class TestSpaceBranch extends TestSpaceWithFeature {
             .contentType(APPLICATION_JSON)
             .accept(APPLICATION_JSON)
             .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-            .body("{\"type\":\"Merge\",\"baseRef\":\""+targetBranchId+"\"}")
+            .body("{\"type\":\"Merge\",\"targetBranchId\":\""+targetBranchId+"\"}")
             .when()
-            .patch(getSpaceBranchPath(spaceId, branchId))
+            .post(getSpaceBranchPath(spaceId, branchId))
             .then()
             .statusCode(OK.code());
   }
