@@ -957,8 +957,6 @@ public class FeatureTaskHandler {
               if (connector.capabilities.binaryTiles && task.getEvent() instanceof GetFeaturesByTileEvent getTileEvent) {
                 getTileEvent.setResponseType(BINARY);
                 task.responseType = ApiResponseType.BINARY;
-                if (connector.blockMimetypeCompression != null)
-                  task.preventCompression = connector.blockMimetypeCompression.matcher(((BinaryResponse) task.getResponse()).getMimeType()).matches();
               }
 
               return Future.succeededFuture(connector);
