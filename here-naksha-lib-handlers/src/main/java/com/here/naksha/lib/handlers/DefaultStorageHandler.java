@@ -295,7 +295,6 @@ public class DefaultStorageHandler extends AbstractEventHandler {
       return singleWrite(ctx, storageImpl, wr);
   }
 
-
   private @NotNull Result singleWrite(
       @NotNull NakshaContext ctx, @NotNull IStorage storageImpl, @NotNull WriteRequest<?, ?, ?> wr) {
     try (final IWriteSession writer = storageImpl.newWriteSession(ctx, true)) {
