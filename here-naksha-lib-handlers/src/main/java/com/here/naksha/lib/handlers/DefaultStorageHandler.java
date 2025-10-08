@@ -482,7 +482,6 @@ public class DefaultStorageHandler extends AbstractEventHandler {
         .filter(Objects::nonNull);
   }
 
-
   private void createXyzCollection(
       final @NotNull NakshaContext ctx,
       final @NotNull IStorage storageImpl,
