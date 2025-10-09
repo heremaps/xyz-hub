@@ -161,10 +161,10 @@ public class NLConnector extends PSQLXyzConnector {
               propertiesQueryInput.globalVersions, selectionValue);
 
       if (selectionValue == null) {
-        return getFeaturesByRefQuad(dbSettings.getSchema(), XyzEventBasedQueryRunner.readTableFromEvent(event),
+        return getFeaturesByRefOrGlobalVersionsQuad(dbSettings.getSchema(), XyzEventBasedQueryRunner.readTableFromEvent(event),
                 propertiesQueryInput, event.getLimit());
       }else {
-        return getFeatureCountByRefQuad(dbSettings.getSchema(),
+        return getFeatureCountByRefQuadOrGlobalVersions(dbSettings.getSchema(),
                 XyzEventBasedQueryRunner.readTableFromEvent(event),
                 propertiesQueryInput.refQuad, propertiesQueryInput.globalVersions, event.getLimit());
       }
@@ -291,11 +291,6 @@ public class NLConnector extends PSQLXyzConnector {
   }
 
   private FeatureCollection writeFeatures(WriteFeaturesEvent event) throws Exception {
-    Set<WriteFeaturesEvent.Modification> modifications = event.getModifications();
-
-    List<String> idsToDelete = new ArrayList<>();
-    FeatureCollection upsertFeatures = new FeatureCollection();
-
     if(!seedingMode /* TBD: && event.getVersionsToKeep() > 1*/){
       //Use FeatureWriter
       return run(new WriteFeatures(
@@ -305,45 +300,32 @@ public class NLConnector extends PSQLXyzConnector {
       ).withTableLayout(NEW_LAYOUT));
     }
 
-    for (WriteFeaturesEvent.Modification modification : modifications) {
-      validateUpdateStrategy(modification.getUpdateStrategy());
+    Set<WriteFeaturesEvent.Modification> modifications = event.getModifications();
 
-      if(modification.getUpdateStrategy().onExists().equals(OnExists.DELETE)) {
-        //Batch delete
-        if(modification.getFeatureIds() == null || modification.getFeatureIds().isEmpty()){
-          modification.getFeatureData().getFeatures().forEach(f -> idsToDelete.add(f.getId()));
-        }else
-          idsToDelete.addAll(modification.getFeatureIds());
-      }
-      else if(modification.getUpdateStrategy().onExists().equals(OnExists.REPLACE)
-          && modification.getUpdateStrategy().onNotExists().equals(OnNotExists.CREATE)) {
-        //Batch upsert
-        upsertFeatures.getFeatures().addAll(modification.getFeatureData().getFeatures());
-      }
-    }
-
+    FeatureCollection insertFeatures = new FeatureCollection();
     List<ModificationFailure> fails = new ArrayList<>();
 
-    if(!idsToDelete.isEmpty()) {
-      batchDeleteFeatures(dbSettings.getSchema(), XyzEventBasedQueryRunner.readTableFromEvent(event), idsToDelete, fails);
-      //TODO: Add deletedIds to responseFeatureCollection?
+    for (WriteFeaturesEvent.Modification modification : modifications) {
+      validateUpdateStrategy(modification.getUpdateStrategy());
+      //Batch insert
+      insertFeatures.getFeatures().addAll(modification.getFeatureData().getFeatures());
     }
 
-    if(!upsertFeatures.getFeatures().isEmpty()) {
+    if(!insertFeatures.getFeatures().isEmpty()) {
       //retrieve Version
       Long version = run(new GetNextVersion<>(event));
-      batchMergeFeatures(dbSettings.getSchema(), XyzEventBasedQueryRunner.readTableFromEvent(event), upsertFeatures, version, event.getAuthor(), fails);
-      //TODO: Add upsertedIds to responseFeatureCollection?
+      batchInsertFeatures(dbSettings.getSchema(), XyzEventBasedQueryRunner.readTableFromEvent(event),
+              insertFeatures, version, event.getAuthor(), fails);
     }
 
     if(!fails.isEmpty())
       return new FeatureCollection().withFailed(fails);
-    return new FeatureCollection().withDeleted(List.of(idsToDelete.toArray(new String[0])));
+    return new FeatureCollection();
   }
 
   private void validateUpdateStrategy(UpdateStrategy updateStrategy) throws ErrorResponseException {
-    List<UpdateStrategy.OnExists> supportedOnExistsStrategies = List.of(UpdateStrategy.OnExists.REPLACE, UpdateStrategy.OnExists.DELETE);
-    List<UpdateStrategy.OnNotExists> supportedOnNotExistsStrategies = List.of(UpdateStrategy.OnNotExists.CREATE, UpdateStrategy.OnNotExists.RETAIN);
+    List<UpdateStrategy.OnExists> supportedOnExistsStrategies = List.of(OnExists.ERROR);
+    List<UpdateStrategy.OnNotExists> supportedOnNotExistsStrategies = List.of(OnNotExists.CREATE);
 
     if(updateStrategy == null || updateStrategy.onExists() == null || updateStrategy.onNotExists() == null)
       throw new ErrorResponseException(NOT_IMPLEMENTED, "UpdateStrategy with OnExists and OnNotExists must be provided in NLConnector!");
@@ -383,10 +365,10 @@ public class NLConnector extends PSQLXyzConnector {
     }
   }
 
-  private FeatureCollection getFeaturesByRefQuad(String schema, String table, PropertiesQueryInput propertiesQueryInput, long limit)
+  private FeatureCollection getFeaturesByRefOrGlobalVersionsQuad(String schema, String table, PropertiesQueryInput propertiesQueryInput, long limit)
           throws SQLException, JsonProcessingException {
     try (final Connection connection = dataSourceProvider.getWriter().getConnection()) {
-      String query = createReadByRefQuadQuery(schema, table, propertiesQueryInput.refQuad, propertiesQueryInput.globalVersions, limit);
+      String query = createReadByRefQuadOrGlobalVersionsQuery(schema, table, propertiesQueryInput.refQuad, propertiesQueryInput.globalVersions, limit);
 
       try (PreparedStatement ps = connection.prepareStatement(query)) {
 
@@ -404,11 +386,11 @@ public class NLConnector extends PSQLXyzConnector {
     return null;
   }
 
-  private FeatureCollection getFeatureCountByRefQuad(String schema, String table, String refQuad, List<Integer> globalVersions, long limit)
+  private FeatureCollection getFeatureCountByRefQuadOrGlobalVersions(String schema, String table, String refQuad, List<Integer> globalVersions, long limit)
           throws SQLException {
     try (final Connection connection = dataSourceProvider.getWriter().getConnection()) {
 
-      String query = createReadByRefQuadCountQuery(schema, table, refQuad, globalVersions, limit);
+      String query = createReadByRefQuadOrGlobalVersisonsCountQuery(schema, table, refQuad, globalVersions, limit);
 
       try (PreparedStatement ps = connection.prepareStatement(query)) {
 
@@ -449,20 +431,22 @@ public class NLConnector extends PSQLXyzConnector {
     return null;
   }
 
-  private String createReadByRefQuadCountQuery(String schema, String table, String refQuad,List<Integer> globalVersions, long limit) {
-    return createReadByRefQuadQuery(schema, table, refQuad, globalVersions, limit, true);
+  private String createReadByRefQuadOrGlobalVersisonsCountQuery(String schema, String table, String refQuad, List<Integer> globalVersions, long limit) {
+    return createReadByRefQuadOrGlobalVersionsQuery(schema, table, refQuad, globalVersions, limit, true);
   }
 
-  private String createReadByRefQuadQuery(String schema, String table, String refQuad, List<Integer> globalVersions, long limit) {
-    return createReadByRefQuadQuery(schema, table, refQuad, globalVersions, limit, false);
+  private String createReadByRefQuadOrGlobalVersionsQuery(String schema, String table, String refQuad, List<Integer> globalVersions, long limit) {
+    return createReadByRefQuadOrGlobalVersionsQuery(schema, table, refQuad, globalVersions, limit, false);
   }
 
-  private String createReadByRefQuadQuery(String schema, String table, String refQuad, List<Integer> globalVersions,
-                                          long limit, boolean returnCount) {
+  private String createReadByRefQuadOrGlobalVersionsQuery(String schema, String table, String refQuad, List<Integer> globalVersions,
+                                                          long limit, boolean returnCount) {
     StringBuilder innerSelect = new StringBuilder();
     innerSelect.append("SELECT * FROM \"")
-            .append(schema).append("\".\"").append(table).append("\" ")
+            .append(schema).append("\".\"")
+            .append(table + "_head").append("\" ")
             .append("WHERE 1=1 ");
+            //.append("WHERE operation NOT IN ('D') AND next_version = "+Long.MAX_VALUE+" ");
 
     if (refQuad != null) {
       innerSelect.append("AND searchable->'refQuad' >= to_jsonb('")
@@ -578,6 +562,58 @@ public class NLConnector extends PSQLXyzConnector {
         connection.rollback();
         logger.error("Upsert failed", e);
         fails.add(new ModificationFailure().withMessage("Upsert failed: " + e.getMessage()));
+      }
+    }
+  }
+
+  private void batchInsertFeatures(
+          String schema,
+          String table,
+          FeatureCollection featureCollection,
+          long version,
+          String author,
+          List<ModificationFailure> fails
+  ) throws SQLException, JsonProcessingException {
+
+    String insertSql = """
+        INSERT INTO %s.%s
+          (id, geo, operation, author, version, jsondata, searchable)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """.formatted(schema, table);
+
+    try (Connection connection = dataSourceProvider.getWriter().getConnection()) {
+      connection.setAutoCommit(false);
+
+      try (PreparedStatement ps = connection.prepareStatement(insertSql)) {
+        for (Feature feature : featureCollection.getFeatures()) {
+          Geometry geo = feature.getGeometry();
+
+          if (geo != null) {
+            for (Coordinate coord : geo.getJTSGeometry().getCoordinates()) {
+              if (Double.isNaN(coord.z))
+                coord.z = 0; // avoid NaN
+            }
+          }
+
+          ensureFeatureId(feature);
+          ps.setString(1, feature.getId());
+          ps.setBytes(2, geo == null ? null : new WKBWriter(3).write(geo.getJTSGeometry()));
+          ps.setString(3, "I"); // operation is always insert
+          ps.setString(4, author == null ? "ANONYMOUS" : author);
+          ps.setLong(5, version);
+          ps.setString(6, enrichFeaturePayload(feature));
+          ps.setObject(7, getSearchableObject(feature));
+          ps.addBatch();
+        }
+
+        int[] inserted = ps.executeBatch();
+        connection.commit();
+        logger.info("Successfully inserted {} features.", inserted.length);
+
+      } catch (SQLException e) {
+        connection.rollback();
+        logger.error("Insert failed", e);
+        fails.add(new ModificationFailure().withMessage("Insert failed: " + e.getMessage()));
       }
     }
   }

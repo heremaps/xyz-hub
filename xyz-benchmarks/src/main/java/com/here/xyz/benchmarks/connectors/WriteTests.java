@@ -11,11 +11,10 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.TearDown;
 
+import static com.here.xyz.benchmarks.tools.PerformanceTestHelper.SEEDING_STRATEGY;
 import static com.here.xyz.benchmarks.tools.PerformanceTestHelper.generateRandomFeatureCollection;
 import static com.here.xyz.benchmarks.tools.PerformanceTestHelper.getSpaceName;
 import static com.here.xyz.benchmarks.tools.PerformanceTestHelper.writeFeatureCollectionIntoSpace;
-import static com.here.xyz.events.UpdateStrategy.DEFAULT_UPDATE_STRATEGY;
-
 
 public class WriteTests extends BaseTest{
 
@@ -57,7 +56,7 @@ public class WriteTests extends BaseTest{
     private void writeFeatureCollection(StorageConnector testConnector, FeatureCollection fc) throws Exception {
         writeFeatureCollectionIntoSpace(testConnector,
                 getSpaceName(testConnector, SPACE_ID),
-                DEFAULT_UPDATE_STRATEGY,
+                SEEDING_STRATEGY,
                 fc
         );
     }

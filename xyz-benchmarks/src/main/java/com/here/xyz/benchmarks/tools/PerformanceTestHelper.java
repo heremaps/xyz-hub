@@ -16,6 +16,7 @@ import com.here.xyz.events.UpdateStrategy;
 import com.here.xyz.events.WriteFeaturesEvent;
 import com.here.xyz.events.WriteFeaturesEvent.Modification;
 import com.here.xyz.models.geojson.WebMercatorTile;
+import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
@@ -41,10 +42,13 @@ import static com.here.xyz.events.ModifySpaceEvent.Operation.CREATE;
 import static com.here.xyz.events.ModifySpaceEvent.Operation.DELETE;
 import static com.here.xyz.events.PropertyQuery.QueryOperation.EQUALS;
 import static com.here.xyz.events.PropertyQuery.QueryOperation.BEGINS_WITH;
+import static com.here.xyz.events.UpdateStrategy.OnExists.ERROR;
 
 public class PerformanceTestHelper {
   public static final String DEFAULT_HOST = "localhost";
   private static final int AVG_PAYLOAD_BYTE_SIZE = 5289;
+  public final static UpdateStrategy SEEDING_STRATEGY
+          = new UpdateStrategy(ERROR, UpdateStrategy.OnNotExists.CREATE, null, null);
 
   private static final Logger logger = LogManager.getLogger();
 
@@ -150,7 +154,22 @@ public class PerformanceTestHelper {
             .withSpace(spaceName);
 
     Typed xyzResponse = connector.handleEvent(getFeaturesByTileEvent);
-    logger.info("Response of SearchForFeaturesEvent: {}", xyzResponse.serialize());
+    logger.info("Response of readFeaturesTile: {}", xyzResponse.serialize());
+
+    return xyzResponse;
+  }
+
+  public static Typed readFeaturesByBBox(StorageConnector connector, String spaceName, BBox bBox, int limit)
+          throws Exception {
+
+    Event getFeaturesByTileEvent = new GetFeaturesByTileEvent()
+            .withVersionsToKeep(100_000)
+            .withLimit(limit)
+            .withBbox(bBox)
+            .withSpace(spaceName);
+
+    Typed xyzResponse = connector.handleEvent(getFeaturesByTileEvent);
+    logger.info("Response of readFeaturesByBBox: {}", xyzResponse.serialize());
 
     return xyzResponse;
   }
@@ -163,7 +182,7 @@ public class PerformanceTestHelper {
             .withSpace(spaceName);
 
     Typed xyzResponse = connector.handleEvent(getFeaturesByTileEvent);
-    logger.info("Response of getFeaturesByTileEvent: {}", xyzResponse.serialize());
+    logger.info("Response of readFeaturesByIds: {}", xyzResponse.serialize());
 
     return xyzResponse;
   }
