@@ -34,10 +34,16 @@ import java.util.Map;
 
 public class SpaceEcsWorker implements JobCompilationInterceptor {
 
+  private Map<String, Object> ecsTaskConfig;
+
+  public void setEcsTaskConfig(Map<String, Object> ecsTaskConfig) {
+    this.ecsTaskConfig = ecsTaskConfig;
+  }
 
   @Override
   public boolean chooseMe(Job job) {
-    return job.getProcess() instanceof Ecsosphere && Space.class.equals(job.getSource().getClass());
+    return    job.getProcess() instanceof Ecsosphere
+           && job.getSource() instanceof DatasetDescription.Space;
   }
 
   @Override
@@ -45,16 +51,12 @@ public class SpaceEcsWorker implements JobCompilationInterceptor {
     DatasetDescription.Space source = (DatasetDescription.Space) job.getSource();
     DatasetDescription.Space target = (DatasetDescription.Space) job.getTarget();
 
-    return compile(job.getId(), source, target);
+    return compile(job.getId(), source, target, null, ecsTaskConfig);
   }
-
-  public static CompilationStepGraph compile(String jobId, DatasetDescription.Space source, DatasetDescription.Space target) {
-    return compile(jobId, source, target, null);
-  }
-
 
   public static CompilationStepGraph compile(String jobId, DatasetDescription.Space source, DatasetDescription.Space target,
-      Map<String, String> outputMetadata) {
+      Map<String, String> outputMetadata, Map<String, Object> ecsTaskConfig ) {
+
     String sourceSpaceId = source.getId();
     //String targetSpaceId = target.getId();
     Filters filters = source.getFilters();
@@ -70,7 +72,9 @@ public class SpaceEcsWorker implements JobCompilationInterceptor {
           /*resolvedVersionRef = hubWebClient().resolveRef(sourceSpaceId, sourceContext, versionRef) */
 
       EcsTaskStep ecsTaskStep = new EcsTaskStep().withAdditionalEcsInfo("some additonal information for ecs processing");
-       
+
+      ecsTaskStep.setEcsTaskConfig(ecsTaskConfig);
+
       CompilationStepGraph cGraph = new CompilationStepGraph();
       cGraph.addExecution(ecsTaskStep);
 

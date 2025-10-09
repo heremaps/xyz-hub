@@ -13,6 +13,12 @@ public class EcsTaskStep extends SyncExecutionStep<EcsTaskStep> {
 
   private static final Logger logger = LogManager.getLogger();
 
+  private Map<String,Object> ecsTaskConfig;
+
+  public void setEcsTaskConfig(Map<String, Object> ecsTaskConfig) {
+    this.ecsTaskConfig = ecsTaskConfig;
+  }
+
   private String additionalEcsInfo;
 
   public String getAdditionalEcsInfo() {
@@ -28,30 +34,31 @@ public class EcsTaskStep extends SyncExecutionStep<EcsTaskStep> {
     return this;
   }
 
-
   public Map<String,Object> getEcsTaskConfig( String payload )
   {
-   Map<String,Object> ecsTaskConfig = Map.of(
+   if( ecsTaskConfig == null)
+    ecsTaskConfig = Map.of( //kind of a placeholder
       "Cluster", "arn:aws:ecs:eu-west-1:609321179939:cluster/SIT",
       "TaskDefinition", "iml-job-steps:1",
       "LaunchType", "FARGATE",
-/*
+/**/
       "NetworkConfiguration", Map.of(
          "awsvpcConfiguration", Map.of(
-            "Subnets",List.of("subnet-abc123", "subnet-def456"),
-            "SecurityGroups",List.of("sg-0123456789abcdef0", "sg-0123456789abcdef1"),
+            "Subnets",List.of("subnet-00bfda51fadd1fb7a", "subnet-04fea06de2d5a8d12", "subnet-00628f3aff3d90fbd"),
+            "SecurityGroups",List.of("sg-020c6cdcc7db7be32"),
             "AssignPublicIp","ENABLED"
             )
-          ),
-*/
-      "Overrides", Map.of(
+          )
+/**/
+    );
+
+    ecsTaskConfig.put("Overrides", Map.of(
           "ContainerOverrides", List.of(
             Map.of(
               "Name", "job-step",
               "Environment", Map.of("Name","EcsTaskStep","Value",payload )
           ))
-      )
-   );
+      ));
 
     logger.info(ecsTaskConfig);
 
