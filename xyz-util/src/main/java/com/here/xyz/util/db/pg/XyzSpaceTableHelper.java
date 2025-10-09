@@ -97,7 +97,7 @@ public class XyzSpaceTableHelper {
       queries.add(buildOnDemandIndexCreationQuery(schema, table, GLOBAL_VERSION_PROPERTY, SEARCHABLE_COLUMN , false));
     }
     if (isMainTable)
-      queries.add(buildCreateSequenceQuery(schema, table, "branches", "id", 1));
+      queries.add(buildCreateBranchSequenceQuery(schema, table));
 
     return queries;
   }
@@ -219,6 +219,10 @@ public class XyzSpaceTableHelper {
     if(layout == TableLayout.OLD_LAYOUT || layout == TableLayout.NEW_LAYOUT)
       return buildCreateSequenceQuery(schema, table, columnName, columnName, 1);
     throw new IllegalArgumentException("Unsupported Table Layout: " + layout);
+  }
+
+  public static SQLQuery buildCreateBranchSequenceQuery(String schema, String table) {
+    return buildCreateSequenceQuery(schema, table, "branches", "id", 1);
   }
 
   public static String sequenceName(String table, String sequenceName) {

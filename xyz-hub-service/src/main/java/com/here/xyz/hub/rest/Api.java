@@ -405,7 +405,7 @@ public abstract class Api extends com.here.xyz.util.service.rest.Api {
       final String acceptedContentEncoding = task.context.request().getHeader(ACCEPT_ENCODING);
       String acceptEncoding = acceptedContentEncoding == null ? acceptedContentEncoding : acceptedContentEncoding.toLowerCase();
       if (acceptedContentEncoding != null && (acceptEncoding.contains("gzip") || acceptEncoding.contains("*"))
-          && !acceptEncoding.contains("gzip;q=0")) {
+          && !acceptEncoding.contains("gzip;q=0") && !isPreventCompression(task)) {
         httpResponse.putHeader(CONTENT_ENCODING, "gzip");
         if (!isGzipped(response))
           response = compress(response);
@@ -420,6 +420,14 @@ public abstract class Api extends com.here.xyz.util.service.rest.Api {
       }
     }
     return response;
+  }
+
+  private static boolean isPreventCompression(Task task) {
+    if (!(task instanceof FeatureTask featureTask) || featureTask.storage.blockMimetypeCompression == null
+        || !(featureTask.getResponse() instanceof BinaryResponse binaryResponse))
+      return false;
+    else
+      return featureTask.storage.blockMimetypeCompression.matcher(binaryResponse.getMimeType()).matches();
   }
 
   private void setDecompressedSizeHeaders(byte[] response, RoutingContext context) {

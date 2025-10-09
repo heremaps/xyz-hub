@@ -23,6 +23,7 @@ import static com.here.xyz.models.hub.Branch.MAIN_BRANCH;
 import static com.here.xyz.models.hub.Ref.HEAD;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SCHEMA;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.TABLE;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildCreateBranchSequenceQuery;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildCreateBranchTableQueries;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.sequenceName;
 
@@ -77,7 +78,11 @@ public class BranchManager {
             + "current HEAD of the base branch: HEAD=" + currentHeadRef.getVersion());
       //TODO: Also check if baseRef.getVersion() == 0 and "simplify" the baseRef to the previous level then - throw an exception if (finally) the baseRef is: ~0:0, because no branch may be created of that one
     }
+
+    //Create the branch sequence on root table if not exists (to handle branching on "old" spaces)
+    SQLQuery.batchOf(buildCreateBranchSequenceQuery(schema, rootTable)).writeBatch(dataSourceProvider);
     int newNodeId = getNewNodeId();
+
     SQLQuery.batchOf(buildCreateBranchTableQueries(schema, branchTableName(getNodeId(baseRef), baseRef.getVersion(), newNodeId), spaceId))
         .writeBatch(dataSourceProvider);
 
@@ -417,7 +422,6 @@ public class BranchManager {
   }
 
   private int getNewNodeId() throws SQLException {
-    //TODO: For existing spaces which do not have a sequence yet, create it on-demand
     return getNextSequenceValue(rootTable, "branches");
   }
 
