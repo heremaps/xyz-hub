@@ -218,7 +218,7 @@ class DatabaseWriter {
 
     if (this.tableLayout === 'NEW_LAYOUT') {
       extraCols = ', searchable';
-      extraVals = ', $8::JSONB ';
+      extraVals = ', $7::JSONB ';
     }
 
     const sql = `INSERT INTO "${this.schema}"."${this.table}"
