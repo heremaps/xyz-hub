@@ -6,6 +6,7 @@ import com.here.xyz.connectors.StorageConnector;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.GetFeaturesByTileEvent;
+import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.ModifySpaceEvent.Operation;
 import com.here.xyz.events.PropertiesQuery;
@@ -198,6 +199,18 @@ public class PerformanceTestHelper {
 
     Typed xyzResponse = connector.handleEvent(modifySpaceEvent);
     logger.info("Response of ModifySpaceEvent[{}]: {}", operation.name(), xyzResponse.serialize());
+    return xyzResponse;
+  }
+
+  public static Typed truncateSpace(StorageConnector connector, String spaceName) throws Exception {
+
+    ModifyFeaturesEvent modifyFeaturesEvent = new ModifyFeaturesEvent()
+            .withSpace(spaceName)
+            .withVersionsToKeep(10_000_000)
+            .withEraseContent(true);
+
+    Typed xyzResponse = connector.handleEvent(modifyFeaturesEvent);
+    logger.info("Response of ModifyFeaturesEvent[eraseContent]: {}", xyzResponse.serialize());
     return xyzResponse;
   }
 

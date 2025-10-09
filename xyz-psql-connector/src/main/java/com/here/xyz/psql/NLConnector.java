@@ -55,6 +55,7 @@ import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.models.geojson.implementation.Polygon;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
+import com.here.xyz.psql.query.EraseSpace;
 import com.here.xyz.psql.query.GetFastStatistics;
 import com.here.xyz.psql.query.GetFeaturesByBBox;
 import com.here.xyz.psql.query.GetFeaturesByGeometry;
@@ -249,6 +250,13 @@ public class NLConnector extends PSQLXyzConnector {
     return new PropertiesQueryInput(refQuad, globalVersions);
   }
 
+  @Override
+  protected FeatureCollection processModifyFeaturesEvent(ModifyFeaturesEvent event) throws Exception {
+    if(!event.isEraseContent())
+      throw new ErrorResponseException(NOT_IMPLEMENTED, "Method not implemented in NLConnector!");
+    return run( new EraseSpace(event).withTableLayout(NEW_LAYOUT));
+  }
+
   public record PropertiesQueryInput(String refQuad, List<Integer> globalVersions) {}
 
 
@@ -259,11 +267,6 @@ public class NLConnector extends PSQLXyzConnector {
 
   @Override
   protected FeatureCollection processLoadFeaturesEvent(LoadFeaturesEvent event) throws Exception {
-    throw new ErrorResponseException(NOT_IMPLEMENTED, "Method not implemented in NLConnector!");
-  }
-
-  @Override
-  protected FeatureCollection processModifyFeaturesEvent(ModifyFeaturesEvent event) throws Exception {
     throw new ErrorResponseException(NOT_IMPLEMENTED, "Method not implemented in NLConnector!");
   }
 
