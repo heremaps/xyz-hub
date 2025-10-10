@@ -42,7 +42,6 @@ import com.here.xyz.util.db.datasource.DatabaseSettings.ScriptResourcePath;
 import com.here.xyz.util.db.datasource.PooledDataSources;
 import com.here.xyz.util.runtime.LambdaFunctionRuntime;
 import com.here.xyz.util.service.aws.lambda.SimulatedContext;
-import java.sql.SQLException;
 import java.util.List;
 import java.util.Set;
 
@@ -86,12 +85,7 @@ public abstract class QueryTestBase {
   protected void dropSpaceTables(String schema, String rootTableName) throws Exception {
     dropTable(schema, rootTableName);
     try (DataSourceProvider dsp = getDataSourceProvider()) {
-      branchManager(dsp).deleteBranch(1);
-      branchManager(dsp).deleteBranch(2);
-      //TODO: Get all branch table names and drop also these
-    }
-    catch (SQLException e) {
-      //E.g. not found
+      branchManager(dsp).deleteAllBranchTables();
     }
   }
 
