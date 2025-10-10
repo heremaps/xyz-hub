@@ -25,6 +25,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
+import com.here.xyz.models.hub.Ref.InvalidRef;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.Test;
@@ -87,7 +88,7 @@ public class RefTests {
         assertEquals(Long.parseLong(version), ref.getVersion());
       }
       else
-        assertThrows(NumberFormatException.class, () -> ref.getVersion());
+        assertThrows(InvalidRef.class, () -> ref.getVersion());
 
       if (ALL_VERSIONS.equals(version)) {
         assertTrue(ref.isAllVersions());
@@ -128,7 +129,7 @@ public class RefTests {
           assertTrue(ref.isHead());
           assertTrue(ref.isSingleVersion());
           assertFalse(ref.isAllVersions());
-          assertThrows(NumberFormatException.class, () -> ref.getVersion());
+          assertThrows(InvalidRef.class, () -> ref.getVersion());
         }
       }
     }
