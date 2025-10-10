@@ -9,7 +9,7 @@ import org.apache.logging.log4j.Logger;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 
-public class EcsTaskStep extends SyncExecutionStep<EcsTaskStep> {
+public class EcsTaskStep extends SyncLambdaStep<EcsTaskStep> {
 
   private static final Logger logger = LogManager.getLogger();
 

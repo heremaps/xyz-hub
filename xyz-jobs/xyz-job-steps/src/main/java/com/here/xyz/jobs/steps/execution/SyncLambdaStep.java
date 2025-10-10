@@ -21,9 +21,6 @@ package com.here.xyz.jobs.steps.execution;
 
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
 
-import com.fasterxml.jackson.annotation.JsonSubTypes;
-import com.here.xyz.jobs.steps.impl.S3MetricsCollectorStep;
-import com.here.xyz.jobs.steps.impl.transport.CompressFiles;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import java.util.List;
@@ -32,7 +29,7 @@ import java.util.List;
  * A simplified synchronous version of the {@link LambdaBasedStep}.
  */
 
-public abstract class SyncExecutionStep<T extends SyncExecutionStep> extends LambdaBasedStep<T> {
+public abstract class SyncLambdaStep<T extends SyncLambdaStep> extends LambdaBasedStep<T> {
 
   @Override
   public AsyncExecutionState getExecutionState() throws UnknownStateException {
