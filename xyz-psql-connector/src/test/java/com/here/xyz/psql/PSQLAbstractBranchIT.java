@@ -55,6 +55,7 @@ public abstract class PSQLAbstractBranchIT extends PSQLAbstractIT {
   @AfterEach
   public void shutdown() throws Exception {
     invokeDeleteTestSpaces(null, List.of(TEST_SPACE_ID()));
+    dropSpaceTables(PG_SCHEMA, TEST_SPACE_ID());
   }
 
   protected final String TEST_SPACE_ID() {
