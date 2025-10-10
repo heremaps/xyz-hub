@@ -70,7 +70,9 @@ public class PerformanceTestHelper {
                     new Modification()
                             .withFeatureData(fc.copy())
                             .withUpdateStrategy(updateStrategy)
-            )).withSpace(spaceName);
+            )).withSpace(spaceName)
+            .withVersionsToKeep(100_000)
+            .withResponseDataExpected(false);
 
     Typed xyzResponse = connector.handleEvent(writeFeaturesEvent);
     logger.info("Response of WriteFeaturesEvent: {}", xyzResponse.serialize());

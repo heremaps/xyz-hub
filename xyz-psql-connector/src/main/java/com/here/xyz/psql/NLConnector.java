@@ -296,11 +296,7 @@ public class NLConnector extends PSQLXyzConnector {
   private FeatureCollection writeFeatures(WriteFeaturesEvent event) throws Exception {
     if(!seedingMode /* TBD: && event.getVersionsToKeep() > 1*/){
       //Use FeatureWriter
-      return run(new WriteFeatures(
-              event.withMinVersion(event.getMinVersion())
-                      .withVersionsToKeep(100_000)
-                      .withResponseDataExpected(false)
-      ).withTableLayout(NEW_LAYOUT));
+      return run(new WriteFeatures(event).withTableLayout(NEW_LAYOUT));
     }
 
     Set<WriteFeaturesEvent.Modification> modifications = event.getModifications();
