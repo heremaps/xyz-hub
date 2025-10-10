@@ -136,13 +136,17 @@ public class Ref implements XyzSerializable {
   }
 
   private void parseRange(String ref) {
-    String[] rangeParts = ref.split(Pattern.quote(OP_RANGE));
-    if (rangeParts.length > 2)
-      throw new InvalidRef("Invalid ref: A range can only have one start and one end.");
+    try {
+      String[] rangeParts = ref.split(Pattern.quote(OP_RANGE));
+      if (rangeParts.length > 2)
+        throw new InvalidRef("Invalid ref: A range can only have one start and one end.");
 
-    parseAndSetRangePart(rangeParts[0], true);
-    parseAndSetRangePart(rangeParts[1], false);
-
+      parseAndSetRangePart(rangeParts[0], true);
+      parseAndSetRangePart(rangeParts[1], false);
+    }
+    catch (NumberFormatException | InvalidRef e) {
+      throw new InvalidRef("Invalid ref: The provided version-range is invalid: \"" + ref + "\" Reason: " + e.getMessage());
+    }
     validateRange();
   }
 
@@ -162,16 +166,12 @@ public class Ref implements XyzSerializable {
   }
 
   private void validateRange() {
-    try {
-      if (getStart().isHead())
-        throw new InvalidRef("The start of a range may not be HEAD!");
+    if (getStart().isHead())
+      throw new InvalidRef("Invalid ref: The provided version-range is invalid. The start of a range may not be HEAD!");
 
-      if (isOnlyNumeric() && getStart().getVersion() >= getEnd().getVersion())
-        throw new InvalidRef("Invalid ref: The provided version-range is invalid. The start-version must be less than the end-version: "
-                + "\"" + this + "\"");
-    } catch (NumberFormatException e) {
-      throw new InvalidRef("Invalid ref: The provided version-range is invalid: \"" + this + "\" Reason: " + e.getMessage());
-    }
+    if (isOnlyNumeric() && getStart().getVersion() >= getEnd().getVersion())
+      throw new InvalidRef("Invalid ref: The provided version-range is invalid. The start-version must be less than the end-version: "
+          + "\"" + this + "\"");
   }
 
   @JsonValue
@@ -255,11 +255,11 @@ public class Ref implements XyzSerializable {
    */
   public long getVersion() {
     if (isTag())
-      throw new NumberFormatException("Ref is not depicting a version but a tag.");
+      throw new InvalidRef("Ref is not depicting a version but a tag.");
     if (!isSingleVersion())
-      throw new NumberFormatException("Ref is not depicting a single version.");
+      throw new InvalidRef("Ref is not depicting a single version.");
     if (isHead())
-      throw new NumberFormatException("Version number of alias HEAD is not known for this ref.");
+      throw new InvalidRef("Version number of alias HEAD is not known for this ref.");
     return version;
   }
 
@@ -275,7 +275,7 @@ public class Ref implements XyzSerializable {
 
   private void assertIsRange() {
     if (!isRange())
-      throw new NumberFormatException("Ref is not depicting a version range.");
+      throw new InvalidRef("Ref is not depicting a version range.");
   }
 
   public boolean isOnlyNumeric() {
