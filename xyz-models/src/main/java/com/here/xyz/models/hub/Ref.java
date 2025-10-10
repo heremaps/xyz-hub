@@ -169,8 +169,8 @@ public class Ref implements XyzSerializable {
     if (getStart().isHead())
       throw new InvalidRef("Invalid ref: The provided version-range is invalid. The start of a range may not be HEAD!");
 
-    if (isOnlyNumeric() && getStart().getVersion() >= getEnd().getVersion())
-      throw new InvalidRef("Invalid ref: The provided version-range is invalid. The start-version must be less than the end-version: "
+    if (isOnlyNumeric() && getStart().getVersion() > getEnd().getVersion())
+      throw new InvalidRef("Invalid ref: The provided version-range is invalid. The start-version must not be greater than the end-version: "
           + "\"" + this + "\"");
   }
 
