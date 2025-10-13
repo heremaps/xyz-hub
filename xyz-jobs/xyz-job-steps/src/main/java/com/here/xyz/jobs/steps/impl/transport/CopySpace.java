@@ -252,6 +252,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
   @Override
   public boolean validate() throws ValidationException {
     super.validate();
+    validateRef(sourceVersionRef);
 
     if (getTargetSpaceId() == null)
       throw new ValidationException("Target Id is missing!");
