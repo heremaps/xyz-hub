@@ -216,6 +216,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep> exten
 
     try{
       //TODO: Discuss if we want move this to SpaceBaseStep impl
+      // Can be moved to SpaceBasedStep#validateRef
       StatisticsResponse statistics = loadSpaceStatistics(getSpaceId(), context, true);
 
       Long minSpaceVersion = statistics.getMinVersion().getValue();
