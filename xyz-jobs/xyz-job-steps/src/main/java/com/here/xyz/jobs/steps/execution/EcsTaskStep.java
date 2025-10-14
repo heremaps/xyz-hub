@@ -59,7 +59,7 @@ public class EcsTaskStep extends SyncLambdaStep<EcsTaskStep> {
           "ContainerOverrides", List.of(
             Map.of(
               "Name", "job-step",
-              "Environment", Map.of("Name","EcsTaskStep","Value",payload )
+              "Environment", List.of(Map.of("Name","EcsTaskStep","Value",payload ))
           ))
       ));
 
