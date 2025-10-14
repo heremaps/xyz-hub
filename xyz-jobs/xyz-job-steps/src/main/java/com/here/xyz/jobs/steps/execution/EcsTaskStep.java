@@ -44,7 +44,7 @@ public class EcsTaskStep extends SyncLambdaStep<EcsTaskStep> {
       "LaunchType", "FARGATE",
 /**/
       "NetworkConfiguration", Map.of(
-         "awsvpcConfiguration", Map.of(
+         "AwsvpcConfiguration", Map.of(
             "Subnets",List.of("subnet-00bfda51fadd1fb7a", "subnet-04fea06de2d5a8d12", "subnet-00628f3aff3d90fbd"),
             "SecurityGroups",List.of("sg-020c6cdcc7db7be32"),
             "AssignPublicIp","ENABLED"
