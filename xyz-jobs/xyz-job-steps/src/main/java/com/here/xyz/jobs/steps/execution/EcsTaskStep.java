@@ -1,5 +1,6 @@
 package com.here.xyz.jobs.steps.execution;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -51,6 +52,8 @@ public class EcsTaskStep extends SyncLambdaStep<EcsTaskStep> {
           )
 /**/
     );
+
+    ecsTaskConfig = new HashMap<String,Object>(ecsTaskConfig); // orig possibly immutable
 
     ecsTaskConfig.put("Overrides", Map.of(
           "ContainerOverrides", List.of(
