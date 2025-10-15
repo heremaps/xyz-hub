@@ -47,6 +47,7 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Future;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.router.RouterBuilder;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import org.apache.logging.log4j.Marker;
@@ -167,12 +168,42 @@ public class ChangesetApi extends SpaceBasedApi {
     String pageToken = Query.getString(context, Query.PAGE_TOKEN, null);
     long limit = Query.getLong(context, Query.LIMIT, IterateChangesets.DEFAULT_LIMIT);
 
-    return new IterateChangesetsEvent()
+    Long startTime = Query.getLong(context, Query.START_TIME, null);
+    Long endTime = Query.getLong(context, Query.END_TIME, null);
+    if (startTime != null && startTime < 0) {
+      throw new IllegalArgumentException("The parameter \"startTime\" must be >= 0.");
+    }
+    if (endTime != null && endTime < 0) {
+      throw new IllegalArgumentException("The parameter \"endTime\" must be >= 0.");
+    }
+    if (startTime != null && endTime != null && startTime > endTime) {
+      throw new IllegalArgumentException("The parameter \"startTime\" needs to be smaller than or equal to \"endTime\".");
+    }
+
+    List<String> authorParams = Query.queryParam(Query.AUTHOR, context);
+    List<String> authors = null;
+    if (authorParams != null && !authorParams.isEmpty()) {
+      authors = authorParams.stream()
+          .filter(s -> s != null && !s.isBlank())
+          .flatMap(s -> java.util.Arrays.stream(s.split(",")))
+          .map(String::trim)
+          .filter(s -> !s.isEmpty())
+          .distinct()
+          .toList();
+    }
+
+    IterateChangesetsEvent event = new IterateChangesetsEvent()
         .withStreamId(getMarker(context).getName())
         .withSpace(getSpaceId(context))
         .withRef(versionRef)
         .withNextPageToken(pageToken)
         .withLimit(limit);
+
+    if (authors != null && !authors.isEmpty()) event.withAuthors(authors);
+    if (startTime != null) event.withStartTime(startTime);
+    if (endTime != null) event.withEndTime(endTime);
+
+    return event;
   }
 
   private long getLongQueryParam(RoutingContext context, String paramName, long defaultValue) {
