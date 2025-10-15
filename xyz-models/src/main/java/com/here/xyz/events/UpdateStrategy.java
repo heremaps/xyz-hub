@@ -19,11 +19,19 @@
 
 package com.here.xyz.events;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 public final class UpdateStrategy {
-  private final OnExists onExists;
-  private final OnNotExists onNotExists;
-  private final OnVersionConflict onVersionConflict;
-  private final OnMergeConflict onMergeConflict;
+  @JsonProperty
+  private OnExists onExists;
+  @JsonProperty
+  private OnNotExists onNotExists;
+  @JsonProperty
+  private OnVersionConflict onVersionConflict;
+  @JsonProperty
+  private OnMergeConflict onMergeConflict;
+
+  public UpdateStrategy(){}
 
   public UpdateStrategy(OnExists onExists,
                         OnNotExists onNotExists,
