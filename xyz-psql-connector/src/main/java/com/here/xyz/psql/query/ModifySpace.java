@@ -51,14 +51,12 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.ModifySpaceEvent.Operation;
-import com.here.xyz.psql.query.branching.BranchManager;
 import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.util.db.ConnectorParameters;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import com.here.xyz.util.db.pg.IndexHelper;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
-import com.here.xyz.util.runtime.FunctionRuntime;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -183,9 +181,10 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
         if (dryRun)
             return new SuccessResponse().withStatus("OK");
 
-        if (operation == DELETE)
-          new BranchManager(getDataSourceProvider(), FunctionRuntime.getInstance().getStreamId(), spaceId, getSchema(), rootTable)
-              .deleteAllBranchTables();
+        //TODO: Delete branch tables as part of "prune"-operation
+        //if (operation == DELETE)
+        //  new BranchManager(getDataSourceProvider(), FunctionRuntime.getInstance().getStreamId(), spaceId, getSchema(), rootTable)
+        //      .deleteAllBranchTables();
 
         SuccessResponse response = super.write(dataSourceProvider);
 

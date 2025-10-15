@@ -42,6 +42,7 @@ import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
 import com.here.xyz.jobs.steps.impl.transport.GetNextSpaceVersion;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
 import com.here.xyz.models.hub.Connector;
+import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Tag;
 import com.here.xyz.responses.StatisticsResponse;
@@ -269,6 +270,13 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
     validateSpaceExists();
     //Return true as no user inputs are necessary
     return true;
+  }
+
+  //This needs to be validated here because "Ref" itself allows to have an empty range (i.e. start=end)
+  protected void validateRef(Ref ref) throws ValidationException {
+    //TODO: Move "versionRef" property to SpaceBasedStep
+    if (ref != null && ref.isRange() && ref.getStart().getVersion() == ref.getEnd().getVersion())
+      throw new ValidationException("Start version must be smaller than the end version in ref " + ref);
   }
 
   protected <T> T handleErrorResponse(ErrorResponseException e) throws ErrorResponseException {
