@@ -103,12 +103,19 @@ public class SpaceCopy implements JobCompilationInterceptor {
     try {
       //TODO: Parallelize statistics loading (or get rid of it completely in compiler by merging the 3 copy steps into one)
       sourceContext = hubWebClient().loadSpace(sourceSpaceId).getExtension() != null ? EXTENSION : null;
+
+      Ref versionRef = source.getVersionRef(),
+          resolvedVersionRef = hubWebClient().resolveRef(sourceSpaceId, sourceContext, versionRef);
+      if (resolvedVersionRef != null
+          && resolvedVersionRef.isRange()
+          && resolvedVersionRef.getStart().getVersion() == resolvedVersionRef.getEnd().getVersion()) {
+        return null;
+      }
+
       targetContext = hubWebClient().loadSpace(targetSpaceId).getExtension() != null ? EXTENSION : null;
       sourceStatistics = hubWebClient().loadSpaceStatistics(sourceSpaceId, sourceContext);
       targetStatistics = hubWebClient().loadSpaceStatistics(targetSpaceId, targetContext);
 
-      Ref versionRef = source.getVersionRef(),
-          resolvedVersionRef = hubWebClient().resolveRef(sourceSpaceId, sourceContext, versionRef);
 
       GetNextSpaceVersion nextSpaceVersion = (GetNextSpaceVersion) new GetNextSpaceVersion()
           .withSpaceId(targetSpaceId)
@@ -145,7 +152,7 @@ public class SpaceCopy implements JobCompilationInterceptor {
       }
 
       if(copyGraph.size() == 0)
-       throw new CompilationError("None of provided Layer contains a valid sourceVersion" );
+        throw new CompilationError("None of provided Layer contains a valid sourceVersion");
 
       startGraph.addExecution(copyGraph);
 
