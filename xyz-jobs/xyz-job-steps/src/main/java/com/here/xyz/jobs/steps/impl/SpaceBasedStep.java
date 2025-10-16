@@ -276,7 +276,7 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
   protected void validateRef(Ref ref) throws ValidationException {
     //TODO: Move "versionRef" property to SpaceBasedStep
     if (ref != null && ref.isRange() && ref.getStart().getVersion() == ref.getEnd().getVersion())
-      throw new ValidationException("Start version must smaller than the end version in ref " + ref);
+      throw new ValidationException("Start version must be smaller than the end version in ref " + ref);
   }
 
   protected <T> T handleErrorResponse(ErrorResponseException e) throws ErrorResponseException {
