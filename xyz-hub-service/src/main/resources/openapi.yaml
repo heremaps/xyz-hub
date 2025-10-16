@@ -352,6 +352,9 @@ paths:
         - $ref: '#/components/parameters/EndVersion'
         - $ref: '#/components/parameters/PageToken'
         - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Author'
+        - $ref: '#/components/parameters/StartTime'
+        - $ref: '#/components/parameters/EndTime'
       responses:
         '200':
           $ref: '#/components/responses/ChangesetCollectionResponse'
@@ -1553,6 +1556,26 @@ components:
       schema:
         type: integer
       deprecated: true
+    StartTime:
+      name: startTime
+      in: query
+      description: |
+        Filter changesets by creation time. Start time in milliseconds since the UNIX epoch (exclusive).
+      required: false
+      schema:
+        type: integer
+        format: int64
+        minimum: 0
+    EndTime:
+      name: endTime
+      in: query
+      description: |
+        Filter changesets by creation time. End time in milliseconds since the UNIX epoch (inclusive).
+      required: false
+      schema:
+        type: integer
+        format: int64
+        minimum: 0
     FeatureId:
       name: featureId
       in: path
