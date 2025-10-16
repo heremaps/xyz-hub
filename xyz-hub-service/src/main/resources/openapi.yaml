@@ -343,7 +343,7 @@ paths:
 
         The response payload may be split in multiple pages. The next page token is written in the
         property 'nextPageToken', which then can be used to retrieve the next page using the
-        'pageToken' parameter on the next calInl.
+        'pageToken' parameter on the next call.
       operationId: getChangesets
       parameters:
         - $ref: '#/components/parameters/SpaceId'
