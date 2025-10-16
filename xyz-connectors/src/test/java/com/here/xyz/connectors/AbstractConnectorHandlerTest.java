@@ -19,6 +19,7 @@
 
 package com.here.xyz.connectors;
 
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
@@ -35,6 +36,7 @@ import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.geojson.implementation.Properties;
+import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.HealthStatus;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.service.aws.lambda.SimulatedContext;
@@ -45,10 +47,14 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import io.vertx.core.json.JsonObject;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -57,7 +63,6 @@ import org.junit.Test;
 public class AbstractConnectorHandlerTest {
 
   public static final SimulatedContext TEST_CONTEXT = new SimulatedContext("test-function", null);
-  private String HealthCheckEventString = "{\"type\":\"HealthCheckEvent\", \"streamId\":\"STREAM_ID_EXAMPLE\"}";
 
   @SuppressWarnings("SameParameterValue")
   private static FeatureCollection generateRandomFeatures(int featureCount, int propertyCount) throws JsonProcessingException {
@@ -80,30 +85,92 @@ public class AbstractConnectorHandlerTest {
   }
 
   @Test
-  public void writeDataOut() throws ErrorResponseException, JsonProcessingException {
-    TestStorageConnector testStorageConnector = new TestStorageConnector();
-    ByteArrayInputStream is = new ByteArrayInputStream(HealthCheckEventString.getBytes());
-    ByteArrayOutputStream os = new ByteArrayOutputStream();
-
-    //Convert the event to output stream
-    testStorageConnector.handleRequest(is, os, TEST_CONTEXT);
-
-    //Read back the result
-    byte[] outputBytes = os.toByteArray();
-
-    XyzResponse response = XyzSerializable.deserialize(outputBytes, XyzResponse.class);
+  public void writeDataOut() throws IOException {
+    XyzResponse response = handleRequest(new HealthCheckEvent());
     assertTrue(response instanceof HealthStatus);
   }
 
   @Test
+  public void testMaxUncompressedResponseSize() throws IOException {
+    TestStorageConnector ech = new TestStorageConnector();
+
+    HealthCheckEvent event = new HealthCheckEvent();
+    event.setConnectorParams(new HashMap<>(Map.of(
+            "MAX_UNCOMPRESSED_RESPONSE_SIZE", "1"
+    )));
+
+    XyzResponse result = handleRequest(event);
+    assertNotNull(result);
+    assertTrue(result instanceof ErrorResponse);
+
+    //HealthCheck Response is 37 bytes long
+    event.setConnectorParams(new HashMap<>(Map.of(
+            "MAX_UNCOMPRESSED_RESPONSE_SIZE", "38"
+    )));
+
+    result = handleRequest(event);
+    assertNotNull(result);
+    assertFalse(result instanceof ErrorResponse);
+  }
+
+  @Test
   public void testWriteLargeDataOut() throws IOException {
-    TestStorageConnector testStorageConnector = new TestStorageConnector();
+    TestStorageConnector ech = new TestStorageConnector();
+
     GetFeaturesByBBoxEvent event = new GetFeaturesByBBoxEvent();
+
+    XyzResponse result = handleRequest(event);
+    assertNotNull(result);
+    assertTrue(result instanceof FeatureCollection);
+    assertTrue(!((FeatureCollection) result).getFeatures().isEmpty());
+  }
+
+  @Ignore("This is a test for the relocation client. To run it, an S3 bucket and valid credentials are required.")
+  @Test
+  public void testRelocatedEvent() throws Exception {
+    RelocationClient client = new RelocationClient("some-s3-bucket-name");
+    JsonObject healthCheckEvent = new JsonObject("""
+          {"type":"HealthCheckEvent", "streamId":"STREAM_ID_EXAMPLE"}
+          """);
+
+    byte[] bytes = client.relocate("STREAM_ID_EXAMPLE", healthCheckEvent.toString().getBytes());
+    RelocatedEvent relocated = XyzSerializable.deserialize(new ByteArrayInputStream(bytes));
+
+    InputStream input = client.processRelocatedEvent(relocated);
+    input = Payload.prepareInputStream(input);
+    Event<?> event = XyzSerializable.deserialize(input);
+    assertTrue(event instanceof HealthCheckEvent);
+  }
+
+  @SuppressWarnings("rawtypes")
+  public static class TestStorageConnector extends EntryConnectorHandler {
+
+    @Override
+    public Typed processEvent(Event event) throws JsonProcessingException {
+      if (event instanceof HealthCheckEvent)
+        return new HealthStatus().withStatus("OK");
+      if (event instanceof GetFeaturesByBBoxEvent<?>)
+        return generateRandomFeatures(417, 100);
+      return null;
+    }
+
+    @Override
+    protected void initialize(Event event) {}
+  }
+
+  private XyzResponse handleRequest(Event event) throws IOException {
+    if (event.getConnectorParams() == null)
+      event.setConnectorParams(Map.of("className", TestStorageConnector.class.getName()));
+    else
+      event.getConnectorParams().put("className", TestStorageConnector.class.getName());
+
+    TestStorageConnector ech = new TestStorageConnector();
+
     ByteArrayInputStream is = new ByteArrayInputStream(event.serialize().getBytes());
     ByteArrayOutputStream os = new ByteArrayOutputStream();
 
     //Convert the event to output stream
-    testStorageConnector.handleRequest(is, os, TEST_CONTEXT);
+    ech.handleRequest(is, os, TEST_CONTEXT);
 
     //Read back the result
     byte[] outputBytes = os.toByteArray();
@@ -120,38 +187,6 @@ public class AbstractConnectorHandlerTest {
       }
     }
 
-    XyzResponse result = XyzSerializable.deserialize(stringBuilder.toString());
-    assertNotNull(result);
-    assertTrue(result instanceof FeatureCollection);
-    assertTrue(!((FeatureCollection) result).getFeatures().isEmpty());
-  }
-
-  @Ignore("This is a test for the relocation client. To run it, an S3 bucket and valid credentials are required.")
-  @Test
-  public void testRelocatedEvent() throws Exception {
-    RelocationClient client = new RelocationClient("some-s3-bucket-name");
-    byte[] bytes = client.relocate("STREAM_ID_EXAMPLE", HealthCheckEventString.getBytes());
-    RelocatedEvent relocated = XyzSerializable.deserialize(new ByteArrayInputStream(bytes));
-
-    InputStream input = client.processRelocatedEvent(relocated);
-    input = Payload.prepareInputStream(input);
-    Event<?> event = XyzSerializable.deserialize(input);
-    assertTrue(event instanceof HealthCheckEvent);
-  }
-
-  @SuppressWarnings("rawtypes")
-  private static class TestStorageConnector extends AbstractConnectorHandler {
-
-    @Override
-    public Typed processEvent(Event event) throws JsonProcessingException {
-      if (event instanceof HealthCheckEvent)
-        return new HealthStatus().withStatus("OK");
-      if (event instanceof GetFeaturesByBBoxEvent<?>)
-        return generateRandomFeatures(417, 100);
-      return null;
-    }
-
-    @Override
-    protected void initialize(Event event) {}
+    return XyzSerializable.deserialize(stringBuilder.toString());
   }
 }

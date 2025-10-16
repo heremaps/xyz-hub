@@ -241,7 +241,7 @@ public class Connector extends com.here.xyz.models.hub.Connector {
 
     @JsonTypeName(value = "AWSLambda")
     public static class AWSLambda extends RemoteFunctionConfig {
-
+      public String className;
       /**
        * The ARN of the AWS lambda main function to be called for the respective operation.
        */
@@ -274,8 +274,9 @@ public class Connector extends com.here.xyz.models.hub.Connector {
         if (o == null || getClass() != o.getClass()) return false;
         if (!super.equals(o)) return false;
         AWSLambda awsLambda = (AWSLambda) o;
-        return lambdaARN.equals(awsLambda.lambdaARN) &&
-            Objects.equals(roleARN, awsLambda.roleARN);
+        return Objects.equals(className, awsLambda.className)
+                && Objects.equals(lambdaARN, awsLambda.lambdaARN)
+                && Objects.equals(roleARN, awsLambda.roleARN);
       }
 
       @Override

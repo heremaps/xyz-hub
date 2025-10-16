@@ -21,9 +21,9 @@ package com.here.xyz.jobs.steps.impl.tools;
 
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper.OnDemandIndex;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper.SystemIndex;
+import com.here.xyz.util.db.pg.IndexHelper.Index;
+import com.here.xyz.util.db.pg.IndexHelper.OnDemandIndex;
+import com.here.xyz.util.db.pg.IndexHelper.SystemIndex;
 import com.here.xyz.util.di.ImplementationProvider;
 import com.here.xyz.util.service.Initializable;
 

@@ -26,7 +26,7 @@ import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepReques
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporaryJobTableName;
 import static com.here.xyz.jobs.steps.inputs.Input.inputS3Prefix;
 import static com.here.xyz.util.Random.randomAlpha;
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildSpaceTableDropIndexQueries;
+import static com.here.xyz.util.db.pg.IndexHelper.buildSpaceTableDropIndexQueries;
 import static java.net.http.HttpClient.Redirect.NORMAL;
 
 import com.amazonaws.services.lambda.runtime.Context;
@@ -57,9 +57,9 @@ import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import com.here.xyz.util.db.datasource.DatabaseSettings;
 import com.here.xyz.util.db.datasource.PooledDataSources;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper.OnDemandIndex;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper.SystemIndex;
+import com.here.xyz.util.db.pg.IndexHelper.OnDemandIndex;
+import com.here.xyz.util.db.pg.IndexHelper.SystemIndex;
+import com.here.xyz.util.db.pg.IndexHelper.Index;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.service.aws.lambda.SimulatedContext;
 import com.here.xyz.util.web.HubWebClient;

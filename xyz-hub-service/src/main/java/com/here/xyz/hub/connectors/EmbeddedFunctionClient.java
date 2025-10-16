@@ -20,6 +20,7 @@
 package com.here.xyz.hub.connectors;
 
 import com.amazonaws.services.lambda.runtime.RequestStreamHandler;
+import com.here.xyz.connectors.EntryConnectorHandler;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig;
 import com.here.xyz.util.service.Core;

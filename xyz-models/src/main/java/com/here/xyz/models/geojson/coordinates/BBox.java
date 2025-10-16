@@ -248,4 +248,23 @@ public class BBox extends ArrayList<Double> {
     // Must not be, but lets fix it anyway:
     return (min + 90d) - (max + 90d);
   }
+
+  public String toWkt() {
+    if (size() < 4 || get(0) == null || get(1) == null || get(2) == null || get(3) == null) {
+      throw new IllegalStateException("BBox is incomplete.");
+    }
+    double west = getWest();
+    double south = getSouth();
+    double east = getEast();
+    double north = getNorth();
+    return String.format(
+            java.util.Locale.ROOT,
+            "POLYGON((%f %f,%f %f,%f %f,%f %f,%f %f))",
+            west, south,
+            east, south,
+            east, north,
+            west, north,
+            west, south
+    );
+  }
 }

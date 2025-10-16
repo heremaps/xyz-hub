@@ -510,7 +510,8 @@ CREATE OR REPLACE FUNCTION xyz_index_creation_on_property_object(
     propkey text,
     idx_name text,
     datatype text,
-    source character)
+    source character,
+    target_column text DEFAULT 'jsondata')
   RETURNS text AS
 $BODY$
 	/**
@@ -533,7 +534,10 @@ $BODY$
 	*/
 
 	DECLARE
-        root_path text := '''properties''->';
+        root_path text := CASE WHEN target_column = 'jsondata'
+                            THEN '''properties''->'
+                          ELSE ''
+                          END;
 		prop_path text;
 		idx_type text := 'btree';
 	BEGIN
@@ -564,7 +568,7 @@ $BODY$
             EXECUTE format('CREATE INDEX IF NOT EXISTS "%s" '
                 ||'ON %s."%s" '
                 ||' USING %s '
-                ||'((jsondata->%s %s))', idx_name, schema, spaceid, idx_type, root_path, prop_path);
+                ||'((%s->%s %s))', idx_name, schema, spaceid, idx_type, target_column, root_path, prop_path);
         END IF;
 
 		EXECUTE format('COMMENT ON INDEX %s."%s" '
@@ -638,51 +642,69 @@ $BODY$
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_property_datatype(
-	schema text,
+    schema text,
     spaceid text,
     propertypath text,
-    tablesamplecnt integer)
-  RETURNS TEXT AS
+    tablesamplecnt integer,
+    target_column text DEFAULT 'jsondata'
+)
+RETURNS TEXT AS
 $BODY$
-	/**
-	* Description:
-	*	Tries to detect the data type of a jsonkey. {"foo" : "bar"} => "bar"=string
-	*
-	* Parameters:
-	*   @spaceid		- id of the XYZ-space (tablename)
-	*   @propertypath	- path down to the json-field (e.g.: jsondata.foo.bar)
-	*   @tablesamplecnt	- define the value which get further used in the tablesample statement. If it is null full table scans s will be performed.
-	*
-	* Returns:
-	*	datatype		- string | number | boolean | object | array | null
-	*/
+/**
+ * Description:
+ *   Tries to detect the data type of a jsonkey. {"foo" : "bar"} => "bar"=string
+ *
+ * Parameters:
+ *   @schema          - schema name
+ *   @spaceid         - id of the XYZ-space (tablename)
+ *   @propertypath    - path down to the json-field (e.g.: jsondata.foo.bar)
+ *   @tablesamplecnt  - define the value which get further used in the tablesample statement. If it is null full table scans will be performed.
+ *   @target_column   - column name to inspect (default: 'jsondata').
+ *                      If 'jsondata' → function looks inside ->'properties'.
+ *                      Otherwise → function looks directly into that column.
+ *
+ * Returns:
+ *   datatype         - string | number | boolean | object | array | null | unknown
+ */
 
-	DECLARE datatype TEXT := xyz_index_dissolve_datatype(propertypath);
-	DECLARE json_proppath TEXT;
+DECLARE
+    datatype TEXT := xyz_index_dissolve_datatype(propertypath);
+    json_proppath TEXT;
+    column_expr TEXT;
+BEGIN
+    IF (datatype IS NOT NULL) THEN
+        RETURN datatype;
+    END IF;
 
-	BEGIN
-		IF (datatype IS NOT NULL) THEN
-			RETURN datatype;
-		END IF;
+    SELECT xyz_property_path(propertypath) INTO json_proppath;
 
-		SELECT xyz_property_path(propertypath) into json_proppath;
+    -- Decide whether to append ->'properties' or not
+    IF target_column = 'jsondata' THEN
+        column_expr := format('%I->''properties''->%s', target_column, json_proppath);
+    ELSE
+        column_expr := format('%I->%s', target_column, json_proppath);
+    END IF;
 
-		EXECUTE format('SELECT jsonb_typeof((jsondata->''properties''->%s)::jsonb)::text '
-			||'	FROM %s."%s" TABLESAMPLE SYSTEM_ROWS(%s) '
-			||'where jsondata->''properties''->%s  is not null limit 1',
-				json_proppath, schema, spaceid, tablesamplecnt, json_proppath)
-			INTO datatype;
+    EXECUTE format(
+        'SELECT jsonb_typeof((%s)::jsonb)::text
+            FROM %I.%I TABLESAMPLE SYSTEM_ROWS(%s)
+         WHERE %s IS NOT NULL
+            LIMIT 1',
+        column_expr, schema, spaceid, tablesamplecnt, column_expr
+    )
+    INTO datatype;
 
-		IF datatype IS NULL THEN
-			RETURN 'unknown';
-		END IF;
+    IF datatype IS NULL THEN
+        RETURN 'unknown';
+    END IF;
 
-		RETURN datatype;
-		EXCEPTION WHEN OTHERS THEN
-			RETURN 'unknown';
-	END;
+    RETURN datatype;
+
+EXCEPTION WHEN OTHERS THEN
+    RETURN 'unknown';
+END;
 $BODY$
-  LANGUAGE plpgsql VOLATILE PARALLEL RESTRICTED;
+LANGUAGE plpgsql VOLATILE PARALLEL RESTRICTED;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_property_statistic_v2(

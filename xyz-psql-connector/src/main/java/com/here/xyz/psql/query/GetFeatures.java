@@ -39,6 +39,7 @@ import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.psql.DatabaseWriter.ModificationType;
 import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.util.db.ConnectorParameters;
 import com.here.xyz.util.db.SQLQuery;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -188,6 +189,14 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
         .withQueryFragment("innerJsonData", buildJsonDataFragment(event))
         .withQueryFragment("baseVersion", "" + baseVersion) //TODO: That's a workaround for a minor bug in SQLQuery
         .withQueryFragment("featureVersion", isCompositeQuery(event) ? getFeatureVersion(event, dataset) : "version");
+
+
+    if(getTableLayout().equals(ConnectorParameters.TableLayout.NEW_LAYOUT)) {
+      jsonDataWithVersion = new SQLQuery("author, ${{innerJsonData}} AS jsondata")
+              .withQueryFragment("innerJsonData", buildJsonDataFragment(event))
+              .withQueryFragment("baseVersion", "" + baseVersion) //TODO: That's a workaround for a minor bug in SQLQuery
+              .withQueryFragment("featureVersion", isCompositeQuery(event) ? getFeatureVersion(event, dataset) : "version");
+    }
 
     return new SQLQuery("id, ${{version}}, ${{jsonData}}, ${{geo}}, ${{dataset}}")
         .withQueryFragment("jsonData", jsonDataWithVersion)
@@ -378,11 +387,22 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
   protected void handleFeature(ResultSet rs, StringBuilder result) throws SQLException {
     String geom = rs.getString("geo");
-    result.append(rs.getString("jsondata"));
+    if(getTableLayout().equals(ConnectorParameters.TableLayout.OLD_LAYOUT))
+      result.append(rs.getString("jsondata"));
+    else if(getTableLayout().equals(ConnectorParameters.TableLayout.NEW_LAYOUT))
+      result.append(injectValuesIntoNameSpace(rs.getString("jsondata"), rs.getLong("version"), rs.getString("author")));
     result.setLength(result.length() - 1);
     result.append(",\"geometry\":");
     result.append(geom == null ? "null" : geom);
     result.append("}");
+  }
+
+  private String injectValuesIntoNameSpace(String jsonData, long version, String author) {
+    String namespacePattern = "(\"@ns:com:here:xyz\"\\s*:\\s*\\{)";
+    //The NS always contains the updatedAt property, so we need a trailing comma.
+    String versionAuthor = "$1\"version\":" + version + ",\"author\":\"" + author + "\",";
+
+    return jsonData.replaceAll(namespacePattern, versionAuthor);
   }
 
   protected static class LazyParsableFeatureCollection {
@@ -434,7 +454,6 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
           + "FROM prj_build(#{selection}, jsondata))")
           .withNamedParameter("selection", selection.toArray(new String[0]));
     }
-
     return jsonData;
   }
 
