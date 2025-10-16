@@ -31,6 +31,7 @@ import static com.here.xyz.models.hub.Ref.HEAD;
 
 import com.here.xyz.events.ModifyBranchEvent;
 import com.here.xyz.hub.Service;
+import com.here.xyz.hub.config.BranchConfigClient;
 import com.here.xyz.hub.connectors.RpcClient;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Space;
@@ -132,11 +133,11 @@ public class BranchHandler {
     List<Future<Void>> futures = new ArrayList<>();
     if (branchModifiedResponse.isConflicting()) {
       //Create a new temporary conflict branch that can be used by the client to solve the conflicts
-      Future<Void> conflictingBranchStored = Service.branchConfigClient.store(spaceId, new Branch()
-          .withId(CONFLICTING_BRANCH_ID_PREFIX + branchId)
-          .withNodeId(branchModifiedResponse.getNodeId())
-          .withBaseRef(branchModifiedResponse.getBaseRef())
-          .withDescription("The branch to be used to solve conflicts of branch: " + branchId));
+      Future<Void> conflictingBranchStored = resolvePathAndStore(spaceId, new Branch()
+              .withId(CONFLICTING_BRANCH_ID_PREFIX + branchId)
+              .withNodeId(branchModifiedResponse.getNodeId())
+              .withBaseRef(branchModifiedResponse.getBaseRef())
+              .withDescription("The branch to be used to solve conflicts of branch: " + branchId));
       futures.add(conflictingBranchStored);
 
       /*
@@ -146,12 +147,12 @@ public class BranchHandler {
       branchUpdate.withState(branchModifiedResponse.isConflicting() ? IN_CONFLICT : null);
       branchUpdate.setConflictSolvingBranch(CONFLICTING_BRANCH_ID_PREFIX + branchId);
 
-      Future<Void> originalBranchUpdate = Service.branchConfigClient.store(spaceId, branchUpdate, branchId);
+      Future<Void> originalBranchUpdate = resolvePathAndStore(spaceId, branchUpdate);
       futures.add(originalBranchUpdate);
     }
     else
-      futures.add(Service.branchConfigClient.store(spaceId, branchUpdate
-          .withNodeId(branchModifiedResponse.getNodeId()), branchId));
+      futures.add(resolvePathAndStore(spaceId, branchUpdate
+          .withNodeId(branchModifiedResponse.getNodeId())));
 
     return Future.all(futures).mapEmpty();
   }
@@ -193,6 +194,35 @@ public class BranchHandler {
               .map(statistics -> new Ref(ref.getBranch() + ":" + statistics.getMaxVersion().getValue()));
     else
       return Future.succeededFuture(ref);
+  }
+
+  private static Future<Branch> resolveBranchPath(String spaceId, Branch branch) {
+
+    Future<List<Ref>> branchPath;
+
+    if (branch.getBaseRef().isMainBranch())
+      branchPath = Future.succeededFuture(List.of(resolveToNodeIdRef(MAIN_BRANCH, branch.getBaseRef())));
+    else
+      branchPath = BranchConfigClient.getInstance().load(spaceId, branch.getBaseRef().getBranch())
+              .compose(baseBranch -> {
+                List<Ref> resolvedBranchPath = baseBranch.getBranchPath();
+                resolvedBranchPath.add(resolveToNodeIdRef(baseBranch, branch.getBaseRef()));
+                return Future.succeededFuture(resolvedBranchPath);
+              });
+
+    return branchPath.compose(resolveBranchPath -> Future.succeededFuture(branch.withBranchPath(resolveBranchPath)));
+  }
+
+  private static Future<Void> resolvePathAndStore(String spaceId, Branch branch) {
+    return resolveBranchPath(spaceId, branch)
+            .compose(resolvedBranch -> BranchConfigClient.getInstance().store(spaceId, branch));
+  }
+
+  private static Ref resolveToNodeIdRef(Branch branch, Ref ref) {
+    if (!ref.getBranch().equals(branch.getId()))
+      throw new IllegalArgumentException("The specified ref does not point to the specified branch.");
+
+    return new Ref("~" + branch.getNodeId() + ":" + ref.getVersion()); //TODO: Implement constructor Ref(branchId, version)
   }
 
   public static Future<Void> deleteBranch(Marker marker, String spaceId, String branchId) {
