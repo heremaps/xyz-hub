@@ -28,6 +28,7 @@ import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.XyzSerializable;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @JsonInclude(Include.NON_DEFAULT)
@@ -40,6 +41,8 @@ public class Branch implements XyzSerializable {
   private String spaceId;
   @JsonView({Public.class, Static.class})
   private Ref baseRef = new Ref(HEAD);
+  @JsonView({Internal.class, Static.class})
+  private List<Ref> branchPath;
   @JsonView({Public.class, Static.class})
   private String description;
   @JsonView({Static.class})
@@ -89,6 +92,19 @@ public class Branch implements XyzSerializable {
 
   public Branch withBaseRef(Ref baseRef) {
     setBaseRef(baseRef);
+    return this;
+  }
+
+  public List<Ref> getBranchPath() {
+    return branchPath;
+  }
+
+  public void setBranchPath(List<Ref> branchPath) {
+    this.branchPath = branchPath;
+  }
+
+  public Branch withBranchPath(List<Ref> branchPath) {
+    setBranchPath(branchPath);
     return this;
   }
 

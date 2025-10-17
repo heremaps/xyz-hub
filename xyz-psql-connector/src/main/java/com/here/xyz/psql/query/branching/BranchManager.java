@@ -298,7 +298,7 @@ public class BranchManager {
     String tablePattern = basePrefix(nodeId) + "%_%";
     //TODO: Rather use a regex instead of 2 checks
     return new SQLQuery("""
-        SELECT FROM pg_tables WHERE schemaname = #{schema}
+        SELECT tablename FROM pg_tables WHERE schemaname = #{schema}
         AND tablename LIKE #{tablePattern}
         AND NOT tablename LIKE #{partitionsPattern}
         """)
@@ -309,7 +309,7 @@ public class BranchManager {
   }
 
   private String toLikePattern(String pattern) {
-    return pattern.replaceAll("_", "\\_");
+    return pattern.replaceAll("_", "\\\\_");
   }
 
   private String branchTableName(int nodeId) throws SQLException {
