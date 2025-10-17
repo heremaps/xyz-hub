@@ -36,7 +36,9 @@ import com.here.xyz.util.db.datasource.DataSourceProvider;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class IterateChangesets extends IterateFeatures<IterateChangesetsEvent, ChangesetCollection> {
   public static long DEFAULT_LIMIT = 1_000l;
@@ -132,6 +134,42 @@ public class IterateChangesets extends IterateFeatures<IterateChangesetsEvent, C
   protected SQLQuery buildSelectClause(IterateChangesetsEvent event, int dataset, long baseVersion) {
     return new SQLQuery("${{selectClauseWithoutExtraFields}}, operation, author")
         .withQueryFragment("selectClauseWithoutExtraFields", super.buildSelectClause(event, dataset, baseVersion));
+  }
+
+  protected SQLQuery buildFilterWhereClause(IterateChangesetsEvent event) {
+
+    List<String> authors = event.getAuthors();
+
+    long startTime = event.getStartTime(),
+         endTime = event.getEndTime();
+
+    String authSql      = "TRUE",
+           startTimeSql = "TRUE",
+           endTimeSql   = "TRUE",
+           timeSql =
+            """
+             version %1$s
+	           ( with ttable as ( select distinct(version) version, (jsondata#>>'{properties,@ns:com:here:xyz,updatedAt}')::bigint as ts from ${schema}.${table} )
+               select %2$s(version) from ttable where ts %1$s %3$d
+	           )
+            """;
+
+    if( authors != null && !authors.isEmpty() )
+     authSql = String.format("author in (%s)", authors.stream().map(author -> "'" + author + "'").collect(Collectors.joining(",")));
+
+    if( startTime > 0 )
+     startTimeSql = String.format(timeSql,">=","min", startTime );
+
+    if( endTime > 0 )
+     endTimeSql = String.format(timeSql,"<=","max", endTime );
+
+    return
+      new SQLQuery("${{superFilterWhereClause}} AND ${{authorFilterClause}} AND ${{startTimeFilterClause}} AND ${{endTimeFilterClause}}")
+           .withQueryFragment("superFilterWhereClause", super.buildFilterWhereClause(event))
+           .withQueryFragment("authorFilterClause", new SQLQuery(authSql))
+           .withQueryFragment("startTimeFilterClause", new SQLQuery(startTimeSql))
+           .withQueryFragment("endTimeFilterClause", new SQLQuery(endTimeSql));
+
   }
 
   //Enhances the limit by adding one extra feature that is loaded just for the sake of finding out whether there is another page (extra feature is not part of the response)
