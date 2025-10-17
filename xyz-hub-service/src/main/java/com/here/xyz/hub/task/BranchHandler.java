@@ -133,11 +133,12 @@ public class BranchHandler {
     List<Future<Void>> futures = new ArrayList<>();
     if (branchModifiedResponse.isConflicting()) {
       //Create a new temporary conflict branch that can be used by the client to solve the conflicts
-      Future<Void> conflictingBranchStored = resolvePathAndStore(spaceId, new Branch()
-              .withId(CONFLICTING_BRANCH_ID_PREFIX + branchId)
-              .withNodeId(branchModifiedResponse.getNodeId())
-              .withBaseRef(branchModifiedResponse.getBaseRef())
-              .withDescription("The branch to be used to solve conflicts of branch: " + branchId));
+      Branch conflictingBranch = new Branch()
+          .withId(CONFLICTING_BRANCH_ID_PREFIX + branchId)
+          .withNodeId(branchModifiedResponse.getNodeId())
+          .withBaseRef(branchModifiedResponse.getBaseRef())
+          .withDescription("The branch to be used to solve conflicts of branch: " + branchId);
+      Future<Void> conflictingBranchStored = storeBranch(spaceId, conflictingBranch, conflictingBranch.getId(), true);
       futures.add(conflictingBranchStored);
 
       /*
@@ -147,12 +148,14 @@ public class BranchHandler {
       branchUpdate.withState(branchModifiedResponse.isConflicting() ? IN_CONFLICT : null);
       branchUpdate.setConflictSolvingBranch(CONFLICTING_BRANCH_ID_PREFIX + branchId);
 
-      Future<Void> originalBranchUpdate = resolvePathAndStore(spaceId, branchUpdate);
+      Future<Void> originalBranchUpdate = storeBranch(spaceId, branchUpdate, branchId, false);
       futures.add(originalBranchUpdate);
     }
-    else
-      futures.add(resolvePathAndStore(spaceId, branchUpdate
-          .withNodeId(branchModifiedResponse.getNodeId())));
+    else {
+      boolean resolvePath = branchUpdate.getNodeId() != branchModifiedResponse.getNodeId();
+      futures.add(storeBranch(spaceId, branchUpdate
+              .withNodeId(branchModifiedResponse.getNodeId()), branchId, resolvePath));
+    }
 
     return Future.all(futures).mapEmpty();
   }
@@ -196,6 +199,11 @@ public class BranchHandler {
       return Future.succeededFuture(ref);
   }
 
+  private static Future<Void> storeBranch(String spaceId, Branch branch, String branchId, boolean resolvePath) {
+    return (resolvePath ? resolveBranchPath(spaceId, branch) : Future.succeededFuture(branch))
+            .compose(resolvedBranch -> BranchConfigClient.getInstance().store(spaceId, resolvedBranch, branchId));
+  }
+
   private static Future<Branch> resolveBranchPath(String spaceId, Branch branch) {
 
     Future<List<Ref>> branchPath;
@@ -211,11 +219,6 @@ public class BranchHandler {
               });
 
     return branchPath.compose(resolveBranchPath -> Future.succeededFuture(branch.withBranchPath(resolveBranchPath)));
-  }
-
-  private static Future<Void> resolvePathAndStore(String spaceId, Branch branch) {
-    return resolveBranchPath(spaceId, branch)
-            .compose(resolvedBranch -> BranchConfigClient.getInstance().store(spaceId, branch));
   }
 
   private static Ref resolveToNodeIdRef(Branch branch, Ref ref) {
@@ -361,6 +364,7 @@ public class BranchHandler {
       update = true;
 
     partialUpdate.setNodeId(existing.getNodeId());
+    partialUpdate.setBranchPath(existing.getBranchPath());
 
     return update;
   }
