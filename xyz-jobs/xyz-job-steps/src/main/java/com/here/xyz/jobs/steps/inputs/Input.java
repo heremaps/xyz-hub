@@ -42,6 +42,7 @@ import com.here.xyz.util.service.aws.s3.S3ObjectSummary;
 import com.here.xyz.util.service.aws.s3.S3Uri;
 import java.io.IOException;
 import java.security.GeneralSecurityException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -456,6 +457,24 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
   }
 
   private static <T extends Input> Page<T> loadAndTransformInputs(String bucketName, String inputS3Prefix, int limit, String nextPageToken, Class<T> inputType) {
+    if (limit == -1 && nextPageToken == null) {
+      return loadAndTransformAllInputs(bucketName, inputS3Prefix, inputType);
+    }
+    return loadAndTransformPageInputs(bucketName, inputS3Prefix, limit, nextPageToken, inputType);
+  }
+
+  private static <T extends Input> Page<T> loadAndTransformAllInputs(String bucketName, String inputS3Prefix, Class<T> inputType) {
+    List<S3ObjectSummary> items = S3Client.getInstance(bucketName).scanFolder(inputS3Prefix);
+    List<Input> allItems = items
+        .parallelStream()
+        .map(s3ObjectSummary -> createInput(defaultBucket().equals(bucketName) ? null : bucketName, s3ObjectSummary.key(),
+            s3ObjectSummary.size(), inputIsCompressed(s3ObjectSummary)))
+        .filter(input -> input.getByteSize() > 0 && inputType.isAssignableFrom(input.getClass()))
+        .collect(Collectors.toCollection(ArrayList::new));
+    return new Page<>((List<T>) allItems, null);
+  }
+
+  private static <T extends Input> Page<T> loadAndTransformPageInputs(String bucketName, String inputS3Prefix, int limit, String nextPageToken, Class<T> inputType) {
     Page<S3ObjectSummary> page = S3Client.getInstance(bucketName).scanFolder(inputS3Prefix, nextPageToken, limit);
     Stream<Input> inputsStream = page.getItems()
         .parallelStream()
