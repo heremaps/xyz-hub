@@ -1003,17 +1003,16 @@ public class SQLQuery {
     UPDATE_BATCH
   }
 
-  private static List<String> PwdPrefixList =
-   List.of("6URYTnCc", "pUNuBxnW", "JELgvJWS", "0n1UKjIv", "2YW9D4Kz", "3ZX9D4Kz", "9JwYhcgD", "qvukzFHW", "1CpZNKpG", "kwPU00Qy", "AhYtSea7", "AsSrbSE6");
-
-  private static String hidePwds( String s )
-  { return s.replaceAll("(" + String.join("|", PwdPrefixList ) + ")\\w*", "$1*******"); }
+  private static String hidePwds(String s, DataSourceProvider dataSourceProvider) throws SQLException {
+    return s.replaceAll("(" + dataSourceProvider.getDatabaseSettings().getPassword() + ")\\w*", "*******");
+  }
 
   private Object execute(DataSourceProvider dataSourceProvider, ResultSetHandler<?> handler, ExecutionOperation operation,
       ExecutionContext executionContext) throws SQLException {
     if (loggingEnabled)
-      logger.info("Executing SQLQuery {}", hidePwds( ""+this ));
-    substitute();
+      logger.info("Executing SQLQuery {}", hidePwds("" + this, dataSourceProvider));
+    if (executionContext.executionAttempts == 0)
+      substitute();
 
     final DataSource dataSource = executionContext.useReplica ? dataSourceProvider.getReader() : dataSourceProvider.getWriter();
     executionContext.attemptExecution();
@@ -1023,7 +1022,7 @@ public class SQLQuery {
             executionContext.useReplica ? "reader" : "writer",
             dataSourceProvider.getDatabaseSettings() != null
                 ? dataSourceProvider.getDatabaseSettings().getId() : "unknown",
-            hidePwds( replaceUnnamedParametersForLogging()) );
+            hidePwds(replaceUnnamedParametersForLogging(), dataSourceProvider));
 
       if (isAsync())
         operation = ExecutionOperation.QUERY;
@@ -1192,7 +1191,8 @@ public class SQLQuery {
           57014 - query_canceled
           57P01 - admin_shutdown
            */
-          sqlEx.getSQLState().equalsIgnoreCase("57014")
+          //NOTE: 57014 occurs when a query got cancelled for various reasons. If the reason was a timeout it should not be retried.
+          sqlEx.getSQLState().equalsIgnoreCase("57014") && !sqlEx.getMessage().toLowerCase().contains("statement timeout")
               /*
               NOTE: "admin_shutdown" (57P01) also is used when some admin user kills the backend
               using pg_terminate_backend. So this SQL state is not treated as recoverable,
