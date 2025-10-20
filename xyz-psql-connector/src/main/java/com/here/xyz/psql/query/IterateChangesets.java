@@ -163,7 +163,12 @@ public class IterateChangesets extends IterateFeatures<IterateChangesetsEvent, C
     if( endTime > 0 )
      endTimeSql = String.format(timeSql,"<=","<=","max","0", endTime );
 
-    return
+    if( "TRUE".equals(authSql) && "TRUE".equals(startTimeSql) && "TRUE".equals(endTimeSql) )
+     return
+      new SQLQuery("${{superFilterWhereClause}}")
+           .withQueryFragment("superFilterWhereClause", super.buildFilterWhereClause(event));
+    else
+     return
       new SQLQuery("${{superFilterWhereClause}} AND ${{authorFilterClause}} AND ${{startTimeFilterClause}} AND ${{endTimeFilterClause}}")
            .withQueryFragment("superFilterWhereClause", super.buildFilterWhereClause(event))
            .withQueryFragment("authorFilterClause", new SQLQuery(authSql))
