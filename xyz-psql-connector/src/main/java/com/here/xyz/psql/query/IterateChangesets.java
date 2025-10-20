@@ -150,7 +150,7 @@ public class IterateChangesets extends IterateFeatures<IterateChangesetsEvent, C
             """
              version %1$s
 	           ( with ttable as ( select distinct(version) version, (jsondata#>>'{properties,@ns:com:here:xyz,updatedAt}')::bigint as ts from ${schema}.${table} )
-               select %2$s(version) from ttable where ts %1$s %3$d
+               select coalesce( %3$s(version), %4$s ) from ttable where ts %2$s %5$d
 	           )
             """;
 
@@ -158,10 +158,10 @@ public class IterateChangesets extends IterateFeatures<IterateChangesetsEvent, C
      authSql = String.format("author in (%s)", authors.stream().map(author -> "'" + author + "'").collect(Collectors.joining(",")));
 
     if( startTime > 0 )
-     startTimeSql = String.format(timeSql,">=","min", startTime );
+     startTimeSql = String.format(timeSql,">=",">","min","max_bigint()", startTime );
 
     if( endTime > 0 )
-     endTimeSql = String.format(timeSql,"<=","max", endTime );
+     endTimeSql = String.format(timeSql,"<=","<=","max","0", endTime );
 
     return
       new SQLQuery("${{superFilterWhereClause}} AND ${{authorFilterClause}} AND ${{startTimeFilterClause}} AND ${{endTimeFilterClause}}")
