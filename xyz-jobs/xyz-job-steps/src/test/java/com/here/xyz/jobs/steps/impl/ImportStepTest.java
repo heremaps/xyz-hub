@@ -103,6 +103,11 @@ public class ImportStepTest extends StepTest {
     executeImportStepWithManyFiles(Format.GEOJSON, 10, 2 , false);
   }
 
+  @Test
+  public void testSyncImport_with_more_than_default_pagination_size_files() throws Exception {
+    executeImportStepWithManyFiles(Format.GEOJSON, 1010, 2 , false);
+  }
+
   //@Test //temporary deactivation
   public void testAsyncSyncImport_with_many_files() throws Exception {
     executeImportStepWithManyFiles(Format.GEOJSON, 10, 2 , true);

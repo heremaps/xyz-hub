@@ -21,9 +21,51 @@ package com.here.xyz.events;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonTypeName;
+import java.util.List;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "IterateChangesetsEvent")
 public final class IterateChangesetsEvent extends IterateFeaturesEvent<IterateChangesetsEvent> {
+  private List<String> authors;
+  private long startTime;
+  private long endTime;
 
+  public List<String> getAuthors() {
+    return authors;
+  }
+
+  public void setAuthors(List<String> authors) {
+    this.authors = authors;
+  }
+
+  public IterateChangesetsEvent withAuthors(List<String> authors) {
+    setAuthors(authors);
+    return this;
+  }
+
+  public long getStartTime() {
+    return startTime;
+  }
+
+  public void setStartTime(long startTime) {
+    this.startTime = startTime;
+  }
+
+  public IterateChangesetsEvent withStartTime(long startTime) {
+    setStartTime(startTime);
+    return this;
+  }
+
+  public long getEndTime() {
+    return endTime;
+  }
+
+  public void setEndTime(long endTime) {
+    this.endTime = endTime;
+  }
+
+  public IterateChangesetsEvent withEndTime(long endTime) {
+    setEndTime(endTime);
+    return this;
+  }
 }
