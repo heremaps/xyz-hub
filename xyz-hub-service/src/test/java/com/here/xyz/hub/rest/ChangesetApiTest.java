@@ -93,4 +93,37 @@ public class ChangesetApiTest {
     assertThrows(RuntimeException.class,
         () -> invokePrivate("getChangesets", new Class<?>[]{RoutingContext.class}, ctx));
   }
+
+  @Test
+  public void getLongQueryParam_throwsOnNegative() {
+    RoutingContext ctx = ctxWithQuery("startVersion=-1");
+    IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+        () -> invokePrivate("getLongQueryParam", new Class<?>[]{RoutingContext.class, String.class, long.class}, ctx, "startVersion", 0L));
+    assertEquals("The parameter \"startVersion\" must be >= 0.", ex.getMessage());
+  }
+
+  @Test
+  public void getLongQueryParam_throwsOnNonNumber() {
+    RoutingContext ctx = ctxWithQuery("endVersion=abc");
+    IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+        () -> invokePrivate("getLongQueryParam", new Class<?>[]{RoutingContext.class, String.class, long.class}, ctx, "endVersion", -1L));
+    assertEquals("The parameter \"endVersion\" is not a number.", ex.getMessage());
+  }
+
+  @Test
+  public void getVersionFromPathParam_required() {
+    RoutingContext ctx = ctxWithPathParam(ApiParam.Path.VERSION, null);
+    IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+        () -> invokePrivate("getVersionFromPathParam", new Class<?>[]{RoutingContext.class}, ctx));
+    assertEquals("The parameter \"version\" is required.", ex.getMessage());
+  }
+
+  @Test
+  public void getVersionFromPathParam_nonNumeric() {
+    RoutingContext ctx = ctxWithPathParam(ApiParam.Path.VERSION, "abc");
+    IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+        () -> invokePrivate("getVersionFromPathParam", new Class<?>[]{RoutingContext.class}, ctx));
+    String expectedPrefix = "The parameter \"version\" is not a number.";
+    assertEquals(expectedPrefix, ex.getMessage());
+  }
 }
