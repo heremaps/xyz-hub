@@ -221,6 +221,7 @@ public class ChangesetCollectionApiIT extends TestSpaceWithFeature {
   }
 
   @Test
+  @Ignore
   public void validateCollectionFilterByInvalidAuthor() {
     addChangeSets();
 

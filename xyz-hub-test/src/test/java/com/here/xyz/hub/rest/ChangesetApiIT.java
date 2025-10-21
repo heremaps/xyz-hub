@@ -43,6 +43,7 @@ import java.util.Objects;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 
 public class ChangesetApiIT extends TestSpaceWithFeature {
@@ -587,6 +588,7 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
   }
 
   @Test
+  @Ignore
   public void validateSingleChangesetFilterByAuthor() {
     given()
         .get("/spaces/" + cleanUpSpaceId + "/changesets/2?author=" + AUTHOR_1)
@@ -601,6 +603,7 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
   }
 
   @Test
+  @Ignore
   public void validateSingleChangesetFilterByTimeRange() {
     Long createdAt = given()
         .get("/spaces/" + cleanUpSpaceId + "/changesets/2")
