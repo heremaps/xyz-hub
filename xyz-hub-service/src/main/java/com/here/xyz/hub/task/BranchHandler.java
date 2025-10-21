@@ -31,6 +31,7 @@ import static com.here.xyz.models.hub.Ref.HEAD;
 
 import com.here.xyz.events.ModifyBranchEvent;
 import com.here.xyz.hub.Service;
+import com.here.xyz.hub.config.BranchConfigClient;
 import com.here.xyz.hub.connectors.RpcClient;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Space;
@@ -132,11 +133,12 @@ public class BranchHandler {
     List<Future<Void>> futures = new ArrayList<>();
     if (branchModifiedResponse.isConflicting()) {
       //Create a new temporary conflict branch that can be used by the client to solve the conflicts
-      Future<Void> conflictingBranchStored = Service.branchConfigClient.store(spaceId, new Branch()
+      Branch conflictingBranch = new Branch()
           .withId(CONFLICTING_BRANCH_ID_PREFIX + branchId)
           .withNodeId(branchModifiedResponse.getNodeId())
           .withBaseRef(branchModifiedResponse.getBaseRef())
-          .withDescription("The branch to be used to solve conflicts of branch: " + branchId));
+          .withDescription("The branch to be used to solve conflicts of branch: " + branchId);
+      Future<Void> conflictingBranchStored = storeBranch(spaceId, conflictingBranch, conflictingBranch.getId(), true);
       futures.add(conflictingBranchStored);
 
       /*
@@ -146,12 +148,14 @@ public class BranchHandler {
       branchUpdate.withState(branchModifiedResponse.isConflicting() ? IN_CONFLICT : null);
       branchUpdate.setConflictSolvingBranch(CONFLICTING_BRANCH_ID_PREFIX + branchId);
 
-      Future<Void> originalBranchUpdate = Service.branchConfigClient.store(spaceId, branchUpdate, branchId);
+      Future<Void> originalBranchUpdate = storeBranch(spaceId, branchUpdate, branchId, false);
       futures.add(originalBranchUpdate);
     }
-    else
-      futures.add(Service.branchConfigClient.store(spaceId, branchUpdate
-          .withNodeId(branchModifiedResponse.getNodeId()), branchId));
+    else {
+      boolean resolvePath = branchUpdate.getNodeId() != branchModifiedResponse.getNodeId();
+      futures.add(storeBranch(spaceId, branchUpdate
+              .withNodeId(branchModifiedResponse.getNodeId()), branchId, resolvePath));
+    }
 
     return Future.all(futures).mapEmpty();
   }
@@ -193,6 +197,35 @@ public class BranchHandler {
               .map(statistics -> new Ref(ref.getBranch() + ":" + statistics.getMaxVersion().getValue()));
     else
       return Future.succeededFuture(ref);
+  }
+
+  private static Future<Void> storeBranch(String spaceId, Branch branch, String branchId, boolean resolvePath) {
+    return (resolvePath ? resolveBranchPath(spaceId, branch) : Future.succeededFuture(branch))
+            .compose(resolvedBranch -> BranchConfigClient.getInstance().store(spaceId, resolvedBranch, branchId));
+  }
+
+  private static Future<Branch> resolveBranchPath(String spaceId, Branch branch) {
+
+    Future<List<Ref>> branchPath;
+
+    if (branch.getBaseRef().isMainBranch())
+      branchPath = Future.succeededFuture(List.of(resolveToNodeIdRef(MAIN_BRANCH, branch.getBaseRef())));
+    else
+      branchPath = BranchConfigClient.getInstance().load(spaceId, branch.getBaseRef().getBranch())
+              .compose(baseBranch -> {
+                List<Ref> resolvedBranchPath = baseBranch.getBranchPath();
+                resolvedBranchPath.add(resolveToNodeIdRef(baseBranch, branch.getBaseRef()));
+                return Future.succeededFuture(resolvedBranchPath);
+              });
+
+    return branchPath.compose(resolveBranchPath -> Future.succeededFuture(branch.withBranchPath(resolveBranchPath)));
+  }
+
+  private static Ref resolveToNodeIdRef(Branch branch, Ref ref) {
+    if (!ref.getBranch().equals(branch.getId()))
+      throw new IllegalArgumentException("The specified ref does not point to the specified branch.");
+
+    return new Ref("~" + branch.getNodeId() + ":" + ref.getVersion()); //TODO: Implement constructor Ref(branchId, version)
   }
 
   public static Future<Void> deleteBranch(Marker marker, String spaceId, String branchId) {
@@ -331,6 +364,7 @@ public class BranchHandler {
       update = true;
 
     partialUpdate.setNodeId(existing.getNodeId());
+    partialUpdate.setBranchPath(existing.getBranchPath());
 
     return update;
   }

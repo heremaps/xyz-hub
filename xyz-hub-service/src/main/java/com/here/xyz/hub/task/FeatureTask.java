@@ -182,7 +182,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     }
 
     if (referencedBranch != null) {
-      LinkedList<Ref> branchPath = (LinkedList<Ref>) getBranchPath(space, referencedBranch);
+      LinkedList<Ref> branchPath = new LinkedList<>(referencedBranch.getBranchPath());
       event.withNodeId(referencedBranch.getNodeId())
               .withBranchPath(branchPath);
 
@@ -209,32 +209,6 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
       throw new HttpException(NOT_FOUND, "Branch \"" + ref.getBranch() + "\" was not found on resource \"" + space.getId() + "\".");
 
     return branches.get(ref.getBranch());
-  }
-
-  private static List<Ref> getBranchPath(Space space, Branch referencedBranch) {
-    LinkedList<Ref> branchPath = new LinkedList<>();
-
-    Branch currentBranch = referencedBranch;
-    do {
-      final Branch baseBranch = getBaseBranch(space, currentBranch);
-      branchPath.addFirst(resolveToNodeIdRef(baseBranch, currentBranch.getBaseRef()));
-      currentBranch = baseBranch;
-    } while (currentBranch != MAIN_BRANCH);
-
-    return branchPath;
-  }
-
-  private static Branch getBaseBranch(Space space, Branch branch) {
-    if (branch.getBaseRef().isMainBranch())
-      return MAIN_BRANCH;
-    return space.getBranches().get(branch.getBaseRef().getBranch());
-  }
-
-  private static Ref resolveToNodeIdRef(Branch branch, Ref ref) {
-    if (!ref.getBranch().equals(branch.getId()))
-      throw new IllegalArgumentException("The specified ref does not point to the specified branch.");
-
-    return new Ref("~" + branch.getNodeId() + ":" + ref.getVersion()); //TODO: Implement constructor Ref(branchId, version)
   }
 
   public CacheProfile getCacheProfile() {

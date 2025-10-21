@@ -108,7 +108,6 @@ public class BranchFeatureApiIT extends TestSpaceBranch {
 
   // We should test the behavior on the branches when the definition of middle branch is changed (merged, rebased, deleted)
   // in context with multi-level branching
-  @Disabled
   @ParameterizedTest
   @ValueSource(strings = {"merge", "rebase", "delete"})
   public void multilevelBranchingWithChangedMiddleBranch(String operation) throws Exception {
