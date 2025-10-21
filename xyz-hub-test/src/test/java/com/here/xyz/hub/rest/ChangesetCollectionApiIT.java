@@ -34,6 +34,7 @@ import java.util.Arrays;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 
 public class ChangesetCollectionApiIT extends TestSpaceWithFeature {
@@ -197,5 +198,67 @@ public class ChangesetCollectionApiIT extends TestSpaceWithFeature {
         .get("/spaces/" + cleanUpSpaceId + "/changesets")
         .then()
         .statusCode(NOT_FOUND.code());
+  }
+
+  @Test
+  public void validateCollectionFilterByAuthor() {
+    addChangeSets();
+
+    given()
+        .get("/spaces/" + cleanUpSpaceId + "/changesets?author=" + AUTHOR_1)
+        .then()
+        .statusCode(OK.code())
+        .body("startVersion", equalTo(1))
+        .body("endVersion", equalTo(4))
+
+        .body("versions.1.inserted.features.size()", equalTo(2))
+        .body("versions.1.updated.features.size()", equalTo(0))
+        .body("versions.1.deleted.features.size()", equalTo(0))
+        .body("versions.1.author", equalTo(AUTHOR_1))
+        .body("versions.1.createdAt", notNullValue())
+
+        .body("nextPageToken", nullValue());
+  }
+
+  @Test
+  public void validateCollectionFilterByInvalidAuthor() {
+    addChangeSets();
+
+    given()
+        .get("/spaces/" + cleanUpSpaceId + "/changesets?author=INVALID_USER")
+        .then()
+        .statusCode(OK.code())
+        .body("versions.size()", equalTo(0))
+        .body("nextPageToken", nullValue());
+  }
+
+  @Test
+  @Ignore
+  public void validateCollectionFilterByTimeRange() {
+    addChangeSets();
+
+    Long createdV2 = given()
+        .get("/spaces/" + cleanUpSpaceId + "/changesets")
+        .then()
+        .statusCode(OK.code())
+        .extract()
+        .path("versions.2.createdAt");
+
+    Long createdV3 = given()
+        .get("/spaces/" + cleanUpSpaceId + "/changesets")
+        .then()
+        .statusCode(OK.code())
+        .extract()
+        .path("versions.3.createdAt");
+
+    given()
+        .get("/spaces/" + cleanUpSpaceId + "/changesets?startTime=" + createdV2 + "&endTime=" + createdV3)
+        .then()
+        .statusCode(OK.code())
+        .body("startVersion", equalTo(2))
+        .body("endVersion", equalTo(3))
+        .body("versions.2.version", equalTo(2))
+        .body("versions.3.version", equalTo(3))
+        .body("nextPageToken", nullValue());
   }
 }
