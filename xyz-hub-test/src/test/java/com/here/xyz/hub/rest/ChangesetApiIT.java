@@ -585,4 +585,40 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
 
             .body("nextPageToken", nullValue());
   }
+
+  @Test
+  public void validateSingleChangesetFilterByAuthor() {
+    given()
+        .get("/spaces/" + cleanUpSpaceId + "/changesets/2?author=" + AUTHOR_1)
+        .then()
+        .statusCode(OK.code())
+        .body("version", equalTo(2));
+
+    given()
+        .get("/spaces/" + cleanUpSpaceId + "/changesets/2?author=INVALID_USER")
+        .then()
+        .statusCode(NOT_FOUND.code());
+  }
+
+  @Test
+  public void validateSingleChangesetFilterByTimeRange() {
+    Long createdAt = given()
+        .get("/spaces/" + cleanUpSpaceId + "/changesets/2")
+        .then()
+        .statusCode(OK.code())
+        .extract()
+        .path("createdAt");
+
+    given()
+        .get("/spaces/" + cleanUpSpaceId + "/changesets/2?startTime=" + createdAt + "&endTime=" + createdAt)
+        .then()
+        .statusCode(OK.code())
+        .body("version", equalTo(2));
+
+    long after = createdAt + 1L;
+    given()
+        .get("/spaces/" + cleanUpSpaceId + "/changesets/2?startTime=" + after)
+        .then()
+        .statusCode(NOT_FOUND.code());
+  }
 }
