@@ -85,8 +85,8 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static com.here.xyz.util.db.ConnectorParameters.TableLayout.NEW_LAYOUT;
 import static com.here.xyz.events.UpdateStrategy.OnExists;
@@ -158,16 +158,23 @@ public class NLConnector extends PSQLXyzConnector {
       PropertiesQueryInput propertiesQueryInput = getRefQuadAndGlobalVersion(event.getPropertiesQuery());
       String selectionValue = getSelectionValue(event.getSelection());
 
+      List<String> tables = new ArrayList<>();
+      tables.add(XyzEventBasedQueryRunner.readTableFromEvent(event));
+
+      if(event.getParams() != null && event.getParams().get("extends") != null) {
+        //TODO: check if we need to support hashing
+        tables.add(((Map<String, Object>) event.getParams().get("extends")).get("spaceId").toString());
+      }
+
       logger.info("refquad: {}, globalVersion: {}, selection: {}", propertiesQueryInput.refQuad,
               propertiesQueryInput.globalVersions, selectionValue);
 
       if (selectionValue == null) {
-        return getFeaturesByRefOrGlobalVersionsQuad(dbSettings.getSchema(), XyzEventBasedQueryRunner.readTableFromEvent(event),
-                propertiesQueryInput, event.getLimit());
+        return getFeaturesByRefOrGlobalVersionsQuad(dbSettings.getSchema(),
+                tables, propertiesQueryInput, event.getLimit());
       }else {
         return getFeatureCountByRefQuadOrGlobalVersions(dbSettings.getSchema(),
-                XyzEventBasedQueryRunner.readTableFromEvent(event),
-                propertiesQueryInput.refQuad, propertiesQueryInput.globalVersions, event.getLimit());
+                tables, propertiesQueryInput.refQuad, propertiesQueryInput.globalVersions, event.getLimit());
       }
     }
 
@@ -327,14 +334,14 @@ public class NLConnector extends PSQLXyzConnector {
     List<UpdateStrategy.OnNotExists> supportedOnNotExistsStrategies = List.of(OnNotExists.CREATE);
 
     if(updateStrategy == null || updateStrategy.onExists() == null || updateStrategy.onNotExists() == null)
-      throw new ErrorResponseException(NOT_IMPLEMENTED, "UpdateStrategy with OnExists and OnNotExists must be provided in NLConnector!");
+      logger.error("UpdateStrategy with OnExists and OnNotExists must be provided in NLConnector!");
 
     if (updateStrategy.onVersionConflict() != null || updateStrategy.onMergeConflict() != null)
-      throw new ErrorResponseException(NOT_IMPLEMENTED, "onVersionConflict and onMergeConflict are not supported in NLConnector!");
+      logger.error("onVersionConflict and onMergeConflict are not supported in NLConnector!");
     if(!supportedOnExistsStrategies.contains(updateStrategy.onExists()))
-      throw new ErrorResponseException(NOT_IMPLEMENTED, "OnExists Strategy '"+updateStrategy.onExists()+"' is not supported in NLConnector!");
+      logger.error("OnExists Strategy '{}' is not supported in NLConnector!", updateStrategy.onExists());
     if(!supportedOnNotExistsStrategies.contains(updateStrategy.onNotExists()))
-      throw new ErrorResponseException(NOT_IMPLEMENTED, "OnNotExists Strategy '"+updateStrategy.onNotExists()+"' is not supported in NLConnector!");
+      logger.error("OnNotExists Strategy '{}' is not supported in NLConnector!", updateStrategy.onNotExists());
   }
 
   private void batchDeleteFeatures(String schema, String table, List<String> featureIds,
@@ -364,10 +371,11 @@ public class NLConnector extends PSQLXyzConnector {
     }
   }
 
-  private FeatureCollection getFeaturesByRefOrGlobalVersionsQuad(String schema, String table, PropertiesQueryInput propertiesQueryInput, long limit)
-          throws SQLException, JsonProcessingException {
+  private FeatureCollection getFeaturesByRefOrGlobalVersionsQuad(String schema, List<String> tables,
+              PropertiesQueryInput propertiesQueryInput, long limit)  throws SQLException, JsonProcessingException {
     try (final Connection connection = dataSourceProvider.getWriter().getConnection()) {
-      String query = createReadByRefQuadOrGlobalVersionsQuery(schema, table, propertiesQueryInput.refQuad, propertiesQueryInput.globalVersions, limit);
+      String query = createReadByRefQuadOrGlobalVersionsQuery(schema, tables, propertiesQueryInput.refQuad,
+              propertiesQueryInput.globalVersions, limit);
 
       try (PreparedStatement ps = connection.prepareStatement(query)) {
 
@@ -385,11 +393,11 @@ public class NLConnector extends PSQLXyzConnector {
     return null;
   }
 
-  private FeatureCollection getFeatureCountByRefQuadOrGlobalVersions(String schema, String table, String refQuad, List<Integer> globalVersions, long limit)
+  private FeatureCollection getFeatureCountByRefQuadOrGlobalVersions(String schema, List<String> tables, String refQuad, List<Integer> globalVersions, long limit)
           throws SQLException {
     try (final Connection connection = dataSourceProvider.getWriter().getConnection()) {
 
-      String query = createReadByRefQuadOrGlobalVersisonsCountQuery(schema, table, refQuad, globalVersions, limit);
+      String query = createReadByRefQuadOrGlobalVersionsCountQuery(schema, tables, refQuad, globalVersions, limit);
 
       try (PreparedStatement ps = connection.prepareStatement(query)) {
 
@@ -430,73 +438,105 @@ public class NLConnector extends PSQLXyzConnector {
     return null;
   }
 
-  private String createReadByRefQuadOrGlobalVersisonsCountQuery(String schema, String table, String refQuad, List<Integer> globalVersions, long limit) {
-    return createReadByRefQuadOrGlobalVersionsQuery(schema, table, refQuad, globalVersions, limit, true);
+  private String createReadByRefQuadOrGlobalVersionsCountQuery(String schema, List<String> tables, String refQuad, List<Integer> globalVersions, long limit) {
+    return createReadByRefQuadOrGlobalVersionsQuery(schema, tables, refQuad, globalVersions, limit, true);
   }
 
-  private String createReadByRefQuadOrGlobalVersionsQuery(String schema, String table, String refQuad, List<Integer> globalVersions, long limit) {
-    return createReadByRefQuadOrGlobalVersionsQuery(schema, table, refQuad, globalVersions, limit, false);
+  private String createReadByRefQuadOrGlobalVersionsQuery(String schema, List<String> tables, String refQuad, List<Integer> globalVersions, long limit) {
+    return createReadByRefQuadOrGlobalVersionsQuery(schema, tables, refQuad, globalVersions, limit, false);
   }
 
-  private String createReadByRefQuadOrGlobalVersionsQuery(String schema, String table, String refQuad, List<Integer> globalVersions,
-                                                          long limit, boolean returnCount) {
-    StringBuilder innerSelect = new StringBuilder();
-    innerSelect.append("SELECT * FROM \"")
-            .append(schema).append("\".\"")
-            .append(table + "_head").append("\" ")
-            .append("WHERE 1=1 ");
-            //.append("WHERE operation NOT IN ('D') AND next_version = "+Long.MAX_VALUE+" ");
+  private String createReadByRefQuadOrGlobalVersionsQuery(
+          String schema,
+          List<String> tables,
+          String refQuad,
+          List<Integer> globalVersions,
+          long limit,
+          boolean returnCount
+  ) {
+    String extensionTable = tables.get(0);
+    String baseTable = tables.size() == 2 ? tables.get(1) : null;
 
+    // Build the WHERE filter fragment (shared)
+    StringBuilder filter = new StringBuilder("""
+            WHERE  operation NOT IN (
+              SELECT unnest(ARRAY['D','H','J']::CHAR[])
+            )
+            AND next_version = 9223372036854775807::BIGINT
+            """);
     if (refQuad != null) {
-      innerSelect.append("AND searchable->'refQuad' >= to_jsonb('")
+      filter.append(" AND searchable->'refQuad' >= to_jsonb('")
               .append(refQuad)
               .append("'::text) AND searchable->'refQuad' < to_jsonb('")
               .append(refQuad)
-              .append("4'::text)");
+              .append("4'::text) ");
     }
-
     if (globalVersions != null && !globalVersions.isEmpty()) {
-      //Maybe use "AND searchable->'globalVersion' <@ to_jsonb(ARRAY[1,2,3])" + GIN Index
       String joinedVersions = globalVersions.stream()
               .map(v -> "to_jsonb(" + v + ")")
-              .collect(Collectors.joining(","));
-      innerSelect.append(" AND (searchable->'globalVersion') IN (")
+              .collect(java.util.stream.Collectors.joining(","));
+      filter.append(" AND (searchable->'globalVersion') IN (")
               .append(joinedVersions)
-              .append(")");
+              .append(") ");
     }
 
-    innerSelect.append(" LIMIT ").append(limit);
+    // Inner selects (no LIMIT yet, apply after UNION to keep global limit semantics)
+    String inner1 = "SELECT * FROM \"" + schema + "\".\"" + extensionTable + "_head\" " + filter;
+    String inner2 = "SELECT * FROM \"" + schema + "\".\"" + baseTable + "_head\" " + filter;
+    String whereNotExistsCondition = """
+            WHERE NOT EXISTS (
+                  SELECT 1
+                  	FROM "$schema$"."$table$"
+                  WHERE id = a.id
+                    AND next_version = 9223372036854775807::BIGINT
+                    AND operation != 'D'
+                )
+            """
+            .replace("$schema$", schema)
+            .replace("$table$", extensionTable);
 
-    String selection;
+    String finalQuery;
+    if(baseTable == null) {
+      finalQuery = inner1;
+    }else {
+      // UNION ALL combined set
+      finalQuery = "(" + inner1 + ") UNION ALL (SELECT * FROM(" + inner2 + ") a " + whereNotExistsCondition + ")";
+    }
+
+    // Apply global limit if > 0
+    if (limit > 0) {
+      finalQuery = finalQuery + " LIMIT " + limit;
+    }
+
     if (returnCount) {
-      selection = "count(1) as cnt";
-    } else {
-      selection = """
-            '{ "type": "FeatureCollection", "features": [' ||
-             COALESCE(
-               string_agg(
-                 regexp_replace(
-                   regexp_replace(
-                     -- Inject version and author into namespace
-                     jsondata,
-                     '("(@ns:com:here:xyz)"\\s*:\\s*\\{)',
-                     '\\1"version":' || version || ',"author":"' || coalesce(author, 'ANONYMOUS') || '",',
-                     'g'
-                   ),
-                   -- Add geometry at root level (after first {)
-                   '^{',
-                   '{' || '"geometry":' || coalesce(ST_AsGeoJSON(geo, 8), 'null') || ',',
-                   'g'
-                 ),
-                 ','
-               ),
-               ''   --No rows found - deliver empty fc
-             )
-             || '] }' AS featureCollection
-            """;
+      // Sum counts from both tables honoring the global limit (limit applied before counting)
+      return "SELECT count(1) AS cnt FROM (" + finalQuery + ") t";
     }
 
-    return "SELECT " + selection + " FROM (" + innerSelect + ") t";
+    // FeatureCollection aggregation across unioned rows
+    String selection = """
+        '{ "type": "FeatureCollection", "features": [' ||
+         COALESCE(
+           string_agg(
+             regexp_replace(
+               regexp_replace(
+                 jsondata,
+                 '("(@ns:com:here:xyz)"\\s*:\\s*\\{)',
+                 '\\1"version":' || version || ',"author":"' || coalesce(author, 'ANONYMOUS') || '",',
+                 'g'
+               ),
+               '^{',
+               '{' || '"geometry":' || coalesce(ST_AsGeoJSON(geo, 8), 'null') || ',',
+               'g'
+             ),
+             ','
+           ),
+           ''
+         )
+         || '] }' AS featureCollection
+        """;
+
+    return "SELECT " + selection + " FROM (" + finalQuery + ") t";
   }
 
   private void batchMergeFeatures(

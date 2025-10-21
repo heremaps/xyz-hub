@@ -11,6 +11,8 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.TearDown;
 
+import java.util.List;
+
 import static com.here.xyz.benchmarks.tools.PerformanceTestHelper.SEEDING_STRATEGY;
 import static com.here.xyz.benchmarks.tools.PerformanceTestHelper.generateRandomFeatureCollection;
 import static com.here.xyz.benchmarks.tools.PerformanceTestHelper.getSpaceName;
@@ -55,7 +57,7 @@ public class WriteTests extends BaseTest{
 
     private void writeFeatureCollection(StorageConnector testConnector, FeatureCollection fc) throws Exception {
         writeFeatureCollectionIntoSpace(testConnector,
-                getSpaceName(testConnector, SPACE_ID),
+                List.of(getSpaceName(testConnector, SPACE_ID)),
                 SEEDING_STRATEGY,
                 fc
         );
@@ -64,7 +66,7 @@ public class WriteTests extends BaseTest{
     public static void main(String[] args) throws Exception {
         String[] jmhArgs = {
                 ".*WriteTests.testWritesWithNLConnector.*",
-                ".*WriteTests.testWritesWithPSQLConnector.*"
+               // ".*WriteTests.testWritesWithPSQLConnector.*"
         };
         org.openjdk.jmh.Main.main(jmhArgs);
     }

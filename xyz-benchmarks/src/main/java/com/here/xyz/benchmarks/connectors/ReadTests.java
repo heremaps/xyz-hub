@@ -42,7 +42,7 @@ public class ReadTests extends BaseTest {
 
     @Benchmark
     public void testReadByRefQuadWithNLConnector() throws Exception {
-        FeatureCollection fc = (FeatureCollection) readFeaturesByRefQuad(nlConnector,  getSpaceName(nlConnector, SPACE_ID),
+        FeatureCollection fc = (FeatureCollection) readFeaturesByRefQuad(nlConnector,  List.of(getSpaceName(nlConnector, SPACE_ID)),
                 randomChildQuadkey("1202032", 12), 30000);
         featureCollection.getFeatures().addAll(fc.getFeatures());
     }
@@ -65,7 +65,7 @@ public class ReadTests extends BaseTest {
     public void testReadByIdsWithNLConnector() throws Exception {
       //TBD
         featureCollection.getFeatures().addAll(
-                ((FeatureCollection) readFeaturesByIds(psqlConnector, getSpaceName(psqlConnector, SPACE_ID),
+                ((FeatureCollection) readFeaturesByIds(psqlConnector, List.of(getSpaceName(psqlConnector, SPACE_ID)),
                         generateRandomNumberStrings(100, 100000))).getFeatures()
         );
     }
@@ -74,7 +74,7 @@ public class ReadTests extends BaseTest {
     public void testReadByIdsWithPSQLConnector() throws Exception {
       //TBD
         featureCollection.getFeatures().addAll(
-                ((FeatureCollection) readFeaturesByIds(psqlConnector, getSpaceName(psqlConnector, SPACE_ID),
+                ((FeatureCollection) readFeaturesByIds(psqlConnector, List.of(getSpaceName(psqlConnector, SPACE_ID)),
                         List.of(""))).getFeatures()
         );
     }
@@ -90,7 +90,7 @@ public class ReadTests extends BaseTest {
 
     private List<Feature> readByTile(StorageConnector testConnector, String parentTile, int targetLevel, int limit)
             throws Exception {
-        return ((FeatureCollection) readFeaturesTile(testConnector, getSpaceName(testConnector, SPACE_ID),
+        return ((FeatureCollection) readFeaturesTile(testConnector, List.of(getSpaceName(testConnector, SPACE_ID)),
                 randomChildQuadkey(parentTile, targetLevel), limit)).getFeatures();
     }
 

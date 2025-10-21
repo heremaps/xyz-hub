@@ -3,6 +3,7 @@ package com.here.xyz.benchmarks.tools;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.Typed;
 import com.here.xyz.connectors.StorageConnector;
+import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.GetFeaturesByTileEvent;
@@ -35,6 +36,7 @@ import org.apache.logging.log4j.Logger;
 import java.util.Collections;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
@@ -61,7 +63,7 @@ public class PerformanceTestHelper {
     return modifySpace(connector, spaceName, DELETE);
   }
 
-  public static Typed writeFeatureCollectionIntoSpace(StorageConnector connector, String spaceName, UpdateStrategy updateStrategy,
+  public static Typed writeFeatureCollectionIntoSpace(StorageConnector connector, List<String> spaceNames, UpdateStrategy updateStrategy,
                                                       FeatureCollection fc)
           throws Exception {
 
@@ -70,17 +72,13 @@ public class PerformanceTestHelper {
                     new Modification()
                             .withFeatureData(fc.copy())
                             .withUpdateStrategy(updateStrategy)
-            )).withSpace(spaceName)
-            .withVersionsToKeep(100_000)
+            ))
             .withResponseDataExpected(false);
 
-    Typed xyzResponse = connector.handleEvent(writeFeaturesEvent);
-    logger.info("Response of WriteFeaturesEvent: {}", xyzResponse.serialize());
-
-    return xyzResponse;
+    return handleRequest(connector, writeFeaturesEvent, spaceNames);
   }
 
-  public static Typed deleteFeaturesFromSpace(StorageConnector connector, String spaceName, UpdateStrategy updateStrategy,
+  public static Typed deleteFeaturesFromSpace(StorageConnector connector, List<String> spaceNames, UpdateStrategy updateStrategy,
                                               List<String> featureIds)
           throws Exception {
 
@@ -89,28 +87,26 @@ public class PerformanceTestHelper {
                     new Modification()
                             .withFeatureIds(featureIds)
                             .withUpdateStrategy(new UpdateStrategy(UpdateStrategy.OnExists.DELETE, UpdateStrategy.OnNotExists.RETAIN, null, null))
-            )).withSpace(spaceName);
+            ));
 
-    Typed xyzResponse = connector.handleEvent(writeFeaturesEvent);
-    logger.info("Response of WriteFeaturesEvent: {}", xyzResponse.serialize());
-
-    return xyzResponse;
+    return handleRequest(connector, writeFeaturesEvent, spaceNames);
   }
 
-  public static Typed readFeaturesByRefQuad(StorageConnector connector, String spaceName, String refQuad, int limit)
+  public static Typed readFeaturesByRefQuad(StorageConnector connector, List<String> spaceNames, String refQuad, int limit)
           throws Exception {
 
-    return readFeaturesByRefQuad(connector, spaceName, refQuad, limit, false);
+    return readFeaturesByRefQuadAndGlobalVersions(connector, spaceNames, refQuad, null, limit, false);
   }
 
-  public static Typed readFeaturesByRefQuad(StorageConnector connector, String spaceName, String refQuad, int limit, boolean isCount)
+  public static Typed countFeaturesByRefQuad(StorageConnector connector, List<String> spaceNames, String refQuad, int limit)
           throws Exception {
-    return readFeaturesByRefQuadAndGlobalVersions(connector, spaceName, refQuad, null, limit, isCount);
+
+    return readFeaturesByRefQuadAndGlobalVersions(connector, spaceNames, refQuad, null, limit, true);
   }
 
-  public static Typed readFeaturesByGlobalVersions(StorageConnector connector, String spaceName, List<Integer> globalVersions, int limit, boolean isCount)
+  public static Typed readFeaturesByGlobalVersions(StorageConnector connector, List<String> spaceNames, List<Integer> globalVersions, int limit, boolean isCount)
           throws Exception {
-    return readFeaturesByRefQuadAndGlobalVersions(connector, spaceName, null, globalVersions, limit, isCount);
+    return readFeaturesByRefQuadAndGlobalVersions(connector, spaceNames, null, globalVersions, limit, isCount);
   }
 
   public static Typed readFeaturesByRefQuadAndGlobalVersions(StorageConnector connector, String spaceName, String refQuad,
@@ -148,46 +144,65 @@ public class PerformanceTestHelper {
     return xyzResponse;
   }
 
-  public static Typed readFeaturesTile(StorageConnector connector, String spaceName, String tid, int limit)
+  public static Typed readFeaturesByRefQuadAndGlobalVersions(StorageConnector connector, List<String> spaceNames, String refQuad,
+                                                             List<Integer> globalVersions, int limit, boolean isCount)
+          throws Exception {
+    Event searchForFeaturesEvent;
+
+    PropertiesQuery propertiesQuery = new PropertiesQuery();
+    PropertyQueryList queries = new PropertyQueryList();
+
+    if (refQuad != null)
+      queries.add(new PropertyQuery()
+              .withKey("properties.refQuad")
+              .withOperation(BEGINS_WITH)
+              .withValues(List.of(refQuad)));
+
+    if (globalVersions != null)
+      queries.add(new PropertyQuery()
+              .withKey("properties.globalVersions")
+              .withOperation(EQUALS)
+              .withValues(Collections.singletonList(globalVersions)));
+
+    propertiesQuery.add(queries);
+    searchForFeaturesEvent = new SearchForFeaturesEvent()
+            .withLimit(limit)
+            .withPropertiesQuery(propertiesQuery);
+
+    if (isCount)
+      ((SearchForFeaturesEvent) searchForFeaturesEvent).setSelection(List.of("f.refQuadCount"));
+
+    return handleRequest(connector, (ContextAwareEvent<?>) searchForFeaturesEvent, spaceNames);
+  }
+
+  public static Typed readFeaturesTile(StorageConnector connector, List<String> spaceNames, String tid, int limit)
           throws Exception {
 
     Event getFeaturesByTileEvent = new GetFeaturesByTileEvent()
             .withLimit(limit)
-            .withBbox(WebMercatorTile.forQuadkey(tid).getBBox(false))
-            .withSpace(spaceName);
+            .withBbox(WebMercatorTile.forQuadkey(tid).getBBox(false));
 
-    Typed xyzResponse = connector.handleEvent(getFeaturesByTileEvent);
-    logger.info("Response of readFeaturesTile: {}", xyzResponse.serialize());
-
-    return xyzResponse;
+    return handleRequest(connector, (ContextAwareEvent<?>) getFeaturesByTileEvent, spaceNames);
   }
 
-  public static Typed readFeaturesByBBox(StorageConnector connector, String spaceName, BBox bBox, int limit)
+  public static Typed readFeaturesByBBox(StorageConnector connector, List<String> spaceNames, BBox bBox, int limit)
           throws Exception {
 
     Event getFeaturesByTileEvent = new GetFeaturesByTileEvent()
             .withVersionsToKeep(100_000)
             .withLimit(limit)
-            .withBbox(bBox)
-            .withSpace(spaceName);
+            .withBbox(bBox);
 
-    Typed xyzResponse = connector.handleEvent(getFeaturesByTileEvent);
-    logger.info("Response of readFeaturesByBBox: {}", xyzResponse.serialize());
-
-    return xyzResponse;
+    return handleRequest(connector, (ContextAwareEvent<?>) getFeaturesByTileEvent, spaceNames);
   }
 
-  public static Typed readFeaturesByIds(StorageConnector connector, String spaceName, List<String> ids)
+  public static Typed readFeaturesByIds(StorageConnector connector, List<String> spaceNames, List<String> ids)
           throws Exception {
 
     Event getFeaturesByTileEvent = new GetFeaturesByIdEvent()
-            .withIds(ids)
-            .withSpace(spaceName);
+            .withIds(ids);
 
-    Typed xyzResponse = connector.handleEvent(getFeaturesByTileEvent);
-    logger.info("Response of readFeaturesByIds: {}", xyzResponse.serialize());
-
-    return xyzResponse;
+    return handleRequest(connector, (ContextAwareEvent<?>) getFeaturesByTileEvent, spaceNames);
   }
 
   public static Typed modifySpace(StorageConnector connector, String spaceName, Operation operation) throws Exception {
@@ -301,6 +316,20 @@ public class PerformanceTestHelper {
     }
 
     return sb.toString();
+  }
+
+  private static Typed handleRequest(StorageConnector connector, ContextAwareEvent event, List<String> spaceNames)
+          throws Exception {
+
+    //inject defaults
+    event.withVersionsToKeep(100_000);
+    event.setSpace(spaceNames.get(0));
+    if(spaceNames.size() == 2)
+      event.setParams(Map.of("extends", Map.of("spaceId", spaceNames.get(1))));
+
+    Typed xyzResponse = connector.handleEvent(event);
+    logger.info("Response of {}: {}", event.getClass().getSimpleName(), xyzResponse.serialize());
+    return xyzResponse;
   }
 
   public static String getSpaceName(StorageConnector c, String name) {
