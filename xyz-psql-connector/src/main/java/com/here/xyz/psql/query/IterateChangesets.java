@@ -20,6 +20,7 @@
 package com.here.xyz.psql.query;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.google.common.collect.Lists;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ContextAwareEvent;
@@ -38,7 +39,6 @@ import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 public class IterateChangesets extends IterateFeatures<IterateChangesetsEvent, ChangesetCollection> {
   public static long DEFAULT_LIMIT = 1_000l;
@@ -137,44 +137,46 @@ public class IterateChangesets extends IterateFeatures<IterateChangesetsEvent, C
   }
 
   protected SQLQuery buildFilterWhereClause(IterateChangesetsEvent event) {
+    SQLQuery authorsFilter = null, startTimeFilter = null, endTimeFilter = null;
 
-    List<String> authors = event.getAuthors();
+    if (event.getAuthors() != null && !event.getAuthors().isEmpty())
+      authorsFilter = new SQLQuery("author = ANY(#{authors})")
+          .withNamedParameter("authors", event.getAuthors().toArray(String[]::new));
 
-    long startTime = event.getStartTime(),
-         endTime = event.getEndTime();
+    if (event.getStartTime() > 0)
+      startTimeFilter = buildTimeFilter()
+          .withQueryFragment("versionOperator", ">=")
+          .withQueryFragment("versionFn", "min")
+          .withQueryFragment("timeOperator", ">")
+          .withQueryFragment("versionOperand", "" + MAX_BIGINT)
+          .withQueryFragment("timeOperand", "" + event.getStartTime());
 
-    String authSql      = "TRUE",
-           startTimeSql = "TRUE",
-           endTimeSql   = "TRUE",
-           timeSql =
-            """
-             version %1$s
-	           ( with ttable as ( select distinct(version) version, (jsondata#>>'{properties,@ns:com:here:xyz,updatedAt}')::bigint as ts from ${schema}.${table} )
-               select coalesce( %3$s(version), %4$s ) from ttable where ts %2$s %5$d
-	           )
-            """;
+    if (event.getEndTime() > 0)
+      endTimeFilter = buildTimeFilter()
+          .withQueryFragment("versionOperator", "<=")
+          .withQueryFragment("versionFn", "max")
+          .withQueryFragment("timeOperator", "<=")
+          .withQueryFragment("versionOperand", "0")
+          .withQueryFragment("timeOperand", "" + event.getEndTime());
 
-    if( authors != null && !authors.isEmpty() )
-     authSql = String.format("author in (%s)", authors.stream().map(author -> "'" + author + "'").collect(Collectors.joining(",")));
+    List<SQLQuery> filters = Lists.newArrayList(authorsFilter, startTimeFilter, endTimeFilter).stream()
+        .filter(q -> q != null)
+        .toList();
 
-    if( startTime > 0 )
-     startTimeSql = String.format(timeSql,">=",">","min","max_bigint()", startTime );
+    return filters.isEmpty()
+        ? super.buildFilterWhereClause(event)
+        : SQLQuery.join(filters, " AND ");
+  }
 
-    if( endTime > 0 )
-     endTimeSql = String.format(timeSql,"<=","<=","max","0", endTime );
-
-    if( "TRUE".equals(authSql) && "TRUE".equals(startTimeSql) && "TRUE".equals(endTimeSql) )
-     return
-      new SQLQuery("${{superFilterWhereClause}}")
-           .withQueryFragment("superFilterWhereClause", super.buildFilterWhereClause(event));
-    else
-     return
-      new SQLQuery("${{superFilterWhereClause}} AND ${{authorFilterClause}} AND ${{startTimeFilterClause}} AND ${{endTimeFilterClause}}")
-           .withQueryFragment("superFilterWhereClause", super.buildFilterWhereClause(event))
-           .withQueryFragment("authorFilterClause", new SQLQuery(authSql))
-           .withQueryFragment("startTimeFilterClause", new SQLQuery(startTimeSql))
-           .withQueryFragment("endTimeFilterClause", new SQLQuery(endTimeSql));
-
+  private static SQLQuery buildTimeFilter() {
+    return new SQLQuery("""
+        version ${{versionOperator}} (
+          WITH ttable AS (
+            SELECT DISTINCT(version) version, (jsondata#>>'{properties,@ns:com:here:xyz,updatedAt}')::BIGINT AS ts FROM ${schema}.${table}
+          )
+          SELECT coalesce(${{versionFn}}(version), ${{versionOperand}}::BIGINT) FROM ttable WHERE ts ${{timeOperator}} ${{timeOperand}}::BIGINT
+        )
+        """);
   }
 
   //Enhances the limit by adding one extra feature that is loaded just for the sake of finding out whether there is another page (extra feature is not part of the response)
