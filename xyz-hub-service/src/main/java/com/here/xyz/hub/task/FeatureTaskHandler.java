@@ -794,7 +794,7 @@ public class FeatureTaskHandler {
         })
         .onSuccess(tag -> callback.call(task))
         .onFailure(t -> {
-          logger.error(task.getMarker(), "Error while resolving version ref.", t);
+          logger.warn(task.getMarker(), "Unable to resolve version ref.", t);
           callback.exception(t);
         });
   }
