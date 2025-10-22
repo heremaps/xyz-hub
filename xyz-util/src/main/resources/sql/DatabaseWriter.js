@@ -344,7 +344,7 @@ class DatabaseWriter {
   }
 
   enrichTimestamps(feature, isCreation = false, baseFeature = null) {
-    let now = Date.now();
+    let now = TX_START;
     feature.properties = {
       ...feature.properties,
       [XYZ_NS]: {

@@ -43,7 +43,6 @@ import java.util.Objects;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 import org.junit.Test;
 
 public class ChangesetApiIT extends TestSpaceWithFeature {
@@ -150,6 +149,9 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
   );
   //---------------------------- Changesets --------------------------------------------
 
+  long txTimestamp3 = 0l,
+       txTimestamp5 = 0l;
+
   private void addChangesets() {
     given()
         .contentType(APPLICATION_JSON)
@@ -167,13 +169,15 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
         .then()
         .statusCode(OK.code());
 
-    given()
+    txTimestamp3 =
+     given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .body(changeset3.toString())
         .post("/spaces/" + cleanUpSpaceId + "/features")
         .then()
-        .statusCode(OK.code());
+        .statusCode(OK.code())
+        .extract().path("features[0].properties.@ns:com:here:xyz.updatedAt");
 
     given()
         .contentType(APPLICATION_JSON)
@@ -183,13 +187,15 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
         .then()
         .statusCode(OK.code());
 
-    given()
+    txTimestamp5 =
+     given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .body(changeset5.toString())
         .post("/spaces/" + cleanUpSpaceId + "/features")
         .then()
-        .statusCode(OK.code());
+        .statusCode(OK.code())
+        .extract().path("features[0].properties.@ns:com:here:xyz.updatedAt");
 
     given()
         .contentType(APPLICATION_JSON)
@@ -588,7 +594,51 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
   }
 
   @Test
-  @Ignore
+  public void getChangesetStartTimeEndTime() {
+
+    given()
+        .get( String.format("/spaces/%s/changesets?startTime=%d&endTime=%d",cleanUpSpaceId,txTimestamp3,txTimestamp5) )
+        .prettyPeek()
+        .then()
+        .statusCode(OK.code())
+            .body("startVersion", equalTo(4))
+            .body("endVersion", equalTo(5))
+            .body("versions.4.inserted.features.size()", equalTo(0))
+            .body("versions.4.updated.features.size()", equalTo(1))
+            .body("versions.4.deleted.features.size()", equalTo(0))
+            .body("versions.5.inserted.features.size()", equalTo(0))
+            .body("versions.5.updated.features.size()", equalTo(1))
+            .body("versions.5.deleted.features.size()", equalTo(0))
+            .body("nextPageToken", nullValue());
+  }
+
+  @Test
+  public void getChangesetStartTimeEndTimeAuthor() {
+    given()
+        .get( String.format("/spaces/%s/changesets?startTime=%d&endTime=%d&author=%s",cleanUpSpaceId,txTimestamp3,txTimestamp5,AUTHOR_1) )
+        .prettyPeek()
+        .then()
+        .statusCode(OK.code())
+            .body("startVersion", equalTo(4))
+            .body("endVersion", equalTo(5))
+            .body("versions.4.inserted.features.size()", equalTo(0))
+            .body("versions.4.updated.features.size()", equalTo(1))
+            .body("versions.4.deleted.features.size()", equalTo(0))
+            .body("versions.5.inserted.features.size()", equalTo(0))
+            .body("versions.5.updated.features.size()", equalTo(1))
+            .body("versions.5.deleted.features.size()", equalTo(0))
+            .body("nextPageToken", nullValue());
+  }
+
+  @Test
+  public void getChangesetStartTimeEndTimeUnknowAuthor() {
+    given()
+        .get( String.format("/spaces/%s/changesets?startTime=%d&endTime=%d&author=%s",cleanUpSpaceId,txTimestamp3,txTimestamp5,"UnknownAuthor") )
+        .then()
+        .statusCode(NOT_FOUND.code());
+  }
+
+  @Test
   public void validateSingleChangesetFilterByAuthor() {
     given()
         .get("/spaces/" + cleanUpSpaceId + "/changesets/2?author=" + AUTHOR_1)
@@ -603,7 +653,6 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
   }
 
   @Test
-  @Ignore
   public void validateSingleChangesetFilterByTimeRange() {
     Long createdAt = given()
         .get("/spaces/" + cleanUpSpaceId + "/changesets/2")
