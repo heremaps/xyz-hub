@@ -20,6 +20,7 @@
 package com.here.xyz.psql.query;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.google.common.collect.Lists;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ContextAwareEvent;
@@ -36,6 +37,7 @@ import com.here.xyz.util.db.datasource.DataSourceProvider;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class IterateChangesets extends IterateFeatures<IterateChangesetsEvent, ChangesetCollection> {
@@ -132,6 +134,49 @@ public class IterateChangesets extends IterateFeatures<IterateChangesetsEvent, C
   protected SQLQuery buildSelectClause(IterateChangesetsEvent event, int dataset, long baseVersion) {
     return new SQLQuery("${{selectClauseWithoutExtraFields}}, operation, author")
         .withQueryFragment("selectClauseWithoutExtraFields", super.buildSelectClause(event, dataset, baseVersion));
+  }
+
+  protected SQLQuery buildFilterWhereClause(IterateChangesetsEvent event) {
+    SQLQuery authorsFilter = null, startTimeFilter = null, endTimeFilter = null;
+
+    if (event.getAuthors() != null && !event.getAuthors().isEmpty())
+      authorsFilter = new SQLQuery("author = ANY(#{authors})")
+          .withNamedParameter("authors", event.getAuthors().toArray(String[]::new));
+
+    if (event.getStartTime() > 0)
+      startTimeFilter = buildTimeFilter()
+          .withQueryFragment("versionOperator", ">=")
+          .withQueryFragment("versionFn", "min")
+          .withQueryFragment("timeOperator", ">")
+          .withQueryFragment("versionOperand", "" + MAX_BIGINT)
+          .withQueryFragment("timeOperand", "" + event.getStartTime());
+
+    if (event.getEndTime() > 0)
+      endTimeFilter = buildTimeFilter()
+          .withQueryFragment("versionOperator", "<=")
+          .withQueryFragment("versionFn", "max")
+          .withQueryFragment("timeOperator", "<=")
+          .withQueryFragment("versionOperand", "0")
+          .withQueryFragment("timeOperand", "" + event.getEndTime());
+
+    List<SQLQuery> filters = Lists.newArrayList(authorsFilter, startTimeFilter, endTimeFilter).stream()
+        .filter(q -> q != null)
+        .toList();
+
+    return filters.isEmpty()
+        ? super.buildFilterWhereClause(event)
+        : SQLQuery.join(filters, " AND ");
+  }
+
+  private static SQLQuery buildTimeFilter() {
+    return new SQLQuery("""
+        version ${{versionOperator}} (
+          WITH ttable AS (
+            SELECT DISTINCT(version) version, (jsondata#>>'{properties,@ns:com:here:xyz,updatedAt}')::BIGINT AS ts FROM ${schema}.${table}
+          )
+          SELECT coalesce(${{versionFn}}(version), ${{versionOperand}}::BIGINT) FROM ttable WHERE ts ${{timeOperator}} ${{timeOperand}}::BIGINT
+        )
+        """);
   }
 
   //Enhances the limit by adding one extra feature that is loaded just for the sake of finding out whether there is another page (extra feature is not part of the response)
