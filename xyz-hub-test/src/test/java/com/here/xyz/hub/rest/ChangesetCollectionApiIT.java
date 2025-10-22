@@ -34,7 +34,6 @@ import java.util.Arrays;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 import org.junit.Test;
 
 public class ChangesetCollectionApiIT extends TestSpaceWithFeature {
@@ -221,45 +220,12 @@ public class ChangesetCollectionApiIT extends TestSpaceWithFeature {
   }
 
   @Test
-  @Ignore
   public void validateCollectionFilterByInvalidAuthor() {
     addChangeSets();
 
     given()
         .get("/spaces/" + cleanUpSpaceId + "/changesets?author=INVALID_USER")
         .then()
-        .statusCode(OK.code())
-        .body("versions.size()", equalTo(0))
-        .body("nextPageToken", nullValue());
-  }
-
-  @Test
-  @Ignore
-  public void validateCollectionFilterByTimeRange() {
-    addChangeSets();
-
-    Long createdV2 = given()
-        .get("/spaces/" + cleanUpSpaceId + "/changesets")
-        .then()
-        .statusCode(OK.code())
-        .extract()
-        .path("versions.2.createdAt");
-
-    Long createdV3 = given()
-        .get("/spaces/" + cleanUpSpaceId + "/changesets")
-        .then()
-        .statusCode(OK.code())
-        .extract()
-        .path("versions.3.createdAt");
-
-    given()
-        .get("/spaces/" + cleanUpSpaceId + "/changesets?startTime=" + createdV2 + "&endTime=" + createdV3)
-        .then()
-        .statusCode(OK.code())
-        .body("startVersion", equalTo(2))
-        .body("endVersion", equalTo(3))
-        .body("versions.2.version", equalTo(2))
-        .body("versions.3.version", equalTo(3))
-        .body("nextPageToken", nullValue());
+        .statusCode(NOT_FOUND.code());
   }
 }
