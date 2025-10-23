@@ -212,7 +212,7 @@ class DatabaseWriter {
    */
   insertHistoryRow(inputFeature, baseFeature, version, operation, author, resultHandler) {
     //TODO: Improve performance by reading geo inside JS and then pass it separately and use TEXT / WKB / BYTEA
-    this.enrichTimestamps(inputFeature, true);
+    this.enrichTimestamps(inputFeature, operation == "I" || operation == "H", baseFeature);
     let extraCols = '';
     let extraVals = '';
 
@@ -252,9 +252,6 @@ class DatabaseWriter {
       plv8.elog(NOTICE, `FW_LOG [${queryContext().queryId}] Can not write a feature that is null`);
       throw new XyzException("Can not write a feature that is null");
     }
-
-    let createdAtFromExistingFeature = (baseFeature && baseFeature.properties[XYZ_NS].createdAt)?
-      baseFeature.properties[XYZ_NS].createdAt : -1;
 
     const params = [
       inputFeature.id,
