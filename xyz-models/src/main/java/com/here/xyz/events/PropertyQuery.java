@@ -92,7 +92,8 @@ public class PropertyQuery implements XyzSerializable {
     GREATER_THAN(Set.of(">", "=gt="), ">"),
     LESS_THAN_OR_EQUALS(Set.of("<=", "=lte="), "<="),
     GREATER_THAN_OR_EQUALS(Set.of(">=", "=gte="), ">="),
-    CONTAINS(Set.of("@>", "=cs="), "@>");
+    CONTAINS(Set.of("@>", "=cs="), "@>"),
+    BEGINS_WITH(Set.of("^=", "=bw="), "^=");
 
     public final Set<String> inputRepresentations;
     public final String outputRepresentation;

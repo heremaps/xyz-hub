@@ -62,7 +62,7 @@ import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.util.ARN;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper.SystemIndex;
+import com.here.xyz.util.db.pg.IndexHelper.SystemIndex;
 import com.here.xyz.util.runtime.LambdaFunctionRuntime;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.aws.lambda.SimulatedContext;

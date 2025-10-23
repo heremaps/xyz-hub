@@ -19,214 +19,82 @@
 
 package com.here.xyz.util.db.pg;
 
-import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_DEFAULT;
 import static com.here.xyz.models.hub.Space.TABLE_NAME;
-import static com.here.xyz.util.db.pg.IndexHelper.buildCreateIndexQuery;
-import static com.here.xyz.util.db.pg.IndexHelper.buildDropIndexQuery;
+import static com.here.xyz.util.db.ConnectorParameters.TableLayout.OLD_LAYOUT;
+import static com.here.xyz.util.db.ConnectorParameters.TableLayout.NEW_LAYOUT;
+import static com.here.xyz.util.db.pg.IndexHelper.OnDemandIndex;
+import static com.here.xyz.util.db.pg.IndexHelper.buildSpaceTableIndexQueries;
+import static com.here.xyz.util.db.pg.IndexHelper.buildOnDemandIndexCreationQuery;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonSubTypes;
-import com.fasterxml.jackson.annotation.JsonTypeName;
-import com.here.xyz.Typed;
+import com.here.xyz.XyzSerializable;
+import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.util.Hasher;
+import com.here.xyz.util.db.ConnectorParameters.TableLayout;
 import com.here.xyz.util.db.SQLQuery;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
-import org.apache.commons.codec.digest.DigestUtils;
 
 public class XyzSpaceTableHelper {
 
   public static final String SCHEMA = "schema";
   public static final String TABLE = "table";
   public static final String HEAD_TABLE_SUFFIX = "_head";
+  public static final String SEARCHABLE_COLUMN = "searchable";
+  public static final String REF_QUAD_PROPERTY = "refQuad";
+  public static final String GLOBAL_VERSION_PROPERTY = "globalVersion";
+  public static final long HEAD_TABLE_PARTION_COUNT = 10;
   public static final long PARTITION_SIZE = 100_000;
 
-  @JsonInclude(NON_DEFAULT)
-  @JsonIgnoreProperties(ignoreUnknown = true)
-  @JsonSubTypes({
-      @JsonSubTypes.Type(value = SystemIndex.class, name = "SystemIndex"),
-      @JsonSubTypes.Type(value = OnDemandIndex.class, name = "OnDemandIndex")
-  })
-  public interface Index extends Typed {
-    String idxPrefix = "idx_";
-    String getIndexName(String tableName);
-    String getIndexName();
+  public static List<SQLQuery> buildCreateSpaceTableQueriesForTests(String schema, String table) {
+    //In test`s we spaceId is always the same as table name
+    return buildCreateSpaceTableQueries(schema, table, List.of(), table, OLD_LAYOUT);
+  }
+  public static List<SQLQuery> buildCreateSpaceTableQueries(String schema, String table, String spaceId) {
+    return buildCreateSpaceTableQueries(schema, table, List.of(), spaceId, OLD_LAYOUT);
   }
 
-  @JsonTypeName("SystemIndex")
-  public enum SystemIndex implements Index {
-    GEO,
-    VERSION_ID,
-    NEXT_VERSION,
-    OPERATION,
-    SERIAL,
-    VIZ,
-    AUTHOR;
-
-    String indexName;
-
-    public String getIndexName() {
-      return indexName;
-    }
-
-    @Override
-    public String getIndexName(String tableName) {
-      return switch (this) {
-        case SERIAL, VIZ -> idxPrefix + tableName +  "_" + name().toLowerCase();
-        case NEXT_VERSION -> idxPrefix + tableName +  "_nextversion";
-        case VERSION_ID -> idxPrefix + tableName +  "_versionid";
-        default -> idxPrefix + tableName + "_" + getIndexContent().get(0);
-      };
-    }
-
-    public String getIndexType() {
-      return switch (this) {
-        case GEO -> "GIST";
-        case VERSION_ID, NEXT_VERSION, OPERATION, SERIAL, VIZ, AUTHOR -> "BTREE";
-      };
-    }
-
-    public List<String> getIndexContent() {
-      return switch (this) {
-        case GEO -> List.of("geo");
-        case VERSION_ID -> List.of("version", "id");
-        case NEXT_VERSION -> List.of("next_version");
-        case OPERATION -> List.of("operation");
-        case SERIAL -> List.of("i");
-        case VIZ -> List.of("(left(md5('' || i), 5))");
-        case AUTHOR -> List.of("author");
-      };
-    }
-
-    public static SystemIndex fromString(String name) {
-      if (name == null) return null;
-      return switch (name.toLowerCase()) {
-        case "geo" -> GEO;
-        case "versionid" -> VERSION_ID;
-        case "nextversion" -> NEXT_VERSION;
-        case "operation" -> OPERATION;
-        case "serial" -> SERIAL;
-        case "viz" -> VIZ;
-        case "author" -> AUTHOR;
-        default -> null;
-      };
-    }
+  public static List<SQLQuery> buildCreateSpaceTableQueries(String schema, String table, String spaceId, TableLayout layout) {
+    return buildCreateSpaceTableQueries(schema, table, List.of(), spaceId, layout);
   }
 
-  @JsonTypeName("OnDemandIndex")
-  public static class OnDemandIndex implements Index {
-    private String indexName;
-    private String propertyPath;
-
-    public OnDemandIndex() { }
-
-    public OnDemandIndex(String indexName) {
-        this.indexName = indexName;
-    }
-
-    public String getIndexName() {
-      return indexName;
-    }
-
-    public OnDemandIndex withIndexName(String indexName) {
-      this.indexName = indexName;
-      return this;
-    }
-
-    public void setPropertyPath(String propertyPath) {
-      this.propertyPath = propertyPath;
-    }
-
-    public String getPropertyPath() {
-      return propertyPath;
-    }
-
-    public OnDemandIndex withPropertyPath(String propertyPath) {
-      setPropertyPath(propertyPath);
-      return this;
-    }
-
-    @Override
-    public String getIndexName(String tableName) {
-      // Take the first 8 characters of md5 hash of the property path
-      String shortMd5 = DigestUtils.md5Hex(propertyPath).substring(0, 7);
-
-      return idxPrefix + tableName + "_" + shortMd5 + "_m";
-    }
-  }
-
-  public static SQLQuery buildSpaceTableIndexQuery(String schema, String table, Index index) {
-    return buildCreateIndexQuery(schema, table, ((SystemIndex)index).getIndexContent(), ((SystemIndex)index).getIndexType(), index.getIndexName(table));
-  }
-
-  /**
-   * @deprecated Please use only method {@link #buildSpaceTableIndexQueries(String, String)} instead.
-   * @param schema
-   * @param table
-   * @param queryComment
-   * @return
-   */
-  @Deprecated
-  public static List<SQLQuery> buildSpaceTableIndexQueries(String schema, String table, SQLQuery queryComment) {
-    return buildSpaceTableIndexQueries(schema, table)
-        .stream()
-        .map(q -> addQueryComment(q, queryComment))
-        .toList();
-  }
-
-  /**
-   * @deprecated Please use labels instead. See: {@link SQLQuery#withLabel(String, String)}
-   * @param sourceQuery
-   * @param queryComment
-   * @return
-   */
-  @Deprecated
-  private static SQLQuery addQueryComment(SQLQuery sourceQuery, SQLQuery queryComment) {
-    return queryComment != null ? sourceQuery.withQueryFragment("queryComment", queryComment) : sourceQuery;
-  }
-
-  public static SQLQuery buildLoadSpaceTableIndicesQuery(String schema, String table) {
-    return new SQLQuery("SELECT * FROM xyz_index_list_all_available(#{schema}, #{table});")
-        .withNamedParameter("schema", schema)
-        .withNamedParameter("table", table);
-  }
-
-  public static List<SQLQuery> buildSpaceTableDropIndexQueries(String schema, List<String> indices) {
-    return indices.stream()
-        .map(index -> buildDropIndexQuery(schema, index))
-        .collect(Collectors.toList());
-  }
-
-  public static List<SQLQuery> buildCreateSpaceTableQueries(String schema, String table) {
-    return buildCreateSpaceTableQueries(schema, table, List.of());
-  }
-
-  public static List<SQLQuery> buildCreateSpaceTableQueries(String schema, String table, List<OnDemandIndex> onDemandIndices) {
-    return buildCreateSpaceTableQueries(schema, table, true, onDemandIndices);
+  public static List<SQLQuery> buildCreateSpaceTableQueries(String schema, String table, List<OnDemandIndex> onDemandIndices,
+      String spaceId, TableLayout layout) {
+    return buildCreateSpaceTableQueries(schema, table, true, onDemandIndices, spaceId, layout);
   }
 
   //TODO: Check from where to get the on-demand index info in case of branch creations (see onDemandIndices param below)
-  public static List<SQLQuery> buildCreateBranchTableQueries(String schema, String table) {
-    return buildCreateSpaceTableQueries(schema, table, false, List.of());
+  public static List<SQLQuery> buildCreateBranchTableQueries(String schema, String table, String spaceId) {
+    return buildCreateSpaceTableQueries(schema, table, false, List.of(), spaceId);
   }
 
-  private static List<SQLQuery> buildCreateSpaceTableQueries(String schema, String table, boolean isMainTable, List<OnDemandIndex> onDemandIndices) {
-    List<SQLQuery> queries = new ArrayList<>();
+  public static List<SQLQuery> buildCreateSpaceTableQueries(String schema, String table, boolean isMainTable,  List<OnDemandIndex> onDemandIndices,
+                                                            String spaceId) {
+    return buildCreateSpaceTableQueries(schema, table, isMainTable, onDemandIndices, spaceId, OLD_LAYOUT);
+  }
 
+  public static List<SQLQuery> buildCreateSpaceTableQueries(String schema, String table, boolean isMainTable,  List<OnDemandIndex> onDemandIndices,
+                                                            String spaceId, TableLayout layout) {
+    if (layout != TableLayout.OLD_LAYOUT && layout != TableLayout.NEW_LAYOUT) {
+      throw new IllegalArgumentException("Unsupported Table Layout: " + layout);
+    }
+
+    List<SQLQuery> queries = new ArrayList<>();
     queries.add(createConnectorSchema(schema));
-    queries.add(buildCreateSpaceTableQuery(schema, table));
-    queries.add(buildColumnStorageAttributesQuery(schema, table));
-    queries.addAll(buildSpaceTableIndexQueries(schema, table));
-    queries.add(buildCreateHeadPartitionQuery(schema, table));
-    queries.add(buildCreateHistoryPartitionQuery(schema, table, 0L));
-    queries.add(buildCreateSequenceQuery(schema, table, "version"));
+    queries.add(buildCreateSpaceTableQuery(schema, table, layout));
+    queries.add(buildAddTableCommentQuery(schema, table, new TableComment(spaceId, layout)));
+    queries.add(buildColumnStorageAttributesQuery(schema, table, layout));
+    queries.addAll(buildSpaceTableIndexQueries(schema, table, layout));
+    queries.addAll(buildCreateHeadPartitionQuery(schema, table, layout));
+    queries.add(buildCreateHistoryPartitionQuery(schema, table, 0L, true));
+    queries.add(buildCreateSequenceQuery(schema, table, "version", layout));
     if(onDemandIndices != null && !onDemandIndices.isEmpty()) {
-      for(OnDemandIndex onDemandIndex : onDemandIndices)
-        queries.add(IndexHelper.buildOnDemandIndexCreationQuery(schema, table, onDemandIndex.getPropertyPath(), false));
+        for (OnDemandIndex onDemandIndex : onDemandIndices)
+            queries.add(buildOnDemandIndexCreationQuery(schema, table, onDemandIndex.getPropertyPath(), false));
+    }
+    if(layout == NEW_LAYOUT) {
+      queries.add(buildOnDemandIndexCreationQuery(schema, table, REF_QUAD_PROPERTY, SEARCHABLE_COLUMN ,false));
+      queries.add(buildOnDemandIndexCreationQuery(schema, table, GLOBAL_VERSION_PROPERTY, SEARCHABLE_COLUMN , false));
     }
     if (isMainTable)
       queries.add(buildCreateBranchSequenceQuery(schema, table));
@@ -234,79 +102,123 @@ public class XyzSpaceTableHelper {
     return queries;
   }
 
-  public static List<SQLQuery> buildSpaceTableIndexQueries(String schema, String table) {
-    return Arrays.asList(SystemIndex.values()).stream()
-        .map(index -> buildCreateIndexQuery(schema, table, index.getIndexContent(), index.getIndexType(), index.getIndexName(table)))
-        .toList();
+  public static SQLQuery buildColumnStorageAttributesQuery(String schema, String tableName, TableLayout layout) {
+    //Not needed for V2 layout
+    if(layout == TableLayout.OLD_LAYOUT) {
+      return new SQLQuery("ALTER TABLE ${schema}.${table} "
+              + "ALTER COLUMN id SET STORAGE MAIN, "
+              + "ALTER COLUMN jsondata SET STORAGE MAIN, "
+              + "ALTER COLUMN geo SET STORAGE MAIN, "
+              + "ALTER COLUMN operation SET STORAGE PLAIN, "
+              + "ALTER COLUMN next_version SET STORAGE PLAIN, "
+              + "ALTER COLUMN version SET STORAGE PLAIN, "
+              + "ALTER COLUMN i SET STORAGE PLAIN, "
+              + "ALTER COLUMN author SET STORAGE MAIN, "
+
+              + "ALTER COLUMN id SET COMPRESSION lz4, "
+              + "ALTER COLUMN jsondata SET COMPRESSION lz4, "
+              + "ALTER COLUMN geo SET COMPRESSION lz4, "
+              + "ALTER COLUMN author SET COMPRESSION lz4;")
+              .withVariable(SCHEMA, schema)
+              .withVariable(TABLE, tableName);
+    }else if(layout == TableLayout.NEW_LAYOUT) {
+      //Not needed for V2 layout
+      return new SQLQuery("");
+    }
+    throw new IllegalArgumentException("Unsupported Table Layout: " + layout);
   }
 
-  public static SQLQuery buildColumnStorageAttributesQuery(String schema, String tableName) {
-    //TODO: Move the following settings into the table creation query, after switching to PG17
-    return new SQLQuery("ALTER TABLE ${schema}.${table} "
-        + "ALTER COLUMN id SET STORAGE MAIN, "
-        + "ALTER COLUMN jsondata SET STORAGE MAIN, "
-        + "ALTER COLUMN geo SET STORAGE MAIN, "
-        + "ALTER COLUMN operation SET STORAGE PLAIN, "
-        + "ALTER COLUMN next_version SET STORAGE PLAIN, "
-        + "ALTER COLUMN version SET STORAGE PLAIN, "
-        + "ALTER COLUMN i SET STORAGE PLAIN, "
-        + "ALTER COLUMN author SET STORAGE MAIN, "
+  public static List<SQLQuery>  buildCreateHeadPartitionQuery(String schema, String rootTable, TableLayout layout) {
+    if(layout == TableLayout.OLD_LAYOUT)
+      return List.of(new SQLQuery("CREATE TABLE IF NOT EXISTS ${schema}.${partitionTable} "
+              + "PARTITION OF ${schema}.${rootTable} FOR VALUES FROM (max_bigint()) TO (MAXVALUE)")
+              .withVariable(SCHEMA, schema)
+              .withVariable("rootTable", rootTable)
+              .withVariable("partitionTable", rootTable + HEAD_TABLE_SUFFIX));
+    else if (layout == TableLayout.NEW_LAYOUT) {
+      SQLQuery headTableCreation = new SQLQuery("""
+              CREATE TABLE IF NOT EXISTS ${schema}.${partitionTable}
+                PARTITION OF ${schema}.${rootTable} FOR VALUES FROM (max_bigint()) TO (MAXVALUE)
+                PARTITION BY HASH (id);
+              """)
+              .withVariable(SCHEMA, schema)
+              .withVariable("rootTable", rootTable)
+              .withVariable("partitionTable", rootTable + HEAD_TABLE_SUFFIX);
 
-        + "ALTER COLUMN id SET COMPRESSION lz4, "
-        + "ALTER COLUMN jsondata SET COMPRESSION lz4, "
-        + "ALTER COLUMN geo SET COMPRESSION lz4, "
-        + "ALTER COLUMN author SET COMPRESSION lz4;")
-        .withVariable(SCHEMA, schema)
-        .withVariable(TABLE, tableName);
+      SQLQuery headTablePartitionCreations = new SQLQuery("""
+              DO $$
+              BEGIN
+                FOR i IN 0..$partitionCountLoop$ LOOP
+                  EXECUTE format('
+                    CREATE TABLE IF NOT EXISTS $schema$."$headTable$_p%s"
+                      PARTITION OF $schema$."$headTable$"
+                      FOR VALUES WITH (MODULUS $partitionCount$, REMAINDER %s);', i, i);
+                END LOOP;
+              END $$;
+              """
+              .replace("$partitionCountLoop$", Long.toString(HEAD_TABLE_PARTION_COUNT - 1))
+              .replace("$schema$",schema)
+              .replace("$headTable$",rootTable + HEAD_TABLE_SUFFIX)
+              .replace("$partitionCount$",Long.toString(HEAD_TABLE_PARTION_COUNT))
+      );
+      return List.of(
+              headTableCreation,
+              headTablePartitionCreations
+      );
+    }
+    throw new IllegalArgumentException("Unsupported Table Layout: " + layout);
   }
-
-  public static SQLQuery buildCreateHeadPartitionQuery(String schema, String rootTable) {
-    return new SQLQuery("CREATE TABLE IF NOT EXISTS ${schema}.${partitionTable} "
-        + "PARTITION OF ${schema}.${rootTable} FOR VALUES FROM (max_bigint()) TO (MAXVALUE)")
-        .withVariable(SCHEMA, schema)
-        .withVariable("rootTable", rootTable)
-        .withVariable("partitionTable", rootTable + HEAD_TABLE_SUFFIX);
-  }
-
 
   public static SQLQuery buildCreateHistoryPartitionQuery(String schema, String rootTable, long partitionNo, boolean useSelect) {
-    return new SQLQuery(
-        (useSelect ? "SELECT" : "PERFORM") + " xyz_create_history_partition('" + schema + "', '" + rootTable + "', " + partitionNo + ", " + PARTITION_SIZE + ")");
-  }
-
-  public static SQLQuery buildCreateHistoryPartitionQuery(String schema, String rootTable, long partitionNo) {
-    return buildCreateHistoryPartitionQuery( schema, rootTable, partitionNo, true);
+    return new SQLQuery((useSelect ? "SELECT" : "PERFORM") + " xyz_create_history_partition('" + schema + "', '" + rootTable + "', " + partitionNo + ", " + PARTITION_SIZE + ")");
   }
 
   public static SQLQuery createConnectorSchema(String schema) {
-    return new SQLQuery("CREATE SCHEMA IF NOT EXISTS ${schema}")
-            .withVariable(SCHEMA, schema);
+        return new SQLQuery("CREATE SCHEMA IF NOT EXISTS ${schema}")
+                .withVariable(SCHEMA, schema);
   }
 
-  private static SQLQuery buildCreateSpaceTableQuery(String schema, String table) {
-    String tableFields = "id TEXT NOT NULL, "
-        + "version BIGINT NOT NULL, "
-        + "next_version BIGINT NOT NULL DEFAULT 9223372036854775807::BIGINT, "
-        + "operation CHAR NOT NULL, "
-        + "author TEXT, "
-        + "jsondata JSONB, "
-        + "geo geometry(GeometryZ, 4326), "
-        + "i BIGSERIAL, "
-        + "CONSTRAINT ${uniqueConstraintName} UNIQUE (id, next_version), "
-        + "CONSTRAINT ${primKeyConstraintName} PRIMARY KEY (id, version, next_version)";
+  private static SQLQuery buildCreateSpaceTableQuery(String schema, String table, TableLayout layout) {
+    String tableFields = null;
 
-    SQLQuery createTable = new SQLQuery(
+    if(layout == OLD_LAYOUT) {
+       tableFields = "id TEXT NOT NULL, "
+              + "version BIGINT NOT NULL, "
+              + "next_version BIGINT NOT NULL DEFAULT 9223372036854775807::BIGINT, "
+              + "operation CHAR NOT NULL, "
+              + "author TEXT, "
+              + "jsondata JSONB, "
+              + "geo geometry(GeometryZ, 4326), "
+              + "i BIGSERIAL, "
+              + "CONSTRAINT ${uniqueConstraintName} UNIQUE (id, next_version), "
+              + "CONSTRAINT ${primKeyConstraintName} PRIMARY KEY (id, version, next_version)";
+    } else if (layout == NEW_LAYOUT) {
+      tableFields = "id TEXT STORAGE MAIN COMPRESSION lz4 NOT NULL, "
+              + "version BIGINT STORAGE PLAIN NOT NULL, "
+              + "next_version BIGINT STORAGE PLAIN NOT NULL DEFAULT 9223372036854775807::BIGINT, "
+              + "operation CHAR STORAGE PLAIN NOT NULL, "
+              + "author TEXT STORAGE MAIN COMPRESSION lz4, "
+              + "jsondata TEXT STORAGE MAIN COMPRESSION lz4 , "
+              + "geo geometry(GeometryZ, 4326) STORAGE MAIN COMPRESSION lz4, "
+              + "searchable JSONB STORAGE MAIN COMPRESSION lz4,"
+              + "i BIGSERIAL, "
+//              + "CONSTRAINT ${uniqueConstraintName} UNIQUE (id, next_version), "
+              + "CONSTRAINT ${primKeyConstraintName} PRIMARY KEY (id, version, next_version)";
+    }
+
+    return new SQLQuery(
         "CREATE TABLE IF NOT EXISTS ${schema}.${table} (${{tableFields}}) PARTITION BY RANGE (next_version)")
         .withQueryFragment("tableFields", tableFields)
         .withVariable(SCHEMA, schema)
         .withVariable(TABLE, table)
         .withVariable("uniqueConstraintName", table + "_unique")
         .withVariable("primKeyConstraintName", table + "_primKey");
-    return createTable;
   }
 
-  public static SQLQuery buildCreateSequenceQuery(String schema, String table, String columnName) {
-    return buildCreateSequenceQuery(schema, table, columnName, columnName, 1);
+  public static SQLQuery buildCreateSequenceQuery(String schema, String table, String columnName, TableLayout layout) {
+    if(layout == TableLayout.OLD_LAYOUT || layout == TableLayout.NEW_LAYOUT)
+      return buildCreateSequenceQuery(schema, table, columnName, columnName, 1);
+    throw new IllegalArgumentException("Unsupported Table Layout: " + layout);
   }
 
   public static SQLQuery buildCreateBranchSequenceQuery(String schema, String table) {
@@ -319,10 +231,10 @@ public class XyzSpaceTableHelper {
 
   public static SQLQuery buildCreateSequenceQuery(String schema, String table, String sequenceName, String ownedByColumn, int startValue) {
       return new SQLQuery("CREATE SEQUENCE IF NOT EXISTS ${schema}.${sequence} MINVALUE #{startValue} OWNED BY ${schema}.${table}.${columnName}")
-        .withVariable(SCHEMA, schema)
-        .withVariable(TABLE, table)
-        .withVariable("sequence", sequenceName(table, sequenceName))
-        .withVariable("columnName", ownedByColumn)
+              .withVariable(SCHEMA, schema)
+              .withVariable(TABLE, table)
+              .withVariable("sequence", sequenceName(table, sequenceName))
+              .withVariable("columnName", ownedByColumn)
           .withNamedParameter("startValue", startValue);
   }
 
@@ -341,5 +253,66 @@ public class XyzSpaceTableHelper {
     }
 
     return getTableNameForSpaceId(spaceId, hashed);
+  }
+
+  public static SQLQuery buildAddTableCommentQuery(String schema, String table, TableComment tableComment) {
+    return new SQLQuery("COMMENT ON TABLE ${schema}.${table} IS '${{tableComment}}'")
+            .withVariable(SCHEMA, schema)
+            .withVariable(TABLE, table)
+            .withQueryFragment("tableComment", XyzSerializable.serialize(tableComment));
+  }
+
+  public static SQLQuery buildReadTableCommentQuery(String schema, String table) {
+    return new SQLQuery("SELECT comment::JSON from obj_description( '${schema}.${table}'::regclass ) as comment;")
+            .withVariable(SCHEMA, schema)
+            .withVariable(TABLE, table);
+  }
+
+  public static List<SQLQuery>  buildCleanUpQuery(ModifySpaceEvent event, String schema, String table, String versionSequenceSuffix, TableLayout layout) {
+    List<SQLQuery> queries = new ArrayList<>();
+
+    SQLQuery dropTableQuery = new SQLQuery("DROP TABLE IF EXISTS ${schema}.${table} ") //TODO: Why not use CASCADE
+            .withVariable(SCHEMA, schema)
+            .withVariable(TABLE, table);
+    SQLQuery dropVersionSequenceQuery = new SQLQuery("DROP SEQUENCE IF EXISTS ${schema}.${versionSequence};")
+            .withVariable("versionSequence", table + versionSequenceSuffix)
+            .withVariable(SCHEMA, schema);
+
+    if(layout == TableLayout.OLD_LAYOUT) {
+      //MMSUP-1092  tmp workaroung on db9 - skip deletion from spaceMetaTable
+      //TODO: remove spaceMetaTable from overall code
+      String storageID = event.getSpaceDefinition() != null && event.getSpaceDefinition().getStorage() != null
+                      ? event.getSpaceDefinition().getStorage().getId()
+                      : "no-connector-info-available";
+      //Remove also event as parameter and cleanUp deleteSpaceMetaEntry
+      //MMSUP-1092
+
+      // Gets removed
+      SQLQuery deleteSpaceMetaEntry = "psql-db9-eu-west-1".equals(storageID) ? new SQLQuery("") :
+              new SQLQuery("DELETE FROM xyz_config.space_meta WHERE h_id = #{table} AND schem = #{schema};")
+              .withNamedParameter(SCHEMA, schema)
+              .withNamedParameter(TABLE, table);
+
+      SQLQuery dropISequenceQuery = new SQLQuery("DROP SEQUENCE IF EXISTS ${schema}.${iSequence};")
+              .withVariable("iSequence", table + "_i_seq") //Assuming iSequence suffix is "_i_seq"
+              .withVariable(SCHEMA, schema);
+
+      // Gets removed
+      queries.add(deleteSpaceMetaEntry);
+      // Gets removed
+      queries.add(dropTableQuery);
+      queries.add(dropISequenceQuery);
+      queries.add(dropVersionSequenceQuery);
+      return queries;
+    }else if(layout == TableLayout.NEW_LAYOUT) {
+      queries.add(dropTableQuery);
+      queries.add(dropVersionSequenceQuery);
+      return queries;
+    }
+
+    throw new IllegalArgumentException("Unsupported Table Layout: " + layout);
+  }
+
+  public record TableComment(String spaceId, TableLayout tableLayout) implements XyzSerializable{
   }
 }
