@@ -21,6 +21,7 @@ const MAX_BIG_INT = "9223372036854775807"; //NOTE: Must be a string because of J
 const XYZ_NS = "@ns:com:here:xyz";
 const FW_BATCH_MODE = () => !!queryContext().batchMode; //true;
 const IDENTITY_HANDLER = r => r;
+const TX_START = Date.now();
 
 /**
  * The unified implementation of the database-based feature writer.
