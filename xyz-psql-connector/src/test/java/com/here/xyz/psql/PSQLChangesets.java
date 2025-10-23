@@ -130,37 +130,4 @@ public class PSQLChangesets extends PSQLAbstractIT {
     assertEquals(eEndVer, changesetCollection.getEndVersion() );
   }
 
-/*
-  @Test
-  public void doIterateChangesets() throws Exception {
-
-    long startTime = StartTime, endTime = EndTime;
-    String author = LookUpAuthor;
-    int eSize = 2, eStartVer = 6, eEndVer = 8;
-
-    IterateChangesetsEvent ice =
-     new IterateChangesetsEvent()
-            .withStreamId("iterateByTimeRange")
-            .withSpace(SPACE_ID)
-            .withLimit(50)
-            .withRef( new Ref(new Ref(0), new Ref(Ref.HEAD) ) );
-
-    if( startTime > 0 )
-     ice.setStartTime(startTime);
-
-    if( endTime > 0 )
-     ice.setEndTime(endTime);
-
-    if( author != null && !author.isEmpty())
-     ice.setAuthors(List.of(author,"NonExistingAuthor"));
-
-    String response = invokeLambda(ice);
-    ChangesetCollection changesetCollection =  deserializeResponse(response);
-
-    assertEquals(eSize, changesetCollection.getVersions().size() );
-    assertEquals(eStartVer, changesetCollection.getStartVersion() );
-    assertEquals(eEndVer, changesetCollection.getEndVersion() );
-  }
-*/
-
 }
