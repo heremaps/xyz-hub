@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class Connector {
@@ -73,6 +74,11 @@ public class Connector {
    */
   public String owner;
   public Map<String, Set<String>> allowedEventTypes;
+
+  /**
+   * A regular expression that matches all mimetypes for which no compression should be applied in the response phase.
+   */
+  public Pattern blockMimetypeCompression = null;
 
   @JsonIgnoreProperties(ignoreUnknown = true)
   public static class StorageCapabilities {
@@ -129,6 +135,8 @@ public class Connector {
      * Whether the storage connector supports the extends feature which allow spaces to extend content from another.
      */
     public boolean extensionSupport;
+
+    public boolean binaryTiles;
 
     @Override
     public boolean equals(Object o) {

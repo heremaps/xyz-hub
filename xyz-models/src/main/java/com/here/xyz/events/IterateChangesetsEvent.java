@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,72 +20,52 @@
 package com.here.xyz.events;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonTypeName;
+import java.util.List;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "IterateChangesetsEvent")
-public final class IterateChangesetsEvent extends SearchForFeaturesEvent<IterateChangesetsEvent> {
-  private String pageToken;
-  @JsonInclude(JsonInclude.Include.NON_DEFAULT)
-  private long startVersion;
-  @JsonInclude(JsonInclude.Include.NON_DEFAULT)
-  private long endVersion = -1;
+public final class IterateChangesetsEvent extends IterateFeaturesEvent<IterateChangesetsEvent> {
+  private List<String> authors;
+  private long startTime;
+  private long endTime;
 
-  private int versionsToKeep;
-
-  public long getStartVersion() {
-    return startVersion;
+  public List<String> getAuthors() {
+    return authors;
   }
 
-  public void setStartVersion(long startVersion) {
-    this.startVersion = startVersion;
+  public void setAuthors(List<String> authors) {
+    this.authors = authors;
   }
 
-  public IterateChangesetsEvent withStartVersion(long startVersion) {
-    setStartVersion(startVersion);
+  public IterateChangesetsEvent withAuthors(List<String> authors) {
+    setAuthors(authors);
     return this;
   }
 
-  public long getEndVersion() {
-    return endVersion;
+  public long getStartTime() {
+    return startTime;
   }
 
-  public void setEndVersion(long endVersion) {
-    this.endVersion = endVersion;
+  public void setStartTime(long startTime) {
+    this.startTime = startTime;
   }
 
-  public IterateChangesetsEvent withEndVersion(long endVersion) {
-    setEndVersion(endVersion);
+  public IterateChangesetsEvent withStartTime(long startTime) {
+    setStartTime(startTime);
     return this;
   }
 
-  @SuppressWarnings("unused")
-  public String getPageToken() {
-    return pageToken;
+  public long getEndTime() {
+    return endTime;
   }
 
-  @SuppressWarnings("WeakerAccess")
-  public void setPageToken(String pageToken) {
-    this.pageToken = pageToken;
+  public void setEndTime(long endTime) {
+    this.endTime = endTime;
   }
 
-  @SuppressWarnings("unused")
-  public IterateChangesetsEvent withPageToken(String pageToken) {
-    setPageToken(pageToken);
-    return this;
-  }
-
-  public int getVersionsToKeep() {
-    return versionsToKeep;
-  }
-
-  public void setVersionsToKeep(int versionsToKeep) {
-    this.versionsToKeep = versionsToKeep;
-  }
-
-  public IterateChangesetsEvent withVersionsToKeep(int setVersionsToKeep) {
-    setVersionsToKeep(versionsToKeep);
+  public IterateChangesetsEvent withEndTime(long endTime) {
+    setEndTime(endTime);
     return this;
   }
 }

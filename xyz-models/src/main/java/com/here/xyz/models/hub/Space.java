@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.XyzSerializable.Public;
 import com.here.xyz.XyzSerializable.Static;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -155,7 +156,7 @@ public class Space {
    * This value will increase depending on the value having been defined for {@link #versionsToKeep}.
    */
   @JsonView({Internal.class, Static.class})
-  private long minVersion = 1;
+  private long minVersion = 0;
 
   /**
    * If false, auto-indexing gets disabled
@@ -233,6 +234,18 @@ public class Space {
   @JsonInclude(value = Include.CUSTOM, valueFilter = IncludeFalse.class)
   @JsonView({Internal.class, Static.class})
   private boolean active = true;
+  /**
+   * Indicates the last time the content of a space was updated.
+   */
+  @JsonInclude(Include.NON_DEFAULT)
+  @JsonView({Public.class, Static.class})
+  private long contentUpdatedAt = 0;
+
+  @JsonView({Public.class, Static.class})
+  private String mimeType;
+
+  @JsonIgnore
+  private Map<String, Branch> branches = Collections.emptyMap();
 
   public String getId() {
     return id;
@@ -573,6 +586,47 @@ public class Space {
     return this;
   }
 
+  public Map<String, Branch> getBranches() {
+    return branches;
+  }
+
+  public void setBranches(Map<String, Branch> branches) {
+    this.branches = branches;
+  }
+
+  public Space withBranches(Map<String, Branch> branches) {
+    setBranches(branches);
+    return this;
+  }
+
+  public long getContentUpdatedAt() {
+    if (contentUpdatedAt == 0)
+      contentUpdatedAt = getCreatedAt();
+    return contentUpdatedAt;
+  }
+
+  public void setContentUpdatedAt(long contentUpdatedAt) {
+    this.contentUpdatedAt = contentUpdatedAt;
+  }
+
+  public Space withContentUpdatedAt(long contentUpdatedAt) {
+    setContentUpdatedAt(contentUpdatedAt);
+    return this;
+  }
+
+  public String getMimeType() {
+    return mimeType;
+  }
+
+  public void setMimeType(String mimeType) {
+    this.mimeType = mimeType;
+  }
+
+  public Space withMimeType(String mimeType) {
+    setMimeType(mimeType);
+    return this;
+  }
+
   /**
    * Used as a JsonView on a {@link Space} to indicate that a property should be part of a response which was requested to contain
    * connector information.
@@ -720,6 +774,23 @@ public class Space {
       setAlt(alt);
       return this;
     }
+  }
+
+  public Map<String, Object> resolveCompositeParams(Space extendedSpace) {
+    if (getExtension() == null)
+      return Collections.emptyMap();
+    //Storage params are taken from the input and then resolved based on the extensions
+    final Map<String, Object> extendsMap = getExtension().toMap();
+
+    //TODO: Remove this once Job-API was fixed to configure that on job-level
+    if (extendedSpace != null && extendedSpace.isReadOnly())
+      extendsMap.put("readOnly", true);
+
+    //Check if the extended space itself is extending some other space (2-level extension)
+    if (extendedSpace != null && extendedSpace.getExtension() != null)
+      //Get the extension definition from the extended space and add it to this one additionally
+      extendsMap.put("extends", extendedSpace.getExtension().toMap());
+    return Collections.singletonMap("extends", extendsMap);
   }
 
   public static class License {

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,11 +19,16 @@
 
 package com.here.xyz.hub.config;
 
+import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
+import static org.apache.logging.log4j.Level.ERROR;
+import static org.apache.logging.log4j.Level.INFO;
+
 import com.google.common.util.concurrent.Monitor;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.admin.messages.RelayedMessage;
 import com.here.xyz.util.di.ImplementationProvider;
+import com.here.xyz.util.service.HttpException;
 import com.here.xyz.util.service.Initializable;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
@@ -37,9 +42,11 @@ import java.util.concurrent.TimeUnit;
 import net.jodah.expiringmap.ExpirationPolicy;
 import net.jodah.expiringmap.ExpiringMap;
 import org.apache.commons.lang3.RandomStringUtils;
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
+
 
 public abstract class SpaceConfigClient implements Initializable {
 
@@ -144,7 +151,10 @@ public abstract class SpaceConfigClient implements Initializable {
           invalidateCache(spaceId);
           logger.info(marker, "space[{}]: Deleted space", spaceId);
         })
-        .onFailure(t -> logger.error(marker, "space[{}]: Failed deleting the space", spaceId, t));
+        .onFailure(t -> {
+          Level logLevel = t instanceof HttpException httpException && httpException.status == NOT_FOUND ? INFO : ERROR;
+          logger.log(logLevel, marker, "space[{}]: Failed deleting the space", spaceId, t);
+      });
   }
 
   public Future<List<Space>> getSelected(Marker marker, SpaceAuthorizationCondition authorizedCondition,

@@ -29,6 +29,7 @@ public class TestCompositeSpace extends TestSpaceWithFeature {
     tearDown();
     createSpace();
     createSpaceWithCustomStorage("x-psql-test-2", "psql", null);
+    createSpaceWithCustomStorage("x-psql-test-3", "psql_db2_hashed", null);
     createSpaceWithExtension("x-psql-test");
     createSpaceWithExtension("x-psql-test-ext");
 
@@ -39,6 +40,7 @@ public class TestCompositeSpace extends TestSpaceWithFeature {
     //FIXME: in order to get the extending space to be created, a read or write operation must be executed, otherwise a 504 is returned
     getFeature("x-psql-test", "F1");
     getFeature("x-psql-test-2", "F1");
+    getFeature("x-psql-test-3", "F1");
     getFeature("x-psql-test-ext", "F1");
     getFeature("x-psql-test-ext-ext", "F1");
   }
@@ -47,6 +49,7 @@ public class TestCompositeSpace extends TestSpaceWithFeature {
   public void tearDown() {
     removeSpace("x-psql-test-ext-ext");
     removeSpace("x-psql-test-ext");
+    removeSpace("x-psql-test-3");
     removeSpace("x-psql-test-2");
     removeSpace("x-psql-test");
   }

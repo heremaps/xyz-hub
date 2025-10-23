@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.XyzSerializable.Internal;
 import com.here.xyz.XyzSerializable.Public;
 import com.here.xyz.XyzSerializable.SerializationView;
 import com.here.xyz.responses.ErrorResponse;
@@ -43,6 +44,7 @@ import com.here.xyz.util.service.BaseHttpServerVerticle;
 import com.here.xyz.util.service.BaseHttpServerVerticle.RequestCancelledException;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.service.HttpException;
+import com.here.xyz.util.service.errors.DetailedHttpException;
 import com.here.xyz.util.service.logging.LogUtil;
 import io.netty.handler.codec.compression.ZlibWrapper;
 import io.netty.handler.codec.http.HttpContentCompressor;
@@ -107,7 +109,7 @@ public class Api {
     protected <R> Handler<RoutingContext> handle(ThrowingTask<R, RoutingContext> taskHandler) {
         return handleErrors(context -> {
             taskHandler.execute(context)
-                    .onSuccess(response -> sendResponseWithXyzSerialization(context, OK, response))
+                    .onSuccess(response -> sendResponse(context, OK.code(), response))
                     .onFailure(t -> {
                         if (t instanceof HttpException httpException)
                             sendErrorResponse(context, httpException);
@@ -132,8 +134,7 @@ public class Api {
         else if (e instanceof AccessDeniedException)
             e = new HttpException(FORBIDDEN, e.getMessage(), e);
 
-        if (e instanceof HttpException) {
-            final HttpException httpException = (HttpException) e;
+        if (e instanceof HttpException httpException) {
 
             if (INTERNAL_SERVER_ERROR.code() != httpException.status.code()) {
                 XyzError error;
@@ -184,20 +185,31 @@ public class Api {
     /**
      * Send an error response to the client.
      *
-     * @param context   the routing context for which to return an error response.
+     * @param context the routing context for which to return an error response.
      * @param httpError the HTTPException with all information
-     * @param error     the error type that will become part of the {@link ErrorResponse}.
+     * @param error the error type that will become part of the {@link ErrorResponse}.
      */
     private void sendErrorResponse(final RoutingContext context, final HttpException httpError, final XyzError error) {
+        ErrorResponse errorResponse;
+        if (httpError instanceof DetailedHttpException detailedHttpException) {
+          errorResponse = detailedHttpException.errorDefinition.toErrorResponse(detailedHttpException.placeholders)
+                .withStreamId(Api.getMarker(context).getName())
+                .withErrorDetails(httpError.errorDetails)
+                .withError(error)
+                .withErrorMessage(httpError.getMessage());
+        }
+        else {
+            errorResponse = new ErrorResponse()
+                .withStreamId(Api.getMarker(context).getName())
+                .withErrorDetails(httpError.errorDetails)
+                .withError(error)
+                .withErrorMessage(httpError.getMessage());
+        }
         context.response()
-                .putHeader(CONTENT_TYPE, APPLICATION_JSON)
-                .setStatusCode(httpError.status.code())
-                .setStatusMessage(httpError.status.reasonPhrase())
-                .end(new ErrorResponse()
-                        .withStreamId(Api.getMarker(context).getName())
-                        .withErrorDetails(httpError.errorDetails)
-                        .withError(error)
-                        .withErrorMessage(httpError.getMessage()).serialize());
+            .putHeader(CONTENT_TYPE, APPLICATION_JSON)
+            .setStatusCode(httpError.status.code())
+            .setStatusMessage(httpError.status.reasonPhrase())
+            .end(errorResponse.serialize());
     }
 
     protected long getMaxResponseLength(final RoutingContext context) {
@@ -231,43 +243,6 @@ public class Api {
         sendResponseBytes(context, httpResponse, response);
     }
 
-    /**
-     * @deprecated Please use {@link #sendResponse(RoutingContext, int, XyzSerializable)} or {@link #sendResponse(RoutingContext, int, List)} instead.
-     * @param context
-     * @param status
-     * @param o
-     */
-    protected void sendResponseWithXyzSerialization(RoutingContext context, HttpResponseStatus status, Object o) {
-        sendResponseWithXyzSerialization(context, status, o, null);
-    }
-
-    /**
-     * @deprecated Please use {@link #sendResponse(RoutingContext, int, XyzSerializable)} or {@link #sendResponse(RoutingContext, int, List)} instead.
-     * @param context
-     * @param status
-     * @param o
-     * @param type
-     */
-    @Deprecated
-    protected void sendResponseWithXyzSerialization(RoutingContext context, HttpResponseStatus status, Object o, TypeReference type) {
-        HttpServerResponse httpResponse = context.response().setStatusCode(status.code());
-
-        byte[] response;
-        try {
-            if (o == null)
-                response = new byte[]{};
-            else
-                response = o instanceof ByteArrayOutputStream bos ? bos.toByteArray() : (type == null ? XyzSerializable.serialize(o)
-                    : XyzSerializable.serialize(o, type)).getBytes();
-        }
-        catch (EncodeException e) {
-            sendErrorResponse(context, new HttpException(INTERNAL_SERVER_ERROR, "Could not serialize response.", e));
-            return;
-        }
-
-        sendResponseBytes(context, httpResponse, response);
-    }
-
     protected void sendResponseBytes(RoutingContext context, HttpServerResponse httpResponse, byte[] response) {
         if (response.length == 0)
             httpResponse.setStatusCode(NO_CONTENT.code()).end();
@@ -279,11 +254,18 @@ public class Api {
         }
     }
 
-    protected void sendResponse(RoutingContext context, int statusCode, XyzSerializable object) {
+    protected void sendResponse(RoutingContext context, int statusCode, Object object) {
+      if (object == null || object instanceof XyzSerializable)
+        sendResponse(context, statusCode, (XyzSerializable) object);
+      else if (object instanceof List)
+        sendResponse(context, statusCode, (List<? extends XyzSerializable>) object);
+    }
+
+    private void sendResponse(RoutingContext context, int statusCode, XyzSerializable object) {
         serializeAndSendResponse(context, statusCode, object, null, Public.class);
     }
 
-    protected void sendResponse(RoutingContext context, int statusCode, List<? extends XyzSerializable> list) {
+    private void sendResponse(RoutingContext context, int statusCode, List<? extends XyzSerializable> list) {
         serializeAndSendResponse(context, statusCode, list, null, Public.class);
     }
 
@@ -293,16 +275,16 @@ public class Api {
     }
 
     protected void sendInternalResponse(RoutingContext context, int statusCode, XyzSerializable object) {
-        serializeAndSendResponse(context, statusCode, object, null, null); //TODO: Use Internal view here in future
+        serializeAndSendResponse(context, statusCode, object, null, Internal.class);
     }
 
     protected void sendInternalResponse(RoutingContext context, int statusCode, List<? extends XyzSerializable> list) {
-        serializeAndSendResponse(context, statusCode, list, null, null); //TODO: Use Internal view here in future
+        serializeAndSendResponse(context, statusCode, list, null, Internal.class);
     }
 
     protected void sendInternalResponse(RoutingContext context, int statusCode, List<? extends XyzSerializable> list,
         TypeReference listItemTypeReference) {
-        serializeAndSendResponse(context, statusCode, list, listItemTypeReference, null); //TODO: Use Internal view here in future
+        serializeAndSendResponse(context, statusCode, list, listItemTypeReference, Internal.class);
     }
 
     private void serializeAndSendResponse(RoutingContext context, int statusCode, Object object,

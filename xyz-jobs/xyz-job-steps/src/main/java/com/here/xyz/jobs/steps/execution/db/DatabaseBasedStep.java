@@ -34,11 +34,14 @@ import com.here.xyz.jobs.steps.resources.ExecutionResource;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
+import com.here.xyz.util.db.datasource.DatabaseSettings;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.commons.dbutils.ResultSetHandler;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -47,14 +50,11 @@ import org.apache.logging.log4j.Logger;
     @JsonSubTypes.Type(value = SpaceBasedStep.class)
 })
 public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends LambdaBasedStep<T> {
-
   private static final Logger logger = LogManager.getLogger();
+  private String ASYNC_STEP_ID = "asyncStepId";
   private double claimedAcuLoad;
   @JsonView(Internal.class)
   private List<RunningQuery> runningQueries = new ArrayList<>();
-
-  @Override
-  public abstract void execute() throws Exception;
 
   @Override
   protected final void onRuntimeShutdown() {
@@ -104,7 +104,8 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
     if (async) {
       query = (withCallbacks ? wrapQuery(query) : query)
           .withAsync(true)
-          .withTimeout(10);
+          .withTimeout(10)
+          .withLabel(ASYNC_STEP_ID, getId());
     }
     else if (query.getTimeout() == Integer.MAX_VALUE)
       query.setTimeout(300);
@@ -139,7 +140,8 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
    * @return The wrapped query. A query that takes care of reporting the state back to this implementation asynchronously.
    */
   private SQLQuery wrapQuery(SQLQuery stepQuery) {
-    return new SQLQuery("""
+
+    SQLQuery wrappedQuery = new SQLQuery("""
         DO
         $wrapped$
         DECLARE
@@ -157,6 +159,8 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
         .withQueryFragment("stepQuery", stepQuery)
         .withQueryFragment("successCallback", buildSuccessCallbackQuery())
         .withQueryFragment("failureCallback", buildFailureCallbackQuery());
+
+    return stepQuery.getContext() == null ?  wrappedQuery : wrappedQuery.withContext(stepQuery.getContext());
   }
 
   protected final SQLQuery buildSuccessCallbackQuery() {
@@ -188,7 +192,7 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
                   jsonb_set(
                     '${{failureRequestBody}}'::JSONB,
                     '{step, status}',
-                    ('${{failureRequestBody}}'::JSONB->'step'->'status' || format('{"errorCode": "%1$s", "errorMessage": "%2$s"}', SQLSTATE, SQLERRM)::JSONB),
+                    ('${{failureRequestBody}}'::JSONB->'step'->'status' || format('{"errorCode": %1$s, "errorMessage": %2$s}', to_json(SQLSTATE::TEXT), to_json(SQLERRM::TEXT))::JSONB),
                     true
                   )::JSON, 'Event');
             """) //TODO: Inject fields directly in memory rather than writing and deserializing new JSON object
@@ -210,28 +214,71 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
     return db.getDatabaseSettings().getSchema();
   }
 
+  protected SQLQuery buildCopyQueryRemoteSpace( Database remoteDb, SQLQuery contentQuery, boolean emptyTargetTable) {
+
+      DatabaseSettings dbSettings = remoteDb.getDatabaseSettings();
+
+      contentQuery =
+       new SQLQuery(
+        !emptyTargetTable
+        ? """
+            select t.* 
+            from 
+            dblink( $icnt$ host=${{rmtHost}} dbname=${{rmtDb}} user=${{rmtUsr}} password=${{rmtPwd}} $icnt$, 
+                    $iqry$ select jsondata, jsondata#>>'{properties,@ns:com:here:xyz,author}' as author, geo from ( ${{innerContentQuery}} ) rcopy $iqry$
+                  ) 
+            as t( jsondata jsonb, author text, geo text )
+           """
+         : """
+            select t.* 
+            from 
+            dblink( $icnt$ host=${{rmtHost}} dbname=${{rmtDb}} user=${{rmtUsr}} password=${{rmtPwd}} $icnt$, 
+                    $iqry$ select id, operation, author, jsondata, geo from ( ${{innerContentQuery}} ) rcopy $iqry$
+                  ) 
+            as t( id text, operation character(1), author text, jsondata jsonb, geo geometry )
+           """
+       )
+       .withQueryFragment("innerContentQuery", contentQuery)
+       .withQueryFragment("rmtHost", dbSettings.getHost())
+       .withQueryFragment("rmtDb", dbSettings.getDb())
+       .withQueryFragment("rmtUsr", dbSettings.getUser())
+       .withQueryFragment("rmtPwd", dbSettings.getPassword());
+
+     return contentQuery;
+  }
+
   @Override
   public void cancel() throws Exception {
     //Cancel all running queries
-    List<RunningQuery> failedCancellations = new LinkedList<>();
+    List<String> failedCancellations = new LinkedList<>();
     Exception lastException = null;
-    for (RunningQuery runningQuery : runningQueries) {
+
+    Set<Map.Entry<String, String>> dbIdentifiers = runningQueries.stream()
+        .map(query -> Map.entry(query.dbName(), query.dbId()))
+        .collect(Collectors.toSet());
+
+    for (Map.Entry<String, String> entry : dbIdentifiers) {
+      String dbName = entry.getKey();
+      String dbId = entry.getValue();
+
       try {
-        Database db = Database.loadDatabase(runningQuery.dbName, runningQuery.dbId);
-        SQLQuery.killByQueryId(runningQuery.queryId, db.getDataSources(), db.getRole() == READER);
+        Database db = Database.loadDatabase(dbName, dbId);
+        SQLQuery.killByLabel(ASYNC_STEP_ID, getId(), db.getDataSources(), db.getRole() == READER);
+        logger.info("[{}] Asynchronous queries of step were successfully cancelled on {}:{}.", getGlobalStepId(), dbName, db.getRole().name());
       }
       catch (SQLException e) {
-        logger.error("Error cancelling query {} of step {}.", runningQuery.queryId, getGlobalStepId(), e);
-        failedCancellations.add(runningQuery);
+        logger.error("[{}] Error cancelling asynchronous queries of the step on {}.", getGlobalStepId(), dbName, e);
+        failedCancellations.add(dbName);
         lastException = e;
         //Continue trying to cancel the remaining queries ...
       }
     }
 
-    if (failedCancellations.size() > 0) {
-      runningQueries = failedCancellations;
-      logger.error("Error cancelling running queries of step {}. The following queries are probably still running: {}",
-          getGlobalStepId(), runningQueries);
+    if (!failedCancellations.isEmpty()) {
+      //TODO: check if we want to back report like in the uncommented code
+      //runningQueries = failedCancellations;
+      logger.error("[{}] Error cancelling running queries of the step. Some queries on db(s) {} are probably still running!",
+          getGlobalStepId(), failedCancellations);
       throw new RuntimeException("Error cancelling running queries.", lastException);
     }
     else
@@ -240,15 +287,20 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
 
   @Override
   public AsyncExecutionState getExecutionState() throws UnknownStateException {
-    logger.info("Checking execution state of step {} ...", getGlobalStepId());
-    boolean someQueryIsRunning = runningQueries
+    logger.info("[{}] Checking execution state of the step ...", getGlobalStepId());
+    Set<Map.Entry<String, String>> dbList = runningQueries.stream()
+        .map(rq -> Map.entry(rq.dbName(), rq.dbId()))
+        .collect(Collectors.toSet());
+    boolean someQueryIsRunning = dbList
         .stream()
-        .anyMatch(runningQuery -> {
+        .anyMatch(db -> {
           try {
-            return SQLQuery.isRunning(Database.loadDatabase(runningQuery.dbName, runningQuery.dbId).getDataSources(), false,
-                runningQuery.queryId);
+            Database database = Database.loadDatabase(db.getKey(), db.getValue());
+            return SQLQuery.isRunning(database.getDataSources(), database.getRole() == READER,
+                ASYNC_STEP_ID, getId());
           }
           catch (SQLException e) {
+            logger.error("[{}] Error while trying to check running queries of the step on {}.", getGlobalStepId(), db.getKey(), e);
             /*
             Ignore it if we cannot check the state for (one of) the queries (for now).
             In the worst case, this will lead to an UnknownStateException.
@@ -273,9 +325,12 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
 
   protected final DataSourceProvider requestResource(Database db, double estimatedMaxAcuLoad) throws TooManyResourcesClaimed {
     Map<ExecutionResource, Double> neededResources = getAggregatedNeededResources();
-    if (!neededResources.containsKey(db) || claimedAcuLoad + estimatedMaxAcuLoad > neededResources.get(db))
+
+    if (estimatedMaxAcuLoad != 0d &&
+            (!neededResources.containsKey(db) || claimedAcuLoad + estimatedMaxAcuLoad > neededResources.get(db)))
       throw new TooManyResourcesClaimed("Step " + getId() + " tried to claim further " + estimatedMaxAcuLoad + " ACUs, "
-          + claimedAcuLoad + "/" + neededResources.get(db) + " have been claimed before.");
+          + claimedAcuLoad + "/" + neededResources.get(db) + " have been claimed before on [" + db.getName() +
+              ":" + db.getRole() + "]" );
 
     claimedAcuLoad += estimatedMaxAcuLoad;
     return db.getDataSources();

@@ -25,11 +25,13 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.util.S3Client;
 import java.io.IOException;
+import java.util.Map;
 
 @JsonTypeInfo(use = Id.NAME, property = "type")
 @JsonSubTypes({
     @JsonSubTypes.Type(value = FeatureStatistics.class, name = "FeatureStatistics"),
-    @JsonSubTypes.Type(value = FileStatistics.class, name = "FileStatistics")
+    @JsonSubTypes.Type(value = CreatedVersion.class, name = "CreatedVersion"),
+    @JsonSubTypes.Type(value = TileInvalidations.class, name = "TileInvalidationList")
 })
 public abstract class ModelBasedOutput extends Output<ModelBasedOutput> {
   @Override
@@ -37,9 +39,10 @@ public abstract class ModelBasedOutput extends Output<ModelBasedOutput> {
       S3Client.getInstance().putObject(s3Key, "application/json", serialize());
   }
 
-  public static ModelBasedOutput load(String s3Key) {
+  public static ModelBasedOutput load(String s3Key, Map<String, String> metadata) {
     try {
-      return XyzSerializable.deserialize(S3Client.getInstance().loadObjectContent(s3Key), ModelBasedOutput.class);
+      return XyzSerializable.deserialize(S3Client.getInstance().loadObjectContent(s3Key), ModelBasedOutput.class)
+              .withMetadata(metadata);
     }
     catch (IOException e) {
       throw new RuntimeException(e);

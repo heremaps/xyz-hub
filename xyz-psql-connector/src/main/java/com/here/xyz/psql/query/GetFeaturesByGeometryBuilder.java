@@ -20,12 +20,13 @@
 package com.here.xyz.psql.query;
 
 import static com.here.xyz.models.hub.Ref.HEAD;
+import static com.here.xyz.psql.query.GetFeaturesByBBox.buildGeoFilterFromBbox;
 
-import com.here.xyz.XyzSerializable;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.PropertiesQuery;
+import com.here.xyz.models.geojson.coordinates.WKTHelper;
 import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.psql.query.GetFeaturesByGeometryBuilder.GetFeaturesByGeometryInput;
@@ -35,6 +36,8 @@ import java.util.Map;
 
 public class GetFeaturesByGeometryBuilder extends XyzQueryBuilder<GetFeaturesByGeometryInput> {
   private SQLQuery additionalFilterFragment;
+  private SQLQuery selectClauseOverride;
+  private Geometry clippingGeometry;
 
   @Override
   public SQLQuery buildQuery(GetFeaturesByGeometryInput input) throws QueryBuildingException {
@@ -43,7 +46,7 @@ public class GetFeaturesByGeometryBuilder extends XyzQueryBuilder<GetFeaturesByG
       GetFeaturesByGeometryEvent event = new GetFeaturesByGeometryEvent()
           .withSpace(input.spaceId)
           .withConnectorParams(input.connectorParams)
-          .withParams(XyzSerializable.toMap(getConnectorParameters()))
+          .withParams(input.spaceParams)
           .withVersionsToKeep(input.versionsToKeep)
           .withContext(input.context)
           .withRef(input.ref)
@@ -51,6 +54,8 @@ public class GetFeaturesByGeometryBuilder extends XyzQueryBuilder<GetFeaturesByG
           .withGeometry(input.geometry)
           .withRadius(input.radius)
           .withClip(input.clip);
+
+      event.ignoreLimit = true;
 
       return new GetFeaturesByGeometryWithModifiedFilter(event)
           .<GetFeaturesByGeometry>withDataSourceProvider(getDataSourceProvider())
@@ -66,9 +71,20 @@ public class GetFeaturesByGeometryBuilder extends XyzQueryBuilder<GetFeaturesByG
     return this;
   }
 
+  public GetFeaturesByGeometryBuilder withSelectClauseOverride(SQLQuery selectClauseOverride) {
+    this.selectClauseOverride = selectClauseOverride;
+    return this;
+  }
+
+  public GetFeaturesByGeometryBuilder withClippingGeometry(Geometry clippingGeometry) {
+      this.clippingGeometry = clippingGeometry;
+      return this;
+  }
+
   public record GetFeaturesByGeometryInput(
       String spaceId,
       Map<String, Object> connectorParams,
+      Map<String, Object> spaceParams,
       SpaceContext context,
       int versionsToKeep,
       Ref ref,
@@ -80,8 +96,9 @@ public class GetFeaturesByGeometryBuilder extends XyzQueryBuilder<GetFeaturesByG
     public GetFeaturesByGeometryInput {
       if (ref == null)
         ref = new Ref(HEAD);
-      if (geometry == null && clip)
-        throw new IllegalArgumentException("Clip can not be applied if no filter geometry is provided.");
+      //TODO: check
+      //if (geometry == null && clip)
+      //  throw new IllegalArgumentException("Clip can not be applied if no filter geometry is provided.");
     }
   }
 
@@ -92,17 +109,75 @@ public class GetFeaturesByGeometryBuilder extends XyzQueryBuilder<GetFeaturesByG
     }
 
     @Override
-    protected SQLQuery buildFilterWhereClause(GetFeaturesByGeometryEvent event) {
-      return patchWhereClause(super.buildFilterWhereClause(event), additionalFilterFragment);
+    protected SQLQuery buildSelectClause(GetFeaturesByGeometryEvent event, int dataset, long baseVersion) {
+      return overrideSelectClause(super.buildSelectClause(event, dataset, baseVersion), selectClauseOverride);
     }
 
-    private SQLQuery patchWhereClause(SQLQuery filterWhereClause, SQLQuery additionalFilterFragment) {
-      if (additionalFilterFragment == null)
-        return filterWhereClause;
-      SQLQuery customizedWhereClause = new SQLQuery("${{innerFilterWhereClause}} AND ${{customWhereClause}}")
-          .withQueryFragment("innerFilterWhereClause", filterWhereClause)
-          .withQueryFragment("customWhereClause", additionalFilterFragment);
-      return customizedWhereClause;
+    @Override
+    protected SQLQuery buildFilterWhereClause(GetFeaturesByGeometryEvent event) {
+      return patchWhereClause(super.buildFilterWhereClause(event), additionalFilterFragment, clippingGeometry, event.getGeometry());
+    }
+
+    @Override
+    protected SQLQuery buildRawGeoExpression(GetFeaturesByGeometryEvent event) {
+      return overrideRawGeoExpression(super.buildRawGeoExpression(event), clippingGeometry, event.getGeometry());
+    }
+
+    //TODO: Check why this patch is necessary
+    private SQLQuery patchWhereClause(SQLQuery filterWhereClause, SQLQuery additionalFilterFragment, Geometry clippingGeometry
+        ,Geometry filterGeometry) {
+      SQLQuery clippingFragment = new SQLQuery("");
+      if(clippingGeometry != null && filterGeometry != null){
+        clippingFragment = new SQLQuery("""
+                AND ST_Intersects(geo,
+                      ST_Intersection(
+                        ST_Force3d(ST_GeomFromText(#{wktClipGeometry}, 4326)),
+                        ST_Force3d(ST_GeomFromText(#{filterGeometry}, 4326))
+                      )
+                    )
+                """)
+                .withNamedParameter("filterGeometry", WKTHelper.geometryToWKT2d(filterGeometry))
+                .withNamedParameter("wktClipGeometry", WKTHelper.geometryToWKT2d(clippingGeometry));
+      }
+
+      if (additionalFilterFragment != null) {
+        return new SQLQuery("""
+                ${{innerFilterWhereClause}}
+                ${{clippingFragment}}
+                AND ${{customWhereClause}}
+            """
+            )
+            .withQueryFragment("clippingFragment", clippingFragment)
+            .withQueryFragment("innerFilterWhereClause", filterWhereClause)
+            .withQueryFragment("customWhereClause", additionalFilterFragment);
+      }
+
+      if(clippingGeometry != null &&  filterGeometry !=null) {
+        return new SQLQuery("""
+                  ${{innerFilterWhereClause}}
+                  ${{clippingFragment}}
+                """)
+                .withQueryFragment("clippingFragment", clippingFragment)
+                .withQueryFragment("innerFilterWhereClause", filterWhereClause);
+      }
+      return filterWhereClause;
+    }
+
+    //TODO: Check why this override is necessary
+    private SQLQuery overrideSelectClause(SQLQuery selectClause, SQLQuery selectClauseOverride) {
+      if (selectClauseOverride != null)
+        return new SQLQuery("${{selectClause}}")
+                .withQueryFragment("selectClause", selectClauseOverride);
+      return selectClause;
+    }
+
+    private SQLQuery overrideRawGeoExpression(SQLQuery selectClause, Geometry clippingGeometry, Geometry filterGeometry) {
+      //If there is a clipping geometry and a filter geometry, we need to use the intersection of both
+      if (clippingGeometry != null)
+        return new SQLQuery("ST_Intersection(geo, ST_Force3d(ST_GeomFromText(#{wktClipGeometry}, 4326)))")
+                .withNamedParameter("wktClipGeometry", WKTHelper.geometryToWKT2d(clippingGeometry))
+                .withLabelsEnabled(false);
+      return selectClause;
     }
   }
 }

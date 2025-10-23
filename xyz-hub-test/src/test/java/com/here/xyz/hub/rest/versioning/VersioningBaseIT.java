@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
 
 import com.here.xyz.hub.rest.TestSpaceWithFeature;
+import io.vertx.core.json.JsonObject;
 
 public class VersioningBaseIT extends TestSpaceWithFeature {
 
@@ -33,7 +34,11 @@ public class VersioningBaseIT extends TestSpaceWithFeature {
         .contentType(APPLICATION_JSON)
         .accept(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .body("{\"id\":\""+spaceId+"\",\"title\":\""+spaceId+"\",\"versionsToKeep\":"+versionsToKeep+"}")
+        .body(new JsonObject()
+            .put("id", spaceId)
+            .put("title", spaceId)
+            .put("versionsToKeep", versionsToKeep)
+            .toString())
         .when()
         .post(spacePath)
         .then()

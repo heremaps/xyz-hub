@@ -23,6 +23,8 @@ import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.steps.compiler.ExportToFiles;
 import com.here.xyz.jobs.steps.compiler.ImportFromFiles;
 import com.here.xyz.jobs.steps.compiler.JobCompilationInterceptor;
+import com.here.xyz.jobs.steps.compiler.SpaceCopy;
+import com.here.xyz.jobs.steps.compiler.SpaceMaintain;
 import com.here.xyz.util.Async;
 import io.vertx.core.Future;
 import io.vertx.core.impl.ConcurrentHashSet;
@@ -40,7 +42,8 @@ public class JobCompiler {
   static {
     registerCompilationInterceptor(ImportFromFiles.class);
     registerCompilationInterceptor(ExportToFiles.class);
-    //registerCompilationInterceptor(CopySpaceToSpace.class);
+    registerCompilationInterceptor(SpaceCopy.class);
+    registerCompilationInterceptor(SpaceMaintain.class);
   }
 
   public Future<StepGraph> compile(Job job) {
@@ -60,13 +63,13 @@ public class JobCompiler {
     }
 
     if (interceptorCandidates.isEmpty())
-      throw new CompilationError("Job " + job.getId() + " is not supported. No according compilation interceptor was found.",
+      throw new CompilationError("Job \"" + job.getId() + "\" is not supported. No according compilation interceptor was found.",
           errors);
 
     if (interceptorCandidates.size() > 1)
-      throw new CompilationError("Job " + job.getId() + " can not be compiled due to ambiguity. "
+      throw new UnexpectedCompilerError("Job \"" + job.getId() + "\" can not be compiled due to ambiguity. "
           + "Multiple compilation interceptors were found: "
-          + interceptorCandidates.stream().map(c -> c.getClass().getSimpleName()).collect(Collectors.joining(", ")), errors);
+          + interceptorCandidates.stream().map(c -> c.getClass().getSimpleName()).collect(Collectors.joining(", ")));
 
     /*
     NOTE:
@@ -89,7 +92,22 @@ public class JobCompiler {
     interceptors.add(interceptor);
   }
 
-  public static class CompilationError extends RuntimeException {
+  public static void deregisterCompilationInterceptor(Class<? extends JobCompilationInterceptor> interceptor) {
+    interceptors.remove(interceptor);
+  }
+
+  public static class UnexpectedCompilerError extends RuntimeException {
+
+    public UnexpectedCompilerError(String message) {
+      super(message);
+    }
+
+    public UnexpectedCompilerError(String message, Throwable cause) {
+      super(message, cause);
+    }
+  }
+
+  public static class CompilationError extends IllegalArgumentException {
     private List<CompilationError> otherErrors;
 
     public CompilationError(String message) {

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,6 @@ package com.here.xyz.hub.rest;
 
 import static com.here.xyz.hub.auth.TestAuthenticator.AuthProfile.ACCESS_ALL;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
-import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
 
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
@@ -52,10 +51,11 @@ public class VersioningCompositeGetFeaturesIT extends VersioningGetFeaturesIT {
 
     postFeature(BASE, newFeature(), ACCESS_ALL);
 
-    postFeature(DELTA, newFeature(), ACCESS_ALL);
     postFeature(DELTA, newFeature()
-            .withGeometry(new Point().withCoordinates(new PointCoordinates(50,50)))
-            .withProperties(new Properties().with("key2", "value2")), ACCESS_ALL);
+        .withProperties(new Properties().with("otherKey", "otherValue")), ACCESS_ALL);
+    postFeature(DELTA, newFeature()
+        .withGeometry(new Point().withCoordinates(new PointCoordinates(50, 50)))
+        .withProperties(new Properties().with("key2", "value2")), ACCESS_ALL);
   }
 
   @After
@@ -116,16 +116,55 @@ public class VersioningCompositeGetFeaturesIT extends VersioningGetFeaturesIT {
 
   @Test
   public void testGetFeatureVersionStar() {
-    given()
-        .headers(getAuthHeaders(ACCESS_ALL))
-        .when()
-        .get(getSpacesPath() + "/" + DELTA + "/features/f1?version=*")
-        .then()
+    getAllFeatureVersions(BASE, "f1", "DEFAULT")
         .statusCode(OK.code())
+        .body("features.size()",equalTo(1))
+        .body("features[0].id", equalTo("f1"))
+        .body("features[0].properties.@ns:com:here:xyz.version", equalTo(1));
+
+    getAllFeatureVersions(DELTA, "f1", "SUPER")
+        .statusCode(OK.code())
+        .body("features.size()", equalTo(1))
+        .body("features[0].id", equalTo("f1"))
+        .body("features[0].properties.@ns:com:here:xyz.version", equalTo(1));
+
+    getAllFeatureVersions(DELTA, "f1", "DEFAULT")
+        .statusCode(OK.code())
+        .body("features.size()", equalTo(3))
         .body("features[0].id", equalTo("f1"))
         .body("features[1].id", equalTo("f1"))
+        .body("features[2].id", equalTo("f1"))
+        .body("features[0].properties.@ns:com:here:xyz.version", equalTo(0))
+        .body("features[1].properties.@ns:com:here:xyz.version", equalTo(1))
+        .body("features[2].properties.@ns:com:here:xyz.version", equalTo(2));
+  }
 
-        .body("features[0].properties.@ns:com:here:xyz.version", equalTo(1))
-        .body("features[1].properties.@ns:com:here:xyz.version", equalTo(2));
+  @Test
+  public void testGetFeatureVersionStarCompositeVersionsBeforeAndAfterEdit() {
+    final String fId = "otherFeature";
+
+    postFeature(BASE, newFeature().withId(fId), ACCESS_ALL);
+
+    getAllFeatureVersions(BASE, fId, "DEFAULT")
+        .statusCode(OK.code())
+        .body("features.size()", equalTo(1))
+        .body("features[0].id", equalTo(fId))
+        .body("features[0].properties.@ns:com:here:xyz.version", equalTo(2));
+
+    getAllFeatureVersions(DELTA, fId, "DEFAULT")
+        .statusCode(OK.code())
+        .body("features.size()", equalTo(1))
+        .body("features[0].id", equalTo(fId))
+        .body("features[0].properties.@ns:com:here:xyz.version", equalTo(0));
+
+    postFeature(DELTA, newFeature().withId(fId).withProperties(new Properties().with("key3", "value3")), ACCESS_ALL);
+
+    getAllFeatureVersions(DELTA, fId, "DEFAULT")
+        .statusCode(OK.code())
+        .body("features.size()", equalTo(2))
+        .body("features[0].id", equalTo(fId))
+        .body("features[1].id", equalTo(fId))
+        .body("features[0].properties.@ns:com:here:xyz.version", equalTo(0))
+        .body("features[1].properties.@ns:com:here:xyz.version", equalTo(3));
   }
 }

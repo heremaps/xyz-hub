@@ -24,18 +24,17 @@ import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-
 import java.io.IOException;
 import java.util.List;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 public class VersionRefExportStepTest extends ExportTestBase {
 
     @BeforeEach
     public void setUp() throws Exception {
         createSpace(new Space().withId(SPACE_ID).withVersionsToKeep(10) , false);
-        //Add two new Features
+        //Add two new Features //TODO: Do not create FeatureCollections out of a String, create them using the Model instead
         FeatureCollection fc1 = XyzSerializable.deserialize("""
                 {
                      "type": "FeatureCollection",
@@ -109,8 +108,11 @@ public class VersionRefExportStepTest extends ExportTestBase {
                 """, FeatureCollection.class);
 
         putFeatureCollectionToSpace(SPACE_ID, fc1);
+        //=> Version 1
         deleteFeaturesInSpace(SPACE_ID, List.of("point2"));
+        //=> Version 2
         putFeatureCollectionToSpace(SPACE_ID, fc2);
+        //=> Version 3
     }
 
     @Test
@@ -121,14 +123,11 @@ public class VersionRefExportStepTest extends ExportTestBase {
                 versionRef,"search?versionRef=" + versionRef);
     }
 
-//    @Test
-    //TODO: implement
+    @Test
     public void exportWithVersionRange() throws IOException, InterruptedException {
         Ref versionRef = new Ref("1..3");
 
-        ExportSpaceToFiles step = new ExportSpaceToFiles()
-                .withSpaceId(SPACE_ID)
-                .withJobId(JOB_ID)
-                .withVersionRef(versionRef);
+        executeExportStepAndCheckResults(SPACE_ID, null, null,  null,
+                versionRef,"search?versionRef=" + versionRef);
     }
 }

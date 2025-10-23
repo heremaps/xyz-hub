@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,9 +19,27 @@
 
 package com.here.xyz.jobs.steps.outputs;
 
+import static com.fasterxml.jackson.annotation.JsonInclude.Include.ALWAYS;
+import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_DEFAULT;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.here.xyz.models.hub.Ref;
+
+@JsonInclude(NON_DEFAULT)
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class FeatureStatistics extends ModelBasedOutput {
+
+    @JsonInclude(ALWAYS)
     private long featureCount;
+    @JsonInclude(ALWAYS)
     private long byteSize;
+    @JsonInclude(NON_DEFAULT)
+    private Ref versionRef;
+    @JsonInclude(NON_DEFAULT)
+    private long fileCount;
+    @JsonInclude(NON_DEFAULT)
+    private String tag;
 
     public long getFeatureCount() {
         return featureCount;
@@ -46,6 +64,45 @@ public class FeatureStatistics extends ModelBasedOutput {
 
     public FeatureStatistics withByteSize(long byteSize) {
         setByteSize(byteSize);
+        return this;
+    }
+
+    public Ref getVersionRef() {
+        return versionRef;
+    }
+
+    public void setVersionRef(Ref versionRef) {
+        this.versionRef = versionRef;
+    }
+
+    public FeatureStatistics withVersionRef(Ref versionRef) {
+        setVersionRef(versionRef);
+        return this;
+    }
+
+    public long getFileCount() {
+        return fileCount;
+    }
+
+    public void setFileCount(long fileCount) {
+        this.fileCount = fileCount;
+    }
+
+    public FeatureStatistics withFileCount(long fileCount) {
+        setFileCount(fileCount);
+        return this;
+    }
+
+    public String getTag() {
+        return tag;
+    }
+
+    public void setTag(String tag) {
+        this.tag = tag;
+    }
+
+    public FeatureStatistics withTag(String tag) {
+        setTag(tag);
         return this;
     }
 }

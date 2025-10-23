@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -78,7 +78,7 @@ public class PSQLWriteIT extends PSQLAbstractIT {
         LOGGER.info("Insert feature tested successfully");
 
         // =========== UPDATE ==========
-        FeatureCollection featureCollection = XyzSerializable.deserialize(insertResponse);
+        FeatureCollection featureCollection = deserializeResponse(insertResponse);
 
         ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent()
                 .withConnectorParams(defaultTestConnectorParams)
@@ -105,7 +105,7 @@ public class PSQLWriteIT extends PSQLAbstractIT {
         LOGGER.info("Insert feature tested successfully");
 
         // =========== UPDATE ==========
-        FeatureCollection featureCollection = XyzSerializable.deserialize(insertResponse);
+        FeatureCollection featureCollection = deserializeResponse(insertResponse);
 
         ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent()
                 .withConnectorParams(defaultTestConnectorParams)
@@ -122,7 +122,7 @@ public class PSQLWriteIT extends PSQLAbstractIT {
         // =========== LoadFeaturesEvent ==========
         String loadFeaturesEvent = "/events/LoadFeaturesEvent.json";
         String loadResponse = invokeLambdaFromFile(loadFeaturesEvent);
-        featureCollection = XyzSerializable.deserialize(loadResponse);
+        featureCollection = deserializeResponse(loadResponse);
         assertNotNull(featureCollection.getFeatures());
         assertEquals(1, featureCollection.getFeatures().size());
         assertEquals("test", featureCollection.getFeatures().get(0).getId());
@@ -138,7 +138,7 @@ public class PSQLWriteIT extends PSQLAbstractIT {
                 .withDeleteFeatures(new HashMap<String,String>(){{ put(deleteId, null);}});
 
         String deleteResponse = invokeLambda(mfevent);
-        featureCollection = XyzSerializable.deserialize(deleteResponse);
+        featureCollection = deserializeResponse(deleteResponse);
         assertNotNull(featureCollection.getFeatures());
         assertEquals(0, featureCollection.getFeatures().size());
         assertEquals(1, featureCollection.getDeleted().size());
@@ -198,6 +198,7 @@ public class PSQLWriteIT extends PSQLAbstractIT {
         LOGGER.info("Preparation: Insert features");
 
         // =========== Validate that "geometry":null is serialized ==========
+        // s. https://datatracker.ietf.org/doc/html/rfc7946#section-3.2
         String response = invokeLambdaFromFile("/events/GetFeaturesByIdEvent.json");
         assertTrue(response.indexOf("\"geometry\":null") > 0);
     }

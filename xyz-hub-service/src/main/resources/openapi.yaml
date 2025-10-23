@@ -16,7 +16,7 @@ tags:
   - name: Read Features
     description: Read only endpoints for features.
   - name: Write Features
-    description: Read and write endpoints for features.
+    description: Write endpoints for features.
   - name: Manage Connectors
     description: Read and write endpoints for connectors.
   - name: Manage Subscriptions
@@ -27,6 +27,8 @@ tags:
     description: Read and write endpoints for changesets.
   - name: Manage Tags
     description: Read and write endpoints for tags.
+  - name: Manage Branches
+    description: Read and write endpoints for branches.
 paths:
   '/spaces':
     get:
@@ -199,17 +201,145 @@ paths:
           $ref: '#/components/responses/ErrorResponse403'
         '404':
           $ref: '#/components/responses/ErrorResponse404'
+  '/spaces/{spaceId}/branches':
+    get:
+      tags:
+        - Manage Branches
+      summary: List Branches
+      description: >-
+        Lists the branches of the specified space.
+      operationId: getBranches
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+      responses:
+        '200':
+          $ref: '#/components/responses/BranchesResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+    post:
+      tags:
+        - Manage Branches
+      summary: Create a Branch
+      description: >-
+        Create a branch, which points to a version of the space or to a version of
+        another branch.
+      operationId: postBranch
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+      requestBody:
+        $ref: '#/components/requestBodies/BranchRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/BranchResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+  '/spaces/{spaceId}/branches/{branchId}':
+    patch:
+      tags:
+        - Manage Branches
+      summary: Update a Branch
+      description: >-
+        Update the ID or the baseRef of a branch.
+        Changing the base reference of a branch performs a "rebase"-operation. Under some
+        circumstances such an operation can take a bit longer than usual, in that case a special
+        response will be sent which contains a token to check the status of the operation.
+
+        Depending on the content of the branch, there can be conflicts during a "rebase"-operation.
+        In that case the response will be a conflict-response which contains a description of the
+        occurred conflicts. These conflicts then have to be solved in order to continue with the
+        "rebase"-operation.
+      operationId: patchBranch
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/BranchId'
+      requestBody:
+        $ref: '#/components/requestBodies/BranchRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/BranchResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+    post:
+      tags:
+        - Manage Branches
+      summary: Execute an operation on a Branch
+      description: >-
+        Execute an operation on the specified branch. Supported operation types are:
+
+
+        - Merge
+      operationId: execBranchOperation
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/BranchId'
+      requestBody:
+        $ref: '#/components/requestBodies/BranchOperationRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/BranchResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+    delete:
+      tags:
+        - Manage Branches
+      summary: Delete a branch
+      description: >-
+        Deletes a branch.
+      operationId: deleteBranch
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/BranchId'
+      responses:
+        '200':
+          $ref: '#/components/responses/BranchResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
   '/spaces/{spaceId}/changesets':
     get:
       tags:
         - Manage Changesets
       summary: Get Changesets
-      description: >-
+      description: |
         Retrieves a subset of existing Changesets from the space's history.
-        The subset is defined by a "startVersion" and an "endVersion".
+        The subset can be defined either by a "startVersion" and an "endVersion"
+        or by providing a version ref that references a version range of
+        a specific branch: e.g., "main:5..6" or "myBranch:0..HEAD".
+        
+
+        The version range can be specified using the `versionRef` query-parameter as follows:
+        `<start>..<end>`
+        
+        Where `<start>` is the start of the range (exclusive) and `<end>` is the end of the range
+        (inclusive).
+
 
         Each successful write transaction to the space is stored as one single Changeset,
         which can contain modifications applied to one or more features.
+
 
         The response payload may be split in multiple pages. The next page token is written in the
         property 'nextPageToken', which then can be used to retrieve the next page using the
@@ -217,10 +347,14 @@ paths:
       operationId: getChangesets
       parameters:
         - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/VersionRef'
         - $ref: '#/components/parameters/StartVersion'
         - $ref: '#/components/parameters/EndVersion'
         - $ref: '#/components/parameters/PageToken'
         - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Author'
+        - $ref: '#/components/parameters/StartTime'
+        - $ref: '#/components/parameters/EndTime'
       responses:
         '200':
           $ref: '#/components/responses/ChangesetCollectionResponse'
@@ -301,7 +435,9 @@ paths:
     get:
       tags:
         - Manage Changesets
-      summary: Get ChangesetStatistics (deprecated)
+      summary: |
+        `[Deprecated]` Get ChangesetStatistics
+      deprecated: true
       description: >-
         NOTE: This endpoint is <b>deprecated</b>. Use <code>/spaces/{spaceId}/statistics</code> instead to gather information about the min / max version of a space.<br /><br />
         Returns statistics about changesets.
@@ -446,8 +582,7 @@ paths:
         - $ref: '#/components/parameters/PropertiesSelection'
         - $ref: '#/components/parameters/Force2D'
         - $ref: '#/components/parameters/Context'
-        - $ref: '#/components/parameters/VersionStar'
-        - $ref: '#/components/parameters/VersionRefStar'
+        - $ref: '#/components/parameters/VersionRef'
         - $ref: '#/components/parameters/Author'
       responses:
         '200':
@@ -468,6 +603,7 @@ paths:
       operationId: putFeatures
       parameters:
         - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/VersionRef'
       requestBody:
         $ref: '#/components/requestBodies/FeatureCollectionRequest'
       responses:
@@ -603,6 +739,7 @@ paths:
         - $ref: '#/components/parameters/Transactional'
         - $ref: '#/components/parameters/PrefixId'
         - $ref: '#/components/parameters/Context'
+        - $ref: '#/components/parameters/VersionRef'
       requestBody:
         $ref: '#/components/requestBodies/FeatureCollectionOrFeatureModificationListRequest'
       responses:
@@ -635,6 +772,19 @@ paths:
         - $ref: '#/components/parameters/SpaceId'
         - $ref: '#/components/parameters/Ids'
         - $ref: '#/components/parameters/Context'
+        - $ref: '#/components/parameters/VersionRef'
+        - name: eraseContent
+          in: query
+          description: >-
+           false - [default]
+
+
+           true  - erase, wipe all content
+          required: false
+          schema:
+            type: boolean
+            default: false
+
       responses:
         '200':
           $ref: '#/components/responses/FeatureCollectionModificationResponse'
@@ -660,7 +810,7 @@ paths:
         - $ref: '#/components/parameters/Force2D'
         - $ref: '#/components/parameters/Context'
         - $ref: '#/components/parameters/VersionStar'
-        - $ref: '#/components/parameters/VersionRefStar'
+        - $ref: '#/components/parameters/VersionRef'
         - $ref: '#/components/parameters/Author'
       responses:
         '200':
@@ -682,6 +832,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/SpaceId'
         - $ref: '#/components/parameters/FeatureId'
+        - $ref: '#/components/parameters/VersionRef'
       requestBody:
         $ref: '#/components/requestBodies/FeatureRequest'
       responses:
@@ -708,6 +859,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/SpaceId'
         - $ref: '#/components/parameters/FeatureId'
+        - $ref: '#/components/parameters/VersionRef'
       requestBody:
         $ref: '#/components/requestBodies/FeatureRequest'
       responses:
@@ -737,6 +889,7 @@ paths:
         - $ref: '#/components/parameters/SpaceId'
         - $ref: '#/components/parameters/FeatureId'
         - $ref: '#/components/parameters/Context'
+        - $ref: '#/components/parameters/VersionRef'
       responses:
         '204':
           $ref: '#/components/responses/EmptyResponse'
@@ -1212,135 +1365,6 @@ paths:
           $ref: '#/components/responses/ErrorResponse404'
         '409':
           $ref: '#/components/responses/ErrorResponse409'
-  '/spaces/{spaceId}/jobs':
-    post:
-      tags:
-        - Manage Jobs
-      summary: Create Job
-      operationId: postJob
-      parameters:
-        - $ref: '#/components/parameters/SpaceId'
-      requestBody:
-        $ref: '#/components/requestBodies/JobRequest'
-      responses:
-        '201':
-          $ref: '#/components/responses/JobResponse'
-        '400':
-          $ref: '#/components/responses/ErrorResponse400'
-        '401':
-          $ref: '#/components/responses/ErrorResponse401'
-        '403':
-          $ref: '#/components/responses/ErrorResponse403'
-    get:
-      tags:
-        - Manage Jobs
-      summary: Get jobs
-      description: Retrieve jobs
-      operationId: getJobs
-      parameters:
-        - $ref: '#/components/parameters/SpaceId'
-        - $ref: '#/components/parameters/JobStatus'
-      responses:
-        '200':
-          $ref: '#/components/responses/JobsResponse'
-        '400':
-          $ref: '#/components/responses/ErrorResponse400'
-        '401':
-          $ref: '#/components/responses/ErrorResponse401'
-        '403':
-          $ref: '#/components/responses/ErrorResponse403'
-        '404':
-          $ref: '#/components/responses/ErrorResponse404'
-  '/spaces/{spaceId}/job/{jobId}':
-    get:
-      tags:
-        - Manage Jobs (deprecated)
-      summary: Get job
-      description: Retrieve job
-      operationId: getJob
-      parameters:
-        - $ref: '#/components/parameters/SpaceId'
-        - $ref: '#/components/parameters/JobId'
-      responses:
-        '200':
-          $ref: '#/components/responses/JobResponse'
-        '400':
-          $ref: '#/components/responses/ErrorResponse400'
-        '401':
-          $ref: '#/components/responses/ErrorResponse401'
-        '403':
-          $ref: '#/components/responses/ErrorResponse403'
-        '404':
-          $ref: '#/components/responses/ErrorResponse404'
-    patch:
-      tags:
-        - Manage Jobs (deprecated)
-      summary: Update Job
-      operationId: patchJob
-      parameters:
-        - $ref: '#/components/parameters/SpaceId'
-        - $ref: '#/components/parameters/JobId'
-      requestBody:
-        $ref: '#/components/requestBodies/JobRequest'
-      responses:
-        '200':
-          $ref: '#/components/responses/JobResponse'
-        '400':
-          $ref: '#/components/responses/ErrorResponse400'
-        '401':
-          $ref: '#/components/responses/ErrorResponse401'
-        '403':
-          $ref: '#/components/responses/ErrorResponse403'
-        '404':
-          $ref: '#/components/responses/ErrorResponse404'
-    delete:
-      tags:
-        - Manage Jobs (deprecated)
-      summary: Delete job
-      description: Delete job
-      operationId: deleteJob
-      parameters:
-        - $ref: '#/components/parameters/SpaceId'
-        - $ref: '#/components/parameters/JobId'
-        - $ref: '#/components/parameters/DeleteData'
-      responses:
-        '200':
-          $ref: '#/components/responses/JobResponse'
-        '400':
-          $ref: '#/components/responses/ErrorResponse400'
-        '401':
-          $ref: '#/components/responses/ErrorResponse401'
-        '403':
-          $ref: '#/components/responses/ErrorResponse403'
-        '404':
-          $ref: '#/components/responses/ErrorResponse404'
-  '/spaces/{spaceId}/job/{jobId}/execute':
-    post:
-      tags:
-        - Manage Jobs (deprecated)
-      summary: Run Command
-      description: Run Command on Job
-      operationId: postExecute
-      parameters:
-        - $ref: '#/components/parameters/SpaceId'
-        - $ref: '#/components/parameters/JobId'
-        - $ref: '#/components/parameters/Command'
-        - $ref: '#/components/parameters/UrlCount'
-      responses:
-        '204':
-          $ref: '#/components/responses/JobResponse'
-        '400':
-          $ref: '#/components/responses/ErrorResponse400'
-        '401':
-          $ref: '#/components/responses/ErrorResponse401'
-        '403':
-          $ref: '#/components/responses/ErrorResponse403'
-        '404':
-          $ref: '#/components/responses/ErrorResponse404'
-        '409':
-          $ref: '#/components/responses/ErrorResponse409'
-        '412':
-          $ref: '#/components/responses/ErrorResponse412'
 components:
   securitySchemes:
     AccessToken:
@@ -1520,17 +1544,35 @@ components:
     EndVersion:
       name: endVersion
       in: query
-      description: Defines the end of the version-range [version <= endVersion].
+      description: |
+        `[Deprecated]` Please define the version range using the versionRef query parameter.
+        
+        
+        Defines the end of the version-range [version <= endVersion].
       required: false
       schema:
         type: integer
-    EndVersionNotRequired:
-      name: endVersion
+      deprecated: true
+    StartTime:
+      name: startTime
       in: query
-      description: Defines the end of the version-range [version <= endVersion].
+      description: |
+        Filter changesets by creation time. Start time in milliseconds since the UNIX epoch (exclusive).
       required: false
       schema:
         type: integer
+        format: int64
+        minimum: 0
+    EndTime:
+      name: endTime
+      in: query
+      description: |
+        Filter changesets by creation time. End time in milliseconds since the UNIX epoch (inclusive).
+      required: false
+      schema:
+        type: integer
+        format: int64
+        minimum: 0
     FeatureId:
       name: featureId
       in: path
@@ -1559,7 +1601,10 @@ components:
         for this field:
           * id=value1,value2
           * id=value1,id=value2
-      required: true
+
+
+        not required when eraseContent=true is used.
+      required: false
       schema:
         type: array
         items:
@@ -1762,7 +1807,7 @@ components:
            "p.myNumber1": 5,
            "p.myNumber2=gte":7
           }
-          
+
     PropertiesSelection:
       name: selection
       in: query
@@ -1771,6 +1816,7 @@ components:
         specified by using comma(,).
 
         Example: ?selection=p.name,p.capacity,p.color,rootpropertyname
+          - !geometry : special value to omit geometries
       explode: false
       schema:
         type: array
@@ -1865,20 +1911,25 @@ components:
       required: true
       schema:
         type: string
+    BranchId:
+      name: branchId
+      in: path
+      description: The unique identifier of the branch.
+      required: true
+      schema:
+        type: string
     StartVersion:
       name: startVersion
       in: query
-      description: Defines the start of the version-range [version >= startVersion].
+      description: |
+        `[Deprecated]` Please define the version range using the versionRef query parameter.
+        
+        
+        Defines the start of the version-range [version >= startVersion].
       required: false
       schema:
         type: integer
-    StartVersionNotRequired:
-      name: startVersion
-      in: query
-      description: Defines the start of the version-range [version >= startVersion].
-      required: false
-      schema:
-        type: integer
+      deprecated: true
     TileId:
       name: tileId
       in: path
@@ -1985,21 +2036,55 @@ components:
     VersionRef:
       name: versionRef
       in: query
-      description: >-
-        The query parameter used to specify the version reference pointing to a tag or a version.
+      description: |
+        The query parameter used to specify the target version reference when reading or writing features.
+        A reference describes a target tag or a branch and/or a version within that target branch.
+        
+        Default is: `main:HEAD`
+
+        <br>
+        Version references have the following syntax:
+
+        <br>
+        `[<branchName (optional, default: main)>:][<version (optional, default: HEAD)>] | [<tagName> (optional)]`
+
+        <br>
+        The "main"-branch is pointing to the space itself as it has been created in the first place.
+        Defining the branch as part of the reference only becomes necessary if further
+        branches have been created for the space, which should be addressed by the ref.
+
+        <br>
+        Depending on the use-case it can be necessary to specify a range of versions rather than
+        only one version. In such a case the version part of the Ref would look like:
+        `<start>..<end>`
+
+        Where `<start>` is the start of the range (exclusive) and `<end>` is the end of the range
+        (inclusive).
+        
+        Another way of specifying a version range is using the star-symbol: `*`
+
+        Using `*` refers to "all available versions" in the space or branch and is only
+        applicable in the cases in which a version range may be provided.
+
+        <br>
+        Samples:
+          - `main:42` points to version 42 of the "main"-branch
+          - `myTag` points to the version of the tag with ID "myTag"
+          - `myBranch:37` Points to version 37 of the branch with ID "myBranch"
+          - `42` points to version 42 of the "main"-branch
+          - `myBranch:HEAD` points to the latest version of the branch with ID "myBranch"
+          - `HEAD` points to the latest version of the "main"-branch
+          - `myBranch` points to the latest version of the branch with ID "myBranch"
+          - `myBranch:0..HEAD` points to all available versions of the branch with ID "myBranch"
+          - `0..HEAD` also points to all available versions of the "main"-branch
+          - `*` also points to all versions (short form)
+          - `myBranch:*` also points to all versions of branch "myBranch" (short form)
+          - `main:5..10` points to the versions in the interval `]5, 10]` of the "main"-branch
+          - `5..10` also points to the versions in the interval `]5, 10]` of the "main"-branch
       required: false
       schema:
         type: string
-    VersionRefStar:
-      name: versionRef
-      in: query
-      description: >-
-        The query parameter used to specify the version reference pointing to a tag or a version
-        with also the possibility to use the star '*' to load all versions or 'HEAD' to load the
-        latest available version.
-      required: false
-      schema:
-        type: string
+        default: main:HEAD
     VersionPath:
       name: version
       in: path
@@ -2314,6 +2399,12 @@ components:
             items:
               $ref: '#/components/schemas/Tag'
             type: array
+    BranchResponse:
+      description: A branch response.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Branch'
     SpaceResponse:
       description: The space.
       content:
@@ -2331,7 +2422,7 @@ components:
                 createdAt: 1560417151751
                 updatedAt: 1561480482869
     SpacesResponse:
-      description: The list of spaces.
+      description: A list of spaces.
       content:
         application/json:
           schema:
@@ -2348,6 +2439,20 @@ components:
                   cid: dX0BH75QE8paCVQr8MQw
                   createdAt: 1560417151751
                   updatedAt: 1561480482869
+    BranchesResponse:
+      description: A list of branches.
+      content:
+        application/json:
+          schema:
+            items:
+              $ref: '#/components/schemas/Branch'
+            type: array
+          examples:
+            response:
+              value:
+                - id: myBranch
+                  baseRef: 'main:42'
+                  description: Description as markdown
     StatisticsResponse:
       description: Statistical information about a space.
       content:
@@ -2436,6 +2541,24 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Tag'
+    BranchRequest:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Branch'
+    BranchOperationRequest:
+      required: true
+      content:
+        application/json:
+          schema:
+            oneOf:
+              - $ref: '#/components/schemas/MergeBranchOperation'
+            discriminator:
+              propertyName: type
+          example:
+            type: Merge
+            targetBranchId: main
     SpaceRequest:
       required: true
       content:
@@ -3349,6 +3472,119 @@ components:
           type: boolean
           description: >-
             The flag indicating the tag is a system tag and cannot be modified or deleted.
+        description:
+          type: string
+          description: >-
+            The description of the tag, must be less than 255 characters.
+        author:
+          type: string
+          description: >-
+            The author of the tag.
+        createdAt:
+          type: integer
+          format: int64
+          description: >-
+            The timestamp of creation of the tag in millis.
+    Branch:
+      type: object
+      description: >-
+        A branch is like a separate space, which is based on a specific version of the space
+        or on a specific version of some other branch of the space. Reading & writing features
+        to a branch does not have an effect on the main branch or any other branch of the space.
+        
+        
+        A branch can be created by pointing to a base ref. A base ref consists of the base branch
+        (e.g, "main") and the base version of that base branch. New write transactions to the
+        created branch will continue to increase the version counter starting from the
+        base version. Versions in that branch are independent from the versions of the base branch.
+      properties:
+        id:
+          type: string
+          description: >-
+            The branch ID. It must be unique per space.
+        baseRef:
+          type: string
+          description: >-
+            The reference onto which the branch has been created.
+            A reference describes a target branch and a version within that target branch.
+            References have the following syntax:
+            
+            
+            `[<branchName (optional, default: main)>:][<version (optional, default: HEAD)>]`
+            
+            
+            The "main"-branch is the space itself as it has been created in the first place.
+            Defining the branch as part of the reference only becomes necessary if further
+            branches have been created for the space, which should be addressed by the ref.
+            
+            
+            Samples:
+              - `main:42` points to version 42 of the "main"-branch 
+              - `myBranch:37` Points to version 37 of the branch with ID "myBranch"
+              - `42` points to version 42 of the "main"-branch
+              - `myBranch:HEAD` points to the latest version of the branch with ID "myBranch"
+              - `HEAD` points to the latest version of the "main"-branch
+              - `myBranch` points to the latest version of the branch with ID "myBranch"
+    MergeBranchOperation:
+      type: object
+      description: |
+        This operation performs a merge of the branch into another specified branch.
+        Merging a branch into another one means to add all changes of this branch
+        into the specified target branch as a new single commit.
+        
+        
+        During a merge operation conflicts may occur. That will be indicated within the branch
+        response with `state = IN_CONFLICT`. In such a case the conflicts can be solved by the
+        client using the `conflictSolvingBranch` that points to `!<originalBranchId>`.
+        
+        The `merges` property of the branch response depicts all merges that have been executed
+        and/or attempted. The most recent merge attempt is the one with the highest version number.
+        There may be only one merge attempt that is in progress at any time. All other / older
+        entries in the `merges` map depict merge operations that have been executed successfully
+        in the past.
+        
+        
+        Sample:
+        
+        If a merge operation was started on branch `myBranch` and ends up in `state = IN_CONFLICT`
+        the resulting branch response could look like follows:
+        
+        
+        ```json
+        {
+          "id": "myBranch",
+          "baseRef": "main:11",
+          "state": "IN_CONFLICT",
+          "merges": {
+            "27": "main:42"
+            "15": "main:14"
+          }
+          "conflictSolvingBranch": "!myBranch"
+        }
+        ```
+        
+        
+        Here `"myBranch"` is the ID of the branch that was attempted to be merged into branch
+        `"main"`. It was attempted to merge version `27` of `myBranch`
+        as new commit (with version `42`) into the branch `"main"`.
+        
+        Conflicts occurred during that operation, that is why `state = "IN_CONFLICT"` and
+        the ID of a `"conflictSolvingBranch"` with ID `"!myBranch"` was provided.
+        
+        That conflict solving branch can be used like any other branch to solve the conflicts
+        by writing to it. All conflicting features in there are marked as such having set 
+        `conflicting = true` in their XYZ namespace.
+      discriminator:
+        propertyName: type
+      required:
+        - type
+      properties:
+        type:
+          type: string
+          description: "The type is: `Merge`"
+        targetBranchId:
+          type: string
+          description: "The ID of the branch into which to merge this branch."
     RemoteFunctionConfig:
       type: object
       description: A connector declaration.

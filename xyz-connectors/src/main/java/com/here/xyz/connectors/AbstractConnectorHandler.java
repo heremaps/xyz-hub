@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 
 package com.here.xyz.connectors;
 
+import static com.here.xyz.events.BinaryEvent.isXyzBinaryPayload;
 import static com.here.xyz.responses.XyzError.EXCEPTION;
 import static com.here.xyz.responses.XyzError.FORBIDDEN;
 
@@ -35,8 +36,7 @@ import com.here.xyz.Typed;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.connectors.decryptors.EventDecryptor;
 import com.here.xyz.connectors.decryptors.EventDecryptor.Decryptors;
-import com.here.xyz.util.runtime.FunctionRuntime;
-import com.here.xyz.util.runtime.LambdaFunctionRuntime;
+import com.here.xyz.events.BinaryEvent;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.EventNotification;
 import com.here.xyz.events.HealthCheckEvent;
@@ -47,6 +47,8 @@ import com.here.xyz.responses.HealthStatus;
 import com.here.xyz.responses.NotModifiedResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.util.runtime.FunctionRuntime;
+import com.here.xyz.util.runtime.LambdaFunctionRuntime;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -240,7 +242,7 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
         dataOut = new ErrorResponse()
             .withStreamId(this.streamId)
             .withError(EXCEPTION)
-            .withErrorMessage("Unexpected exception occurred.");
+            .withErrorMessage("Unexpected exception occurred: " + e.getMessage());
       }
       catch (OutOfMemoryError e) {
        throw e;
@@ -267,7 +269,9 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
       input = Payload.prepareInputStream(input);
       streamPreview = previewInput(input);
 
-      Event receivedEvent = XyzSerializable.deserialize(input);
+      Event receivedEvent = isXyzBinaryPayload(streamPreview.substring(4, 8))
+          ? BinaryEvent.fromByteArray(input.readAllBytes())
+          : XyzSerializable.deserialize(input);
       logger.debug("{} [{} ms] - Parsed event: {}", receivedEvent.getStreamId(), ms(), streamPreview);
       return receivedEvent;
     }

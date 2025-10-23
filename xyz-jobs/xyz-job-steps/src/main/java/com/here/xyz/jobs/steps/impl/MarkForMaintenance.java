@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,14 +19,11 @@
 
 package com.here.xyz.jobs.steps.impl;
 
-import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
-import static com.here.xyz.jobs.steps.execution.db.Database.loadDatabase;
-
-import com.here.xyz.jobs.steps.execution.db.Database;
+import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
-import com.here.xyz.models.hub.Space;
 import com.here.xyz.util.db.SQLQuery;
+import com.here.xyz.util.service.Core;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import java.sql.SQLException;
 import java.util.Collections;
@@ -35,21 +32,33 @@ import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+@Deprecated
 public class MarkForMaintenance extends SpaceBasedStep<MarkForMaintenance> {
   private static final String XYZ_CONFIG_SCHEMA = "xyz_config";
   private static final String IDX_STATUS_TABLE = "xyz_idxs_status";
   private static final Logger logger = LogManager.getLogger();
+  @JsonView({Internal.class, Static.class})
+  private boolean idxCreationCompleted;
+
+  public void setIdxCreationCompleted(boolean idxCreationCompleted) {
+    this.idxCreationCompleted = idxCreationCompleted;
+  }
+
+  public MarkForMaintenance withIdxCreationCompleted(boolean idxCreationCompleted) {
+    setIdxCreationCompleted(idxCreationCompleted);
+    return this;
+  }
+
+  public boolean isIdxCreationCompleted() {
+    return idxCreationCompleted;
+  }
+
   @Override
   public List<Load> getNeededResources() {
     try {
-      int acus = calculateNeededAcus();
-      Database db = loadDatabase(loadSpace(getSpaceId()).getStorage().getId(), WRITER);
-
-      return Collections.singletonList(new Load().withResource(db).withEstimatedVirtualUnits(acus));
+      return Collections.singletonList(new Load().withResource(db()).withEstimatedVirtualUnits(0));
     }
     catch (WebClientException e) {
-      //TODO: log error
-      //TODO: is the step failed? Retry later? It could be a retryable error as the prior validation succeeded, depending on the type of HubWebClientException
       throw new RuntimeException(e);
     }
   }
@@ -70,29 +79,16 @@ public class MarkForMaintenance extends SpaceBasedStep<MarkForMaintenance> {
   }
 
   @Override
-  public void resume() throws Exception {
-
-  }
-
-  private int calculateNeededAcus() {
-    return 0;
-  }
-
-  @Override
-  public void execute() throws WebClientException, SQLException, TooManyResourcesClaimed {
-    logger.info("Analyze table of space " + getSpaceId() + " ...");
-
-    logger.info("Loading space config for space {}", getSpaceId());
-    Space space = loadSpace(getSpaceId());
-    logger.info("Getting storage database for space {}", getSpaceId());
-    Database db = loadDatabase(space.getStorage().getId(), WRITER);
-
-    if (!space.isActive()) {
-      logger.info("[{}] Re-activating the space {} ...", getGlobalStepId(), getSpaceId());
-      hubWebClient().patchSpace(getSpaceId(), Map.of("active", true));
+  public void execute(boolean resume) throws WebClientException, SQLException, TooManyResourcesClaimed {
+    if (!idxCreationCompleted && !space().isActive()) {
+      logger.info("[{}] Re-activating the space {} and update contentUpdatedAt!", getGlobalStepId(), getSpaceId());
+      hubWebClient().patchSpace(getSpaceId(), Map.of(
+              "active", true,
+              "contentUpdatedAt", Core.currentTimeMillis()
+      ));
     }
-
-    runReadQueryAsync(buildMarkForMaintenanceQuery(getSchema(db), getRootTableName(space)), db, calculateNeededAcus());
+    logger.info("[{}] Set idxCreationCompleted to {} for space {}!", getGlobalStepId(), idxCreationCompleted, getSpaceId());
+    runReadQueryAsync(buildMarkForMaintenanceQuery(getSchema(db()), getRootTableName(space())), db(), 0);
   }
 
   public SQLQuery buildMarkForMaintenanceQuery(String schema, String table) {
@@ -103,6 +99,6 @@ public class MarkForMaintenance extends SpaceBasedStep<MarkForMaintenance> {
             .withVariable("table", IDX_STATUS_TABLE)
             .withNamedParameter("spaceSchema", schema)
             .withNamedParameter("spaceTable", table)
-            .withNamedParameter("markAs", false);
+            .withNamedParameter("markAs", idxCreationCompleted);
   }
 }

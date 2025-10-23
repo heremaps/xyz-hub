@@ -48,6 +48,9 @@ public class DownloadUrl extends Output<DownloadUrl> implements S3DataFile {
 
   @Override
   public boolean isCompressed() {
+    if (this.getS3Key() != null) {
+      return this.getS3Key().endsWith(".zip");
+    }
     return false;
   }
 
@@ -74,12 +77,14 @@ public class DownloadUrl extends Output<DownloadUrl> implements S3DataFile {
   }
 
   @Override
+  @JsonIgnore
   public String getS3Bucket() {
     //Current outputs are written to default bucket only
     return Config.instance.JOBS_S3_BUCKET;
   }
 
   @Override
+  @JsonIgnore
   public long getEstimatedUncompressedByteSize() {
     if (isCompressed())
       throw new RuntimeException("Not Implemented: Compression for outputs is currently not supported.");

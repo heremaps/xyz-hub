@@ -22,14 +22,13 @@ package com.here.xyz.psql.query.helpers.versioning;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SCHEMA;
 
 import com.here.xyz.connectors.ErrorResponseException;
-import com.here.xyz.events.Event;
+import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.psql.query.XyzEventBasedQueryRunner;
 import com.here.xyz.util.db.SQLQuery;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
-public class GetNextVersion<E extends Event> extends XyzEventBasedQueryRunner<E, Long> {
+public class GetNextVersion<E extends ContextAwareEvent> extends XyzEventBasedQueryRunner<E, Long> {
 
   public static final String VERSION_SEQUENCE_SUFFIX = "_version_seq";
 
@@ -41,7 +40,11 @@ public class GetNextVersion<E extends Event> extends XyzEventBasedQueryRunner<E,
   protected SQLQuery buildQuery(E event) throws SQLException, ErrorResponseException {
     return new SQLQuery("SELECT nextval('${schema}.${sequence}')")
         .withVariable(SCHEMA, getSchema())
-        .withVariable("sequence", getDefaultTable(event) + VERSION_SEQUENCE_SUFFIX);
+        .withVariable("sequence", getSequenceName(event));
+  }
+
+  private String getSequenceName(E event) {
+    return getBranchTable(event) + VERSION_SEQUENCE_SUFFIX;
   }
 
   @Override

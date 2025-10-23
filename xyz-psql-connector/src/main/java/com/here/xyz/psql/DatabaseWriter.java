@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@ import static com.here.xyz.psql.DatabaseWriter.ModificationType.INSERT;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.INSERT_HIDE_COMPOSITE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE_HIDE_COMPOSITE;
+import static com.here.xyz.psql.query.XyzEventBasedQueryRunner.readBranchTableFromEvent;
 import static com.here.xyz.util.db.SQLQuery.XyzSqlErrors.XYZ_CONFLICT;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.PARTITION_SIZE;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SCHEMA;
@@ -37,7 +38,6 @@ import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
-import com.here.xyz.psql.query.XyzEventBasedQueryRunner;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DatabaseSettings;
 import com.here.xyz.util.runtime.FunctionRuntime;
@@ -58,12 +58,13 @@ public class DatabaseWriter {
 
     private static SQLQuery buildMultiModalInsertStmtQuery(DatabaseSettings dbSettings, ModifyFeaturesEvent event) {
         return new SQLQuery("SELECT xyz_write_versioned_modification_operation(#{id}, #{version}, #{operation}, #{jsondata}, #{geo}, "
-            + "#{schema}, #{table}, #{concurrencyCheck}, #{partitionSize}, #{versionsToKeep}, #{pw}, #{baseVersion})")
+            + "#{schema}, #{table}, #{concurrencyCheck}, #{partitionSize}, #{versionsToKeep}, #{pw}, #{baseVersion}, #{minTagVersion})")
             .withNamedParameter(SCHEMA, dbSettings.getSchema())
-            .withNamedParameter(TABLE, XyzEventBasedQueryRunner.readTableFromEvent(event))
+            .withNamedParameter(TABLE, readBranchTableFromEvent(event))
             .withNamedParameter("concurrencyCheck", event.isConflictDetectionEnabled())
             .withNamedParameter("partitionSize", PARTITION_SIZE)
             .withNamedParameter("versionsToKeep", event.getVersionsToKeep())
+            .withNamedParameter("minTagVersion", event.getMinVersion())
             .withNamedParameter("pw", dbSettings.getPassword());
     }
 
@@ -96,7 +97,7 @@ public class DatabaseWriter {
     private static SQLQuery setCommonParams(SQLQuery writeQuery, DatabaseHandler dbHandler, ModifyFeaturesEvent event) {
         return writeQuery
             .withNamedParameter(SCHEMA, dbHandler.getDatabaseSettings().getSchema())
-            .withNamedParameter(TABLE, XyzEventBasedQueryRunner.readTableFromEvent(event))
+            .withNamedParameter(TABLE, readBranchTableFromEvent(event))
             .withNamedParameter("concurrencyCheck", event.isConflictDetectionEnabled());
     }
 
@@ -192,7 +193,7 @@ public class DatabaseWriter {
             throw new WriteFeatureException(UPDATE_ERROR_ID_MISSING);
 
         if (event.isConflictDetectionEnabled() && event.getVersionsToKeep() == 1)
-            query.setNamedParameter("baseVersion", feature.getProperties().getXyzNamespace().getVersion());
+            query.setNamedParameter("baseVersion", getBaseVersion(event, feature.getProperties().getXyzNamespace().getVersion()));
 
         /*
         NOTE: If versioning is activated for the space, always only inserts are performed,
@@ -207,8 +208,9 @@ public class DatabaseWriter {
     }
 
     private static void fillInsertQueryFromFeature(SQLQuery query, ModificationType action, Feature feature, ModifyFeaturesEvent event, long version) throws SQLException {
-        long baseVersion = feature.getProperties().getXyzNamespace().getVersion();
-        query
+      long baseVersion = getBaseVersion(event, feature.getProperties().getXyzNamespace().getVersion());
+
+      query
             .withNamedParameter("id", feature.getId())
             .withNamedParameter("version", version)
             .withNamedParameter("operation", resolveOperation(action, feature).shortValue)
@@ -226,7 +228,14 @@ public class DatabaseWriter {
             query.setNamedParameter("geo", null);
     }
 
-    private static boolean getDeletedFlagFromFeature(Feature f) {
+  private static long getBaseVersion(ModifyFeaturesEvent event, long baseVersionFromFeature) {
+    long baseVersion = baseVersionFromFeature;
+    if (event.getRef() != null && event.getRef().isSingleVersion() && !event.getRef().isHead())
+      baseVersion = event.getRef().getVersion();
+    return baseVersion;
+  }
+
+  private static boolean getDeletedFlagFromFeature(Feature f) {
         return f.getProperties() == null ? false :
             f.getProperties().getXyzNamespace() == null ? false : f.getProperties().getXyzNamespace().isDeleted();
     }
@@ -251,7 +260,7 @@ public class DatabaseWriter {
             for (final Object inputDatum : inputData) {
                 try {
                     fillModificationQueryFromInput(modificationQuery, event, action, inputDatum, version);
-                    PreparedStatement ps = modificationQuery.prepareStatement(connection);
+                    PreparedStatement ps = modificationQuery.getPreparedStatement(connection);
 
                     if (transactional) {
                         ps.addBatch();
@@ -281,7 +290,7 @@ public class DatabaseWriter {
             }
 
             if (transactional) {
-                executeBatchesAndCheckOnFailures(idList, modificationQuery.prepareStatement(connection), fails, event, action);
+                executeBatchesAndCheckOnFailures(idList, modificationQuery.getPreparedStatement(connection), fails, event, action);
 
                 if (fails.size() > 0) {
                     logException(null, action, event);
@@ -375,7 +384,7 @@ public class DatabaseWriter {
     }
 
     private static void logException(Exception e, ModificationType action, ModifyFeaturesEvent event){
-        String table = XyzEventBasedQueryRunner.readTableFromEvent(event);
+        String table = readBranchTableFromEvent(event);
         String message = e != null && e.getMessage() != null && e.getMessage().contains("does not exist")
             //If table doesn't exist yet
             ? "{} Failed to perform {} - table {} does not exists"

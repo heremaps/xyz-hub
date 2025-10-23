@@ -20,14 +20,12 @@
 package com.here.xyz.hub.rest;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
-import static com.here.xyz.hub.rest.ApiParam.Query.F_PREFIX;
 
 import com.amazonaws.util.StringUtils;
 import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.PropertyQuery;
 import com.here.xyz.events.PropertyQuery.QueryOperation;
-import com.here.xyz.events.PropertyQueryList;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Point;
 import io.vertx.ext.web.RoutingContext;
@@ -46,17 +44,6 @@ import java.util.Objects;
 import java.util.stream.Stream;
 
 public class ApiParam {
-  private static final Map<String, String> SEARCH_KEY_REPLACEMENTS = Map.of(
-      "f.id", "id",
-      "f.createdAt", "properties.@ns:com:here:xyz.createdAt",
-      "f.updatedAt", "properties.@ns:com:here:xyz.updatedAt",
-      "f.tags", "properties.@ns:com:here:xyz.tags"
-  );
-
-  public static class Header {
-
-  }
-
   public static class Path {
 
     public static final String SPACE_ID = "spaceId";
@@ -88,6 +75,7 @@ public class ApiParam {
     static final String CONFLICT_RESOLUTION = "cr";
     static final String PREFIX_ID = "prefixId";
     static final String CLIP = "clip";
+    static final String FAST_MODE = "fastMode";
     static final String SKIP_CACHE = "skipCache";
     static final String CLUSTERING = "clustering";
     static final String TWEAKS = "tweaks";
@@ -111,6 +99,8 @@ public class ApiParam {
     static final String H3_INDEX = "h3Index";
     static final String CONTENT_UPDATED_AT = "contentUpdatedAt";
     static final String CONTEXT = "context";
+    static final String EXTENDING_SPACES = "extendingSpaces";
+    static final String ERASE_CONTENT = "eraseContent";
 
     static final String CLUSTERING_PARAM_RESOLUTION = "resolution";
     static final String CLUSTERING_PARAM_RESOLUTION_RELATIVE = "relativeResolution";
@@ -137,6 +127,8 @@ public class ApiParam {
     static final String END_VERSION = "endVersion";
     static final String PAGE_TOKEN = "pageToken";
     static final String AUTHOR = "author";
+    static final String START_TIME = "startTime";
+    static final String END_TIME = "endTime";
 
     static final String F_PREFIX = "f.";
 
@@ -146,7 +138,8 @@ public class ApiParam {
     @Deprecated
     static final String CONNECTOR_MAPPING = "connectorMapping";
 
-    static final String DRY_RUN = "dryRun";
+    static final String DRY_RUN = "dryRun",
+                        FORCE_STORAGE = "forceStorage";
 
     /**
      * Get access to the custom parsed query parameters. Used as a temporary replacement for context.queryParam until
@@ -244,9 +237,10 @@ public class ApiParam {
 
       List<String> input = Query.queryParam(Query.SELECTION, context);
 
-      if (input.size() == 1 && "*".equalsIgnoreCase(input.get(0))) return new ArrayList<>(input);
+      if (input.size() == 1 && ("*".equals(input.get(0)) || "!geometry".equalsIgnoreCase(input.get(0))))
+        return new ArrayList<>(input);
 
-      HashSet<String> selection = new HashSet<String>(Arrays.asList("id", "type"));
+      HashSet<String> selection = new HashSet<>(Arrays.asList("id", "type"));
 
       for (String s : input)
        switch( s )
@@ -254,7 +248,7 @@ public class ApiParam {
          default : selection.add( s.replaceFirst("^p\\.", "properties.") ); break;
        }
 
-      return new ArrayList<String>(selection);
+      return new ArrayList<>(selection);
     }
 
     public static List<String> getSort(RoutingContext context) {

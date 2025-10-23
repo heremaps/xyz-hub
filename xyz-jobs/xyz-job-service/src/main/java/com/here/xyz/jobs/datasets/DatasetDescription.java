@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,13 +29,24 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.Typed;
-import com.here.xyz.events.UpdateStrategy;
+import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.datasets.DatasetDescription.Map;
 import com.here.xyz.jobs.datasets.DatasetDescription.Space;
 import com.here.xyz.jobs.datasets.filters.FilteringSource;
 import com.here.xyz.jobs.datasets.filters.Filters;
 import com.here.xyz.jobs.datasets.streams.Notifications;
+import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.models.hub.Ref;
+import com.here.xyz.models.hub.Space.Extension;
+import com.here.xyz.util.Async;
+import com.here.xyz.util.geo.GeometryValidator;
+import com.here.xyz.util.web.HubWebClient;
+import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
+import com.here.xyz.util.web.XyzWebClient.WebClientException;
+import io.vertx.core.Future;
+import java.util.HashSet;
+import java.util.Optional;
+import java.util.Set;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeInfo(use = Id.NAME, property = "type")
@@ -44,7 +55,8 @@ import com.here.xyz.models.hub.Ref;
     @JsonSubTypes.Type(value = Space.class, name = "Space"),
     @JsonSubTypes.Type(value = Spaces.class, name = "Spaces"),
     @JsonSubTypes.Type(value = Files.class, name = "Files"),
-    @JsonSubTypes.Type(value = Notifications.class, name = "Notifications")
+    @JsonSubTypes.Type(value = Notifications.class, name = "Notifications"),
+    @JsonSubTypes.Type(value = Datasets.class, name = "Datasets")
 })
 @JsonInclude(NON_DEFAULT)
 public abstract class DatasetDescription implements Typed {
@@ -56,8 +68,23 @@ public abstract class DatasetDescription implements Typed {
   @JsonIgnore
   public abstract String getKey();
 
+  @JsonIgnore
+  public Set<String> getResourceKeys() {
+    String primaryKey = getKey();
+    return primaryKey == null ? Set.of() : Set.of(primaryKey);
+  }
+
+  /**
+   * May be overridden by implementing subclasses to perform some long-running preparations for the dataset.
+   * (e.g., finding all sub-resources of a resource within an external system)
+   * @return
+   */
+  public Future<Void> prepare() {
+    return Future.succeededFuture();
+  }
+
   public static class Map extends Identifiable implements VersionedSource<Map> {
-    private Ref versionRef;
+    private Ref versionRef = new Ref(Ref.HEAD);
 
     @Override
     public Ref getVersionRef() {
@@ -81,7 +108,10 @@ public abstract class DatasetDescription implements Typed {
     @JsonView({Public.class, Static.class})
     private Filters filters;
     @JsonView({Public.class, Static.class})
-    private Ref versionRef;
+    private Ref versionRef = new Ref(Ref.HEAD);
+    @JsonIgnore
+    private Optional<String> extendedSpaceId;
+    private static final Async ASYNC = new Async(5, Job.class);
 
     @Override
     public Filters getFilters() {
@@ -91,6 +121,11 @@ public abstract class DatasetDescription implements Typed {
     @Override
     public void setFilters(Filters filters) {
       this.filters = filters;
+      if(filters != null && filters.getSpatialFilter() != null && filters.getSpatialFilter().getGeometry() != null
+        && GeometryValidator.isWorldBoundingBox(filters.getSpatialFilter().getGeometry())){
+        //Remove spatialFilter if it is a world bounding box
+        this.filters = null;
+      }
     }
 
     @Override
@@ -113,6 +148,43 @@ public abstract class DatasetDescription implements Typed {
     public T withVersionRef(Ref versionRef) {
       setVersionRef(versionRef);
       return (T) this;
+    }
+
+    @Override
+    public Set<String> getResourceKeys() {
+      Set<String> resourceKeys = new HashSet<>(super.getResourceKeys());
+
+      if (extendedSpaceId != null && extendedSpaceId.isPresent())
+        resourceKeys.add(extendedSpaceId.get());
+
+      return resourceKeys;
+    }
+
+    @Override
+    public Future<Void> prepare() {
+      if (extendedSpaceId != null)
+        return super.prepare();
+      return super.prepare()
+          .compose(v -> loadExtendedId())
+          .compose(extendedSpaceId -> {
+            this.extendedSpaceId = Optional.ofNullable(extendedSpaceId);
+            return Future.succeededFuture();
+          });
+    }
+
+    public Future<String> loadExtendedId() {
+      return ASYNC.run(() -> {
+        try {
+          Extension extension = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadSpace(getId()).getExtension();
+          return extension == null ? null : extension.getSpaceId();
+        }
+        catch (WebClientException e) {
+          //Ignore if space is not present (anymore)
+          if (!(e instanceof ErrorResponseException errorResponseException && errorResponseException.getStatusCode() == 404))
+            throw new RuntimeException(e);
+        }
+        return null;
+      });
     }
   }
 }

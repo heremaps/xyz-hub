@@ -19,9 +19,11 @@
 
 package com.here.xyz.jobs.datasets.filters;
 
+import java.util.List;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.XyzSerializable.Public;
+import com.here.xyz.XyzSerializable.Static;
 import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
 import com.here.xyz.util.geo.GeometryValidator.GeometryException;
 import com.here.xyz.models.geojson.implementation.Geometry;
@@ -30,14 +32,30 @@ import com.here.xyz.util.service.BaseHttpServerVerticle;
 
 @JsonInclude(JsonInclude.Include.NON_DEFAULT)
 public class SpatialFilter {
-  @JsonView({Public.class})
+  @JsonView({Public.class, Static.class})
+  private List<String> tileIds;
+
+  @JsonView({Public.class, Static.class})
   private Geometry geometry;
 
-  @JsonView({Public.class})
+  @JsonView({Public.class, Static.class})
   private int radius;
 
-  @JsonView({Public.class})
+  @JsonView({Public.class, Static.class})
   private boolean clip;
+
+  public List<String> getTileIds() {
+    return tileIds;
+  }
+
+  public void setTileIds(List<String> tileIds) {
+    this.tileIds = tileIds;
+  }
+
+  public SpatialFilter withTileIds(List<String> tileIds) {
+    setTileIds(tileIds);
+    return this;
+  }
 
   public Geometry getGeometry() {
     return geometry;
@@ -111,5 +129,19 @@ public class SpatialFilter {
     catch (GeometryException e){
       throw new BaseHttpServerVerticle.ValidationException(e.getMessage());
     }
+  }
+
+  @Override
+  public boolean equals(Object obj) {
+    if (this == obj) {
+      return true; // Check for reference equality
+    }
+    if (obj == null || getClass() != obj.getClass()) {
+      return false; // Check for null and type compatibility
+    }
+    SpatialFilter other = (SpatialFilter) obj;
+    return radius == other.radius &&
+            clip == other.clip &&
+            (geometry == null ? other.geometry == null : geometry.getJTSGeometry().equals(other.geometry.getJTSGeometry())); // Compare fields
   }
 }

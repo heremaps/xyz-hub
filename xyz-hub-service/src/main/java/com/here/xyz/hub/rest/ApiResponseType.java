@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ public enum ApiResponseType {
   CHANGESET_COLLECTION,
   MVT(true),
   MVT_FLATTENED(true),
+  BINARY(true),
   SPACE,
   SPACE_LIST,
   @Deprecated

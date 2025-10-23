@@ -94,15 +94,21 @@ public class PooledDataSources extends DataSourceProvider {
 
     public void onAcquire(Connection connection, String connectionId) {
       ExtendedConnectionSettings extendedSettings = getExtendedSettings(connectionId);
-      List<String> enrichedSearchPath = new ArrayList<>(List.of(extendedSettings.currentSchema, "h3", "public", "topology"));
+
+      List<String> enrichedSearchPath = new ArrayList<>(List.of(extendedSettings.currentSchema, "public", "topology"));
       enrichedSearchPath.addAll(extendedSettings.searchPath);
       final String compiledSearchPath = enrichedSearchPath.stream().map(schema -> "\"" + schema + "\"")
           .collect(Collectors.joining(", "));
 
       QueryRunner runner = new QueryRunner();
       try {
+        int lock_timeout = ( extendedSettings.statementTimeoutSeconds - 7 > 5 
+                             ? extendedSettings.statementTimeoutSeconds - 7 
+                             : extendedSettings.statementTimeoutSeconds );
+
         runner.execute(connection, "SET enable_seqscan = off;");
         runner.execute(connection, "SET statement_timeout = " + (extendedSettings.statementTimeoutSeconds * 1000) + ";");
+        runner.execute(connection, "SET lock_timeout = " + (lock_timeout * 1000) + ";");
         runner.execute(connection, "SET search_path = " + compiledSearchPath + ";");
       }
       catch (SQLException e) {

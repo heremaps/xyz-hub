@@ -19,8 +19,6 @@
 
 package com.here.xyz.jobs.steps;
 
-import static com.here.xyz.jobs.RuntimeInfo.State.NOT_READY;
-
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import java.util.HashSet;
 import java.util.Set;
@@ -76,8 +74,7 @@ public class CompilationStepGraph extends StepGraph {
 
   private Set<String> enrichChild(Step step, String jobId, Set<String> previousSteps) {
     step.withJobId(jobId)
-        .withPreviousStepIds(previousSteps)
-        .getStatus().setState(NOT_READY);
+        .withPreviousStepIds(previousSteps);
     return Set.of(step.getId());
   }
 }

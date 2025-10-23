@@ -132,7 +132,7 @@ public class SubscriptionApi extends SpaceBasedApi {
       final String spaceId = getSpaceId(context);
       final String subscriptionId = context.pathParam(ApiParam.Path.SUBSCRIPTION_ID);
 
-      getAndValidateSpace(getMarker(context), spaceId, true)
+      Service.spaceConfigClient.get(getMarker(context), spaceId)
           .compose(space -> Authorization.authorizeManageSpacesRights(context, spaceId))
           .compose(v -> SubscriptionHandler.getSubscription(context, spaceId, subscriptionId))
           .compose(subscription -> SubscriptionHandler.deleteSubscription(context, subscription))
@@ -179,6 +179,7 @@ public class SubscriptionApi extends SpaceBasedApi {
       if (Service.configuration.JOB_API_ENDPOINT == null || Service.configuration.JOB_API_ENDPOINT.isEmpty())
         return Future.failedFuture(new HttpException(NOT_IMPLEMENTED, "The subscription with Job destination is not supported."));
 
+      //TODO: use JobWebClient instead of Service.webClient
       return Service.webClient.getAbs(Service.configuration.JOB_API_ENDPOINT + "/jobs/" + jobId + "/status")
           .send()
           .compose(response -> {

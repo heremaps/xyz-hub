@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  ~ Copyright (C) 2017-2024 HERE Europe B.V.
+  ~ Copyright (C) 2017-2025 HERE Europe B.V.
   ~
   ~ Licensed under the Apache License, Version 2.0 (the "License");
   ~ you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@
     <groupId>com.here.xyz</groupId>
     <artifactId>xyz-hub</artifactId>
     <relativePath>../pom.xml</relativePath>
-    <version>3.12.2-SNAPSHOT</version>
+    <version>3.21.7-SNAPSHOT</version>
   </parent>
 
   <licenses>
@@ -102,6 +102,24 @@
       <artifactId>log4j-jcl</artifactId>
     </dependency>
 
+    <!-- AWS SDKs V2 -->
+    <dependency>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>secretsmanager</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>lambda</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>apache-client</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>s3</artifactId>
+    </dependency>
+
     <!-- AWS SDKs -->
     <dependency>
       <groupId>com.amazonaws</groupId>
@@ -121,7 +139,7 @@
     </dependency>
     <dependency>
       <groupId>software.amazon.awssdk</groupId>
-      <artifactId>lambda</artifactId>
+      <artifactId>cloudwatch</artifactId>
     </dependency>
 
     <!-- DB utils -->
@@ -148,6 +166,10 @@
     <dependency>
       <artifactId>gt-main</artifactId>
       <groupId>org.geotools</groupId>
+    </dependency>
+    <dependency>
+      <groupId>org.geotools</groupId>
+      <artifactId>gt-epsg-hsql</artifactId>
     </dependency>
 
     <!-- Cache -->
@@ -178,9 +200,18 @@
       <scope>test</scope>
     </dependency>
     <dependency>
+      <groupId>org.junit-pioneer</groupId>
+      <artifactId>junit-pioneer</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
       <artifactId>hamcrest</artifactId>
       <groupId>org.hamcrest</groupId>
       <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>dnsjava</groupId>
+      <artifactId>dnsjava</artifactId>
     </dependency>
   </dependencies>
 </project>

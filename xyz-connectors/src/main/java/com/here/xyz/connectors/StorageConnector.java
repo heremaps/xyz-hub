@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 
 package com.here.xyz.connectors;
 
+import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.BINARY;
 import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT;
 import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT_FLATTENED;
 import static com.here.xyz.responses.XyzError.EXCEPTION;
@@ -38,10 +39,12 @@ import com.here.xyz.events.HealthCheckEvent;
 import com.here.xyz.events.IterateChangesetsEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
+import com.here.xyz.events.ModifyBranchEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.ModifySubscriptionEvent;
 import com.here.xyz.events.OneTimeActionEvent;
+import com.here.xyz.events.PutBlobTileEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.events.WriteFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
@@ -50,6 +53,7 @@ import com.here.xyz.responses.ChangesetsStatisticsResponse;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.StorageStatistics;
+import com.here.xyz.responses.ModifiedBranchResponse;
 import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.responses.changesets.ChangesetCollection;
@@ -84,7 +88,7 @@ public abstract class StorageConnector extends AbstractConnectorHandler {
       if (event instanceof GetFeaturesByGeometryEvent)
         return processGetFeaturesByGeometryEvent((GetFeaturesByGeometryEvent) event);
       if (event instanceof GetFeaturesByTileEvent tileEvent) {
-        if (tileEvent.getResponseType() == MVT || tileEvent.getResponseType() == MVT_FLATTENED) {
+        if (tileEvent.getResponseType() == MVT || tileEvent.getResponseType() == MVT_FLATTENED || tileEvent.getResponseType() == BINARY) {
           try {
             return processBinaryGetFeaturesByTileEvent(tileEvent);
           }
@@ -95,12 +99,14 @@ public abstract class StorageConnector extends AbstractConnectorHandler {
         }
         return processGetFeaturesByTileEvent(tileEvent);
       }
+      if (event instanceof PutBlobTileEvent putBlobTileEvent)
+        return processPutBlobTileEvent(putBlobTileEvent);
       if (event instanceof GetFeaturesByBBoxEvent)
         return processGetFeaturesByBBoxEvent((GetFeaturesByBBoxEvent) event);
-      if (event instanceof IterateFeaturesEvent)
-        return processIterateFeaturesEvent((IterateFeaturesEvent) event);
       if (event instanceof IterateChangesetsEvent)
         return processIterateChangesetsEvent((IterateChangesetsEvent) event);
+      if (event instanceof IterateFeaturesEvent)
+        return processIterateFeaturesEvent((IterateFeaturesEvent) event);
       if (event instanceof GetChangesetStatisticsEvent)
         return processGetChangesetsStatisticsEvent((GetChangesetStatisticsEvent) event);
       if (event instanceof SearchForFeaturesEvent)
@@ -119,6 +125,8 @@ public abstract class StorageConnector extends AbstractConnectorHandler {
         return processDeleteChangesetsEvent((DeleteChangesetsEvent) event);
       if (event instanceof OneTimeActionEvent)
         return processOneTimeActionEvent((OneTimeActionEvent) event);
+      if (event instanceof ModifyBranchEvent mbe)
+        return processModifyBranchEvent(mbe);
 
       return new ErrorResponse()
           .withStreamId(streamId)
@@ -179,6 +187,13 @@ public abstract class StorageConnector extends AbstractConnectorHandler {
   }
 
   /**
+   * Processes a binary PutBlobTile event.
+   */
+  protected SuccessResponse processPutBlobTileEvent(PutBlobTileEvent event) throws Exception {
+    throw new UnsupportedOperationException(event.getClass().getSimpleName() + ": No binary support was implemented.");
+  }
+
+  /**
    * Processes a IterateFeatures event.
    */
   @SuppressWarnings("WeakerAccess")
@@ -218,6 +233,7 @@ public abstract class StorageConnector extends AbstractConnectorHandler {
    * Processes a ModifySubscriptionEvent event.
    */
   @SuppressWarnings("WeakerAccess")
+  @Deprecated
   protected abstract SuccessResponse processModifySubscriptionEvent(ModifySubscriptionEvent event) throws Exception;
 
   protected abstract StorageStatistics processGetStorageStatisticsEvent(GetStorageStatisticsEvent event) throws Exception;
@@ -234,4 +250,6 @@ public abstract class StorageConnector extends AbstractConnectorHandler {
   protected abstract ChangesetsStatisticsResponse processGetChangesetsStatisticsEvent(GetChangesetStatisticsEvent event) throws Exception;
 
   protected abstract void handleProcessingException(Exception exception, Event event) throws Exception;
+
+  protected abstract ModifiedBranchResponse processModifyBranchEvent(ModifyBranchEvent event) throws ErrorResponseException;
 }

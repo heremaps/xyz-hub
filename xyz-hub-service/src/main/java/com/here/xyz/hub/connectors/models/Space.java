@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -70,12 +70,6 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
       - TimeUnit.SECONDS.toMillis((long) (Math.random() * 20));
 
   private final static long MAX_SLIDING_WINDOW = TimeUnit.DAYS.toMillis(10);
-  /**
-   * Indicates the last time the content of a space was updated.
-   */
-  @JsonInclude(Include.NON_DEFAULT)
-  @JsonView({Public.class, Static.class})
-  public long contentUpdatedAt = 0;
 
   @JsonInclude(Include.NON_DEFAULT)
   @JsonView({Public.class, Static.class})
@@ -94,6 +88,18 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
 
   public static Future<Space> resolveSpace(Marker marker, String spaceId) {
     return Service.spaceConfigClient.get(marker, spaceId);
+  }
+
+  public void updateContentUpdatedAt(Marker marker) {
+    long now = Core.currentTimeMillis();
+    if (now - getContentUpdatedAt() > CONTENT_UPDATED_AT_INTERVAL_MILLIS) {
+      setContentUpdatedAt(Core.currentTimeMillis());
+      volatilityAtLastContentUpdate = getVolatility();
+      //NOTE: Storing / updating the space-config is done asynchronously here by intention to prevent adding latency in the response phase
+      Service.spaceConfigClient.store(marker, this)
+          .onSuccess(v -> logger.info(marker, "Updated contentUpdatedAt for space {}", getId()))
+          .onFailure(t -> logger.error(marker, "Error while updating contentUpdatedAt for space {}", getId(), t));
+    }
   }
 
   @JsonIgnore
@@ -141,23 +147,6 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
         .compose(extendedSpace -> extendedSpace == null ?
                 Future.failedFuture(new InvalidExtensionException("Unable to load extended resource with id: " + getExtension().getSpaceId())):
                 Future.succeededFuture(resolveCompositeParams(extendedSpace)));
-  }
-
-  public Map<String, Object> resolveCompositeParams(Space extendedSpace) {
-    if (getExtension() == null)
-      return Collections.emptyMap();
-    //Storage params are taken from the input and then resolved based on the extensions
-    final Map<String, Object> extendsMap = getExtension().toMap();
-
-    //TODO: Remove this once Job-API was fixed to configure that on job-level
-    if (extendedSpace != null && extendedSpace.isReadOnly())
-      extendsMap.put("readOnly", true);
-
-    //Check if the extended space itself is extending some other space (2-level extension)
-    if (extendedSpace != null && extendedSpace.getExtension() != null)
-      //Get the extension definition from the extended space and add it to this one additionally
-      extendsMap.put("extends", extendedSpace.getExtension().toMap());
-    return Collections.singletonMap("extends", extendsMap);
   }
 
   @JsonView(Internal.class)
@@ -276,22 +265,6 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
     //For all other responses of a space which was not changed for longer time -> cache in the service *and* in the browser / CDN
     return new CacheProfile(TimeUnit.MINUTES.toMillis(3), TimeUnit.HOURS.toMillis(24), CacheProfile.MAX_SERVICE_TTL, staticTTL,
         getContentUpdatedAt());
-  }
-
-  public long getContentUpdatedAt() {
-    if (contentUpdatedAt == 0) {
-      contentUpdatedAt = getCreatedAt();
-    }
-    return contentUpdatedAt;
-  }
-
-  public void setContentUpdatedAt(long contentUpdatedAt) {
-    this.contentUpdatedAt = contentUpdatedAt;
-  }
-
-  public Space withContentUpdatedAt(long contentUpdatedAt) {
-    setContentUpdatedAt(contentUpdatedAt);
-    return this;
   }
 
   public String getRegion() {

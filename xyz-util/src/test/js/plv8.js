@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,17 +29,57 @@ let pgClient = new Client({
 
 let clientConnected = false;
 pgClient.connect().then(err => {
+  //pgClient.query(`SET search_path = "public", "topology", "hub.common", "hub.geo", "hub.feature_writer", "hub.h3", "hub.ext"`);
   clientConnected = true;
   console.log(err);
 });
 
+class PreparedPlan {
+  name;
+  sql;
+  parameterTypes;
+
+  static planCounter = 0;
+
+  constructor(sql, parameterTypes = []) {
+    this.name = "prepared_statement_" + PreparedPlan.planCounter++;
+    this.sql = sql;
+    this.parameterTypes = parameterTypes;
+  }
+
+  /**
+   * @returns {PreparedPlan}
+   */
+  prepare() {
+    //plv8.execute(`PREPARE ${this.name}${this._parameterTypeList()} AS ${this.sql}`);
+    return this;
+  }
+
+  _parameterTypeList() {
+    return !this.parameterTypes.length ? "" : "(" + this.parameterTypes.join(", ") + ")";
+  }
+
+  execute(args = []) {
+    //TODO: Activate prepared statements; For some reason the EXECUTE call does not work with the PG client
+    //return plv8.execute(`EXECUTE ${this.name}${this._argumentList(args)}`, args);
+    return plv8.execute(this.sql, args);
+  }
+
+  _argumentList(args) {
+    return !args.length ? "" : "(" + args.map((element, index) => "$" + (index + 1)).join(", ") + ")";
+  }
+
+  free() {
+    //plv8.execute(`DEALLOCATE ${this.name}`);
+  }
+}
 
 global.NOTICE = "NOTICE";
 global.ERROR = "ERROR";
 global.plv8 = {
   global: global,
   elog: console.log,
-  execute(sql, ...params) {
+  execute(sql, params) {
     if (!clientConnected)
       deasync.loopWhile(() => !clientConnected);
 
@@ -47,5 +87,9 @@ global.plv8 = {
     pgClient.query(sql, params).then(result => queryResult = result);
     deasync.loopWhile(() => queryResult == null);
     return queryResult.rows;
+  },
+  prepare(sql, typeNames = []) {
+    return new PreparedPlan(sql, typeNames).prepare();
   }
+  //TODO: Support prepared / batch queries
 };

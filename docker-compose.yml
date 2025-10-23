@@ -3,33 +3,20 @@ services:
     xyz-hub:
         image: "xyz-hub"
         build:
-            context: "./"
+            context: ./
+            dockerfile: ./xyz-util/src/main/resources/docker/Dockerfile
         container_name: "xyz-hub"
         ports:
             - "8080:8080"
         depends_on:
             - "postgres"
             - "redis"
-            - "xyz-http-connector"
             - "aws-localstack"
-    xyz-http-connector:
-        image: "xyz-hub"
-        build:
-            context: "./"
-        container_name: xyz-http-connector
-        ports:
-            - "9090:9090"
-        environment:
-            - LOCALSTACK_ENDPOINT=http://localstack:4566
-        depends_on:
-            - "postgres"
-            - "aws-localstack"
-        command: java -cp xyz-hub-service.jar com.here.xyz.httpconnector.CService
     postgres:
         image: "xyz-postgres"
         build:
-            context: "./"
-            dockerfile: "Dockerfile-postgres"
+            context: ./
+            dockerfile: ./xyz-util/src/main/resources/docker/Dockerfile-postgres
         container_name: "postgres"
         ports:
             - "5432:5432"
@@ -48,7 +35,7 @@ services:
             - QUERY_CONFIG_ENABLED=true
             - SWAGGER_JSON_URL=http://localhost:8080/hub/static/openapi/stable.yaml
     aws-localstack:
-        image: "localstack/localstack:3.5.0"
+        image: "localstack/localstack:4.3.0"
         container_name: "localstack-main"
         hostname: localstack
         ports:
@@ -72,7 +59,7 @@ services:
         image: aws-js-s3-explorer
         build:
             context: ./
-            dockerfile: Dockerfile-s3-explorer
+            dockerfile: ./xyz-util/src/main/resources/docker/Dockerfile-s3-explorer
         container_name: s3-explorer
         ports:
             - "5001:8080"

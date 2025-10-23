@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2013 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
+import com.fasterxml.jackson.annotation.JsonView;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
@@ -40,19 +41,30 @@ import java.util.List;
 @JsonInclude(Include.NON_EMPTY)
 public class FeatureCollection extends XyzResponse<FeatureCollection> {
 
+  @JsonView({Public.class})
   private LazyParsable<List<Feature>> features;
+  @JsonView({Public.class})
   private BBox bbox;
   private Boolean partial;
+  @JsonView({Public.class})
   @Deprecated
   private String handle;
+  @JsonView({Public.class})
   private String nextPageToken;
+  @JsonView({Public.class})
   @Deprecated
   private Long count;
+  @JsonView({Public.class})
   private List<String> inserted;
+  @JsonView({Public.class})
   private List<String> updated;
+  @JsonView({Public.class})
   private List<String> deleted;
+  @JsonView({Public.class})
   private List<Feature> oldFeatures;
+  @JsonView({Public.class})
   private List<ModificationFailure> failed;
+  @JsonView({Public.class})
   @JsonInclude(Include.NON_EMPTY)
   private Long version;
 
@@ -162,6 +174,7 @@ public class FeatureCollection extends XyzResponse<FeatureCollection> {
    *
    * @return the handle.
    */
+  @Deprecated
   public String getHandle() {
     return this.handle;
   }
@@ -173,6 +186,7 @@ public class FeatureCollection extends XyzResponse<FeatureCollection> {
    * @param handle the handle, if null the handle property is removed.
    */
   @SuppressWarnings("WeakerAccess")
+  @Deprecated
   public void setHandle(String handle) {
     this.handle = handle;
   }
@@ -181,6 +195,7 @@ public class FeatureCollection extends XyzResponse<FeatureCollection> {
    * @deprecated use {@link #withNextPageToken(String)} instead.
    */
   @SuppressWarnings("unused")
+  @Deprecated
   public FeatureCollection withHandle(final String handle) {
     setHandle(handle);
     return this;

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ package com.here.xyz.util.runtime;
 
 import com.amazonaws.services.lambda.runtime.Context;
 import com.here.xyz.util.ARN;
-import com.here.xyz.util.service.aws.SimulatedContext;
+import com.here.xyz.util.service.aws.lambda.SimulatedContext;
 import java.util.List;
 
 public class LambdaFunctionRuntime extends FunctionRuntime {
@@ -64,7 +64,8 @@ public class LambdaFunctionRuntime extends FunctionRuntime {
     if (context instanceof SimulatedContext)
       return null;
     String version = getVersionFromArn(context.getInvokedFunctionArn());
-    return isValidVersion(version) ? version : null;
+    String functionVersion = "$LATEST".equals(context.getFunctionVersion()) ? "0" : context.getFunctionVersion();
+    return isValidVersion(version) ? version : ("0.0." + functionVersion);
   }
 
   private static String getVersionFromArn(String arn) {

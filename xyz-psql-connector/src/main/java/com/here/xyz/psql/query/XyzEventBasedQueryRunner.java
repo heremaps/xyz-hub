@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,9 +20,12 @@
 package com.here.xyz.psql.query;
 
 import com.here.xyz.connectors.ErrorResponseException;
+import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.Event;
+import com.here.xyz.models.hub.Ref;
 import com.here.xyz.psql.QueryRunner;
 import com.here.xyz.util.db.ConnectorParameters;
+import com.here.xyz.psql.query.branching.BranchManager;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
 import java.sql.SQLException;
 import java.util.Map;
@@ -33,6 +36,8 @@ public abstract class XyzEventBasedQueryRunner<E extends Event, R extends Object
   public XyzEventBasedQueryRunner(E event) throws SQLException, ErrorResponseException {
     super(event);
     preferPrimaryDataSource = event.getPreferPrimaryDataSource();
+    if (event != null && event.getSpace() != null)
+      extraQueryLabels.put("spaceId", event.getSpace());
   }
 
   public static String readTableFromEvent(Event event) {
@@ -46,8 +51,19 @@ public abstract class XyzEventBasedQueryRunner<E extends Event, R extends Object
     return XyzSpaceTableHelper.getTableNameFromSpaceParamsOrSpaceId(spaceParams, spaceId, hashed);
   }
 
+  public static String readBranchTableFromEvent(ContextAwareEvent event) {
+    if (event.getNodeId() > 0)
+      return BranchManager.branchTableName(readTableFromEvent(event),
+          (Ref) event.getBranchPath().get(event.getBranchPath().size() - 1), event.getNodeId());
+    return readTableFromEvent(event);
+  }
+
   protected static String getTableNameForSpaceId(Event event, String spaceId) {
     return XyzSpaceTableHelper.getTableNameForSpaceId(spaceId, ConnectorParameters.fromEvent(event).isEnableHashedSpaceId());
+  }
+
+  protected String getBranchTable(ContextAwareEvent event) {
+    return readBranchTableFromEvent(event);
   }
 
   protected String getDefaultTable(E event) {

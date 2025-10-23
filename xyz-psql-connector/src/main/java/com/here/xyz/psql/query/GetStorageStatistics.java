@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ import com.here.xyz.events.GetStorageStatisticsEvent;
 import com.here.xyz.responses.StatisticsResponse.Value;
 import com.here.xyz.responses.StorageStatistics;
 import com.here.xyz.responses.StorageStatistics.SpaceByteSizes;
+import com.here.xyz.util.db.ConnectorParameters;
 import com.here.xyz.util.db.SQLQuery;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -40,7 +41,7 @@ public class GetStorageStatistics extends XyzQueryRunner<GetStorageStatisticsEve
   private static final String TABLE_NAME = "table_name";
   private static final String TABLE_BYTES = "table_bytes";
   private static final String INDEX_BYTES = "index_bytes";
-
+  private final String connectorId;
   private final List<String> remainingSpaceIds;
   private Map<String, String> tableName2SpaceId;
 
@@ -49,6 +50,7 @@ public class GetStorageStatistics extends XyzQueryRunner<GetStorageStatisticsEve
     super(event);
     setUseReadReplica(true);
     remainingSpaceIds = new LinkedList<>(event.getSpaceIds());
+    connectorId = ConnectorParameters.fromEvent(event).getConnectorId();
   }
 
   @Override
@@ -58,17 +60,37 @@ public class GetStorageStatistics extends XyzQueryRunner<GetStorageStatisticsEve
       String tableName = resolveTableName(event, spaceId);
       tableNames.add(tableName);
     });
-    return new SQLQuery( "SELECT relname                                                AS " + TABLE_NAME + ","
-                            + "       pg_indexes_size(c.oid)                                 AS " + INDEX_BYTES + ","
-                            + "       pg_total_relation_size(c.oid) - pg_indexes_size(c.oid) AS " + TABLE_BYTES
-                            + " FROM pg_class c"
-                            + "         LEFT JOIN pg_namespace n ON n.oid = c.relnamespace "
-                            + " WHERE relkind = 'r'"
-                            + " AND nspname = '" + getSchema() + "'"
-                            + " AND relname LIKE ANY (array[" + tableNames
-                                                      .stream()
-                                                      .map(tableName -> "'" + tableName + "_%'")
-                                                      .collect(Collectors.joining(",")) + "])");
+
+    return new SQLQuery("""
+        WITH roots AS (
+          SELECT unnest(ARRAY[${{tableNames}}])::regclass AS root_oid
+        ),
+        parts AS (
+          SELECT DISTINCT relid
+          FROM roots r,
+               LATERAL pg_partition_tree(r.root_oid)
+          WHERE level > 0
+        ),
+        sizes AS (
+          SELECT
+            oid,
+            pg_total_relation_size(oid) AS total_bytes,
+            pg_indexes_size(oid) AS index_bytes
+          FROM pg_class
+          WHERE oid IN (SELECT relid FROM parts)
+        )
+        SELECT
+          c.relname AS table_name,
+          s.total_bytes - s.index_bytes AS table_bytes,
+          s.index_bytes
+        FROM pg_class c
+        JOIN sizes s ON s.oid = c.oid;
+        """)
+        .withQueryFragment("tableNames", tableNames
+            .stream()
+            .map(tableName -> "'\"" + getSchema() + "\".\"" + tableName + "\"'")
+            .collect(Collectors.joining(",")))
+        .withTimeout(15);
   }
 
   private String resolveTableName(Event event, String spaceId) {
@@ -97,7 +119,7 @@ public class GetStorageStatistics extends XyzQueryRunner<GetStorageStatisticsEve
       long tableBytes = rs.getLong(TABLE_BYTES),
            indexBytes = rs.getLong(INDEX_BYTES);
 
-      SpaceByteSizes sizes = byteSizes.computeIfAbsent(spaceId, k -> new SpaceByteSizes());
+      SpaceByteSizes sizes = byteSizes.computeIfAbsent(spaceId, k -> new SpaceByteSizes().withStorageId(connectorId));
       if (isHistoryTable)
         sizes.setHistoryBytes(new Value<>(tableBytes + indexBytes).withEstimated(true));
       else {

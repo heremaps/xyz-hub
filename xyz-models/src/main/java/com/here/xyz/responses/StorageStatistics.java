@@ -67,6 +67,7 @@ public class StorageStatistics extends XyzResponse<StorageStatistics> {
     private StatisticsResponse.Value<Long> contentBytes;
     private StatisticsResponse.Value<Long> historyBytes;
     private StatisticsResponse.Value<Long> searchablePropertiesBytes;
+    private String storageId;
     private String error;
 
     @SuppressWarnings("unused")
@@ -114,6 +115,19 @@ public class StorageStatistics extends XyzResponse<StorageStatistics> {
     @SuppressWarnings("unused")
     public SpaceByteSizes withSearchablePropertiesBytes(Value<Long> searchablePropertiesBytes) {
       setSearchablePropertiesBytes(searchablePropertiesBytes);
+      return this;
+    }
+
+    public String getStorageId() {
+      return storageId;
+    }
+
+    public void setStorageId(String storageId) {
+      this.storageId = storageId;
+    }
+
+    public SpaceByteSizes withStorageId(String storageId) {
+      setStorageId(storageId);
       return this;
     }
 

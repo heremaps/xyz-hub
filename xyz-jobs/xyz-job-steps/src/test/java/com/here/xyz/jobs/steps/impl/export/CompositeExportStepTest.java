@@ -19,17 +19,25 @@
 
 package com.here.xyz.jobs.steps.impl.export;
 
+import static com.here.xyz.models.hub.Ref.HEAD;
+
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
+import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
 import java.util.List;
+
+import org.junit.Ignore;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
 
 public class CompositeExportStepTest extends ExportTestBase {
     /**
@@ -89,7 +97,7 @@ public class CompositeExportStepTest extends ExportTestBase {
                      ]
                  }
                 """, FeatureCollection.class);
-        putFeatureCollectionToSpace(SPACE_ID, fc2);
+        putFeatureCollectionToSpace(SPACE_ID_EXT, fc2);
     }
 
     @AfterEach
@@ -98,23 +106,61 @@ public class CompositeExportStepTest extends ExportTestBase {
         deleteSpace(SPACE_ID_EXT);
     }
 
-    //TODO: activate after context export is fixed
-//    @Test
+    @Test
     public void exportWithContextSuper() throws IOException, InterruptedException {
         executeExportStepAndCheckResults(SPACE_ID_EXT, SpaceContext.SUPER, null, null,
-                null, "/search?context=SUPER");
+            new Ref(HEAD), "/search?context=SUPER");
+    }
+    
+    @Test
+    public void exportEmptyFile() throws Exception {
+        exportWithContextAndWithPropertyFilter(SpaceContext.SUPER,
+                URLEncoder.encode("f.id=\"Non_Existing_Feature\"", StandardCharsets.UTF_8));
     }
 
-    //TODO: activate after context export is fixed
-//    @Test
+    @Test
+    public void exportWithContextSuperAndWithPropertyFilter() throws Exception {
+        exportWithContextAndWithPropertyFilter(SpaceContext.SUPER,
+                URLEncoder.encode("f.id=\"base_point1\"", StandardCharsets.UTF_8));
+    }
+
+    @Test
     public void exportWithContextDefault() throws IOException, InterruptedException {
         executeExportStepAndCheckResults(SPACE_ID_EXT, SpaceContext.DEFAULT, null, null,
-                null, "/search?context=DEFAULT");
+            new Ref(HEAD), "/search?context=DEFAULT");
+    }
+
+    @Test
+    public void exportWithoutContext() throws IOException, InterruptedException {
+        //Default context should get used
+        executeExportStepAndCheckResults(SPACE_ID_EXT, null, null, null,
+            new Ref(HEAD), "/search?context=DEFAULT");
+    }
+
+    @Test
+    public void exportWithContextDefaultAndWithPropertyFilter() throws Exception {
+        //new_point exists in composite compound
+        exportWithContextAndWithPropertyFilter(SpaceContext.DEFAULT,
+                URLEncoder.encode("f.id=\"new_point1\"", StandardCharsets.UTF_8));
     }
 
     @Test
     public void exportWithContextExtension() throws IOException, InterruptedException {
         executeExportStepAndCheckResults(SPACE_ID_EXT, SpaceContext.EXTENSION, null, null,
-                null, "/search?context=EXTENSION");
+            new Ref(HEAD), "/search?context=EXTENSION");
+    }
+
+    @Test
+    public void exportWithContextExtensionAndWithPropertyFilter() throws Exception {
+        //new_point exists in extension
+        exportWithContextAndWithPropertyFilter(SpaceContext.EXTENSION,
+                URLEncoder.encode("f.id=\"new_point1\"", StandardCharsets.UTF_8));
+    }
+
+    private void exportWithContextAndWithPropertyFilter(SpaceContext context, String propertiesQuery) throws Exception {
+        String hubQuery = "/search?context="+context+"&"+ propertiesQuery;
+
+        executeExportStepAndCheckResults(SPACE_ID_EXT, context, null,
+                PropertiesQuery.fromString(propertiesQuery), new Ref(HEAD), hubQuery);
     }
 }

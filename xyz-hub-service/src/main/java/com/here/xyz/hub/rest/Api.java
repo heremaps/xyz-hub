@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,9 @@
 
 package com.here.xyz.hub.rest;
 
+import static com.here.xyz.Payload.compress;
+import static com.here.xyz.Payload.decompress;
+import static com.here.xyz.Payload.isGzipped;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_GEO_JSON;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.TEXT_PLAIN;
@@ -29,6 +32,8 @@ import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_MODIFIED;
 import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
+import static io.vertx.core.http.HttpHeaders.ACCEPT_ENCODING;
+import static io.vertx.core.http.HttpHeaders.CONTENT_ENCODING;
 import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -62,6 +67,7 @@ import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.jackson.DatabindCodec;
 import io.vertx.ext.web.RoutingContext;
+import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.nio.charset.Charset;
@@ -369,7 +375,7 @@ public abstract class Api extends com.here.xyz.util.service.rest.Api {
     super.sendResponseBytes(context, httpResponse, response);
   }
 
-  private void sendResponse(final Task task, HttpResponseStatus status, String contentType, final byte[] response) {
+  private void sendResponse(final Task task, HttpResponseStatus status, String contentType, byte[] response) {
     HttpServerResponse httpResponse = task.context.response().setStatusCode(status.code());
 
     CacheProfile cacheProfile = task.getCacheProfile();
@@ -387,9 +393,41 @@ public abstract class Api extends com.here.xyz.util.service.rest.Api {
     else if (response.length > getMaxResponseLength(task.context))
       sendErrorResponse(task.context, new HttpException(RESPONSE_PAYLOAD_TOO_LARGE, RESPONSE_PAYLOAD_TOO_LARGE_MESSAGE));
     else {
+      response = ensureContentEncoding(task, response);
       httpResponse.putHeader(CONTENT_TYPE, contentType);
       httpResponse.end(Buffer.buffer(response));
     }
+  }
+
+  private static byte[] ensureContentEncoding(Task task, byte[] response) {
+    HttpServerResponse httpResponse = task.context.response();
+    if (task.responseType.binary) {
+      final String acceptedContentEncoding = task.context.request().getHeader(ACCEPT_ENCODING);
+      String acceptEncoding = acceptedContentEncoding == null ? acceptedContentEncoding : acceptedContentEncoding.toLowerCase();
+      if (acceptedContentEncoding != null && (acceptEncoding.contains("gzip") || acceptEncoding.contains("*"))
+          && !acceptEncoding.contains("gzip;q=0") && !isPreventCompression(task)) {
+        httpResponse.putHeader(CONTENT_ENCODING, "gzip");
+        if (!isGzipped(response))
+          response = compress(response);
+      }
+      else if (isGzipped(response)) {
+        try {
+          response = decompress(response);
+        }
+        catch (IOException e) {
+          throw new RuntimeException(e);
+        }
+      }
+    }
+    return response;
+  }
+
+  private static boolean isPreventCompression(Task task) {
+    if (!(task instanceof FeatureTask featureTask) || featureTask.storage.blockMimetypeCompression == null
+        || !(featureTask.getResponse() instanceof BinaryResponse binaryResponse))
+      return false;
+    else
+      return featureTask.storage.blockMimetypeCompression.matcher(binaryResponse.getMimeType()).matches();
   }
 
   private void setDecompressedSizeHeaders(byte[] response, RoutingContext context) {

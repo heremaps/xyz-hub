@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -109,12 +109,16 @@ public class Payload implements Typed {
   }
 
   public static byte[] compress(byte[] bytes) {
+    if (bytes == null || bytes.length == 0)
+      return bytes;
+
     final ByteArrayOutputStream baos = new ByteArrayOutputStream();
 
     try (GZIPOutputStream gos = new GZIPOutputStream(baos)) {
       gos.write(bytes);
     }
     catch (IOException e) {
+      //TODO: Add exception to signature instead and handle the exception at the places from where this method got called!
       return null;
     }
 

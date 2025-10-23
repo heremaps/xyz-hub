@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,126 +23,96 @@ import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.db.ECPSTool;
 import com.here.xyz.util.db.SQLQuery;
 import java.security.GeneralSecurityException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import javax.crypto.IllegalBlockSizeException;
 
-public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent, FeatureCollection> {
-  private static final String HANDLE_ENCRYPTION_PHRASE = "IterateFeatures";
+public class IterateFeatures<E extends IterateFeaturesEvent, R extends XyzResponse> extends SearchForFeatures<E, R> {
   protected long limit;
-  private boolean hasHandle;
-  private long start;
-  private int startDataset = -1;
   private String nextDataset = null;
   private String nextIOffset = "";
-  private int numFeatures = 0;
+  protected int numFeatures = 0;
 
-  public IterateFeatures(IterateFeaturesEvent event) throws SQLException, ErrorResponseException {
+  public IterateFeatures(E event) throws SQLException, ErrorResponseException {
     super(event);
     limit = event.getLimit();
-    hasHandle = event.getHandle() != null;
-    if (hasHandle)
-      parseHandleContent(event.getHandle());
   }
 
   @Override
-  protected SQLQuery buildSelectClause(IterateFeaturesEvent event, int dataset) {
+  protected SQLQuery buildSelectClause(E event, int dataset, long baseVersion) {
     return new SQLQuery("${{innerSelectClause}}, i")
-        .withQueryFragment("innerSelectClause", super.buildSelectClause(event, dataset));
+        .withQueryFragment("innerSelectClause", super.buildSelectClause(event, dataset, baseVersion));
   }
 
   @Override
-  protected SQLQuery buildFiltersFragment(IterateFeaturesEvent event, boolean isExtension, SQLQuery filterWhereClause, int dataset) {
-    final SQLQuery filtersFragment = super.buildFiltersFragment(event, isExtension, filterWhereClause, dataset);
-
-    if (!isCompositeQuery(event))
-      return filtersFragment;
-
+  protected SQLQuery buildFiltersFragment(E event, boolean isExtension, SQLQuery filterWhereClause, int dataset) {
     return new SQLQuery("${{innerFilters}} ${{offsetFilter}}")
-        .withQueryFragment("innerFilters", filtersFragment)
+        .withQueryFragment("innerFilters", super.buildFiltersFragment(event, isExtension, filterWhereClause, dataset))
         .withQueryFragment("offsetFilter", buildOffsetFilterFragment(event, dataset));
   }
 
   @Override
-  protected SQLQuery buildFilterWhereClause(IterateFeaturesEvent event) {
-    if (isCompositeQuery(event))
-      return new SQLQuery("TRUE"); //TODO: Do not support search on iterate for now
-
-    if (!hasSearch && event.getHandle() != null)
-      return new SQLQuery("i > #{startOffset}")
-          .withNamedParameter("startOffset", start);
-
-    return super.buildFilterWhereClause(event);
+  protected SQLQuery buildFilterWhereClause(E event) {
+    //NOTE: Search while iterating is not supported
+    return new SQLQuery("TRUE");
   }
 
   @Override
   protected String buildOuterOrderByFragment(ContextAwareEvent event) {
-    if (hasSearch && hasHandle)
-      return super.buildOrderByFragment(event);
-
     return "ORDER BY dataset, i";
   }
 
   @Override
   protected String buildOrderByFragment(ContextAwareEvent event) {
-    if (hasSearch && hasHandle)
-      return super.buildOrderByFragment(event);
-
     return "ORDER BY i";
   }
 
-  private SQLQuery buildOffsetFilterFragment(IterateFeaturesEvent event, int dataset) {
+  protected SQLQuery buildOffsetFilterFragment(IterateFeaturesEvent event, int dataset) {
+    if (event.getNextPageToken() == null)
+      return new SQLQuery("");
+
+    TokenContent token = readTokenContent(event.getNextPageToken());
     return new SQLQuery("AND " + dataset + " >= #{currentDataset} "
         + "AND (" + dataset + " > #{currentDataset} OR i > #{startOffset})")
-        .withNamedParameter("currentDataset", startDataset)
-        .withNamedParameter("startOffset", start);
+        .withNamedParameter("currentDataset", token.startDataset)
+        .withNamedParameter("startOffset", token.startOffset);
   }
 
-  @Override
-  protected SQLQuery buildLimitFragment(IterateFeaturesEvent event) {
-    if (hasSearch && hasHandle)
-      return new SQLQuery("${{innerLimit}} OFFSET #{startOffset}")
-          .withQueryFragment("innerLimit", super.buildLimitFragment(event))
-          .withNamedParameter("startOffset", start);
-
-    return super.buildLimitFragment(event);
-  }
-
-  private void parseHandleContent(String handle) {
-    if (handle.contains("_")) {
-      startDataset = getDatasetFromHandle(handle);
-      start = getIOffsetFromHandle(handle);
+  private TokenContent readTokenContent(String token) {
+    token = decodeToken(token);
+    if (token.contains("_")) {
+      final String[] tokenParts = token.split("_");
+      return new TokenContent(Integer.parseInt(tokenParts[0]), Integer.parseInt(tokenParts[1]));
     }
     else
-      start = Long.parseLong(handle);
+      return new TokenContent(-1, Long.parseLong(token));
   }
 
-  private int getDatasetFromHandle(String handle) {
-    return Integer.parseInt(handle.split("_")[0]);
-  }
-
-  private int getIOffsetFromHandle(String handle) {
-    return Integer.parseInt(handle.split("_")[1]);
+  private record TokenContent(int startDataset, long startOffset) {
+    public String toString() {
+      return startDataset + "_" + startOffset;
+    }
   }
 
   @Override
-  public FeatureCollection handle(ResultSet rs) throws SQLException {
-    FeatureCollection fc = super.handle(rs);
+  public R handle(ResultSet rs) throws SQLException {
+    FeatureCollection fc = (FeatureCollection) super.handle(rs);
 
-    if (numFeatures > 0 && numFeatures == limit) {
-      String nextHandle = (nextDataset != null ? nextDataset + "_" : "") + nextIOffset;
-      fc.setHandle(nextHandle);
-      fc.setNextPageToken(nextHandle);
-    }
+    String nextToken = createNextPageToken();
+    fc.setHandle(nextToken); //TODO: Kept for backwards compatibility - remove after deprecation period
+    fc.setNextPageToken(nextToken);
 
-    if (hasSearch && fc.getHandle() != null) {
-      fc.setHandle("" + (start + limit)); //Kept for backwards compatibility for now
-      fc.setNextPageToken("" + (start + limit));
-    }
+    return (R) fc;
+  }
 
-    return fc;
+  protected String createNextPageToken() {
+    if (numFeatures > 0 && numFeatures == limit)
+      return encodeToken((nextDataset != null ? nextDataset + "_" : "") + nextIOffset);
+    return null;
   }
 
   @Override
@@ -150,15 +120,26 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent, Fea
     super.handleFeature(rs, result);
     numFeatures++;
     nextIOffset = rs.getString("i");
-    if (rs.getMetaData().getColumnCount() >= 5)
-      nextDataset = rs.getString("dataset");
+    nextDataset = rs.getString("dataset");
   }
 
-  protected static String encryptHandle(String plainText) throws GeneralSecurityException {
-    return ECPSTool.encrypt(HANDLE_ENCRYPTION_PHRASE, plainText, true);
+  protected static String encodeToken(String tokenContent) {
+    try {
+      return ECPSTool.encrypt(IterateFeatures.class.getSimpleName(), tokenContent, true);
+    }
+    catch (GeneralSecurityException e) {
+      throw new RuntimeException(e);
+    }
   }
 
-  protected static String decryptHandle(String encryptedText) throws GeneralSecurityException {
-    return ECPSTool.decrypt(HANDLE_ENCRYPTION_PHRASE, encryptedText, true);
+  protected static String decodeToken(String token) {
+    try {
+      return ECPSTool.decrypt(IterateFeatures.class.getSimpleName(), token, true);
+    }
+    catch (GeneralSecurityException | IllegalArgumentException e) {
+      if ( e instanceof IllegalBlockSizeException || (e.getCause() != null && e.getCause() instanceof IllegalBlockSizeException))
+        throw new IllegalArgumentException("Invalid nextPageToken provided for iterate");
+      throw new IllegalArgumentException("Error trying to decode the iteration nextPageToken.");
+    }
   }
 }

@@ -231,4 +231,18 @@ public class ModifyCompositeSpaceIT extends TestCompositeSpace {
         .then()
         .statusCode(PRECONDITION_REQUIRED.code());
   }
+
+  @Test
+  public void testExtendedSpaceStorageMismatchError() {
+    given()
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .body("{\"extends\":{\"spaceId\":\"x-psql-test-3\"}}")
+        .when()
+        .patch("/spaces/x-psql-test-ext")
+        .then()
+        .statusCode(BAD_REQUEST.code())
+        .body("code", equalTo("E318408"))
+        .body("title", equalTo("Extended Space storage mismatch"));
+  }
 }

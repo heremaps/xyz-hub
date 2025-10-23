@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +19,9 @@
 
 package com.here.xyz.jobs.steps;
 
-import static com.here.xyz.jobs.steps.outputs.Output.MODEL_BASED_PREFIX;
+import static com.here.xyz.jobs.steps.Step.InputSet.USER_PROVIDER;
+import static com.here.xyz.jobs.steps.Step.Visibility.USER;
+import static com.here.xyz.jobs.steps.inputs.Input.defaultBucket;
 import static com.here.xyz.jobs.steps.resources.Load.addLoad;
 import static com.here.xyz.util.Random.randomAlpha;
 
@@ -33,9 +35,11 @@ import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.Typed;
 import com.here.xyz.jobs.JobClientInfo;
 import com.here.xyz.jobs.RuntimeInfo;
+import com.here.xyz.jobs.steps.execution.DelegateStep;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
 import com.here.xyz.jobs.steps.execution.RunEmrJob;
 import com.here.xyz.jobs.steps.inputs.Input;
+import com.here.xyz.jobs.steps.inputs.InputFromOutput;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.outputs.ModelBasedOutput;
@@ -43,22 +47,35 @@ import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.jobs.steps.resources.ExecutionResource;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.util.S3Client;
+import com.here.xyz.util.pagination.Page;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
+import com.here.xyz.util.service.aws.s3.S3ObjectSummary;
+import com.here.xyz.util.service.aws.s3.S3Uri;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
 @JsonSubTypes({
     @JsonSubTypes.Type(value = LambdaBasedStep.class),
-    @JsonSubTypes.Type(value = RunEmrJob.class)
+    @JsonSubTypes.Type(value = RunEmrJob.class),
+    @JsonSubTypes.Type(value = DelegateStep.class)
 })
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(Include.NON_DEFAULT)
@@ -81,11 +98,15 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   @JsonView({Internal.class, Static.class})
   private boolean pipeline;
   @JsonView({Internal.class, Static.class})
-  private boolean useSystemInput;
+  private List<OutputSet> outputSets = List.of();
   @JsonView({Internal.class, Static.class})
-  private boolean useSystemOutput;
+  private List<InputSet> inputSets = List.of();
   @JsonView({Internal.class, Static.class})
-  private Set<String> inputStepIds;
+  private Map<String, String> outputMetadata;
+  @JsonView({Internal.class, Static.class})
+  private String outputSetGroup;
+  @JsonView({Internal.class, Static.class})
+  private boolean notReusable = false;
 
   /**
    * Provides a list of the resource loads which will be consumed by this step during its execution.
@@ -100,7 +121,6 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
 
   @JsonIgnore
   public Map<ExecutionResource, Double> getAggregatedNeededResources() {
-    //TODO: asyncify the call to getNeededResources()
     List<Load> neededResources = getNeededResources();
     if (neededResources == null)
       return Collections.emptyMap();
@@ -135,10 +155,6 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   @JsonIgnore
   public abstract int getEstimatedExecutionSeconds();
 
-  protected String bucketName() {
-    return Config.instance.JOBS_S3_BUCKET;
-  }
-
   protected String bucketRegion() {
     return Config.instance.AWS_REGION; //TODO: Get from bucket accordingly
   }
@@ -147,100 +163,228 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
     return jobId + "/" + getId();
   }
 
-  private Set<String> previousS3Prefixes() {
-    return getPreviousStepIds().stream().map(previousStepId -> jobId + "/" + previousStepId).collect(Collectors.toSet());
-  }
-
-  protected final String inputS3Prefix() {
-    return Input.inputS3Prefix(jobId);
-  }
-
-  protected final String outputS3Prefix(boolean userOutput, boolean onlyModelBased) {
-    return outputS3Prefix(stepS3Prefix(), userOutput, onlyModelBased);
-  }
-
-  protected final String outputS3Prefix(String stepS3Prefix, boolean userOutput, boolean onlyModelBased) {
-    return Output.stepOutputS3Prefix(stepS3Prefix, userOutput, onlyModelBased);
-  }
-
-  protected final Set<String> previousOutputS3Prefixes(boolean userOutput, boolean onlyModelBased) {
-    return previousS3Prefixes().stream().map(previousStepPrefix -> outputS3Prefix(previousStepPrefix, userOutput, onlyModelBased))
-        .collect(Collectors.toSet());
+  protected void registerOutputs(List<Output> outputs, String outputSetName) throws IOException {
+    registerOutputs(outputs, getOutputSet(outputSetName));
   }
 
   /**
    * Can be called (multiple times) by an implementing subclass to register a list of outputs which have been produced as an outcome of
-   * the step execution. The framework will care about storing the outputs and providing them to the step following this one.
-   * The following step will be able to access these outputs using the {@link #loadPreviousOutputs(boolean)} method.
+   * the step execution. The framework will care about storing the outputs and providing them to the later steps intending to consume
+   * these outputs.
+   * The following step will be able to access these outputs using the {@link #loadInputs(Class[])} method.
    *
    * In (potential) later executions of this step (e.g., in case of resume) this step can access outputs
-   * which have been formerly registered by using the method {@link #loadOutputs(boolean)}.
+   * which have been formerly registered by using the method {@link #loadOutputs(String)}.
    *
    * @param outputs The list of outputs to be registered for this step
-   * @param userOutput Whether the specified outputs should be visible to the user (or just to the system)
+   * @param outputSet The output set for which to register the outputs
    */
-  protected void registerOutputs(List<Output> outputs, boolean userOutput) throws IOException {
-    for (int i = 0; i < outputs.size(); i++)
-      outputs.get(i).store(outputS3Prefix(stepS3Prefix(), userOutput, outputs.get(i) instanceof ModelBasedOutput)
-          + "/" + UUID.randomUUID() + ".json"); //TODO: Use proper file suffix & content type
+  protected void registerOutputs(List<Output> outputs, OutputSet outputSet) throws IOException {
+    for (int i = 0; i < outputs.size(); i++) {
+      final Output output = outputs.get(i);
+      if (outputSet.modelBased && !(output instanceof ModelBasedOutput))
+        throw new IllegalArgumentException("Can not register output of type " + output.getClass().getSimpleName() + " as the output set "
+            + outputSet.name + " does not accept model based outputs.");
+      if (!outputSet.modelBased && output instanceof ModelBasedOutput)
+        throw new IllegalArgumentException("Can not register output of type " + output.getClass().getSimpleName() + " as the output set "
+            + outputSet.name + " does only accept model based outputs.");
+      output.store(toS3Path(outputSet) + "/" + (output.getFileName() != null ? output.getFileName() : (UUID.randomUUID() + outputSet.fileSuffix)));
+    }
   }
 
-  protected List<Output> loadPreviousOutputs(boolean userOutput) {
-    return loadPreviousOutputs(userOutput, Output.class);
+  public List<Output> loadUserOutputs() {
+    return loadOutputs(USER);
   }
 
-  protected List<Output> loadPreviousOutputs(boolean userOutput, Class<? extends Output> type) {
-    return loadOutputs(previousOutputS3Prefixes(userOutput, false));
+  public Page<Output> loadUserOutputsPage(String setName, int limit, String nextPageToken) {
+    return loadOutputsPage(USER, setName, limit, nextPageToken);
   }
 
-  public List<Output> loadOutputs(boolean userOutput) {
-    return loadOutputs(Set.of(outputS3Prefix(userOutput, false)));
+  public Page<Output> loadOutputsPage(Visibility visibility, String setName, int limit, String nextPageToken) {
+    Optional<OutputSet> filteredOutputSet = outputSets.stream()
+        .filter(outputSet -> outputSet.visibility == visibility && outputSet.name.equals(setName))
+        .findFirst();
+
+    return filteredOutputSet.map(outputSet -> loadStepOutputsPage(outputSet, limit, nextPageToken))
+        .orElseGet(() -> new Page<>(List.of(), null));
   }
 
-  private List<Output> loadStepOutputs(Set<String> stepIds, boolean userOutput) {
-    Set<String> s3Prefixes = stepIds.stream()
-            .map(stepId -> Output.stepOutputS3Prefix(jobId, stepId, userOutput, false))
-            .collect(Collectors.toSet());
-    return loadOutputs(s3Prefixes);
+  public List<Output> loadOutputs(Visibility visibility) {
+    return outputSets.stream()
+        .filter(outputSet -> outputSet.visibility == visibility)
+        .flatMap(outputSet -> loadStepOutputs(outputSet).stream())
+        .toList();
   }
 
-  private List<Output> loadOutputs(Set<String> s3Prefixes) {
+  public OutputSet getOutputSet(String outputSetName) {
+    try {
+      return outputSets.stream().filter(set -> set.name.equals(outputSetName)).findFirst().get();
+    }
+    catch (NoSuchElementException e) {
+      throw new IllegalArgumentException("No outputSet was found with name: " + outputSetName);
+    }
+  }
+
+  public OutputSet getOutputSetOrNull(String outputSetName) {
+    return outputSets.stream().filter(set -> set.name.equals(outputSetName)).findFirst().orElse(null);
+  }
+
+  private void replaceOutputSet(String outputSetName, OutputSet outputSet) {
+    outputSets = Stream.concat(
+        outputSets.stream().filter(s -> !Objects.equals(s.name, outputSetName)),
+        Stream.of(outputSet)
+    ).toList();
+  }
+
+  /**
+   * Loads the outputs that have been created by this step (so far).
+   * This method could be used in case of a resume (see: {@link #execute(boolean)}) is being performed
+   * e.g., to check a previous state of the progress.
+   * @param outputSet The outputSet for which to load the outputs
+   * @return The outputs that have been registered for the specified outputSet (so far).
+   */
+  private List<Output> loadStepOutputs(OutputSet outputSet) {
+    return loadOutputs(Set.of(toS3Path(outputSet)), outputSet.modelBased);
+  }
+
+  private List<Output> loadOutputs(Set<String> s3Prefixes, boolean modelBased) {
     return s3Prefixes
+        .stream()
+        //TODO: Scan the different folders in parallel
+        .flatMap(s3Prefix -> S3Client.getInstance().scanFolder(s3Prefix)
             .stream()
-            //TODO: Scan the different folders in parallel
-            .flatMap(s3Prefix -> S3Client.getInstance().scanFolder(s3Prefix)
-                    .stream()
-                    .filter(s3ObjectSummary -> s3ObjectSummary.getSize() > 0)
-                    .map(s3ObjectSummary -> s3ObjectSummary.getKey().contains(MODEL_BASED_PREFIX)
-                            ? ModelBasedOutput.load(s3ObjectSummary.getKey())
-                            : new DownloadUrl().withS3Key(s3ObjectSummary.getKey()).withByteSize(s3ObjectSummary.getSize())))
-            .collect(Collectors.toList());
+            .filter(s3ObjectSummary -> s3ObjectSummary.size() > 0)
+            .map(s3ObjectSummary -> modelBased
+                ? ModelBasedOutput.load(s3ObjectSummary.key(), outputMetadata)
+                : new DownloadUrl()
+                    .withS3Key(s3ObjectSummary.key())
+                    .withByteSize(s3ObjectSummary.size())
+                    .withMetadata(outputMetadata)))
+        .collect(Collectors.toList());
   }
 
-  protected List<S3DataFile> loadStepInputs() {
-    return useSystemInput
-        ? loadStepOutputs(getInputStepIds(), false).stream().map(output -> (S3DataFile) output).toList()
-        : loadInputs().stream().map(output -> (S3DataFile) output).toList();
+  private Page<Output> loadStepOutputsPage(OutputSet outputSet, int limit, String nextPageToken) {
+
+    Page<S3ObjectSummary> page = S3Client.getInstance().scanFolder(toS3Path(outputSet), nextPageToken, limit);
+
+    List<Output> outputs = page.getItems().stream()
+        .filter(s3ObjectSummary -> !s3ObjectSummary.isEmpty())
+        .map(s3ObjectSummary -> outputSet.modelBased
+            ? ModelBasedOutput.load(s3ObjectSummary.key(), outputMetadata)
+            : new DownloadUrl()
+                .withS3Key(s3ObjectSummary.key())
+                .withByteSize(s3ObjectSummary.size())
+                .withMetadata(outputMetadata))
+        .collect(Collectors.toList());
+
+    return new Page<>(outputs, page.getNextPageToken());
   }
 
   /**
    * NOTE: Calling this method may block the execution for some time, depending on the number of inputs to be listed.
    * That's the case because the metadata for each input has to be requested separately.
-   * @return
+   * TODO: Remove loading the native S3 metadata mentioned above
+   *
+   * Loads the inputs of this step.
+   * That could be inputs being provided by the user or outputs of prior steps.
+   * The result will only contain inputs that match (one of) the provided input type(s).
+   *
+   * @return All inputs for this step, filtered by the specified input type(s).
    */
-  protected List<Input> loadInputs() {
-    logger.info("[step:{}] Loading job inputs ...", getGlobalStepId());
-    if (inputs == null)
-      inputs = Input.loadInputs(getJobId());
-    return inputs;
+  protected List<Input> loadInputs(Class<? extends Input>... inputTypes) {
+    logger.info("[{}] Loading job inputs ...", getGlobalStepId());
+    if (inputs == null) {
+      inputs = new LinkedList<>();
+      for (InputSet inputSet : inputSets) {
+        //TODO: load the different inputSets in parallel
+        inputs.addAll(loadInputs(inputSet));
+      }
+    }
+    return filterInputs(inputs, inputTypes);
+  }
+
+  /**
+   * Loads the inputs for the specified {@link InputSet} of this step.
+   * That could be inputs being provided by the user or outputs of prior steps.
+   * The result will only contain inputs that match (one of) the provided input type(s).
+   *
+   * @return All inputs for the specified {@link InputSet} of this step, filtered by the specified input type(s).
+   */
+  protected List<Input> loadInputs(InputSet inputSet, Class<? extends Input>... inputTypes) {
+    return filterInputs(loadInputs(inputSet), inputTypes);
+  }
+
+  protected List<Input> loadInputs(InputSet inputSet, String nextPageToken, int limit, Class<? extends Input>... inputTypes) {
+    return filterInputs(loadInputs(inputSet, nextPageToken, limit), inputTypes);
+  }
+
+  /**
+   * Loads the inputs of a previous step for the specified {@link InputSet}.
+   * This is an internal helper method that should never be called directly by any implementing subclass.
+   *
+   * @param inputSet
+   * @return All inputs from the specified InputSet
+   */
+  private List<Input> loadInputs(InputSet inputSet) {
+    if (inputSet.providerId == null)
+      throw new IllegalArgumentException("Incorrect input was provided: Missing source input provider");
+    if (inputSet.name == null)
+      throw new IllegalArgumentException("Incorrect input was provided: Missing referenced set name");
+
+    if (USER_PROVIDER.equals(inputSet.providerId))
+      return Input.loadInputs(getJobId(), inputSet.name);
+    else
+      return loadOutputsFor(inputSet).stream().map(output -> (Input) transformToInput(output).withMetadata(inputSet.metadata())).toList();
+  }
+
+  /**
+   * Loads the outputs of a previous step for the specified inputSet.
+   * This is an internal helper method that should never be called directly by any implementing subclass.
+   *
+   * @param inputSet The inputSet from which to load the inputs.
+   *  That inputSet can depict the user inputs or the outputs of a previous step in the same job or in another succeeded
+   *  job that ran earlier.
+   * @return All outputs for the specified InputSet
+   */
+  private List<Output> loadOutputsFor(InputSet inputSet) {
+    return loadOutputs(Set.of(inputSet.toS3Path(jobId)), inputSet.modelBased());
+  }
+
+  private static List<Input> filterInputs(List<Input> inputs, Class<? extends Input>[] inputTypes) {
+    if (inputTypes.length == 0)
+      return inputs;
+    return inputs.stream()
+        .filter(input -> Arrays.stream(inputTypes)
+            .anyMatch(inputType -> input.getClass().isAssignableFrom(inputType)))
+        .toList();
+  }
+
+  //TODO: Remove that workaround once the inputs & outputs were streamlined to one single inheritance chain
+  private static Input transformToInput(Output output) {
+    if (output instanceof S3DataFile s3File)
+      return new UploadUrl()
+          .withS3Bucket(s3File.getS3Bucket())
+          .withS3Key(s3File.getS3Key())
+          .withCompressed(s3File.isCompressed())
+          .withByteSize(s3File.getByteSize());
+    else
+      return new InputFromOutput().withDelegate(output);
   }
 
   protected int currentInputsCount(Class<? extends Input> inputType) {
-    return Input.currentInputsCount(jobId, inputType);
+    return getInputSets().stream()
+        .filter(inputSet -> USER_PROVIDER.equals(inputSet.providerId))
+        .mapToInt(userInputSet -> Input.currentInputsCount(jobId, inputType, userInputSet.name))
+        .sum();
   }
 
   protected <I extends Input> List<I> loadInputsSample(int maxSampleSize, Class<I> inputType) {
-    return Input.loadInputsSample(jobId, maxSampleSize, inputType);
+    return getInputSets().stream()
+        .filter(inputSet -> USER_PROVIDER.equals(inputSet.providerId))
+        .flatMap(userInputSet -> Input.loadInputsSample(jobId, userInputSet.name, maxSampleSize, inputType).stream())
+        .unordered()
+        .limit(maxSampleSize)
+        .toList();
   }
 
   @JsonIgnore
@@ -253,6 +397,9 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
    * These parameters can be provided in the form of public fields / getter-setter-pairs.
    * The job framework will make sure that these parameters will be transferred
    * to the target execution system so that this method will be able to access them.
+   *
+   * NOTE: If <code>resume</code> is <code>true</code>, the implementation of the step might have to perform
+   * some additional cleanup or preparations before starting the execution again from a feasible resumption point.
    *
    * @example
    *
@@ -277,20 +424,10 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
    * }
    * </pre>
    *
+   * @param resume `true` if the execution is a resumption, that is if the execution is *not* called for the first time
    * @throws Exception Any kind of execution that was not caught by the step implementation
    */
-  public abstract void execute() throws Exception;
-
-  /**
-   * Same semantics as in {@link #execute()}, but this method will be called in case of a resumption
-   * of the step after it has been canceled / failed previously.
-   *
-   * NOTE: The implementation of the step might have to perform some additional cleanup before
-   *  starting the execution again from a feasible resumption point.
-   *
-   * @throws Exception Any kind of execution that was not caught by the step implementation
-   */
-  public abstract void resume() throws Exception;
+  public abstract void execute(boolean resume) throws Exception;
 
   /**
    * Executes all steps that are necessary to cancel a current execution of this step.
@@ -321,7 +458,17 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
     S3Client.getInstance().deleteFolder(stepS3Prefix());
   }
 
-  public void prepare(String owner, JobClientInfo ownerAuth) {
+  /**
+   * Will be called right after the job compilation, but just before the step validation call.
+   * Can be used to perform some preparations for the step that are already executed in the service node.
+   * NOTE: That means this method will not run within the target runtime environment!
+   * The execution of this method must not take a long time (e.g., <2s), because it would block
+   * the job-creation response that is about to be sent to the user that creates the job.
+   *
+   * @param owner
+   * @param ownerAuth
+   */
+  public void prepare(String owner, JobClientInfo ownerAuth) throws ValidationException {
     //Nothing to do by default. May be overridden.
   }
 
@@ -341,6 +488,23 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
    */
   public abstract boolean validate() throws ValidationException;
 
+  /**
+   * Should be overridden in subclasses to enable the possibility to check whether two steps of two different StepGraphs
+   * are equivalent in their actions and their outcome.
+   * That means that the other step would produce exactly the same outputs
+   * for the provided inputs and step-parameters / step-fields (step-settings).
+   *
+   * Not overriding this method for a step, means that this step will never be found to be equivalent to some other provided step.
+   * That could be the case if a step implementation cannot guarantee to provide the same outputs again by any condition.
+   *
+   * @param other The step of a different StepGraph
+   * @return `true` only if this step and the provided ones produce the same outputs for the same inputs & settings
+   */
+  @Override
+  public boolean isEquivalentTo(StepExecution other) {
+    return !(other instanceof Step) || other instanceof DelegateStep ? other.isEquivalentTo(this) : false;
+  }
+
   public String getId() {
     return id;
   }
@@ -358,7 +522,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
     return jobId;
   }
 
-  void setJobId(String jobId) {
+  protected void setJobId(String jobId) {
     this.jobId = jobId;
   }
 
@@ -434,42 +598,243 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
     return (T) this;
   }
 
-  public boolean isUseSystemInput() {
-    return useSystemInput;
+  /**
+   * A little helper method to quickly find out whether this step will directly use user inputs or not.
+   * @return Whether this step depends on user outputs or not.
+   */
+  public boolean usesUserInput() {
+    return inputSets.stream().anyMatch(inputSet -> inputSet.providerId == null);
   }
 
-  public void setUseSystemInput(boolean useSystemInput) {
-    this.useSystemInput = useSystemInput;
+  public List<OutputSet> getOutputSets() {
+    return new ArrayList<>(outputSets);
   }
 
-  public T withUseSystemInput(boolean useSystemInput) {
-    setUseSystemInput(useSystemInput);
+  @JsonIgnore
+  protected void setOutputSets(List<OutputSet> outputSets) {
+    setOutputSets(outputSets, false);
+  }
+
+  @JsonIgnore
+  protected void setOutputSets(List<OutputSet> outputSets, boolean ignoreStepId) {
+    // Ensure that if any user-facing output set is being registered, the output set group is defined
+    ensureOutputSetGroupDefinedIfUserFacing(outputSets.stream().anyMatch(outputSet -> outputSet.visibility == USER));
+    if (!ignoreStepId) {
+      outputSets.forEach(outputSet -> outputSet.setStepId(getId()));
+    }
+    this.outputSets = outputSets;
+  }
+
+  private void ensureOutputSetGroupDefinedIfUserFacing(boolean userFacing) {
+    // temporary disable it for demo, as it fails on setting output sets in constructor
+    return;
+//    if (userFacing && (getOutputSetGroup() == null || getOutputSetGroup().isBlank())) {
+//      throw new IllegalStateException("You are registering user-facing output set, please first define outputset group value");
+//    }
+  }
+
+  public List<InputSet> getInputSets() {
+    return inputSets;
+  }
+
+  public void setInputSets(List<InputSet> inputSets) {
+    this.inputSets = inputSets;
+  }
+
+  public T withInputSets(List<InputSet> inputSets) {
+    setInputSets(inputSets);
     return (T) this;
   }
 
-  public boolean isUseSystemOutput() {
-    return useSystemOutput;
-  }
-
-  public void setUseSystemOutput(boolean useSystemOutput) {
-    this.useSystemOutput = useSystemOutput;
-  }
-
-  public T withUseSystemOutput(boolean useSystemOutput) {
-    setUseSystemOutput(useSystemOutput);
+  public T withOutputSetVisibility(String outputSetName, Visibility visibility) {
+    // Ensure that if we switch to a user-facing visibility, the output set group is defined
+    ensureOutputSetGroupDefinedIfUserFacing(visibility == USER);
+    OutputSet outputSet = getOutputSetOrNull(outputSetName);
+    if (outputSet != null) {
+      replaceOutputSet(outputSetName, new OutputSet(outputSet, outputSet.jobId, visibility)
+          .withStepId(outputSet.stepId)
+      );
+    }
     return (T) this;
   }
 
-  public Set<String> getInputStepIds() {
-    return inputStepIds;
+  public Map<String, String> getOutputMetadata() {
+    return outputMetadata;
   }
 
-  public void setInputStepIds(Set<String> inputStepIds) {
-    this.inputStepIds = inputStepIds;
+  public void setOutputMetadata(Map<String, String> outputMetadata) {
+    this.outputMetadata = outputMetadata;
   }
 
-  public T withInputStepIds(Set<String> inputStepIds) {
-    setInputStepIds(inputStepIds);
+  public T withOutputMetadata(Map<String, String> metadata) {
+    setOutputMetadata(metadata);
     return (T) this;
+  }
+
+  public String getOutputSetGroup() {
+    return outputSetGroup;
+  }
+
+  public void setOutputSetGroup(String outputSetGroup) {
+    this.outputSetGroup = outputSetGroup;
+  }
+
+  public T withOutputSetGroup(String outputSetGroup) {
+    setOutputSetGroup(outputSetGroup);
+    return (T) this;
+  }
+
+  public boolean isNotReusable() {
+    return notReusable;
+  }
+
+  public void setNotReusable(boolean notReusable) {
+    this.notReusable = notReusable;
+  }
+
+  public T withNotReusable(boolean notReusable) {
+    setNotReusable(notReusable);
+    return (T) this;
+  }
+
+  @JsonIgnore
+  protected boolean isUserInputsExpected() {
+    return getInputSets().stream().anyMatch(inputSet -> USER_PROVIDER.equals(inputSet.providerId));
+  }
+
+  @JsonIgnore
+  protected boolean isUserInputsPresent(Class<? extends Input> inputType) {
+    return currentInputsCount(inputType) > 0;
+  }
+
+  /**
+   * Use this constructor to reference the outputs of a step belonging to a different job than the one the consuming step belongs to.
+   * @param jobId The other job's id
+   * @param providerId The ID of the entity that provided the inputs (e.g., a step ID or "USER")
+   * @param name The name for the set of outputs to be produced
+   */
+  public record InputSet(String jobId, String providerId, String name, boolean modelBased, Map<String, String> metadata) {
+    public static final String DEFAULT_SET_NAME = "inputs"; //Depicts the input set used if no set name is defined
+    public static final String DEFAULT_SET_GROUP = "default"; //Depicts the output set group used if no set name is defined
+    public static final String USER_PROVIDER = "USER";
+    public static final Supplier<InputSet> USER_INPUTS = () -> new InputSet();
+
+    public InputSet(String jobId, String providerId, String name, boolean modelBased) {
+      this(jobId, providerId, name, modelBased, null);
+    }
+
+    /**
+     * Use this constructor to reference the outputs of a step belonging to the same job as the consuming step.
+     * @param providerId
+     * @param name
+     */
+    public InputSet(String providerId, String name, boolean modelBased) {
+      this(null, providerId, name, modelBased);
+    }
+
+    public InputSet(OutputSet outputSetOfOtherStep) {
+      this(outputSetOfOtherStep.getStepId(), outputSetOfOtherStep.name, outputSetOfOtherStep.modelBased);
+    }
+
+    public InputSet(OutputSet outputSetOfOtherStep, Map<String, String> metadata) {
+      this(outputSetOfOtherStep.getJobId(), outputSetOfOtherStep.getStepId(), outputSetOfOtherStep.name, outputSetOfOtherStep.modelBased,
+          metadata);
+    }
+
+    /**
+     * Use this constructor to depict the global / user inputs of the same job the consuming step belongs to.
+     */
+    public InputSet() {
+      //TODO: Currently only non-modelbased user inputs are supported
+      this(null, USER_PROVIDER, DEFAULT_SET_NAME, false);
+    }
+
+    public String toS3Path(String consumerJobId) {
+      return toS3Uri(consumerJobId).key();
+    }
+
+    public S3Uri toS3Uri(String consumerJobId) {
+      String jobId = this.jobId != null ? this.jobId : consumerJobId;
+      if (USER_PROVIDER.equals(providerId))
+        return Input.loadResolvedUserInputPrefixUri(jobId, name);
+      return new S3Uri(defaultBucket(), Output.stepOutputS3Prefix(jobId, providerId, name));
+    }
+  }
+
+  protected String toS3Path(OutputSet outputSet) {
+    return Output.stepOutputS3Prefix(outputSet.jobId != null ? outputSet.jobId : getJobId(),
+        outputSet.stepId != null ? outputSet.stepId : getId(), outputSet.name);
+  }
+
+  @JsonInclude(Include.NON_DEFAULT)
+  public static class OutputSet {
+    private String jobId;
+    private String stepId;
+    public String name;
+    public String fileSuffix;
+    public boolean modelBased;
+    public final Visibility visibility;
+
+    private OutputSet() {
+      this.visibility = Visibility.SYSTEM; //NOTE: Only needed for deserialization purposes
+    }
+
+    public OutputSet(String name, Visibility visibility, String fileSuffix) {
+      this.name = name;
+      this.visibility = visibility;
+      this.fileSuffix = fileSuffix;
+    }
+
+    public OutputSet(String name, Visibility visibility, boolean modelBased) {
+      this(name, visibility, ".json");
+      this.modelBased = modelBased;
+    }
+
+    public OutputSet(OutputSet other, String jobId, Visibility visibility) {
+      this(other.name, visibility, other.fileSuffix);
+      this.modelBased = other.modelBased;
+      this.jobId = jobId;
+      this.stepId = other.stepId;
+    }
+
+    public String getJobId() {
+      return jobId;
+    }
+
+    public void setJobId(String jobId) {
+      this.jobId = jobId;
+    }
+
+    public OutputSet withJobId(String jobId) {
+      setJobId(jobId);
+      return this;
+    }
+
+    public String getStepId() {
+      return stepId;
+    }
+
+    public void setStepId(String stepId) {
+      this.stepId = stepId;
+    }
+
+    public OutputSet withStepId(String stepId) {
+      setStepId(stepId);
+      return this;
+    }
+
+    @Override
+    public final boolean equals(Object o) {
+      if (!(o instanceof Step.OutputSet that))
+        return false;
+
+      return Objects.equals(jobId, that.jobId) && Objects.equals(stepId, that.stepId) && name.equals(that.name)
+          && visibility == that.visibility && fileSuffix.equals(that.fileSuffix);
+    }
+  }
+
+  public enum Visibility {
+    SYSTEM,
+    USER
   }
 }

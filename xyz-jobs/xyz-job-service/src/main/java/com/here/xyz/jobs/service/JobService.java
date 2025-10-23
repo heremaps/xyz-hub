@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,19 +22,22 @@ package com.here.xyz.jobs.service;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.config.JobConfigClient;
+import com.here.xyz.jobs.processes.Maintain;
 import com.here.xyz.jobs.steps.StepGraph;
 import com.here.xyz.jobs.steps.execution.CleanUpExecutor;
 import com.here.xyz.jobs.steps.execution.JobExecutor;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.util.service.Core;
+import com.here.xyz.util.service.errors.ErrorManager;
+import com.here.xyz.util.web.HubWebClient;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Future;
 import io.vertx.core.VertxOptions;
+import io.vertx.core.impl.ConcurrentHashSet;
 import io.vertx.core.json.JsonObject;
-import java.util.ArrayList;
 import java.util.Date;
-import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import org.apache.commons.lang3.math.NumberUtils;
@@ -44,25 +47,32 @@ import org.apache.logging.log4j.Logger;
 public class JobService extends Core {
 
   private static final Logger logger = LogManager.getLogger();
+  private static final String ERROR_DEFINITIONS_FILE = "job-errors.json";
   protected static Class<? extends Config> serviceConfigurationClass = Config.class;
 
   static {
     CONFIG_FILE = "jobs.config.json";
+    HubWebClient.userAgent = "XYZ-JobService/" + buildVersion();
   }
 
   static {
     XyzSerializable.registerSubtypes(StepGraph.class);
     XyzSerializable.registerSubtypes(Input.class);
     XyzSerializable.registerSubtypes(Output.class);
+
+    //Maintenance process
+    XyzSerializable.registerSubtypes(Maintain.class);
   }
 
-  private static List<Consumer> jobFinalizationObservers = new ArrayList<>();
+  private static Set<Consumer> jobFinalizationObservers = new ConcurrentHashSet<>();
 
   public static void main(String[] args) {
     VertxOptions vertxOptions = new VertxOptions()
         .setWorkerPoolSize(NumberUtils.toInt(System.getenv(Core.VERTX_WORKER_POOL_SIZE), 128))
         .setPreferNativeTransport(true)
         .setBlockedThreadCheckInterval(TimeUnit.MINUTES.toMillis(15));
+
+    ErrorManager.loadErrors(ERROR_DEFINITIONS_FILE);
 
     initializeVertx(vertxOptions)
         .compose(Core::initializeConfig)
@@ -128,7 +138,12 @@ public class JobService extends Core {
     jobFinalizationObservers.add(jobConsumer);
   }
 
+  public static void deregisterJobFinalizeObserver(Consumer<Job> jobConsumer) {
+    jobFinalizationObservers.remove(jobConsumer);
+  }
+
   public static void callFinalizeObservers(Job job) {
+    logger.info("Calling job finalization observers for job {}", job.getId());
     jobFinalizationObservers.forEach(c -> {
       try {
         c.accept(job);

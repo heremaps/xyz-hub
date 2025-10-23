@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ package com.here.xyz.jobs.steps.resources;
 import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
 import static com.here.xyz.jobs.steps.resources.Load.toLoadsMap;
 
+import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.config.JobConfigClient;
 import com.here.xyz.jobs.steps.execution.db.Database;
 import io.vertx.core.Future;
@@ -45,14 +46,28 @@ public class ResourcesRegistry {
   protected static final Future<Map<ExecutionResource, Double>> getReservedVirtualUnits() {
     return JobConfigClient.getInstance()
         .loadJobs(RUNNING)
-        .compose(runningJobs -> Future.succeededFuture(toLoadsMap(runningJobs.stream()
-            .flatMap(job -> job.calculateResourceLoads().stream()).toList(), false)));
+        .compose(runningJobs -> Future.all(runningJobs.stream()
+            .map(job -> {
+              try {
+                return job.calculateResourceLoads().recover(t -> handleResourceLoadError(job, t));
+              }
+              catch (Exception e) {
+                return handleResourceLoadError(job, e);
+              }
+            }).toList()))
+        .map(cf -> cf.<List<Load>>list().stream().flatMap(List::stream).toList())
+        .map(loads -> toLoadsMap(loads, false));
+  }
+
+  private static Future<List<Load>> handleResourceLoadError(Job job, Throwable t) {
+    logger.error("Error calculating the reserved resources of job {}. Not taking it into account this time.", job.getId(), t);
+    return Future.succeededFuture(List.of());
   }
 
   /**
-   * Provides the number of virtual units which are not in use, and which are still available to be used by incoming jobs.
+   * Provides the number of virtual units which are not in use, that are still available to be used by incoming jobs.
    *
-   * @return The number of virtual units which are still free to be used
+   * @return The number of virtual units that are still free to be used
    */
   public static Future<Map<ExecutionResource, Double>> getFreeVirtualUnits() {
     return getAllResources()
@@ -85,5 +100,35 @@ public class ResourcesRegistry {
           resources.add(IOResource.getInstance());
           return resources;
         });
+  }
+
+  public record StaticLoad(String resource, double units) {}
+
+  private static ExecutionResource findResourceById(List<ExecutionResource> executionResources, String resourceId) {
+    return executionResources.stream()
+        .filter(resource -> resource.getId().equals(resourceId))
+        .findAny().get();
+  }
+
+  public static List<StaticLoad> toStaticLoads(List<Load> loads) {
+    return loads.stream().map(load -> new StaticLoad(load.getResource().getId(), load.getEstimatedVirtualUnits())).toList();
+  }
+
+  public static Future<List<Load>> fromStaticLoads(List<StaticLoad> staticLoads) {
+    return getAllResources()
+        .map(executionResources -> staticLoads
+            .stream()
+            .map(staticLoad -> {
+              ExecutionResource foundResource = findResourceById(executionResources, staticLoad.resource);
+              if (foundResource == null) {
+                logger.warn("Unable to find resource with id {}", staticLoad.resource);
+                return null;
+              }
+              return new Load()
+                  .withResource(foundResource)
+                  .withEstimatedVirtualUnits(staticLoad.units);
+            })
+            .filter(load -> load != null)
+            .toList());
   }
 }

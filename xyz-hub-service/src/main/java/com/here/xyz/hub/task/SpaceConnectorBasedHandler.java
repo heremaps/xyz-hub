@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,10 +19,10 @@
 
 package com.here.xyz.hub.task;
 
-import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
+import static com.here.xyz.hub.task.FeatureTask.resolveBranchFor;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
-import static io.netty.handler.codec.http.HttpResponseStatus.METHOD_NOT_ALLOWED;
 
+import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.DeleteChangesetsEvent;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.GetChangesetStatisticsEvent;
@@ -30,93 +30,151 @@ import com.here.xyz.events.IterateChangesetsEvent;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.RpcClient;
 import com.here.xyz.hub.connectors.models.Space;
+import com.here.xyz.models.hub.Tag;
+import com.here.xyz.responses.ChangesetsStatisticsResponse;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.service.HttpException;
+import com.here.xyz.util.service.errors.DetailedHttpException;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
+import java.util.Comparator;
+import java.util.Map;
 import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 
 public class SpaceConnectorBasedHandler {
-  private static final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger();
 
-  public static <T extends Event<T>, R extends XyzResponse<R>> Future<R> execute(Marker marker, Function<Space, Future<Space>> authorizationFunction, Event<T> e) {
-    return getAndValidateSpace(marker, e.getSpace())
-      .compose(authorizationFunction)
-      .compose(space -> injectEventParameters(marker, e, space))
-      .compose(space -> Service.connectorConfigClient.get(marker, space.getStorage().getId()))
-      .map(RpcClient::getInstanceFor)
-      .recover(t -> t instanceof HttpException
-          ? Future.failedFuture(t)
-          : Future.failedFuture(new HttpException(BAD_REQUEST, "Connector is not available", t)))
-      .compose(rpcClient -> {
-        final Promise<R> promise = Promise.promise();
-        rpcClient.execute(marker, e, handler -> {
-          if (handler.failed()) {
-            logger.warn(marker, "Error during rpc execution for event: " + e.getClass(), handler.cause());
-            if(handler.cause() != null && handler.cause() instanceof HttpException )
-                promise.fail(handler.cause());
-            else
-                promise.fail(new HttpException(BAD_REQUEST, handler.cause().getMessage()));
-          }
-          else
-            promise.complete((R) handler.result());
-        });
-        return promise.future();
-      });
-  }
+    public static <T extends Event<T>, R extends XyzResponse<R>> Future<R> execute(
+            Marker marker,
+            Function<Space, Future<Space>> authorizationFunction,
+            Event<T> event
+    ) {
+        return getAndValidateSpace(marker, event.getSpace())
+                .compose(authorizationFunction)
+                .compose(space -> injectEventParameters(marker, event, space)
+                        .map(updatedSpace -> updatedSpace) // still have `space` in scope
+                )
+                .compose(space ->
+                        Service.connectorConfigClient.get(marker, space.getStorage().getId())
+                                .map(RpcClient::getInstanceFor)
+                                .map(rpcClient -> new ExecutionContext<>(space, rpcClient, event))
+                )
+                .recover(t -> {
+                    if (t instanceof HttpException) return Future.failedFuture(t);
+                    return Future.failedFuture(new HttpException(BAD_REQUEST, "Connector is not available", t));
+                })
+                .compose(ctx -> {
+                    final Promise<R> promise = Promise.promise();
+                    ctx.rpcClient.execute(marker, ctx.event, handler -> {
+                        if (handler.failed()) {
+                            logger.warn(marker, "Error during rpc execution for event: " + event.getClass(), handler.cause());
+                            if (handler.cause() instanceof HttpException)
+                                promise.fail(handler.cause());
+                            else
+                                promise.fail(new HttpException(BAD_REQUEST, handler.cause().getMessage()));
+                        } else {
+                            R result = (R) handler.result();
 
-  private static Future<Space> injectEventParameters(Marker marker, Event e, Space space){
-      Promise<Space> p = Promise.promise();
+                            if (result instanceof ChangesetsStatisticsResponse statsResponse
+                                    && ctx.event instanceof GetChangesetStatisticsEvent) {
+                                long minVersion = ctx.space.getMinVersion();
 
-      if (e instanceof GetChangesetStatisticsEvent || e instanceof DeleteChangesetsEvent || e instanceof IterateChangesetsEvent) {
-          if(e instanceof DeleteChangesetsEvent || e instanceof  GetChangesetStatisticsEvent) {
-              getMinTag(marker, space.getId())
-                      .onSuccess(minTag -> {
-                          if (e instanceof DeleteChangesetsEvent)
-                              ((DeleteChangesetsEvent) e).setMinTagVersion(minTag);
-                          else if (e instanceof GetChangesetStatisticsEvent) {
-                              ((GetChangesetStatisticsEvent) e).setVersionsToKeep(space.getVersionsToKeep());
-                              ((GetChangesetStatisticsEvent) e).setMinSpaceVersion(space.getMinVersion());
-                              ((GetChangesetStatisticsEvent) e).setMinTagVersion(minTag);
-                          }
-                          p.complete(space);
-                      }).onFailure(
-                              t -> p.fail(new HttpException(BAD_GATEWAY, "Unexpected problem!"))
-                      );
-          }else{
-              ((IterateChangesetsEvent) e).setVersionsToKeep(space.getVersionsToKeep());
-              p.complete(space);
-          }
-      }else
-          p.complete(space);
-      return p.future();
-  }
+                                if (minVersion != 0L) {
+                                    //FIXME: Only to be BWC - should be removed in future versions
+                                    // if a minVersion is present it should used for override (else part)
+                                    if(statsResponse.getMinTagVersion() != null
+                                            && minVersion > statsResponse.getMinTagVersion())
+                                        statsResponse.setMinVersion( statsResponse.getMinTagVersion());
+                                    else
+                                        statsResponse.setMinVersion(minVersion);
+                                }
+                            }
 
-  private static Future<Long> getMinTag(Marker marker, String space){
-      return Service.tagConfigClient.getTags(marker, space, true)
-            .compose(r -> r == null ? Future.succeededFuture(null)
-                    : Future.succeededFuture(r.stream().mapToLong(tag -> tag.getVersion()).min())
-            )
-            .compose(r -> {
-                /* Return min tag of this space */
-                return Future.succeededFuture((r.isPresent() ? r.getAsLong() : null));
-            });
-  }
+                            promise.complete(result);
+                        }
+                    });
+                    return promise.future();
+                });
+    }
 
-  public static Future<Space> getAndValidateSpace(Marker marker, String spaceId) {
-    return getAndValidateSpace(marker, spaceId, false);
-  }
+    private static class ExecutionContext<T extends Event<T>> {
+        public Space space;
+        public RpcClient rpcClient;
+        public Event<T> event;
 
-  public static Future<Space> getAndValidateSpace(Marker marker, String spaceId, boolean ignoreMissingSpace) {
-    return Service.spaceConfigClient.get(marker, spaceId)
-        .compose(space -> space == null && !ignoreMissingSpace
-            ? Future.failedFuture(new HttpException(BAD_REQUEST, "The resource ID '" + spaceId + "' does not exist!"))
-            : Future.succeededFuture(space))
-        .compose(space -> space != null && !space.isActive()
-            ? Future.failedFuture(new HttpException(METHOD_NOT_ALLOWED, "The method is not allowed, because the resource \"" + spaceId + "\" is not active."))
-            : Future.succeededFuture(space));
-  }
+        public ExecutionContext(Space space, RpcClient rpcClient, Event<T> event) {
+            this.space = space;
+            this.rpcClient = rpcClient;
+            this.event = event;
+        }
+    }
+
+    private static Future<Space> injectEventParameters(Marker marker, Event event, Space space) {
+      if (event instanceof DeleteChangesetsEvent || event instanceof GetChangesetStatisticsEvent || event instanceof IterateChangesetsEvent) {
+        return getMinTag(marker, space.getId())
+            .compose(minTag -> {
+              if (event instanceof DeleteChangesetsEvent deleteChangesetsEvent && minTag != null) {
+                //FIXME: getMinUserTag and use this version. Currently we use minTag to be BWC
+                if (!minTag.isSystem() && minTag.getVersion() < deleteChangesetsEvent.getMinVersion())
+                  return Future.failedFuture(new HttpException(BAD_REQUEST, "Tag \"" + minTag.getId() + "\"for version "
+                      + minTag.getVersion() + " exists!"));
+                else
+                  deleteChangesetsEvent.setMinVersion(Math.min(minTag.getVersion(), deleteChangesetsEvent.getMinVersion()));
+              }
+              else if (event instanceof GetChangesetStatisticsEvent getChangesetStatisticsEvent && minTag != null) {
+                //TODO: check minSpaceVersion
+                getChangesetStatisticsEvent.setMinTagVersion(minTag.getVersion());
+                getChangesetStatisticsEvent.setMinVersion(Math.min(minTag.getVersion(), space.getMinVersion()));
+              }
+              else if (event instanceof IterateChangesetsEvent iterateChangesetsEvent) {
+                iterateChangesetsEvent.setVersionsToKeep(space.getVersionsToKeep());
+                if (minTag != null)
+                  iterateChangesetsEvent.setMinVersion(minTag.getVersion());
+              }
+              return Future.succeededFuture();
+            })
+            .compose(v -> {
+              if (event instanceof ContextAwareEvent<?> contextAwareEvent)
+                try {
+                  resolveBranchFor(contextAwareEvent, space);
+                }
+                catch (HttpException e) {
+                  return Future.failedFuture(e);
+                }
+              return Future.succeededFuture();
+            })
+            .map(space);
+      }
+      else
+        return Future.succeededFuture(space);
+    }
+
+    public static Future<Tag> getMinTag(Marker marker, String space) {
+        return Service.tagConfigClient.getTags(marker, space, true)
+                .compose(tags -> {
+                    if (tags == null || tags.isEmpty()) {
+                        return Future.succeededFuture(null);
+                    }
+
+                    // Find the tag with the minimum version
+                    Tag minTag = tags.stream()
+                            .min(Comparator.comparingLong(Tag::getVersion))
+                            .orElse(null);
+
+                    return Future.succeededFuture(minTag);
+                });
+    }
+
+    public static Future<Space> getAndValidateSpace(Marker marker, String spaceId) {
+        return Service.spaceConfigClient.get(marker, spaceId)
+                .compose(space -> space == null
+                        ? Future.failedFuture(new DetailedHttpException("E318441", Map.of("resourceId", spaceId)))
+                        : Future.succeededFuture(space))
+                .compose(space -> space != null && !space.isActive()
+                        ? Future.failedFuture(new DetailedHttpException("E318451", Map.of("resourceId", spaceId)))
+                        : Future.succeededFuture(space));
+    }
 }

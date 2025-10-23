@@ -22,7 +22,7 @@
   <parent>
     <groupId>com.here.xyz</groupId>
     <artifactId>xyz-jobs</artifactId>
-    <version>3.12.2-SNAPSHOT</version>
+    <version>3.21.7-SNAPSHOT</version>
   </parent>
 
   <name>XYZ Job Service</name>
@@ -66,16 +66,6 @@
     </dependency>
 
     <!-- AWS SDK -->
-    <dependency>
-      <artifactId>aws-java-sdk-s3</artifactId>
-      <groupId>com.amazonaws</groupId>
-      <exclusions>
-        <exclusion>
-          <artifactId>jackson-annotations</artifactId>
-          <groupId>com.fasterxml.jackson.core</groupId>
-        </exclusion>
-      </exclusions>
-    </dependency>
     <dependency>
       <artifactId>aws-java-sdk-secretsmanager</artifactId>
       <groupId>com.amazonaws</groupId>
@@ -162,7 +152,12 @@
       <groupId>com.lmax</groupId>
     </dependency>
 
-    <!-- Test -->
+    <!-- Testing -->
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
     <dependency>
       <artifactId>junit-jupiter-api</artifactId>
       <groupId>org.junit.jupiter</groupId>
@@ -173,10 +168,67 @@
       <artifactId>junit-vintage-engine</artifactId>
       <scope>test</scope>
     </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-params</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.junit-pioneer</groupId>
+      <artifactId>junit-pioneer</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <artifactId>hamcrest</artifactId>
+      <groupId>org.hamcrest</groupId>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>
+    <resources>
+      <resource>
+        <directory>src/main/resources</directory>
+        <filtering>false</filtering>
+      </resource>
+      <resource>
+        <directory>src/main/resources</directory>
+        <filtering>true</filtering>
+        <includes>
+          <include>**/build.properties</include>
+        </includes>
+      </resource>
+      <resource>
+        <directory>src/main/resources</directory>
+        <filtering>false</filtering>
+        <excludes>
+          <exclude>**/build.properties</exclude>
+        </excludes>
+      </resource>
+      <resource>
+        <!-- Add scripts to jar -->
+        <directory>src/main/bash</directory>
+        <targetPath>.</targetPath>
+        <includes>
+          <include>**/*</include>
+        </includes>
+      </resource>
+    </resources>
     <plugins>
+      <!-- Include sources -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-source-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>attach-sources</id>
+            <goals>
+              <goal>jar</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-shade-plugin</artifactId>
@@ -237,15 +289,27 @@
             <artifactId>exec-maven-plugin</artifactId>
             <executions>
               <execution>
-                <configuration>
-                  <workingDirectory>${project.build.directory}</workingDirectory>
-                  <executable>${basedir}/src/main/bash/localSetup.sh</executable>
-                </configuration>
+                <id>installAWSResources</id>
+                <phase>install</phase>
                 <goals>
                   <goal>exec</goal>
                 </goals>
-                <id>localSetup</id>
-                <phase>install</phase>
+                <configuration>
+                  <executable>docker</executable>
+                  <arguments>
+                    <argument>run</argument>
+                    <argument>--rm</argument>
+                    <argument>--entrypoint</argument>
+                    <argument> </argument>
+                    <argument>-v</argument>
+                    <argument>${project.basedir}/src/main/bash/localSetup.sh:/aws/localSetup.sh</argument>
+                    <argument>--add-host</argument>
+                    <argument>host.docker.internal=host-gateway</argument>
+                    <argument>amazon/aws-cli</argument>
+                    <argument>./localSetup.sh</argument>
+                    <argument>true</argument>
+                  </arguments>
+                </configuration>
               </execution>
             </executions>
             <groupId>org.codehaus.mojo</groupId>

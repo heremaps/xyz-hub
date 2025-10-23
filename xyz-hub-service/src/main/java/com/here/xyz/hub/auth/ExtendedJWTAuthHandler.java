@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.http.HttpHeaders;
+import io.vertx.core.json.JsonObject;
 import io.vertx.ext.auth.User;
 import io.vertx.ext.auth.jwt.JWTAuth;
 import io.vertx.ext.web.RoutingContext;
@@ -63,7 +64,7 @@ public class ExtendedJWTAuthHandler extends JWTAuthHandlerImpl {
   final boolean ALLOW_ANONYMOUS_ACCESS = Service.configuration.XYZ_HUB_AUTH == AuthorizationType.DUMMY;
 
   private static final String ANONYMOUS_JWT_RESOURCE_FILE = "/auth/dummyJwt.json";
-  private static final String ANONYMOUS_JWT = JwtGenerator.generateToken(ANONYMOUS_JWT_RESOURCE_FILE);
+  private static final JsonObject ANONYMOUS_JWT = JsonObject.mapFrom(JwtGenerator.readTokenPayload(ANONYMOUS_JWT_RESOURCE_FILE, true));
 
   public ExtendedJWTAuthHandler(JWTAuth authProvider, String realm) {
     super(authProvider, realm);
@@ -84,7 +85,10 @@ public class ExtendedJWTAuthHandler extends JWTAuthHandlerImpl {
 
     // If anonymous access is allowed, use the default anonymous JWT token
     if (ALLOW_ANONYMOUS_ACCESS && jwt == null) {
-      jwt = ANONYMOUS_JWT;
+      User user = User.create(ANONYMOUS_JWT);
+      handler.handle(Future.succeededFuture(user));
+      return;
+//      jwt = ANONYMOUS_JWT_RAW;
     }
 
     // stores the token (raw, as it was received) temporarily in the context

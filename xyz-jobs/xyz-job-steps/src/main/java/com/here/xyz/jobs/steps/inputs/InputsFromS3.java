@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +19,9 @@
 
 package com.here.xyz.jobs.steps.inputs;
 
+import com.here.xyz.util.service.aws.s3.S3Uri;
 import java.util.List;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 
 public class InputsFromS3 extends Input<InputsFromS3> {
   private String bucket;
@@ -53,11 +55,20 @@ public class InputsFromS3 extends Input<InputsFromS3> {
     return this;
   }
 
-  public void dereference(String forJob) {
-    //First load the inputs from the (foreign) bucket
-    List<Input> inputs = loadInputsInParallel(getBucket(), getPrefix());
+  public void dereference(String forJob, String setName) {
+    List<Input> inputs = null;
+    try {
+      //First load the inputs from the (foreign) bucket
+      inputs = loadInputsInParallel(getBucket(), getPrefix());
+    }
+    catch (S3Exception e) {
+      if (e.awsErrorDetails().sdkHttpResponse().statusCode() == 403)
+        throw new IllegalArgumentException("Error accessing \"" + new S3Uri(getBucket(), getPrefix()) + "\": " + e.getMessage(), e);
+      else
+        throw e;
+    }
     inputs.forEach(input -> input.setS3Bucket(getBucket()));
     //Store the metadata for the job that accesses the bucket
-    storeMetadata(forJob, inputs, null);
+    storeMetadata(forJob, inputs, null, new S3Uri(getBucket(), getPrefix()), setName);
   }
 }

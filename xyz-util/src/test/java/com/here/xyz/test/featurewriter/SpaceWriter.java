@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,6 @@
 package com.here.xyz.test.featurewriter;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
-import static com.here.xyz.test.featurewriter.TestSuite.TEST_FEATURE_GEOMETRY;
 import static com.here.xyz.test.featurewriter.TestSuite.TEST_FEATURE_ID;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SCHEMA;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.TABLE;
@@ -31,9 +30,9 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.UpdateStrategy.OnExists;
+import com.here.xyz.events.UpdateStrategy.OnMergeConflict;
 import com.here.xyz.events.UpdateStrategy.OnNotExists;
 import com.here.xyz.events.UpdateStrategy.OnVersionConflict;
-import com.here.xyz.events.UpdateStrategy.OnMergeConflict;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.test.SQLITBase;
@@ -92,6 +91,13 @@ public abstract class SpaceWriter extends SQLITBase {
         spaceContext, isHistoryActive, null);
   }
 
+  public void writeFeatures(List<Feature> featureList, String author, OnExists onExists, OnNotExists onNotExists,
+      OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict, boolean isPartial, SpaceContext spaceContext,
+      boolean historyEnabled) throws Exception {
+    writeFeatures(featureList, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial, spaceContext,
+        historyEnabled, null);
+  };
+
   protected abstract void writeFeatures(List<Feature> featureList, String author, OnExists onExists, OnNotExists onNotExists,
       OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict, boolean isPartial, SpaceContext spaceContext,
       boolean historyEnabled, SQLError expectedErrorCode) throws Exception;
@@ -114,7 +120,7 @@ public abstract class SpaceWriter extends SQLITBase {
 
   public SpaceTableRow getFeatureRow(SpaceContext context) throws Exception {
     try (DataSourceProvider dsp = getDataSourceProvider()) {
-      return new SQLQuery("SELECT id, version, next_version, operation, author, jsondata, geo " + " FROM ${schema}.${table} "
+      return new SQLQuery("SELECT id, version, next_version, operation, author, jsondata, ST_AsGeojson(geo) AS geo " + " FROM ${schema}.${table} "
           + "WHERE id = #{id} AND next_version = #{MAX_BIGINT}")
           .withVariable(SCHEMA, dsp.getDatabaseSettings().getSchema())
           .withVariable(TABLE, context == SUPER ? superSpaceId() : spaceId())
@@ -130,7 +136,7 @@ public abstract class SpaceWriter extends SQLITBase {
                       Operation.valueOf(rs.getString("operation")),
                       rs.getString("author"),
                       XyzSerializable.deserialize(rs.getString("jsondata"), Map.class),
-                      TEST_FEATURE_GEOMETRY //TODO: Read & transform geo from row, when it becomes relevant
+                      rs.getString("geo") == null ? null : XyzSerializable.deserialize(rs.getString("geo"))
                     )
                   : null;
             }

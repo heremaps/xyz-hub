@@ -19,6 +19,7 @@
 
 package com.here.xyz.events;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 
@@ -29,9 +30,11 @@ public class SearchForFeaturesEvent<T extends SearchForFeaturesEvent> extends Se
   private static final long MAX_LIMIT = 100_000L;
 
   private long limit = DEFAULT_LIMIT;
+  @JsonIgnore
+  public boolean ignoreLimit = false; //TODO: Remove after refactoring
 
   public long getLimit() {
-    return limit;
+    return ignoreLimit ? Long.MAX_VALUE : limit;
   }
 
   @SuppressWarnings("WeakerAccess")

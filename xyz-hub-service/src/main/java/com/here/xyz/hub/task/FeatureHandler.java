@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,20 +19,20 @@
 
 package com.here.xyz.hub.task;
 
+import static com.here.xyz.hub.task.FeatureTaskHandler.injectMinVersion;
+import static com.here.xyz.hub.task.FeatureTask.resolveBranchFor;
 import static com.here.xyz.util.service.rest.TooManyRequestsException.ThrottlingReason.MEMORY;
 import static com.here.xyz.util.service.rest.TooManyRequestsException.ThrottlingReason.STORAGE_QUEUE_FULL;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
-import static io.netty.handler.codec.http.HttpResponseStatus.METHOD_NOT_ALLOWED;
-import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_REQUIRED;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static software.amazon.awssdk.utils.CollectionUtils.isNullOrEmpty;
 
 import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
-import com.here.xyz.events.Event;
 import com.here.xyz.events.GetStatisticsEvent;
 import com.here.xyz.events.WriteFeaturesEvent;
 import com.here.xyz.events.WriteFeaturesEvent.Modification;
@@ -45,11 +45,13 @@ import com.here.xyz.hub.connectors.models.Space.ConnectorType;
 import com.here.xyz.hub.connectors.models.Space.ResolvableListenerConnectorRef;
 import com.here.xyz.hub.rest.Api;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space.Extension;
 import com.here.xyz.models.hub.Space.ListenerConnectorRef;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.service.HttpException;
+import com.here.xyz.util.service.errors.DetailedHttpException;
 import com.here.xyz.util.service.rest.TooManyRequestsException;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
@@ -83,7 +85,7 @@ public class FeatureHandler {
   private static final LongAdder globalInflightRequestMemory = new LongAdder();
 
   public static Future<FeatureCollection> writeFeatures(Marker marker, Space space, Set<Modification> modifications, SpaceContext spaceContext,
-      String author, boolean responseDataExpected) {
+      String author, boolean responseDataExpected, Ref baseRef) {
     try {
       throttle(space);
 
@@ -92,7 +94,10 @@ public class FeatureHandler {
           .withModifications(modifications)
           .withContext(spaceContext)
           .withAuthor(author)
-          .withResponseDataExpected(responseDataExpected);
+          .withResponseDataExpected(responseDataExpected)
+          .withRef(baseRef);
+
+      injectMinVersion(marker, space.getId(), event);
 
       //Enrich event with properties from the space
       injectSpaceParams(event, space);
@@ -107,7 +112,12 @@ public class FeatureHandler {
             else
               promise.fail(new RuntimeException("Received unexpected response from storage connector: " + ar.result().getClass().getSimpleName()));
           });
-      return promise.future();
+      return promise.future()
+          .compose(response -> {
+            if (!isNullOrEmpty(response.getInserted()) || !isNullOrEmpty(response.getUpdated()) || !isNullOrEmpty(response.getDeleted()))
+              space.updateContentUpdatedAt(marker);
+            return Future.succeededFuture(response);
+          });
 
       //TODO: (For later) In FeatureWriter (also return unmodified features?)
       //.then(FeatureTaskHandler::extractUnmodifiedFeatures)
@@ -142,10 +152,12 @@ public class FeatureHandler {
     }
   }
 
-  static void injectSpaceParams(Event event, Space space) {
+  public static void injectSpaceParams(ContextAwareEvent event, Space space) throws HttpException {
+    //Resolve a potential branch
+    resolveBranchFor(event, space);
+
     event.setSpace(space.getId());
-    if (event instanceof ContextAwareEvent contextAwareEvent)
-      contextAwareEvent.setVersionsToKeep(space.getVersionsToKeep());
+    event.setVersionsToKeep(space.getVersionsToKeep());
 
     Map<String, Object> storageParams = new HashMap<>();
     if (space.getStorage().getParams() != null)
@@ -207,7 +219,7 @@ public class FeatureHandler {
               "The resource contains " + currentSpaceCount + " features and cannot store any more features.");
   }
 
-  private static RpcClient getRpcClient(Connector refConnector) throws HttpException {
+  public static RpcClient getRpcClient(Connector refConnector) throws HttpException {
     try {
       return RpcClient.getInstanceFor(refConnector);
     }
@@ -218,15 +230,13 @@ public class FeatureHandler {
 
   public static void checkReadOnly(Space space) throws HttpException {
     if (space.isReadOnly())
-      throw new HttpException(METHOD_NOT_ALLOWED,
-          "The method is not allowed, because the resource \"" + space.getId() + "\" is marked as read-only. "
-              + "Update the resource definition to enable editing of features.");
+      throw new DetailedHttpException("E318452", Map.of("resourceId", space.getId()));
   }
 
   public static void checkIsActive(Space space) throws HttpException {
     if (!space.isActive())
-      throw new HttpException(PRECONDITION_REQUIRED, "The method is not allowed, because the resource \"" + space.getId()
-          + "\" is not active.");
+      throw new HttpException(PRECONDITION_REQUIRED,
+          "The method is not allowed, because the resource \"" + space.getId() + "\" is not active.");
   }
 
   public static Future<Void> resolveExtendedSpaces(Marker marker, Space compositeSpace) {
@@ -239,7 +249,7 @@ public class FeatureHandler {
     return Space.resolveSpace(marker, extendedConfig.getSpaceId())
         .compose(extendedSpace -> {
           if (extendedSpace == null)
-            return Future.failedFuture(new HttpException(NOT_FOUND, "Extended resource with ID " + extendedConfig.getSpaceId() + " was not found."));
+            return Future.failedFuture(new DetailedHttpException("E318442", Map.of("resource", extendedConfig.getSpaceId())));
 
           //Check for cyclical extensions
           if (resolvedIds.contains(extendedSpace.getId())) {

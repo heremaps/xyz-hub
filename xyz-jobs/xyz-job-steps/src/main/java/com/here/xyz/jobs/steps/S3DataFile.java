@@ -19,10 +19,13 @@
 
 package com.here.xyz.jobs.steps;
 
+import java.util.Map;
+
 public interface S3DataFile {
   boolean isCompressed();
   long getByteSize();
   String getS3Bucket();
   String getS3Key();
   long getEstimatedUncompressedByteSize();
+  Map<String, String> getMetadata();
 }

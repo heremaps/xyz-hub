@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,7 +29,6 @@ import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import com.here.xyz.util.db.datasource.DatabaseSettings.ScriptResourcePath;
 import java.io.BufferedReader;
-import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -112,7 +111,7 @@ public class Script {
       return compatibleVersion;
     }
     catch (SQLException e) {
-      logger.error("Error finding compatible version for script {} on DB {}. Falling back to latest version if possible.",
+      logger.warn("Unable to find compatible version for script {} on DB {}. Falling back to latest version if possible.",
           getScriptName(), getDbId(), e);
       return null;
     }
@@ -120,18 +119,19 @@ public class Script {
 
   public void install() {
     try {
-      if (!installed && (scriptVersion != null && !anyVersionExists() || (scriptVersion == null || !scriptVersionExists()) && !getHash().equals(loadLatestHash()))) {
-        logger.info("Installing script {} on DB {} into schema {} ...", getScriptName(), getDbId(), getTargetSchema(null));
+      if (installed)
+        return;
+      //TODO: Remove the "anyVersionExists-check" once full qualified schemas have been installed for all scripts
+      if (!getHash().equals(loadLatestHash()) || scriptVersion != null && !anyVersionExists()) {
         if (scriptVersion != null)
           install(getTargetSchema(scriptVersion), false);
         //Also install the "latest" version
         install(getTargetSchema(null), true);
         installed = true;
-        logger.info("Script {} has been installed successfully on DB {}.", getScriptName(), getDbId());
       }
     }
     catch (SQLException | IOException e) {
-      logger.error("Error installing script {} on DB {}. Falling back to previous version if possible.", getScriptName(),
+      logger.warn("Unable to install script {} on DB {}. Falling back to previous version if possible.", getScriptName(),
           getDbId(), e);
     }
   }
@@ -141,20 +141,15 @@ public class Script {
   }
 
   private void install(String targetSchema, boolean deleteBefore) throws SQLException, IOException {
-    SQLQuery scriptContent = new SQLQuery("${{scriptContent}}")
-        .withQueryFragment("scriptContent", loadScriptContent());
+    logger.info("Installing script {} on DB {} into schema {} ...", getScriptName(), getDbId(), targetSchema);
 
-    //Load JS-scripts to be injected
-    for (Script jsScript : loadJsScripts(getScriptResourceFolder())) {
-      String relativeJsScriptPath = jsScript.getScriptResourceFolder().substring(getScriptResourceFolder().length());
-      scriptContent
-          .withQueryFragment(relativeJsScriptPath + jsScript.getScriptName(), jsScript.loadScriptContent())
-          .withQueryFragment("./" + relativeJsScriptPath + jsScript.getScriptName(), jsScript.loadScriptContent());
-    }
-
+    SQLQuery scriptContent = loadSubstitutedScriptContent();
     List<SQLQuery> installationQueries = new ArrayList<>();
-    if (deleteBefore)
+    if (deleteBefore) {
+      //TODO: Remove following workaround once "drop schema cascade"-bug creating orphaned functions is fixed in postgres
+      installationQueries.addAll(buildDeleteFunctionQueries(loadSchemaFunctions(targetSchema)));
       installationQueries.add(buildDeleteSchemaQuery(getTargetSchema(targetSchema)));
+    }
     installationQueries.addAll(List.of(buildCreateSchemaQuery(targetSchema), buildSetCurrentSearchPathQuery(targetSchema),
         buildHashFunctionQuery(), buildVersionFunctionQuery(), scriptContent));
 
@@ -178,6 +173,8 @@ public class Script {
         .withLoggingEnabled(false)
         .write(dataSourceProvider);
     compatibleVersions = new HashMap<>(); //Reset the cache
+
+    logger.info("Script {} has been installed successfully on DB {} into schema {}.", getScriptName(), getDbId(), targetSchema);
   }
 
   private static SQLQuery buildSetCurrentSearchPathQuery(String targetSchema) {
@@ -252,11 +249,13 @@ public class Script {
   }
 
   private String getHash() throws IOException {
-    return Hasher.getHash(loadScriptContent());
+    return Hasher.getHash(loadSubstitutedScriptContent().withLabelsEnabled(false).toExecutableQueryString());
   }
 
   private String readResource(String resourceLocation) throws IOException {
     InputStream is = getClass().getResourceAsStream(resourceLocation);
+    if (is == null)
+      throw new RuntimeException("Unable to install script " + getScriptName() + ". Resource not found: " + resourceLocation);
     try (BufferedReader buffer = new BufferedReader(new InputStreamReader(is))) {
       return buffer.lines().collect(Collectors.joining("\n"));
     }
@@ -264,8 +263,8 @@ public class Script {
 
   private static List<String> scanResourceFolderWA(String resourceFolder, String fileSuffix) throws IOException {
     return ((List<String>) switch (fileSuffix) {
-      case ".sql" -> List.of("/sql/common.sql", "/sql/feature_writer.sql", "/jobs/transport.sql");
-      case ".js" -> List.of("/sql/Exception.js", "/sql/FeatureWriter.js");
+      case ".sql" -> List.of("/sql/common.sql",  "/sql/geo.sql", "/sql/feature_writer.sql",  "/sql/h3.sql", "/sql/ext.sql", "/jobs/transport.sql");
+      case ".js" -> List.of("/sql/Exception.js", "/sql/FeatureWriter.js", "/sql/DatabaseWriter.js");
       default -> List.of();
     }).stream().filter(filePath -> filePath.startsWith(resourceFolder)).toList();
   }
@@ -287,7 +286,7 @@ public class Script {
       files.add(file);
     return ensureInitScriptIsFirst(files.stream()
         .filter(fileName -> fileName.endsWith(fileSuffix))
-        .map(fileName -> resourceFolder + File.separator + fileName)
+        .map(fileName -> resourceFolder + "/" + fileName)   // script.scriptResourcePath always stored as unix path
         .toList(), scriptResourcePath.initScript());
   }
 
@@ -307,6 +306,20 @@ public class Script {
   private String loadScriptContent() throws IOException {
     if (scriptContent == null)
       scriptContent = readResource(scriptResourceLocation);
+    return scriptContent;
+  }
+
+  private SQLQuery loadSubstitutedScriptContent() throws IOException {
+    SQLQuery scriptContent = new SQLQuery("${{scriptContent}}")
+        .withQueryFragment("scriptContent", loadScriptContent());
+
+    //Load JS-scripts to be injected
+    for (Script jsScript : loadJsScripts(getScriptResourceFolder())) {
+      String relativeJsScriptPath = jsScript.getScriptResourceFolder().substring(getScriptResourceFolder().length());
+      scriptContent
+          .withQueryFragment(relativeJsScriptPath + jsScript.getScriptName(), jsScript.loadScriptContent())
+          .withQueryFragment("./" + relativeJsScriptPath + jsScript.getScriptName(), jsScript.loadScriptContent());
+    }
     return scriptContent;
   }
 
@@ -359,8 +372,39 @@ public class Script {
       throw new IllegalStateException("The script version " + getScriptName() + ":" + scriptVersion
           + " is still in use on DB " + getDbId() + " and can not be uninstalled.");
 
-    buildDeleteSchemaQuery(getTargetSchema(scriptVersion)).write(dataSourceProvider);
+    //TODO: Remove following workaround once "drop schema cascade"-bug creating orphaned functions is fixed in postgres
+    String schema = getTargetSchema(scriptVersion);
+    batchDeleteFunctions(loadSchemaFunctions(schema));
+    buildDeleteSchemaQuery(schema).write(dataSourceProvider);
+
     compatibleVersions = new HashMap<>(); //Reset the cache
+  }
+
+  private void batchDeleteFunctions(List<String> functionSignatures) throws SQLException {
+    if (functionSignatures.isEmpty())
+      return;
+    SQLQuery.batchOf(buildDeleteFunctionQueries(functionSignatures))
+        .writeBatch(dataSourceProvider);
+  }
+
+  private static List<SQLQuery> buildDeleteFunctionQueries(List<String> functionSignatures) {
+    return functionSignatures.stream()
+        .map(signature -> new SQLQuery("DROP FUNCTION " + signature + " CASCADE"))
+        .toList();
+  }
+
+  private List<String> loadSchemaFunctions(String schema) throws SQLException {
+    return new SQLQuery("""
+        SELECT proc.oid::REGPROCEDURE as signature FROM pg_proc proc LEFT JOIN pg_namespace ns ON proc.pronamespace = ns.oid
+        WHERE ns.nspname = #{schema} AND proc.prokind = 'f'
+        """)
+        .withNamedParameter("schema", schema)
+        .run(dataSourceProvider, rs -> {
+          List<String> signatures = new ArrayList<>();
+          while (rs.next())
+            signatures.add(rs.getString("signature"));
+          return signatures;
+        });
   }
 
   public void cleanupOldScriptVersions(int versionsToKeep) {
@@ -373,13 +417,13 @@ public class Script {
         try {
           uninstall(scriptVersion);
         }
-        catch (SQLException | IllegalStateException e) {
+        catch (Exception e) {
           logger.error("Unable to uninstall script version {}:{} on DB {} during script version cleanup.", getScriptName(),
               scriptVersion, getDbId(), e);
         }
       }
     }
-    catch (SQLException e) {
+    catch (Exception e) {
       logger.error("Unable to cleanup old script versions of script {} on DB {}.", getScriptName(), getDbId(), e);
     }
   }

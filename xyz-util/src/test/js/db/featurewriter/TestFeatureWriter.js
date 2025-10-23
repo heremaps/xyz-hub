@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,19 +20,20 @@
 require("../../plv8");
 require("../../../../main/resources/sql/Exception");
 require("../../../../main/resources/sql/FeatureWriter");
+require("../../../../main/resources/sql/DatabaseWriter");
 const FeatureWriter = plv8.FeatureWriter;
+const DatabaseWriter = plv8.DatabaseWriter;
 
 
-global.queryContext = () => ({
-  schema: "public",
-  table: "composite-export-space-ext-ext",
-  extendedTable: "composite-export-space-ext",
-  extendedTableL2: "composite-export-space",
-  context: "DEFAULT",
-  historyEnabled: false
-});
+global.queryContext = () => TestFeatureWriter.queryContext;
 
 class TestFeatureWriter {
+  static queryContext = {
+    schema: "public",
+    tables: ["composite-export-space", "composite-export-space-ext", "composite-export-space-ext-ext"],
+    context: "DEFAULT",
+    historyEnabled: false
+  };
 
   inputFeature = {
     "id": "id4",
@@ -64,13 +65,34 @@ class TestFeatureWriter {
     featureHooks: null
   }];
 
-  writer = new FeatureWriter(this.inputFeature, 2, null, "DELETE", "ERROR", null, null, false);
+  sqlQueryJson = {
+    "namedParameters" : {
+      "featureModificationList" : "[ {\n  \"updateStrategy\" : {\n    \"onExists\" : \"REPLACE\",\n    \"onNotExists\" : \"ERROR\",\n    \"onVersionConflict\" : \"MERGE\",\n    \"onMergeConflict\" : \"ERROR\"\n  },\n  \"featureData\" : {\n    \"type\" : \"FeatureCollection\",\n    \"features\" : [ {\n      \"type\" : \"Feature\",\n      \"id\" : \"id1\",\n      \"geometry\" : {\n        \"type\" : \"Point\",\n        \"coordinates\" : [ 0.0, 10.0 ]\n      },\n      \"properties\" : {\n        \"@ns:com:here:xyz\" : {\n          \"version\" : 1\n        },\n        \"prop1\" : \"value1\"\n      }\n    } ]\n  },\n  \"partialUpdates\" : false\n} ]",
+      "author" : "ANONYMOUS",
+      "responseDataExpected" : true
+    },
+    "queryId" : "786f0a6b-8f42-4736-accb-f4cc4e1918fe",
+    "context" : {
+      "schema" : "public",
+      "historyEnabled" : true,
+      "batchMode" : false,
+      "tables" : [ "FWMerge" ]
+    },
+    "text" : "SELECT write_features(#{featureModificationList}, 'Modifications', #{author}, #{responseDataExpected});"
+  };
+
+  runFromSqlQueryJson() {
+    TestFeatureWriter.queryContext = this.sqlQueryJson.context;
+    let result = FeatureWriter.writeFeatureModifications(JSON.parse(this.sqlQueryJson.namedParameters.modifications || this.sqlQueryJson.namedParameters.featureModificationList || this.sqlQueryJson.namedParameters.jsonInput), this.sqlQueryJson.namedParameters.author, this.sqlQueryJson.namedParameters.version);
+    console.log("Returned result from FeatureWriter: ", result);
+  }
 
   run() {
-    this.writer.writeFeature();
-    // this.writer.writeFeatureModifications(this.modification, "ANONYMOUS");
+    let result = FeatureWriter.writeFeature(this.inputFeature, null, "REPLACE", "CREATE", null, null, false, null);
+    console.log("Returned result from FeatureWriter: ", result);
   }
 
 }
 
-new TestFeatureWriter().run();
+// new TestFeatureWriter().run();
+new TestFeatureWriter().runFromSqlQueryJson();

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,16 +19,15 @@
 
 package com.here.xyz.jobs.service;
 
+import static com.here.xyz.jobs.RuntimeInfo.State.FAILED;
 import static com.here.xyz.jobs.RuntimeInfo.State.NOT_READY;
 import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
 import static com.here.xyz.jobs.RuntimeStatus.Action.CANCEL;
-import static com.here.xyz.jobs.service.JobApi.ApiParam.Path.JOB_ID;
-import static com.here.xyz.jobs.service.JobApi.ApiParam.Path.SPACE_ID;
+import static com.here.xyz.jobs.service.JobApiBase.ApiParam.Path.SPACE_ID;
+import static com.here.xyz.jobs.service.JobApiBase.ApiParam.getPathParam;
+import static com.here.xyz.jobs.steps.Step.InputSet.DEFAULT_SET_NAME;
 import static io.netty.handler.codec.http.HttpResponseStatus.ACCEPTED;
-import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
-import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
-import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -38,24 +37,28 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.RuntimeStatus;
 import com.here.xyz.jobs.datasets.DatasetDescription;
+import com.here.xyz.jobs.steps.JobCompiler.CompilationError;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.inputs.InputsFromJob;
 import com.here.xyz.jobs.steps.inputs.InputsFromS3;
 import com.here.xyz.jobs.steps.inputs.ModelBasedInput;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.Output;
+import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.service.HttpException;
-import com.here.xyz.util.service.rest.Api;
+import com.here.xyz.util.service.errors.DetailedHttpException;
 import io.vertx.core.Future;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.router.RouterBuilder;
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import org.apache.commons.lang3.NotImplementedException;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
-public class JobApi extends Api {
+public class JobApi extends JobApiBase {
+  protected static final Logger logger = LogManager.getLogger();
 
   protected JobApi() {}
 
@@ -65,36 +68,83 @@ public class JobApi extends Api {
     rb.getRoute("getJob").setDoValidation(false).addHandler(handleErrors(this::getJob));
     rb.getRoute("deleteJob").setDoValidation(false).addHandler(handleErrors(this::deleteJob));
     rb.getRoute("postJobInputs").setDoValidation(false).addHandler(handleErrors(this::postJobInput));
-    rb.getRoute("getJobInputs").setDoValidation(false).addHandler(handleErrors(this::getJobInputs));
-    rb.getRoute("getJobOutputs").setDoValidation(false).addHandler(handleErrors(this::getJobOutputs));
+    // has also deprecated flat mode
+    rb.getRoute("getJobInputPayloadsPreview").setDoValidation(false).addHandler(handleErrors(this::getJobInputPayloadsPreview));
+    rb.getRoute("postNamedJobInputs").setDoValidation(false).addHandler(handleErrors(this::postJobInput));
+    rb.getRoute("getJobInputGroupPayloadsPreview").setDoValidation(false).addHandler(handleErrors(this::getJobInputGroupPayloadsPreview));
+    // has also deprecated flat mode
+    rb.getRoute("getJobOutputPayloadsPreview").setDoValidation(false).addHandler(handleErrors(this::getJobOutputPayloadsPreview));
+    rb.getRoute("getJobOutputGroupPayloadsPreview").setDoValidation(false).addHandler(handleErrors(this::getJobOutputGroupPayloadsPreview));
+    rb.getRoute("getJobPaginatedOutputs").setDoValidation(false).addHandler(handleErrors(this::getJobPaginatedOutputs));
+    rb.getRoute("getJobPaginatedInputs").setDoValidation(false).addHandler(handleErrors(this::getJobPaginatedInputs));
     rb.getRoute("patchJobStatus").setDoValidation(false).addHandler(handleErrors(this::patchJobStatus));
     rb.getRoute("getJobStatus").setDoValidation(false).addHandler(handleErrors(this::getJobStatus));
   }
 
   protected void postJob(final RoutingContext context) throws HttpException {
-    Job job = getJobFromBody(context);
-    job.create().submit()
+    createNewJob(context, getJobFromBody(context));
+  }
+
+  protected Future<Job> createNewJob(RoutingContext context, Job job) {
+    logger.info(getMarker(context), "Received job creation request: {}", job.serialize(true));
+    return job.create().submit()
+        .compose(v -> applyInputReferences(job))
         .map(res -> job)
-        .onSuccess(res -> sendResponse(context, CREATED.code(), res))
+        .recover(t -> {
+          if (t instanceof CompilationError)
+            return Future.failedFuture(new DetailedHttpException("E319002", t));
+          if (t instanceof ValidationException)
+            return Future.failedFuture(new DetailedHttpException("E319003", t));
+          return Future.failedFuture(t);
+        })
+        .onSuccess(res -> {
+          sendResponse(context, CREATED.code(), res);
+          logger.info(getMarker(context), "Job was created successfully: {}", job.serialize(true));
+        })
         .onFailure(err -> sendErrorResponse(context, err));
+  }
+
+  protected Future<Void> applyInputReferences(Job job) {
+    if (job.getInputs() == null)
+      return Future.succeededFuture();
+
+    if (!job.getInputs().values().stream().allMatch(input -> input instanceof InputsFromS3))
+      return Future.failedFuture("Only inputs of type " + InputsFromS3.class.getSimpleName() + " are supported as inline inputs.");
+
+    //Continue with the input scanning *asynchronously* but fail the job if something goes wrong (User can check the status)
+    Future.all(job.getInputs().entrySet().stream()
+        .map(inputSet -> registerInput(job, (InputsFromS3) inputSet.getValue(), inputSet.getKey()))
+        .toList())
+        .onFailure(t -> {
+          logger.error("[{}] Error while scanning inputs for job.", job.getId(), t);
+          job.getStatus()
+              .withState(FAILED)
+              .withErrorMessage("Error while scanning inputs.")
+              .withErrorCause(t.getMessage());
+          job.store();
+        })
+        .compose(v -> job.submit());
+
+    /*
+    Return without waiting for the input scanning to complete.
+    The job will stay in state NOT_READY for some time but will proceed automatically afterwards.
+     */
+    return Future.succeededFuture();
   }
 
   protected void getJobs(final RoutingContext context) {
-    Job.loadAll()
-        .onSuccess(res -> sendResponse(context, OK.code(), res))
-        .onFailure(err -> sendErrorResponse(context, err));
+    getJobs(context, false);
   }
 
   protected void getJob(final RoutingContext context) {
-    String jobId = ApiParam.getPathParam(context, JOB_ID);
-    loadJob(context, jobId)
+    loadJob(context, jobId(context))
         .onSuccess(res -> sendResponse(context, OK.code(), res))
         .onFailure(err -> sendErrorResponse(context, err));
 
   }
 
   protected void deleteJob(final RoutingContext context) {
-    String jobId = ApiParam.getPathParam(context, JOB_ID);
+    String jobId = jobId(context);
     loadJob(context, jobId)
         .compose(job -> Job.delete(jobId).map(job))
         .onSuccess(res -> sendResponse(context, OK.code(), res))
@@ -102,98 +152,151 @@ public class JobApi extends Api {
   }
 
   protected void postJobInput(final RoutingContext context) throws HttpException {
-    String jobId = ApiParam.getPathParam(context, JOB_ID);
+    String jobId = jobId(context);
     Input input = getJobInputFromBody(context);
-    if (input instanceof UploadUrl uploadUrl) {
-      loadJob(context, jobId)
-          .compose(job -> job.getStatus().getState() == NOT_READY
-              ? Future.succeededFuture(job)
-              : Future.failedFuture(new HttpException(BAD_REQUEST, "No inputs can be created after a job was submitted.")))
-          .map(job -> job.createUploadUrl(uploadUrl.isCompressed()))
-          .onSuccess(res -> sendResponse(context, CREATED.code(), res))
-          .onFailure(err -> sendErrorResponse(context, err));
-    }
-    else if (input instanceof InputsFromS3 s3Inputs) {
-      loadJob(context, jobId)
-          .compose(job -> job.getStatus().getState() == NOT_READY
-              ? Future.succeededFuture(job)
-              : Future.failedFuture(new HttpException(BAD_REQUEST, "No inputs can be created after a job was submitted.")))
-          .compose(job -> {
-            s3Inputs.dereference(job.getId());
-            return Future.succeededFuture();
-          })
-          .onSuccess(v -> sendResponse(context, OK.code(), (XyzSerializable) null))
-          .onFailure(err -> sendErrorResponse(context, err));
-    }
-    else if (input instanceof ModelBasedInput modelBasedInput) {
-      loadJob(context, jobId)
-          .compose(job -> {
-            if (!job.isPipeline())
-              return Future.failedFuture(new HttpException(BAD_REQUEST, "No inputs other than " + UploadUrl.class.getSimpleName() + "s can be "
-                  + "created for this job."));
-            else if (job.getStatus().getState() != RUNNING)
-              return Future.failedFuture(new HttpException(BAD_REQUEST, "No inputs can be created for this job before it is running."));
-            else if (context.request().bytesRead() > 256 * 1024)
-              return Future.failedFuture(new HttpException(BAD_REQUEST, "The maximum size of an input for this job is 256KB."));
-            else
-              return job.consumeInput(modelBasedInput);
-          })
-          .onSuccess(v -> sendResponse(context, OK.code(), (XyzSerializable) null))
-          .onFailure(err -> sendErrorResponse(context, err));
-    }
-    else if (input instanceof InputsFromJob inputsReference) {
-      //NOTE: Both jobs have to be loaded to authorize the user for both
-      loadJob(context, jobId)
-          .compose(job -> loadJob(context, inputsReference.getJobId()).compose(referencedJob -> {
-            try {
-              if (!Objects.equals(referencedJob.getOwner(), job.getOwner()))
-                return Future.failedFuture(new HttpException(FORBIDDEN, "Inputs of job " + inputsReference.getJobId()
-                    + " can not be referenced by job " + job.getId() + " as it has a different owner."));
+    String inputSetName = retrieveSetName(context);
 
-              inputsReference.dereference(job.getId());
-              return Future.succeededFuture();
-            }
-            catch (IOException e) {
-              return Future.failedFuture(e);
-            }
-          }))
-          .onSuccess(v -> sendResponse(context, OK.code(), (XyzSerializable) null))
-          .onFailure(err -> sendErrorResponse(context, err));
-    }
+    Future<Input> inputCreatedFuture = loadJob(context, jobId).compose(job -> registerInput(context, job, input, inputSetName));
+
+    inputCreatedFuture
+        .onSuccess(res -> sendResponse(context, CREATED.code(), res))
+        .onFailure(err -> sendErrorResponse(context, err));
+  }
+
+  private Future<Input> registerInput(RoutingContext context, Job job, Input input, String inputSetName) {
+    if (input instanceof UploadUrl uploadUrl)
+      return registerInput(job, inputSetName, uploadUrl);
+
+    if (input instanceof InputsFromS3 s3Inputs)
+      return registerInput(job, s3Inputs, inputSetName);
+
+    if (input instanceof ModelBasedInput modelBasedInput)
+      return registerPipelineInput(context, job, modelBasedInput);
+
+    if (input instanceof InputsFromJob inputsReference)
+      return registerInput(context, job, inputsReference);
+
+    throw new NotImplementedException("Input type " + input.getClass().getSimpleName() + " is not supported.");
+  }
+
+  private static Future<Input> registerInput(Job job, String inputSetName, UploadUrl uploadUrl) {
+    return job.getStatus().getState() == NOT_READY
+        ? Future.succeededFuture(job.createUploadUrl(uploadUrl.isCompressed(), inputSetName))
+        : Future.failedFuture(new DetailedHttpException("E319004"));
+  }
+
+  private Future<Input> registerInput(RoutingContext context, Job job, InputsFromJob inputsReference) {
+    //NOTE: Both jobs have to be loaded to authorize the user for both ones
+    return loadJob(context, inputsReference.getJobId()).compose(referencedJob -> {
+      try {
+        if (!Objects.equals(referencedJob.getOwner(), job.getOwner()))
+          return Future.failedFuture(new DetailedHttpException("E319008", Map.of("referencedJob", inputsReference.getJobId(), "referencingJob", job.getId())));
+
+        inputsReference.dereference(job.getId());
+        return Future.succeededFuture();
+      }
+      catch (Exception e) {
+        return Future.failedFuture(e);
+      }
+    });
+  }
+
+  private static Future<Input> registerPipelineInput(RoutingContext context, Job job, ModelBasedInput modelBasedInput) {
+    if (!job.isPipeline())
+      return Future.failedFuture(new DetailedHttpException("E319005", Map.of("allowedType", UploadUrl.class.getSimpleName())));
+    else if (job.getStatus().getState() != RUNNING)
+      return Future.failedFuture(new DetailedHttpException("E319006"));
+    else if (context.request().bytesRead() > 256 * 1024)
+      return Future.failedFuture(new DetailedHttpException("E319007"));
     else
-      throw new NotImplementedException("Input type " + input.getClass().getSimpleName() + " is not supported.");
+      return job.consumeInput(modelBasedInput).mapEmpty();
   }
 
-  protected void getJobInputs(final RoutingContext context) {
-    String jobId = ApiParam.getPathParam(context, JOB_ID);
+  private static Future<Input> registerInput(Job job, InputsFromS3 s3Inputs, String inputSetName) {
+    if (job.getStatus().getState() != NOT_READY)
+      return Future.failedFuture(new DetailedHttpException("E319004"));
+    s3Inputs.dereference(job.getId(), inputSetName);
+    return Future.succeededFuture(null);
+  }
 
-    loadJob(context, jobId)
-        .compose(job -> job.loadInputs())
-        .onSuccess(res -> sendResponse(context, OK.code(), res, new TypeReference<List<Input>>() {}))
+  protected void getJobInputPayloadsPreview(final RoutingContext context) {
+    final boolean paginatedMode = isPaginatedRequest(context);
+
+    if (paginatedMode) {
+      loadJob(context, jobId(context))
+          .compose(Job::composeInputsPreview)
+          .onSuccess(summary -> sendResponse(context, OK.code(), summary))
+          .onFailure(err -> sendErrorResponse(context, err));
+    } else {
+      final String name = retrieveSetName(context);
+      loadJob(context, jobId(context))
+          .compose(job -> job.loadInputs(name)
+          .onSuccess(items -> sendResponse(context, OK.code(), items, new TypeReference<List<Input>>() {
+          }))
+          .onFailure(err -> sendErrorResponse(context, err)));
+    }
+  }
+
+  protected void getJobInputGroupPayloadsPreview(final RoutingContext context) {
+      String group = retrieveSetGroup(context);
+      loadJob(context, jobId(context))
+          .compose(job -> job.composeInputGroupPreview(group))
+          .onSuccess(summary -> sendResponse(context, OK.code(), summary))
+          .onFailure(err -> sendErrorResponse(context, err));
+  }
+
+  protected void getJobOutputPayloadsPreview(final RoutingContext context) {
+    final boolean paginatedMode = isPaginatedRequest(context);
+
+    if (paginatedMode) {
+      loadJob(context, jobId(context))
+          .compose(Job::composeOutputsPreview)
+          .onSuccess(summary -> sendResponse(context, OK.code(), summary))
+          .onFailure(err -> sendErrorResponse(context, err));
+    } else {
+      loadJob(context, jobId(context))
+          .compose(Job::loadOutputs)
+          .onSuccess(res -> sendResponse(context, OK.code(), res, new TypeReference<List<Output>>() {}))
+          .onFailure(err -> sendErrorResponse(context, err));
+    }
+  }
+
+  protected void getJobOutputGroupPayloadsPreview(final RoutingContext context) {
+    final String group = Objects.requireNonNull(retrieveSetGroup(context));
+    loadJob(context, jobId(context))
+        .compose(job -> job.composeOutputGroupPreview(group))
+        .onSuccess(summary -> sendResponse(context, OK.code(), summary))
         .onFailure(err -> sendErrorResponse(context, err));
   }
 
-  protected void getJobOutputs(final RoutingContext context) {
-    String jobId = ApiParam.getPathParam(context, JOB_ID);
-
-    loadJob(context, jobId)
-        .compose(job -> job.loadOutputs())
-        .onSuccess(res -> sendResponse(context, OK.code(), res, new TypeReference<List<Output>>() {}))
+  protected void getJobPaginatedOutputs(final RoutingContext context) {
+    final String group = Objects.requireNonNull(retrieveSetGroup(context));
+    final String name = Objects.requireNonNull(retrieveSetName(context));
+    loadJob(context, jobId(context))
+        .compose(job -> job.loadOutputs(name, group, limit(context), pageToken(context)))
+        .onSuccess(res -> sendResponse(context, OK.code(), res))
         .onFailure(err -> sendErrorResponse(context, err));
+  }
+
+  protected void getJobPaginatedInputs(final RoutingContext context) {
+    final String group = Objects.requireNonNull(retrieveSetGroup(context));
+    final String name = Objects.requireNonNull(retrieveSetName(context));
+    loadJob(context, jobId(context))
+        .compose(job -> job.loadInputs(name, group, limit(context), pageToken(context))
+        .onSuccess(res -> sendResponse(context, OK.code(), res))
+        .onFailure(err -> sendErrorResponse(context, err)));
   }
 
   protected void patchJobStatus(final RoutingContext context) throws HttpException {
-    String jobId = ApiParam.getPathParam(context, JOB_ID);
     RuntimeStatus status = getStatusFromBody(context);
-    loadJob(context, jobId)
+    loadJob(context, jobId(context))
         .compose(job -> tryExecuteAction(context, status, job))
         .onSuccess(patchedStatus -> sendResponse(context, ACCEPTED.code(), patchedStatus))
         .onFailure(err -> sendErrorResponse(context, err));
   }
 
   protected void getJobStatus(final RoutingContext context) {
-    String jobId = ApiParam.getPathParam(context, JOB_ID);
-    loadJob(context, jobId)
+    loadJob(context, jobId(context))
         .onSuccess(res -> sendResponse(context, OK.code(), res.getStatus()))
         .onFailure(err -> sendErrorResponse(context, err));
   }
@@ -202,7 +305,7 @@ public class JobApi extends Api {
     try {
       Job job = XyzSerializable.deserialize(context.body().asString(), Job.class);
 
-      String spaceId = ApiParam.getPathParam(context, SPACE_ID);
+      String spaceId = getPathParam(context, SPACE_ID);
 
       if (spaceId != null && job.getSource() instanceof DatasetDescription.Space space)
         space.setId(spaceId);
@@ -210,7 +313,10 @@ public class JobApi extends Api {
       return job;
     }
     catch (JsonProcessingException e) {
-      throw new HttpException(BAD_REQUEST, "Error parsing request", e);
+      //TODO: Decide if we want to forward the cause to the user.
+      //TODO: We should generally try to "unpack" the JsonProcessingException and see if the cause is a "user facing" exception. See: Api#sendErrorResponse(RoutingContext, Throwable)
+      //e.g. an invalid versionRef(4,2) will end up here - without any indication for the user at the end
+      throw new DetailedHttpException("E319001", e);
     }
   }
 
@@ -218,13 +324,25 @@ public class JobApi extends Api {
     return Job.load(jobId)
         .compose(job -> {
           if (job == null)
-            return Future.failedFuture(new HttpException(NOT_FOUND, "The requested job does not exist"));
+            return Future.failedFuture(new DetailedHttpException("E319009", Map.of("jobId", jobId)));
           return authorizeAccess(context, job).map(job);
         });
   }
 
   protected Future<Void> authorizeAccess(RoutingContext context, Job job) {
     return Future.succeededFuture();
+  }
+
+  protected String retrieveSetName(RoutingContext context) {
+    String setName = context.pathParam("name");
+    if (setName == null) {
+      setName = context.pathParam("setName");
+    }
+    return setName == null ? DEFAULT_SET_NAME : setName;
+  }
+
+  protected String retrieveSetGroup(RoutingContext context) {
+    return context.pathParam("group");
   }
 
   protected Input getJobInputFromBody(RoutingContext context) throws HttpException {
@@ -234,11 +352,11 @@ public class JobApi extends Api {
       }
       catch (InvalidTypeIdException e) {
         Map<String, Object> jsonInput = XyzSerializable.deserialize(context.body().asString(), Map.class);
-        throw new NotImplementedException("Input type " + jsonInput.get("type") + " is not supported.", e);
+        throw new DetailedHttpException("E319010", Map.of("jsonType", jsonInput.get("type").toString(), "expectedType", Job.class.getSimpleName()), e);
       }
     }
     catch (JsonProcessingException e) {
-      throw new HttpException(BAD_REQUEST, "Error parsing request", e);
+      throw new DetailedHttpException("E319001", e);
     }
   }
 
@@ -247,7 +365,7 @@ public class JobApi extends Api {
       return XyzSerializable.deserialize(context.body().asString(), RuntimeStatus.class);
     }
     catch (JsonProcessingException e) {
-      throw new HttpException(BAD_REQUEST, "Error parsing request", e);
+      throw new DetailedHttpException("E319001", e);
     }
   }
 
@@ -265,26 +383,5 @@ public class JobApi extends Api {
           }
         })
         .map(res -> job.getStatus());
-  }
-
-  public static class ApiParam {
-
-    public static String getPathParam(RoutingContext context, String param) {
-      return context.pathParam(param);
-    }
-
-    public static String getQueryParam(RoutingContext context, String param) {
-      return context.queryParams().get(param);
-    }
-
-    public static class Path {
-      static final String SPACE_ID = "spaceId";
-      static final String JOB_ID = "jobId";
-    }
-
-    public static class Query {
-      static final String STATE = "state";
-      static final String RESOURCE = "resource";
-    }
   }
 }

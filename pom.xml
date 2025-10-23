@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  ~ Copyright (C) 2017-2024 HERE Europe B.V.
+  ~ Copyright (C) 2017-2025 HERE Europe B.V.
   ~
   ~ Licensed under the Apache License, Version 2.0 (the "License");
   ~ you may not use this file except in compliance with the License.
@@ -41,7 +41,7 @@
 
   <groupId>com.here.xyz</groupId>
   <artifactId>xyz-hub</artifactId>
-  <version>3.12.2-SNAPSHOT</version>
+  <version>3.21.7-SNAPSHOT</version>
   <packaging>pom</packaging>
 
   <modules>
@@ -93,12 +93,12 @@
     <!-- Dependencies versions -->
     <aws-sdk-version>1.12.772</aws-sdk-version>
     <aws-sdk2-version>2.25.8</aws-sdk2-version>
-    <vertx-version>4.4.9</vertx-version>
+    <vertx-version>4.5.14</vertx-version>
     <geo-tools-version>30.1</geo-tools-version>
     <jts-version>1.19.0</jts-version>
     <jackson-version>2.15.2</jackson-version>
     <lambda-core-version>1.2.1</lambda-core-version>
-    <log4j-version>2.17.1</log4j-version>
+    <log4j-version>2.20.0</log4j-version>
     <aws-log4j-version>1.5.1</aws-log4j-version>
   </properties>
 
@@ -180,7 +180,7 @@
         <plugin>
           <groupId>org.codehaus.mojo</groupId>
           <artifactId>exec-maven-plugin</artifactId>
-          <version>1.6.0</version>
+          <version>3.3.0</version>
         </plugin>
       </plugins>
     </pluginManagement>
@@ -337,7 +337,7 @@
         <version>2.0.3</version>
       </dependency>
 
-      <!-- AWS SDKs -->
+      <!-- AWS SDK 2.x -->
       <dependency>
         <groupId>software.amazon.awssdk</groupId>
         <artifactId>bom</artifactId>
@@ -363,17 +363,6 @@
         </exclusions>
       </dependency>
       <dependency>
-        <artifactId>aws-java-sdk-core</artifactId>
-        <exclusions>
-          <exclusion>
-            <artifactId>jackson-annotations</artifactId>
-            <groupId>com.fasterxml.jackson.core</groupId>
-          </exclusion>
-        </exclusions>
-        <groupId>com.amazonaws</groupId>
-        <version>${aws-sdk-version}</version>
-      </dependency>
-      <dependency>
         <groupId>software.amazon.awssdk</groupId>
         <artifactId>lambda</artifactId>
         <version>${aws-sdk2-version}</version>
@@ -384,9 +373,65 @@
           </exclusion>
         </exclusions>
       </dependency>
-
       <dependency>
-        <artifactId>aws-java-sdk-s3</artifactId>
+        <groupId>software.amazon.awssdk</groupId>
+        <artifactId>s3</artifactId>
+        <version>${aws-sdk2-version}</version>
+        <exclusions>
+          <exclusion>
+            <artifactId>jackson-annotations</artifactId>
+            <groupId>com.fasterxml.jackson.core</groupId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>software.amazon.awssdk</groupId>
+        <artifactId>auth</artifactId>
+        <version>${aws-sdk2-version}</version>
+        <exclusions>
+          <exclusion>
+            <artifactId>jackson-annotations</artifactId>
+            <groupId>com.fasterxml.jackson.core</groupId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>software.amazon.awssdk</groupId>
+        <artifactId>rds</artifactId>
+        <version>${aws-sdk2-version}</version>
+        <exclusions>
+          <exclusion>
+            <artifactId>jackson-annotations</artifactId>
+            <groupId>com.fasterxml.jackson.core</groupId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>software.amazon.awssdk</groupId>
+        <artifactId>secretsmanager</artifactId>
+        <version>${aws-sdk2-version}</version>
+        <exclusions>
+          <exclusion>
+            <artifactId>jackson-annotations</artifactId>
+            <groupId>com.fasterxml.jackson.core</groupId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>software.amazon.awssdk</groupId>
+        <artifactId>apache-client</artifactId>
+        <version>${aws-sdk2-version}</version>
+        <exclusions>
+          <exclusion>
+            <artifactId>jackson-annotations</artifactId>
+            <groupId>com.fasterxml.jackson.core</groupId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+
+      <!-- AWS SDK 1.x -->
+      <dependency>
+        <artifactId>aws-java-sdk-core</artifactId>
         <exclusions>
           <exclusion>
             <artifactId>jackson-annotations</artifactId>
@@ -442,12 +487,18 @@
         <artifactId>aws-java-sdk-secretsmanager</artifactId>
         <version>${aws-sdk-version}</version>
       </dependency>
+      <dependency>
+        <artifactId>aws-java-sdk-rds</artifactId>
+        <groupId>com.amazonaws</groupId>
+        <version>${aws-sdk-version}</version>
+      </dependency>
 
       <!-- For Job API only -->
+      <!-- TODO: Use new RDS SDK2 instead (See: Class AwsClients) -->
       <dependency>
         <artifactId>aws-java-sdk-emrserverless</artifactId>
         <groupId>com.amazonaws</groupId>
-        <version>1.12.230</version>
+        <version>${aws-sdk-version}</version>
       </dependency>
       <dependency>
         <groupId>software.amazon.awssdk</groupId>
@@ -485,6 +536,17 @@
       <dependency>
         <groupId>software.amazon.awssdk</groupId>
         <artifactId>rds</artifactId>
+        <version>${aws-sdk2-version}</version>
+        <exclusions>
+          <exclusion>
+            <artifactId>jackson-annotations</artifactId>
+            <groupId>com.fasterxml.jackson.core</groupId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>software.amazon.awssdk</groupId>
+        <artifactId>emrserverless</artifactId>
         <version>${aws-sdk2-version}</version>
         <exclusions>
           <exclusion>
@@ -612,6 +674,12 @@
         <groupId>org.junit.vintage</groupId>
         <artifactId>junit-vintage-engine</artifactId>
         <version>5.11.0</version>
+        <scope>test</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.junit-pioneer</groupId>
+        <artifactId>junit-pioneer</artifactId>
+        <version>2.2.0</version>
         <scope>test</scope>
       </dependency>
       <dependency>

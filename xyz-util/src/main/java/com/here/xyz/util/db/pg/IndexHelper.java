@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,9 +19,11 @@
 
 package com.here.xyz.util.db.pg;
 
+import com.here.xyz.util.db.pg.XyzSpaceTableHelper.OnDemandIndex;
 import com.here.xyz.util.db.SQLQuery;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 public class IndexHelper {
@@ -50,20 +52,45 @@ public class IndexHelper {
 
   private static SQLQuery buildCreateIndexQuery(String schema, String table, List<String> columnNamesOrExpressions, String method,
       String indexName, String predicate) {
-      return new SQLQuery("CREATE INDEX ${{queryComment}} IF NOT EXISTS ${indexName} ON ${schema}.${table} USING " + method
-          + " (" + String.join(", ", columnNamesOrExpressions) + ") ${{predicate}}")
-          .withVariable("schema", schema)
-          .withVariable("table", table)
-          .withVariable("indexName", indexName)
-          .withQueryFragment("predicate", predicate != null ? "WHERE " + predicate : "")
-          .withQueryFragment("queryComment", "");
+    return new SQLQuery("CREATE INDEX ${{queryComment}} IF NOT EXISTS ${indexName} ON ${schema}.${table} USING " + method
+        + " (" + String.join(", ", columnNamesOrExpressions) + ") ${{predicate}}")
+        .withVariable("schema", schema)
+        .withVariable("table", table)
+        .withVariable("indexName", indexName)
+        .withQueryFragment("predicate", predicate != null ? "WHERE " + predicate : "")
+        .withQueryFragment("queryComment", "");
   }
 
   public static SQLQuery buildDropIndexQuery(String schema, String indexName) {
     return new SQLQuery("DROP INDEX ${{queryComment}} IF EXISTS ${schema}.${indexName} CASCADE")
-            .withVariable("schema", schema)
-            .withVariable("indexName", indexName)
-            .withQueryFragment("queryComment", "");
+        .withVariable("schema", schema)
+        .withVariable("indexName", indexName)
+        .withQueryFragment("queryComment", "");
   }
 
+  public static List<OnDemandIndex> getActivatedSearchableProperties(Map<String, Boolean> searchableProperties) {
+    return searchableProperties == null ? List.of() : searchableProperties.entrySet().stream()
+            .filter(Map.Entry::getValue)
+            .map(entry -> new XyzSpaceTableHelper.OnDemandIndex().withPropertyPath(entry.getKey()))
+            .collect(Collectors.toList());
+  }
+
+  public static SQLQuery buildOnDemandIndexCreationQuery(String schema, String table, String propertyPath, boolean async){
+    return new SQLQuery((async ? "PERFORM " : "SELECT ") +
+            """
+            xyz_index_creation_on_property_object(
+                #{schema_name},
+                #{table_name},
+                #{property_name},
+                xyz_index_name_for_property(#{table_name}, #{property_name}, #{idx_type}),
+                xyz_property_datatype(#{schema_name}, #{table_name}, #{property_name}, #{table_sample_cnt}),
+                #{idx_type}
+              )
+            """)
+            .withNamedParameter("schema_name", schema)
+            .withNamedParameter("table_name", table)
+            .withNamedParameter("property_name", propertyPath)
+            .withNamedParameter("table_sample_cnt", 5000)
+            .withNamedParameter("idx_type", "m");
+  }
 }

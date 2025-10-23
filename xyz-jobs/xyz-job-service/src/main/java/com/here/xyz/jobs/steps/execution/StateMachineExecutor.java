@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@
 
 package com.here.xyz.jobs.steps.execution;
 
-import static com.here.xyz.jobs.util.AwsClients.sfnClient;
+import static com.here.xyz.jobs.util.AwsClientFactory.sfnClient;
 import static software.amazon.awssdk.services.sfn.model.StateMachineType.EXPRESS;
 import static software.amazon.awssdk.services.sfn.model.StateMachineType.STANDARD;
 
@@ -28,6 +28,7 @@ import com.here.xyz.jobs.service.Config;
 import com.here.xyz.jobs.steps.StepGraph;
 import com.here.xyz.jobs.steps.inputs.ModelBasedInput;
 import com.here.xyz.util.ARN;
+import com.here.xyz.util.Async;
 import io.vertx.core.Future;
 import java.util.Arrays;
 import org.apache.logging.log4j.LogManager;
@@ -43,6 +44,7 @@ import software.amazon.awssdk.services.sfn.model.StopExecutionRequest;
 class StateMachineExecutor extends JobExecutor {
   private static final Logger logger = LogManager.getLogger();
   private static final String STATE_MACHINE_NAME_PREFIX = "job-";
+  private static final Async ASYNC = new Async(5, Job.class);
 
   StateMachineExecutor() {}
 
@@ -52,6 +54,7 @@ class StateMachineExecutor extends JobExecutor {
 
   @Override
   public Future<String> execute(Job job) {
+    logger.info("[{}] Initiating SFN execution of job ...", job.getId());
     //NOTE: In case of a pipeline job, *only create* the state machine and do not execute it
     return createStateMachine(job.getId(), transformer(job).compileToStateMachine(job.getDescription(), job.getSteps()), job.isPipeline())
         .compose(stateMachineArn -> job.isPipeline() ? Future.succeededFuture(stateMachineArn) : executeStateMachine(job.getId(), stateMachineArn, null));
@@ -89,26 +92,25 @@ class StateMachineExecutor extends JobExecutor {
 
   @Override
   public Future<String> resume(Job job, String executionId) {
-    try {
-      //TODO: Asyncify!
+    logger.info("[{}] Re-driving SFN execution of job ...", job.getId());
+    return ASYNC.run(() -> {
       sfnClient().redriveExecution(RedriveExecutionRequest.builder()
           .executionArn(executionId)
           .build());
-      return Future.succeededFuture(executionId);
-    }
-    catch (Exception e) {
-      return Future.failedFuture(e);
-    }
+      return executionId;
+    });
   }
 
   @Override
-  public Future<Void> cancel(String executionId) {
+  public Future<Void> cancel(String executionId, String reason) {
     try {
-      //TODO: Asyncify!
-      sfnClient().stopExecution(StopExecutionRequest.builder()
-          .executionArn(executionId)
-          .cause("CANCELLED") //TODO: Infer better cause
-          .build());
+      Future<Void> future = ASYNC.run(() -> {
+        sfnClient().stopExecution(StopExecutionRequest.builder()
+            .executionArn(executionId)
+            .cause(reason)
+            .build());
+        return null;
+      });
 
       /*
       Start checking for cancellations to make sure the job config will be updated properly once all its steps have been properly canceled.
@@ -116,7 +118,7 @@ class StateMachineExecutor extends JobExecutor {
        */
       checkCancellations();
 
-      return Future.succeededFuture();
+      return future;
     }
     catch (Exception e) {
       return Future.failedFuture(e);
@@ -125,18 +127,22 @@ class StateMachineExecutor extends JobExecutor {
 
   @Override
   public Future<Boolean> deleteExecution(String executionId) {
+    logger.info("Delete SFN state machine {}", executionId);
+
     if (executionId == null)
       return Future.succeededFuture(false);
-    try {
-      //TODO: Asyncify!
-      sfnClient().deleteStateMachine(DeleteStateMachineRequest.builder()
-              .stateMachineArn(stateMachineArnFromExecutionId(executionId))
-              .build());
-      return Future.succeededFuture(true);
-    }
-    catch (Exception e) {
-      return Future.succeededFuture(false);
-    }
+
+    return ASYNC.run(() -> {
+      try {
+        sfnClient().deleteStateMachine(DeleteStateMachineRequest.builder()
+            .stateMachineArn(stateMachineArnFromExecutionId(executionId))
+            .build());
+        return true;
+      }
+      catch (Exception e) {
+        return false;
+      }
+    });
   }
 
   private static String stateMachineArnFromExecutionId(String executionId) {
@@ -149,31 +155,27 @@ class StateMachineExecutor extends JobExecutor {
   }
 
   private Future<String> executeStateMachine(String jobId, String stateMachineArn, String input) {
-    //TODO: Asyncify!
-
-    try {
+    logger.info("[{}] Starting SFN state machine execution of job ...", jobId);
+    return ASYNC.run(() -> {
       StartExecutionResponse startExecutionResponse = sfnClient().startExecution(StartExecutionRequest.builder()
           .stateMachineArn(stateMachineArn)
           .name(jobId)
           .input(input == null ? "{}" : input)
           .build());
-
-      return Future.succeededFuture(startExecutionResponse.executionArn());
-    }
-    catch (Exception e) {
-      return Future.failedFuture(e);
-    }
+      return startExecutionResponse.executionArn();
+    });
   }
 
   private static Future<String> createStateMachine(String jobId, String stateMachineDefinition, boolean isPipeline) {
-    //TODO: Asyncify!
-
-    CreateStateMachineResponse creationResponse = sfnClient().createStateMachine(CreateStateMachineRequest.builder()
-        .name(STATE_MACHINE_NAME_PREFIX + jobId)
-        .definition(stateMachineDefinition)
-        .roleArn(Config.instance.STATE_MACHINE_ROLE)
-        .type(isPipeline ? EXPRESS : STANDARD)
-        .build());
-    return Future.succeededFuture(creationResponse.stateMachineArn());
+    logger.info("[{}] Creating SFN state machine of job ...", jobId);
+    return ASYNC.run(() -> {
+      CreateStateMachineResponse creationResponse = sfnClient().createStateMachine(CreateStateMachineRequest.builder()
+          .name(STATE_MACHINE_NAME_PREFIX + jobId)
+          .definition(stateMachineDefinition)
+          .roleArn(Config.instance.STATE_MACHINE_ROLE)
+          .type(isPipeline ? EXPRESS : STANDARD)
+          .build());
+      return creationResponse.stateMachineArn();
+    });
   }
 }

@@ -1,0 +1,20 @@
+FROM openjdk:17-slim
+
+MAINTAINER Benjamin Rögner "benjamin.roegner@here.com"
+MAINTAINER Lucas Ceni "lucas.ceni@here.com"
+MAINTAINER Dimitar Goshev "dimitar.goshev@here.com"
+MAINTAINER Minikon Nah "minikon.nah@here.com"
+MAINTAINER Maximilian Chrzan "maximilian.chrzan@here.com"
+
+ENV LOG_CONFIG log4j2-console-plain.json
+ENV LOG_PATH /var/log/xyz
+
+#Override the following environment variables to let the service connect to different host names
+ENV LOCALSTACK_ENDPOINT http://aws-localstack:4566
+ENV HUB_ENDPOINT http://xyz-hub:8080/hub
+
+COPY xyz-jobs/xyz-job-service/target/xyz-job-service-fat.jar .
+ADD xyz-util/src/main/resources/docker/Dockerfile-job-service /
+
+EXPOSE 7070
+CMD java -jar xyz-job-service-fat.jar

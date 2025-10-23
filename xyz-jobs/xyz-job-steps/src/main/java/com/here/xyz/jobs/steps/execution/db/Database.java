@@ -32,6 +32,7 @@ import com.here.xyz.jobs.steps.resources.ExecutionResource;
 import com.here.xyz.models.hub.Connector;
 import com.here.xyz.util.Hasher;
 import com.here.xyz.util.db.ConnectorParameters;
+import com.here.xyz.util.db.DBClusterResolver;
 import com.here.xyz.util.db.ECPSTool;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import com.here.xyz.util.db.datasource.DatabaseSettings;
@@ -42,30 +43,21 @@ import com.here.xyz.util.web.HubWebClientAsync;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import io.vertx.core.Future;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.xbill.DNS.Lookup;
-import org.xbill.DNS.Name;
-import org.xbill.DNS.Record;
 import software.amazon.awssdk.services.rds.model.DBCluster;
 
 public class Database extends ExecutionResource {
   private static final List<ScriptResourcePath> SCRIPT_RESOURCE_PATHS = List.of(new ScriptResourcePath("/sql", "jobs", "common"), new ScriptResourcePath("/jobs", "jobs"));
   private static final Logger logger = LogManager.getLogger();
   private static final float DB_MAX_JOB_UTILIZATION_PERCENTAGE = 0.6f;
-  private static final Pattern RDS_CLUSTER_HOSTNAME_PATTERN = Pattern.compile("(.+).cluster-.*.rds.amazonaws.com.*");
   private static Cache<String, List<Database>> cache = CacheBuilder
       .newBuilder()
       .expireAfterWrite(3, TimeUnit.MINUTES)
@@ -169,8 +161,8 @@ public class Database extends ExecutionResource {
           //TODO: Run the following asynchronously
           List<Database> allDbs = new CopyOnWriteArrayList<>();
           for (Connector connector : connectors) {
-            if (connector.allowedEventTypes == null) //TODO: Remove that workaround once a proper region check was implemented
-              allDbs.addAll(loadDatabasesForConnector(connector));
+            //TODO: Add some value(s) in connector config to identify if the database can be added in the region
+            allDbs.addAll(loadDatabasesForConnector(connector));
           }
           return Future.succeededFuture(allDbs);
         });
@@ -211,26 +203,37 @@ public class Database extends ExecutionResource {
         fixLocalDbHosts(connectorDbSettingsMap);
 
         DatabaseSettings connectorDbSettings = new DatabaseSettings(connector.id, connectorDbSettingsMap)
+            .withDbMaxPoolSize(10)
             .withScriptResourcePaths(SCRIPT_RESOURCE_PATHS);
 
-        String rdsClusterId = getClusterIdFromHostname(connectorDbSettings.getHost());
+        String rdsClusterId = DBClusterResolver.getClusterIdFromHostname(connectorDbSettings.getHost());
 
         if (rdsClusterId == null) {
           logger.warn("No cluster ID detected for hostname of DB \"" + connector.id + "\". Taking it into account as simple writer DB.");
           databases.add(new Database(null, null, 128, connectorDbSettingsMap)
               .withName(connector.id)
               .withRole(WRITER));
+
+          //TODO: Ensure that we always have a reader for all Databases (by using the read Only user or replica_host if present) and then - if there is none - it is not supported for a good reason
+          //Adding a virtual readReplica for local testing (same db but ro user)
+          if(connector.id.equals("psql") && (connectorDbSettings.runsLocal())) {
+            databases.add(new Database(null, null, 128, connectorDbSettingsMap)
+                    .withName(connector.id)
+                    .withRole(READER));
+          }
         }
         else {
           DBCluster dbCluster = AwsRDSClient.getInstance().getRDSClusterConfig(rdsClusterId);
-          dbCluster.dbClusterMembers().forEach(instance -> {
-            final DatabaseRole role = instance.isClusterWriter() ? WRITER : READER;
+          if(dbCluster != null) {
+            dbCluster.dbClusterMembers().forEach(instance -> {
+              final DatabaseRole role = instance.isClusterWriter() ? WRITER : READER;
 
-            databases.add(new Database(rdsClusterId, instance.dbInstanceIdentifier(),
-                dbCluster.serverlessV2ScalingConfiguration().maxCapacity(), connectorDbSettingsMap)
-                .withName(connector.id)
-                .withRole(role));
-          });
+              databases.add(new Database(rdsClusterId, instance.dbInstanceIdentifier(),
+                      dbCluster.serverlessV2ScalingConfiguration().maxCapacity(), connectorDbSettingsMap)
+                      .withName(connector.id)
+                      .withRole(role));
+            });
+          }
         }
       }
     }
@@ -250,33 +253,6 @@ public class Database extends ExecutionResource {
           allDbs.remove(db);
       allDbs.addAll(databases);
     }
-  }
-
-  public static String getClusterIdFromHostname(String hostname) {
-    if(hostname == null) return null;
-    return Optional.ofNullable(extractClusterId(hostname)).orElse(resolveAndExtractClusterId(hostname));
-  }
-
-  private static String extractClusterId(String url) {
-    Matcher matcher = RDS_CLUSTER_HOSTNAME_PATTERN.matcher(url);
-    return matcher.matches() ? matcher.group(1) : null;
-  }
-
-  private static String resolveAndExtractClusterId(String hostname) {
-    try {
-      Lookup lookup = new Lookup(hostname);
-
-      List<String> records = Arrays.stream(lookup.run()).map(Record::toString).collect(Collectors.toList());
-      records.addAll(Arrays.stream(lookup.getAliases()).map(Name::toString).collect(Collectors.toList()));
-
-      for(String record : records) {
-        String clusterId = extractClusterId(record);
-        if(clusterId != null) return clusterId;
-      }
-    } catch (Exception e) {
-      // Do nothing
-    }
-    return null;
   }
 
   public String getName() {

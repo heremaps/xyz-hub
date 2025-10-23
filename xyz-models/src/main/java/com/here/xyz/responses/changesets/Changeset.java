@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,8 +21,18 @@ package com.here.xyz.responses.changesets;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.here.xyz.events.UpdateStrategy;
+import com.here.xyz.events.UpdateStrategy.OnExists;
+import com.here.xyz.events.UpdateStrategy.OnMergeConflict;
+import com.here.xyz.events.UpdateStrategy.OnNotExists;
+import com.here.xyz.events.UpdateStrategy.OnVersionConflict;
+import com.here.xyz.events.WriteFeaturesEvent.Modification;
+import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.responses.XyzResponse;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * A Changeset represents a set of Feature modifications having been performed as one transaction, single authored,
@@ -30,12 +40,19 @@ import com.here.xyz.responses.XyzResponse;
  */
 @JsonInclude(Include.NON_DEFAULT)
 public class Changeset extends XyzResponse<Changeset> {
+  @JsonView({Public.class})
   long version = -1;
+  @JsonView({Public.class})
   String author;
+  @JsonView({Public.class})
   long createdAt;
+  @JsonView({Public.class})
   private FeatureCollection inserted;
+  @JsonView({Public.class})
   private FeatureCollection updated;
+  @JsonView({Public.class})
   private FeatureCollection deleted;
+  @JsonView({Public.class})
   private String nextPageToken;
 
   public long getVersion() {
@@ -129,5 +146,32 @@ public class Changeset extends XyzResponse<Changeset> {
   public Changeset withNextPageToken(final String nextPageToken) {
     setNextPageToken(nextPageToken);
     return this;
+  }
+
+  public Set<Modification> toModifications(OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict) {
+    try {
+      Set<Modification> modifications = new HashSet<>();
+
+      if (getInserted() != null && !getInserted().getFeatures().isEmpty())
+        modifications.add(new Modification()
+            .withFeatureData(getInserted())
+            .withUpdateStrategy(new UpdateStrategy(OnExists.REPLACE, OnNotExists.CREATE, onVersionConflict, onMergeConflict)));
+      //TODO: Put inserted and updated together into *one* modification object (as the update strategy is the same)
+      if (getUpdated() != null && !getUpdated().getFeatures().isEmpty())
+        modifications.add(new Modification()
+            .withFeatureData(getUpdated())
+            .withUpdateStrategy(new UpdateStrategy(OnExists.REPLACE, OnNotExists.CREATE, onVersionConflict, onMergeConflict)));
+
+      if (getDeleted() != null && !getDeleted().getFeatures().isEmpty())
+        modifications.add(new Modification()
+            .withFeatureIds(getDeleted().getFeatures().stream().map(feature -> feature.getId()).toList())
+            .withUpdateStrategy(new UpdateStrategy(OnExists.DELETE, OnNotExists.RETAIN, onVersionConflict, onMergeConflict)));
+
+      return modifications;
+    }
+    catch (JsonProcessingException e) {
+      //TODO: Better handling
+      throw new RuntimeException(e);
+    }
   }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,9 @@ package com.here.xyz.jobs;
 
 import static com.google.common.net.HttpHeaders.CONTENT_TYPE;
 import static com.google.common.net.MediaType.JSON_UTF_8;
+import static com.here.xyz.jobs.JobPlayground.Usecase.COPY;
+import static com.here.xyz.jobs.JobPlayground.Usecase.EXPORT;
+import static com.here.xyz.jobs.JobPlayground.Usecase.IMPORT;
 import static com.here.xyz.jobs.datasets.files.FileFormat.EntityPerLine.Feature;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.START_EXECUTION;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.SUCCESS_CALLBACK;
@@ -59,10 +62,10 @@ import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.util.ARN;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index;
+import com.here.xyz.util.db.pg.XyzSpaceTableHelper.SystemIndex;
 import com.here.xyz.util.runtime.LambdaFunctionRuntime;
 import com.here.xyz.util.service.Core;
-import com.here.xyz.util.service.aws.SimulatedContext;
+import com.here.xyz.util.service.aws.lambda.SimulatedContext;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
@@ -118,9 +121,9 @@ public class JobPlayground {
   private static int uploadFileCount = 2;
   private static String jobServiceBaseUrl = "http://localhost:7070";
 
-  private static Usecase playgroundUsecase = Usecase.EXPORT;
+  private static Usecase playgroundUsecase = EXPORT;
 
-  private enum Usecase {
+  protected enum Usecase {
     IMPORT,
     EXPORT,
     COPY;
@@ -173,13 +176,13 @@ public class JobPlayground {
 
     JobConfigClient.getInstance().init();
 
-    if(playgroundUsecase.equals(Usecase.IMPORT)) {
+    if(playgroundUsecase.equals(IMPORT)) {
       mockJob = new Job().create()
               .withDescription("Sample import job")
               .withOwner("me")
               .withSource(new Files<>().withInputSettings(new FileInputSettings().withFormat(new GeoJson().withEntityPerLine(Feature))))
               .withTarget(new DatasetDescription.Space<>().withId(sampleSpace.getId()));
-    }else if(playgroundUsecase.equals(Usecase.COPY)) {
+    }else if(playgroundUsecase.equals(COPY)) {
       addTestFeaturesToSpace(sampleSpace.getId(), 10);
 
       targetSpace = createPlaygroundSpace("TEST-TARGET");
@@ -189,7 +192,7 @@ public class JobPlayground {
               .withSource(new DatasetDescription.Space<>().withId(sampleSpace.getId()))
               .withTarget(new DatasetDescription.Space<>().withId(targetSpace.getId()));
 
-    }else if(playgroundUsecase.equals(Usecase.EXPORT)) {
+    }else if(playgroundUsecase.equals(EXPORT)) {
       mockJob = new Job().create()
               .withDescription("Sample export job")
               .withOwner("me")
@@ -226,25 +229,25 @@ public class JobPlayground {
       startLambdaExecutions();
   }
 
-  private static void startLambdaExecutions() throws IOException {
-    if(playgroundUsecase.equals(Usecase.IMPORT)) {
+  private static void startLambdaExecutions() throws IOException, WebClientException {
+    if (playgroundUsecase == IMPORT) {
       uploadFiles();
 
       runDropIndexStep(sampleSpace.getId());
 
       runImportFilesToSpaceStep(sampleSpace.getId(), importFormat);
 
-      for (Index index : Index.values())
+      for (SystemIndex index : SystemIndex.values())
         runCreateIndexStep(sampleSpace.getId(), index);
 
       runAnalyzeSpaceTableStep(sampleSpace.getId());
 
       runMarkForMaintenanceStep(sampleSpace.getId());
-    }else if(playgroundUsecase.equals(Usecase.COPY)) {
-      runCopySpaceStep(sampleSpace.getId(), targetSpace.getId());
-    }else if(playgroundUsecase.equals(Usecase.EXPORT)) {
-      runExportSpaceToFilesStep(sampleSpace.getId());
     }
+    else if (playgroundUsecase == COPY)
+      runCopySpaceStep(sampleSpace.getId(), targetSpace.getId());
+    else if (playgroundUsecase == EXPORT)
+      runExportSpaceToFilesStep(sampleSpace.getId());
   }
 
   private static void uploadFiles() throws IOException {
@@ -356,13 +359,13 @@ public class JobPlayground {
   private static void startRealJob(String sourceSpaceId, String targetSpaceId) throws IOException, InterruptedException {
     Job job = null;
 
-    if(playgroundUsecase.equals(Usecase.IMPORT)) {
+    if(playgroundUsecase.equals(IMPORT)) {
       job = new Job().create()
               .withDescription("Sample import job")
               .withOwner("me")
               .withSource(new Files<>().withInputSettings(new FileInputSettings().withFormat(new GeoJson().withEntityPerLine(Feature))))
               .withTarget(new DatasetDescription.Space<>().withId(sourceSpaceId));
-    }else if(playgroundUsecase.equals(Usecase.COPY)) {
+    }else if(playgroundUsecase.equals(COPY)) {
       job = new Job().create()
               .withDescription("Sample copy job")
               .withOwner("me")
@@ -379,7 +382,7 @@ public class JobPlayground {
     Job createdJob = XyzSerializable.deserialize(jobResponse.body(), Job.class);
     String jobId = createdJob.getId();
 
-    if(playgroundUsecase.equals(Usecase.IMPORT)) {
+    if(playgroundUsecase.equals(IMPORT)) {
       //Uploading files
       uploadFilesToRealJob(jobId);
       //Start the job execution
@@ -480,7 +483,7 @@ public class JobPlayground {
     runStep(new ImportFilesToSpace().withSpaceId(spaceId).withFormat(format).withUpdateStrategy(UpdateStrategy.DEFAULT_UPDATE_STRATEGY));
   }
 
-  public static void runCreateIndexStep(String spaceId, Index index) throws IOException {
+  public static void runCreateIndexStep(String spaceId, SystemIndex index) throws IOException {
     runStep(new CreateIndex().withSpaceId(spaceId).withIndex(index));
   }
 
@@ -492,8 +495,10 @@ public class JobPlayground {
     runStep(new MarkForMaintenance().withSpaceId(spaceId));
   }
 
-  public static void runCopySpaceStep(String sourceSpaceId, String targetSpaceId) throws IOException {
-    runStep(new CopySpace().withSpaceId(sourceSpaceId).withTargetSpaceId(targetSpaceId).withSourceVersionRef(new Ref("HEAD")));
+  public static void runCopySpaceStep(String sourceSpaceId, String targetSpaceId) throws IOException, WebClientException {
+    //NOTE: The source version must always be a resolved one when using the copy step directly
+    long headVersion = hubWebClient.loadSpaceStatistics(sourceSpaceId).getMaxVersion().getValue();
+    runStep(new CopySpace().withSpaceId(sourceSpaceId).withTargetSpaceId(targetSpaceId).withSourceVersionRef(new Ref(headVersion)));
   }
 
   public static void runExportSpaceToFilesStep(String sourceSpaceId) throws IOException {

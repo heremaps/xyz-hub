@@ -19,10 +19,12 @@
 
 package com.here.xyz.test;
 
+import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import com.here.xyz.util.db.datasource.DatabaseSettings;
 import com.here.xyz.util.db.datasource.DatabaseSettings.ScriptResourcePath;
 import com.here.xyz.util.db.datasource.PooledDataSources;
+import java.sql.SQLException;
 import java.util.List;
 
 public class SQLITBase {
@@ -45,5 +47,15 @@ public class SQLITBase {
 
   protected static DataSourceProvider getDataSourceProvider(DatabaseSettings dbSettings) {
     return new PooledDataSources(dbSettings);
+  }
+
+  protected static boolean connectionIsIdle(DataSourceProvider dsp, String queryId) throws SQLException {
+    return new SQLQuery("""
+        SELECT 1 FROM pg_stat_activity
+          WHERE state = 'idle' AND query LIKE '%${{queryId}}%' AND pid != pg_backend_pid()
+        """)
+        .withQueryFragment("queryId", queryId)
+        .withLoggingEnabled(false)
+        .run(dsp, rs -> rs.next());
   }
 }

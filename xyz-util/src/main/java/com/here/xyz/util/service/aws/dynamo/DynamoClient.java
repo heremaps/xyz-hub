@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBAsync;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBAsyncClientBuilder;
 import com.amazonaws.services.dynamodbv2.document.DynamoDB;
+import com.amazonaws.services.dynamodbv2.document.Item;
 import com.amazonaws.services.dynamodbv2.document.Table;
 import com.amazonaws.services.dynamodbv2.model.AttributeDefinition;
 import com.amazonaws.services.dynamodbv2.model.AttributeValue;
@@ -40,29 +41,26 @@ import com.amazonaws.services.dynamodbv2.model.ProvisionedThroughput;
 import com.amazonaws.services.dynamodbv2.model.ResourceInUseException;
 import com.amazonaws.services.dynamodbv2.model.TimeToLiveSpecification;
 import com.amazonaws.services.dynamodbv2.model.UpdateTimeToLiveRequest;
-import com.amazonaws.services.s3.model.Region;
 import com.amazonaws.util.CollectionUtils;
 import com.here.xyz.util.ARN;
 import com.here.xyz.util.service.Core;
 import io.vertx.core.Future;
 import io.vertx.core.WorkerExecutor;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import software.amazon.awssdk.regions.Region;
 
 public class DynamoClient {
 
   private static final Logger logger = LogManager.getLogger();
   private static final Long READ_CAPACITY_UNITS = 5L;
   private static final Long WRITE_CAPACITY_UNITS = 5L;
-  private static final String INDEX_SUFFIX = "-index";
-  private static final String HYPHEN = "-";
 
 
-  public static final WorkerExecutor dynamoWorkers = Core.vertx.createSharedWorkerExecutor(DynamoClient.class.getName(), 8);
+  public static final WorkerExecutor dynamoWorkers = Core.vertx.createSharedWorkerExecutor(DynamoClient.class.getName(), 30);
 
   public final AmazonDynamoDBAsync client; //TODO: Make private once DynamoSpaceConfigClient has been refactored
   public final String tableName;
@@ -90,6 +88,15 @@ public class DynamoClient {
     client = builder.build();
     db = new DynamoDB(client);
     tableName = new ARN(tableArn).getResourceWithoutType();
+  }
+
+  public static List<Item> queryIndex(Table table, IndexDefinition index, String hashKeyValue) {
+    List<Item> items = new ArrayList<>();
+    table.getIndex(index.getName())
+        .query(index.getHashKey(), hashKeyValue)
+        .pages()
+        .forEach(page -> page.forEach(item -> items.add(item)));
+    return items;
   }
 
   public Table getTable() {
@@ -135,7 +142,7 @@ public class DynamoClient {
   }
 
   public boolean isLocal() {
-    return Arrays.stream(Region.values()).noneMatch(r -> r.toAWSRegion().getName().equals(arn.getRegion()));
+    return Region.regions().stream().noneMatch(r -> r.id().equals(arn.getRegion()));
   }
 
   public Future<List<Map<String, AttributeValue>>> executeStatement(ExecuteStatementRequest request) {
@@ -169,28 +176,24 @@ public class DynamoClient {
     return DynamoClient.dynamoWorkers.executeBlocking(
         promise -> {
           try {
-              promise.complete(commandExecution.supply());
-            }
-            catch (Exception e) {
-              promise.fail(e);
-            }
+            promise.complete(commandExecution.supply());
+          }
+          catch (Exception e) {
+            promise.fail(e);
+          }
         });
   }
 
   private GlobalSecondaryIndex createGSI(IndexDefinition indexDefinition) {
     List<KeySchemaElement> keySchema = new ArrayList<>();
     keySchema.add(new KeySchemaElement(indexDefinition.getHashKey(), KeyType.HASH));
-    if(indexDefinition.getRangeKey() != null) {
+    if (indexDefinition.getRangeKey() != null)
       keySchema.add(new KeySchemaElement(indexDefinition.getRangeKey(), KeyType.RANGE));
-    }
-    String indexName = indexDefinition.getRangeKey() != null ?
-            indexDefinition.getHashKey().concat(HYPHEN).concat(indexDefinition.getRangeKey()).concat(INDEX_SUFFIX) :
-            indexDefinition.getHashKey().concat(INDEX_SUFFIX);
 
     return new GlobalSecondaryIndex()
-            .withIndexName(indexName)
-            .withKeySchema(keySchema)
-            .withProjection(new Projection().withProjectionType(ProjectionType.ALL))
-            .withProvisionedThroughput(new ProvisionedThroughput(READ_CAPACITY_UNITS, WRITE_CAPACITY_UNITS));
+        .withIndexName(indexDefinition.getName())
+        .withKeySchema(keySchema)
+        .withProjection(new Projection().withProjectionType(ProjectionType.ALL))
+        .withProvisionedThroughput(new ProvisionedThroughput(READ_CAPACITY_UNITS, WRITE_CAPACITY_UNITS));
   }
 }

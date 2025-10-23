@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ import com.here.xyz.jobs.steps.Step;
 import io.vertx.core.Future;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
@@ -44,7 +45,6 @@ public class InMemJobConfigClient extends JobConfigClient {
     }
   }
 
-
   @Override
   public Future<Job> loadJob(String jobId) {
     return Future.succeededFuture(jobMap.get(jobId));
@@ -53,6 +53,67 @@ public class InMemJobConfigClient extends JobConfigClient {
   @Override
   public Future<List<Job>> loadJobs() {
     return Future.succeededFuture(List.copyOf(jobMap.values()));
+  }
+
+  public Future<List<Job>> loadJobs(FilteredValues<Long> newerThan, FilteredValues<String> sourceTypes,
+                                    FilteredValues<String> targetTypes, FilteredValues<String> processTypes,
+                                    FilteredValues<String> resourceKeys, FilteredValues<State> stateTypes) {
+    return Future.succeededFuture(
+            jobMap.values().stream()
+                    .filter(job -> {
+                      if (newerThan == null || newerThan.values().isEmpty()) return true;
+                      Long ts = newerThan.values().iterator().next();
+                      return newerThan.include() ? job.getCreatedAt() > ts : job.getCreatedAt() < ts;
+                    })
+
+                    .filter(job -> matchesFilteredValues(sourceTypes,
+                            job.getSource() != null ? job.getSource().getClass().getSimpleName() : null))
+
+                    .filter(job -> matchesFilteredValues(targetTypes,
+                            job.getTarget() != null ? job.getTarget().getClass().getSimpleName() : null))
+
+                    .filter(job -> matchesFilteredValues(processTypes,
+                            job.getProcess() != null ? job.getProcess().getClass().getSimpleName() : null))
+
+                    .filter(job -> matchesFilteredValues(stateTypes,
+                            job.getStatus() != null ? State.valueOf(job.getStatus().getState().name()) : null))
+
+                    .filter(job -> {
+                      if (resourceKeys == null || resourceKeys.values().isEmpty()) return true;
+                      Set<String> jobKeys = job.getResourceKeys();
+                      if (jobKeys == null || jobKeys.isEmpty()) return !resourceKeys.include(); // Exclude when filtering for presence
+                      boolean match = resourceKeys.values().stream().anyMatch(jobKeys::contains);
+                      return resourceKeys.include() ? match : !match;
+                    })
+
+                    .toList()
+    );
+  }
+
+  private static <T> boolean matchesFilteredValues(FilteredValues<T> filter, T actualValue) {
+    if (filter == null || filter.values().isEmpty()) return true;
+    boolean match = filter.values().contains(actualValue);
+    return filter.include() ? match : !match;
+  }
+
+  public Future<List<Job>> loadJobs(
+          boolean newerThan, long createdAt, String sourceType,
+          String targetType, String processType, String resourceKey, State state
+  ) {
+    return Future.succeededFuture(jobMap.values().stream()
+            .filter(job -> newerThan ? job.getCreatedAt() > createdAt : job.getCreatedAt() < createdAt)
+            .filter(job -> processType == null || processType.isEmpty() ||
+                    (job.getProcess() != null && processType.equals(job.getProcess().getClass().getSimpleName())))
+            .filter(job -> sourceType == null || sourceType.isEmpty() ||
+                    (job.getSource() != null && sourceType.equals(job.getSource().getClass().getSimpleName())))
+            .filter(job -> targetType == null || targetType.isEmpty() ||
+                    (job.getTarget() != null && targetType.equals(job.getTarget().getClass().getSimpleName())))
+            .filter(job -> state == null &&
+                    (job.getStatus() != null && state.equals(job.getStatus().getState().name())))
+            .filter(job -> resourceKey == null || resourceKey.isEmpty() ||
+                    (job.getResourceKeys() != null && job.getResourceKeys().contains(resourceKey)))
+            .toList()
+    );
   }
 
   @Override
@@ -64,17 +125,34 @@ public class InMemJobConfigClient extends JobConfigClient {
   }
 
   @Override
-  public Future<List<Job>> loadJobs(String resourceKey) {
-    List<Job> jobs = jobMap.values().stream()
-        .filter(job -> resourceKey.equals(job.getResourceKey()))
-        .collect(Collectors.toList());
-    return Future.succeededFuture(jobs);
+  public Future<Set<Job>> loadJobsByPrimaryResourceKey(String resourceKey) {
+    if (resourceKey == null)
+      return Future.succeededFuture(Set.of());
+    return loadJobs().map(jobs -> jobs.stream()
+            .filter(job -> resourceKey.equals(job.getResourceKey()))
+            .collect(Collectors.toSet()));
   }
 
   @Override
   public Future<List<Job>> loadJobs(String resourceKey, State state) {
-    return loadJobs().map(jobs -> jobs.stream().filter(job -> (resourceKey == null || job.getResourceKey().equals(resourceKey))
-        && (state == null || job.getStatus().getState() == state)).toList());
+    return loadJobs(Set.of(resourceKey)).map(jobs -> jobs.stream()
+        .filter(job -> state == null || job.getStatus().getState() == state)
+        .toList());
+  }
+
+  private Future<List<Job>> loadJobs(Set<String> resourceKeys) {
+    return loadJobs().map(jobs -> jobs.stream()
+        .filter(job -> resourceKeys.stream().anyMatch(resourceKey -> job.getResourceKeys().contains(resourceKey)))
+        .toList());
+  }
+
+  @Override
+  public Future<Set<Job>> loadJobs(Set<String> resourceKeys, State state) {
+    return loadJobs().map(jobs ->
+        jobs.stream()
+            .filter(job -> resourceKeys.stream().anyMatch(resourceKey -> job.getResourceKeys().contains(resourceKey))
+                && (state == null || job.getStatus().getState() == state))
+            .collect(Collectors.toSet()));
   }
 
   @Override

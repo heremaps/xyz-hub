@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,15 +19,14 @@
 
 package com.here.xyz.hub.connectors;
 
+import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.BINARY;
 import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT;
 import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT_FLATTENED;
 import static com.here.xyz.util.service.rest.TooManyRequestsException.ThrottlingReason.CONNECTOR;
-import static io.netty.handler.codec.http.HttpHeaderValues.APPLICATION_JSON;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
 import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
-import static io.netty.handler.codec.http.HttpResponseStatus.GATEWAY_TIMEOUT;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_IMPLEMENTED;
 import static io.netty.handler.codec.rtsp.RtspResponseStatuses.REQUEST_ENTITY_TOO_LARGE;
@@ -58,6 +57,7 @@ import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.HttpException;
+import com.here.xyz.util.service.errors.DetailedHttpException;
 import com.here.xyz.util.service.rest.TooManyRequestsException;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
@@ -97,6 +97,7 @@ public class RpcClient {
     final RemoteFunctionConfig remoteFunction = connector.getRemoteFunction();
     if (remoteFunction instanceof Connector.RemoteFunctionConfig.AWSLambda) {
       this.functionClient = new LambdaFunctionClient(connector);
+      functionClient.startMonitorThrottling();
     }
     else if (remoteFunction instanceof Connector.RemoteFunctionConfig.Embedded) {
       this.functionClient = new EmbeddedFunctionClient(connector);
@@ -234,10 +235,10 @@ public class RpcClient {
    * @return Whether to expect a binary response from the storage connector
    */
   private boolean expectBinaryResponse(Event<?> event) {
-    return event instanceof GetFeaturesByTileEvent
-        && (((GetFeaturesByTileEvent) event).getResponseType() == MVT || ((GetFeaturesByTileEvent) event).getResponseType() == MVT_FLATTENED)
-        && getConnector().capabilities.mvtSupport
-        && Payload.compareVersions(getConnector().getRemoteFunction().protocolVersion, BinaryResponse.BINARY_SUPPORT_VERSION) >= 0;
+    return event instanceof GetFeaturesByTileEvent getTileEvent
+        && ((getTileEvent.getResponseType() == MVT || getTileEvent.getResponseType() == MVT_FLATTENED)
+                && getConnector().capabilities.mvtSupport
+        || getTileEvent.getResponseType() == BINARY && getConnector().capabilities.binaryTiles);
   }
 
   /**
@@ -391,7 +392,8 @@ public class RpcClient {
     }
     if (payload instanceof ErrorResponse) {
       ErrorResponse errorResponse = (ErrorResponse) payload;
-      logger.warn(marker, "The connector {} [{}] responded with an error of type {}: {}", getConnector().id, (getConnector().getRemoteFunction()).getClass().getSimpleName() ,errorResponse.getError(),
+      String connectorType = (getConnector().getRemoteFunction()).getClass().getSimpleName();
+      logger.warn(marker, "The connector {} [{}] responded with an error of type {}: {}", getConnector().id, connectorType, errorResponse.getError(),
           errorResponse.getErrorMessage());
 
       switch (errorResponse.getError()) {
@@ -409,13 +411,12 @@ public class RpcClient {
         case ILLEGAL_ARGUMENT:
           throw new HttpException(BAD_REQUEST, errorResponse.getErrorMessage(), errorResponse.getErrorDetails());
         case TIMEOUT:
-          throw new HttpException(GATEWAY_TIMEOUT, "Connector timeout error.", errorResponse.getErrorDetails());
+          throw new DetailedHttpException("E318540");
         case EXCEPTION:
         case BAD_GATEWAY:
           throw new HttpException(BAD_GATEWAY, "Connector error.", errorResponse.getErrorDetails());
         case PAYLOAD_TO_LARGE:
-          throw new HttpException(Api.RESPONSE_PAYLOAD_TOO_LARGE,
-              Api.RESPONSE_PAYLOAD_TOO_LARGE_MESSAGE + " " + errorResponse.getErrorMessage(), errorResponse.getErrorDetails());
+          throw new DetailedHttpException("E318541");
       }
     }
   }
@@ -522,7 +523,8 @@ public class RpcClient {
       return;
     }
 
-    if (APPLICATION_JSON.equals(binaryResponse.getMimeType())) {
+    if (binaryResponse.getMimeType() != null && binaryResponse.getMimeType().startsWith("application/")
+        && binaryResponse.getMimeType().endsWith("json")) {
       //In case we got a JSON string encoded within a BinaryResponse, it needs to be un-packed and continued with the JSON-decoding
       parseResponse(marker, binaryResponse.getBytes(), false, callback);
     }
@@ -565,8 +567,9 @@ public class RpcClient {
       Map<String, Object> response = XyzSerializable.deserialize(stringResponse, Map.class);
       if (response.containsKey("errorMessage")) {
         final String errorMessage = response.get("errorMessage").toString();
-        if (errorMessage.contains("timed out"))
-          return new HttpException(GATEWAY_TIMEOUT, "Connector timeout error.");
+        if (errorMessage.contains("timed out")) {
+          return new DetailedHttpException("E318540");
+        }
       }
     }
     catch (Exception e) {

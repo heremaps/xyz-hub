@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@ import static com.here.xyz.util.db.SQLQuery.XyzSqlErrors.XYZ_FAILED_ATTEMPT;
 import static com.here.xyz.util.db.pg.LockHelper.advisoryLock;
 import static com.here.xyz.util.db.pg.LockHelper.advisoryUnlock;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.here.xyz.XyzSerializable;
@@ -52,6 +53,7 @@ import javax.sql.DataSource;
 import org.apache.commons.dbutils.QueryRunner;
 import org.apache.commons.dbutils.ResultSetHandler;
 import org.apache.commons.dbutils.StatementConfiguration;
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -61,6 +63,7 @@ import org.apache.logging.log4j.Logger;
 @JsonInclude(NON_DEFAULT)
 public class SQLQuery {
   private static final Logger logger = LogManager.getLogger();
+  private static final Level QUERY_LEVEL = Level.forName("QUERY", 60);
   private static final String VAR_PREFIX = "\\$\\{";
   private static final String VAR_SUFFIX = "\\}";
   private static final String FRAGMENT_PREFIX = "${{";
@@ -363,7 +366,16 @@ public class SQLQuery {
       setQueryId(UUID.randomUUID().toString());
   }
 
-  public PreparedStatement prepareStatement(Connection connection) throws SQLException {
+  /**
+   * Returns the prepared statement of this SQLQuery.
+   * If none is existing yet, it will be created and re-used for
+   * later calls of this method.
+   * @param connection
+   * @return
+   * @throws SQLException
+   */
+  @JsonIgnore
+  public PreparedStatement getPreparedStatement(Connection connection) throws SQLException {
     Map<String, Object> namedParameters = this.namedParameters;
     if (preparedStatement == null)
       preparedStatement = connection.prepareStatement(substitute().text());
@@ -991,21 +1003,26 @@ public class SQLQuery {
     UPDATE_BATCH
   }
 
+  private static String hidePwds(String s, DataSourceProvider dataSourceProvider) throws SQLException {
+    return s.replaceAll("(" + dataSourceProvider.getDatabaseSettings().getPassword() + ")\\w*", "*******");
+  }
+
   private Object execute(DataSourceProvider dataSourceProvider, ResultSetHandler<?> handler, ExecutionOperation operation,
       ExecutionContext executionContext) throws SQLException {
     if (loggingEnabled)
-      logger.info("Executing SQLQuery {}", this);
-    substitute();
+      logger.info("Executing SQLQuery {}", hidePwds("" + this, dataSourceProvider));
+    if (executionContext.executionAttempts == 0)
+      substitute();
 
     final DataSource dataSource = executionContext.useReplica ? dataSourceProvider.getReader() : dataSourceProvider.getWriter();
     executionContext.attemptExecution();
     try {
       if (loggingEnabled)
-        logger.info("Sending query to database {} {}, substituted query-text: {}",
+        logger.log(QUERY_LEVEL, "Sending query to database {} {}, substituted query-text: {}",
             executionContext.useReplica ? "reader" : "writer",
             dataSourceProvider.getDatabaseSettings() != null
                 ? dataSourceProvider.getDatabaseSettings().getId() : "unknown",
-            replaceUnnamedParametersForLogging());
+            hidePwds(replaceUnnamedParametersForLogging(), dataSourceProvider));
 
       if (isAsync())
         operation = ExecutionOperation.QUERY;
@@ -1062,10 +1079,13 @@ public class SQLQuery {
 
   private Object executeQuery(DataSource dataSource, ExecutionContext executionContext, ResultSetHandler<?> handler) throws SQLException {
     SQLQuery query = prepareFinalQuery(executionContext);
+
     if (context != null)
       handler = new Ignore1stResultSet(handler);
+
     final List<?> results = getRunner(dataSource, executionContext).execute(query.text(), handler, query.parameters().toArray());
-    return results.size() <= 1 ? results.get(0) : results.get(results.size() - 1);
+
+    return results.size() == 0 ? null : results.get(results.size() - 1);
   }
 
   private static QueryRunner getRunner(DataSource dataSource, ExecutionContext executionContext) {
@@ -1171,7 +1191,8 @@ public class SQLQuery {
           57014 - query_canceled
           57P01 - admin_shutdown
            */
-          sqlEx.getSQLState().equalsIgnoreCase("57014")
+          //NOTE: 57014 occurs when a query got cancelled for various reasons. If the reason was a timeout it should not be retried.
+          sqlEx.getSQLState().equalsIgnoreCase("57014") && !sqlEx.getMessage().toLowerCase().contains("statement timeout")
               /*
               NOTE: "admin_shutdown" (57P01) also is used when some admin user kills the backend
               using pg_terminate_backend. So this SQL state is not treated as recoverable,
@@ -1262,6 +1283,7 @@ public class SQLQuery {
     public Object handle(ResultSet rs) throws SQLException {
       if (!calledBefore) {
         calledBefore = true;
+          //TODO: using runWriteQueryAsync together with using query context throws NPE due to returned null value
         return null;
       }
       return originalHandler.handle(rs);

@@ -25,16 +25,19 @@ import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonView;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.XyzSerializable.Internal;
 import com.here.xyz.XyzSerializable.Public;
 import com.here.xyz.XyzSerializable.Static;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.util.Hasher;
+import java.util.ArrayList;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class Filters {
-  @JsonView({Public.class})
+  @JsonView({Public.class, Static.class})
   private PropertiesQuery propertyFilter;
   //TODO: Remove after V1 got shutdown
   @JsonView({Internal.class, Static.class})
@@ -51,15 +54,20 @@ public class Filters {
   }
 
   public void setPropertyFilter(Object propertyFilter) {
-    if (propertyFilter instanceof PropertiesQuery propFilter)
-      this.propertyFilter = propFilter;
+    if (propertyFilter instanceof ArrayList propFilter){
+        try {
+            this.propertyFilter = XyzSerializable.deserialize(XyzSerializable.serialize(propFilter), PropertiesQuery.class);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
+    }
     else if (propertyFilter instanceof String propFilter) {
       this.propertyFilter = PropertiesQuery.fromString(propFilter);
       this.propertyFilterAsString = propFilter;
     }
   }
 
-  public Filters withPropertyFilter(String propertyFilter) {
+  public Filters withPropertyFilter(Object propertyFilter) {
     setPropertyFilter(propertyFilter);
     return this;
   }
@@ -96,11 +104,19 @@ public class Filters {
   }
 
   @JsonIgnore
+  @Deprecated
   public String getHash() {
     String input = "#" + (getPropertyFilterAsString() != null ? getPropertyFilterAsString() : "")
         + "#" + (spatialFilter != null ? serialize(spatialFilter) : "")
         + "#";
 
     return Hasher.getHash(input);
+  }
+
+  public Filters copy() {
+    return new Filters()
+        .withContext(getContext())
+        .withSpatialFilter(getSpatialFilter())
+        .withPropertyFilter(getPropertyFilter());
   }
 }

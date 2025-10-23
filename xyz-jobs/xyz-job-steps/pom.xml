@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  ~ Copyright (C) 2017-2024 HERE Europe B.V.
+  ~ Copyright (C) 2017-2025 HERE Europe B.V.
   ~
   ~ Licensed under the Apache License, Version 2.0 (the "License");
   ~ you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@
   <parent>
     <groupId>com.here.xyz</groupId>
     <artifactId>xyz-jobs</artifactId>
-    <version>3.12.2-SNAPSHOT</version>
+    <version>3.21.7-SNAPSHOT</version>
   </parent>
 
   <name>XYZ Job Steps</name>
@@ -48,30 +48,7 @@
       <artifactId>xyz-psql-connector</artifactId>
     </dependency>
 
-    <!-- AWS SDK -->
-    <dependency>
-      <artifactId>aws-java-sdk-s3</artifactId>
-      <groupId>com.amazonaws</groupId>
-      <exclusions>
-        <exclusion>
-          <artifactId>jackson-annotations</artifactId>
-          <groupId>com.fasterxml.jackson.core</groupId>
-        </exclusion>
-      </exclusions>
-    </dependency>
-    <!-- TODO: Use new RDS SDK2 instead -->
-    <dependency>
-      <artifactId>aws-java-sdk-rds</artifactId>
-      <groupId>com.amazonaws</groupId>
-      <!-- TODO: put version into main pom's dependency-management -->
-      <version>1.12.651</version>
-      <exclusions>
-        <exclusion>
-          <artifactId>jackson-annotations</artifactId>
-          <groupId>com.fasterxml.jackson.core</groupId>
-        </exclusion>
-      </exclusions>
-    </dependency>
+    <!-- AWS SDK 2.x -->
     <dependency>
       <groupId>software.amazon.awssdk</groupId>
       <artifactId>sfn</artifactId>
@@ -96,6 +73,28 @@
         </exclusion>
       </exclusions>
     </dependency>
+    <dependency>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>emrserverless</artifactId>
+      <exclusions>
+        <exclusion>
+          <artifactId>jackson-annotations</artifactId>
+          <groupId>com.fasterxml.jackson.core</groupId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+
+    <!-- TODO: Use new RDS SDK2 instead -->
+    <dependency>
+      <artifactId>aws-java-sdk-rds</artifactId>
+      <groupId>com.amazonaws</groupId>
+      <exclusions>
+        <exclusion>
+          <artifactId>jackson-annotations</artifactId>
+          <groupId>com.fasterxml.jackson.core</groupId>
+        </exclusion>
+      </exclusions>
+    </dependency>
 
     <!-- Jackson -->
     <dependency>
@@ -105,12 +104,6 @@
     <dependency>
       <groupId>com.fasterxml.jackson.core</groupId>
       <artifactId>jackson-annotations</artifactId>
-    </dependency>
-
-    <!-- Util -->
-    <dependency>
-      <groupId>dnsjava</groupId>
-      <artifactId>dnsjava</artifactId>
     </dependency>
 
     <!--  Logging libraries -->
@@ -164,7 +157,50 @@
   </dependencies>
 
   <build>
+    <resources>
+      <!-- Default resources (e.g., properties, log4j config) -->
+      <resource>
+        <directory>src/main/resources</directory>
+        <filtering>false</filtering>
+      </resource>
+      <resource>
+        <directory>src/main/resources</directory>
+        <filtering>true</filtering>
+        <includes>
+          <include>**/build.properties</include>
+        </includes>
+      </resource>
+      <resource>
+        <directory>src/main/resources</directory>
+        <filtering>false</filtering>
+        <excludes>
+          <exclude>**/build.properties</exclude>
+        </excludes>
+      </resource>
+      <resource>
+        <!-- Add scripts to jar -->
+        <directory>src/main/bash</directory>
+        <targetPath>.</targetPath>
+        <includes>
+          <include>**/*</include>
+        </includes>
+      </resource>
+    </resources>
     <plugins>
+      <!-- Include sources -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-source-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>attach-sources</id>
+            <goals>
+              <goal>jar</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-shade-plugin</artifactId>
@@ -264,24 +300,54 @@
       <id>local</id>
       <build>
         <plugins>
+          <!-- Add scripts to jar -->
+          <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>build-helper-maven-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>add-source</id>
+                <phase>generate-sources</phase>
+                <goals>
+                  <goal>add-source</goal>
+                </goals>
+                <configuration>
+                  <sources>
+                    <source>${project.basedir}/src/main/bash</source>
+                  </sources>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
           <plugin>
             <artifactId>exec-maven-plugin</artifactId>
             <executions>
               <execution>
-                <configuration>
-                  <workingDirectory>${project.build.directory}</workingDirectory>
-                  <executable>docker</executable>
-                  <arguments>
-                    <argument>exec</argument>
-                    <argument>localstack-main</argument>
-                    <argument>/home/localstack/job-steps-scripts/deployLocalLambda.sh</argument>
-                  </arguments>
-                </configuration>
+                <id>deployLambda</id>
+                <phase>install</phase>
                 <goals>
                   <goal>exec</goal>
                 </goals>
-                <id>deployLocalLambda</id>
-                <phase>install</phase>
+                <configuration>
+                  <executable>docker</executable>
+                  <arguments>
+                    <argument>run</argument>
+                    <argument>--rm</argument>
+                    <argument>--entrypoint</argument>
+                    <argument> </argument>
+                    <argument>-v</argument>
+                    <argument>${project.basedir}/src/main/bash/environment.json:/aws/environment.json</argument>
+                    <argument>-v</argument>
+                    <argument>${project.basedir}/src/main/bash/deployLocalLambda.sh:/aws/deployLocalLambda.sh</argument>
+                    <argument>-v</argument>
+                    <argument>${project.basedir}/target/xyz-job-steps-fat.jar:/aws/xyz-job-steps-fat.jar</argument>
+                    <argument>--add-host</argument>
+                    <argument>host.docker.internal=host-gateway</argument>
+                    <argument>amazon/aws-cli</argument>
+                    <argument>./deployLocalLambda.sh</argument>
+                    <argument>true</argument>
+                  </arguments>
+                </configuration>
               </execution>
             </executions>
             <groupId>org.codehaus.mojo</groupId>

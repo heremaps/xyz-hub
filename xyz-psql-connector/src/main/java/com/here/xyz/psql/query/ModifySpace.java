@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,26 +29,20 @@ import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SCHEMA;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.TABLE;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildCreateSpaceTableQueries;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.here.xyz.connectors.ErrorResponseException;
-import com.here.xyz.util.runtime.FunctionRuntime;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.ModifySpaceEvent.Operation;
-import com.here.xyz.models.hub.Space;
-import com.here.xyz.psql.DatabaseMaintainer;
 import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.util.db.ConnectorParameters;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
+import com.here.xyz.util.db.pg.IndexHelper;
+import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse> {
 
@@ -56,15 +50,13 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
      * Main schema for xyz-relevant configurations.
      */
     public static final String XYZ_CONFIG_SCHEMA = "xyz_config";
-    public static final String IDX_STATUS_TABLE = "xyz_idxs_status";
-    public static final String IDX_STATUS_TABLE_FQN = XYZ_CONFIG_SCHEMA + "." + IDX_STATUS_TABLE;
     public static final String SPACE_META_TABLE = "space_meta";
     public static final String SPACE_META_TABLE_FQN = XYZ_CONFIG_SCHEMA + "." + SPACE_META_TABLE;
     public static final String I_SEQUENCE_SUFFIX = "_i_seq";
     private Operation operation;
     private String spaceId;
-    private DatabaseMaintainer dbMaintainer;
     private boolean dryRun;
+    private String rootTable;
 
     public ModifySpace(ModifySpaceEvent event) throws SQLException, ErrorResponseException {
         super(event);
@@ -73,6 +65,7 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
         setUseReadReplica(false);
         operation = event.getOperation();
         spaceId = event.getSpace();
+        rootTable = getDefaultTable(event);
     }
 
     private void validateModifySpaceEvent(ModifySpaceEvent event) throws ErrorResponseException {
@@ -133,12 +126,14 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
             List<SQLQuery> queries = new ArrayList<>();
             final String table = getDefaultTable(event);
 
-            if (event.getSpaceDefinition() != null && event.getOperation() == CREATE)
+            if (event.getSpaceDefinition() != null && event.getOperation() == CREATE) {
                 //Add space table creation queries
-                queries.addAll(buildCreateSpaceTableQueries(getSchema(), table));
+                List<XyzSpaceTableHelper.OnDemandIndex> activatedSearchableProperties
+                        = IndexHelper.getActivatedSearchableProperties(event.getSpaceDefinition().getSearchableProperties());
 
-            //Write idx related data
-            queries.addAll(buildSearchablePropertiesUpsertQueries(event));
+                queries.addAll(buildCreateSpaceTableQueries(getSchema(), table, activatedSearchableProperties));
+            }
+
             //Write metadata
             queries.add(buildSpaceMetaUpsertQuery(event));
 
@@ -155,9 +150,13 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
         if (dryRun)
             return new SuccessResponse().withStatus("OK");
 
+        //TODO: Delete branch tables as part of "prune"-operation
+        //if (operation == DELETE)
+        //  new BranchManager(getDataSourceProvider(), FunctionRuntime.getInstance().getStreamId(), spaceId, getSchema(), rootTable)
+        //      .deleteAllBranchTables();
+
         SuccessResponse response = super.write(dataSourceProvider);
-        if (operation != Operation.DELETE)
-            getDbMaintainer().maintainSpace(FunctionRuntime.getInstance().getStreamId(), getSchema(), spaceId);
+
         return response;
     }
 
@@ -191,12 +190,12 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
         return jsonObject;
     }
 
-    public SQLQuery buildSpaceMetaUpsertQuery(ModifySpaceEvent event) throws SQLException {
+    public SQLQuery buildSpaceMetaUpsertQuery(ModifySpaceEvent event) {
           SQLQuery q = new SQLQuery("INSERT INTO "+ SPACE_META_TABLE_FQN +" as s_m VALUES (#{spaceid},#{schema},#{table},(#{extend})::json)" +
                   "  ON CONFLICT (id,schem)" +
                   "  DO " +
                   "  UPDATE" +
-                  "     SET meta = COALESCE(s_m.meta,'{}'::jsonb) || (#{extend})::jsonb" +
+                  "     SET meta = COALESCE(s_m.meta - 'extends','{}'::jsonb ,'{}'::jsonb) || (#{extend})::jsonb" +
                   "  WHERE 1=1" +
                   "     AND s_m.id = #{spaceid}" +
                   "     AND s_m.schem = #{schema};");
@@ -207,114 +206,24 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
           q.setNamedParameter(TABLE, getDefaultTable(event));
 
           return q;
-      }
-
-
-
-    public List<SQLQuery> buildSearchablePropertiesUpsertQueries(ModifySpaceEvent event) throws SQLException {
-        String sourceTable = isExtendedSpace(event) ? getExtendedTable(event) : getDefaultTable(event);
-
-        SQLQuery idx_ext_q = new SQLQuery(
-                "SELECT jsonb_set(idx_manual,'{searchableProperties}',"+
-                        "         idx_manual->'searchableProperties' ||"+
-                        // Copy possible existing auto-indices into searchableProperties Config of extended space
-                        "        (SELECT COALESCE(jsonb_object_agg(key,value), '{}')"+
-                        "            FROM("+
-                        "                SELECT idx_property as key, true as value"+
-                        "                    FROM xyz_index_list_all_available('public',#{extended_table})"+
-                        "                WHERE src='a'"+
-                        "            )A"+
-                        "        ),"+
-                        "        true) "+
-                        "FROM "+ IDX_STATUS_TABLE_FQN +
-                        "    WHERE spaceid=#{extended_table} ");
-
-        idx_ext_q.setNamedParameter("extended_table", sourceTable);
-
-
-        List<SQLQuery> upsertQueries = new ArrayList<>();
-        upsertQueries.add(buildUpsertIndexQuery(event, idx_ext_q));
-
-        if (event.getOperation() == UPDATE)
-            upsertQueries.add(buildUpdateReferencedTablesQuery(event, idx_ext_q));
-
-        return upsertQueries;
-    }
-
-    private static SQLQuery buildGetManualIndicesQuery(ModifySpaceEvent event) throws SQLException {
-        Space spaceDefinition = event.getSpaceDefinition();
-        Map<String, Boolean> searchableProperties = spaceDefinition.getSearchableProperties();
-        List<List<Object>> sortableProperties = spaceDefinition.getSortableProperties();
-
-        String idx_manual_json;
-        SQLQuery idx_q;
-        try {
-            idx_manual_json = (new ObjectMapper()).writeValueAsString(new IdxManual(searchableProperties, sortableProperties));
-            idx_q = new SQLQuery("select (#{idx_manual})::jsonb");
-            idx_q.setNamedParameter("idx_manual", idx_manual_json);
-        } catch (JsonProcessingException e) {
-            throw new SQLException("buildSearchablePropertiesUpsertQuery", e);
-        }
-        return idx_q;
-    }
-
-    private SQLQuery buildUpdateReferencedTablesQuery(ModifySpaceEvent event, SQLQuery idx_ext_q) {
-        //Update possible existing delta tables
-        return new SQLQuery("UPDATE " + IDX_STATUS_TABLE_FQN + " "
-                + "             SET schem = #{schema}, "
-                + "    			idx_manual = (${{idx_manual_sub2}}), "
-                + "				idx_creation_finished = false"
-                + "		WHERE " +
-                "           array_position(" +
-                "               (SELECT ARRAY_AGG(h_id) " +
-                "                   FROM " + SPACE_META_TABLE_FQN + " as b " +
-                "               WHERE 1=1" +
-                "                   AND b.meta->'extends'->>'extendedTable' = #{table}" +
-                "                   AND b.schem = #{schema}" +
-                "               ), spaceid" +
-                "           ) > 0" +
-                "           AND schem = #{schema};" )
-            .withQueryFragment("idx_manual_sub2", idx_ext_q)
-            .withNamedParameter(TABLE, getDefaultTable(event))
-            .withNamedParameter(SCHEMA, getSchema());
-    }
-
-    private SQLQuery buildUpsertIndexQuery(ModifySpaceEvent event, SQLQuery idx_ext_q) throws SQLException {
-        Space spaceDefinition = event.getSpaceDefinition();
-
-        Boolean enableAutoIndexing = spaceDefinition.isEnableAutoSearchableProperties();
-        //Disable Autoindexing for spaces which are extending another space.
-        enableAutoIndexing = (isExtendedSpace(event) ? Boolean.FALSE : enableAutoIndexing);
-
-        //Update xyz_idx_status table with searchableProperties information
-        SQLQuery upsertIDX = new SQLQuery("INSERT INTO  "+ IDX_STATUS_TABLE_FQN +" as x_s (spaceid, schem, idx_creation_finished, idx_manual, auto_indexing) "
-                + "		VALUES (#{table}, #{schema} , false, (${{idx_manual_sub}}), #{auto_indexing} ) "
-                + "ON CONFLICT (spaceid) DO "
-                + "		UPDATE SET schem = #{schema}, "
-                + "    			idx_manual = (${{idx_manual_sub}}), "
-                + "				idx_creation_finished = false,"
-                + "             auto_indexing = #{auto_indexing}"
-                + "		WHERE x_s.spaceid = #{table} AND x_s.schem = #{schema};");
-
-        SQLQuery getManualIndicesQuery = buildGetManualIndicesQuery(event);
-        upsertIDX.setQueryFragment("idx_manual_sub", !isExtendedSpace(event) ? getManualIndicesQuery : idx_ext_q);
-        upsertIDX.setNamedParameter(TABLE, getDefaultTable(event));
-        upsertIDX.setNamedParameter(SCHEMA, getSchema());
-        upsertIDX.setNamedParameter("auto_indexing", enableAutoIndexing);
-        return upsertIDX;
     }
 
     public SQLQuery buildCleanUpQuery(ModifySpaceEvent event) {
         String table = getDefaultTable(event);
-        SQLQuery q = new SQLQuery("${{deleteMetadata}} ${{deleteIndexStatus}} ${{dropTable}} ${{dropISequence}} ${{dropVersionSequence}}")
-            .withQueryFragment(
-                "deleteMetadata",
-                "DELETE FROM ${configSchema}.${spaceMetaTable} WHERE h_id = #{table} AND schem = #{schema};"
-            )
-            .withQueryFragment(
-                "deleteIndexStatus",
-                "DELETE FROM ${configSchema}.${idxStatusTable} WHERE spaceid = #{table} AND schem = #{schema};"
-            )
+
+//MMSUP-1092  tmp workaroung on db9 - skip deletion from spaceMetaTable
+//TODO: remove spaceMetaTable from overall code
+        String deleteMetadata = "DELETE FROM ${configSchema}.${spaceMetaTable} WHERE h_id = #{table} AND schem = #{schema};",
+               storageID = event.getSpaceDefinition() != null && event.getSpaceDefinition().getStorage() != null
+                           ? event.getSpaceDefinition().getStorage().getId()
+                           : "no-connector-info-available";
+
+        if( "psql-db9-eu-west-1".equals(storageID) )
+         deleteMetadata = "";
+//MMSUP-1092
+
+        SQLQuery q = new SQLQuery("${{deleteMetadata}} ${{dropTable}} ${{dropISequence}} ${{dropVersionSequence}}")
+            .withQueryFragment("deleteMetadata", deleteMetadata)
             .withQueryFragment("dropTable", "DROP TABLE IF EXISTS ${schema}.${table};")
             .withQueryFragment("dropISequence", "DROP SEQUENCE IF EXISTS ${schema}.${iSequence};")
             .withQueryFragment("dropVersionSequence", "DROP SEQUENCE IF EXISTS ${schema}.${versionSequence};");
@@ -325,48 +234,8 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
             .withNamedParameter(SCHEMA, getSchema())
             .withNamedParameter(TABLE, table)
             .withVariable("configSchema", XYZ_CONFIG_SCHEMA)
-            .withVariable("idxStatusTable", IDX_STATUS_TABLE)
             .withVariable("spaceMetaTable", SPACE_META_TABLE)
             .withVariable("iSequence", table + I_SEQUENCE_SUFFIX)
             .withVariable("versionSequence", getDefaultTable(event) + VERSION_SEQUENCE_SUFFIX);
-    }
-
-
-
-    private static class IdxManual {
-        @JsonInclude(JsonInclude.Include.NON_NULL)
-        public Map<String, Boolean> searchableProperties;
-        @JsonInclude(JsonInclude.Include.NON_EMPTY)
-        public List<List<Object>> sortableProperties;
-
-        IdxManual( Map<String, Boolean> searchableProperties, List<List<Object>> sortableProperties ){
-            this.searchableProperties = searchableProperties;
-            this.sortableProperties = sortableProperties;
-            if(this.searchableProperties != null) {
-                //Remove entries with null values
-                Map<String, Boolean> clearedSearchableProperties = new HashMap<>(searchableProperties);
-                for (String property : searchableProperties.keySet()) {
-                    if (searchableProperties.get(property) == null)
-                        clearedSearchableProperties.remove(property);
-                }
-                this.searchableProperties = clearedSearchableProperties;
-            }
-            if(this.sortableProperties != null && this.searchableProperties == null) {
-                this.searchableProperties = new HashMap<>();
-            }
-        }
-    }
-
-    public DatabaseMaintainer getDbMaintainer() {
-        return dbMaintainer;
-    }
-
-    public void setDbMaintainer(DatabaseMaintainer dbMaintainer) {
-        this.dbMaintainer = dbMaintainer;
-    }
-
-    public ModifySpace withDbMaintainer(DatabaseMaintainer dbMaintainer) {
-        setDbMaintainer(dbMaintainer);
-        return this;
     }
 }

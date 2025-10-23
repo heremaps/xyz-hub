@@ -19,7 +19,6 @@
 
 package com.here.xyz.hub.config.jdbc;
 
-import com.here.xyz.httpconnector.CService;
 import com.here.xyz.hub.Service;
 import com.here.xyz.util.db.JdbcClient;
 import com.here.xyz.util.db.SQLQuery;
@@ -50,22 +49,11 @@ public class JDBCConfigClient extends JdbcClient {
     this(schema, table, getDatabaseSettings(serviceConfiguration));
   }
 
-  public JDBCConfigClient(String schema, String table, com.here.xyz.httpconnector.Config serviceConfiguration) {
-    this(schema, table, getDatabaseSettings(serviceConfiguration));
-  }
-
   public static DatabaseSettings getDatabaseSettings(com.here.xyz.hub.Config serviceConfiguration) {
     if (serviceConfiguration == null)
       throw new NullPointerException("No Service configuration provided");
     return getDatabaseSettings(serviceConfiguration.STORAGE_DB_URL, serviceConfiguration.STORAGE_DB_USER,
         serviceConfiguration.STORAGE_DB_PASSWORD).withApplicationName(Service.XYZ_HUB_USER_AGENT);
-  }
-
-  public static DatabaseSettings getDatabaseSettings(com.here.xyz.httpconnector.Config serviceConfiguration) {
-    if (serviceConfiguration == null)
-      throw new NullPointerException("No CService configuration provided");
-    return getDatabaseSettings(serviceConfiguration.STORAGE_DB_URL, serviceConfiguration.STORAGE_DB_USER,
-        serviceConfiguration.STORAGE_DB_PASSWORD).withApplicationName(CService.USER_AGENT);
   }
 
   private static DatabaseSettings getDatabaseSettings(String dbUrl, String dbUser, String dbPassword) {

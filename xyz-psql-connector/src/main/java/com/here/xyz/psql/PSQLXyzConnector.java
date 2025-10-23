@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,13 +19,14 @@
 
 package com.here.xyz.psql;
 
+import static com.here.xyz.psql.query.branching.BranchManager.getNodeId;
 import static com.here.xyz.responses.XyzError.EXCEPTION;
 import static com.here.xyz.responses.XyzError.ILLEGAL_ARGUMENT;
+import static com.here.xyz.responses.XyzError.NOT_FOUND;
 import static com.here.xyz.responses.XyzError.PAYLOAD_TO_LARGE;
 import static com.here.xyz.responses.XyzError.TIMEOUT;
 
 import com.here.xyz.connectors.ErrorResponseException;
-import com.here.xyz.util.runtime.FunctionRuntime;
 import com.here.xyz.events.DeleteChangesetsEvent;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.GetChangesetStatisticsEvent;
@@ -39,15 +40,17 @@ import com.here.xyz.events.HealthCheckEvent;
 import com.here.xyz.events.IterateChangesetsEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
+import com.here.xyz.events.ModifyBranchEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.ModifySubscriptionEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.events.WriteFeaturesEvent;
-import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.psql.query.DeleteChangesets;
+import com.here.xyz.psql.query.EraseSpace;
 import com.here.xyz.psql.query.GetChangesetStatistics;
+import com.here.xyz.psql.query.GetFastStatistics;
 import com.here.xyz.psql.query.GetFeaturesByBBox;
 import com.here.xyz.psql.query.GetFeaturesByBBoxClustered;
 import com.here.xyz.psql.query.GetFeaturesByBBoxTweaked;
@@ -59,13 +62,17 @@ import com.here.xyz.psql.query.IterateChangesets;
 import com.here.xyz.psql.query.IterateFeatures;
 import com.here.xyz.psql.query.LoadFeatures;
 import com.here.xyz.psql.query.ModifySpace;
-import com.here.xyz.psql.query.ModifySubscription;
 import com.here.xyz.psql.query.SearchForFeatures;
 import com.here.xyz.psql.query.WriteFeatures;
 import com.here.xyz.psql.query.XyzEventBasedQueryRunner;
+import com.here.xyz.psql.query.branching.BranchManager;
+import com.here.xyz.psql.query.branching.BranchManager.BranchOperationResult;
+import com.here.xyz.psql.query.branching.BranchManager.MergeOperationResult;
 import com.here.xyz.responses.BinaryResponse;
 import com.here.xyz.responses.ChangesetsStatisticsResponse;
 import com.here.xyz.responses.HealthStatus;
+import com.here.xyz.responses.MergedBranchResponse;
+import com.here.xyz.responses.ModifiedBranchResponse;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.StorageStatistics;
 import com.here.xyz.responses.SuccessResponse;
@@ -85,17 +92,6 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
   @Override
   protected HealthStatus processHealthCheckEvent(HealthCheckEvent event) throws Exception {
-    if (event.getWarmupCount() == 0 && FunctionRuntime.getInstance().isRunningLocally()) {
-      //FIXME: Do not trigger maintenance on warmup calls, but on simple health-check (non-warmup) calls instead!
-      //Run DB-Maintenance - warmUp request is used
-      if (event.getMinResponseTime() != 0) {
-        logger.info("{} dbMaintainer start", traceItem);
-        dbMaintainer.run(traceItem);
-        logger.info("{} dbMaintainer finished", traceItem);
-        return new HealthStatus().withStatus("OK");
-      }
-    }
-
     SQLQuery query = new SQLQuery("SELECT 1");
     query.run(dataSourceProvider);
 
@@ -103,11 +99,13 @@ public class PSQLXyzConnector extends DatabaseHandler {
     if (dataSourceProvider.hasReader())
       query.run(dataSourceProvider, true);
 
-    return ((HealthStatus) super.processHealthCheckEvent(event)).withStatus("OK");
+    return super.processHealthCheckEvent(event).withStatus("OK");
   }
 
   @Override
   protected StatisticsResponse processGetStatistics(GetStatisticsEvent event) throws Exception {
+    if(event.isFastMode())
+      return run(new GetFastStatistics(event));
     return run(new GetStatistics(event));
   }
 
@@ -159,7 +157,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
   @Override
   protected FeatureCollection processIterateFeaturesEvent(IterateFeaturesEvent event) throws Exception {
-    return run(new IterateFeatures(event));
+    return run(new IterateFeatures<>(event));
   }
 
   @Override
@@ -174,7 +172,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
   @Override
   protected FeatureCollection processModifyFeaturesEvent(ModifyFeaturesEvent event) throws Exception {
-    return executeModifyFeatures(event);
+    return !event.isEraseContent() ? executeModifyFeatures(event) : run( new EraseSpace(event) );
   }
 
   @Override
@@ -184,12 +182,13 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
   @Override
   protected SuccessResponse processModifySpaceEvent(ModifySpaceEvent event) throws Exception {
-    return write(new ModifySpace(event).withDbMaintainer(dbMaintainer));
+    return write(new ModifySpace(event));
   }
 
+  @Deprecated
   @Override
   protected SuccessResponse processModifySubscriptionEvent(ModifySubscriptionEvent event) throws Exception {
-    return write(new ModifySubscription(event));
+    return new SuccessResponse().withStatus("OK");
   }
 
   @Override
@@ -213,7 +212,47 @@ public class PSQLXyzConnector extends DatabaseHandler {
   }
 
   @Override
+  protected ModifiedBranchResponse processModifyBranchEvent(ModifyBranchEvent event) throws ErrorResponseException {
+    BranchManager branchManager = new BranchManager(dataSourceProvider, streamId, event.getSpace(), getDatabaseSettings().getSchema(),
+        XyzEventBasedQueryRunner.readTableFromEvent(event));
+    try {
+      return switch (event.getOperation()) {
+        case CREATE -> new ModifiedBranchResponse()
+            .withNodeId(getNodeId(branchManager.createBranch(event.getBaseRef())))
+            .withBaseRef(event.getBaseRef());
+        case REBASE -> {
+          BranchOperationResult result = branchManager.rebase(event.getNodeId(), event.getBaseRef(), event.getNewBaseRef());
+          yield new ModifiedBranchResponse()
+              .withNodeId(result.nodeId())
+              .withBaseRef(result.baseRef())
+              .withConflicting(result.conflicting());
+        }
+        case DELETE -> {
+          branchManager.deleteBranch(event.getNodeId());
+          yield new ModifiedBranchResponse()
+              .withNodeId(-1);
+        }
+        case MERGE -> {
+          MergeOperationResult result = branchManager.merge(event.getNodeId(), event.getBaseRef(), event.getMergeTargetNodeId(), false);
+          yield new MergedBranchResponse()
+              .withMergedSourceVersion(result.mergedSourceVersion())
+              .withResolvedMergeTargetRef(result.resolvedMergeTargetRef())
+              .withNodeId(result.nodeId())
+              .withBaseRef(result.baseRef())
+              .withConflicting(result.conflicting());
+        }
+      };
+    }
+    catch (SQLException e) {
+      throw new ErrorResponseException(EXCEPTION, "Unexpected exception during branching operation", e);
+    }
+  }
+
+  @Override
   protected void handleProcessingException(Exception exception, Event event) throws Exception {
+    if (exception instanceof IllegalArgumentException)
+      throw new ErrorResponseException(ILLEGAL_ARGUMENT, exception.getMessage());
+
     if (!(exception instanceof SQLException sqlException))
       throw exception;
 
@@ -276,7 +315,8 @@ public class PSQLXyzConnector extends DatabaseHandler {
       }
 
       case "42P01":
-        throw new ErrorResponseException(TIMEOUT, e.getMessage());
+        
+        throw new ErrorResponseException(NOT_FOUND, "Space not found in backend" ); //"Table not found in database"
 
       case
           "40P01": // Database -> deadlock detected e.g. "Process 9452 waits for ShareLock on transaction 2383228826; blocked by process 9342."

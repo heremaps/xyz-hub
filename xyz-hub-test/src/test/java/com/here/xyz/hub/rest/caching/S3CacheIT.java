@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import com.here.xyz.hub.rest.RestAssuredTest;
 import com.here.xyz.util.service.Core;
 import io.vertx.core.Vertx;
 import java.io.IOException;
+import java.net.URI;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -40,7 +41,7 @@ public class S3CacheIT extends RestAssuredTest {
   public static void setupClass() throws IOException {
     Service.configuration = new Config();
     Service.configuration.XYZ_HUB_S3_BUCKET = "test-bucket";
-    Service.configuration.LOCALSTACK_ENDPOINT = "http://localhost:4566";
+    Service.configuration.LOCALSTACK_ENDPOINT = URI.create("http://localhost:4566");
     Core.vertx = Vertx.vertx();
   }
 

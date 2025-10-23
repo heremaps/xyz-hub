@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,22 +24,28 @@ import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
 import com.here.xyz.jobs.steps.impl.StepTest;
 import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
-import com.here.xyz.jobs.steps.outputs.FileStatistics;
+import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
 import com.here.xyz.jobs.steps.outputs.Output;
+import com.here.xyz.models.geojson.coordinates.LinearRingCoordinates;
+import com.here.xyz.models.geojson.coordinates.PointCoordinates;
+import com.here.xyz.models.geojson.coordinates.PolygonCoordinates;
+import com.here.xyz.models.geojson.coordinates.Position;
+import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.models.geojson.implementation.Point;
+import com.here.xyz.models.geojson.implementation.Polygon;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 public class ExportStepValidationTest extends StepTest {
 
@@ -60,6 +66,46 @@ public class ExportStepValidationTest extends StepTest {
                 .withClip(true);
 
         LambdaBasedStep step = new ExportSpaceToFiles()
+                .withVersionRef(new Ref(1))
+                .withSpatialFilter(spatialFilter)
+                .withSpaceId(SPACE_ID)
+                .withJobId(JOB_ID);
+
+        //Check ExceptionType - Geometry is null, leads into ValidationError
+        Assertions.assertThrows(ValidationException.class, () -> step.validate());
+    }
+
+    @Test
+    public void testSpatialPointFilterWhichIsToLarge() throws InvalidGeometryException {
+        SpatialFilter spatialFilter = new SpatialFilter()
+                .withGeometry(new Point().withCoordinates(new PointCoordinates(50 ,8)))
+                .withRadius(17899);
+
+        LambdaBasedStep step = new ExportSpaceToFiles()
+                .withVersionRef(new Ref(1))
+                .withSpatialFilter(spatialFilter)
+                .withSpaceId(SPACE_ID)
+                .withJobId(JOB_ID);
+
+        Assertions.assertThrows(ValidationException.class, () -> step.validate());
+    }
+
+    @Test
+    public void testSpatialBBOXFilterWhichIsToLarge() throws InvalidGeometryException {
+        PolygonCoordinates bbox = new PolygonCoordinates();
+        LinearRingCoordinates rC = new LinearRingCoordinates();
+        rC.add(new Position(14.381642124745554, 59.549930961654525)); // Bottom-left
+        rC.add(new Position(14.381642124745554, 58.87408545972943));  // Bottom-right
+        rC.add(new Position(15.589007766807157, 58.87408545972943));  // Top-right
+        rC.add(new Position(15.589007766807157, 59.549930961654525)); // Top-left
+        rC.add(new Position(14.381642124745554, 59.549930961654525)); // Close the ring
+        bbox.add(rC);
+
+        SpatialFilter spatialFilter = new SpatialFilter()
+                .withGeometry(new Polygon().withCoordinates(bbox));
+
+        LambdaBasedStep step = new ExportSpaceToFiles()
+                .withVersionRef(new Ref(1))
                 .withSpatialFilter(spatialFilter)
                 .withSpaceId(SPACE_ID)
                 .withJobId(JOB_ID);
@@ -87,18 +133,18 @@ public class ExportStepValidationTest extends StepTest {
         Assertions.assertThrows(ValidationException.class, () -> step2.validate());
     }
 
-    private void checkOutputs(FeatureCollection expectedFeatures, List<Output> outputs) throws IOException {
-        Assertions.assertNotEquals(0, outputs.size());
+    private void checkOutputs(FeatureCollection expectedFeatures, List<Output> userOutputs, List<Output> systemOutputs) throws IOException {
+        Assertions.assertNotEquals(0, userOutputs.size());
+        Assertions.assertNotEquals(0, systemOutputs.size());
 
         List<Feature>  exportedFeatures = new ArrayList<>();
 
-        for (Object output : outputs) {
-            if(output instanceof DownloadUrl) {
-                exportedFeatures.addAll(downloadFileAndSerializeFeatures((DownloadUrl) output));
-            }else if(output instanceof FileStatistics statistics) {
-                Assertions.assertEquals(expectedFeatures.getFeatures().size(), statistics.getExportedFeatures());
-                Assertions.assertTrue(statistics.getExportedFiles() > 0);
-            }
+        //TODO: Deduplicate the following from ExportTestBase
+        for (Output output : userOutputs) {
+            if (output instanceof DownloadUrl downloadUrl)
+                exportedFeatures.addAll(downloadFileAndSerializeFeatures(downloadUrl));
+            else if (output instanceof FeatureStatistics statistics)
+                Assertions.assertEquals(expectedFeatures.getFeatures().size(), statistics.getFeatureCount());
         }
 
         List<String> existingFeaturesIdList = expectedFeatures.getFeatures().stream().map(Feature::getId).collect(Collectors.toList());

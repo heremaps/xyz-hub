@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,19 +19,22 @@
 
 package com.here.xyz.jobs.steps.impl;
 
-import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
-import static com.here.xyz.jobs.steps.execution.db.Database.loadDatabase;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildSpaceTableIndexQuery;
 
 import com.fasterxml.jackson.annotation.JsonView;
-import com.here.xyz.jobs.steps.execution.db.Database;
+import com.here.xyz.jobs.steps.execution.StepException;
 import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
-import com.here.xyz.models.hub.Space;
+import com.here.xyz.util.db.SQLQuery;
+import com.here.xyz.util.db.pg.IndexHelper;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index;
+import com.here.xyz.util.db.pg.XyzSpaceTableHelper.OnDemandIndex;
+import com.here.xyz.util.db.pg.XyzSpaceTableHelper.SystemIndex;
+import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
@@ -40,19 +43,17 @@ import org.apache.logging.log4j.Logger;
 public class CreateIndex extends SpaceBasedStep<CreateIndex> {
   private static final Logger logger = LogManager.getLogger();
   private Index index;
-  private Space space;
 
   @JsonView({Internal.class, Static.class})
   private int estimatedSeconds = -1;
 
   @Override
   public List<Load> getNeededResources() {
-    try{
+    try {
       double acus = ResourceAndTimeCalculator.getInstance().calculateNeededIndexAcus(getUncompressedUploadBytesEstimation(), index);
       logger.info("[{}] {} neededACUs {}", getGlobalStepId(), index, acus);
 
-      Database db = loadDatabase(loadSpace(getSpaceId()).getStorage().getId(), WRITER);
-      return Collections.singletonList(new Load().withResource(db).withEstimatedVirtualUnits(acus));
+      return Collections.singletonList(new Load().withResource(db()).withEstimatedVirtualUnits(acus));
     }
     catch (WebClientException e) {
       //TODO: log error
@@ -72,7 +73,8 @@ public class CreateIndex extends SpaceBasedStep<CreateIndex> {
   @Override
   public int getEstimatedExecutionSeconds() {
     if (estimatedSeconds < 0) {
-      estimatedSeconds = ResourceAndTimeCalculator.getInstance().calculateIndexCreationTimeInSeconds(getSpaceId(), getUncompressedUploadBytesEstimation() , index);
+      estimatedSeconds = ResourceAndTimeCalculator.getInstance()
+          .calculateIndexCreationTimeInSeconds(getSpaceId(), getUncompressedUploadBytesEstimation(), index);
       logger.info("[{}] {} estimatedSeconds {}", getGlobalStepId(), index, estimatedSeconds);
     }
     return estimatedSeconds;
@@ -84,23 +86,78 @@ public class CreateIndex extends SpaceBasedStep<CreateIndex> {
   }
 
   @Override
-  public void execute() throws SQLException, TooManyResourcesClaimed, WebClientException {
-    logger.info("Loading space config for space " + getSpaceId());
-    Space space = loadSpace(getSpaceId());
-    logger.info("Getting storage database for space " + getSpaceId());
-    Database db = loadDatabase(space.getStorage().getId(), WRITER);
-    logger.info("Creating the index " + index + " for space " + getSpaceId() + " ...");
-    runWriteQueryAsync(buildSpaceTableIndexQuery(getSchema(db), getRootTableName(space), index), db,
-            ResourceAndTimeCalculator.getInstance().calculateNeededIndexAcus(getUncompressedUploadBytesEstimation(), index));
+  public boolean validate() throws ValidationException {
+    if (!(index instanceof SystemIndex || index instanceof OnDemandIndex))
+      throw new StepException("Creating index " + index + " is not supported. Invalid index-type: " + index.getClass().getSimpleName());
+    return super.validate();
   }
 
   @Override
-  public void resume() throws Exception {
+  public void execute(boolean resume) throws TooManyResourcesClaimed {
+    try {
+      /*
+      NOTE: In case of resume, no cleanup needed, in any case, sending the index creation query again will work
+      as it is using the "CREATE INDEX IF NOT EXISTS" semantics
+       */
+      logger.info("[{}] Creating the index {} for space {} ...", getGlobalStepId(), index, getSpaceId());
+      SQLQuery indexCreationQuery = null;
+      if (index instanceof SystemIndex)
+        indexCreationQuery = buildSpaceTableIndexQuery(getSchema(db()), getRootTableName(space()), index);
+      else if (index instanceof OnDemandIndex onDemandIndex)
+        indexCreationQuery = buildOnDemandIndexCreationQuery(onDemandIndex);
+
+      runWriteQueryAsync(indexCreationQuery, db(),
+          ResourceAndTimeCalculator.getInstance().calculateNeededIndexAcus(getUncompressedUploadBytesEstimation(), index));
+    }
+    catch (WebClientException | SQLException e) {
+      throw new StepException("Error while creating the index " + index + " for " + getSpaceId(), e).withRetryable(true);
+    }
+  }
+
+  @Override
+  protected boolean onAsyncFailure() {
+    return true;
+  }
+
+  private SQLQuery buildOnDemandIndexCreationQuery(OnDemandIndex onDemandIndex) throws WebClientException, SQLException,
+      TooManyResourcesClaimed {
+    //return buildAsyncOnDemandIndexQuery(getSchema(db()), getRootTableName(space()), onDemandIndex.getPropertyPath());
     /*
-    No cleanup needed, in any case, sending the index creation query again will work
-    as it is using the "CREATE INDEX IF NOT EXISTS" semantics
+    TODO: Remove the following workaround once the following PostgreSQL bug was fixed:
+     https://postgrespro.com/list/id/18959-f63b53b864bb1417@postgresql.org
      */
-    execute();
+    String rootTableName = getRootTableName(space());
+    String schema = getSchema(db());
+    List<SQLQuery> indexCreationQueries = new ArrayList<>();
+
+    indexCreationQueries.addAll(loadPartitionNamesOf(rootTableName).stream()
+        .map(partitionTableName -> new SQLQuery(IndexHelper.buildOnDemandIndexCreationQuery(schema, partitionTableName, onDemandIndex.getPropertyPath(), true).toExecutableQueryString()))
+        .toList());
+    indexCreationQueries.add(new SQLQuery(IndexHelper.buildOnDemandIndexCreationQuery(schema, rootTableName, onDemandIndex.getPropertyPath(), true).toExecutableQueryString()));
+
+    return SQLQuery.join(indexCreationQueries, ";");
+  }
+
+  private List<String> loadPartitionNamesOf(String rootTableName) throws WebClientException, SQLException, TooManyResourcesClaimed {
+    return runReadQuerySync(new SQLQuery("""
+        SELECT
+          c.relname AS partition_name
+        FROM
+          pg_class c
+        JOIN
+          pg_namespace n ON n.oid = c.relnamespace
+        WHERE
+          c.oid IN (SELECT inhrelid::regclass
+                FROM pg_inherits
+                WHERE inhparent = '${schema}.${rootTableName}'::regclass);
+        """)
+        .withVariable("schema", getSchema(db()))
+        .withVariable("rootTableName", rootTableName), db(), 0, rs -> {
+      List<String> partitionNames = new ArrayList<>();
+      while (rs.next())
+        partitionNames.add(rs.getString("partition_name"));
+      return partitionNames;
+    });
   }
 
   public Index getIndex() {

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,15 +42,15 @@ import static org.junit.Assert.assertEquals;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
+import com.here.xyz.events.UpdateStrategy.OnExists;
+import com.here.xyz.events.UpdateStrategy.OnMergeConflict;
+import com.here.xyz.events.UpdateStrategy.OnNotExists;
+import com.here.xyz.events.UpdateStrategy.OnVersionConflict;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
-import com.here.xyz.events.UpdateStrategy.OnExists;
-import com.here.xyz.events.UpdateStrategy.OnNotExists;
-import com.here.xyz.events.UpdateStrategy.OnVersionConflict;
-import com.here.xyz.events.UpdateStrategy.OnMergeConflict;
 import com.here.xyz.test.featurewriter.SpaceWriter.Operation;
 import com.here.xyz.test.featurewriter.sql.SQLSpaceWriter;
 import com.here.xyz.util.db.pg.SQLError;
@@ -68,7 +68,7 @@ import org.junit.jupiter.api.BeforeEach;
 
 public abstract class TestSuite {
   public static final String TEST_FEATURE_ID = "id1";
-  public static final Point TEST_FEATURE_GEOMETRY = new Point().withCoordinates(new PointCoordinates(8, 50));
+  public static final Point TEST_FEATURE_GEOMETRY = new Point().withCoordinates(new PointCoordinates(8, 50, 0));
   private static final TestArgs EMPTY_ARGS = new TestArgs("EMPTY_ARGS", false, false, false, false, false, false, UserIntent.WRITE, null, null, null, null, null, null);
 
   protected String testName;
@@ -174,7 +174,8 @@ public abstract class TestSuite {
   }
 
   protected static Feature deletedFeature(long version) {
-    Feature feature = featureWithEmptyProperties();
+    Feature feature = featureWithEmptyProperties()
+        .withGeometry(null);
     feature.getProperties().withXyzNamespace(new XyzNamespace()
         .withDeleted(true)
         .withVersion(version));
@@ -199,8 +200,8 @@ public abstract class TestSuite {
   }
 
   private void writeFeatureForPreparation(Feature feature, String author, SpaceContext context) throws Exception {
-    new SQLSpaceWriter(composite, getClass().getSimpleName()).writeFeature(feature, author, null, null, null, null,
-        false, context, history);
+    new SQLSpaceWriter(composite, getClass().getSimpleName())
+        .writeFeature(feature, author, null, null, null, null, false, context, history);
     writtenSpaceVersions.get(context).increment();
   }
 
@@ -553,6 +554,7 @@ public abstract class TestSuite {
         case REPLACE -> "Replace";
         case RETAIN -> "KeepCurrent";
         case ERROR -> "ThrowError";
+        case CONTINUE -> "MarkConflictsAndContinue";
       };
     }
   }

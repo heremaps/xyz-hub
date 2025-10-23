@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -71,6 +71,7 @@ import io.vertx.ext.web.validation.ParameterProcessorException;
 import io.vertx.ext.web.validation.impl.ParameterLocation;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -207,9 +208,15 @@ public class BaseHttpServerVerticle extends AbstractVerticle {
    * Add support for cross-origin requests.
    */
   protected CorsHandler createCorsHandler() {
+    List<String> allowedHeaders = new ArrayList<>(allowHeaders.stream()
+        .map(CharSequence::toString)
+        .toList());
+    if (BaseConfig.instance.USE_AUTHOR_FROM_HEADER)
+      allowedHeaders.add(AUTHOR_HEADER);
+
     CorsHandler cors = CorsHandler.create(".*").allowCredentials(true);
     allowMethods.forEach(cors::allowedMethod);
-    allowHeaders.stream().map(String::valueOf).forEach(cors::allowedHeader);
+    allowedHeaders.stream().map(String::valueOf).forEach(cors::allowedHeader);
     exposeHeaders.stream().map(String::valueOf).forEach(cors::exposedHeader);
     return cors;
   }
@@ -341,9 +348,13 @@ public class BaseHttpServerVerticle extends AbstractVerticle {
     // starts at the 2nd route, since the first one is automatically added from openapi's RouterBuilder.createRouter
     router.route().order(1)
         .handler(createCorsHandler())
-        .handler(BodyHandler.create())
+        .handler(createBodyHandler())
         .handler(createReceiveHandler())
         .handler(createMaxRequestSizeHandler());
+  }
+
+  public static BodyHandler createBodyHandler() {
+    return BodyHandler.create().setBodyLimit(-1);
   }
 
   /**
