@@ -20,8 +20,8 @@
 package com.here.xyz.psql;
 
 import static com.here.xyz.connectors.AbstractConnectorHandler.MAX_UNCOMPRESSED_RESPONSE_SIZE;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.here.xyz.Typed;
 import com.here.xyz.XyzSerializable;
@@ -30,21 +30,22 @@ import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzError;
 import java.util.Collections;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 @SuppressWarnings("unused")
 public class PSQLResponseSizeIT extends PSQLAbstractIT {
 
-  @Before
+  @BeforeEach
   public void prepare() throws Exception {
     invokeDeleteTestSpace();
     invokeCreateTestSpace(TEST_SPACE_ID);
     invokeLambdaFromFile("/events/InsertFeaturesEventTransactional.json");
   }
 
-  @After
+  @AfterEach
   public void shutdown() throws Exception {
     invokeDeleteTestSpace();
   }

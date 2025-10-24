@@ -20,12 +20,12 @@
 package com.here.xyz.psql.tools;
 
 import static io.restassured.path.json.JsonPath.with;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -58,7 +58,7 @@ public class Helper extends QueryTestBase {
         boolean isError = response instanceof ErrorResponse;
         if (isError) {
             ErrorResponse err = (ErrorResponse) response;
-            assertFalse("ErrorResponse[" + err.getError() + "]: " + err.getErrorMessage(), isError);
+            assertFalse(isError,"ErrorResponse[" + err.getError() + "]: " + err.getErrorMessage());
         }
     }
 
@@ -73,16 +73,16 @@ public class Helper extends QueryTestBase {
         for (int i = 0; i < requestFeatures.size(); i++) {
             Feature requestFeature = requestFeatures.get(i);
             Feature responseFeature = responseFeatures.get(i);
-            assertTrue("Check geometry", jsonCompare(requestFeature.getGeometry(), responseFeature.getGeometry()));
-            assertEquals("Check name", (String) requestFeature.getProperties().get("name"), responseFeature.getProperties().get("name"));
+            assertTrue(jsonCompare(requestFeature.getGeometry(), responseFeature.getGeometry()),"Check geometry" );
+            assertEquals((String) requestFeature.getProperties().get("name"), responseFeature.getProperties().get("name"),"Check name" );
             assertNotNull("Check id", responseFeature.getId());
-            assertTrue("Check tags", jsonCompare(requestFeature.getProperties().getXyzNamespace().getTags(),
-                    responseFeature.getProperties().getXyzNamespace().getTags()));
-            assertEquals("Check space", space, responseFeature.getProperties().getXyzNamespace().getSpace());
-            assertNotEquals("Check createdAt", 0L, responseFeature.getProperties().getXyzNamespace().getCreatedAt());
-            assertNotEquals("Check updatedAt", 0L, responseFeature.getProperties().getXyzNamespace().getUpdatedAt());
+            assertTrue( jsonCompare(requestFeature.getProperties().getXyzNamespace().getTags(),
+                    responseFeature.getProperties().getXyzNamespace().getTags()),"Check tags");
+            assertEquals( space, responseFeature.getProperties().getXyzNamespace().getSpace(), "Check space");
+            assertNotEquals( 0L, responseFeature.getProperties().getXyzNamespace().getCreatedAt(),"Check createdAt");
+            assertNotEquals( 0L, responseFeature.getProperties().getXyzNamespace().getUpdatedAt(),"Check updatedAt");
 
-            assertNotEquals("Check version", -1, responseFeature.getProperties().getXyzNamespace().getVersion());
+            assertNotEquals( -1, responseFeature.getProperties().getXyzNamespace().getVersion(),"Check version");
         }
     }
 
