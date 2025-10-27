@@ -34,6 +34,7 @@ import com.here.xyz.util.service.BaseHttpServerVerticle;
 import java.io.IOException;
 import java.util.List;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 public class ImportStepTest extends StepTest {
@@ -104,6 +105,7 @@ public class ImportStepTest extends StepTest {
   }
 
   @Test
+  @Disabled("Takes extra 6 minutes of execution time, disabled by default")
   public void testSyncImport_with_more_than_default_pagination_size_files() throws Exception {
     executeImportStepWithManyFiles(Format.GEOJSON, 1010, 2 , false);
   }
