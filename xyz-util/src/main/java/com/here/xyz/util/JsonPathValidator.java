@@ -84,10 +84,8 @@ public final class JsonPathValidator {
             if (valid)
                 return "OK";
 
-            StringBuilder sb = new StringBuilder();
-            sb.append(message == null ? "invalid JSONPath" : message)
-                    .append(" at position ").append(position);
-            return sb.toString();
+            return (message == null ? "invalid JSONPath" : message) +
+                    " at position " + position;
         }
     }
 
