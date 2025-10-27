@@ -466,6 +466,7 @@ public final class JsonPathValidator {
                     if ("0".equals(step.text))
                         throw err(step.position, "slice step cannot be 0");
                 }
+
                 return;
             }
 
@@ -478,6 +479,7 @@ public final class JsonPathValidator {
                     if ("0".equals(step.text))
                         throw err(step.position, "slice step cannot be 0");
                 }
+
                 return;
             }
 
