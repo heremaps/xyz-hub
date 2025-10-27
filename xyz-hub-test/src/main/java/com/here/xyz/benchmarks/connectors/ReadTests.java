@@ -12,9 +12,9 @@ import java.util.List;
 
 import static com.here.xyz.benchmarks.tools.PerformanceTestHelper.getSpaceName;
 import static com.here.xyz.benchmarks.tools.PerformanceTestHelper.randomChildQuadkey;
+import static com.here.xyz.benchmarks.tools.PerformanceTestHelper.readFeaturesByIds;
 import static com.here.xyz.benchmarks.tools.PerformanceTestHelper.readFeaturesByRefQuad;
 import static com.here.xyz.benchmarks.tools.PerformanceTestHelper.readFeaturesTile;
-import static com.here.xyz.benchmarks.tools.PerformanceTestHelper.readFeaturesByIds;
 
 public class ReadTests extends BaseTest {
     private FeatureCollection featureCollection = new FeatureCollection();

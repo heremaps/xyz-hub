@@ -43,8 +43,8 @@ import java.util.concurrent.ThreadLocalRandom;
 
 import static com.here.xyz.events.ModifySpaceEvent.Operation.CREATE;
 import static com.here.xyz.events.ModifySpaceEvent.Operation.DELETE;
-import static com.here.xyz.events.PropertyQuery.QueryOperation.EQUALS;
 import static com.here.xyz.events.PropertyQuery.QueryOperation.BEGINS_WITH;
+import static com.here.xyz.events.PropertyQuery.QueryOperation.EQUALS;
 import static com.here.xyz.events.UpdateStrategy.OnExists.ERROR;
 
 public class PerformanceTestHelper {

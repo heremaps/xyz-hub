@@ -52,7 +52,6 @@
     <module>xyz-psql-connector</module>
     <module>xyz-util</module>
     <module>xyz-jobs</module>
-    <module>xyz-benchmarks</module>
   </modules>
 
   <scm>
