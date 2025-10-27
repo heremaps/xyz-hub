@@ -19,14 +19,28 @@
 
 package com.here.xyz.hub.config;
 
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.config.dynamo.DynamoBranchConfigClient;
+import com.here.xyz.hub.rest.admin.messages.RelayedMessage;
 import com.here.xyz.models.hub.Branch;
 import com.here.xyz.util.service.Initializable;
 import io.vertx.core.Future;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 public abstract class BranchConfigClient implements Initializable {
+
+  private static Cache<String, Branch> cache = CacheBuilder
+          .newBuilder()
+          .expireAfterWrite(3, TimeUnit.MINUTES)
+          .build();
+
+  private static String cacheKey(String spaceId, String branchId) {
+    return spaceId + ":" + branchId;
+  }
+
   public static BranchConfigClient getInstance() {
     return new DynamoBranchConfigClient(Service.configuration.BRANCHES_DYNAMODB_TABLE_ARN);
   }
@@ -59,7 +73,16 @@ public abstract class BranchConfigClient implements Initializable {
    * @param branchId The old branch ID in case it was changed
    * @return A future which will complete successfully when the operation was successfully performed
    */
-  public abstract Future<Void> store(String spaceId, Branch branch, String branchId);
+  public Future<Void> store(String spaceId, Branch branch, String branchId) {
+    if (!branchId.equals(branch.getId()))
+      //The branch was renamed, as the branch ID attribute is part of the primary key, the item has to be deleted & re-created
+      //TODO: Instead use an insert query (with concurrently checking if the old ID exists) with deletion afterwards
+      return delete(spaceId, branchId)
+              .compose(v -> store(spaceId, branch));
+
+    return storeBranch(spaceId, branch)
+            .onSuccess(v -> invalidateCache(spaceId, branchId));
+  }
 
   /**
    * Loads & returns all branches for the specified space.
@@ -67,7 +90,9 @@ public abstract class BranchConfigClient implements Initializable {
    * @param spaceId The id of the space for which to load all branches
    * @return All branches of the space
    */
-  public abstract Future<List<Branch>> load(String spaceId);
+  public Future<List<Branch>> load(String spaceId) {
+    return loadBranchesForSpace(spaceId);
+  }
 
   /**
    * Loads a specific branch of a space.
@@ -76,7 +101,18 @@ public abstract class BranchConfigClient implements Initializable {
    * @param branchId The id of the branch to be loaded
    * @return The specified branch
    */
-  public abstract Future<Branch> load(String spaceId, String branchId);
+  public Future<Branch> load(String spaceId, String branchId) {
+    String cacheKey = cacheKey(spaceId, branchId);
+    Branch cachedBranch = cache.getIfPresent(cacheKey);
+    if (cachedBranch != null)
+      return Future.succeededFuture(cachedBranch);
+
+    return loadBranch(spaceId, branchId)
+          .onSuccess(branch -> {
+            if (branch != null)
+              cache.put(cacheKey, branch);
+          });
+  }
 
   /**
    * Loads & returns all branches having the specified branch ID.
@@ -96,5 +132,39 @@ public abstract class BranchConfigClient implements Initializable {
    * @param branchId The id of the branch to be deleted
    * @return
    */
-  public abstract Future<Void> delete(String spaceId, String branchId);
+  public Future<Void> delete(String spaceId, String branchId) {
+    return deleteBranch(spaceId, branchId)
+            .onSuccess(v -> invalidateCache(spaceId, branchId));
+  }
+
+  protected abstract Future<Void> storeBranch(String spaceId, Branch branch);
+  protected abstract Future<Branch> loadBranch(String spaceId, String branchId);
+  protected abstract Future<List<Branch>> loadBranchesForSpace(String spaceId);
+  protected abstract Future<Void> deleteBranch(String spaceId, String branchId);
+
+  public void invalidateCache(String spaceId, String branchId) {
+    String cacheKey = cacheKey(spaceId, branchId);
+    cache.invalidate(cacheKey);
+    new InvalidateBranchCache().withCacheKey(cacheKey).withGlobalRelay(true).broadcast();
+  }
+
+  public static class InvalidateBranchCache extends RelayedMessage {
+
+    private String cacheKey;
+
+    public void setCacheKey(String cacheKey) {
+      this.cacheKey = cacheKey;
+    }
+
+    public InvalidateBranchCache withCacheKey(String cacheKey) {
+      setCacheKey(cacheKey);
+      return this;
+    }
+
+    @Override
+    protected void handleAtDestination() {
+      cache.invalidate(cacheKey);
+    }
+  }
+
 }

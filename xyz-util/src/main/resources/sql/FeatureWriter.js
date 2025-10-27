@@ -21,7 +21,6 @@ const MAX_BIG_INT = "9223372036854775807"; //NOTE: Must be a string because of J
 const XYZ_NS = "@ns:com:here:xyz";
 const FW_BATCH_MODE = () => !!queryContext().batchMode; //true;
 const IDENTITY_HANDLER = r => r;
-const TX_START = Date.now();
 
 /**
  * The unified implementation of the database-based feature writer.
@@ -70,8 +69,10 @@ class FeatureWriter {
     this.debug = !!queryContext().debug;
     this.queryId = queryContext().queryId;
 
+    //TODO: Allowing this behavior for now to stay BWC, but generally it does not make sense to allow feature creations with partial inputs and once the REST-tier was fixed we should turn on this validation
     // if (isPartial && onNotExists == "CREATE")
-    //   throw new IllegalArgumentException("onNotExists must not be \"CREATE\" for partial writes.");
+    //   throw new IllegalArgumentException("A feature can not be created with a partial input.")
+    //     .withHint("Please use onNotExists=RETAIN or onNotExists=ERROR for partial writes.");
 
     this.schema = queryContext().schema;
     this.tables = queryContext().tables;
@@ -316,7 +317,7 @@ class FeatureWriter {
     if (this.inputFeature == null)
       return null;
 
-    if (this.onExists == "DELETE")
+    if (this.onExists == "DELETE" && this.onNotExists != "CREATE")
       //TODO: Ensure deletion is done with conflict detection (depending on this.onVersionConflict)
       return this.deleteFeature();
 
@@ -324,6 +325,10 @@ class FeatureWriter {
       let headFeature = this.loadFeature(this.inputFeature.id);
 
       switch (this.onExists) {
+        case "DELETE":
+          if (headFeature != null)
+            return this.deleteFeature();
+          break;
         case "RETAIN":
           if (headFeature != null)
             return null;
@@ -395,12 +400,25 @@ class FeatureWriter {
    * @throws VersionConflictError
    * @returns {FeatureModificationExecutionResult}
    */
-  deleteRow(resultHandler = IDENTITY_HANDLER) {
+  deleteRow() {
     //TODO: do we need the payload of the feature as return?
     //base_version get provided from user (extend api endpoint if necessary)
     this.debugBox("Delete feature with id: " + this.inputFeature.id);
     return FeatureWriter.dbWriter.deleteRow(this.inputFeature, this.version, this.author, this.onVersionConflict, this.baseVersion,
-        resultHandler);
+        result => {
+          if (result.action == ExecutionAction.NONE) {
+            if (this.onVersionConflict != null) {
+              plv8.elog(NOTICE, "FW_LOG HandleConflict for deletion of id: " + this.inputFeature.id);
+              //handleDeleteVersionConflict //TODO: handle the conflict
+              return null;
+            }
+            if (this.onNotExists == "ERROR")
+              this._throwFeatureNotExistsError(this.inputFeature.id);
+            else
+              return null;
+          }
+          return result;
+        });
   }
 
   /**

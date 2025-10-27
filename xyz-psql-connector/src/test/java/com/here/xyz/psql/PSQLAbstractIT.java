@@ -24,7 +24,7 @@ import static com.here.xyz.util.db.datasource.DatabaseSettings.PSQL_HOST;
 import static com.here.xyz.util.db.datasource.DatabaseSettings.PSQL_PASSWORD;
 import static com.here.xyz.util.db.datasource.DatabaseSettings.PSQL_USER;
 import static io.restassured.path.json.JsonPath.with;
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.google.common.collect.ImmutableMap;
 import com.here.xyz.XyzSerializable;
@@ -45,7 +45,7 @@ import java.util.Map;
 import java.util.Random;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.junit.BeforeClass;
+import org.junit.jupiter.api.BeforeAll;
 
 public abstract class PSQLAbstractIT extends Helper {
   public final static String CONNECTOR_ID = "connectorId";
@@ -67,7 +67,7 @@ public abstract class PSQLAbstractIT extends Helper {
   protected static Random RANDOM = new Random();
   protected static String TEST_SPACE_ID = "foo";
 
-  @BeforeClass
+  @BeforeAll
   public static void init() throws Exception {
     initEnv(null);
   }
@@ -99,38 +99,30 @@ public abstract class PSQLAbstractIT extends Helper {
     invokeCreateTestSpace(Collections.emptyMap(), spaceId);
   }
 
-  protected static void invokeCreateTestSpace(Map<String, Object>  connectorParameters, String spaceId) throws Exception {
+  protected static void invokeCreateTestSpace(Map<String, Object>  connectorParameters, Space space) throws Exception {
     LOGGER.info("Create Test space ...");
 
     connectorParameters = connectorParameters == null ? defaultTestConnectorParams : connectorParameters;
     ModifySpaceEvent mse = new ModifySpaceEvent()
-            .withSpace(spaceId)
+            .withSpace(space.getId())
             .withOperation(ModifySpaceEvent.Operation.CREATE)
             .withConnectorParams(connectorParameters)
-            .withSpaceDefinition(new Space()
-                    .withId(spaceId)
-            );
+            .withSpaceDefinition(space);
+
     SuccessResponse response = XyzSerializable.deserialize(invokeLambda(mse));
     assertEquals("OK",response.getStatus());
   }
 
+  protected static void invokeCreateTestSpace(Map<String, Object>  connectorParameters, String spaceId) throws Exception {
+    invokeCreateTestSpace(connectorParameters, new Space().withId(spaceId));
+  }
+
   protected static void invokeDeleteTestSpace() throws Exception {
-    invokeDeleteTestSpace(Collections.emptyMap());
+    invokeDeleteTestSpaces(Collections.emptyMap(), List.of(TEST_SPACE_ID));
   }
 
   protected static void invokeDeleteTestSpace(Map<String, Object>  connectorParameters) throws Exception {
-    LOGGER.info("Cleanup spaces ...");
-
-    connectorParameters = connectorParameters == null ? defaultTestConnectorParams : connectorParameters;
-    ModifySpaceEvent mse = new ModifySpaceEvent()
-            .withSpace(TEST_SPACE_ID)
-            .withOperation(ModifySpaceEvent.Operation.DELETE)
-            .withConnectorParams(connectorParameters);
-
-    String response = invokeLambda(mse);
-    assertEquals("Check response status", "OK", with(response).get("status"));
-
-    LOGGER.info("Cleanup space Completed.");
+    invokeDeleteTestSpaces(connectorParameters, List.of(TEST_SPACE_ID));
   }
 
   protected static void invokeDeleteTestSpaces(Map<String, Object>  connectorParameters, List<String> spaces) throws Exception {
@@ -145,7 +137,7 @@ public abstract class PSQLAbstractIT extends Helper {
               .withConnectorParams(connectorParameters);
 
       String response = invokeLambda(mse);
-      assertEquals("Check response status", "OK", with(response).get("status"));
+      assertEquals( "OK", with(response).get("status"),"Check response status");
     }
 
     LOGGER.info("Cleanup spaces Completed.");

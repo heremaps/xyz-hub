@@ -638,6 +638,17 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
         .statusCode(NOT_FOUND.code());
   }
 
+  @Test
+  public void validateSingleChangesetFilterByAuthor() {
+    given()
+        .get("/spaces/" + cleanUpSpaceId + "/changesets/2?author=" + AUTHOR_1)
+        .then()
+        .statusCode(OK.code())
+        .body("version", equalTo(2));
 
-
+    given()
+        .get("/spaces/" + cleanUpSpaceId + "/changesets/2?author=INVALID_USER")
+        .then()
+        .statusCode(NOT_FOUND.code());
+  }
 }

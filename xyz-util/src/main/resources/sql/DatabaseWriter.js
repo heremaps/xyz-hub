@@ -41,6 +41,11 @@ class DatabaseWriter {
    */
   resultParsers = {};
 
+  /**
+   * @type {number} The timestamp of when the transaction started
+   */
+  TX_START = Date.now();
+
   constructor(schema, table, tableBaseVersion, batchMode = false, tableLayout) {
     this.schema = schema;
     this.table = table;
@@ -358,15 +363,7 @@ class DatabaseWriter {
 
     this.parameterSets[method].push(parameters);
     this.resultParsers[method].push(deletedRows => {
-      if (deletedRows == 0) {
-        if (onVersionConflict != null) {
-          plv8.elog(NOTICE, "FW_LOG HandleConflict for deletion of id: " + inputFeature.id);
-          //handleDeleteVersionConflict //TODO: throw some conflict error here that can be caught & handled by FeatureWriter
-          return null;
-        }
-        this._throwFeatureNotExistsError(inputFeature.id);
-      }
-      return resultHandler(new FeatureModificationExecutionResult(ExecutionAction.DELETED, inputFeature, version, author));
+      return resultHandler(new FeatureModificationExecutionResult(deletedRows == 0 ? ExecutionAction.NONE : ExecutionAction.DELETED, inputFeature, version, author));
     });
 
     if (!this.batchMode)
@@ -374,7 +371,7 @@ class DatabaseWriter {
   }
 
   enrichTimestamps(feature, isCreation = false, baseFeature = null) {
-    let now = TX_START;
+    let now = this.TX_START;
     feature.properties = {
       ...feature.properties,
       [XYZ_NS]: {
