@@ -100,7 +100,7 @@ public class Branch implements XyzSerializable {
   }
 
   public void setBranchPath(List<Ref> branchPath) {
-    this.branchPath = branchPath;
+    this.branchPath = List.copyOf(branchPath);
   }
 
   public Branch withBranchPath(List<Ref> branchPath) {
