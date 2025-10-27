@@ -162,23 +162,24 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
   }
 
   public static Future<Void> resolveBranchFor(ContextAwareEvent<?> event, Space space) {
+    if (event.getRef() == null || (event.getRef().isMainBranch() && !event.getRef().isTag()))
+      return Future.succeededFuture();
 
-    Future<Branch> future = Future.succeededFuture();
-    if (!event.getRef().isMainBranch())
-      future = getReferencedBranch(space.getId(), event.getRef());
-    else if (event.getRef().isTag()) {
-      Ref branchRef = Ref.fromBranchId(event.getRef().getTag());
-      future = getReferencedBranch(space.getId(), branchRef)
-              .compose(branch -> {
-                if (branch != null)
-                  event.setRef(branchRef);
-                return Future.succeededFuture(branch);
-              })
-              .recover(t -> {
-                if (t instanceof HttpException e && e.status == NOT_FOUND)
-                  return Future.succeededFuture();
-                return Future.failedFuture(t);
-              });
+    Ref branchRef = event.getRef().isTag() ? Ref.fromBranchId(event.getRef().getTag()) : event.getRef();
+    Future<Branch> future = getReferencedBranch(space.getId(), branchRef);
+    if (event.getRef().isTag()) {
+      // Check if it's a branch or a tag
+      future = future.compose(branch -> {
+            if (branch != null)
+              event.setRef(branchRef);
+            return Future.succeededFuture(branch);
+          })
+          .recover(t -> {
+            // If the branch does not exist, then it could be a normal tag
+            if (t instanceof HttpException e && e.status == NOT_FOUND)
+              return Future.succeededFuture();
+            return Future.failedFuture(t);
+          });
     }
 
     return future.compose(referencedBranch -> {
