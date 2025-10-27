@@ -512,6 +512,63 @@ END;
 $BODY$
 LANGUAGE plpgsql VOLATILE;
 
+
+CREATE OR REPLACE FUNCTION import_from_s3_perform_v2(
+        task_id INT,
+        schema TEXT,
+        target_tbl REGCLASS,
+        format TEXT,
+        s3_bucket TEXT, s3_key TEXT, s3_region TEXT,
+        filesize BIGINT,
+        step_payload JSON,
+        lambda_function_arn TEXT,
+        lambda_region TEXT,
+        attemmpts INT DEFAULT 0
+	)
+    RETURNS void
+    LANGUAGE 'plpgsql'
+    VOLATILE
+AS $BODY$
+DECLARE
+    import_statistics RECORD;
+    config RECORD;
+BEGIN
+    SELECT * FROM s3_plugin_config(format) into config;
+
+    EXECUTE format(
+            'SELECT aws_s3.table_import_from_s3( '
+                ||' ''%2$s.%3$s'', '
+                ||'	%4$L, '
+                ||'	%5$L, '
+                ||' aws_commons.create_s3_uri(%6$L,%7$L,%8$L)) ',
+            filesize,
+            schema,
+            target_tbl,
+            config.plugin_columns,
+            config.plugin_options,
+            s3_bucket,
+            s3_key,
+            s3_region) INTO import_statistics;
+
+    -- Mark item as successfully imported. Store import_statistics.
+    PERFORM report_task_progress(
+                 lambda_function_arn,
+                 lambda_region,
+                 step_payload,
+                 task_id,
+                 filesize,
+                 jsonb_build_object(
+                    'rows', import_statistics,
+                    'type', 'ImportOutput'
+                 )
+    );
+    --EXCEPTION
+        --WHEN SQLSTATE '55P03' OR  SQLSTATE '23505' OR  SQLSTATE '22P02' OR  SQLSTATE '22P04' THEN
+            --TBD retry
+END;
+$BODY$;
+
+
 /**
  * Perform single import from S3
  */
@@ -630,11 +687,6 @@ LANGUAGE plpgsql VOLATILE;
 -- ####################################################################################################################
 -- Export related:
 
-DROP FUNCTION IF EXISTS report_export_progress(lambda_function_arn TEXT,lambda_region TEXT,step_payload JSON,
-    task_id TEXT,bytes_uploaded BIGINT,rows_uploaded BIGINT,files_uploaded INT);
-
-DROP FUNCTION IF EXISTS report_export_progress(lambda_function_arn TEXT,lambda_region TEXT,step_payload JSON,task_id INT,
-                      bytes_uploaded BIGINT,rows_uploaded BIGINT,files_uploaded INT);
 /**
  *  Report export progress
  */
@@ -643,11 +695,9 @@ CREATE OR REPLACE FUNCTION report_task_progress(
 	lambda_region TEXT,
 	step_payload JSON,
 	task_id INT,
-	bytes_uploaded BIGINT,
-	rows_uploaded BIGINT,
-	files_uploaded INT
+	task_output JSONB
 )
-    RETURNS VOID
+RETURNS VOID
     LANGUAGE 'plpgsql'
     VOLATILE
 AS $BODY$
@@ -658,10 +708,8 @@ BEGIN
 		step_payload,
 		json_build_object(
 		       'type','SpaceBasedTaskUpdate',
-			   'taskId',task_id,
-			   'byteCount',bytes_uploaded,
-			   'featureCount',rows_uploaded,
-			   'fileCount',files_uploaded
+			   'taskId', task_id,
+			   'taskOutput', task_output
 			)
 	);
 END
@@ -671,7 +719,7 @@ $BODY$;
  * Get task_item and statistic
  */
 CREATE OR REPLACE FUNCTION get_task_item_and_statistics()
-    RETURNS TABLE (total INT, started INT, finalized INT, task_id INT, task_data JSONB) AS $$
+    RETURNS TABLE (total INT, started INT, finalized INT, task_id INT, task_input JSONB) AS $$
 DECLARE
     v_total INT;
     v_started INT;
@@ -691,12 +739,12 @@ BEGIN
 
     -- No work left
     IF v_total = v_finalized THEN
-        RETURN QUERY SELECT v_total, v_started, v_finalized, -1, '{"type" : "TaskData"}'::JSONB;
+        RETURN QUERY SELECT v_total, v_started, v_finalized, -1, '{"type" : "Empty"}'::JSONB;
         RETURN;
     END IF;
 
     -- Retrieve next task_item (will be NULL if all are locked)
-    EXECUTE format('SELECT B.task_id, B.task_data
+    EXECUTE format('SELECT B.task_id, B.task_input
             FROM %1$s B
             WHERE B.started = false
             ORDER BY random()
@@ -713,14 +761,14 @@ BEGIN
             get_table_reference(ctx->>'schema', ctx->>'stepId' ,'JOB_TABLE'),
             task_item.task_id);
 
-        RETURN QUERY SELECT v_total, v_started, v_finalized, task_item.task_id, task_item.task_data;
+        RETURN QUERY SELECT v_total, v_started, v_finalized, task_item.task_id, task_item.task_input;
     ELSIF v_total > v_finalized + v_started THEN
         -- There are unstarted tasks, but all are locked -> Wait & retry
         PERFORM pg_sleep(500);
         RETURN QUERY SELECT * FROM "jobs.transport".get_task_item_and_statistics();
     ELSE
         -- No unstarted tasks exist -> return no work
-        RETURN QUERY SELECT v_total, v_started, v_finalized, -1, '{"type" : "TaskData"}'::JSONB;
+        RETURN QUERY SELECT v_total, v_started, v_finalized, -1, '{"type" : "Empty"}'::JSONB;
     END IF;
 END;
 $$ LANGUAGE plpgsql VOLATILE;
@@ -781,9 +829,12 @@ BEGIN
 			 lambda_region,
 			 step_payload,
 			 task_id,
-			 export_statistics.bytes_uploaded,
-			 export_statistics.rows_uploaded,
-			 export_statistics.files_uploaded::int
+		     jsonb_build_object(
+                'bytes', export_statistics.bytes_uploaded,
+                'rows', export_statistics.rows_uploaded,
+                'files', export_statistics.files_uploaded::int,
+			    'type', 'ExportOutput'
+            )
 		);
 
 		EXCEPTION

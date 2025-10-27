@@ -227,6 +227,10 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
     return db(WRITER);
   }
 
+  protected Database dbWriter() throws WebClientException {
+    return db(WRITER);
+  }
+
   /**
    * Provides the space instance for the provided space ID.
    * The loading calls are cached; that means that later calls will not induce an actual REST request to Hub.
