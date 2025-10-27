@@ -1617,138 +1617,74 @@ $body$
 LANGUAGE sql IMMUTABLE PARALLEL SAFE;
 ------------------------------------------------
 ------------------------------------------------
-CREATE OR REPLACE FUNCTION _prj_diff( left_jdoc jsonb, right_jdoc jsonb )
-RETURNS TABLE(level integer, jkey text, jval_l jsonb, jval_r jsonb ) AS
-$body$
-with
- inleft  as ( select level, jkey, jval from _prj_flatten( left_jdoc , 1 ) ),
- inright as ( select level, jkey, jval from _prj_flatten( right_jdoc, 1 ) ),
- outdiff as
- ( with recursive diffobj( level, jkey, jval_l, jval_r ) as
-   (
-     select coalesce( r.level, l.level ) as level, coalesce( l.jkey, r.jkey ) as jkey, l.jval as jval_l, r.jval as jval_r
-     from inleft l full outer join inright r on ( r.jkey = l.jkey  )
-     where (l.jkey isnull) or (r.jkey isnull) or ( l.jval != r.jval )
-	union all
-	 select ( i.level + nxt.level ) as level ,
-		    case nxt.jkey ~ '^\[\d+\]$'
-	         when false then  i.jkey || '.' || nxt.jkey
-			 else i.jkey || nxt.jkey
-		    end as jkey,  /*i.jval_l, i.jval_r,*/
-		   nxt.jval_l, nxt.jval_r
-	 from diffobj i,
-		  lateral
-		  ( select coalesce( r.level, l.level ) as level, coalesce( l.jkey, r.jkey ) as jkey, l.jval as jval_l, r.jval as jval_r
-		    from _prj_flatten( i.jval_l,1) l full outer join _prj_flatten(i.jval_r,1) r on ( r.jkey = l.jkey  )
-		    where (l.jkey isnull) or (r.jkey isnull) or ( l.jval != r.jval )
-		  ) nxt
-	 where 1 = 1
-	   and jsonb_typeof( i.jval_l ) in ( 'object', 'array' )
-	   and jsonb_typeof( i.jval_l ) = jsonb_typeof( i.jval_r )
-   )
-   select * from diffobj
-   where 1 = 1
-     and ( 	  (jval_l isnull)
-		   or (jval_r isnull)
-		   or jsonb_typeof( jval_l ) in ( 'string', 'number', 'boolean', 'null' )
-		   or jsonb_typeof( jval_r ) in ( 'string', 'number', 'boolean', 'null' )
-		   or (    jsonb_typeof( jval_l ) != jsonb_typeof( jval_r )
-			   and jsonb_typeof( jval_l ) in ( 'object', 'array' )
-			   and jsonb_typeof( jval_r ) in ( 'object', 'array' )
-			  )
-		 )
- )
-select * from outdiff order by jkey
-$body$
-LANGUAGE sql IMMUTABLE PARALLEL SAFE;
 
-CREATE OR REPLACE FUNCTION prj_diff( left_jdoc jsonb, right_jdoc jsonb )
-RETURNS jsonb AS
-$body$
- select jsonb_agg( jsonb_build_array( jkey, jval_l, jval_r ) ) from _prj_diff( left_jdoc, right_jdoc ) d
-$body$
-LANGUAGE sql IMMUTABLE PARALLEL SAFE;
-------------------------------------------------
-------------------------------------------------
-CREATE OR REPLACE FUNCTION prj_input_validate(plist text[])
-RETURNS text[] AS
-$body$
-select array_agg( i.jpth ) from
-( with t1 as ( select distinct unnest( plist ) jpth )
-  select l.jpth from t1 l join t1 r on ( l.jpth = r.jpth or strpos( l.jpth, r.jpth || '.' ) = 1 )
-  group by 1 having count(1) = 1
-) i
-$body$
-LANGUAGE sql IMMUTABLE PARALLEL SAFE;
-------------------------------------------------
-------------------------------------------------
-CREATE OR REPLACE FUNCTION prj_rebuild_elem( jpath text, jval jsonb )
-RETURNS jsonb AS
-$body$
- select
-  ( string_agg( case when ia then '[' else format('{"%s":',fn) end,'' ) || jval::text || reverse( string_agg( case when ia then ']' else '}' end,'' ) ) )::jsonb
- from
-  ( select fn, ( fn ~ '^\d+$' ) as ia  from regexp_split_to_table( jpath, '\.') fn ) i
-$body$
-LANGUAGE sql IMMUTABLE PARALLEL SAFE;
-------------------------------------------------
-------------------------------------------------
-create or replace function prj_jmerge(CurrentData jsonb,newData jsonb)
- returns jsonb as
-$body$
- select case jsonb_typeof(CurrentData)
-   when 'object' then
-    case jsonb_typeof(newData)
-     when 'object' then (
-       select jsonb_object_agg(k,
-                  case
-                   when e2.v is null then e1.v
-                   when e1.v is null then e2.v
-                   when e1.v = e2.v then e1.v
-                   else prj_jmerge(e1.v, e2.v)
-                 end )
-       from      jsonb_each(CurrentData) e1(k, v)
-       full join jsonb_each(newData) e2(k, v) using (k)
-     )
-     else newData
-    end
-   when 'array' then CurrentData || newData
-   else newData
- end
-$body$
-language sql immutable PARALLEL SAFE;
-------------------------------------------------
-------------------------------------------------
-create or replace function prj_build( jpaths text[], indata jsonb )
+create or replace function prj_build(jpaths text[], indata jsonb)
 returns jsonb as
 $body$
-declare
- rval jsonb := '{}'::jsonb;
- r jsonb;
- jpath text;
- jpatharr text[];
-begin
+  /**
+   * Extract and preserve only properties from a JSON object that match
+   * given JSONPath-like expressions (supports $.a.b.0.c)
+   * and merges overlapping paths.
+   */
+  function includePaths(obj, allowedPaths) {
+    const result = {};
 
- jpaths = prj_input_validate( jpaths );
+    for (const path of allowedPaths || []) {
+      const parts = path
+        .replace(/^\$\./, '')        // remove leading "$."
+        .split(/\./)                 // split by .
+        .filter(Boolean);
 
- foreach jpath in array jpaths
- loop
-  jpatharr = regexp_split_to_array( jpath, '\.');
-  r = ( indata#> jpatharr );
+      let src = obj;
+      let dst = result;
 
-  if( r notnull ) then
-   if ( cardinality( jpatharr ) = 1 ) then
-    rval := jsonb_set( rval, jpatharr, r );
-   else
-    rval := prj_jmerge( rval, prj_rebuild_elem( jpath, r ));
-   end if;
-  end if;
- end loop;
+      for (let i = 0; i < parts.length; i++) {
+        const key = parts[i];
+        const isIndex = /^\d+$/.test(key);
+        const srcKey = isIndex ? parseInt(key, 10) : key;
 
- return rval;
-end
+        // stop if source is missing
+        if (src == null || (Array.isArray(src) && src[srcKey] === undefined)) break;
+
+        const isLast = i === parts.length - 1;
+
+        if (isLast) { // assign final value
+            dst[srcKey] = src[srcKey];
+        } else {
+          // create nested structure if missing, but merge if it exists
+          const nextIsArray = /^\d+$/.test(parts[i + 1]);
+          if (Array.isArray(dst)) {
+            dst[srcKey] = dst[srcKey] ?? (nextIsArray ? [] : {});
+          } else {
+            if (!(srcKey in dst)) {
+              dst[srcKey] = nextIsArray ? [] : {};
+            } else if (
+              nextIsArray &&
+              !Array.isArray(dst[srcKey])
+            ) {
+              dst[srcKey] = [];
+            } else if (
+              !nextIsArray &&
+              (Array.isArray(dst[srcKey]) || typeof dst[srcKey] !== 'object')
+            ) {
+              dst[srcKey] = {};
+            }
+          }
+
+          src = src[srcKey];
+          dst = dst[srcKey];
+        }
+      }
+    }
+
+    return result;
+  }
+
+  return includePaths(indata, jpaths);
 $body$
-language plpgsql immutable PARALLEL SAFE;
+language plv8 immutable PARALLEL SAFE;
+
+
 ------------------------------------------------
 ---------------- QUADKEY_FUNCTIONS -------------
 ------------------------------------------------
@@ -2441,4 +2377,3 @@ BEGIN
 END
 $BODY$
 LANGUAGE plpgsql VOLATILE PARALLEL RESTRICTED;
-
