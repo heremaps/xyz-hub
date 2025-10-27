@@ -32,10 +32,8 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.XyzSerializable.Public;
 import com.here.xyz.XyzSerializable.Static;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+
+import java.util.*;
 
 /**
  * The space configuration.
@@ -539,7 +537,10 @@ public class Space {
   }
 
   public void setSearchableProperties(final Map<String, Boolean> searchableProperties) {
-    this.searchableProperties = searchableProperties;
+    if(!validateSearchableProperties(searchableProperties))
+      throw new IllegalArgumentException("Searchable Property definition includes one or more malformed entries");
+
+    this.searchableProperties = generateAlias(searchableProperties);
   }
 
   public Space withSearchableProperties(final Map<String, Boolean> searchableProperties) {
@@ -558,6 +559,34 @@ public class Space {
   public Space withSortableProperties(final List<List<Object>> sortableProperties) {
     setSortableProperties(sortableProperties);
     return this;
+  }
+
+  private boolean validateSearchableProperties(final Map<String, Boolean> searchableProperties) {
+    for (String str : searchableProperties.keySet()) {
+      if (!str.contains("::"))
+        return false;
+
+      String[] parts = str.split("::", 2);
+      if (parts.length != 2)
+        return false;
+
+      String resultType = parts[1];
+      if (!resultType.equals("scalar") && !resultType.equals("array"))
+        return false;
+    }
+
+    return true;
+  }
+
+  private Map<String, Boolean> generateAlias(Map<String, Boolean> searchableProperties) {
+    Map<String, Boolean> generated = new HashMap<>();
+
+    for (Map.Entry<String, Boolean> entry : searchableProperties.entrySet()) {
+      String newKey = "$alias:" + entry.getKey();
+      generated.put(newKey, entry.getValue());
+    }
+
+    return  generated;
   }
 
   public Map<String, Tag> getTags() {
