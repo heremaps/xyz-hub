@@ -143,16 +143,8 @@ public class SpaceConnectorBasedHandler {
               }
               return Future.succeededFuture();
             })
-            .compose(v -> {
-              if (event instanceof ContextAwareEvent<?> contextAwareEvent)
-                try {
-                  resolveBranchFor(contextAwareEvent, space);
-                }
-                catch (HttpException e) {
-                  return Future.failedFuture(e);
-                }
-              return Future.succeededFuture();
-            })
+            .compose(v -> event instanceof ContextAwareEvent<?> contextAwareEvent
+                    ? resolveBranchFor(contextAwareEvent, space) : Future.succeededFuture())
             .map(space);
       }
       else

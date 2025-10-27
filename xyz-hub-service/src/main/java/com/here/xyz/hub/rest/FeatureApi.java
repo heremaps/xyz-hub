@@ -339,19 +339,23 @@ public class FeatureApi extends SpaceBasedApi {
       event.setMimeType(mimeType);
 
     //Enrich event with properties from the space
-    injectSpaceParams(event, space);
-
-    Promise<Void> promise = Promise.promise();
-    RpcContext rpcContext = getRpcClient(space.getResolvedStorageConnector())
-        .execute(marker, event, ar -> {
-          if (ar.failed())
-            promise.fail(ar.cause());
-          else if (ar.result() instanceof SuccessResponse)
-            promise.complete();
-          else
-            promise.fail(new RuntimeException("Received unexpected response from storage connector: " + ar.result().getClass().getSimpleName()));
-        });
-    return promise.future();
+    return injectSpaceParams(event, space).compose(v -> {
+      try {
+        Promise<Void> promise = Promise.promise();
+        RpcContext rpcContext = getRpcClient(space.getResolvedStorageConnector())
+            .execute(marker, event, ar -> {
+              if (ar.failed())
+                promise.fail(ar.cause());
+              else if (ar.result() instanceof SuccessResponse)
+                promise.complete();
+              else
+                promise.fail(new RuntimeException("Received unexpected response from storage connector: " + ar.result().getClass().getSimpleName()));
+            });
+        return promise.future();
+      } catch (Exception e) {
+        return Future.failedFuture(e);
+      }
+    });
   }
 
   private Future<Void> updateContentUpdatedAt(Marker marker, Space space) {

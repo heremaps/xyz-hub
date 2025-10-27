@@ -42,7 +42,6 @@ import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.MergedBranchResponse;
 import com.here.xyz.responses.ModifiedBranchResponse;
 import com.here.xyz.responses.XyzResponse;
-import com.here.xyz.util.service.HttpException;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import java.util.ArrayList;
@@ -176,17 +175,9 @@ public class BranchHandler {
     if (ref.isTag()) {
       //TODO: Also support tags
       //The ref was parsed as a tag, but it still could be depicting a branch ID, trying to resolve it ...
-      return Space.resolveSpace(marker, spaceId)
-          .compose(space -> {
-            try {
-              Ref branchRef = Ref.fromBranchId(ref.getTag());
-              getReferencedBranch(space, branchRef);
-              return resolveRefHeadVersion(marker, spaceId, branchRef);
-            }
-            catch (HttpException e) {
-              return Future.failedFuture(e);
-            }
-          });
+      Ref branchRef = Ref.fromBranchId(ref.getTag());
+      return getReferencedBranch(spaceId, branchRef)
+              .compose(branch -> resolveRefHeadVersion(marker, spaceId, branchRef));
     }
     return resolveRefHeadVersion(marker, spaceId, ref);
   }
@@ -213,7 +204,7 @@ public class BranchHandler {
     else
       branchPath = BranchConfigClient.getInstance().load(spaceId, branch.getBaseRef().getBranch())
               .compose(baseBranch -> {
-                List<Ref> resolvedBranchPath = baseBranch.getBranchPath();
+                List<Ref> resolvedBranchPath = new ArrayList<>(baseBranch.getBranchPath());
                 resolvedBranchPath.add(resolveToNodeIdRef(baseBranch, branch.getBaseRef()));
                 return Future.succeededFuture(resolvedBranchPath);
               });
