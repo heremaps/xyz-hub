@@ -50,8 +50,13 @@ import com.here.xyz.jobs.datasets.DatasetDescription;
 import com.here.xyz.jobs.datasets.Files;
 import com.here.xyz.jobs.datasets.streams.DynamicStream;
 import com.here.xyz.jobs.processes.ProcessDescription;
+import com.here.xyz.jobs.retriever.JobInputsRetriever;
+import com.here.xyz.jobs.retriever.JobOutputsRetriever;
 import com.here.xyz.jobs.service.JobService;
+import com.here.xyz.jobs.steps.GroupPayloads;
 import com.here.xyz.jobs.steps.JobCompiler;
+import com.here.xyz.jobs.steps.JobPayloads;
+import com.here.xyz.jobs.steps.SetPayloads;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.Step.Visibility;
 import com.here.xyz.jobs.steps.StepGraph;
@@ -59,16 +64,11 @@ import com.here.xyz.jobs.steps.execution.JobExecutor;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.inputs.ModelBasedInput;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
-import com.here.xyz.jobs.steps.JobPayloads;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.outputs.Output;
-import com.here.xyz.jobs.steps.GroupPayloads;
-import com.here.xyz.jobs.steps.SetPayloads;
 import com.here.xyz.jobs.steps.resources.ExecutionResource;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.ResourcesRegistry.StaticLoad;
-import com.here.xyz.jobs.retriever.JobInputsRetriever;
-import com.here.xyz.jobs.retriever.JobOutputsRetriever;
 import com.here.xyz.util.Async;
 import com.here.xyz.util.pagination.Page;
 import com.here.xyz.util.pagination.PagedDataRetriever;
@@ -448,12 +448,12 @@ public class Job implements XyzSerializable {
   }
 
   public Future<Void> storeStatus(State expectedPreviousState) {
-    logger.info("{}: Store Job-Status:{}", getId(), getStatus().getState());
+    logger.info("[{}] Store Job-Status: {}", getId(), getStatus().getState());
     return JobConfigClient.getInstance().updateStatus(this, expectedPreviousState);
   }
 
   public Future<Void> storeUpdatedStep(Step<?> step) {
-    logger.info("{} StoreUpdatedStep: {}", step.getGlobalStepId(), getStatus().getState());
+    logger.info("[{}] StoreUpdatedStep: {}", step.getGlobalStepId(), step.getStatus().getState());
     return JobConfigClient.getInstance().updateStep(this, step);
   }
 
