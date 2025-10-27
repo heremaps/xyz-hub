@@ -19,11 +19,11 @@
 package com.here.xyz.psql;
 
 import static com.here.xyz.events.PropertyQuery.QueryOperation.CONTAINS;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import com.amazonaws.util.IOUtils;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -63,19 +63,20 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Ignore;
-import org.junit.Test;
+
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
 
 public class PSQLReadIT extends PSQLAbstractIT {
 
-    @Before
+    @BeforeEach
     public void createSpace() throws Exception {
         invokeCreateTestSpace(defaultTestConnectorParams, TEST_SPACE_ID);
     }
 
-    @After
+    @AfterEach
     public void shutdown() throws Exception {
         invokeDeleteTestSpace(null);
     }
@@ -205,7 +206,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
         assertEquals(1, features.size());
     }
 
-    @Ignore("That test is currently failing because the local postgres is behaving differently than expected when it comes to spatial filtering at the edges.")
+    @Disabled("That test is currently failing because the local postgres is behaving differently than expected when it comes to spatial filtering at the edges.")
     @Test
     public void testGetFeaturesByGeometryQuery() throws Exception {
         XyzNamespace xyzNamespace = new XyzNamespace().withSpace("foo").withCreatedAt(1517504700726L);
