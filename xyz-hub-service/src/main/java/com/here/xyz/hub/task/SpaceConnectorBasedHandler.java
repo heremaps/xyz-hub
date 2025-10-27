@@ -130,7 +130,14 @@ public class SpaceConnectorBasedHandler {
                 getChangesetStatisticsEvent.setMinVersion(Math.min(minTag.getVersion(), space.getMinVersion()));
               }
               else if (event instanceof IterateChangesetsEvent iterateChangesetsEvent) {
-                iterateChangesetsEvent.setVersionsToKeep(space.getVersionsToKeep());
+
+                int v2k = space.getVersionsToKeep();
+
+                if( v2k <= 1 )
+                 return Future.failedFuture(new HttpException(BAD_REQUEST,"Changesets needs history enabled. VersionsToKeep should be greater 1"));
+
+                iterateChangesetsEvent.setVersionsToKeep(v2k);
+
                 if (minTag != null)
                   iterateChangesetsEvent.setMinVersion(minTag.getVersion());
               }

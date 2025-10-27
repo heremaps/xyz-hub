@@ -315,7 +315,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
       }
 
       case "42P01":
-        
+
         throw new ErrorResponseException(NOT_FOUND, "Space not found in backend" ); //"Table not found in database"
 
       case
