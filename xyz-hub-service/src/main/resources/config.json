@@ -57,5 +57,5 @@
   "INSERT_LOCAL_SETTINGS": true,
 
   "JOB_API_ENDPOINT": "http://localhost:7070/",
-  "USE_WRITE_FEATURES_EVENT" : true
+  "USE_WRITE_FEATURES_EVENT" : false
 }
