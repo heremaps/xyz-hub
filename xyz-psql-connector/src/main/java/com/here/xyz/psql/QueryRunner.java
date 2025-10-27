@@ -49,7 +49,6 @@ public abstract class QueryRunner<E extends Object, R extends Object> implements
   private SQLQuery query;
   private boolean useReadReplica;
   private DataSourceProvider dataSourceProvider;
-  private TableLayout tableLayout;
   protected Map<String, String> extraQueryLabels = new HashMap<>();
 
   /*
@@ -157,16 +156,4 @@ public abstract class QueryRunner<E extends Object, R extends Object> implements
     return getDbSettings().getSchema();
   }
 
-  public TableLayout getTableLayout() {
-    return tableLayout != null ? tableLayout : TableLayout.OLD_LAYOUT;
-  }
-
-  public void setTableLayout(TableLayout tableLayout) {
-      this.tableLayout = tableLayout;
-  }
-
-  public <T extends QueryRunner<E, R>> T  withTableLayout(TableLayout tableLayout) {
-    setTableLayout(tableLayout);
-    return (T) this;
-  }
 }

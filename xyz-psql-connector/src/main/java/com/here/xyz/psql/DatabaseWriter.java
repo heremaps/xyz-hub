@@ -434,7 +434,7 @@ public class DatabaseWriter {
         }
     }
 
-    protected static void fillFailList(int[] batchResult, List<FeatureCollection.ModificationFailure> fails,  List<String> idList,
+    private static void fillFailList(int[] batchResult, List<FeatureCollection.ModificationFailure> fails,  List<String> idList,
         ModifyFeaturesEvent event, ModificationType action) {
         for (int i = 0; i < batchResult.length; i++)
             if (batchResult[i] == 0)

@@ -21,10 +21,8 @@ package com.here.xyz.psql.query;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.Event;
-import com.here.xyz.events.ModifySpaceEvent;
-import com.here.xyz.responses.XyzError;
+import com.here.xyz.psql.QueryRunner;
 import com.here.xyz.responses.XyzResponse;
-import com.here.xyz.util.db.ConnectorParameters;
 import com.here.xyz.util.db.ConnectorParameters.TableLayout;
 import com.here.xyz.util.db.SQLQuery;
 import java.sql.ResultSet;
@@ -39,10 +37,23 @@ import java.sql.SQLException;
  * @param <R> The response type
  */
 public abstract class XyzQueryRunner<E extends Event, R extends XyzResponse> extends XyzEventBasedQueryRunner<E, R> {
+  private TableLayout tableLayout;
 
   public XyzQueryRunner(E event)
       throws SQLException, ErrorResponseException {
     super(event);
   }
 
+  public TableLayout getTableLayout() {
+    return tableLayout != null ? tableLayout : TableLayout.OLD_LAYOUT;
+  }
+
+  public void setTableLayout(TableLayout tableLayout) {
+    this.tableLayout = tableLayout;
+  }
+
+  public <T extends QueryRunner<E, R>> T  withTableLayout(TableLayout tableLayout) {
+    setTableLayout(tableLayout);
+    return (T) this;
+  }
 }
