@@ -429,8 +429,8 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
         RETURNING id
       ),
       count_data as 
-      ( SELECT count(1) AS rows_uploaded FROM ins_data )
-      select rows_uploaded into dummy_output from count_data
+      ( SELECT count(1) AS rows FROM ins_data )
+      select rows into dummy_output from count_data
     """)
     .withVariable("schema", targetSchema)
     .withVariable("table", targetTable)

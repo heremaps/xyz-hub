@@ -33,6 +33,8 @@ import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporary
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
 
 import com.fasterxml.jackson.annotation.JsonView;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.jobs.datasets.filters.SpatialFilter;
@@ -40,6 +42,8 @@ import com.here.xyz.jobs.steps.StepExecution;
 import com.here.xyz.jobs.steps.execution.StepException;
 import com.here.xyz.jobs.steps.execution.db.Database;
 import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
+import com.here.xyz.jobs.steps.impl.transport.tasks.inputs.ExportInput;
+import com.here.xyz.jobs.steps.impl.transport.tasks.outputs.ExportOutput;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
 import com.here.xyz.jobs.steps.resources.IOResource;
@@ -83,7 +87,7 @@ import org.locationtech.jts.geom.Geometry;
  *
  * <p>This step produces outputs of type {@link FeatureStatistics} and {@link DownloadUrl}.</p>
  */
-public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles> {
+public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles, ExportInput, ExportOutput> {
   public static final String STATISTICS = "statistics";
   public static final String EXPORTED_DATA = "exportedData";
   //Defines how large the area of a defined spatialFilter can be
@@ -112,7 +116,6 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
 
   @JsonView({Internal.class, Static.class})
   protected Ref providedVersionRef;
-
 
   public void setProvidedVersionRef(Ref providedVersionRef) {
     this.providedVersionRef = providedVersionRef;
@@ -187,6 +190,11 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
   public ExportSpaceToFiles withPropertyFilter(PropertiesQuery propertyFilter){
     setPropertyFilter(propertyFilter);
     return this;
+  }
+
+  @Override
+  protected boolean queryRunsOnWriter() throws WebClientException, SQLException, TooManyResourcesClaimed {
+    return false;
   }
 
   /**
@@ -361,10 +369,27 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
       infoLog(STEP_ON_ASYNC_SUCCESS, this, "Received async success call");
       String schema = getSchema(db());
 
-      TransportStatistics stepStatistics = runReadQuerySync(retrieveStatisticFromTaskAndStatisticTable(schema), db(WRITER),
-              0, rs -> rs.next()
-                      ? new TransportStatistics(rs.getLong("rows_uploaded"), rs.getLong("bytes_uploaded"), rs.getInt("files_uploaded"))
-                      : new TransportStatistics(0, 0, 0));
+      TransportStatistics stepStatistics = runReadQuerySync(retrieveTaskOutputs(schema), db(WRITER),
+              0, rs -> {
+                try {
+                  List<ExportOutput> outputs = new ArrayList<>();
+                  while (rs.next()){
+                    SpaceBasedTaskUpdate<ExportOutput> update =
+                            XyzSerializable.deserialize(rs.getString("task_output"), SpaceBasedTaskUpdate.class);
+                    outputs.add(update.taskOutput);
+                  }
+                  if(outputs.isEmpty())
+                    return new TransportStatistics(0, 0, 0);
+
+                  long totalRows = outputs.stream().mapToLong(ExportOutput::rows).sum();
+                  long totalBytes = outputs.stream().mapToLong(ExportOutput::bytes).sum();
+                  int totalFiles = (int) outputs.stream().mapToLong(ExportOutput::files).sum();
+
+                  return new TransportStatistics(totalRows, totalBytes, totalFiles);
+                } catch (JsonProcessingException e) {
+                  throw new RuntimeException(e);
+                }
+              });
 
       infoLog(STEP_ON_ASYNC_SUCCESS, this, "Job Statistics: bytes=" + stepStatistics.byteSize + " files=" + stepStatistics.fileCount);
 
@@ -410,7 +435,7 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
    * @throws TooManyResourcesClaimed If too many resources are claimed during the process.
    * @throws QueryBuildingException If an error occurs while building the SQL query.
    */
-  protected List<TaskData> createTaskItems(String schema)
+  protected List<ExportInput> createTaskItems(String schema)
           throws WebClientException, SQLException, TooManyResourcesClaimed, QueryBuildingException{
     int taskListCount = calculatedThreadCount;
 
@@ -425,9 +450,9 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
       taskListCount = (int) Math.min(calculatedTaskCount, MAX_TASK_COUNT);
     }
 
-    List<TaskData> taskDataList = new ArrayList<>();
+    List<ExportInput> taskDataList = new ArrayList<>();
     for (int i = 0; i < taskListCount; i++) {
-      taskDataList.add(new TaskData(i));
+      taskDataList.add(new ExportInput(i));
     }
     return taskDataList;
   }
@@ -445,9 +470,9 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
    * @throws WebClientException If an error occurs while interacting with the web client.
    */
   @Override
-  protected SQLQuery buildTaskQuery(String schema, Integer taskId, TaskData taskData)
+  protected SQLQuery buildTaskQuery(String schema, Integer taskId, ExportInput taskInput)
           throws QueryBuildingException, TooManyResourcesClaimed, WebClientException, InvalidGeometryException {
-    return buildExportToS3PluginQuery(schema, taskId, generateContentQueryForExportPlugin(taskData));
+    return buildExportToS3PluginQuery(schema, taskId, generateContentQueryForExportPlugin(taskInput));
   }
 
   protected GetFeaturesByGeometryInput createGetFeaturesByGeometryInput(SpaceContext context, SpatialFilter spatialFilter, Ref versionRef)
@@ -527,17 +552,17 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
    *
    * We will build here a GetFeaturesByGeometry query and add a custom thread condition to it
    *
-   * @param taskData The task data containing generic task data.
+   * @param taskInput The task data containing generic task data.
    * @return The generated content query as a string.
    * @throws WebClientException If an error occurs while interacting with the web client.
    * @throws TooManyResourcesClaimed If too many resources are claimed during the process.
    * @throws QueryBuildingException If an error occurs while building the SQL query.
    */
-  protected String generateContentQueryForExportPlugin(TaskData taskData) throws WebClientException, TooManyResourcesClaimed,
+  protected String generateContentQueryForExportPlugin(ExportInput taskInput) throws WebClientException, TooManyResourcesClaimed,
       QueryBuildingException, InvalidGeometryException {
 
     //We use the thread number as a condition for the query
-    int taskNumber = (int) taskData.taskInput();
+    int taskNumber = taskInput.threadId();
 
     GetFeaturesByGeometryBuilder queryBuilder = new GetFeaturesByGeometryBuilder()
         .withDataSourceProvider(requestResource(dbReader(), 0));

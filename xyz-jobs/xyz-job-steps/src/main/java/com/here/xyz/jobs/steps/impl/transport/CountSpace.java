@@ -27,9 +27,13 @@ import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporary
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
 
 import com.fasterxml.jackson.annotation.JsonView;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.jobs.datasets.filters.SpatialFilter;
 import com.here.xyz.jobs.steps.execution.db.Database;
+import com.here.xyz.jobs.steps.impl.transport.tasks.inputs.CountInput;
+import com.here.xyz.jobs.steps.impl.transport.tasks.outputs.ExportOutput;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
@@ -40,6 +44,7 @@ import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -49,7 +54,7 @@ import org.apache.logging.log4j.Logger;
  * With filters, it is possible to only count a subset from the source space.
  */
 
-public class CountSpace extends TaskedSpaceBasedStep<CountSpace> {
+public class CountSpace extends TaskedSpaceBasedStep<CountSpace, CountInput, ExportOutput> {
   private static final Logger logger = LogManager.getLogger();
 
   public static final String FEATURECOUNT = "featurecount";
@@ -91,6 +96,11 @@ public class CountSpace extends TaskedSpaceBasedStep<CountSpace> {
   }
 
   @Override
+  protected boolean queryRunsOnWriter() throws WebClientException, SQLException, TooManyResourcesClaimed {
+    return false;
+  }
+
+  @Override
   public String getDescription() {
     return "Count on " + getSpaceId();
   }
@@ -121,8 +131,23 @@ public class CountSpace extends TaskedSpaceBasedStep<CountSpace> {
 
     String schema = getSchema(db());
 
-    Long count = runReadQuerySync(retrieveStatisticFromTaskAndStatisticTable(schema), db(WRITER),
-            0, rs -> rs.next() ? rs.getLong("rows_uploaded") : 0L );
+    Long count = runReadQuerySync(retrieveTaskOutputs(schema), db(WRITER),
+            0, rs -> {
+              try {
+                List<ExportOutput> outputs = new ArrayList<>();
+                while (rs.next()){
+                  SpaceBasedTaskUpdate<ExportOutput> update =
+                          XyzSerializable.deserialize(rs.getString("task_output"), SpaceBasedTaskUpdate.class);
+                  outputs.add(update.taskOutput);
+                }
+                if(outputs.isEmpty())
+                  return 0L;
+
+                return outputs.stream().mapToLong(ExportOutput::rows).sum();
+              } catch (JsonProcessingException e) {
+                throw new RuntimeException(e);
+              }
+            });
 
     infoLog(STEP_ON_ASYNC_SUCCESS, this, "Job Featurecount: count=" + count);
 
@@ -168,9 +193,12 @@ public class CountSpace extends TaskedSpaceBasedStep<CountSpace> {
              #{lambda_region},
              #{step_payload}::JSON->'step',
              #{taskId},
-             0,
-             c.nr_features,
-             0 ) from idata c 
+             jsonb_build_object(
+                 'bytes', 0,
+                 'rows', c.nr_features,
+                 'files', 0,
+                 'type', 'ExportOutput'
+             )) from idata c 
         """
         )
         //???.withContext(getQueryContext(schema))
@@ -213,12 +241,12 @@ public class CountSpace extends TaskedSpaceBasedStep<CountSpace> {
   }
 
   @Override
-  protected List<TaskData> createTaskItems(String schema){
-    return List.of(new TaskData("CountSpace"));
+  protected List<CountInput> createTaskItems(String schema){
+    return List.of(new CountInput("CountSpace"));
   }
 
   @Override
-  protected SQLQuery buildTaskQuery(String schema, Integer taskId, TaskData taskData)
+  protected SQLQuery buildTaskQuery(String schema, Integer taskId, CountInput taskData)
       throws QueryBuildingException, TooManyResourcesClaimed, WebClientException {
     return buildCountSpaceQuery( taskId );
   }
