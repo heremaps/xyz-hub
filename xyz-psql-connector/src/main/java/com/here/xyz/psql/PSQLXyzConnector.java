@@ -201,14 +201,8 @@ public class PSQLXyzConnector extends DatabaseHandler {
     return write(new DeleteChangesets(event));
   }
 
-  private void validateHistoryEnabled(Event<?> event ) throws Exception
-  { if( event instanceof IterateChangesetsEvent e && e.getVersionsToKeep() <= 1 )
-     throw new ErrorResponseException(ILLEGAL_ARGUMENT,"Changesets needs history enabled. VersionsToKeep should be greater 1");
-  }
-
   @Override
   protected ChangesetCollection processIterateChangesetsEvent(IterateChangesetsEvent event) throws Exception {
-    validateHistoryEnabled( event );
     return run(new IterateChangesets(event));
   }
 
