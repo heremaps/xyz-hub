@@ -170,6 +170,7 @@ public class JsonPathValidatorTest {
     @Nested
     @DisplayName("Relative @-paths inside filters")
     class RelativePaths {
+
         @Test
         void simple() {
             assertValid("$.a[?(@.b)]");
