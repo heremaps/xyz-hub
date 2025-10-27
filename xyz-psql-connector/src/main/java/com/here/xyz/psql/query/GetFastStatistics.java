@@ -35,7 +35,7 @@ public class GetFastStatistics extends GetStatistics {
 
   public GetFastStatistics(GetStatisticsEvent event) throws SQLException, ErrorResponseException {
     super(event);
-    if(event.getNodeId() > 0 && event.getBranchPath().size() > 0) {
+    if(event.getBranchPath().size() > 0) {
       this.baseVersion = event.getBranchPath().get(event.getBranchPath().size() - 1).getVersion();
     }
   }

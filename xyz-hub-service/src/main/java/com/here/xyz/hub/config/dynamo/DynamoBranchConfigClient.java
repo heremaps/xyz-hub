@@ -51,13 +51,7 @@ public class DynamoBranchConfigClient extends BranchConfigClient {
   }
 
   @Override
-  public Future<Void> store(String spaceId, Branch branch, String branchId) {
-    if (!branchId.equals(branch.getId()))
-      //The branch was renamed, as the branch ID attribute is part of the primary key, the item has to be deleted & re-created
-      //TODO: Instead use an insert query (with concurrently checking if the old ID exists) with deletion afterwards
-      return delete(spaceId, branchId)
-          .compose(v -> store(spaceId, branch));
-
+  protected Future<Void> storeBranch(String spaceId, Branch branch) {
     return dynamoClient.executeQueryAsync(() -> {
       final Map<String, Object> branchItemData = branch.toMap(Static.class);
       branchItemData.put("spaceId", spaceId);
@@ -67,7 +61,7 @@ public class DynamoBranchConfigClient extends BranchConfigClient {
   }
 
   @Override
-  public Future<List<Branch>> load(String spaceId) {
+  protected Future<List<Branch>> loadBranchesForSpace(String spaceId) {
     return dynamoClient.executeQueryAsync(() -> {
       List<Branch> branches = new LinkedList<>();
       branchTable.query("spaceId", spaceId)
@@ -78,7 +72,7 @@ public class DynamoBranchConfigClient extends BranchConfigClient {
   }
 
   @Override
-  public Future<Branch> load(String spaceId, String branchId) {
+  protected Future<Branch> loadBranch(String spaceId, String branchId) {
     return dynamoClient.executeQueryAsync(() -> {
       Item branchItem = branchTable.getItem("spaceId", spaceId, "id", branchId);
       return branchItem != null ? XyzSerializable.fromMap(branchItem.asMap(), Branch.class) : null;
@@ -94,7 +88,7 @@ public class DynamoBranchConfigClient extends BranchConfigClient {
   }
 
   @Override
-  public Future<Void> delete(String spaceId, String branchId) {
+  protected Future<Void> deleteBranch(String spaceId, String branchId) {
     return dynamoClient.executeQueryAsync(() -> {
       branchTable.deleteItem(new DeleteItemSpec().withPrimaryKey("spaceId", spaceId, "id", branchId));
       return null;

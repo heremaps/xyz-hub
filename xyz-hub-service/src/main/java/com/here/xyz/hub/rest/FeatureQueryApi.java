@@ -70,7 +70,11 @@ import io.vertx.ext.web.ParsedHeaderValue;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.router.RouterBuilder;
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import org.apache.logging.log4j.Marker;
 
 public class FeatureQueryApi extends SpaceBasedApi {
@@ -116,14 +120,13 @@ public class FeatureQueryApi extends SpaceBasedApi {
           .withStreamId(marker.getName());
 
       Space.resolveSpace(marker, spaceId)
-          .compose(space -> {
-            try {
-              FeatureTask.resolveBranchFor(statisticsEvent, space);
-            } catch (Exception e) {
-              //Ignore any errors when resolving branch ref
-            }
-            return Space.resolveConnector(marker, space.getStorage().getId());
-          })
+          .compose(space -> space.resolveStorage(marker)
+              .compose(connector -> {
+                Map<String, Object> params = new HashMap<>();
+                params.putAll(Optional.ofNullable(space.getStorage().getParams()).orElse(Collections.emptyMap()));
+                statisticsEvent.setParams(params);
+                return FeatureTask.resolveBranchFor(statisticsEvent, space).map(connector);
+              }))
           .compose(connector -> {
             RpcClient.getInstanceFor(connector)
                 .execute(marker, statisticsEvent, promise);

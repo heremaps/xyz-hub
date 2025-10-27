@@ -21,7 +21,6 @@ package com.here.xyz.hub.task;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
-import static com.here.xyz.models.hub.Branch.MAIN_BRANCH;
 import static com.here.xyz.models.hub.Space.TABLE_NAME;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
@@ -49,6 +48,7 @@ import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.auth.Authorization;
 import com.here.xyz.hub.auth.FeatureAuthorization;
+import com.here.xyz.hub.config.BranchConfigClient;
 import com.here.xyz.hub.connectors.RpcClient;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Space;
@@ -74,6 +74,7 @@ import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.geo.GeometryValidator;
 import com.here.xyz.util.service.HttpException;
 import io.vertx.core.AsyncResult;
+import io.vertx.core.Future;
 import io.vertx.ext.web.RoutingContext;
 import java.nio.charset.Charset;
 import java.util.Collection;
@@ -148,67 +149,70 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
 
   //TODO: Merge into resolveVersionRef
   void resolveBranch(final X task, final Callback<X> callback) {
-    if (task.getEvent() instanceof ContextAwareEvent<?> event) {
-      try {
-        Space space = task.space;
-        resolveBranchFor(event, space);
-
+    try {
+      if (task.getEvent() instanceof ContextAwareEvent<?> event) {
+        resolveBranchFor(event, task.space)
+                .onFailure(callback::exception)
+                .onSuccess(v -> callback.call(task));
+      } else
         callback.call(task);
-      }
-      catch (HttpException e) {
-        callback.exception(e);
-      }
+    } catch (Exception e) {
+      callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definition.", e));
     }
-    else
-      callback.call(task);
   }
 
-  public static void resolveBranchFor(ContextAwareEvent<?> event, Space space) throws HttpException {
-    Branch referencedBranch = null;
-    if (!event.getRef().isMainBranch()) {
-      referencedBranch = getReferencedBranch(space, event.getRef());
-    }
+  public static Future<Void> resolveBranchFor(ContextAwareEvent<?> event, Space space) {
+
+    Future<Branch> future = Future.succeededFuture();
+    if (!event.getRef().isMainBranch())
+      future = getReferencedBranch(space.getId(), event.getRef());
     else if (event.getRef().isTag()) {
-      //The ref was parsed as a tag, but it still could be depicting a branch ID, trying to resolve it ...
-      try {
-        Ref branchRef = Ref.fromBranchId(event.getRef().getTag());
-        referencedBranch = getReferencedBranch(space, branchRef);
-        event.setRef(branchRef);
-      }
-      catch (HttpException e) {
-        if (e.status != NOT_FOUND) //Ignore the NOT_FOUND exception and continue with the pipeline trying to resolve the tag
-          throw e;
-      }
+      Ref branchRef = Ref.fromBranchId(event.getRef().getTag());
+      future = getReferencedBranch(space.getId(), branchRef)
+              .compose(branch -> {
+                if (branch != null)
+                  event.setRef(branchRef);
+                return Future.succeededFuture(branch);
+              })
+              .recover(t -> {
+                if (t instanceof HttpException e && e.status == NOT_FOUND)
+                  return Future.succeededFuture();
+                return Future.failedFuture(t);
+              });
     }
 
-    if (referencedBranch != null) {
-      LinkedList<Ref> branchPath = new LinkedList<>(referencedBranch.getBranchPath());
-      event.withNodeId(referencedBranch.getNodeId())
-              .withBranchPath(branchPath);
+    return future.compose(referencedBranch -> {
+          if (referencedBranch != null) {
+            LinkedList<Ref> branchPath = new LinkedList<>(referencedBranch.getBranchPath());
+            event.withNodeId(referencedBranch.getNodeId())
+                .withBranchPath(branchPath);
 
-      //TODO: Remove this hack when SpaceContext support is removed from branching
-      if (event.getContext() == SUPER)  {
-        Ref lastRef = branchPath.removeLast();
-        long baseVersion = lastRef.getVersion();
-        Ref requestedRef = event.getRef();
-        if (requestedRef.isHead() || requestedRef.getVersion() > baseVersion)
-          event.setRef(new Ref(baseVersion));
-        event.setNodeId(BranchManager.getNodeId(lastRef));
-      }
-      else if (event.getContext() == EXTENSION) {
-        event.setConnectorParams(Map.copyOf(space.getResolvedStorageConnector().params));
-        event.getParams().put(TABLE_NAME, XyzEventBasedQueryRunner.readBranchTableFromEvent(event));
-        event.setNodeId(0);
-      }
-    }
+            //TODO: Remove this hack when SpaceContext support is removed from branching
+            if (event.getContext() == SUPER)  {
+              Ref lastRef = branchPath.removeLast();
+              long baseVersion = lastRef.getVersion();
+              Ref requestedRef = event.getRef();
+              if (requestedRef.isHead() || requestedRef.getVersion() > baseVersion)
+                event.setRef(new Ref(baseVersion));
+              event.setNodeId(BranchManager.getNodeId(lastRef));
+            }
+            else if (event.getContext() == EXTENSION) {
+              event.setConnectorParams(Map.copyOf(space.getResolvedStorageConnector().params));
+              event.getParams().put(TABLE_NAME, XyzEventBasedQueryRunner.readBranchTableFromEvent(event));
+              event.setNodeId(0);
+            }
+          }
+          return Future.succeededFuture();
+    });
   }
 
-  public static Branch getReferencedBranch(Space space, Ref ref) throws HttpException {
-    Map<String, Branch> branches = space.getBranches();
-    if (!branches.containsKey(ref.getBranch()))
-      throw new HttpException(NOT_FOUND, "Branch \"" + ref.getBranch() + "\" was not found on resource \"" + space.getId() + "\".");
-
-    return branches.get(ref.getBranch());
+  public static Future<Branch> getReferencedBranch(String spaceId, Ref ref) {
+    return BranchConfigClient.getInstance().load(spaceId, ref.getBranch())
+        .compose(branch -> {
+          if (branch == null)
+            return Future.failedFuture(new HttpException(NOT_FOUND, "Branch \"" + ref.getBranch() + "\" was not found on resource \"" + spaceId + "\"."));
+          return Future.succeededFuture(branch);
+        });
   }
 
   public CacheProfile getCacheProfile() {
