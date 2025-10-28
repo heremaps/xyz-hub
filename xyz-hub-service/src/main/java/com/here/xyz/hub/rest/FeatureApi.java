@@ -415,7 +415,12 @@ public class FeatureApi extends SpaceBasedApi {
    * Delete features by IDs or by tags.
    */
   private void deleteFeatures(final RoutingContext context) throws HttpException {
-    final List<String> featureIds = new ArrayList<>(new HashSet<>(queryParam(FEATURE_ID, context)));
+
+    final List<String> featureIds = queryParam(FEATURE_ID, context)
+                                    .stream()
+                                    .map(id -> id.startsWith("id=") ? id.substring(3) : id)
+                                    .toList();
+
     final boolean eraseContent = eraseContent(context);
     final String accept = context.request().getHeader(ACCEPT);
     final ApiResponseType responseType = APPLICATION_GEO_JSON.equals(accept) || APPLICATION_JSON.equals(accept)
