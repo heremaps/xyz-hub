@@ -535,33 +535,42 @@ public final class JsonPathValidator {
                 return;
             }
 
-            // Try to consume left value, either @-relative path or a literal
+            // Try to consume a left value
             boolean leftConsumed = false;
-            if (peek(TokenType.AT)) {
+
+            if (peek(TokenType.IDENT) && lookaheadIs(TokenType.LPAREN)) {
+                parseFunctionCall();
+                leftConsumed = true;
+            } else if (peek(TokenType.AT)) { // @-path
                 parseRelativePath();
                 leftConsumed = true;
             } else if (peek(TokenType.STRING) || peek(TokenType.NUMBER) ||
-                    peek(TokenType.TRUE) || peek(TokenType.FALSE) || peek(TokenType.NULL)) {
-                next(); // consume the literal
+                    peek(TokenType.TRUE)  || peek(TokenType.FALSE) || peek(TokenType.NULL)) {
+                next(); // literal
                 leftConsumed = true;
             }
 
             if (leftConsumed) {
-                // Enables both comparisons and existence predicates like ?(@.a))
+                // Optional operator (enables comparisons)
                 boolean isRegex = false;
                 if (accept(TokenType.EQ) || accept(TokenType.NE) || accept(TokenType.LT) || accept(TokenType.LE) ||
                         accept(TokenType.GT) || accept(TokenType.GE) || (isRegex = accept(TokenType.REGEXMATCH))) {
-                    if (peek(TokenType.AT)) {
+                    // Right operand: function() | @-path | literal
+                    if (peek(TokenType.IDENT) && lookaheadIs(TokenType.LPAREN)) {
+                        if (isRegex && REQUIRE_STRING_FOR_REGEX)
+                            throw err(curr().position, "right operand of '=~' must be a string");
+                        parseFunctionCall();
+                    } else if (peek(TokenType.AT)) {
                         if (isRegex && REQUIRE_STRING_FOR_REGEX)
                             throw err(curr().position, "right operand of '=~' must be a string");
                         parseRelativePath();
                     } else if (peek(TokenType.STRING) || peek(TokenType.NUMBER) ||
-                            peek(TokenType.TRUE) || peek(TokenType.FALSE) || peek(TokenType.NULL)) {
+                            peek(TokenType.TRUE)  || peek(TokenType.FALSE) || peek(TokenType.NULL)) {
                         if (isRegex && REQUIRE_STRING_FOR_REGEX && !peek(TokenType.STRING))
                             throw err(curr().position, "right operand of '=~' must be a string");
-                        next();
+                        next(); // consume rhs literal
                     } else {
-                        throw err(curr().position, "expected value or @-path after operator");
+                        throw err(curr().position, "expected value, @-path, or function call after operator");
                     }
                 }
 
@@ -601,6 +610,63 @@ public final class JsonPathValidator {
             }
         }
 
+        private void parseFunctionCall() {
+            Token name = expect(TokenType.IDENT, "expected function name");
+            String fn = name.text;
+            expect(TokenType.LPAREN, "expected '(' after function name");
+
+            switch (fn) {
+                case "length":
+                case "count":
+                case "value":
+                    parseValue();
+                    expect(TokenType.RPAREN, "expected ')' to close " + fn + "()");
+                    return;
+
+                case "match":
+                case "search":
+                    parseValue();
+                    expect(TokenType.COMMA, "expected ',' after first argument of " + fn + "()");
+                    if (!peek(TokenType.STRING))
+                        throw err(curr().position, "expected string regex as second argument of " + fn + "()");
+                    next(); // consume regex string
+                    if (accept(TokenType.COMMA)) {
+                        if (!peek(TokenType.STRING))
+                            throw err(curr().position, "expected string flags as third argument of " + fn + "()");
+                        next(); // consume flags string
+                    }
+                    expect(TokenType.RPAREN, "expected ')' to close " + fn + "()");
+                    return;
+
+                default:
+                    throw err(name.position, "unknown function '" + fn + "'");
+            }
+        }
+
+        // Value-like expression: literals, @-paths, function calls, or parenthesized value
+        private void parseValue() {
+            if (accept(TokenType.LPAREN)) {
+                parseValue();
+                expect(TokenType.RPAREN, "expected ')' in value");
+                return;
+            }
+            if (peek(TokenType.AT)) {
+                parseRelativePath();
+                return;
+            }
+            if (peek(TokenType.STRING) || peek(TokenType.NUMBER) ||
+                    peek(TokenType.TRUE)  || peek(TokenType.FALSE) || peek(TokenType.NULL)) {
+                next();
+                return;
+            }
+            if (peek(TokenType.IDENT) && lookaheadIs(TokenType.LPAREN)) {
+                parseFunctionCall();
+                return;
+            }
+
+            throw err(curr().position, "expected value");
+        }
+
         private boolean accept(TokenType t) {
             if (peek(t)) {
                 idx++;
@@ -613,6 +679,10 @@ public final class JsonPathValidator {
             if (!peek(t))
                 throw err(curr().position, msg);
             return next();
+        }
+
+        private boolean lookaheadIs(TokenType t) {
+            return (idx + 1 < tokens.size()) && (tokens.get(idx + 1).type == t);
         }
 
         private boolean peek(TokenType t) {

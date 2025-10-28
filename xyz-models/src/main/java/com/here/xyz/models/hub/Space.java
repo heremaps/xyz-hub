@@ -579,7 +579,8 @@ public class Space {
     Map<String, Boolean> generated = new HashMap<>();
 
     for (Map.Entry<String, Boolean> entry : searchableProperties.entrySet()) {
-      String newKey = "$alias:" + entry.getKey();
+      String[] parts = entry.getKey().split("::", 2);
+      String newKey = "$" + parts[0] + ":" + entry.getKey();
       generated.put(newKey, entry.getValue());
     }
 

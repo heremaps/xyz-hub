@@ -213,5 +213,75 @@ public class JsonPathValidatorTest {
     void trailingWhitespace() {
         assertValid("$.a  ");
     }
+
+    @Test
+    @DisplayName("length(): one value-like argument, used in comparisons")
+    void lengthBasics() {
+        assertValid("$.a[?( length(@.tags) > 0 )]");
+        assertValid("$.a[?( length(@) >= 1 )]");
+        assertValid("$.a[?( length('abc') == 3 )]");
+        assertInvalid("$.a[?( length() > 0 )]");
+        assertInvalid("$.a[?( length(@.x, @.y) > 0 )]");
+    }
+
+    @Test
+    @DisplayName("count(): one value-like argument, can compare with other function")
+    void countBasics() {
+        assertValid("$.a[?( count(@[*]) == 0 )]");
+        assertValid("$.a[?( count(@.items) == length(@.items) )]");
+        assertInvalid("$.a[?( count() == 1 )]");
+        assertInvalid("$.a[?( count(@.x, 1) == 2 )]");
+    }
+
+    @Test
+    @DisplayName("value(): one value-like argument, compare numerically")
+    void valueBasics() {
+        assertValid("$.a[?( value(@.price) >= 10 )]");
+        assertValid("$.a[?( value( ( @.price ) ) < 100 )]");
+        assertInvalid("$.a[?( value() >= 0 )]");
+        assertInvalid("$.a[?( value(@.x, @.y) >= 0 )]");
+    }
+
+    @Test
+    @DisplayName("match(): boolean regex, 2nd arg must be string")
+    void matchBasics() {
+        assertValid("$.a[?( match(@.name, \"^[A-Z].*\") )]");
+        assertValid("$.a[?( match(@.name, \"^[A-Z].*\", \"i\") )]");
+        assertInvalid("$.a[?( match(@.name, 123) )]");
+        assertInvalid("$.a[?( match(@.name) )]");
+        assertInvalid("$.a[?( match(@.name, \"re\", 1) )]");
+        assertInvalid("$.a[?( match() )]");
+        assertInvalid("$.a[?( match(@.a, \"re\", \"i\", \"x\") )]");
+    }
+
+    @Test
+    @DisplayName("search(): boolean regex, 2nd arg must be string")
+    void searchBasics() {
+        assertValid("$.a[?( search(@.text, \"foo\") )]");
+        assertValid("$.a[?( search(@.text, \"foo\", \"i\") )]");
+        assertInvalid("$.a[?( search(@.text, @.pattern) )]");
+        assertInvalid("$.a[?( search(@.text) )]");
+        assertInvalid("$.a[?( search(@.text, \"foo\", 1) )]");
+    }
+
+    @Test
+    @DisplayName("Functions can appear on either side of comparisons")
+    void functionsBothSides() {
+        assertValid("$.a[?( length(@.tags) == count(@.tags) )]");
+        assertValid("$.a[?( value(@.price) < length(\"12345\") )]");
+    }
+
+    @Test
+    @DisplayName("Nested function calls")
+    void nestedFunctions() {
+        assertValid("$.a[?( length( value(@.nested) ) > 0 )]");
+    }
+
+    @Test
+    @DisplayName("Unknown function names should be rejected")
+    void unknownFunction() {
+        assertInvalid("$.a[?( foo(@.x) )]");
+        assertInvalid("$.a[?( bar() )]");
+    }
 }
 
