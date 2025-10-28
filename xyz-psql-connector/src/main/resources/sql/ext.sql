@@ -1626,48 +1626,72 @@ $body$
    * given JSONPath-like expressions (supports $.a.b.0.c)
    * and merges overlapping paths.
    */
+	function removePrefixedStrings(strings) {
+
+  const uniqueStrings = [...new Set(strings)];
+
+  uniqueStrings.sort((a, b) => a.localeCompare(b));
+
+  const result = [];
+
+  for (const current of uniqueStrings) {
+    const isPrefixed = result.some(prefix => current.startsWith(prefix));
+    if (!isPrefixed) {
+      result.push(current);
+    }
+  }
+
+  return result;
+  }
+
   function includePaths(obj, allowedPaths) {
     const result = {};
 
-    for (const path of allowedPaths || []) {
+    const inputPaths = removePrefixedStrings(allowedPaths);
+
+    for (const path of inputPaths || []) {
       const parts = path
         .replace(/^\$\./, '')        // remove leading "$."
         .split(/\./)                 // split by .
         .filter(Boolean);
 
       let src = obj;
+      let exists = true;
+
+      // Check if path fully exists in source
+      for (const key of parts) {
+        const isIndex = /^\d+$/.test(key);
+        const srcKey = isIndex ? parseInt(key, 10) : key;
+        if (src == null || (Array.isArray(src) && src[srcKey] === undefined) || (!Array.isArray(src) && !(srcKey in src))) {
+          exists = false;
+          break;
+        }
+        src = src[srcKey];
+      }
+
+      if (!exists) continue; // skip missing leaf paths
+
+      // Reset traversal for building result
+      src = obj;
       let dst = result;
 
       for (let i = 0; i < parts.length; i++) {
         const key = parts[i];
         const isIndex = /^\d+$/.test(key);
         const srcKey = isIndex ? parseInt(key, 10) : key;
-
-        // stop if source is missing
-        if (src == null || (Array.isArray(src) && src[srcKey] === undefined)) break;
-
         const isLast = i === parts.length - 1;
 
-        if (isLast) { // assign final value
+        if (isLast) {
+          // assign only if leaf exists (checked earlier)
             dst[srcKey] = src[srcKey];
         } else {
-          // create nested structure if missing, but merge if it exists
+          // create or reuse existing branch
           const nextIsArray = /^\d+$/.test(parts[i + 1]);
           if (Array.isArray(dst)) {
             dst[srcKey] = dst[srcKey] ?? (nextIsArray ? [] : {});
           } else {
             if (!(srcKey in dst)) {
               dst[srcKey] = nextIsArray ? [] : {};
-            } else if (
-              nextIsArray &&
-              !Array.isArray(dst[srcKey])
-            ) {
-              dst[srcKey] = [];
-            } else if (
-              !nextIsArray &&
-              (Array.isArray(dst[srcKey]) || typeof dst[srcKey] !== 'object')
-            ) {
-              dst[srcKey] = {};
             }
           }
 
@@ -1681,6 +1705,7 @@ $body$
   }
 
   return includePaths(indata, jpaths);
+
 $body$
 language plv8 immutable PARALLEL SAFE;
 
