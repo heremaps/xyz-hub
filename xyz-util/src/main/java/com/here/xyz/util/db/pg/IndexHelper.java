@@ -19,17 +19,149 @@
 
 package com.here.xyz.util.db.pg;
 
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper.OnDemandIndex;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonTypeName;
+import com.here.xyz.Typed;
+
+import com.here.xyz.util.db.ConnectorParameters.TableLayout;
 import com.here.xyz.util.db.SQLQuery;
+import org.apache.commons.codec.digest.DigestUtils;
+
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_DEFAULT;
+import static com.here.xyz.util.db.ConnectorParameters.TableLayout.OLD_LAYOUT;
+import static com.here.xyz.util.db.ConnectorParameters.TableLayout.NEW_LAYOUT;
 
 public class IndexHelper {
 
+  @JsonInclude(NON_DEFAULT)
+  @JsonIgnoreProperties(ignoreUnknown = true)
+  @JsonSubTypes({
+          @JsonSubTypes.Type(value = SystemIndex.class, name = "SystemIndex"),
+          @JsonSubTypes.Type(value = OnDemandIndex.class, name = "OnDemandIndex")
+  })
+  public interface Index extends Typed {
+    String idxPrefix = "idx_";
+    String getIndexName(String tableName);
+    String getIndexName();
+  }
+
+  @JsonTypeName("SystemIndex")
+  public enum SystemIndex implements Index {
+    GEO,
+    VERSION_ID,
+    NEXT_VERSION,
+    OPERATION,
+    SERIAL,
+    VIZ,
+    AUTHOR;
+
+    String indexName;
+
+    public String getIndexName() {
+      return indexName;
+    }
+
+    @Override
+    public String getIndexName(String tableName) {
+      return switch (this) {
+        case SERIAL, VIZ -> idxPrefix + tableName +  "_" + name().toLowerCase();
+        case NEXT_VERSION -> idxPrefix + tableName +  "_nextversion";
+        case VERSION_ID -> idxPrefix + tableName +  "_versionid";
+        default -> idxPrefix + tableName + "_" + getIndexContent().get(0);
+      };
+    }
+
+    public String getIndexType() {
+      return switch (this) {
+        case GEO -> "GIST";
+        case VERSION_ID, NEXT_VERSION, OPERATION, SERIAL, VIZ, AUTHOR -> "BTREE";
+      };
+    }
+
+    public List<String> getIndexContent() {
+      return switch (this) {
+        case GEO -> List.of("geo");
+        case VERSION_ID -> List.of("version", "id");
+        case NEXT_VERSION -> List.of("next_version");
+        case OPERATION -> List.of("operation");
+        case SERIAL -> List.of("i");
+        case VIZ -> List.of("(left(md5('' || i), 5))");
+        case AUTHOR -> List.of("author");
+      };
+    }
+
+    public static SystemIndex fromString(String name) {
+      if (name == null) return null;
+      return switch (name.toLowerCase()) {
+        case "geo" -> GEO;
+        case "versionid" -> VERSION_ID;
+        case "nextversion" -> NEXT_VERSION;
+        case "operation" -> OPERATION;
+        case "serial" -> SERIAL;
+        case "viz" -> VIZ;
+        case "author" -> AUTHOR;
+        default -> null;
+      };
+    }
+  }
+
+  @JsonTypeName("OnDemandIndex")
+  public static class OnDemandIndex implements Index {
+    private String indexName;
+    private String propertyPath;
+
+    public OnDemandIndex() { }
+
+    public OnDemandIndex(String indexName) {
+      this.indexName = indexName;
+    }
+
+    public String getIndexName() {
+      return indexName;
+    }
+
+    public OnDemandIndex withIndexName(String indexName) {
+      this.indexName = indexName;
+      return this;
+    }
+
+    public void setPropertyPath(String propertyPath) {
+      this.propertyPath = propertyPath;
+    }
+
+    public String getPropertyPath() {
+      return propertyPath;
+    }
+
+    public OnDemandIndex withPropertyPath(String propertyPath) {
+      setPropertyPath(propertyPath);
+      return this;
+    }
+
+    @Override
+    public String getIndexName(String tableName) {
+      // Take the first 8 characters of md5 hash of the property path
+      String shortMd5 = DigestUtils.md5Hex(propertyPath).substring(0, 7);
+
+      return idxPrefix + tableName + "_" + shortMd5 + "_m";
+    }
+  }
+
   public static SQLQuery buildCreateIndexQuery(String schema, String table, String columnName, String method) {
     return buildCreateIndexQuery(schema, table, Collections.singletonList(columnName), method);
+  }
+
+  public static SQLQuery buildCreateIndexQuery(String schema, String table, Index index) {
+    return buildCreateIndexQuery(schema, table, ((SystemIndex)index).getIndexContent(), ((SystemIndex)index).getIndexType(), index.getIndexName(table));
   }
 
   public static SQLQuery buildCreateIndexQuery(String schema, String table, List<String> columnNames, String method) {
@@ -43,6 +175,10 @@ public class IndexHelper {
   public static SQLQuery buildCreateIndexQuery(String schema, String table, String columnNameOrExpression, String method,
       String indexName) {
       return buildCreateIndexQuery(schema, table, Collections.singletonList(columnNameOrExpression), method, indexName, null);
+  }
+
+  public static SQLQuery buildSpaceTableIndexQuery(String schema, String table, Index index) {
+    return buildCreateIndexQuery(schema, table, ((SystemIndex)index).getIndexContent(), ((SystemIndex)index).getIndexType(), index.getIndexName(table));
   }
 
   public static SQLQuery buildCreateIndexQuery(String schema, String table, List<String> columnNamesOrExpressions, String method,
@@ -71,11 +207,15 @@ public class IndexHelper {
   public static List<OnDemandIndex> getActivatedSearchableProperties(Map<String, Boolean> searchableProperties) {
     return searchableProperties == null ? List.of() : searchableProperties.entrySet().stream()
             .filter(Map.Entry::getValue)
-            .map(entry -> new XyzSpaceTableHelper.OnDemandIndex().withPropertyPath(entry.getKey()))
+            .map(entry -> new OnDemandIndex().withPropertyPath(entry.getKey()))
             .collect(Collectors.toList());
   }
 
   public static SQLQuery buildOnDemandIndexCreationQuery(String schema, String table, String propertyPath, boolean async){
+    return buildOnDemandIndexCreationQuery(schema, table, propertyPath, "jsondata", async);
+  }
+
+  public static SQLQuery buildOnDemandIndexCreationQuery(String schema, String table, String propertyPath, String targetColumn, boolean async){
     return new SQLQuery((async ? "PERFORM " : "SELECT ") +
             """
             xyz_index_creation_on_property_object(
@@ -83,14 +223,81 @@ public class IndexHelper {
                 #{table_name},
                 #{property_name},
                 xyz_index_name_for_property(#{table_name}, #{property_name}, #{idx_type}),
-                xyz_property_datatype(#{schema_name}, #{table_name}, #{property_name}, #{table_sample_cnt}),
-                #{idx_type}
+                xyz_property_datatype(#{schema_name}, #{table_name}, #{property_name}, #{table_sample_cnt}, #{target_column} ),
+                #{idx_type},
+                #{target_column}
               )
             """)
             .withNamedParameter("schema_name", schema)
             .withNamedParameter("table_name", table)
             .withNamedParameter("property_name", propertyPath)
             .withNamedParameter("table_sample_cnt", 5000)
-            .withNamedParameter("idx_type", "m");
+            .withNamedParameter("idx_type", "m")
+            .withNamedParameter("target_column", targetColumn);
+  }
+
+  public static SQLQuery checkIndexType(String schema, String table, String propertyName, int tableSampleCnt) {
+    return new SQLQuery("""
+        SELECT * FROM xyz_index_creation_on_property_object( #{schema_name}, #{table_name},
+            #{property_name}, #{table_sample_cnt} )
+        """)
+        .withNamedParameter("schema_name", schema)
+        .withNamedParameter("table_name", table)
+        .withNamedParameter("property_name", propertyName)
+        .withNamedParameter("table_sample_cnt", tableSampleCnt);
+  }
+
+  public static SQLQuery buildLoadSpaceTableIndicesQuery(String schema, String table) {
+    return new SQLQuery("SELECT * FROM xyz_index_list_all_available(#{schema}, #{table});")
+            .withNamedParameter("schema", schema)
+            .withNamedParameter("table", table);
+  }
+
+  public static List<SQLQuery> buildSpaceTableDropIndexQueries(String schema, List<String> indices) {
+    return indices.stream()
+            .map(index -> buildDropIndexQuery(schema, index))
+            .collect(Collectors.toList());
+  }
+
+  public static List<SQLQuery> buildSpaceTableIndexQueries(String schema, String table, TableLayout layout) {
+    if(layout == OLD_LAYOUT)
+      return Arrays.asList(SystemIndex.values()).stream()
+              .map(index -> buildCreateIndexQuery(schema, table, index.getIndexContent(), index.getIndexType(), index.getIndexName(table)))
+              .toList();
+    else if (layout == NEW_LAYOUT)
+      return Stream.of(SystemIndex.GEO,
+                      SystemIndex.NEXT_VERSION,
+                      SystemIndex.VERSION_ID)
+              .map(index -> buildCreateIndexQuery(
+                      schema, table, index.getIndexContent(),
+                      index.getIndexType(), index.getIndexName(table))
+              ).toList();
+
+    throw new IllegalArgumentException("Unsupported layout " + layout);
+  }
+
+  /**
+   * @deprecated Please use only method {@link #buildSpaceTableIndexQueries(String, String, TableLayout)} instead.
+   * @param schema
+   * @param table
+   * @param queryComment
+   * @return
+   */
+  @Deprecated
+  public static List<SQLQuery> buildSpaceTableIndexQueries(String schema, String table, SQLQuery queryComment) {
+    return buildSpaceTableIndexQueries(schema, table, TableLayout.OLD_LAYOUT)
+            .stream()
+            .map(q -> addQueryComment(q, queryComment))
+            .toList();
+  }
+  /**
+   * @deprecated Please use labels instead. See: {@link SQLQuery#withLabel(String, String)}
+   * @param sourceQuery
+   * @param queryComment
+   * @return
+   */
+  @Deprecated
+  private static SQLQuery addQueryComment(SQLQuery sourceQuery, SQLQuery queryComment) {
+    return queryComment != null ? sourceQuery.withQueryFragment("queryComment", queryComment) : sourceQuery;
   }
 }

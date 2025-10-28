@@ -46,6 +46,7 @@ public class SimulatedContext implements Context, LambdaLogger {
   private String functionName;
   private String functionVersion;
   private String invokedFunctionArn;
+  private boolean recreateLambdaEnvForEachEvent = false;
 
   public SimulatedContext(String functionName, Map<String, String> environmentVariableOverrides) {
     this.environmentVariableOverrides = environmentVariableOverrides;
@@ -99,6 +100,19 @@ public class SimulatedContext implements Context, LambdaLogger {
     if (invokedFunctionArn == null)
       invokedFunctionArn = "arn:embedded";
     return invokedFunctionArn;
+  }
+
+  public void setRecreateLambdaEnvForEachEvent(boolean recreateLambdaEnvForEachEvent) {
+    this.recreateLambdaEnvForEachEvent = recreateLambdaEnvForEachEvent;
+  }
+
+  public boolean isRecreateLambdaEnvForEachEvent() {
+    return recreateLambdaEnvForEachEvent;
+  }
+
+  public SimulatedContext withIsRecreateLambdaEnvForEachEvent(boolean recreateLambdaEnvForEachEvent) {
+    setRecreateLambdaEnvForEachEvent(recreateLambdaEnvForEachEvent);
+    return this;
   }
 
   @Override

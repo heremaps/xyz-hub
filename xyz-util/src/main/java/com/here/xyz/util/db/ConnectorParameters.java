@@ -38,6 +38,11 @@ public class ConnectorParameters {
   private int onDemandIdxLimit = 4;
   private boolean readOnly;
 
+  private TableLayout tableLayout;
+  public enum TableLayout {
+    OLD_LAYOUT, NEW_LAYOUT;
+  }
+
   public ConnectorParameters() {}
 
   public String getConnectorId() {
@@ -80,6 +85,10 @@ public class ConnectorParameters {
     setReadOnly(readOnly);
     return this;
   }
+
+  public TableLayout getTableLayout() { return  tableLayout; }
+
+  public  void setTableLayout(TableLayout tableLayout) { this.tableLayout = tableLayout; }
 
   @Override
   public String toString() {

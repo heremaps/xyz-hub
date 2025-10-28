@@ -24,7 +24,7 @@ import com.here.xyz.jobs.steps.JobCompiler;
 import com.here.xyz.jobs.steps.impl.CreateIndex;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.util.db.pg.IndexHelper;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper.OnDemandIndex;
+import com.here.xyz.util.db.pg.IndexHelper.OnDemandIndex;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient;
 

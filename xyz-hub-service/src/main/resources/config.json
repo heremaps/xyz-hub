@@ -56,5 +56,6 @@
   "XYZ_HUB_S3_BUCKET": "test-bucket",
   "INSERT_LOCAL_SETTINGS": true,
 
-  "JOB_API_ENDPOINT": "http://localhost:7070/"
+  "JOB_API_ENDPOINT": "http://localhost:7070/",
+  "USE_WRITE_FEATURES_EVENT" : false
 }

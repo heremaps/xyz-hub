@@ -318,6 +318,13 @@ public class RpcClient {
   private static void injectConnectorParams(Event event, Connector connector) {
     Map<String, Object> connectorParams = new HashMap<>(connector.params);
     connectorParams.put("connectorId", connector.id);
+
+      // Embedded und Lambda inject remoteFunction.className
+    if(connector.getRemoteFunction() instanceof RemoteFunctionConfig.Embedded embedded)
+        connectorParams.put("className", embedded.className);
+    else if(connector.getRemoteFunction() instanceof RemoteFunctionConfig.AWSLambda lambda)
+        connectorParams.put("className", lambda.className);
+
     event.setConnectorParams(connectorParams);
   }
 

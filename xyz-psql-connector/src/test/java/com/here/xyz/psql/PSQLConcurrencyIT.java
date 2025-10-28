@@ -131,6 +131,7 @@ public class PSQLConcurrencyIT extends PSQLAbstractIT {
         Feature existing = insertRequestCollection.getFeatures().get(0);
         existing.getProperties().getXyzNamespace().setVersion(existing.getProperties().getXyzNamespace().getVersion());;
         mfevent.setDeleteFeatures(Collections.emptyMap());
+        mfevent.setFailed(new ArrayList<>());
 
         // =========== INSERT EXISTING FEATURE ==========
         //Stream
@@ -156,6 +157,7 @@ public class PSQLConcurrencyIT extends PSQLAbstractIT {
         assertNull(responseCollection.getDeleted());
 
         //Transactional
+        mfevent.setFailed(new ArrayList<>());
         mfevent.setTransaction(true);
         response = invokeLambda(mfevent);
 
@@ -182,6 +184,7 @@ public class PSQLConcurrencyIT extends PSQLAbstractIT {
         existing.setId("doesnotexist");
         mfevent.setInsertFeatures(Collections.emptyList());
         mfevent.setUpdateFeatures(Collections.singletonList(existing));
+        mfevent.setFailed(new ArrayList<>());
         mfevent.setTransaction(false);
 
         response = invokeLambda(mfevent);
@@ -199,6 +202,7 @@ public class PSQLConcurrencyIT extends PSQLAbstractIT {
 
         //Transactional
         mfevent.setTransaction(true);
+        mfevent.setFailed(new ArrayList<>());
         response = invokeLambda(mfevent);
 
         ErrorResponse errorResponse = XyzSerializable.deserialize(response);

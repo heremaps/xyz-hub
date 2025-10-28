@@ -580,7 +580,12 @@ class FeatureWriter {
   }
 
   _handleLoadedFeatureRow(resultSet) {
-    let feature = resultSet[0].jsondata;
+    let feature;
+    if(queryContext().tableLayout === 'NEW_LAYOUT')
+      feature = JSON.parse(resultSet[0].jsondata);
+    else
+      feature = resultSet[0].jsondata;
+
     feature.id = resultSet[0].id;
     feature.geometry = resultSet[0].geo;
     feature.properties[XYZ_NS].version = Number(resultSet[0].version);
@@ -919,7 +924,7 @@ class FeatureWriter {
    * @returns {FeatureCollection}
    */
   static writeFeatures(inputFeatures, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial, featureHooks, version = FeatureWriter.getNextVersion()) {
-    FeatureWriter.dbWriter = new DatabaseWriter(queryContext().schema, FeatureWriter._targetTable(), FeatureWriter._tableBaseVersions().at(-1), FW_BATCH_MODE());
+    FeatureWriter.dbWriter = new DatabaseWriter(queryContext().schema, FeatureWriter._targetTable(), FeatureWriter._tableBaseVersions().at(-1), FW_BATCH_MODE(), queryContext().tableLayout);
     let result = this.newFeatureCollection();
     for (let feature of inputFeatures) {
       let execution = new FeatureWriter(feature, version, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial, featureHooks).writeFeature();

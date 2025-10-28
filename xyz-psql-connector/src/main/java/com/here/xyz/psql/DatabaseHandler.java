@@ -27,6 +27,7 @@ import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE;
 import static com.here.xyz.psql.query.XyzEventBasedQueryRunner.readBranchTableFromEvent;
 import static com.here.xyz.responses.XyzError.NOT_IMPLEMENTED;
 
+import com.amazonaws.services.lambda.runtime.Context;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.collect.Iterables;
 import com.here.xyz.connectors.ErrorResponseException;
@@ -67,6 +68,8 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import com.here.xyz.util.runtime.LambdaFunctionRuntime;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -106,10 +109,27 @@ public abstract class DatabaseHandler extends StorageConnector {
             .withApplicationName(FunctionRuntime.getInstance().getApplicationName())
             .withScriptResourcePaths(SCRIPT_RESOURCE_PATHS);
 
-        dataSourceProvider = new CachedPooledDataSources(dbSettings);
-        retryAttempted = false;
+        initialize(dbSettings, null);
+    }
 
-        DataSourceProvider.setDefaultProvider(dataSourceProvider);
+    public void initialize(DatabaseSettings dbSettings, Context context) {
+        if(context != null) {
+            new LambdaFunctionRuntime(context, null);
+        }
+
+        if(dbSettings == null)
+            throw new NullPointerException("dbSettings cannot be null");
+
+        if(dataSourceProvider ==  null) {
+            if(dbSettings.getScriptResourcePaths() == null || dbSettings.getScriptResourcePaths().isEmpty()) {
+                dbSettings.setScriptResourcePaths(SCRIPT_RESOURCE_PATHS);
+            }
+
+            dataSourceProvider = new CachedPooledDataSources(dbSettings);
+            retryAttempted = false;
+            DataSourceProvider.setDefaultProvider(dataSourceProvider);
+            this.dbSettings = dbSettings;
+        }
     }
 
     protected <R, T extends com.here.xyz.psql.QueryRunner<?, R>> R run(T runner) throws SQLException, ErrorResponseException {

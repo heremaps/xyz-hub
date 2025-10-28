@@ -19,17 +19,17 @@
 
 package com.here.xyz.jobs.steps.impl;
 
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildLoadSpaceTableIndicesQuery;
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildSpaceTableDropIndexQueries;
+import static com.here.xyz.util.db.pg.IndexHelper.buildLoadSpaceTableIndicesQuery;
+import static com.here.xyz.util.db.pg.IndexHelper.buildSpaceTableDropIndexQueries;
 
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.jobs.steps.execution.StepException;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.util.db.SQLQuery;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper.OnDemandIndex;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper.SystemIndex;
+import com.here.xyz.util.db.pg.IndexHelper.Index;
+import com.here.xyz.util.db.pg.IndexHelper.OnDemandIndex;
+import com.here.xyz.util.db.pg.IndexHelper.SystemIndex;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import java.sql.ResultSet;
 import java.sql.SQLException;

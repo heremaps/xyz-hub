@@ -26,10 +26,9 @@ import static com.here.xyz.util.db.datasource.DatabaseSettings.PSQL_USER;
 import static io.restassured.path.json.JsonPath.with;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.amazonaws.util.IOUtils;
 import com.google.common.collect.ImmutableMap;
-import com.here.xyz.Payload;
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.HealthCheckEvent;
 import com.here.xyz.events.ModifySpaceEvent;
@@ -37,11 +36,8 @@ import com.here.xyz.models.hub.Space;
 import com.here.xyz.psql.tools.Helper;
 import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.util.db.ECPSTool;
+import com.here.xyz.util.runtime.LambdaFunctionRuntime;
 import com.here.xyz.util.service.aws.lambda.SimulatedContext;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -52,7 +48,6 @@ import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.BeforeAll;
 
 public abstract class PSQLAbstractIT extends Helper {
-
   public final static String CONNECTOR_ID = "connectorId";
   public final static String PROPERTY_SEARCH = "propertySearch";
   public final static String AUTO_INDEXING = "autoIndexing";
@@ -154,23 +149,25 @@ public abstract class PSQLAbstractIT extends Helper {
 
   protected static String invokeLambda(Event event) throws Exception {
     //TODO: Remove this injection of "connectorId" connector-param when the hash of ECPS is used as cache key for any connections in the PSQL connector
+    //TODO: Return events instead of strings
     Map<String, Object> connectorParams = event.getConnectorParams() != null ? new HashMap<>(event.getConnectorParams()) : new HashMap<>();
     connectorParams.put(CONNECTOR_ID, "test-connector");
+
     if (!connectorParams.containsKey("ecps"))
       connectorParams.put("ecps", ECPSTool.encrypt(TEST_CONTEXT.getEnv(ECPS_PHRASE), TEST_ECPS));
     event.setConnectorParams(connectorParams);
-    return invokeLambda(event.toString());
-  }
 
-  private static String invokeLambda(String request) throws Exception {
-    LOGGER.info("Request to lambda - {}", request);
-    return invokeLambda(new ByteArrayInputStream(request.getBytes()));
-  }
+    new LambdaFunctionRuntime(TEST_CONTEXT, "local-stream-id");
 
-  private static String invokeLambda(InputStream jsonStream) throws IOException {
-    ByteArrayOutputStream os = new ByteArrayOutputStream();
-    LAMBDA.handleRequest(jsonStream, os, TEST_CONTEXT);
-    String response = IOUtils.toString(Payload.prepareInputStream(new ByteArrayInputStream(os.toByteArray())));
+    LOGGER.info("Request to lambda - {}", event.toString());
+    String response = null;
+    try {
+      response = LAMBDA.handleEvent(event).serialize();
+    }catch (Exception e) {
+      if(e instanceof ErrorResponseException ee) {
+        return ee.getErrorResponse().serialize();
+      }
+    }
     LOGGER.info("Response from lambda - {}", response);
     return response;
   }

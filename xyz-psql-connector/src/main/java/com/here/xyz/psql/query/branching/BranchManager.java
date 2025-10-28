@@ -83,7 +83,7 @@ public class BranchManager {
     SQLQuery.batchOf(buildCreateBranchSequenceQuery(schema, rootTable)).writeBatch(dataSourceProvider);
     int newNodeId = getNewNodeId();
 
-    SQLQuery.batchOf(buildCreateBranchTableQueries(schema, branchTableName(getNodeId(baseRef), baseRef.getVersion(), newNodeId)))
+    SQLQuery.batchOf(buildCreateBranchTableQueries(schema, branchTableName(getNodeId(baseRef), baseRef.getVersion(), newNodeId), spaceId))
         .writeBatch(dataSourceProvider);
 
     long newHeadVersion = baseRef.getVersion();

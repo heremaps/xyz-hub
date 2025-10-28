@@ -23,6 +23,7 @@ class DatabaseWriter {
   table;
   tableBaseVersion;
 
+  tableLayout;
   /**
    * @type {boolean}
    */
@@ -45,11 +46,12 @@ class DatabaseWriter {
    */
   TX_START = Date.now();
 
-  constructor(schema, table, tableBaseVersion, batchMode = false) {
+  constructor(schema, table, tableBaseVersion, batchMode = false, tableLayout) {
     this.schema = schema;
     this.table = table;
     this.tableBaseVersion = tableBaseVersion;
     this.batchMode = batchMode;
+    this.tableLayout = tableLayout;
   }
 
   /**
@@ -216,22 +218,37 @@ class DatabaseWriter {
   insertHistoryRow(inputFeature, baseFeature, version, operation, author, resultHandler) {
     //TODO: Improve performance by reading geo inside JS and then pass it separately and use TEXT / WKB / BYTEA
     this.enrichTimestamps(inputFeature, operation == "I" || operation == "H", baseFeature);
-    let sql = `INSERT INTO "${this.schema}"."${this.table}"
-                      (id, version, operation, author, jsondata, geo)
-                  VALUES ($1, $2, $3, $4,
-                          $5::JSONB - 'geometry',
-                          CASE WHEN $6::JSONB IS NULL THEN
-                              NULL
-                          ELSE
-                              xyz_reduce_precision(ST_Force3D(ST_GeomFromGeoJSON($6::JSONB)), false)
-                          END)`;
+    let extraCols = '';
+    let extraVals = '';
+
+    if (this.tableLayout === 'NEW_LAYOUT') {
+      extraCols = ', searchable';
+      extraVals = ', $7::JSONB ';
+    }
+
+    const sql = `INSERT INTO "${this.schema}"."${this.table}"
+                (id, version, operation, author, jsondata, geo ${extraCols})
+                 VALUES ($1, $2, $3, $4,
+                         $5::JSONB - 'geometry',
+                         CASE WHEN $6::JSONB IS NULL THEN
+                            NULL
+                        ELSE
+                            xyz_reduce_precision(ST_Force3D(ST_GeomFromGeoJSON($6::JSONB)), false)
+                        END ${extraVals}
+            )`;
 
     this._createHistoryPartition(version);
     this._purgeOldChangesets(version);
 
     let method = "insertHistoryRow";
     if (!this.plans[method]) {
-      this.plans[method] = this._preparePlan(sql, ["TEXT", "BIGINT", "CHAR", "TEXT", "JSONB", "JSONB"]);
+      const paramTypes = ["TEXT", "BIGINT", "CHAR", "TEXT", "JSONB", "JSONB"];
+
+      if (this.tableLayout === 'NEW_LAYOUT') {
+        paramTypes.push("JSONB");
+      }
+
+      this.plans[method] = this._preparePlan(sql, paramTypes);
       this.parameterSets[method] = [];
       this.resultParsers[method] = [];
     }
@@ -241,14 +258,24 @@ class DatabaseWriter {
       throw new XyzException("Can not write a feature that is null");
     }
 
-    this.parameterSets[method].push([
+    const params = [
       inputFeature.id,
       version,
       operation,
       author,
       inputFeature,
       inputFeature.geometry
-    ]);
+    ];
+
+    if (this.tableLayout === 'NEW_LAYOUT') {
+      const searchable = {
+        refQuad: inputFeature.properties.refQuad,
+        globalVersion: inputFeature.properties.globalVersion
+      };
+      params.push(searchable);
+    }
+
+    this.parameterSets[method].push(params);
     this.resultParsers[method].push(result => {
       let executedAction = inputFeature.properties[XYZ_NS].deleted ? ExecutionAction.DELETED : ExecutionAction.fromOperation[operation];
       return resultHandler(new FeatureModificationExecutionResult(executedAction, inputFeature, version + this.tableBaseVersion, author));

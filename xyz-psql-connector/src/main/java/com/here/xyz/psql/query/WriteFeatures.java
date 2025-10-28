@@ -86,6 +86,7 @@ public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureColl
         .withSpaceContext(spaceContext)
         .withHistoryEnabled(event.getVersionsToKeep() > 1)
         .withBatchMode(true)
+        .with("tableLayout",getTableLayout())
         .with("debug", "true".equals(System.getenv("FW_DEBUG")))
         .with("queryId", FunctionRuntime.getInstance().getStreamId())
         .with("PARTITION_SIZE", PARTITION_SIZE)

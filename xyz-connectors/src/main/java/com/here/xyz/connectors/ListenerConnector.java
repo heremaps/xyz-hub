@@ -45,7 +45,7 @@ import com.here.xyz.responses.XyzError;
  * This class could be extended by any listener connector implementations.
  */
 @SuppressWarnings({"WeakerAccess", "EmptyMethod", "unused", "rawtypes"})
-public abstract class ListenerConnector extends AbstractConnectorHandler {
+public abstract class ListenerConnector extends EntryConnectorHandler {
 
   @Override
   protected Typed processEvent(Event event) throws Exception {

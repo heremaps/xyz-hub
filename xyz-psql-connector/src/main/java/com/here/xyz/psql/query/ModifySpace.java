@@ -25,9 +25,27 @@ import static com.here.xyz.events.ModifySpaceEvent.Operation.DELETE;
 import static com.here.xyz.events.ModifySpaceEvent.Operation.UPDATE;
 import static com.here.xyz.psql.query.helpers.versioning.GetNextVersion.VERSION_SEQUENCE_SUFFIX;
 import static com.here.xyz.responses.XyzError.ILLEGAL_ARGUMENT;
+import static com.here.xyz.util.db.ConnectorParameters.TableLayout.NEW_LAYOUT;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SCHEMA;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.TABLE;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildCreateSpaceTableQueries;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.here.xyz.connectors.ErrorResponseException;
+import com.here.xyz.util.db.ConnectorParameters;
+import com.here.xyz.events.ModifySpaceEvent;
+import com.here.xyz.events.ModifySpaceEvent.Operation;
+import com.here.xyz.responses.SuccessResponse;
+import com.here.xyz.util.db.SQLQuery;
+import com.here.xyz.util.db.datasource.DataSourceProvider;
+import com.here.xyz.util.db.pg.IndexHelper.OnDemandIndex;
+
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildCleanUpQuery;
+import static com.here.xyz.util.db.pg.IndexHelper.getActivatedSearchableProperties;
+import static com.here.xyz.util.db.ConnectorParameters.TableLayout.OLD_LAYOUT;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.here.xyz.connectors.ErrorResponseException;
@@ -122,27 +140,40 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
 
     @Override
     protected SQLQuery buildQuery(ModifySpaceEvent event) throws SQLException {
-        if (event.getOperation() == CREATE || event.getOperation() == UPDATE) {
-            List<SQLQuery> queries = new ArrayList<>();
-            final String table = getDefaultTable(event);
+        if(getTableLayout().equals(ConnectorParameters.TableLayout.OLD_LAYOUT)){
+            if (event.getOperation() == CREATE || event.getOperation() == UPDATE) {
+                List<SQLQuery> queries = new ArrayList<>();
+                final String table = getDefaultTable(event);
 
-            if (event.getSpaceDefinition() != null && event.getOperation() == CREATE) {
-                //Add space table creation queries
-                List<XyzSpaceTableHelper.OnDemandIndex> activatedSearchableProperties
-                        = IndexHelper.getActivatedSearchableProperties(event.getSpaceDefinition().getSearchableProperties());
+                if (event.getSpaceDefinition() != null && event.getOperation() == CREATE) {
+                    //Add space table creation queries
+                    List<OnDemandIndex> activatedSearchableProperties
+                            = getActivatedSearchableProperties(event.getSpaceDefinition().getSearchableProperties());
 
-                queries.addAll(buildCreateSpaceTableQueries(getSchema(), table, activatedSearchableProperties));
+                    queries.addAll(buildCreateSpaceTableQueries(getSchema(), table, activatedSearchableProperties,
+                            event.getSpace(), OLD_LAYOUT));
+                }
+
+                //Write metadata
+                queries.add(buildSpaceMetaUpsertQuery(event));
+
+                return SQLQuery.batchOf(queries).withLock(table);
             }
-
-            //Write metadata
-            queries.add(buildSpaceMetaUpsertQuery(event));
-
-            return SQLQuery.batchOf(queries).withLock(table);
+            else if (event.getOperation() == DELETE) {
+                return SQLQuery.batchOf(buildCleanUpQuery(event, getSchema(), getDefaultTable(event), VERSION_SEQUENCE_SUFFIX, OLD_LAYOUT));
+            }
+        }else if(getTableLayout().equals(ConnectorParameters.TableLayout.NEW_LAYOUT)){
+            if (event.getOperation() == CREATE) {
+                final String table = getDefaultTable(event);
+                List<SQLQuery> queries = new ArrayList<>(buildCreateSpaceTableQueries(getSchema(), table,
+                        //No OnDemandIndices are supported in V2
+                        null, event.getSpace(), NEW_LAYOUT));
+                return SQLQuery.batchOf(queries).withLock(table);
+            }
+            else if (event.getOperation() == DELETE)
+                return SQLQuery.batchOf(buildCleanUpQuery(event, getSchema(), getDefaultTable(event), VERSION_SEQUENCE_SUFFIX, NEW_LAYOUT));
         }
-        else if (event.getOperation() == DELETE)
-            return buildCleanUpQuery(event);
-
-        return null;
+        throw new IllegalArgumentException("Unsupported Table Layout: " + getTableLayout());
     }
 
     @Override
@@ -206,36 +237,5 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
           q.setNamedParameter(TABLE, getDefaultTable(event));
 
           return q;
-    }
-
-    public SQLQuery buildCleanUpQuery(ModifySpaceEvent event) {
-        String table = getDefaultTable(event);
-
-//MMSUP-1092  tmp workaroung on db9 - skip deletion from spaceMetaTable
-//TODO: remove spaceMetaTable from overall code
-        String deleteMetadata = "DELETE FROM ${configSchema}.${spaceMetaTable} WHERE h_id = #{table} AND schem = #{schema};",
-               storageID = event.getSpaceDefinition() != null && event.getSpaceDefinition().getStorage() != null
-                           ? event.getSpaceDefinition().getStorage().getId()
-                           : "no-connector-info-available";
-
-        if( "psql-db9-eu-west-1".equals(storageID) )
-         deleteMetadata = "";
-//MMSUP-1092
-
-        SQLQuery q = new SQLQuery("${{deleteMetadata}} ${{dropTable}} ${{dropISequence}} ${{dropVersionSequence}}")
-            .withQueryFragment("deleteMetadata", deleteMetadata)
-            .withQueryFragment("dropTable", "DROP TABLE IF EXISTS ${schema}.${table};")
-            .withQueryFragment("dropISequence", "DROP SEQUENCE IF EXISTS ${schema}.${iSequence};")
-            .withQueryFragment("dropVersionSequence", "DROP SEQUENCE IF EXISTS ${schema}.${versionSequence};");
-
-        return q
-            .withVariable(SCHEMA, getSchema())
-            .withVariable(TABLE, table)
-            .withNamedParameter(SCHEMA, getSchema())
-            .withNamedParameter(TABLE, table)
-            .withVariable("configSchema", XYZ_CONFIG_SCHEMA)
-            .withVariable("spaceMetaTable", SPACE_META_TABLE)
-            .withVariable("iSequence", table + I_SEQUENCE_SUFFIX)
-            .withVariable("versionSequence", getDefaultTable(event) + VERSION_SEQUENCE_SUFFIX);
     }
 }

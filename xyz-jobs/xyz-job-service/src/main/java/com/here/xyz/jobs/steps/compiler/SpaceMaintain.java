@@ -26,8 +26,8 @@ import com.here.xyz.jobs.steps.CompilationStepGraph;
 import com.here.xyz.jobs.steps.compiler.tools.IndexCompilerHelper;
 import com.here.xyz.jobs.steps.impl.DropIndexes;
 import com.here.xyz.jobs.steps.impl.SpawnMaintenanceJobs;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index;
+import com.here.xyz.util.db.pg.IndexHelper.SystemIndex;
+import com.here.xyz.util.db.pg.IndexHelper.Index;
 import java.util.List;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
@@ -51,7 +51,7 @@ public class SpaceMaintain implements JobCompilationInterceptor {
     CompilationStepGraph stepGraph = new CompilationStepGraph();
 
     //White-list on-demand indexes based on active searchable properties and all the system indexes
-    List<Index> whiteList = Stream.concat(Stream.of(XyzSpaceTableHelper.SystemIndex.values()),
+    List<Index> whiteList = Stream.concat(Stream.of(SystemIndex.values()),
             IndexCompilerHelper.getActiveSearchableProperties(source.getId()).stream()).toList();
 
     //Drop indices which are not in the whitelist

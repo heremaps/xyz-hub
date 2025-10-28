@@ -21,7 +21,7 @@ package com.here.xyz.psql.query.branching;
 
 import static com.here.xyz.events.UpdateStrategy.DEFAULT_UPDATE_STRATEGY;
 import static com.here.xyz.psql.query.branching.BranchManager.getNodeId;
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildCreateSpaceTableQueries;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildCreateSpaceTableQueriesForTests;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.amazonaws.services.lambda.runtime.Context;
@@ -78,7 +78,7 @@ public abstract class QueryTestBase {
 
   protected static void createSpaceTable(String schema, String table) throws Exception {
     try (DataSourceProvider dsp = getDataSourceProvider()) {
-      SQLQuery.batchOf(buildCreateSpaceTableQueries(schema, table)).writeBatch(dsp);
+      SQLQuery.batchOf(buildCreateSpaceTableQueriesForTests(schema, table)).writeBatch(dsp);
     }
   }
 
