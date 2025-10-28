@@ -19,15 +19,6 @@
 
 package com.here.xyz.util;
 
-/*
- * Usage:
- *   JsonPathValidator.ValidationResult r =
- *       JsonPathValidator.validate("$.store.book[?(@.price < 10)].title");
- *   if (!r.isValid()) {
- *       System.err.println(r.errorWithPointer(input));
- *   }
- */
-
 import java.util.*;
 
 public final class JsonPathValidator {
@@ -80,13 +71,6 @@ public final class JsonPathValidator {
             return Optional.ofNullable(message);
         }
 
-        public String errorWithPointer() {
-            if (valid)
-                return "OK";
-
-            return (message == null ? "invalid JSONPath" : message) +
-                    " at position " + position;
-        }
     }
 
     private enum TokenType {

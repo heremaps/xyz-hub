@@ -32,6 +32,7 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.XyzSerializable.Public;
 import com.here.xyz.XyzSerializable.Static;
+import com.here.xyz.util.JsonPathValidator;
 
 import java.util.*;
 
@@ -569,6 +570,13 @@ public class Space {
       String[] parts = str.split("::", 2);
       if (parts.length != 2)
         return false;
+
+      String jsonPath = parts[0];
+      JsonPathValidator.ValidationResult result = JsonPathValidator.validate(jsonPath);
+
+      if (!result.isValid()) {
+        throw new IllegalArgumentException(String.format("Invalid character at position %d for JsonPath string", result.errorPosition()));
+      }
 
       String resultType = parts[1];
       if (!resultType.equals("scalar") && !resultType.equals("array"))

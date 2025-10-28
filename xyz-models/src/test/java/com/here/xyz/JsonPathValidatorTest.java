@@ -17,7 +17,7 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.test;
+package com.here.xyz;
 
 import com.here.xyz.util.JsonPathValidator;
 import org.junit.jupiter.api.Test;
