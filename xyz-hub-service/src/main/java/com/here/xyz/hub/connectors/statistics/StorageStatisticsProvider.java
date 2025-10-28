@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -139,14 +139,11 @@ public class StorageStatisticsProvider {
                 .withStreamId(marker.getName())
                 .withSpaceIds(batchSpaceIds);
         RpcClient.getInstanceFor(storage).execute(marker, event, true, ar -> {
-          if (ar.failed()) p.fail(ar.cause());
-          else {
-            if (!(ar.result() instanceof StorageStatistics)) p.fail("Wrong response returned by storage " + storage.id);
-            else {
-              statsLists.add((StorageStatistics) ar.result());
-              p.complete(statsLists);
-            }
+          if (ar.succeeded() && ar.result() instanceof StorageStatistics) {
+            statsLists.add((StorageStatistics) ar.result());
           }
+          // skip and continue
+          p.complete(statsLists);
         });
         return p.future();
       });
