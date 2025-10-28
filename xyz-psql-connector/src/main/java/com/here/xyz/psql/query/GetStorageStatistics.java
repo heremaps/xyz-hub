@@ -63,7 +63,9 @@ public class GetStorageStatistics extends XyzQueryRunner<GetStorageStatisticsEve
 
     return new SQLQuery("""
         WITH roots AS (
-          SELECT unnest(ARRAY[${{tableNames}}])::regclass AS root_oid
+          SELECT to_regclass(t) as root_oid
+          FROM unnest(ARRAY[${{tableNames}}]) AS t
+          WHERE to_regclass(t) IS NOT NULL
         ),
         parts AS (
           SELECT DISTINCT relid

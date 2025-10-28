@@ -139,11 +139,14 @@ public class StorageStatisticsProvider {
                 .withStreamId(marker.getName())
                 .withSpaceIds(batchSpaceIds);
         RpcClient.getInstanceFor(storage).execute(marker, event, true, ar -> {
-          if (ar.succeeded() && ar.result() instanceof StorageStatistics) {
-            statsLists.add((StorageStatistics) ar.result());
+          if (ar.failed()) p.fail(ar.cause());
+          else {
+            if (!(ar.result() instanceof StorageStatistics)) p.fail("Wrong response returned by storage " + storage.id);
+            else {
+              statsLists.add((StorageStatistics) ar.result());
+              p.complete(statsLists);
+            }
           }
-          // skip and continue
-          p.complete(statsLists);
         });
         return p.future();
       });
