@@ -1454,7 +1454,12 @@
                 },
                 "occupant": "National University of San Marcos",
                 "sport": "association football",
-                "capacity": 67469
+                "capacity": 67469,
+                "selectionTest" : { "a": "aString",
+                                    "b" : ["bval1","bval2","bval3"],
+                                    "c" : "cString",
+                                    "d" : { "d1": "d1val", "d2": "d2val" }
+                                  }
             }
         },
         {
