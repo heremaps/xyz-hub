@@ -328,11 +328,11 @@ paths:
         The subset can be defined either by a "startVersion" and an "endVersion"
         or by providing a version ref that references a version range of
         a specific branch: e.g., "main:5..6" or "myBranch:0..HEAD".
-        
+
 
         The version range can be specified using the `versionRef` query-parameter as follows:
         `<start>..<end>`
-        
+
         Where `<start>` is the start of the range (exclusive) and `<end>` is the end of the range
         (inclusive).
 
@@ -458,7 +458,7 @@ paths:
       summary: List tags
       description: >-
         List tags available in the space.
-        
+
         List can include system tags when includeSystemTags parameter is set to true.
       operationId: listTags
       parameters:
@@ -1549,8 +1549,8 @@ components:
       in: query
       description: |
         `[Deprecated]` Please define the version range using the versionRef query parameter.
-        
-        
+
+
         Defines the end of the version-range [version <= endVersion].
       required: false
       schema:
@@ -1603,7 +1603,7 @@ components:
         A comma separated list of unique feature identifiers. These are the acceptable formats
         for this field:
           * id=value1,value2
-          * id=value1,id=value2
+          * id=value1&id=value2
 
 
         not required when eraseContent=true is used.
@@ -1926,8 +1926,8 @@ components:
       in: query
       description: |
         `[Deprecated]` Please define the version range using the versionRef query parameter.
-        
-        
+
+
         Defines the start of the version-range [version >= startVersion].
       required: false
       schema:
@@ -2042,7 +2042,7 @@ components:
       description: |
         The query parameter used to specify the target version reference when reading or writing features.
         A reference describes a target tag or a branch and/or a version within that target branch.
-        
+
         Default is: `main:HEAD`
 
         <br>
@@ -2063,7 +2063,7 @@ components:
 
         Where `<start>` is the start of the range (exclusive) and `<end>` is the end of the range
         (inclusive).
-        
+
         Another way of specifying a version range is using the star-symbol: `*`
 
         Using `*` refers to "all available versions" in the space or branch and is only
@@ -2101,15 +2101,15 @@ components:
       in: query
       description: >-
         The query parameter used to specify the version of a feature or feature collection to be loaded.
-        
-        
+
+
         Multiple versions of the same feature can be loaded when the value star '*' is used. Example:
-        
-        
+
+
         /features?id=F1,F2&version=*
-        
+
         or
-        
+
         /features/F1?version=*
       required: false
       schema:
@@ -2201,8 +2201,8 @@ components:
       in: query
       description: >-
         The number of upload URLs need to be created. It is only applicable when command=createUploadUrl.
-        
-        
+
+
         *Allowed range* : 1-1000
       required: false
       schema:
@@ -3494,8 +3494,8 @@ components:
         A branch is like a separate space, which is based on a specific version of the space
         or on a specific version of some other branch of the space. Reading & writing features
         to a branch does not have an effect on the main branch or any other branch of the space.
-        
-        
+
+
         A branch can be created by pointing to a base ref. A base ref consists of the base branch
         (e.g, "main") and the base version of that base branch. New write transactions to the
         created branch will continue to increase the version counter starting from the
@@ -3511,18 +3511,18 @@ components:
             The reference onto which the branch has been created.
             A reference describes a target branch and a version within that target branch.
             References have the following syntax:
-            
-            
+
+
             `[<branchName (optional, default: main)>:][<version (optional, default: HEAD)>]`
-            
-            
+
+
             The "main"-branch is the space itself as it has been created in the first place.
             Defining the branch as part of the reference only becomes necessary if further
             branches have been created for the space, which should be addressed by the ref.
-            
-            
+
+
             Samples:
-              - `main:42` points to version 42 of the "main"-branch 
+              - `main:42` points to version 42 of the "main"-branch
               - `myBranch:37` Points to version 37 of the branch with ID "myBranch"
               - `42` points to version 42 of the "main"-branch
               - `myBranch:HEAD` points to the latest version of the branch with ID "myBranch"
@@ -3534,25 +3534,25 @@ components:
         This operation performs a merge of the branch into another specified branch.
         Merging a branch into another one means to add all changes of this branch
         into the specified target branch as a new single commit.
-        
-        
+
+
         During a merge operation conflicts may occur. That will be indicated within the branch
         response with `state = IN_CONFLICT`. In such a case the conflicts can be solved by the
         client using the `conflictSolvingBranch` that points to `!<originalBranchId>`.
-        
+
         The `merges` property of the branch response depicts all merges that have been executed
         and/or attempted. The most recent merge attempt is the one with the highest version number.
         There may be only one merge attempt that is in progress at any time. All other / older
         entries in the `merges` map depict merge operations that have been executed successfully
         in the past.
-        
-        
+
+
         Sample:
-        
+
         If a merge operation was started on branch `myBranch` and ends up in `state = IN_CONFLICT`
         the resulting branch response could look like follows:
-        
-        
+
+
         ```json
         {
           "id": "myBranch",
@@ -3565,17 +3565,17 @@ components:
           "conflictSolvingBranch": "!myBranch"
         }
         ```
-        
-        
+
+
         Here `"myBranch"` is the ID of the branch that was attempted to be merged into branch
         `"main"`. It was attempted to merge version `27` of `myBranch`
         as new commit (with version `42`) into the branch `"main"`.
-        
+
         Conflicts occurred during that operation, that is why `state = "IN_CONFLICT"` and
         the ID of a `"conflictSolvingBranch"` with ID `"!myBranch"` was provided.
-        
+
         That conflict solving branch can be used like any other branch to solve the conflicts
-        by writing to it. All conflicting features in there are marked as such having set 
+        by writing to it. All conflicting features in there are marked as such having set
         `conflicting = true` in their XYZ namespace.
       discriminator:
         propertyName: type
