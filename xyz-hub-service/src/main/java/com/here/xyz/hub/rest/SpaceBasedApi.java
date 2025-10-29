@@ -116,8 +116,8 @@ public abstract class SpaceBasedApi extends Api {
             BranchConfigClient.getInstance().load(spaceId, alias))
             .compose(res -> {
               if (res.resultAt(0) != null || res.resultAt(1) != null)
-                return Future.failedFuture(
-                        new HttpException(CONFLICT, "Tag or Branch with ID " + alias + " for space " + spaceId + " already exists"));
+                return Future.failedFuture(new HttpException(CONFLICT,
+                        (res.resultAt(0) != null ? "Tag" : "Branch") + " with ID " + alias + " for " + spaceId + " already exists"));
               return Future.succeededFuture();
             });
   }
