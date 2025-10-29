@@ -179,11 +179,9 @@ public class TagApi extends SpaceBasedApi {
 
     final Future<Space> spaceFuture = getSpaceIfActive(marker, spaceId);
     final Future<ChangesetsStatisticsResponse> changesetFuture = ChangesetApi.getChangesetStatistics(marker, Future::succeededFuture, spaceId);
-    final Future<Tag> tagFuture = Service.tagConfigClient.getTag(marker, tagId, spaceId)
-        .compose(r -> r == null ? Future.succeededFuture(null) : Future.failedFuture(
-            new HttpException(HttpResponseStatus.CONFLICT, "Tag " + tagId + " with space " + spaceId + " already exists")));
+    final Future<Void> checkExistingAlias = checkExistingAlias(marker, spaceId, tagId);
 
-    return Future.all(spaceFuture, changesetFuture, tagFuture).compose(cf -> {
+    return Future.all(spaceFuture, changesetFuture, checkExistingAlias).compose(cf -> {
       final Tag tag = new Tag()
           .withId(tagId)
           .withSpaceId(spaceId)

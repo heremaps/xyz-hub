@@ -19,6 +19,9 @@
 
 package com.here.xyz.hub.rest;
 
+import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
+import static io.netty.handler.codec.http.HttpResponseStatus.OK;
+import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -26,6 +29,9 @@ import static org.junit.Assert.assertTrue;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.models.hub.Tag;
+import io.netty.handler.codec.http.HttpResponseStatus;
+import io.restassured.http.ContentType;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -94,6 +100,17 @@ public class BranchApiIT extends TestSpaceBranch {
 
     createBranch(SPACE_ID, B3_B2, B2_B1)
             .body("id", equalTo(B3_B2));
+  }
+
+  @Test
+  public void createBranchWithExistingAlias() {
+    given()
+        .contentType(ContentType.JSON)
+        .body(new Tag().withId(B1_MAIN).withSystem(false))
+        .post("/spaces/" + SPACE_ID + "/tags")
+        .then().statusCode(OK.code());
+
+    createBranch(SPACE_ID, B1_MAIN, null, CONFLICT.code());
   }
 
   @Test
