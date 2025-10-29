@@ -242,17 +242,25 @@ public abstract class JobExecutor implements Initializable {
                   return job.storeStatus(CANCELLING);
                 }
                 return Future.succeededFuture();
-              }).collect(Collectors.toList()))
-              .map(jobs.stream().filter(job -> job.getStatus().getState() != CANCELLED).collect(Collectors.toList())))
+              }).toList())
+              .map(jobs.stream().filter(job -> job.getStatus().getState() != CANCELLED).toList()))
           .compose(remainingJobs -> {
             if (remainingJobs.isEmpty())
               return Future.succeededFuture(false);
+
+            logger.info("[checkCancellations] The following jobs are currently in state CANCELLING:\n{}",
+                remainingJobs.stream().map(job -> "- " + job.getId()).collect(Collectors.joining("\n")));
 
             //Fail all jobs of which the cancellation did not work within <CANCELLATION_TIMEOUT> ms
             List<Job> jobsToFail = remainingJobs
                 .stream()
                 .filter(job -> job.getStatus().getUpdatedAt() + CANCELLATION_TIMEOUT < Core.currentTimeMillis())
-                .collect(Collectors.toList());
+                .toList();
+
+            logger.info("[checkCancellations] The following jobs could not be cancelled within {} ms and will be marked as FAILED:\n{}",
+                CANCELLATION_TIMEOUT,
+                jobsToFail.stream().map(job -> "- " + job.getId()).collect(Collectors.joining("\n")));
+
             jobsToFail.forEach(job -> {
               job.getStatus()
                   .withState(FAILED)
