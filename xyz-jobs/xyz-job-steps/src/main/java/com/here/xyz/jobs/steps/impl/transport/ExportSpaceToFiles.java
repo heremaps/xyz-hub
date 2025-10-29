@@ -60,6 +60,8 @@ import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.geo.GeoTools;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
+
+import java.io.IOException;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
@@ -463,7 +465,7 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
    *
    * @param schema The database schema to use for the query.
    * @param taskId The ID of the task for which the query is being built.
-   * @param taskData The data associated with the task.
+   * @param taskInput The data associated with the task.
    * @return The constructed SQL query.
    * @throws QueryBuildingException If an error occurs while building the SQL query.
    * @throws TooManyResourcesClaimed If too many resources are claimed during the process.
@@ -473,6 +475,28 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
   protected SQLQuery buildTaskQuery(String schema, Integer taskId, ExportInput taskInput)
           throws QueryBuildingException, TooManyResourcesClaimed, WebClientException, InvalidGeometryException {
     return buildExportToS3PluginQuery(schema, taskId, generateContentQueryForExportPlugin(taskInput));
+  }
+
+  @Override
+  protected void processOutputs(List<ExportOutput> taskOutputs) throws IOException {
+    TransportStatistics transportStatistics = new TransportStatistics(0, 0, 0);
+
+    if(!taskOutputs.isEmpty()){
+      long totalRows = taskOutputs.stream().mapToLong(ExportOutput::rows).sum();
+      long totalBytes = taskOutputs.stream().mapToLong(ExportOutput::bytes).sum();
+      int totalFiles = (int) taskOutputs.stream().mapToLong(ExportOutput::files).sum();
+      transportStatistics = new TransportStatistics(totalRows, totalBytes, totalFiles);
+    }
+
+    infoLog(STEP_ON_ASYNC_SUCCESS, this, "Job Statistics: bytes=" + transportStatistics.byteSize
+            + " files=" + transportStatistics.fileCount);
+
+    registerOutputs(List.of(
+            new FeatureStatistics()
+                    .withFeatureCount(transportStatistics.rowCount)
+                    .withByteSize(transportStatistics.byteSize)
+                    .withVersionRef(providedVersionRef)
+    ), STATISTICS);
   }
 
   protected GetFeaturesByGeometryInput createGetFeaturesByGeometryInput(SpaceContext context, SpatialFilter spatialFilter, Ref versionRef)

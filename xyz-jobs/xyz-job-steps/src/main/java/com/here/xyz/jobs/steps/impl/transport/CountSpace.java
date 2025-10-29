@@ -43,8 +43,9 @@ import com.here.xyz.psql.query.QueryBuilder.QueryBuildingException;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
+
+import java.io.IOException;
 import java.sql.SQLException;
-import java.util.ArrayList;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -124,51 +125,10 @@ public class CountSpace extends TaskedSpaceBasedStep<CountSpace, CountInput, Exp
   }
 
   @Override
-  protected void onAsyncSuccess() throws Exception {
-    //Thread.sleep(1000 * 5);
-
-    logger.info("[{}] AsyncSuccess *** Count {} ", getGlobalStepId(), getSpaceId());
-
-    String schema = getSchema(db());
-
-    Long count = runReadQuerySync(retrieveTaskOutputs(schema), db(WRITER),
-            0, rs -> {
-              try {
-                List<ExportOutput> outputs = new ArrayList<>();
-                while (rs.next()){
-                  SpaceBasedTaskUpdate<ExportOutput> update =
-                          XyzSerializable.deserialize(rs.getString("task_output"), SpaceBasedTaskUpdate.class);
-                  outputs.add(update.taskOutput);
-                }
-                if(outputs.isEmpty())
-                  return 0L;
-
-                return outputs.stream().mapToLong(ExportOutput::rows).sum();
-              } catch (JsonProcessingException e) {
-                throw new RuntimeException(e);
-              }
-            });
-
-    infoLog(STEP_ON_ASYNC_SUCCESS, this, "Job Featurecount: count=" + count);
-
-    FeatureStatistics featureStatistics = new FeatureStatistics()
-        .withFeatureCount(count)
-        .withByteSize(0);
-
-    registerOutputs(List.of( featureStatistics ), FEATURECOUNT);
-
-    infoLog(STEP_ON_ASYNC_SUCCESS, this, "Cleanup temporary table");
-    runWriteQuerySync(buildTemporaryJobTableDropStatement(schema, getTemporaryJobTableName(getId())), db(WRITER), 0);
-
-    //super.onAsyncSuccess();
-  }
-
-  @Override
   protected boolean onAsyncFailure() {
     //TODO
     return super.onAsyncFailure();
   }
-
 
 /*
   @Override
@@ -249,6 +209,21 @@ public class CountSpace extends TaskedSpaceBasedStep<CountSpace, CountInput, Exp
   protected SQLQuery buildTaskQuery(String schema, Integer taskId, CountInput taskData)
       throws QueryBuildingException, TooManyResourcesClaimed, WebClientException {
     return buildCountSpaceQuery( taskId );
+  }
+
+  @Override
+  protected void processOutputs(List<ExportOutput> taskOutputs) throws IOException {
+    long count = 0L;
+    if(!taskOutputs.isEmpty())
+      count = taskOutputs.stream().mapToLong(ExportOutput::rows).sum();
+
+    infoLog(STEP_ON_ASYNC_SUCCESS, this, "Job Featurecount: count=" + count);
+
+    FeatureStatistics featureStatistics = new FeatureStatistics()
+            .withFeatureCount(count)
+            .withByteSize(0);
+
+    registerOutputs(List.of( featureStatistics ), FEATURECOUNT);
   }
 
   @Override

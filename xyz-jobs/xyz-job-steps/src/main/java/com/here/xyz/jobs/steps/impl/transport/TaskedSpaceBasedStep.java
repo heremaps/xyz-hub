@@ -46,6 +46,7 @@ import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.SQLException;
@@ -56,7 +57,9 @@ import java.util.Map;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_ASYNC_SUCCESS;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_ASYNC_UPDATE;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildTemporaryJobTableDropStatement;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporaryJobTableName;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
 import static com.here.xyz.util.web.XyzWebClient.WebClientException;
@@ -177,6 +180,26 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
    */
   protected abstract SQLQuery buildTaskQuery(String schema, Integer taskId, I taskInput)
           throws QueryBuildingException, TooManyResourcesClaimed, WebClientException, InvalidGeometryException;
+
+  /**
+   * Processes the collected task outputs after all parallel tasks have finalized.
+   * <p>
+   * This hook is invoked during asynchronous success handling to allow subclasses
+   * to aggregate, transform, persist, or derive final statistics from the per-task
+   * output payloads.
+   * </p>
+   *
+   * <ul>
+   *   <li>Called exactly once after all task rows are finalized.</li>
+   *   <li>Implementations may perform I/O (e.g. serialization, storage, enrichment).</li>
+   *   <li>May produce aggregated results for outputs.</li>
+   * </ul>
+   *
+   * @param taskOutputs The list of per-task output payloads of type {@code O}.
+   * @throws IOException If an I/O error occurs while processing or persisting outputs.
+   */
+  protected abstract void processOutputs(List<O> taskOutputs)
+          throws IOException;
 
   /**
    * Prepares the process by resolving the version reference to an actual version.
@@ -315,12 +338,8 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
               + " " + perItemAcus.stripTrailingZeros().toPlainString()
               + "/" + overallAcusBD.stripTrailingZeros().toPlainString());
 
-      if(queryRunsOnWriter()) {
-        runReadQueryAsync(buildTaskQuery(schema, taskProgressAndItem.getTaskId(), (I) taskProgressAndItem.getTaskInput()),
-                dbWriter(), 0d/*perItemAcus.doubleValue()*/);
-      }else
-        runReadQueryAsync(buildTaskQuery(schema, taskProgressAndItem.getTaskId(), (I) taskProgressAndItem.getTaskInput()),
-                dbReader(), 0d/*perItemAcus.doubleValue()*/, false);
+      runReadQueryAsync(buildTaskQuery(schema, taskProgressAndItem.getTaskId(), (I) taskProgressAndItem.getTaskInput()),
+                queryRunsOnWriter() ? dbWriter() : dbReader(), 0d/*perItemAcus.doubleValue()*/);
     }
   }
 
@@ -371,6 +390,42 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
     }catch (Exception e) {
       throw new RuntimeException(e);
     }
+  }
+
+  @Override
+  protected void onAsyncSuccess() throws Exception {
+    try {
+      infoLog(STEP_ON_ASYNC_SUCCESS, this, "Received async success call");
+      String schema = getSchema(db());
+
+      //collect outputs and process them if required. (E.g. for providing statistics)
+      processOutputs(collectOutputs());
+
+      infoLog(STEP_ON_ASYNC_SUCCESS, this, "Cleanup temporary table");
+      runWriteQuerySync(buildTemporaryJobTableDropStatement(schema, getTemporaryJobTableName(getId())), db(WRITER), 0);
+    }catch (Exception e){
+      if(e instanceof SQLException exp && exp.getSQLState().equalsIgnoreCase("42P01")){
+        infoLog(STEP_ON_ASYNC_SUCCESS, this, "Table is already dropped - ignore.");
+        return;
+      }
+      throw e;
+    }
+  }
+
+  private List<O> collectOutputs() throws SQLException, TooManyResourcesClaimed, WebClientException {
+    return runReadQuerySync(retrieveTaskOutputs(getSchema(db())), db(WRITER), 0, rs -> {
+      try {
+        List<O> outputs = new ArrayList<>();
+        while (rs.next()){
+          SpaceBasedTaskUpdate<O> update =
+                  XyzSerializable.deserialize(rs.getString("task_output"), SpaceBasedTaskUpdate.class);
+          outputs.add(update.taskOutput);
+        }
+        return outputs;
+      } catch (JsonProcessingException e) {
+        throw new RuntimeException(e);
+      }
+    });
   }
 
   @Override
