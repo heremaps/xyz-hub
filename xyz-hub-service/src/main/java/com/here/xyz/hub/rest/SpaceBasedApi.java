@@ -20,9 +20,12 @@
 package com.here.xyz.hub.rest;
 
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
+import com.here.xyz.hub.config.BranchConfigClient;
+import com.here.xyz.hub.config.TagConfigClient;
 import com.here.xyz.hub.connectors.models.Space.InvalidExtensionException;
 import com.here.xyz.hub.rest.ApiParam.Path;
 import com.here.xyz.hub.rest.ApiParam.Query;
@@ -33,8 +36,10 @@ import com.here.xyz.models.hub.Ref.InvalidRef;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.util.service.HttpException;
 import com.here.xyz.util.service.errors.DetailedHttpException;
+import io.vertx.core.Future;
 import io.vertx.ext.web.RoutingContext;
 import java.util.Map;
+import org.apache.logging.log4j.Marker;
 
 public abstract class SpaceBasedApi extends Api {
   /**
@@ -101,4 +106,20 @@ public abstract class SpaceBasedApi extends Api {
       throw new DetailedHttpException("E318404", placeholders, e);
     }
   }
+
+  /**
+   * Checks if an alias (tag or branch) with given id exists
+   * Returns failed Future if an alias is found
+   */
+  protected static Future<Void> checkExistingAlias(Marker marker, String spaceId, String alias) {
+    return Future.all(TagConfigClient.getInstance().getTag(marker, alias, spaceId),
+            BranchConfigClient.getInstance().load(spaceId, alias))
+            .compose(res -> {
+              if (res.resultAt(0) != null || res.resultAt(1) != null)
+                return Future.failedFuture(
+                        new HttpException(CONFLICT, "Tag or Branch with ID " + alias + " for space " + spaceId + " already exists"));
+              return Future.succeededFuture();
+            });
+  }
+
 }

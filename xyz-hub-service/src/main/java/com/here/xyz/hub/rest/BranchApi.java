@@ -52,8 +52,16 @@ public class BranchApi extends SpaceBasedApi {
   }
 
   private Future<Branch> postBranch(RoutingContext context) throws HttpException {
-    return BranchHandler.createBranch(getMarker(context), getSpaceId(context), getBranchPayload(context))
-        .recover(t -> Future.failedFuture(new HttpException(BAD_REQUEST, "Invalid request body")));
+    String spaceId = getSpaceId(context);
+    Branch branch = getBranchPayload(context);
+    return checkExistingAlias(getMarker(context), spaceId, branch.getId())
+        .compose(v -> BranchHandler.createBranch(getMarker(context), getSpaceId(context), branch))
+        .recover(t -> {
+          if (t instanceof HttpException)
+            return Future.failedFuture(t);
+          else
+            return Future.failedFuture(new HttpException(BAD_REQUEST, "Invalid request body"));
+        });
   }
 
   private Future<Branch> patchBranch(RoutingContext context) {

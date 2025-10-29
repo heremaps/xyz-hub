@@ -49,7 +49,7 @@ public class TestSpaceBranch extends TestSpaceWithFeature {
   //Space ID should not contain underscore for branching to work
   protected String SPACE_ID = getClass().getSimpleName() + "-" + randomAlpha(5);
 
-  protected ValidatableResponse createBranch(String spaceId, String branchId, String ref) {
+  protected ValidatableResponse createBranch(String spaceId, String branchId, String ref, int statusCode) {
     return given()
             .contentType(APPLICATION_JSON)
             .accept(APPLICATION_JSON)
@@ -58,7 +58,11 @@ public class TestSpaceBranch extends TestSpaceWithFeature {
             .when()
             .post(getSpaceBranchPath(spaceId, null))
             .then()
-            .statusCode(OK.code());
+            .statusCode(statusCode);
+  }
+
+  protected ValidatableResponse createBranch(String spaceId, String branchId, String ref) {
+    return createBranch(spaceId, branchId, ref, OK.code());
   }
 
   protected List<String> getBranchIds(String spaceId) {
