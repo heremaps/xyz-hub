@@ -151,6 +151,10 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   protected abstract int setInitialThreadCount(String schema)
           throws WebClientException, SQLException, TooManyResourcesClaimed;
 
+  protected void initialSetup() throws SQLException, TooManyResourcesClaimed, WebClientException {};
+
+  protected void finalCleanUp() throws WebClientException, SQLException, TooManyResourcesClaimed {};
+
   /**
    * Creates generic task items in the taskAndStatistic table.
    * {@code createTaskItems} is used to generate the task data for each thread.
@@ -338,8 +342,11 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
               + " " + perItemAcus.stripTrailingZeros().toPlainString()
               + "/" + overallAcusBD.stripTrailingZeros().toPlainString());
 
+      //TODO: Check why we need custom callbacks for exports
+      boolean withCallbacks = queryRunsOnWriter();
+
       runReadQueryAsync(buildTaskQuery(schema, taskProgressAndItem.getTaskId(), (I) taskProgressAndItem.getTaskInput()),
-                queryRunsOnWriter() ? dbWriter() : dbReader(), 0d/*perItemAcus.doubleValue()*/);
+                queryRunsOnWriter() ? dbWriter() : dbReader(), 0d/*perItemAcus.doubleValue()*/,  withCallbacks);
     }
   }
 
@@ -348,6 +355,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
     //The following code is running synchronously till the first task is getting started.
     String schema = getSchema(db());
     if (!resume) {
+      initialSetup();
       calculatedThreadCount = setInitialThreadCount(schema);
       List<I> taskDataList = createTaskItems(schema);
       taskItemCount = taskDataList.size();
@@ -392,17 +400,21 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
     }
   }
 
+  //TODO: implement
+//  @Override
+//  protected boolean onAsyncFailure() {
+//    cleanUpDbResources();
+//  }
+
   @Override
   protected void onAsyncSuccess() throws Exception {
     try {
       infoLog(STEP_ON_ASYNC_SUCCESS, this, "Received async success call");
-      String schema = getSchema(db());
 
       //collect outputs and process them if required. (E.g. for providing statistics)
       processOutputs(collectOutputs());
 
-      infoLog(STEP_ON_ASYNC_SUCCESS, this, "Cleanup temporary table");
-      runWriteQuerySync(buildTemporaryJobTableDropStatement(schema, getTemporaryJobTableName(getId())), db(WRITER), 0);
+      cleanUpDbResources();
     }catch (Exception e){
       if(e instanceof SQLException exp && exp.getSQLState().equalsIgnoreCase("42P01")){
         infoLog(STEP_ON_ASYNC_SUCCESS, this, "Table is already dropped - ignore.");
@@ -412,14 +424,28 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
     }
   }
 
+  private void cleanUpDbResources() throws WebClientException, SQLException, TooManyResourcesClaimed {
+    infoLog(STEP_ON_ASYNC_SUCCESS, this, "Cleanup temporary table");
+    runWriteQuerySync(buildTemporaryJobTableDropStatement(getSchema(db()), getTemporaryJobTableName(getId())), db(WRITER), 0);
+
+    infoLog(STEP_ON_ASYNC_SUCCESS, this, "Executing cleanUp Hook");
+    finalCleanUp();
+  }
+
   private List<O> collectOutputs() throws SQLException, TooManyResourcesClaimed, WebClientException {
-    return runReadQuerySync(retrieveTaskOutputs(getSchema(db())), db(WRITER), 0, rs -> {
+    return runReadQuerySync(retrieveTaskOutputsQuery(), db(WRITER), 0, rs -> {
       try {
         List<O> outputs = new ArrayList<>();
         while (rs.next()){
-          SpaceBasedTaskUpdate<O> update =
-                  XyzSerializable.deserialize(rs.getString("task_output"), SpaceBasedTaskUpdate.class);
-          outputs.add(update.taskOutput);
+          String taskOutput = rs.getString("task_output");
+          if(taskOutput != null){
+            SpaceBasedTaskUpdate<O> update =
+                    XyzSerializable.deserialize(taskOutput, SpaceBasedTaskUpdate.class);
+            outputs.add(update.taskOutput);
+          }else{
+            infoLog(STEP_ON_ASYNC_SUCCESS, this, "Empty task output found - skip.");
+          }
+
         }
         return outputs;
       } catch (JsonProcessingException e) {
@@ -444,7 +470,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
    * @throws TooManyResourcesClaimed If too many resources are claimed during the process.
    */
   private TaskProgress getTaskProgressAndTaskItem() throws WebClientException, SQLException, TooManyResourcesClaimed {
-    return runReadQuerySync(retrieveTaskItemAndStatistics(getSchema(db(WRITER))), db(WRITER), 0,
+    return runReadQuerySync(retrieveTaskItemAndStatisticsQuery(getSchema(db(WRITER))), db(WRITER), 0,
       rs -> {
         if(!rs.next())
           return null;
@@ -499,15 +525,15 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
             .withNamedParameter("finalized", finalized); //future prove
   }
 
-  private SQLQuery retrieveTaskItemAndStatistics(String schema) throws WebClientException {
+  private SQLQuery retrieveTaskItemAndStatisticsQuery(String schema) throws WebClientException {
     return new SQLQuery("SELECT total, started, finalized, task_id, task_input from get_task_item_and_statistics();")
             .withContext(getQueryContext(schema));
   }
 
   //TODO: retrieveTaskOutputs
-  protected SQLQuery retrieveTaskOutputs(String schema) {
+  protected SQLQuery retrieveTaskOutputsQuery() throws WebClientException {
     return new SQLQuery("SELECT task_output FROM ${schema}.${tmpTable};")
-            .withVariable("schema", schema)
+            .withVariable("schema", getSchema(db()))
             .withVariable("tmpTable", getTemporaryJobTableName(getId()));
   }
 

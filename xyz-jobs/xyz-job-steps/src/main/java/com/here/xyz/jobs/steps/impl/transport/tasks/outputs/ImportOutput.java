@@ -20,4 +20,10 @@ package com.here.xyz.jobs.steps.impl.transport.tasks.outputs;
 
 import com.here.xyz.jobs.steps.impl.transport.tasks.TaskPayload;
 
-public record ImportOutput(String rows) implements TaskPayload { }
+public record ImportOutput(String importStatistics, long fileBytes) implements TaskPayload {
+  public long extractRowCount() {
+    if (importStatistics == null) return 0;
+    var matcher = java.util.regex.Pattern.compile("\\d+").matcher(importStatistics);
+    return matcher.find() ? Long.parseLong(matcher.group()) : 0;
+  }
+}

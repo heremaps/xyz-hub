@@ -167,7 +167,7 @@ public class ImportStepTest extends StepTest {
             .validate());
   }
 
-  private void executeImportStep(Format format, int featureCountSource,
+  protected void executeImportStep(Format format, int featureCountSource,
                                  ImportFilesToSpace.EntityPerLine entityPerLine, boolean runAsync) throws IOException, InterruptedException {
     StatisticsResponse statsBefore = getStatistics(SPACE_ID);
     if(featureCountSource == 0)

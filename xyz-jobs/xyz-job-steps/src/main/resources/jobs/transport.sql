@@ -519,7 +519,7 @@ CREATE OR REPLACE FUNCTION import_from_s3_perform_v2(
         target_tbl REGCLASS,
         format TEXT,
         s3_bucket TEXT, s3_key TEXT, s3_region TEXT,
-        filesize BIGINT,
+        file_bytes BIGINT,
         step_payload JSON,
         lambda_function_arn TEXT,
         lambda_region TEXT,
@@ -537,12 +537,10 @@ BEGIN
 
     EXECUTE format(
             'SELECT aws_s3.table_import_from_s3( '
-                ||' ''%2$s.%3$s'', '
-                ||'	%4$L, '
-                ||'	%5$L, '
-                ||' aws_commons.create_s3_uri(%6$L,%7$L,%8$L)) ',
-            filesize,
-            schema,
+                ||' ''%1$s'', '
+                ||'	%2$L, '
+                ||'	%3$L, '
+                ||' aws_commons.create_s3_uri(%4$L,%5$L,%6$L)) ',
             target_tbl,
             config.plugin_columns,
             config.plugin_options,
@@ -556,9 +554,9 @@ BEGIN
                  lambda_region,
                  step_payload,
                  task_id,
-                 filesize,
                  jsonb_build_object(
-                    'rows', import_statistics,
+                    'importStatistics', import_statistics.table_import_from_s3,
+                    'fileBytes', file_bytes,
                     'type', 'ImportOutput'
                  )
     );
@@ -631,6 +629,35 @@ EXCEPTION
 END;
 $BODY$;
 
+/**
+ * Enriches Feature - uses in plain trigger function
+ */
+CREATE OR REPLACE FUNCTION import_from_s3_trigger_for_empty_layer_v2()
+    RETURNS trigger
+AS $BODY$
+DECLARE
+    author TEXT := TG_ARGV[0];
+    curVersion BIGINT := TG_ARGV[1];
+    retain_meta BOOLEAN := TG_ARGV[2]::BOOLEAN;
+    feature RECORD;
+BEGIN
+    SELECT new_jsondata, new_geo, new_operation, new_id
+        from import_from_s3_enrich_feature(NEW.jsondata, NEW.geo, retain_meta)
+    INTO feature;
+
+    NEW.version = curVersion;
+    NEW.author = author;
+
+    NEW.id = feature.new_id;
+    NEW.operation = feature.new_operation;
+    NEW.geo = xyz_reduce_precision(feature.new_geo, false);
+    NEW.jsondata = feature.new_jsondata;
+
+    RETURN NEW;
+END;
+$BODY$
+    LANGUAGE plpgsql VOLATILE;
+    
 /**
  * Enriches Feature - uses in plain trigger function
  */
