@@ -366,54 +366,6 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
   }
 
   @Override
-  protected void onAsyncSuccess() throws Exception {
-    try {
-      infoLog(STEP_ON_ASYNC_SUCCESS, this, "Received async success call");
-      String schema = getSchema(db());
-
-      TransportStatistics stepStatistics = runReadQuerySync(retrieveTaskOutputs(schema), db(WRITER),
-              0, rs -> {
-                try {
-                  List<ExportOutput> outputs = new ArrayList<>();
-                  while (rs.next()){
-                    SpaceBasedTaskUpdate<ExportOutput> update =
-                            XyzSerializable.deserialize(rs.getString("task_output"), SpaceBasedTaskUpdate.class);
-                    outputs.add(update.taskOutput);
-                  }
-                  if(outputs.isEmpty())
-                    return new TransportStatistics(0, 0, 0);
-
-                  long totalRows = outputs.stream().mapToLong(ExportOutput::rows).sum();
-                  long totalBytes = outputs.stream().mapToLong(ExportOutput::bytes).sum();
-                  int totalFiles = (int) outputs.stream().mapToLong(ExportOutput::files).sum();
-
-                  return new TransportStatistics(totalRows, totalBytes, totalFiles);
-                } catch (JsonProcessingException e) {
-                  throw new RuntimeException(e);
-                }
-              });
-
-      infoLog(STEP_ON_ASYNC_SUCCESS, this, "Job Statistics: bytes=" + stepStatistics.byteSize + " files=" + stepStatistics.fileCount);
-
-      registerOutputs(List.of(
-              new FeatureStatistics()
-                      .withFeatureCount(stepStatistics.rowCount)
-                      .withByteSize(stepStatistics.byteSize)
-                      .withVersionRef(providedVersionRef)
-      ), STATISTICS);
-
-      infoLog(STEP_ON_ASYNC_SUCCESS, this, "Cleanup temporary table");
-      runWriteQuerySync(buildTemporaryJobTableDropStatement(schema, getTemporaryJobTableName(getId())), db(WRITER), 0);
-    }catch (Exception e){
-      if(e instanceof SQLException exp && exp.getSQLState().equalsIgnoreCase("42P01")){
-        infoLog(STEP_ON_ASYNC_SUCCESS, this, "Table is already dropped - ignore.");
-        return;
-      }
-      throw e;
-    }
-  }
-
-  @Override
   protected boolean onAsyncFailure() {
     //TODO
     return super.onAsyncFailure();

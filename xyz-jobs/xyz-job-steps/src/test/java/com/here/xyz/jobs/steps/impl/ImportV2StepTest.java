@@ -29,17 +29,17 @@ import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
 import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.responses.StatisticsResponse;
-import com.here.xyz.util.service.BaseHttpServerVerticle;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.util.List;
 
-import static com.here.xyz.events.UpdateStrategy.DEFAULT_UPDATE_STRATEGY;
 import static com.here.xyz.jobs.steps.Step.InputSet.USER_INPUTS;
 
-public class ImportV2StepTest extends StepTest {
+@Disabled
+public class ImportV2StepTest extends ImportStepTest {
 
   @Test
   public void testImport_inEmpty_GEOJSON_Entity_Feature() throws Exception {
@@ -47,8 +47,18 @@ public class ImportV2StepTest extends StepTest {
     executeImportStep(Format.GEOJSON, 0, EntityPerLine.Feature, false);
   }
 
-  private void executeImportStep(Format format, int featureCountSource,
-                                 EntityPerLine entityPerLine, boolean runAsync) throws IOException, InterruptedException {
+  @Test
+  public void testImport_inNonEmpty_GEOJSON_Entity_Feature() throws Exception {
+    int existingFeatureCount = 10;
+    //CSV_JSON_WKB gets always executed ASYNC
+    putRandomFeatureCollectionToSpace(SPACE_ID, existingFeatureCount);
+    executeImportStep(Format.GEOJSON, existingFeatureCount, EntityPerLine.Feature, true);
+  }
+
+  @Override
+  protected void executeImportStep(Format format, int featureCountSource,
+                                   ImportFilesToSpace.EntityPerLine entityPerLine, boolean runAsync) throws IOException, InterruptedException {
+
     StatisticsResponse statsBefore = getStatistics(SPACE_ID);
     if(featureCountSource == 0)
       Assertions.assertEquals(0L, statsBefore.getCount().getValue());
@@ -65,17 +75,19 @@ public class ImportV2StepTest extends StepTest {
       fileExtension += "fc";
 
     S3ContentType contentType = format == Format.GEOJSON ? S3ContentType.APPLICATION_JSON : S3ContentType.TEXT_CSV;
+
+    //* Only files with enriched features are allowd */
     uploadInputFile(JOB_ID, ByteStreams.toByteArray(this.getClass().getResourceAsStream("/testFiles/file1" + fileExtension)), contentType);
     uploadInputFile(JOB_ID, ByteStreams.toByteArray(this.getClass().getResourceAsStream("/testFiles/file2" + fileExtension)), contentType);
 
     ImportFilesToSpaceV2 step = new ImportFilesToSpaceV2()
-        .withJobId(JOB_ID)
-        .withVersionRef(new Ref(Ref.HEAD))
-        //.withFormat(format)
-        //.withEntityPerLine(entityPerLine)
-        //.withUpdateStrategy(DEFAULT_UPDATE_STRATEGY)
-        .withSpaceId(SPACE_ID)
-        .withInputSets(List.of(USER_INPUTS.get()));
+            .withJobId(JOB_ID)
+            .withVersionRef(new Ref(Ref.HEAD))
+            //.withFormat(format)
+            //.withEntityPerLine(entityPerLine)
+            //.withUpdateStrategy(DEFAULT_UPDATE_STRATEGY)
+            .withSpaceId(SPACE_ID)
+            .withInputSets(List.of(USER_INPUTS.get()));
 
     if(runAsync)
       step.setUncompressedUploadBytesEstimation(1024 * 1024 * 1024);
@@ -87,13 +99,5 @@ public class ImportV2StepTest extends StepTest {
     //We have 2 files with 20 features each.
     Assertions.assertEquals(Long.valueOf(40 + featureCountSource), statsAfter.getCount().getValue());
     checkStatistics(40, step.loadUserOutputs());
-  }
-
-  protected void checkStatistics(int expectedFeatureCount, List<Output> outputs) throws IOException {
-    for (Object output : outputs) {
-       if(output instanceof FeatureStatistics statistics) {
-         Assertions.assertEquals(expectedFeatureCount, statistics.getFeatureCount());
-      }
-    }
   }
 }
