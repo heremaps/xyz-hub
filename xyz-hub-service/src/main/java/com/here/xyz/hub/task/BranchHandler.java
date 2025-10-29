@@ -42,6 +42,7 @@ import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.MergedBranchResponse;
 import com.here.xyz.responses.ModifiedBranchResponse;
 import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.util.service.Core;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import java.util.ArrayList;
@@ -95,7 +96,7 @@ public class BranchHandler {
           Future<Void> stored;
           if (existingBranch != null && existingBranch.getBaseRef().equals(branchUpdate.getBaseRef()))
             //BaseRef was not changed, so no connector call is necessary, store the updated branch
-            stored = Service.branchConfigClient.store(spaceId, branchUpdate, branchId);
+            stored = storeBranch(spaceId, branchUpdate, branchId, false);
           else
             stored = Space.resolveSpace(marker, spaceId)
                 .compose(space -> space == null ? Future.failedFuture("Branch " + branchId + " cannot be created as resource "
@@ -191,6 +192,12 @@ public class BranchHandler {
   }
 
   private static Future<Void> storeBranch(String spaceId, Branch branch, String branchId, boolean resolvePath) {
+    long currentTs = Core.currentTimeMillis();
+    if (branch.getCreatedAt() == 0) {
+      branch.setCreatedAt(currentTs);
+      branch.setContentUpdatedAt(currentTs);
+    }
+    branch.setUpdatedAt(currentTs);
     return (resolvePath ? resolveBranchPath(spaceId, branch) : Future.succeededFuture(branch))
             .compose(resolvedBranch -> BranchConfigClient.getInstance().store(spaceId, resolvedBranch, branchId));
   }
