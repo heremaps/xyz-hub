@@ -53,6 +53,12 @@ public class Branch implements XyzSerializable {
   private Map<Long, Ref> merges;
   @JsonView({Public.class, Static.class})
   private String conflictSolvingBranch;
+  @JsonView({Public.class, Static.class})
+  private long createdAt;
+  @JsonView({Public.class, Static.class})
+  private long updatedAt;
+  @JsonView({Public.class, Static.class})
+  private long contentUpdatedAt;
 
   public String getId() {
     return id;
@@ -178,6 +184,45 @@ public class Branch implements XyzSerializable {
 
   public Branch withConflictSolvingBranch(String conflictSolvingBranch) {
     setConflictSolvingBranch(conflictSolvingBranch);
+    return this;
+  }
+
+  public long getCreatedAt() {
+    return createdAt;
+  }
+
+  public void setCreatedAt(long createdAt) {
+    this.createdAt = createdAt;
+  }
+
+  public Branch withCreatedAt(long createdAt) {
+    setCreatedAt(createdAt);
+    return this;
+  }
+
+  public long getUpdatedAt() {
+    return updatedAt;
+  }
+
+  public void setUpdatedAt(long updatedAt) {
+    this.updatedAt = updatedAt;
+  }
+
+  public Branch withUpdatedAt(long updatedAt) {
+    setUpdatedAt(updatedAt);
+    return this;
+  }
+
+  public long getContentUpdatedAt() {
+    return contentUpdatedAt;
+  }
+
+  public void setContentUpdatedAt(long contentUpdatedAt) {
+    this.contentUpdatedAt = contentUpdatedAt;
+  }
+
+  public Branch withContentUpdatedAt(long contentUpdatedAt) {
+    setContentUpdatedAt(contentUpdatedAt);
     return this;
   }
 
