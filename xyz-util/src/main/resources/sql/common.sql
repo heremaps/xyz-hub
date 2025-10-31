@@ -230,11 +230,35 @@ $BODY$
 LANGUAGE plpgsql STABLE
 PARALLEL SAFE;
 
+/* WIP */
+
+CREATE OR REPLACE FUNCTION execJs(jsToExecute TEXT, dependencies TEXT[]) RETURNS TEXT AS
+$BODY$
+  libs = {};
+  libs.include = (nameOfLib, code) => {
+    if (!globalThis[nameOfLib] && dependencies.includes(nameOfLib))
+      globalThis[nameOfLib] = code;
+  };
+
+  //Beispiel zur Nutzung
+  libs.include("jsonpath_rfc9535", `$X{{/lib-js/jsonpath_rfc9535.min.js}}`.replace(/^[^(]*\(/, '') );
+  libs.include("sample_hello",  `${{/lib-js/sample_hello.min.js}}`.replace(/^[^(]*\(/, '') );
+
+  eval( jsToExecute );
+
+  return jsToExecute;
+
+$BODY$
+LANGUAGE plv8 VOLATILE;
+
+/**/
+
 /**
+
  *  register code of requirerd js libs in gobalThis
  *  select require( 'libmod1', 'libmod2', 'libmod3' )
  *  select require(variadic array['libmod1','libmod2','libmod3'] )
- ppppppp
+
  */
 
 CREATE OR REPLACE FUNCTION require(VARIADIC modules text[])
@@ -250,8 +274,8 @@ RETURNS void AS $body$
             plv8.elog(NOTICE, `Loading module: ${name}`);
 			try {
 			 const res = plv8.execute(`select ${name}()`);
-			 globalThis[name] = res.length > 0 ? eval(res[0][name]) : `Unable to load code for module: ${name}`;
-             plv8.elog(NOTICE, `Loading module source: ${globalThis[name].substring(0,25)}`);
+			 globalThis[name] = res.length > 0 ? new Function("return " + res[0][name])() : `Unable to load code for module: ${name}`;
+             plv8.elog(NOTICE, `Loaded module source: ${res[0][name].substring(0,25)}`);
 			} catch (err) {
 			 plv8.elog(NOTICE, 'Loading module ${name} failed: ' + err.message);
 			}
@@ -259,4 +283,21 @@ RETURNS void AS $body$
     }
 $body$
 LANGUAGE plv8 IMMUTABLE
+PARALLEL UNSAFE;
+
+/*
+   sample sql function to verify/demonstrate use of require
+   module sample_hello provides a function hello( input ) which simply returns "Hello + input"
+*/
+
+CREATE OR REPLACE FUNCTION sample_hello_test( sometext text)
+    RETURNS text AS
+$BODY$
+
+    plv8.execute("SELECT require( 'sample_hello' )");
+
+    return sample_hello.hello(sometext);
+
+$BODY$
+LANGUAGE 'plv8' IMMUTABLE
 PARALLEL UNSAFE;
