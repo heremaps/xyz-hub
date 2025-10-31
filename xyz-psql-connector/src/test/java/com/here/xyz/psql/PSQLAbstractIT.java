@@ -164,9 +164,9 @@ public abstract class PSQLAbstractIT extends Helper {
     try {
       response = LAMBDA.handleEvent(event).serialize();
     }catch (Exception e) {
-      if(e instanceof ErrorResponseException ee) {
-        return ee.getErrorResponse().serialize();
-      }
+//      if(e instanceof ErrorResponseException ee) {
+//        return ee.getErrorResponse().serialize();
+//      }
     }
     LOGGER.info("Response from lambda - {}", response);
     return response;

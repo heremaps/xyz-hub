@@ -34,6 +34,6 @@ public class HubComposite_SUPER_WithHistoryTestSuiteIT extends HubComposite_EXTE
 
   @Override
   protected TestArgs modifyArgs(TestArgs args) {
-    return args.withComposite(true).withContext(SUPER).withFeatureExistsInSuper(args.featureExists()).withHistory(true);
+    return args.withComposite(true).withContext(SUPER).withFeatureExistsInSuper(args.isFeatureExists()).withHistory(true);
   }
 }

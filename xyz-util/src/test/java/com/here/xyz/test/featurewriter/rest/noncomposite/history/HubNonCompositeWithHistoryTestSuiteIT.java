@@ -39,7 +39,7 @@ public class HubNonCompositeWithHistoryTestSuiteIT extends RestTestSuite {
     );
 
     return SQLNonCompositeWithHistoryTestSuiteIT.testScenarios()
-        .filter(args -> !ignoredTests.contains(args.testName()));
+        .filter(args -> !ignoredTests.contains(args.getTestName()));
   }
 
   @ParameterizedTest

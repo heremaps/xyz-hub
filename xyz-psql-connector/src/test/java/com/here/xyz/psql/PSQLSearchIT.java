@@ -93,15 +93,15 @@ public class PSQLSearchIT extends PSQLAbstractIT {
 
     if (!json.containsKey("propertiesQuery"))
       json.put("propertiesQuery", List.of(List.of(tagsSearchPredicate)));
-    else if (json.get("propertiesQuery") instanceof List propertiesQuery) {
-      if (propertiesQuery.size() == 0)
-        json.put("propertiesQuery", List.of(List.of(tagsSearchPredicate)));
-      else if (propertiesQuery.get(0) instanceof List propertyQueryList)
-        json.put("propertiesQuery", List.of(new ArrayList() {{
-          add(tagsSearchPredicate);
-          addAll(propertyQueryList);
-        }}));
-    }
+//    else if (json.get("propertiesQuery") instanceof List propertiesQuery) {
+//      if (propertiesQuery.size() == 0)
+//        json.put("propertiesQuery", List.of(List.of(tagsSearchPredicate)));
+//      else if (propertiesQuery.get(0) instanceof List propertyQueryList)
+//        json.put("propertiesQuery", List.of(new ArrayList() {{
+//          add(tagsSearchPredicate);
+//          addAll(propertyQueryList);
+//        }}));
+//    }
   }
 
   /**

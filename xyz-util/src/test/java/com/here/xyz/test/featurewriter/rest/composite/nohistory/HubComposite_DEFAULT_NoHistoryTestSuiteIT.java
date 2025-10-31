@@ -38,7 +38,7 @@ public class HubComposite_DEFAULT_NoHistoryTestSuiteIT extends RestTestSuite {
     );
 
     return SQLComposite_DEFAULT_NoHistoryTestSuiteIT.testScenarios()
-        .filter(args -> !ignoredTests.contains(args.testName()));
+        .filter(args -> !ignoredTests.contains(args.getTestName()));
   }
 
   @ParameterizedTest

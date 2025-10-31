@@ -57,6 +57,7 @@ import com.here.xyz.util.db.pg.SQLError;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -85,10 +86,7 @@ public abstract class TestSuite {
   protected OnVersionConflict onVersionConflict;
   protected OnMergeConflict onMergeConflict;
   protected SpaceContext spaceContext;
-  protected Map<SpaceContext, LongAdder> writtenSpaceVersions = new HashMap<>(Map.of(
-      SUPER, new LongAdder(),
-      EXTENSION, new LongAdder()
-  ));
+  protected Map<SpaceContext, LongAdder> writtenSpaceVersions = new HashMap<>();
   protected long baseVersion;
 
   protected SpaceState beforeState;
@@ -131,22 +129,22 @@ public abstract class TestSuite {
 
     if (composite && featureExists && !featureExistsInSuper && !featureExistsInExtension)
       throw new IllegalArgumentException("Illegal test arguments: Given a composite space, the existing feature "
-          + "must exist at least in one of the composing spaces.");
+              + "must exist at least in one of the composing spaces.");
 
     if (!composite && featureExistsInSuper)
       throw new IllegalArgumentException("Illegal test arguments: Given a non-composite space, the existing feature "
-          + "can not exist in a super space.");
+              + "can not exist in a super space.");
 
     if (!composite && featureExistsInExtension)
       throw new IllegalArgumentException("Illegal test arguments: Given a non-composite space, the existing feature "
-          + "can not exist in an extension space.");
+              + "can not exist in an extension space.");
   }
 
   private static Feature featureWithEmptyProperties() {
     return new Feature()
-        .withId(TEST_FEATURE_ID)
-        .withGeometry(TEST_FEATURE_GEOMETRY)
-        .withProperties(new Properties());
+            .withId(TEST_FEATURE_ID)
+            .withGeometry(TEST_FEATURE_GEOMETRY)
+            .withProperties(new Properties());
   }
 
   protected static Feature simpleFeature() throws JsonProcessingException {
@@ -156,8 +154,8 @@ public abstract class TestSuite {
   protected static Feature modifiedFeature(long baseVersion) throws JsonProcessingException {
     Feature feature = simpleFeature();
     feature.getProperties()
-        .with("modifiedField", "someValue")
-        .with("otherModifiedField", 27);
+            .with("modifiedField", "someValue")
+            .with("otherModifiedField", 27);
 
     if (baseVersion > -1)
       feature.getProperties().withXyzNamespace(new XyzNamespace().withVersion(baseVersion));
@@ -168,17 +166,17 @@ public abstract class TestSuite {
   protected static Feature concurrentlyModifiedFeature(boolean withConflictingAttributes) throws JsonProcessingException {
     Feature feature = simpleFeature();
     feature.getProperties()
-        .with("modifiedField", withConflictingAttributes ? "someConflictingValue" : "someValue")
-        .with("someOtherConcurrentField", "someOtherValue");
+            .with("modifiedField", withConflictingAttributes ? "someConflictingValue" : "someValue")
+            .with("someOtherConcurrentField", "someOtherValue");
     return feature;
   }
 
   protected static Feature deletedFeature(long version) {
     Feature feature = featureWithEmptyProperties()
-        .withGeometry(null);
+            .withGeometry(null);
     feature.getProperties().withXyzNamespace(new XyzNamespace()
-        .withDeleted(true)
-        .withVersion(version));
+            .withDeleted(true)
+            .withVersion(version));
     return feature;
   }
 
@@ -191,6 +189,9 @@ public abstract class TestSuite {
   @BeforeEach
   public void prepare() throws Exception {
     init(modifyArgs(EMPTY_ARGS));
+    // initialize writtenSpaceVersions map
+    writtenSpaceVersions.put(SUPER, new LongAdder());
+    writtenSpaceVersions.put(EXTENSION, new LongAdder());
     spaceWriter().createSpaceResources();
   }
 
@@ -201,7 +202,7 @@ public abstract class TestSuite {
 
   private void writeFeatureForPreparation(Feature feature, String author, SpaceContext context) throws Exception {
     new SQLSpaceWriter(composite, getClass().getSimpleName())
-        .writeFeature(feature, author, null, null, null, null, false, context, history);
+            .writeFeature(feature, author, null, null, null, null, false, context, history);
     writtenSpaceVersions.get(context).increment();
   }
 
@@ -260,7 +261,7 @@ public abstract class TestSuite {
     try {
       //TODO: Also support "partial" to be influenced through test args
       spaceWriter().writeFeature(modifiedFeature(baseVersion), UPDATE_AUTHOR, onExists, onNotExists,
-          onVersionConflict, onMergeConflict,false, spaceContext, history);
+              onVersionConflict, onMergeConflict,false, spaceContext, history);
     }
     catch (SQLException e) {
       thrownError = SQLError.fromErrorCode(e.getSQLState());
@@ -295,37 +296,47 @@ public abstract class TestSuite {
 
       //Check the written feature content
       long expectedVersion = getWrittenSpaceVersion(spaceContext) + 1;
-      Feature expectedFeature = Set.of(D, H, J).contains(featureOperation) ? deletedFeature(expectedVersion)
-          : assertions.featureWasMerged ? mergedFeature(expectedVersion) : modifiedFeature(expectedVersion);
+      Feature expectedFeature = createExpectedFeatureForOperation(featureOperation, assertions.featureWasMerged, expectedVersion, afterTableState);
       expectedFeature.getProperties().getXyzNamespace()
-          .withCreatedAt(afterTableState.feature.getProperties().getXyzNamespace().getCreatedAt())
-          .withUpdatedAt(afterTableState.feature.getProperties().getXyzNamespace().getUpdatedAt())
-          .withAuthor(UPDATE_AUTHOR);
+              .withCreatedAt(afterTableState.feature.getProperties().getXyzNamespace().getCreatedAt())
+              .withUpdatedAt(afterTableState.feature.getProperties().getXyzNamespace().getUpdatedAt())
+              .withAuthor(UPDATE_AUTHOR);
       applyAuthorWorkaround(expectedFeature);
       assertEquals("The feature was written incorrectly.", expectedFeature, afterTableState.feature);
 
       //Check if the feature's update timestamp has been written properly
       Matcher<Long> isGreaterThanBeforeTimestamp = greaterThan(beforeTestStartTimestamp);
       assertThat("The feature's update timestamp has to be higher than the timestamp when the test started.",
-          afterTableState.feature.getProperties().getXyzNamespace().getUpdatedAt(), isGreaterThanBeforeTimestamp);
+              afterTableState.feature.getProperties().getXyzNamespace().getUpdatedAt(), isGreaterThanBeforeTimestamp);
       //Check if the feature's creation timestamp has been written properly
       assertThat("The feature's creation timestamp has to be " + (featureOperation == I || featureOperation == H ? "higher" : "lower")
-          + " than the timestamp when the test started.", afterTableState.feature.getProperties().getXyzNamespace().getCreatedAt(),
-          featureOperation == I || featureOperation == H ? isGreaterThanBeforeTimestamp : not(isGreaterThanBeforeTimestamp));
+                      + " than the timestamp when the test started.", afterTableState.feature.getProperties().getXyzNamespace().getCreatedAt(),
+              featureOperation == I || featureOperation == H ? isGreaterThanBeforeTimestamp : not(isGreaterThanBeforeTimestamp));
     }
     else if (performedTableOperation == NONE) {
       //Check the state of the feature operation
       assertEquals("A feature operation was applied even if the expected table operation was NONE.",
-          beforeTableState.lastUsedFeatureOperation, afterTableState.lastUsedFeatureOperation);
+              beforeTableState.lastUsedFeatureOperation, afterTableState.lastUsedFeatureOperation);
 
       //Check the feature content (including timestamps)
       assertEquals("The feature content has changed even if the expected table operation was NONE.",
-          beforeTableState.feature, afterTableState.feature);
+              beforeTableState.feature, afterTableState.feature);
     }
     else if (performedTableOperation == DELETE) {
       //Check whether the feature was actually deleted
       assertEquals(null, afterTableState.feature);
     }
+  }
+
+  private Feature createExpectedFeatureForOperation(Operation featureOperation, boolean featureWasMerged, long expectedVersion, SpaceTableState afterTableState) throws JsonProcessingException {
+    Set<Operation> deletedOps = new HashSet<>();
+    deletedOps.add(D);
+    deletedOps.add(H);
+    deletedOps.add(J);
+    if (deletedOps.contains(featureOperation)) {
+      return deletedFeature(expectedVersion);
+    }
+    return featureWasMerged ? mergedFeature(expectedVersion) : modifiedFeature(expectedVersion);
   }
 
   private void applyAuthorWorkaround(Feature expectedFeature) {
@@ -358,8 +369,8 @@ public abstract class TestSuite {
     Feature feature = spaceWriter().getFeature(context);
     Operation lastUsedFeatureOperation = spaceWriter().getLastUsedFeatureOperation(context);
     return history
-        ? new SpaceTableState(feature, lastUsedFeatureOperation, spaceWriter().getRowCount(context))
-        : new SpaceTableState(feature, lastUsedFeatureOperation);
+            ? new SpaceTableState(feature, lastUsedFeatureOperation, spaceWriter().getRowCount(context))
+            : new SpaceTableState(feature, lastUsedFeatureOperation);
   }
 
   public enum TableOperation {
@@ -381,90 +392,123 @@ public abstract class TestSuite {
     return feature1.serialize().equals(feature2.serialize());
   }
 
-  //TODO: Use unboxed type instead of Booleans
-  public record TestArgs(String testName, boolean composite, boolean history, boolean featureExists, Boolean baseVersionMatch,
-      Boolean conflictingAttributes, Boolean featureExistsInSuper, Boolean featureExistsInExtension, UserIntent userIntent,
-      OnNotExists onNotExists, OnExists onExists, OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict,
-      SpaceContext spaceContext, TestAssertions assertions) {
 
-    public TestArgs {
-      if (featureExistsInSuper == null)
-        featureExistsInSuper = false;
+  public static class TestArgs {
+    public final String testName;
+    public final boolean composite;
+    public final boolean history;
+    public final boolean featureExists;
+    public final Boolean baseVersionMatch;
+    public final Boolean conflictingAttributes;
+    public final Boolean featureExistsInSuper;
+    public final Boolean featureExistsInExtension;
+    public final UserIntent userIntent;
+    public final OnNotExists onNotExists;
+    public final OnExists onExists;
+    public final OnVersionConflict onVersionConflict;
+    public final OnMergeConflict onMergeConflict;
+    public final SpaceContext spaceContext;
+    public final TestAssertions assertions;
 
-      if (featureExistsInExtension == null)
-        featureExistsInExtension = false;
+    public TestArgs(String testName, boolean composite, boolean history, boolean featureExists, Boolean baseVersionMatch,
+                    Boolean conflictingAttributes, Boolean featureExistsInSuper, Boolean featureExistsInExtension, UserIntent userIntent,
+                    OnNotExists onNotExists, OnExists onExists, OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict,
+                    SpaceContext spaceContext, TestAssertions assertions) {
+      this.testName = testName;
+      this.composite = composite;
+      this.history = history;
+      this.featureExists = featureExists;
+      this.baseVersionMatch = baseVersionMatch;
+      this.conflictingAttributes = conflictingAttributes;
+      this.featureExistsInSuper = featureExistsInSuper == null ? Boolean.FALSE : featureExistsInSuper;
+      this.featureExistsInExtension = featureExistsInExtension == null ? Boolean.FALSE : featureExistsInExtension;
+      this.userIntent = userIntent;
+      this.onNotExists = onNotExists;
+      this.onExists = onExists;
+      this.onVersionConflict = onVersionConflict;
+      this.onMergeConflict = onMergeConflict;
+      this.spaceContext = spaceContext;
+      this.assertions = assertions;
+    }
+
+    public String getTestName() {
+      return testName;
+    }
+
+    public boolean isFeatureExists() {
+      return featureExists;
     }
 
     public TestArgs(String testName, boolean composite, boolean history, boolean featureExists, boolean baseVersionMatch,
-        Boolean featureExistsInSuper, Boolean featureExistsInExtension, UserIntent userIntent,
-        OnNotExists onNotExists, OnExists onExists, OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict,
-        SpaceContext spaceContext, TestAssertions assertions) {
-      this(testName, composite, history, featureExists, baseVersionMatch, false, featureExistsInSuper,
-          featureExistsInExtension, userIntent, onNotExists, onExists, onVersionConflict, onMergeConflict, spaceContext, assertions);
+                    Boolean featureExistsInSuper, Boolean featureExistsInExtension, UserIntent userIntent,
+                    OnNotExists onNotExists, OnExists onExists, OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict,
+                    SpaceContext spaceContext, TestAssertions assertions) {
+      this(testName, composite, history, featureExists, baseVersionMatch, Boolean.FALSE, featureExistsInSuper, featureExistsInExtension, userIntent,
+              onNotExists, onExists, onVersionConflict, onMergeConflict, spaceContext, assertions);
     }
 
     public TestArgs(String testName, boolean composite, boolean history, Boolean baseVersionMatch,
-        Boolean conflictingAttributes, UserIntent userIntent,
-        OnNotExists onNotExists, OnExists onExists, OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict, TestAssertions assertions) {
+                    Boolean conflictingAttributes, UserIntent userIntent,
+                    OnNotExists onNotExists, OnExists onExists, OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict, TestAssertions assertions) {
       this(testName, composite, history, false, baseVersionMatch, conflictingAttributes, false,
-          false, userIntent, onNotExists, onExists, onVersionConflict, onMergeConflict, DEFAULT, assertions);
+              false, userIntent, onNotExists, onExists, onVersionConflict, onMergeConflict, DEFAULT, assertions);
     }
 
     public TestArgs(String testName, boolean composite, boolean history, UserIntent userIntent,
-        OnNotExists onNotExists, OnExists onExists, OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict, TestAssertions assertions) {
+                    OnNotExists onNotExists, OnExists onExists, OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict, TestAssertions assertions) {
       this(testName, composite, history, true, false, userIntent, onNotExists, onExists, onVersionConflict, onMergeConflict, assertions);
     }
 
     public TestArgs(String testName, boolean history, boolean featureExists, Boolean baseVersionMatch,
-        Boolean conflictingAttributes, UserIntent userIntent, OnNotExists onNotExists, OnExists onExists, OnVersionConflict onVersionConflict,
-        OnMergeConflict onMergeConflict, SpaceContext spaceContext, TestAssertions assertions) {
+                    Boolean conflictingAttributes, UserIntent userIntent, OnNotExists onNotExists, OnExists onExists, OnVersionConflict onVersionConflict,
+                    OnMergeConflict onMergeConflict, SpaceContext spaceContext, TestAssertions assertions) {
       this(testName, false, history, featureExists, baseVersionMatch, conflictingAttributes, false,
-          false, userIntent, onNotExists, onExists, onVersionConflict, onMergeConflict, spaceContext, assertions);
+              false, userIntent, onNotExists, onExists, onVersionConflict, onMergeConflict, spaceContext, assertions);
     }
 
     public TestArgs(String testName, boolean history, boolean featureExists, Boolean baseVersionMatch, UserIntent userIntent,
-        OnNotExists onNotExists, OnExists onExists, OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict,
-        SpaceContext spaceContext, TestAssertions assertions) {
+                    OnNotExists onNotExists, OnExists onExists, OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict,
+                    SpaceContext spaceContext, TestAssertions assertions) {
       this(testName, false, history, featureExists, baseVersionMatch, false, false,
-          false, userIntent, onNotExists, onExists, onVersionConflict, onMergeConflict, spaceContext, assertions);
+              false, userIntent, onNotExists, onExists, onVersionConflict, onMergeConflict, spaceContext, assertions);
     }
 
     public TestArgs(String testName, boolean history, boolean featureExists, UserIntent userIntent,
-        OnNotExists onNotExists, OnExists onExists, OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict,
-        SpaceContext spaceContext, TestAssertions assertions) {
+                    OnNotExists onNotExists, OnExists onExists, OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict,
+                    SpaceContext spaceContext, TestAssertions assertions) {
       this(testName, false, history, featureExists, true, false, false,
-          false, userIntent, onNotExists, onExists, onVersionConflict, onMergeConflict, spaceContext,
-          assertions);
+              false, userIntent, onNotExists, onExists, onVersionConflict, onMergeConflict, spaceContext,
+              assertions);
     }
 
     public TestArgs withComposite(boolean composite) {
       return new TestArgs(testName, true, history, featureExists, baseVersionMatch, conflictingAttributes, featureExistsInSuper,
-          featureExistsInExtension, userIntent, onNotExists, onExists, onVersionConflict, onMergeConflict, spaceContext,
-          assertions);
+              featureExistsInExtension, userIntent, onNotExists, onExists, onVersionConflict, onMergeConflict, spaceContext,
+              assertions);
     }
 
     public TestArgs withContext(SpaceContext spaceContext) {
       return new TestArgs(testName, composite, history, featureExists, baseVersionMatch, conflictingAttributes, featureExistsInSuper,
-          featureExistsInExtension, userIntent, onNotExists, onExists, onVersionConflict, onMergeConflict, spaceContext,
-          assertions);
+              featureExistsInExtension, userIntent, onNotExists, onExists, onVersionConflict, onMergeConflict, spaceContext,
+              assertions);
     }
 
     public TestArgs withFeatureExistsInSuper(boolean featureExistsInSuper) {
       return new TestArgs(testName, composite, history, featureExists, baseVersionMatch, conflictingAttributes, featureExistsInSuper,
-          featureExistsInExtension, userIntent, onNotExists, onExists, onVersionConflict, onMergeConflict, spaceContext,
-          assertions);
+              featureExistsInExtension, userIntent, onNotExists, onExists, onVersionConflict, onMergeConflict, spaceContext,
+              assertions);
     }
 
     public TestArgs withFeatureExistsInExtension(boolean featureExistsInExtension) {
       return new TestArgs(testName, composite, history, featureExists, baseVersionMatch, conflictingAttributes, featureExistsInSuper,
-          featureExistsInExtension, userIntent, onNotExists, onExists, onVersionConflict, onMergeConflict, spaceContext,
-          assertions);
+              featureExistsInExtension, userIntent, onNotExists, onExists, onVersionConflict, onMergeConflict, spaceContext,
+              assertions);
     }
 
     public TestArgs withHistory(boolean history) {
       return new TestArgs(testName, composite, history, featureExists, baseVersionMatch, conflictingAttributes, featureExistsInSuper,
-          featureExistsInExtension, userIntent, onNotExists, onExists, onVersionConflict, onMergeConflict, spaceContext,
-          assertions);
+              featureExistsInExtension, userIntent, onNotExists, onExists, onVersionConflict, onMergeConflict, spaceContext,
+              assertions);
     }
 
     @Override
@@ -523,54 +567,85 @@ public abstract class TestSuite {
     }
 
     private String toHumanReadable(OnNotExists onNotExists) {
-      return switch (onNotExists) {
-        case CREATE -> "Create";
-        case RETAIN -> "DoNothing";
-        case ERROR -> "ThrowError";
-      };
+      switch (onNotExists) {
+        case CREATE:
+          return "Create";
+        case RETAIN:
+          return "DoNothing";
+        case ERROR:
+        default:
+          return "ThrowError";
+      }
     }
 
     private String toHumanReadable(OnExists onExists) {
-      return switch (onExists) {
-        case DELETE -> "Delete";
-        case REPLACE -> "Replace";
-        case RETAIN -> "Keep";
-        case ERROR -> "ThrowError";
-      };
+      switch (onExists) {
+        case DELETE:
+          return "Delete";
+        case REPLACE:
+          return "Replace";
+        case RETAIN:
+          return "Keep";
+        case ERROR:
+        default:
+          return "ThrowError";
+      }
     }
 
     private String toHumanReadable(OnVersionConflict onVersionConflict) {
-      return switch (onVersionConflict) {
-        case MERGE -> "Merge";
-        case REPLACE -> "Replace";
-        case RETAIN -> "DoNothing";
-        case ERROR -> "ThrowError";
-        case DELETE -> "Delete";
-      };
+      switch (onVersionConflict) {
+        case MERGE:
+          return "Merge";
+        case REPLACE:
+          return "Replace";
+        case RETAIN:
+          return "DoNothing";
+        case ERROR:
+          return "ThrowError";
+        case DELETE:
+        default:
+          return "Delete";
+      }
     }
 
     private String toHumanReadable(OnMergeConflict onMergeConflict) {
-      return switch (onMergeConflict) {
-        case REPLACE -> "Replace";
-        case RETAIN -> "KeepCurrent";
-        case ERROR -> "ThrowError";
-        case CONTINUE -> "MarkConflictsAndContinue";
-      };
+      switch (onMergeConflict) {
+        case REPLACE:
+          return "Replace";
+        case RETAIN:
+          return "KeepCurrent";
+        case ERROR:
+          return "ThrowError";
+        case CONTINUE:
+        default:
+          return "MarkConflictsAndContinue";
+      }
     }
   }
 
-  public record SpaceTableState(Feature feature, Operation lastUsedFeatureOperation, int featureVersionCount) {
+  public static class SpaceTableState {
+    public final Feature feature;
+    public final Operation lastUsedFeatureOperation;
+    public final int featureVersionCount;
+
+    public SpaceTableState(Feature feature, Operation lastUsedFeatureOperation, int featureVersionCount) {
+      this.feature = feature;
+      this.lastUsedFeatureOperation = lastUsedFeatureOperation;
+      this.featureVersionCount = featureVersionCount;
+    }
 
     /**
      * Use this constructor if the space has no history
      * @param feature
      */
     public SpaceTableState(Feature feature, Operation lastUsedFeatureOperation) {
-      this(feature, lastUsedFeatureOperation,  feature == null ? 0 : 1);
+      this(feature, lastUsedFeatureOperation, feature == null ? 0 : 1);
     }
   }
 
-  public record SpaceState(SpaceTableState spaceTableState, SpaceTableState superSpaceTableState) {
+  public static class SpaceState {
+    public final SpaceTableState spaceTableState;
+    public final SpaceTableState superSpaceTableState;
 
     /**
      * Use this constructor if the space is no composite space
@@ -580,21 +655,35 @@ public abstract class TestSuite {
       this(spaceTableState, null);
     }
 
+    public SpaceState(SpaceTableState spaceTableState, SpaceTableState superSpaceTableState) {
+      this.spaceTableState = spaceTableState;
+      this.superSpaceTableState = superSpaceTableState;
+    }
+
     public SpaceTableState tableStateForContext(SpaceContext context) {
       return context == SUPER ? superSpaceTableState : spaceTableState;
     }
   }
 
-  public record TestAssertions(TableOperation performedTableOperation, Operation usedFeatureOperation, boolean featureWasMerged,
-      SQLError sqlError) {
+  public static class TestAssertions {
+    public final TableOperation performedTableOperation;
+    public final Operation usedFeatureOperation;
+    public final boolean featureWasMerged;
+    public final SQLError sqlError;
 
-    public TestAssertions {
+    public TestAssertions(TableOperation performedTableOperation, Operation usedFeatureOperation, boolean featureWasMerged,
+                          SQLError sqlError) {
       if (performedTableOperation == null)
         throw new NullPointerException("The asserted table operation can not be null. Use NONE if no action on the table is asserted!");
-      if (usedFeatureOperation == null && performedTableOperation != DELETE && performedTableOperation != NONE)
+      if (usedFeatureOperation == null && performedTableOperation != TableOperation.DELETE && performedTableOperation != TableOperation.NONE)
         throw new IllegalArgumentException("If no feature operation is asserted, the only asserted table operations can be DELETE or NONE.");
-      if (usedFeatureOperation != null && (performedTableOperation == NONE || performedTableOperation == DELETE))
+      if (usedFeatureOperation != null && (performedTableOperation == TableOperation.NONE || performedTableOperation == TableOperation.DELETE))
         throw new IllegalArgumentException("If the asserted table operation is NONE or DELETE, no feature operation can be asserted.");
+
+      this.performedTableOperation = performedTableOperation;
+      this.usedFeatureOperation = usedFeatureOperation;
+      this.featureWasMerged = featureWasMerged;
+      this.sqlError = sqlError;
     }
 
     public TestAssertions(TableOperation tableOperation, Operation featureOperation, boolean featureWasMerged) {

@@ -53,21 +53,23 @@ public class RestSpaceWriter extends SpaceWriter {
   }
 
   private HubWebClient webClient(String author) {
-    return HubWebClient.getInstance("http://localhost:8080/hub", Map.of("Author", author));
+    Map<String, String> headers = new HashMap<String, String>();
+    headers.put("Author", author);
+    return HubWebClient.getInstance("http://localhost:8080/hub", headers);
   }
 
   @Override
   public void createSpaceResources() throws Exception {
     Space space = new Space()
-        .withId(spaceId())
-        .withTitle(spaceId() + " Titel")
-        .withVersionsToKeep(history ? 100 : 1);
+            .withId(spaceId())
+            .withTitle(spaceId() + " Titel")
+            .withVersionsToKeep(history ? 100 : 1);
 
     if (composite) {
       Space superSpace = new Space()
-          .withId(superSpaceId())
-          .withTitle(superSpaceId() + " Titel")
-          .withVersionsToKeep(history ? 100 : 1);
+              .withId(superSpaceId())
+              .withTitle(superSpaceId() + " Titel")
+              .withVersionsToKeep(history ? 100 : 1);
       webClient(DEFAULT_AUTHOR).createSpace(superSpace);
 
       space.setExtension(new Space.Extension()
@@ -86,9 +88,9 @@ public class RestSpaceWriter extends SpaceWriter {
 
   @Override
   public void writeFeatures(List<Feature> featureList, String author, OnExists onExists, OnNotExists onNotExists,
-      OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict, boolean isPartial,
-      SpaceContext spaceContext, boolean historyEnabled, SQLError expectedErrorCode)
-      throws WebClientException, JsonProcessingException, SQLException {
+                            OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict, boolean isPartial,
+                            SpaceContext spaceContext, boolean historyEnabled, SQLError expectedErrorCode)
+          throws WebClientException, JsonProcessingException, SQLException {
     FeatureCollection featureCollection = new FeatureCollection().withFeatures(featureList);
 
     try {
@@ -99,7 +101,7 @@ public class RestSpaceWriter extends SpaceWriter {
       }
 
       webClient(author).postFeatures(spaceId, featureCollection,
-          generateQueryParams(onExists, onNotExists, onVersionConflict, onMergeConflict, spaceContext));
+              generateQueryParams(onExists, onNotExists, onVersionConflict, onMergeConflict, spaceContext));
     }
     catch (ErrorResponseException e) {
       Map<String, Object> responseBody = XyzSerializable.deserialize(e.getErrorResponse().body(), Map.class);
@@ -109,9 +111,11 @@ public class RestSpaceWriter extends SpaceWriter {
           throw new SQLException(errorMessage, FEATURE_NOT_EXISTS.errorCode, e);
         case 409: {
           switch (errorMessage) {
-            case "The record does not exist.", "ERROR: Feature with ID " + TEST_FEATURE_ID + " not exists!":
+            case "The record does not exist.":
+            case "ERROR: Feature with ID " + TEST_FEATURE_ID + " not exists!":
               throw new SQLException(errorMessage, FEATURE_NOT_EXISTS.errorCode, e);
-            case "The record {" + TEST_FEATURE_ID + "} exists.", "ERROR: Feature with ID " + TEST_FEATURE_ID + " exists!":
+            case "The record {" + TEST_FEATURE_ID + "} exists.":
+            case "ERROR: Feature with ID " + TEST_FEATURE_ID + " exists!":
               throw new SQLException(errorMessage, FEATURE_EXISTS.errorCode, e);
             case "Conflict while merging someConflictingValue with someValue":
               throw new SQLException(errorMessage, MERGE_CONFLICT_ERROR.errorCode, e);
@@ -126,8 +130,8 @@ public class RestSpaceWriter extends SpaceWriter {
   }
 
   public Map<String, String> generateQueryParams(OnExists onExists, OnNotExists onNotExists, OnVersionConflict onVersionConflict,
-      OnMergeConflict onMergeConflict, SpaceContext spaceContext) {
-    Map<String, String> queryParams = new HashMap<>();
+                                                 OnMergeConflict onMergeConflict, SpaceContext spaceContext) {
+    Map<String, String> queryParams = new HashMap<String, String>();
 
     if (onNotExists != null)
       queryParams.put("ne", onNotExists.toString());
@@ -135,13 +139,14 @@ public class RestSpaceWriter extends SpaceWriter {
       queryParams.put("e", onExists.toString());
     if (onVersionConflict != null) {
       if (onExists != null && onVersionConflict == OnVersionConflict.REPLACE)
-        //onExists has priority
+        // onExists has priority
         queryParams.put("e", onExists.toString());
       else
         queryParams.put("e", onVersionConflict.toString());
     }
-    if (onMergeConflict != null)
-      ;//not implemented
+    if (onMergeConflict != null) {
+      // not implemented
+    }
 
     if (spaceContext != null)
       queryParams.put("context", spaceContext.toString());

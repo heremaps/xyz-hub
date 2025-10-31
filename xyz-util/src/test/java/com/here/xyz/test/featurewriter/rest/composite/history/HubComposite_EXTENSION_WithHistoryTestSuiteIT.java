@@ -41,7 +41,7 @@ public class HubComposite_EXTENSION_WithHistoryTestSuiteIT extends HubComposite_
     );
 
     return SQLComposite_EXTENSION_WithHistoryTestSuiteIT.testScenarios()
-        .filter(args -> !ignoredTests.contains(args.testName()));
+        .filter(args -> !ignoredTests.contains(args.getTestName()));
   }
 
   @ParameterizedTest
@@ -52,6 +52,6 @@ public class HubComposite_EXTENSION_WithHistoryTestSuiteIT extends HubComposite_
 
   @Override
   protected TestArgs modifyArgs(TestArgs args) {
-    return args.withComposite(true).withContext(EXTENSION).withFeatureExistsInExtension(args.featureExists()).withHistory(true);
+    return args.withComposite(true).withContext(EXTENSION).withFeatureExistsInExtension(args.isFeatureExists()).withHistory(true);
   }
 }

@@ -41,7 +41,7 @@ public class HubComposite_DEFAULT_WithHistoryTestSuiteIT extends HubComposite_DE
     );
 
     return SQLComposite_DEFAULT_WithHistoryTestSuiteIT.testScenarios()
-        .filter(args -> !ignoredTests.contains(args.testName()));
+        .filter(args -> !ignoredTests.contains(args.getTestName()));
   }
 
   @ParameterizedTest

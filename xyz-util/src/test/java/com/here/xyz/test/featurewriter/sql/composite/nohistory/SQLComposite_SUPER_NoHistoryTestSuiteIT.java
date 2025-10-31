@@ -35,6 +35,6 @@ public class SQLComposite_SUPER_NoHistoryTestSuiteIT extends SQLNonCompositeNoHi
 
   @Override
   protected TestArgs modifyArgs(TestArgs args) {
-    return args.withComposite(true).withContext(SUPER).withFeatureExistsInSuper(args.featureExists());
+    return args.withComposite(true).withContext(SUPER).withFeatureExistsInSuper(args.isFeatureExists());
   }
 }

@@ -1,0 +1,37 @@
+<settings xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.2.0 http://maven.apache.org/xsd/settings-1.2.0.xsd"
+          xmlns="http://maven.apache.org/SETTINGS/1.2.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+    <servers>
+        <server>
+            <username>svc-buildbot</username>
+            <password>Builderbob001!</password>
+            <id>snapshot</id>
+        </server>
+        <server>
+            <username>svc-buildbot</username>
+            <password>Builderbob001!</password>
+            <id>release</id>
+        </server>
+    </servers>
+    <profiles>
+        <profile>
+            <id>artifactory</id>
+            <properties>
+                <distributionManagemment.repository.url>https://artifactory.in.here.com/artifactory/ds-maven/</distributionManagemment.repository.url>
+                <distributionManagemment.snapshotRepository.url>https://artifactory.in.here.com/artifactory/ds-maven/</distributionManagemment.snapshotRepository.url>
+            </properties>
+            <repositories>
+                <repository>
+                    <id>snapshot</id>
+                    <url>https://artifactory.in.here.com/artifactory/ds-maven/</url>
+                </repository>
+                <repository>
+                    <id>release</id>
+                    <url>https://artifactory.in.here.com/artifactory/ds-maven/</url>
+                </repository>
+            </repositories>
+        </profile>
+    </profiles>
+    <activeProfiles>
+        <activeProfile>artifactory</activeProfile>
+    </activeProfiles>
+</settings>

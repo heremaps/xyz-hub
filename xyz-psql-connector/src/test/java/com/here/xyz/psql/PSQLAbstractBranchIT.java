@@ -142,20 +142,20 @@ public abstract class PSQLAbstractBranchIT extends PSQLAbstractIT {
     }
   }
 
-  protected List<FeatureRow> getAllRowFromTable(String tableName) throws SQLException {
-    return new SQLQuery("SELECT id, version FROM ${schema}.${table} ")
-            .withVariable("schema", PG_SCHEMA)
-            .withVariable("table", tableName)
-            .run(getDataSourceProvider(), rs -> {
-              List<FeatureRow> allFeatureIdAndVersion = new ArrayList<>();
-              while(rs.next()) {
-                allFeatureIdAndVersion.add(new FeatureRow(rs.getString("id"), rs.getLong("version")));
-              }
-              return allFeatureIdAndVersion;
-            });
-  }
+//  protected List<FeatureRow> getAllRowFromTable(String tableName) throws SQLException {
+//    return new SQLQuery("SELECT id, version FROM ${schema}.${table} ")
+//            .withVariable("schema", PG_SCHEMA)
+//            .withVariable("table", tableName)
+//            .run(getDataSourceProvider(), rs -> {
+//              List<FeatureRow> allFeatureIdAndVersion = new ArrayList<>();
+//              while(rs.next()) {
+//                allFeatureIdAndVersion.add(new FeatureRow(rs.getString("id"), rs.getLong("version")));
+//              }
+//              return allFeatureIdAndVersion;
+//            });
+//  }
 
-  public record FeatureRow(String id, long version) {}
+//  public record FeatureRow(String id, long version) {}
 
   protected String getBranchTableName(String spaceId, int branchNodeId, Ref ref) {
     return getBranchTableName(spaceId, branchNodeId, Integer.parseInt(ref.getBranch().replace("~", "")), ref.getVersion());
