@@ -183,7 +183,7 @@ public class BranchHandler {
     return resolveRefHeadVersion(marker, spaceId, ref);
   }
 
-  private static Future<Ref> resolveRefHeadVersion(Marker marker, String spaceId, Ref ref) {
+  public static Future<Ref> resolveRefHeadVersion(Marker marker, String spaceId, Ref ref) {
     if (ref.isHead())
       return FeatureQueryApi.getStatistics(marker, spaceId, EXTENSION, ref, true, false)
               .map(statistics -> new Ref(ref.getBranch() + ":" + statistics.getMaxVersion().getValue()));

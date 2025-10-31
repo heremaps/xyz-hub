@@ -162,6 +162,21 @@ public class BranchFeatureApiIT extends TestSpaceBranch {
             .body("features.id", containsInAnyOrder("main0", "f1"));
   }
 
+  @Test
+  public void readBranchFeaturesFromTag() throws Exception {
+    createBranch(SPACE_ID, B1_MAIN, null)
+            .body("id", equalTo(B1_MAIN));
+
+    // Add new features to branch
+    addFeaturesToBranchAndVerify(B1_MAIN, Set.of("f1", "f2"), Set.of("main0", "f1", "f2"));
+    addFeaturesToBranchAndVerify(B1_MAIN, Set.of("f3"), Set.of("main0", "f1", "f2", "f3"));
+
+    String tag = "tag_b1";
+    createTag(SPACE_ID, tag, B1_MAIN + ":3");
+
+    addFeaturesToBranchAndVerify(tag, Set.of(), Set.of("main0", "f1", "f2"));
+  }
+
   private Set<String> extractFeatureIds(FeatureCollection featureCollection) throws JsonProcessingException {
     if (featureCollection == null || featureCollection.getFeatures() == null) return Set.of();
     return featureCollection.getFeatures()
