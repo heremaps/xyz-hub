@@ -541,7 +541,7 @@ public class Space {
     if(!validateSearchableProperties(searchableProperties))
       throw new IllegalArgumentException("Searchable Property definition includes one or more malformed entries");
 
-    this.searchableProperties = generateAlias(searchableProperties);
+    this.searchableProperties = generateAndValidateAliases(searchableProperties);
   }
 
   public Space withSearchableProperties(final Map<String, Boolean> searchableProperties) {
@@ -572,10 +572,17 @@ public class Space {
         return false;
 
       String jsonPath = parts[0];
-      JsonPathValidator.ValidationResult result = JsonPathValidator.validate(jsonPath);
+      JsonPathValidator.ValidationResult result;
+      if (str.startsWith("$")){
+        String[] subParts = jsonPath.split(":", 2);
+        result = JsonPathValidator.validate(subParts[1]);
+      }
+      else {
+        result = JsonPathValidator.validate(jsonPath);
+      }
 
       if (!result.isValid()) {
-        throw new IllegalArgumentException(String.format("Invalid character at position %d for JsonPath string", result.errorPosition()));
+        throw new IllegalArgumentException(String.format("Invalid character at position %d for JsonPath string", result.errorPosition().orElse(-1)));
       }
 
       String resultType = parts[1];
@@ -586,16 +593,27 @@ public class Space {
     return true;
   }
 
-  private Map<String, Boolean> generateAlias(Map<String, Boolean> searchableProperties) {
+  private Map<String, Boolean> generateAndValidateAliases(Map<String, Boolean> searchableProperties) {
     Map<String, Boolean> generated = new HashMap<>();
+    Set<String> aliases = new HashSet<>();
 
     for (Map.Entry<String, Boolean> entry : searchableProperties.entrySet()) {
-      String[] parts = entry.getKey().split("::", 2);
-      String newKey = "$" + parts[0] + ":" + entry.getKey();
-      generated.put(newKey, entry.getValue());
+      String alias;
+      if (!entry.getKey().startsWith("$")) {
+        String[] parts = entry.getKey().split("::", 2);
+        alias = "$" + parts[0] + ":" + entry.getKey();
+      } else {
+        alias = entry.getKey();
+      }
+
+      if (!aliases.add(alias)) {
+        throw new IllegalArgumentException("Duplicate alias detected: " + alias);
+      }
+
+      generated.put(alias, entry.getValue());
     }
 
-    return  generated;
+    return generated;
   }
 
   public Map<String, Tag> getTags() {
