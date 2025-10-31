@@ -315,9 +315,12 @@ public abstract class DatabaseHandler extends StorageConnector {
                 }
             } catch (Exception e) {
                 /** No time left for processing */
-                if(e instanceof SQLException sqlException && sqlException.getSQLState() !=null
-                        && sqlException.getSQLState().equalsIgnoreCase("54000")) {
-                    throw e;
+                if(e instanceof SQLException) {
+                    SQLException sqlException = (SQLException) e;
+                    if (sqlException.getSQLState() !=null
+                            && sqlException.getSQLState().equalsIgnoreCase("54000")) {
+                        throw e;
+                    }
                 }
 
                 /** Add objects which are responsible for the failed operation */
@@ -336,10 +339,15 @@ public abstract class DatabaseHandler extends StorageConnector {
                 if (event.getTransaction()) {
                     connection.rollback();
 
-                    if (e instanceof SQLException sqlException && sqlException.getSQLState() != null
-                            && sqlException.getSQLState().equalsIgnoreCase("42P01"))
-                        ;//Table does not exist yet - create it!
-                    else {
+                    boolean isTableMissing = false;
+                    if (e instanceof SQLException) {
+                        SQLException sqlException = (SQLException) e;
+                        if (sqlException.getSQLState() != null
+                                && sqlException.getSQLState().equalsIgnoreCase("42P01"))
+                            isTableMissing = true; //Table does not exist yet - create it!
+                    }
+
+                    if (!isTableMissing) {
 
                         logger.warn("{} Transaction has failed. ", traceItem, e);
                         connection.close();
@@ -348,16 +356,23 @@ public abstract class DatabaseHandler extends StorageConnector {
 
                         if (e instanceof BatchUpdateException || fails.size() >= 1) {
                             //23505 = Object already exists
-                            if (e instanceof BatchUpdateException bue && !bue.getSQLState().equalsIgnoreCase("23505"))
-                                throw e;
+                            if (e instanceof BatchUpdateException) {
+                                BatchUpdateException bue = (BatchUpdateException) e;
+                                if (!bue.getSQLState().equalsIgnoreCase("23505"))
+                                    throw e;
+                            }
 
                             errorDetails.put("FailedList", fails);
                             throw new ErrorResponseException(new ErrorResponse().withErrorDetails(errorDetails).withError(XyzError.CONFLICT).withErrorMessage(DatabaseWriter.TRANSACTION_ERROR_GENERAL));
                         }
                         else {
-                            errorDetails.put(DatabaseWriter.TRANSACTION_ERROR_GENERAL,
-                                    (e instanceof SQLException sqlException && sqlException.getSQLState() != null)
-                                            ? "SQL-state: " + sqlException.getSQLState() : "Unexpected Error occurred");
+                            String errorDetailMsg = "Unexpected Error occurred";
+                            if (e instanceof SQLException) {
+                                SQLException sqlException = (SQLException) e;
+                                if (sqlException.getSQLState() != null)
+                                    errorDetailMsg = "SQL-state: " + sqlException.getSQLState();
+                            }
+                            errorDetails.put(DatabaseWriter.TRANSACTION_ERROR_GENERAL, errorDetailMsg);
                             throw new ErrorResponseException(new ErrorResponse().withErrorDetails(errorDetails).withError(XyzError.BAD_GATEWAY).withErrorMessage(DatabaseWriter.TRANSACTION_ERROR_GENERAL));
                         }
                     }

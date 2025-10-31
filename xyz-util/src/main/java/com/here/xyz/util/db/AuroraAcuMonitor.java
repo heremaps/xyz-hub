@@ -91,5 +91,21 @@ public final class AuroraAcuMonitor {
     }
   }
 
-  private record MetricPoint(double val, Instant ts) {}
+  private static class MetricPoint {
+    private final double val;
+    private final Instant ts;
+
+    public MetricPoint(double val, Instant ts) {
+      this.val = val;
+      this.ts = ts;
+    }
+
+    public double val() {
+      return val;
+    }
+
+    public Instant ts() {
+      return ts;
+    }
+  }
 }

@@ -58,29 +58,27 @@ public class EraseSpace extends XyzQueryRunner<ModifyFeaturesEvent, FeatureColle
     private static SQLQuery buildTruncateSpaceQueryKeepVersionSeq(ModifyFeaturesEvent event, String schema, String table) {
         String dropOtherPartitions = // build a list of partitions to be dropped
          String.format(
-                """
-                    DO $b2$
-                    DECLARE
-                        partition_list text;
-                    BEGIN
-                        with
-                        indata as  ( select '%1$s' as in_schema, '%2$s' as in_table ),
-                        iindata as ( select i.in_schema, relname::text, replace( relname::text, i.in_table || '_p', '' )::integer as pid
-                                     from pg_class c, indata i  
-                                     where 1 = 1
-                                       and relname like i.in_table || '_p%%' 
-                                       and relkind = 'r'
-                                       and relnamespace = ( select n.oid from pg_namespace n where n.nspname = i.in_schema )),
-                        iiindata as ( select ii.*, ( select max(pid) from iindata ) as max_pid from iindata ii )
-                        select string_agg( format('%%I.%%I', iii.in_schema, iii.relname ),',' ) into partition_list from iiindata iii
-                        where 1 = 1
-                          and pid != max_pid;
-
-                        if partition_list is not null then
-                         execute format('DROP TABLE IF EXISTS %%s', partition_list);
-                        end if; 
-                    END $b2$
-                """, schema, table ); //TODO: use withNamedParameter when replacement issue is fixed.
+                "DO $b2$\n" +
+                "DECLARE\n" +
+                "    partition_list text;\n" +
+                "BEGIN\n" +
+                "    with\n" +
+                "    indata as  ( select '%1$s' as in_schema, '%2$s' as in_table ),\n" +
+                "    iindata as ( select i.in_schema, relname::text, replace( relname::text, i.in_table || '_p', '' )::integer as pid\n" +
+                "                 from pg_class c, indata i  \n" +
+                "                 where 1 = 1\n" +
+                "                   and relname like i.in_table || '_p%%' \n" +
+                "                   and relkind = 'r'\n" +
+                "                   and relnamespace = ( select n.oid from pg_namespace n where n.nspname = i.in_schema )),\n" +
+                "    iiindata as ( select ii.*, ( select max(pid) from iindata ) as max_pid from iindata ii )\n" +
+                "    select string_agg( format('%%I.%%I', iii.in_schema, iii.relname ),',' ) into partition_list from iiindata iii\n" +
+                "    where 1 = 1\n" +
+                "      and pid != max_pid;\n" +
+                "\n" +
+                "    if partition_list is not null then\n" +
+                "     execute format('DROP TABLE IF EXISTS %%s', partition_list);\n" +
+                "    end if; \n" +
+                "END $b2$\n", schema, table ); //TODO: use withNamedParameter when replacement issue is fixed.
 
 //MMSUP-1092  tmp workaroung reduce timeouts on db9 - skip reading pg_class, drop old partitions on db9
 //TODO: reinclude dropOtherPartitions, when timeouts on pg_class (db9) is fixed
@@ -103,24 +101,22 @@ public class EraseSpace extends XyzQueryRunner<ModifyFeaturesEvent, FeatureColle
     private static SQLQuery buildTruncateSpaceQueryResetVersionSeq(ModifyFeaturesEvent event, String schema, String table) {
         String dropOtherPartitions = // build a list of partitions to be dropped
          String.format(
-                """
-                    DO $b2$
-                    DECLARE
-                        partition_list text;
-                    BEGIN
-                        with indata as ( select '%1$s' as in_schema, '%2$s' as in_table )
-                        select string_agg( format('%%I.%%I',i.in_schema,relname::text ),',' ) into partition_list from pg_class c, indata i  
-                        where 1 = 1
-                        and relname like i.in_table || '_p%%' 
-                            and relname != i.in_table || '_p0' 
-                            and relkind = 'r'
-                            and relnamespace = ( select n.oid from pg_namespace n where n.nspname = i.in_schema );
-
-                        if partition_list is not null then
-                         execute format('DROP TABLE IF EXISTS %%s', partition_list);
-                        end if; 
-                    END $b2$
-                """, schema, table ); //TODO: use withNamedParameter when replacement issue is fixed.
+                "DO $b2$\n" +
+                "DECLARE\n" +
+                "    partition_list text;\n" +
+                "BEGIN\n" +
+                "    with indata as ( select '%1$s' as in_schema, '%2$s' as in_table )\n" +
+                "    select string_agg( format('%%I.%%I',i.in_schema,relname::text ),',' ) into partition_list from pg_class c, indata i  \n" +
+                "    where 1 = 1\n" +
+                "    and relname like i.in_table || '_p%%' \n" +
+                "        and relname != i.in_table || '_p0' \n" +
+                "        and relkind = 'r'\n" +
+                "        and relnamespace = ( select n.oid from pg_namespace n where n.nspname = i.in_schema );\n" +
+                "\n" +
+                "    if partition_list is not null then\n" +
+                "     execute format('DROP TABLE IF EXISTS %%s', partition_list);\n" +
+                "    end if; \n" +
+                "END $b2$\n", schema, table ); //TODO: use withNamedParameter when replacement issue is fixed.
         
         SQLQuery q = new SQLQuery("${{truncateTable}}; ${{resetVersionSequence}}; DO $b1$ BEGIN ${{recreateTableP0}}; END $b1$; ${{dropOtherPartitions}}; ${{analyseTruncatedTable}}")
             .withQueryFragment("truncateTable", "TRUNCATE TABLE ${schema}.${table} RESTART IDENTITY")

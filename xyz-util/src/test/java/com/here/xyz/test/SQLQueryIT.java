@@ -130,9 +130,7 @@ public class SQLQueryIT extends SQLITBase {
         createTmpTable(dsp);
 
         //Run an async query with parameter
-        final String fancyString = """
-            so''meF'ancy"String
-            """;
+        final String fancyString = "so''meF'ancy\"String\n";
 
         new SQLQuery("INSERT INTO \"SQLQueryIT\" VALUES (#{param});").withNamedParameter("param", fancyString).withAsync(true).write(dsp);
 
@@ -208,29 +206,27 @@ public class SQLQueryIT extends SQLITBase {
         //Prepare an empty test table
         createTmpTable(dsp, tableName);
 
-        new SQLQuery("""
-            CREATE OR REPLACE FUNCTION test_func_${{tableName}}(value TEXT, depth INTEGER) RETURNS VOID AS
-            $BODY$
-            DECLARE
-              v INT;
-            BEGIN
-                SELECT coalesce(max(col::int), 0) FROM ${tableName} INTO v;
-                RAISE NOTICE '############## Table: ${tableName}, previous value: %, labels: %', v, get_query_labels();
-                --RAISE NOTICE '** %', 'TEST';
-                INSERT INTO ${tableName} VALUES ('' || depth);
-                
-                PERFORM pg_sleep(${{waitTime}});
-                
-                
-                IF depth < ${{chainLength}} THEN
-                  PERFORM asyncify(format('SELECT test_func_${{tableName}}(%L , %s)', value, depth + 1));
-                END IF;
-                
-                
-            END
-            $BODY$
-            LANGUAGE plpgsql VOLATILE;
-            """)
+        new SQLQuery("CREATE OR REPLACE FUNCTION test_func_${{tableName}}(value TEXT, depth INTEGER) RETURNS VOID AS\n" +
+            "$BODY$\n" +
+            "DECLARE\n" +
+            "  v INT;\n" +
+            "BEGIN\n" +
+            "    SELECT coalesce(max(col::int), 0) FROM ${tableName} INTO v;\n" +
+            "    RAISE NOTICE '############## Table: ${tableName}, previous value: %, labels: %', v, get_query_labels();\n" +
+            "    --RAISE NOTICE '** %', 'TEST';\n" +
+            "    INSERT INTO ${tableName} VALUES ('' || depth);\n" +
+            "    \n" +
+            "    PERFORM pg_sleep(${{waitTime}});\n" +
+            "    \n" +
+            "    \n" +
+            "    IF depth < ${{chainLength}} THEN\n" +
+            "      PERFORM asyncify(format('SELECT test_func_${{tableName}}(%L , %s)', value, depth + 1));\n" +
+            "    END IF;\n" +
+            "    \n" +
+            "    \n" +
+            "END\n" +
+            "$BODY$\n" +
+            "LANGUAGE plpgsql VOLATILE;\n")
             .withVariable("tableName", tableName)
             .withQueryFragment("tableName", tableName)
             .withQueryFragment("waitTime", "" + waitTime)
@@ -305,17 +301,15 @@ public class SQLQueryIT extends SQLITBase {
 
   @Test
   public void runConcurrentQueriesWithLock() throws Exception {
-    SQLQuery concurrentQuery = new SQLQuery("""
-        DO $$
-        BEGIN
-          ${{advisoryLock}}
-          PERFORM pg_sleep(1);
-          IF (SELECT count(1) FROM "SQLQueryIT") = 0 THEN
-            INSERT INTO "SQLQueryIT" VALUES ('test');
-          END IF;
-          ${{advisoryUnlock}}
-        END$$;
-        """)
+    SQLQuery concurrentQuery = new SQLQuery("DO $$\n" +
+        "BEGIN\n" +
+        "  ${{advisoryLock}}\n" +
+        "  PERFORM pg_sleep(1);\n" +
+        "  IF (SELECT count(1) FROM \"SQLQueryIT\") = 0 THEN\n" +
+        "    INSERT INTO \"SQLQueryIT\" VALUES ('test');\n" +
+        "  END IF;\n" +
+        "  ${{advisoryUnlock}}\n" +
+        "END$$;\n")
         .withQueryFragment("advisoryLock", buildAdvisoryLockQuery("someKey"))
         .withQueryFragment("advisoryUnlock", buildAdvisoryUnlockQuery("someKey"));
 
@@ -346,8 +340,10 @@ public class SQLQueryIT extends SQLITBase {
       catch (SQLException e) {
         if (e.getCause() != null) {
           e.getCause().printStackTrace();
-          if (e.getCause() instanceof SQLException sqlException)
+          if (e.getCause() instanceof SQLException) {
+            SQLException sqlException = (SQLException) e.getCause();
             System.out.println("Code: " + sqlException.getSQLState());
+          }
         }
         fail(e.getMessage());
       }

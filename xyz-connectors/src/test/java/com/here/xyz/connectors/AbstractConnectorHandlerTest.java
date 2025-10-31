@@ -129,9 +129,7 @@ public class AbstractConnectorHandlerTest {
   @Test
   public void testRelocatedEvent() throws Exception {
     RelocationClient client = new RelocationClient("some-s3-bucket-name");
-    JsonObject healthCheckEvent = new JsonObject("""
-          {"type":"HealthCheckEvent", "streamId":"STREAM_ID_EXAMPLE"}
-          """);
+    JsonObject healthCheckEvent = new JsonObject("{\"type\":\"HealthCheckEvent\", \"streamId\":\"STREAM_ID_EXAMPLE\"}");
 
     byte[] bytes = client.relocate("STREAM_ID_EXAMPLE", healthCheckEvent.toString().getBytes());
     RelocatedEvent relocated = XyzSerializable.deserialize(new ByteArrayInputStream(bytes));

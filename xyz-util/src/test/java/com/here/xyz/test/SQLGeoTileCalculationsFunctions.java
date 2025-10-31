@@ -26,6 +26,7 @@ import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -411,7 +412,7 @@ public class SQLGeoTileCalculationsFunctions extends SQLITBase {
     if(expectedResults.get(0) instanceof Integer){
       List<Long> expectedResultsAsLong = expectedResults.stream()
           .map(o -> Long.valueOf((Integer) o))
-          .toList();
+          .collect(Collectors.toList());
       assertTrue(tiles.containsAll(expectedResultsAsLong));
     }else
       assertTrue(tiles.containsAll(expectedResults ));
@@ -437,30 +438,26 @@ public class SQLGeoTileCalculationsFunctions extends SQLITBase {
       String quadToBBOXFunction = quadType.equals("HERE_QUAD") ? "here_quad_to_bbox" : "mercator_quad_to_bbox";
 
       SQLQuery query = new SQLQuery(
-          """
-              SELECT jsonb_build_object(
-                  'type', 'FeatureCollection',
-                  'features', jsonb_agg(feature) || jsonb_build_array(
-                      jsonb_build_object(
-                          'type', 'Feature',
-                          'properties', jsonb_build_object(),
-                          'geometry', ST_AsGeoJSON(ST_GeomFromText(#{geometryInput}, 4326))::jsonb
-                      )
-                  )
-              )
-              FROM (
-                  SELECT jsonb_build_object(
-                      'type', 'Feature',
-                      'properties', jsonb_build_object(),
-                      'geometry', ST_AsGeoJSON(
-              """
-              + quadToBBOXFunction +
-              """
-                  (colX,rowY,level))::jsonb
-                  ) AS feature
-                  FROM for_geometry(ST_GeomFromText(#{geometryInput}, 4326), #{targetLevel}, #{quadType})
-              ) A;
-              """
+          "SELECT jsonb_build_object(\n" +
+              "    'type', 'FeatureCollection',\n" +
+              "    'features', jsonb_agg(feature) || jsonb_build_array(\n" +
+              "        jsonb_build_object(\n" +
+              "            'type', 'Feature',\n" +
+              "            'properties', jsonb_build_object(),\n" +
+              "            'geometry', ST_AsGeoJSON(ST_GeomFromText(#{geometryInput}, 4326))::jsonb\n" +
+              "        )\n" +
+              "    )\n" +
+              ")\n" +
+              "FROM (\n" +
+              "    SELECT jsonb_build_object(\n" +
+              "        'type', 'Feature',\n" +
+              "        'properties', jsonb_build_object(),\n" +
+              "        'geometry', ST_AsGeoJSON(\n" +
+              quadToBBOXFunction +
+              "(colX,rowY,level))::jsonb\n" +
+              "    ) AS feature\n" +
+              "    FROM for_geometry(ST_GeomFromText(#{geometryInput}, 4326), #{targetLevel}, #{quadType})\n" +
+              ") A;\n"
       ).withNamedParameter("geometryInput", geometryInput)
           .withNamedParameter("targetLevel", targetLevel)
           .withNamedParameter("quadType", quadType);

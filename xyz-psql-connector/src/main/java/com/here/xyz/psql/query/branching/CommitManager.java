@@ -34,6 +34,7 @@ import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public class CommitManager {
 
@@ -52,7 +53,7 @@ public class CommitManager {
     List<String> tables = branchPathToTableChain(branchManager.rootTable, branchPath, nodeId);
     List<Long> tableBaseVersions = new ArrayList<>();
     tableBaseVersions.add(0l);
-    tableBaseVersions.addAll(branchPath.stream().map(ref -> ref.getVersion()).toList());
+    tableBaseVersions.addAll(branchPath.stream().map(ref -> ref.getVersion()).collect(Collectors.toList()));
     return writeCommit(tables, tableBaseVersions, modifications, author, baseRef.isHead() ? -1 : baseRef.getVersion(), version);
   }
 
@@ -113,5 +114,16 @@ public class CommitManager {
     return tableChain;
   }
 
-  public record SimpleCommitResult(int count, int conflicting) {}
+  public static class SimpleCommitResult {
+    private final int count;
+    private final int conflicting;
+
+    public SimpleCommitResult(int count, int conflicting) {
+      this.count = count;
+      this.conflicting = conflicting;
+    }
+
+    public int count() { return count; }
+    public int conflicting() { return conflicting; }
+  }
 }

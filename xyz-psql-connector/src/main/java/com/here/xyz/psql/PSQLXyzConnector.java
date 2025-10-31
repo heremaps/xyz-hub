@@ -216,32 +216,35 @@ public class PSQLXyzConnector extends DatabaseHandler {
     BranchManager branchManager = new BranchManager(dataSourceProvider, streamId, event.getSpace(), getDatabaseSettings().getSchema(),
         XyzEventBasedQueryRunner.readTableFromEvent(event));
     try {
-      return switch (event.getOperation()) {
-        case CREATE -> new ModifiedBranchResponse()
-            .withNodeId(getNodeId(branchManager.createBranch(event.getBaseRef())))
-            .withBaseRef(event.getBaseRef());
-        case REBASE -> {
+      switch (event.getOperation()) {
+        case CREATE:
+          return new ModifiedBranchResponse()
+              .withNodeId(getNodeId(branchManager.createBranch(event.getBaseRef())))
+              .withBaseRef(event.getBaseRef());
+        case REBASE: {
           BranchOperationResult result = branchManager.rebase(event.getNodeId(), event.getBaseRef(), event.getNewBaseRef());
-          yield new ModifiedBranchResponse()
+          return new ModifiedBranchResponse()
               .withNodeId(result.nodeId())
               .withBaseRef(result.baseRef())
               .withConflicting(result.conflicting());
         }
-        case DELETE -> {
+        case DELETE: {
           branchManager.deleteBranch(event.getNodeId());
-          yield new ModifiedBranchResponse()
+          return new ModifiedBranchResponse()
               .withNodeId(-1);
         }
-        case MERGE -> {
+        case MERGE: {
           MergeOperationResult result = branchManager.merge(event.getNodeId(), event.getBaseRef(), event.getMergeTargetNodeId(), false);
-          yield new MergedBranchResponse()
+          return new MergedBranchResponse()
               .withMergedSourceVersion(result.mergedSourceVersion())
               .withResolvedMergeTargetRef(result.resolvedMergeTargetRef())
               .withNodeId(result.nodeId())
               .withBaseRef(result.baseRef())
               .withConflicting(result.conflicting());
         }
-      };
+        default:
+          throw new IllegalStateException("Unexpected operation: " + event.getOperation());
+      }
     }
     catch (SQLException e) {
       throw new ErrorResponseException(EXCEPTION, "Unexpected exception during branching operation", e);
@@ -253,9 +256,10 @@ public class PSQLXyzConnector extends DatabaseHandler {
     if (exception instanceof IllegalArgumentException)
       throw new ErrorResponseException(ILLEGAL_ARGUMENT, exception.getMessage());
 
-    if (!(exception instanceof SQLException sqlException))
+    if (!(exception instanceof SQLException))
       throw exception;
 
+    SQLException sqlException = (SQLException) exception;
     checkSQLException(sqlException, XyzEventBasedQueryRunner.readTableFromEvent(event));
   }
 

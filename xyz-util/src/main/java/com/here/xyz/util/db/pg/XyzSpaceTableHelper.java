@@ -136,26 +136,24 @@ public class XyzSpaceTableHelper {
               .withVariable("rootTable", rootTable)
               .withVariable("partitionTable", rootTable + HEAD_TABLE_SUFFIX));
     else if (layout == TableLayout.NEW_LAYOUT) {
-      SQLQuery headTableCreation = new SQLQuery("""
-              CREATE TABLE IF NOT EXISTS ${schema}.${partitionTable}
-                PARTITION OF ${schema}.${rootTable} FOR VALUES FROM (max_bigint()) TO (MAXVALUE)
-                PARTITION BY HASH (id);
-              """)
+      SQLQuery headTableCreation = new SQLQuery(
+              "CREATE TABLE IF NOT EXISTS ${schema}.${partitionTable}\n" +
+              "  PARTITION OF ${schema}.${rootTable} FOR VALUES FROM (max_bigint()) TO (MAXVALUE)\n" +
+              "  PARTITION BY HASH (id);\n")
               .withVariable(SCHEMA, schema)
               .withVariable("rootTable", rootTable)
               .withVariable("partitionTable", rootTable + HEAD_TABLE_SUFFIX);
 
-      SQLQuery headTablePartitionCreations = new SQLQuery("""
-              DO $$
-              BEGIN
-                FOR i IN 0..$partitionCountLoop$ LOOP
-                  EXECUTE format('
-                    CREATE TABLE IF NOT EXISTS $schema$."$headTable$_p%s"
-                      PARTITION OF $schema$."$headTable$"
-                      FOR VALUES WITH (MODULUS $partitionCount$, REMAINDER %s);', i, i);
-                END LOOP;
-              END $$;
-              """
+      SQLQuery headTablePartitionCreations = new SQLQuery(
+              "DO $$\n" +
+              "BEGIN\n" +
+              "  FOR i IN 0..$partitionCountLoop$ LOOP\n" +
+              "    EXECUTE format('\n" +
+              "      CREATE TABLE IF NOT EXISTS $schema$.\"$headTable$_p%s\"\n" +
+              "        PARTITION OF $schema$.\"$headTable$\"\n" +
+              "        FOR VALUES WITH (MODULUS $partitionCount$, REMAINDER %s);', i, i);\n" +
+              "  END LOOP;\n" +
+              "END $$;\n"
               .replace("$partitionCountLoop$", Long.toString(HEAD_TABLE_PARTION_COUNT - 1))
               .replace("$schema$",schema)
               .replace("$headTable$",rootTable + HEAD_TABLE_SUFFIX)
@@ -313,6 +311,21 @@ public class XyzSpaceTableHelper {
     throw new IllegalArgumentException("Unsupported Table Layout: " + layout);
   }
 
-  public record TableComment(String spaceId, TableLayout tableLayout) implements XyzSerializable{
+  public static class TableComment implements XyzSerializable {
+    private final String spaceId;
+    private final TableLayout tableLayout;
+
+    public TableComment(String spaceId, TableLayout tableLayout) {
+      this.spaceId = spaceId;
+      this.tableLayout = tableLayout;
+    }
+
+    public String spaceId() {
+      return spaceId;
+    }
+
+    public TableLayout tableLayout() {
+      return tableLayout;
+    }
   }
 }

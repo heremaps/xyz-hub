@@ -82,8 +82,10 @@ public abstract class QueryRunner<E extends Object, R extends Object> implements
 
   public final R run() throws SQLException, ErrorResponseException {
     R response = run(getDataSourceProvider());
-    if (response instanceof ErrorResponse errorResponse)
+    if (response instanceof ErrorResponse) {
+      ErrorResponse errorResponse = (ErrorResponse) response;
       throw new ErrorResponseException(errorResponse);
+    }
     return response;
   }
 

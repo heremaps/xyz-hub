@@ -42,6 +42,12 @@
   <artifactId>xyz-models</artifactId>
   <packaging>jar</packaging>
 
+  <properties>
+    <!-- Compile with Java 11 -->
+    <maven.compiler.source>11</maven.compiler.source>
+    <maven.compiler.target>11</maven.compiler.target>
+  </properties>
+
   <dependencies>
     <dependency>
       <artifactId>guava</artifactId>

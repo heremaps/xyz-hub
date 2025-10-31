@@ -83,11 +83,14 @@ public abstract class StorageConnector extends EntryConnectorHandler {
         return processModifySubscriptionEvent((ModifySubscriptionEvent) event);
       if (event instanceof ModifyFeaturesEvent)
         return processModifyFeaturesEvent((ModifyFeaturesEvent) event);
-      if (event instanceof WriteFeaturesEvent writeFeaturesEvent)
+      if (event instanceof WriteFeaturesEvent) {
+        WriteFeaturesEvent writeFeaturesEvent = (WriteFeaturesEvent) event;
         return processWriteFeaturesEvent(writeFeaturesEvent);
+      }
       if (event instanceof GetFeaturesByGeometryEvent)
         return processGetFeaturesByGeometryEvent((GetFeaturesByGeometryEvent) event);
-      if (event instanceof GetFeaturesByTileEvent tileEvent) {
+      if (event instanceof GetFeaturesByTileEvent) {
+        GetFeaturesByTileEvent tileEvent = (GetFeaturesByTileEvent) event;
         if (tileEvent.getResponseType() == MVT || tileEvent.getResponseType() == MVT_FLATTENED || tileEvent.getResponseType() == BINARY) {
           try {
             return processBinaryGetFeaturesByTileEvent(tileEvent);
@@ -99,8 +102,10 @@ public abstract class StorageConnector extends EntryConnectorHandler {
         }
         return processGetFeaturesByTileEvent(tileEvent);
       }
-      if (event instanceof PutBlobTileEvent putBlobTileEvent)
+      if (event instanceof PutBlobTileEvent) {
+        PutBlobTileEvent putBlobTileEvent = (PutBlobTileEvent) event;
         return processPutBlobTileEvent(putBlobTileEvent);
+      }
       if (event instanceof GetFeaturesByBBoxEvent)
         return processGetFeaturesByBBoxEvent((GetFeaturesByBBoxEvent) event);
       if (event instanceof IterateChangesetsEvent)
@@ -125,8 +130,10 @@ public abstract class StorageConnector extends EntryConnectorHandler {
         return processDeleteChangesetsEvent((DeleteChangesetsEvent) event);
       if (event instanceof OneTimeActionEvent)
         return processOneTimeActionEvent((OneTimeActionEvent) event);
-      if (event instanceof ModifyBranchEvent mbe)
+      if (event instanceof ModifyBranchEvent) {
+        ModifyBranchEvent mbe = (ModifyBranchEvent) event;
         return processModifyBranchEvent(mbe);
+      }
 
       return new ErrorResponse()
           .withStreamId(streamId)

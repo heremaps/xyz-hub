@@ -101,11 +101,10 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
       innerDataQuery = wrapAndBranch(event, innerDataQuery, filterWhereClause, rootTableName, event.getBranchPath());
 
-      query = new SQLQuery("""
-                            SELECT * FROM (
-                              ${{innerData}}
-                            ) ${{datasetId}} ${{orderBy}} ${{limit}}
-                            """)
+      query = new SQLQuery(
+                            "SELECT * FROM (\n" +
+                            "  ${{innerData}}\n" +
+                            ") ${{datasetId}} ${{orderBy}} ${{limit}}\n")
           .withQueryFragment("innerData", innerDataQuery)
           .withQueryFragment("datasetId", "dataset" + event.getNodeId())
           .withQueryFragment("orderBy", buildOuterOrderByFragment(event)); //TODO: Check if belows "outerOrderBy" really has to be called like that
@@ -126,8 +125,11 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   }
 
   private SQLQuery buildCompositionFilter(E event, boolean isL2, SQLQuery idComparisonFragment) {
-    if (event instanceof SelectiveEvent selectiveEvent && selectiveEvent.getRef().isAllVersions())
-      return new SQLQuery("");
+    if (event instanceof SelectiveEvent) {
+      SelectiveEvent selectiveEvent = (SelectiveEvent) event;
+      if (selectiveEvent.getRef().isAllVersions())
+        return new SQLQuery("");
+    }
 
     String tableVariable = isL2 ? "intermediateExtensionTable" : "table";
     return new SQLQuery("WHERE ${{exists}} exists(SELECT 1 FROM ${schema}.${" + tableVariable + "} WHERE ${{idComparison}})")
@@ -153,13 +155,12 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
         .withQueryFragment("filters", buildFiltersFragment(event, false, filterWhereClause, nodeId))
         .withQueryFragment("versionCheck", buildVersionCheckFragment(event, successorBaseRef, baseRef.getVersion()));
 
-    SQLQuery wrappedBranchAndBaseQuery = new SQLQuery("""
-        (${{branchData}})
-        UNION ALL
-        (
-          SELECT * FROM (${{base}}) ${{datasetId}} ${{branchCompositionFilter}}
-        )
-        """)
+    SQLQuery wrappedBranchAndBaseQuery = new SQLQuery(
+        "(${{branchData}})\n" +
+        "UNION ALL\n" +
+        "(\n" +
+        "  SELECT * FROM (${{base}}) ${{datasetId}} ${{branchCompositionFilter}}\n" +
+        ")\n")
         .withQueryFragment("branchData", branchDataQuery)
         .withQueryFragment("base", baseQuery)
         .withQueryFragment("datasetId", "dataset" + baseNodeId)
@@ -232,9 +233,10 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
         ref = new Ref(successorBaseRef, successorBaseRef);
     }
 
-    if (!(event instanceof SelectiveEvent selectiveEvent))
+    if (!(event instanceof SelectiveEvent))
       return new SQLQuery("");
 
+    SelectiveEvent selectiveEvent = (SelectiveEvent) event;
     return new SQLQuery("${{versionComparison}} ${{nextVersion}} ${{minVersion}}")
         .withQueryFragment("versionComparison", buildVersionComparison(selectiveEvent, ref, baseVersion))
         .withQueryFragment("nextVersion", buildNextVersionFragment(selectiveEvent, ref, baseVersion))
@@ -300,7 +302,11 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   }
 
   private SQLQuery buildAuthorCheckFragment(E event) {
-    if (!(event instanceof SelectiveEvent selectiveEvent) || selectiveEvent.getAuthor() == null)
+    if (!(event instanceof SelectiveEvent))
+      return new SQLQuery("");
+
+    SelectiveEvent selectiveEvent = (SelectiveEvent) event;
+    if (selectiveEvent.getAuthor() == null)
       return new SQLQuery("");
 
     return new SQLQuery(" AND author = #{author}")
@@ -342,8 +348,13 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   }
 
   private SQLQuery buildDeletionCheckFragment(E event, boolean isExtension) {
-    if (!historyEnabled && !isExtension
-        || event instanceof SelectiveEvent selectiveEvent && selectiveEvent.getRef().isRange())
+    boolean shouldReturnEmpty = !historyEnabled && !isExtension;
+    if (!shouldReturnEmpty && event instanceof SelectiveEvent) {
+      SelectiveEvent selectiveEvent = (SelectiveEvent) event;
+      if (selectiveEvent.getRef().isRange())
+        shouldReturnEmpty = true;
+    }
+    if (shouldReturnEmpty)
       return new SQLQuery("");
 
     String operationsParamName = "operationsToFilterOut" + (isExtension ? "Extension" : ""); //TODO: That's a workaround for a minor bug in SQLQuery
@@ -440,19 +451,26 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   protected SQLQuery buildJsonDataFragment(E event) {
     SQLQuery jsonData;
 
-    if (!(event instanceof SelectiveEvent selectiveEvent) || selectiveEvent.getSelection() == null)
+    if (!(event instanceof SelectiveEvent)) {
       jsonData = new SQLQuery("jsondata");
+    }
     else {
-      Set<String> selection = new HashSet<>(selectiveEvent.getSelection());
-      selection.remove(NO_GEOMETRY);
-      selection.add("type");
+      SelectiveEvent selectiveEvent = (SelectiveEvent) event;
+      if (selectiveEvent.getSelection() == null) {
+        jsonData = new SQLQuery("jsondata");
+      }
+      else {
+        Set<String> selection = new HashSet<>(selectiveEvent.getSelection());
+        selection.remove(NO_GEOMETRY);
+        selection.add("type");
 
-      jsonData = selection.isEmpty() ? new SQLQuery("jsondata") : new SQLQuery("(SELECT "
-          + "CASE WHEN prj_build->'properties' IS NOT NULL THEN prj_build "
-          + "ELSE jsonb_set(prj_build, '{properties}', '{}'::jsonb) "
-          + "END "
-          + "FROM prj_build(#{selection}, jsondata))")
-          .withNamedParameter("selection", selection.toArray(new String[0]));
+        jsonData = selection.isEmpty() ? new SQLQuery("jsondata") : new SQLQuery("(SELECT "
+            + "CASE WHEN prj_build->'properties' IS NOT NULL THEN prj_build "
+            + "ELSE jsonb_set(prj_build, '{properties}', '{}'::jsonb) "
+            + "END "
+            + "FROM prj_build(#{selection}, jsondata))")
+            .withNamedParameter("selection", selection.toArray(new String[0]));
+      }
     }
     return jsonData;
   }
@@ -473,14 +491,17 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   }
 
   protected String buildOrderByFragment(ContextAwareEvent event) {
-    if (!(event instanceof SelectiveEvent selectiveEvent))
+    if (!(event instanceof SelectiveEvent))
       return "";
+    SelectiveEvent selectiveEvent = (SelectiveEvent) event;
     return selectiveEvent.getRef().isAllVersions() ? "ORDER BY version" : "";
   }
 
   private boolean selectNoGeometry(E event) {
-    return event instanceof SelectiveEvent selectiveEvent
-        && selectiveEvent.getSelection() != null
+    if (!(event instanceof SelectiveEvent))
+      return false;
+    SelectiveEvent selectiveEvent = (SelectiveEvent) event;
+    return selectiveEvent.getSelection() != null
         && !selectiveEvent.getSelection().isEmpty()
         && selectiveEvent.getSelection().contains(NO_GEOMETRY);
   }
@@ -500,7 +521,11 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   }
 
   protected SQLQuery buildRawGeoExpression(E event) {
-    boolean isForce2D = event instanceof SelectiveEvent selectiveEvent ? selectiveEvent.isForce2D() : false;
+    boolean isForce2D = false;
+    if (event instanceof SelectiveEvent) {
+      SelectiveEvent selectiveEvent = (SelectiveEvent) event;
+      isForce2D = selectiveEvent.isForce2D();
+    }
     return new SQLQuery((isForce2D ? "ST_Force2D" : "ST_Force3D") + "(geo)");
   }
 
@@ -511,10 +536,15 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   }
 
   protected int compositeDatasetNo(E event, CompositeDataset dataset) {
-    return switch (dataset) {
-      case EXTENSION -> !isCompositeQuery(event) ? 0 :  is2LevelExtendedSpace(event) ? 2 : isExtendedSpace(event) ? 1 : 0;
-      case INTERMEDIATE -> 1;
-      case SUPER -> 0;
-    };
+    switch (dataset) {
+      case EXTENSION:
+        return !isCompositeQuery(event) ? 0 :  is2LevelExtendedSpace(event) ? 2 : isExtendedSpace(event) ? 1 : 0;
+      case INTERMEDIATE:
+        return 1;
+      case SUPER:
+        return 0;
+      default:
+        throw new IllegalStateException("Unexpected dataset: " + dataset);
+    }
   }
 }

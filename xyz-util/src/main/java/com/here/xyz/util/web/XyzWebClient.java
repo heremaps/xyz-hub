@@ -146,5 +146,35 @@ public abstract class XyzWebClient {
     }
   }
 
-  public record InstanceKey(String baseUrl, Map<String, String> extraHeaders) {}
+  public static class InstanceKey {
+    private final String baseUrl;
+    private final Map<String, String> extraHeaders;
+
+    public InstanceKey(String baseUrl, Map<String, String> extraHeaders) {
+      this.baseUrl = baseUrl;
+      this.extraHeaders = extraHeaders;
+    }
+
+    public String baseUrl() {
+      return baseUrl;
+    }
+
+    public Map<String, String> extraHeaders() {
+      return extraHeaders;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) return true;
+      if (o == null || getClass() != o.getClass()) return false;
+      InstanceKey that = (InstanceKey) o;
+      return java.util.Objects.equals(baseUrl, that.baseUrl) &&
+             java.util.Objects.equals(extraHeaders, that.extraHeaders);
+    }
+
+    @Override
+    public int hashCode() {
+      return java.util.Objects.hash(baseUrl, extraHeaders);
+    }
+  }
 }

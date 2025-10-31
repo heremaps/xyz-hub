@@ -92,7 +92,18 @@ public class IterateFeatures<E extends IterateFeaturesEvent, R extends XyzRespon
       return new TokenContent(-1, Long.parseLong(token));
   }
 
-  private record TokenContent(int startDataset, long startOffset) {
+  private static class TokenContent {
+    private final int startDataset;
+    private final long startOffset;
+
+    public TokenContent(int startDataset, long startOffset) {
+      this.startDataset = startDataset;
+      this.startOffset = startOffset;
+    }
+
+    public int startDataset() { return startDataset; }
+    public long startOffset() { return startOffset; }
+
     public String toString() {
       return startDataset + "_" + startOffset;
     }

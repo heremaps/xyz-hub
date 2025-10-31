@@ -307,5 +307,27 @@ public class S3Client {
     return !response.contents().isEmpty();
   }
 
-  public record S3ObjectWithMetadata(byte[] content, String contentType, Map<String, String> metadata) {}
+  public static class S3ObjectWithMetadata {
+    private final byte[] content;
+    private final String contentType;
+    private final Map<String, String> metadata;
+
+    public S3ObjectWithMetadata(byte[] content, String contentType, Map<String, String> metadata) {
+      this.content = content;
+      this.contentType = contentType;
+      this.metadata = metadata;
+    }
+
+    public byte[] content() {
+      return content;
+    }
+
+    public String contentType() {
+      return contentType;
+    }
+
+    public Map<String, String> metadata() {
+      return metadata;
+    }
+  }
 }

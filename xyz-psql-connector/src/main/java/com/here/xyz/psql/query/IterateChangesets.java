@@ -39,6 +39,7 @@ import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class IterateChangesets extends IterateFeatures<IterateChangesetsEvent, ChangesetCollection> {
   public static long DEFAULT_LIMIT = 1_000l;
@@ -69,13 +70,12 @@ public class IterateChangesets extends IterateFeatures<IterateChangesetsEvent, C
       return new SQLQuery("");
 
     TokenContent token = readTokenContent(event.getNextPageToken());
-    return new SQLQuery("""
-        AND (
-          version >= #{tokenStartVersion} AND id > #{tokenStartId}
-          OR
-          version > #{tokenStartVersion}
-        )
-        """)
+    return new SQLQuery(
+        "AND (\n" +
+        "  version >= #{tokenStartVersion} AND id > #{tokenStartId}\n" +
+        "  OR\n" +
+        "  version > #{tokenStartVersion}\n" +
+        ")\n")
         .withNamedParameter("tokenStartVersion", token.startVersion)
         .withNamedParameter("tokenStartId", token.startId);
   }
@@ -88,7 +88,18 @@ public class IterateChangesets extends IterateFeatures<IterateChangesetsEvent, C
     return new TokenContent(Long.parseLong(tokenParts[0]), tokenParts[1]);
   }
 
-  private record TokenContent(long startVersion, String startId) {
+  private static class TokenContent {
+    private final long startVersion;
+    private final String startId;
+
+    public TokenContent(long startVersion, String startId) {
+      this.startVersion = startVersion;
+      this.startId = startId;
+    }
+
+    public long startVersion() { return startVersion; }
+    public String startId() { return startId; }
+
     public String toString() {
       return startVersion + "_" + startId;
     }
@@ -161,7 +172,7 @@ public class IterateChangesets extends IterateFeatures<IterateChangesetsEvent, C
 
     List<SQLQuery> filters = Lists.newArrayList(authorsFilter, startTimeFilter, endTimeFilter).stream()
         .filter(q -> q != null)
-        .toList();
+        .collect(Collectors.toList());
 
     return filters.isEmpty()
         ? super.buildFilterWhereClause(event)
@@ -169,14 +180,13 @@ public class IterateChangesets extends IterateFeatures<IterateChangesetsEvent, C
   }
 
   private static SQLQuery buildTimeFilter() {
-    return new SQLQuery("""
-        version ${{versionOperator}} (
-          WITH ttable AS (
-            SELECT DISTINCT(version) version, (jsondata#>>'{properties,@ns:com:here:xyz,updatedAt}')::BIGINT AS ts FROM ${schema}.${table}
-          )
-          SELECT coalesce(${{versionFn}}(version), ${{versionOperand}}::BIGINT) FROM ttable WHERE ts ${{timeOperator}} ${{timeOperand}}::BIGINT
-        )
-        """);
+    return new SQLQuery(
+        "version ${{versionOperator}} (\n" +
+        "  WITH ttable AS (\n" +
+        "    SELECT DISTINCT(version) version, (jsondata#>>'{properties,@ns:com:here:xyz,updatedAt}')::BIGINT AS ts FROM ${schema}.${table}\n" +
+        "  )\n" +
+        "  SELECT coalesce(${{versionFn}}(version), ${{versionOperand}}::BIGINT) FROM ttable WHERE ts ${{timeOperator}} ${{timeOperand}}::BIGINT\n" +
+        ")\n");
   }
 
   //Enhances the limit by adding one extra feature that is loaded just for the sake of finding out whether there is another page (extra feature is not part of the response)

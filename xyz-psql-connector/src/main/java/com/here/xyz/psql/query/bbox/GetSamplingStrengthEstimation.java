@@ -114,7 +114,8 @@ public class GetSamplingStrengthEstimation<E extends GetFeaturesByBBoxEvent> ext
   public SQLQuery buildEstimateSamplingStrengthQuery(GetFeaturesByBBoxEvent event, BBox bbox, String relTuples) {
     int level, tileX, tileY, margin = 0;
 
-    if (event instanceof GetFeaturesByTileEvent tileEvent) {
+    if (event instanceof GetFeaturesByTileEvent) {
+      GetFeaturesByTileEvent tileEvent = (GetFeaturesByTileEvent) event;
       level = tileEvent.getLevel();
       tileX = tileEvent.getX();
       tileY = tileEvent.getY();

@@ -22,7 +22,9 @@ package com.here.xyz.util.service;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.net.URI;
 import java.util.Arrays;
+import java.util.stream.Collectors;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class BaseConfig {
@@ -136,6 +138,6 @@ public class BaseConfig {
   protected static final List<String> fromCommaSeparatedList(String value) {
     if (value == null)
       return List.of();
-    return Arrays.asList(value.split(",")).stream().map(part -> part.trim()).toList();
+    return Arrays.asList(value.split(",")).stream().map(part -> part.trim()).collect(Collectors.toList());
   }
 }

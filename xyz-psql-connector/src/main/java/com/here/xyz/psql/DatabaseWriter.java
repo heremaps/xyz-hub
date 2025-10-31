@@ -280,8 +280,11 @@ public class DatabaseWriter {
                     if (transactional)
                         throw e;
 
-                    if (e instanceof SQLException sqlException && "42P01".equalsIgnoreCase(sqlException.getSQLState()))
-                        throw (SQLException) e;
+                    if (e instanceof SQLException) {
+                        SQLException sqlException = (SQLException) e;
+                        if ("42P01".equalsIgnoreCase(sqlException.getSQLState()))
+                            throw (SQLException) e;
+                    }
 
                     fails.add(new FeatureCollection.ModificationFailure().withId(getIdFromInput(action, inputDatum))
                         .withMessage(e instanceof WriteFeatureException ? e.getMessage() : getFailedRowErrorMsg(action, event)));
@@ -413,13 +416,21 @@ public class DatabaseWriter {
             }
         }
         catch (Exception e) {
-            if (e instanceof SQLException sqlException && sqlException.getSQLState() != null
-                && sqlException.getSQLState().equalsIgnoreCase("42P01"))
-                //Re-throw, as a missing table will be handled by DatabaseHandler.
-                throw e;
+            if (e instanceof SQLException) {
+                SQLException sqlException = (SQLException) e;
+                if (sqlException.getSQLState() != null
+                    && sqlException.getSQLState().equalsIgnoreCase("42P01"))
+                    //Re-throw, as a missing table will be handled by DatabaseHandler.
+                    throw e;
+            }
 
-            if (e instanceof SQLException sqlException && XYZ_CONFLICT.errorCode.equals(sqlException.getSQLState()))
-                logger.info("{} Conflict during transactional write operation", getStreamId(), e);
+            if (e instanceof SQLException) {
+                SQLException sqlException = (SQLException) e;
+                if (XYZ_CONFLICT.errorCode.equals(sqlException.getSQLState()))
+                    logger.info("{} Conflict during transactional write operation", getStreamId(), e);
+                else
+                    logger.warn("{} Unexpected error during transactional write operation", getStreamId(), e);
+            }
             else
                 logger.warn("{} Unexpected error during transactional write operation", getStreamId(), e);
 

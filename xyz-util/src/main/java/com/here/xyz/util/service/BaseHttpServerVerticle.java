@@ -72,11 +72,17 @@ import io.vertx.ext.web.validation.impl.ParameterLocation;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.ArrayList;
+import java.util.stream.Collectors;
 import java.util.Arrays;
+import java.util.stream.Collectors;
 import java.util.List;
+import java.util.stream.Collectors;
 import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.Map.Entry;
+import java.util.stream.Collectors;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
@@ -144,7 +150,8 @@ public class BaseHttpServerVerticle extends AbstractVerticle {
       return;
     if (exception instanceof IllegalStateException && exception.getMessage().startsWith("Request method must be one of"))
       exception = new HttpException(METHOD_NOT_ALLOWED, exception.getMessage(), exception);
-    if (exception instanceof ErrorResponseException errorResponseException) {
+    if (exception instanceof ErrorResponseException) {
+      ErrorResponseException errorResponseException = (ErrorResponseException) exception;
       final HttpResponse<byte[]> errorResponse = errorResponseException.getErrorResponse();
       final HttpRequest failedRequest = errorResponse.request();
       logger.error("Error during upstream request - Performing {} {}. Upstream-ID: {}, Response:\n{}",
@@ -210,7 +217,7 @@ public class BaseHttpServerVerticle extends AbstractVerticle {
   protected CorsHandler createCorsHandler() {
     List<String> allowedHeaders = new ArrayList<>(allowHeaders.stream()
         .map(CharSequence::toString)
-        .toList());
+        .collect(Collectors.toList()));
     if (BaseConfig.instance.USE_AUTHOR_FROM_HEADER)
       allowedHeaders.add(AUTHOR_HEADER);
 

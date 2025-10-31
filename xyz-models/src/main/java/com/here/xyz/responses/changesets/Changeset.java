@@ -33,6 +33,7 @@ import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.responses.XyzResponse;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * A Changeset represents a set of Feature modifications having been performed as one transaction, single authored,
@@ -164,7 +165,7 @@ public class Changeset extends XyzResponse<Changeset> {
 
       if (getDeleted() != null && !getDeleted().getFeatures().isEmpty())
         modifications.add(new Modification()
-            .withFeatureIds(getDeleted().getFeatures().stream().map(feature -> feature.getId()).toList())
+            .withFeatureIds(getDeleted().getFeatures().stream().map(feature -> feature.getId()).collect(Collectors.toList()))
             .withUpdateStrategy(new UpdateStrategy(OnExists.DELETE, OnNotExists.RETAIN, onVersionConflict, onMergeConflict)));
 
       return modifications;

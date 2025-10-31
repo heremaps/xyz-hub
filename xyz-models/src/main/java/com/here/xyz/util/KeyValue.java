@@ -23,7 +23,23 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-public record KeyValue<K, V>(K key, V value) {
+public class KeyValue<K, V> {
+  private final K key;
+  private final V value;
+
+  public KeyValue(K key, V value) {
+    this.key = key;
+    this.value = value;
+  }
+
+  public K key() {
+    return key;
+  }
+
+  public V value() {
+    return value;
+  }
+
   public KeyValue<K, V> putToMap(Map<K, V> map) {
     map.put(key, value);
     return this;
@@ -39,6 +55,7 @@ public record KeyValue<K, V>(K key, V value) {
     return toMap(this);
   }
 
+  @SafeVarargs
   public static <K, V> Map<K, V> toMap(KeyValue<K, V>... entries) {
     Map<K, V> map = new HashMap<>();
     for (KeyValue<K, V> entry : entries)
@@ -50,6 +67,7 @@ public record KeyValue<K, V>(K key, V value) {
     return toUnmodifiableMap(this);
   }
 
+  @SafeVarargs
   public static <K, V> Map<K, V> toUnmodifiableMap(KeyValue<K, V>... entries) {
     return Collections.unmodifiableMap(toMap(entries));
   }

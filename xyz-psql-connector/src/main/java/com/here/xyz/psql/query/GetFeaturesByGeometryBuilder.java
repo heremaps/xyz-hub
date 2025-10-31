@@ -81,25 +81,46 @@ public class GetFeaturesByGeometryBuilder extends XyzQueryBuilder<GetFeaturesByG
       return this;
   }
 
-  public record GetFeaturesByGeometryInput(
-      String spaceId,
-      Map<String, Object> connectorParams,
-      Map<String, Object> spaceParams,
-      SpaceContext context,
-      int versionsToKeep,
-      Ref ref,
-      Geometry geometry,
-      int radius,
-      boolean clip,
-      PropertiesQuery propertiesQuery
-  ) {
-    public GetFeaturesByGeometryInput {
-      if (ref == null)
-        ref = new Ref(HEAD);
+  public static class GetFeaturesByGeometryInput {
+    private final String spaceId;
+    private final Map<String, Object> connectorParams;
+    private final Map<String, Object> spaceParams;
+    private final SpaceContext context;
+    private final int versionsToKeep;
+    private final Ref ref;
+    private final Geometry geometry;
+    private final int radius;
+    private final boolean clip;
+    private final PropertiesQuery propertiesQuery;
+
+    public GetFeaturesByGeometryInput(String spaceId, Map<String, Object> connectorParams, Map<String, Object> spaceParams,
+                                      SpaceContext context, int versionsToKeep, Ref ref, Geometry geometry,
+                                      int radius, boolean clip, PropertiesQuery propertiesQuery) {
+      this.spaceId = spaceId;
+      this.connectorParams = connectorParams;
+      this.spaceParams = spaceParams;
+      this.context = context;
+      this.versionsToKeep = versionsToKeep;
+      this.ref = ref == null ? new Ref(HEAD) : ref;
+      this.geometry = geometry;
+      this.radius = radius;
+      this.clip = clip;
+      this.propertiesQuery = propertiesQuery;
       //TODO: check
       //if (geometry == null && clip)
       //  throw new IllegalArgumentException("Clip can not be applied if no filter geometry is provided.");
     }
+
+    public String spaceId() { return spaceId; }
+    public Map<String, Object> connectorParams() { return connectorParams; }
+    public Map<String, Object> spaceParams() { return spaceParams; }
+    public SpaceContext context() { return context; }
+    public int versionsToKeep() { return versionsToKeep; }
+    public Ref ref() { return ref; }
+    public Geometry geometry() { return geometry; }
+    public int radius() { return radius; }
+    public boolean clip() { return clip; }
+    public PropertiesQuery propertiesQuery() { return propertiesQuery; }
   }
 
   private class GetFeaturesByGeometryWithModifiedFilter extends GetFeaturesByGeometry {
@@ -128,24 +149,22 @@ public class GetFeaturesByGeometryBuilder extends XyzQueryBuilder<GetFeaturesByG
         ,Geometry filterGeometry) {
       SQLQuery clippingFragment = new SQLQuery("");
       if(clippingGeometry != null && filterGeometry != null){
-        clippingFragment = new SQLQuery("""
-                AND ST_Intersects(geo,
-                      ST_Intersection(
-                        ST_Force3d(ST_GeomFromText(#{wktClipGeometry}, 4326)),
-                        ST_Force3d(ST_GeomFromText(#{filterGeometry}, 4326))
-                      )
-                    )
-                """)
+        clippingFragment = new SQLQuery(
+                "AND ST_Intersects(geo,\n" +
+                "      ST_Intersection(\n" +
+                "        ST_Force3d(ST_GeomFromText(#{wktClipGeometry}, 4326)),\n" +
+                "        ST_Force3d(ST_GeomFromText(#{filterGeometry}, 4326))\n" +
+                "      )\n" +
+                "    )\n")
                 .withNamedParameter("filterGeometry", WKTHelper.geometryToWKT2d(filterGeometry))
                 .withNamedParameter("wktClipGeometry", WKTHelper.geometryToWKT2d(clippingGeometry));
       }
 
       if (additionalFilterFragment != null) {
-        return new SQLQuery("""
-                ${{innerFilterWhereClause}}
-                ${{clippingFragment}}
-                AND ${{customWhereClause}}
-            """
+        return new SQLQuery(
+                "${{innerFilterWhereClause}}\n" +
+                "${{clippingFragment}}\n" +
+                "AND ${{customWhereClause}}\n"
             )
             .withQueryFragment("clippingFragment", clippingFragment)
             .withQueryFragment("innerFilterWhereClause", filterWhereClause)
@@ -153,10 +172,9 @@ public class GetFeaturesByGeometryBuilder extends XyzQueryBuilder<GetFeaturesByG
       }
 
       if(clippingGeometry != null &&  filterGeometry !=null) {
-        return new SQLQuery("""
-                  ${{innerFilterWhereClause}}
-                  ${{clippingFragment}}
-                """)
+        return new SQLQuery(
+                  "${{innerFilterWhereClause}}\n" +
+                  "${{clippingFragment}}\n")
                 .withQueryFragment("clippingFragment", clippingFragment)
                 .withQueryFragment("innerFilterWhereClause", filterWhereClause);
       }

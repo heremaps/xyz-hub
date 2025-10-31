@@ -50,10 +50,8 @@ public class SQLITBase {
   }
 
   protected static boolean connectionIsIdle(DataSourceProvider dsp, String queryId) throws SQLException {
-    return new SQLQuery("""
-        SELECT 1 FROM pg_stat_activity
-          WHERE state = 'idle' AND query LIKE '%${{queryId}}%' AND pid != pg_backend_pid()
-        """)
+    return new SQLQuery("SELECT 1 FROM pg_stat_activity\n" +
+        "  WHERE state = 'idle' AND query LIKE '%${{queryId}}%' AND pid != pg_backend_pid()\n")
         .withQueryFragment("queryId", queryId)
         .withLoggingEnabled(false)
         .run(dsp, rs -> rs.next());

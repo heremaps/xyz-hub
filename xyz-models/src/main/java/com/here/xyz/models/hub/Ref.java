@@ -202,7 +202,10 @@ public class Ref implements XyzSerializable {
 
   @Override
   public boolean equals(Object o) {
-    return o instanceof Ref otherRef && otherRef.toString().equals(toString());
+    if (!(o instanceof Ref))
+      return false;
+    Ref otherRef = (Ref) o;
+    return otherRef.toString().equals(toString());
   }
 
   private static boolean isValidBranchId(String branchName) {

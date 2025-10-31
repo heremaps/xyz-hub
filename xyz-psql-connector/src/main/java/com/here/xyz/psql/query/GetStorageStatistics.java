@@ -61,33 +61,32 @@ public class GetStorageStatistics extends XyzQueryRunner<GetStorageStatisticsEve
       tableNames.add(tableName);
     });
 
-    return new SQLQuery("""
-        WITH roots AS (
-          SELECT to_regclass(t) as root_oid
-          FROM unnest(ARRAY[${{tableNames}}]) AS t
-          WHERE to_regclass(t) IS NOT NULL
-        ),
-        parts AS (
-          SELECT DISTINCT relid
-          FROM roots r,
-               LATERAL pg_partition_tree(r.root_oid)
-          WHERE level > 0
-        ),
-        sizes AS (
-          SELECT
-            oid,
-            pg_total_relation_size(oid) AS total_bytes,
-            pg_indexes_size(oid) AS index_bytes
-          FROM pg_class
-          WHERE oid IN (SELECT relid FROM parts)
-        )
-        SELECT
-          c.relname AS table_name,
-          s.total_bytes - s.index_bytes AS table_bytes,
-          s.index_bytes
-        FROM pg_class c
-        JOIN sizes s ON s.oid = c.oid;
-        """)
+    return new SQLQuery(
+        "WITH roots AS (\n" +
+        "  SELECT to_regclass(t) as root_oid\n" +
+        "  FROM unnest(ARRAY[${{tableNames}}]) AS t\n" +
+        "  WHERE to_regclass(t) IS NOT NULL\n" +
+        "),\n" +
+        "parts AS (\n" +
+        "  SELECT DISTINCT relid\n" +
+        "  FROM roots r,\n" +
+        "       LATERAL pg_partition_tree(r.root_oid)\n" +
+        "  WHERE level > 0\n" +
+        "),\n" +
+        "sizes AS (\n" +
+        "  SELECT\n" +
+        "    oid,\n" +
+        "    pg_total_relation_size(oid) AS total_bytes,\n" +
+        "    pg_indexes_size(oid) AS index_bytes\n" +
+        "  FROM pg_class\n" +
+        "  WHERE oid IN (SELECT relid FROM parts)\n" +
+        ")\n" +
+        "SELECT\n" +
+        "  c.relname AS table_name,\n" +
+        "  s.total_bytes - s.index_bytes AS table_bytes,\n" +
+        "  s.index_bytes\n" +
+        "FROM pg_class c\n" +
+        "JOIN sizes s ON s.oid = c.oid;\n")
         .withQueryFragment("tableNames", tableNames
             .stream()
             .map(tableName -> "'\"" + getSchema() + "\".\"" + tableName + "\"'")

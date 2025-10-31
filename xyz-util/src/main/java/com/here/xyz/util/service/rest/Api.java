@@ -121,7 +121,8 @@ public class Api {
     else if (e instanceof AccessDeniedException)
       e = new HttpException(FORBIDDEN, e.getMessage(), e);
 
-    if (e instanceof HttpException httpException && httpException.status.code() != INTERNAL_SERVER_ERROR.code()) {
+    if (e instanceof HttpException && ((HttpException) e).status.code() != INTERNAL_SERVER_ERROR.code()) {
+      HttpException httpException = (HttpException) e;
       XyzError error;
       if (BAD_GATEWAY.code() == httpException.status.code())
         error = XyzError.BAD_GATEWAY;
@@ -175,7 +176,8 @@ public class Api {
      */
     private void sendErrorResponse(final RoutingContext context, final HttpException httpError, final XyzError error) {
         ErrorResponse errorResponse;
-        if (httpError instanceof DetailedHttpException detailedHttpException) {
+        if (httpError instanceof DetailedHttpException) {
+          DetailedHttpException detailedHttpException = (DetailedHttpException) httpError;
           errorResponse = detailedHttpException.errorDefinition.toErrorResponse(detailedHttpException.placeholders)
                 .withStreamId(Api.getMarker(context).getName())
                 .withErrorDetails(httpError.errorDetails)
@@ -214,8 +216,10 @@ public class Api {
 
         byte[] response;
         try {
-            if (o instanceof ByteArrayOutputStream baos)
+            if (o instanceof ByteArrayOutputStream) {
+                ByteArrayOutputStream baos = (ByteArrayOutputStream) o;
                 response = baos.toByteArray();
+            }
             else
                 response = Json.encode(o).getBytes();
         }
@@ -282,9 +286,12 @@ public class Api {
         try {
             if (object == null)
                 response = new byte[]{};
+            else if (object instanceof ByteArrayOutputStream) {
+                ByteArrayOutputStream bos = (ByteArrayOutputStream) object;
+                response = bos.toByteArray();
+            }
             else
-                response = object instanceof ByteArrayOutputStream bos ? bos.toByteArray()
-                    : (listItemTypeReference == null
+                response = (listItemTypeReference == null
                         ? XyzSerializable.serialize(object, view)
                         : XyzSerializable.serialize((List<?>) object, view, listItemTypeReference)).getBytes();
         }

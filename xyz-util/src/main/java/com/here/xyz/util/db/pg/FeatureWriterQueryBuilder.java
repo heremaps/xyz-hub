@@ -126,21 +126,23 @@ public class FeatureWriterQueryBuilder {
 
     String selectTerm = select ? "SELECT " : "";
 
-    if (input instanceof List inputList && inputList.get(0) instanceof Modification) {
-      return new SQLQuery(selectTerm + "write_features(#{jsonInput}, 'Modifications', #{author}, #{returnResult}, #{version})")
-          .withContext(queryContext)
-          .withNamedParameter("jsonInput", XyzSerializable.serialize(inputList))
-          .withNamedParameter("author", author)
-          .withNamedParameter("returnResult", returnResult)
-          .withNamedParameter("version", version <= 0 ? null : version);
+    if (input instanceof List) {
+      List inputList = (List) input;
+      if (!inputList.isEmpty() && inputList.get(0) instanceof Modification) {
+        return new SQLQuery(selectTerm + "write_features(#{jsonInput}, 'Modifications', #{author}, #{returnResult}, #{version})")
+            .withContext(queryContext)
+            .withNamedParameter("jsonInput", XyzSerializable.serialize(inputList))
+            .withNamedParameter("author", author)
+            .withNamedParameter("returnResult", returnResult)
+            .withNamedParameter("version", version <= 0 ? null : version);
+      }
     }
 
-    return new SQLQuery(selectTerm + """
-        write_features(
-          #{jsonInput}, #{inputType}, #{author}, #{returnResult}, #{version},
-          #{onExists}, #{onNotExists}, #{onVersionConflict}, #{onMergeConflict}, #{isPartial}
-        )
-        """)
+    return new SQLQuery(selectTerm +
+        "write_features(\n" +
+        "  #{jsonInput}, #{inputType}, #{author}, #{returnResult}, #{version},\n" +
+        "  #{onExists}, #{onNotExists}, #{onVersionConflict}, #{onMergeConflict}, #{isPartial}\n" +
+        ")\n")
         .withContext(queryContext)
         .withNamedParameter("jsonInput", input instanceof String ? input : XyzSerializable.serialize(input))
         .withNamedParameter("inputType", input instanceof String ? inputType : input instanceof List ? "Features" : input.getClass().getSimpleName())

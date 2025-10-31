@@ -107,16 +107,14 @@ public class GetFeaturesByBBox<E extends GetFeaturesByBBoxEvent, R extends XyzRe
       BBox tileBbox = mvtTile != null ? mvtTile.getBBox(false) : (hereTile != null ? hereTile.getBoundingBox() : eventBbox); // pg ST_AsMVTGeom expects tiles bbox without buffer.
 
       SQLQuery outerQuery = new SQLQuery(
-        """
-          with tile as (select ${{bounds}} as bounds, #{extent} as extent, #{buffer} as buffer, true as clip_geom), 
-          mvtdata as 
-          ( 
-           select ${{mvtProperties}} as mproperties, ST_AsMVTGeom(st_force2d(${{geoFrag}}), t.bounds, t.extent::integer, t.buffer::integer, t.clip_geom) as mgeo 
-           from 
-           (${{dataQuery}}) data , tile t 
-          ) 
-          select ST_AsMVT( mvtdata , #{spaceIdOrTableName} ) as bin from mvtdata where mgeo is not null 
-        """
+        "with tile as (select ${{bounds}} as bounds, #{extent} as extent, #{buffer} as buffer, true as clip_geom), \n" +
+        "mvtdata as \n" +
+        "( \n" +
+        " select ${{mvtProperties}} as mproperties, ST_AsMVTGeom(st_force2d(${{geoFrag}}), t.bounds, t.extent::integer, t.buffer::integer, t.clip_geom) as mgeo \n" +
+        " from \n" +
+        " (${{dataQuery}}) data , tile t \n" +
+        ") \n" +
+        "select ST_AsMVT( mvtdata , #{spaceIdOrTableName} ) as bin from mvtdata where mgeo is not null \n"
           )
           .withQueryFragment("bounds", new SQLQuery(hereTile == null ? "st_transform(${{tileBbox}}, 3857)" : "${{tileBbox}}")
           .withQueryFragment("tileBbox", buildGeoFilterFromBbox(tileBbox)))

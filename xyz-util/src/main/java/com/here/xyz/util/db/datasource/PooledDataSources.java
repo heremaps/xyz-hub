@@ -121,5 +121,27 @@ public class PooledDataSources extends DataSourceProvider {
     }
   }
 
-  private record ExtendedConnectionSettings(String currentSchema, List<String> searchPath, int statementTimeoutSeconds) {}
+  private static class ExtendedConnectionSettings {
+    private final String currentSchema;
+    private final List<String> searchPath;
+    private final int statementTimeoutSeconds;
+
+    public ExtendedConnectionSettings(String currentSchema, List<String> searchPath, int statementTimeoutSeconds) {
+      this.currentSchema = currentSchema;
+      this.searchPath = searchPath;
+      this.statementTimeoutSeconds = statementTimeoutSeconds;
+    }
+
+    public String currentSchema() {
+      return currentSchema;
+    }
+
+    public List<String> searchPath() {
+      return searchPath;
+    }
+
+    public int statementTimeoutSeconds() {
+      return statementTimeoutSeconds;
+    }
+  }
 }

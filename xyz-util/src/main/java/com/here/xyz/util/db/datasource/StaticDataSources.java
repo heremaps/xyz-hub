@@ -68,9 +68,13 @@ public class StaticDataSources extends DataSourceProvider implements AutoCloseab
 
   @Override
   public void close() throws Exception {
-    if (writer instanceof PooledDataSource writer)
-      writer.close();
-    if (reader instanceof PooledDataSource reader && reader != writer)
-      reader.close();
+    if (writer instanceof PooledDataSource) {
+      PooledDataSource writerPooled = (PooledDataSource) writer;
+      writerPooled.close();
+    }
+    if (reader instanceof PooledDataSource && reader != writer) {
+      PooledDataSource readerPooled = (PooledDataSource) reader;
+      readerPooled.close();
+    }
   }
 }

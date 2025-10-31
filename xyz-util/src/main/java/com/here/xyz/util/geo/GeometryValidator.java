@@ -59,10 +59,11 @@ public class GeometryValidator {
   }
 
   public static boolean isWorldBoundingBox(Geometry geometry) {
-    if (!(geometry instanceof Polygon inputPolygon)) {
+    if (!(geometry instanceof Polygon)) {
       return false;
     }
 
+    Polygon inputPolygon = (Polygon) geometry;
     PolygonCoordinates inputCoords = inputPolygon.getCoordinates();
 
     if (inputCoords == null || inputCoords.isEmpty()) {

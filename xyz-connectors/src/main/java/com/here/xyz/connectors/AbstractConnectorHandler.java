@@ -156,9 +156,12 @@ public abstract class AbstractConnectorHandler {
       start = System.currentTimeMillis();
 
       streamId = event.getStreamId() != null ? event.getStreamId() : Random.randomAlpha(6);
-      if(LambdaFunctionRuntime.getInstance() instanceof LambdaFunctionRuntime runtime && runtime.isRecreateLambdaEnvForEachEvent()) {
-        skipInit = true;
-        new LambdaFunctionRuntime(runtime, streamId);
+      if(LambdaFunctionRuntime.getInstance() instanceof LambdaFunctionRuntime) {
+        LambdaFunctionRuntime runtime = (LambdaFunctionRuntime) LambdaFunctionRuntime.getInstance();
+        if (runtime.isRecreateLambdaEnvForEachEvent()) {
+          skipInit = true;
+          new LambdaFunctionRuntime(runtime, streamId);
+        }
       }
 
       if (event.getConnectorParams() != null  && event.getConnectorParams().get("connectorId") != null)

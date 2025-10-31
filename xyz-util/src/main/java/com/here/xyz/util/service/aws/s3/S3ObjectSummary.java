@@ -21,10 +21,33 @@ package com.here.xyz.util.service.aws.s3;
 
 import software.amazon.awssdk.services.s3.model.S3Object;
 
-public record S3ObjectSummary(String key, String bucket, long size) {
+public class S3ObjectSummary {
+    private final String key;
+    private final String bucket;
+    private final long size;
+
+    public S3ObjectSummary(String key, String bucket, long size) {
+        this.key = key;
+        this.bucket = bucket;
+        this.size = size;
+    }
+
+    public String key() {
+        return key;
+    }
+
+    public String bucket() {
+        return bucket;
+    }
+
+    public long size() {
+        return size;
+    }
+
     public boolean isEmpty() {
         return size == 0;
     }
+
     public static S3ObjectSummary fromS3Object(S3Object s3Object, String bucketName) {
         return new S3ObjectSummary(s3Object.key(), bucketName, s3Object.size());
     }

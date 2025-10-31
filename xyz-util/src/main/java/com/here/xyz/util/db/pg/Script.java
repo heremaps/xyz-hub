@@ -157,14 +157,13 @@ public class Script {
         .withLock(targetSchema);
 
     //TODO: Remove the following workaround once the locking support in SQLQuery was implemented for normal update queries
-    SQLQuery lockWrapper = new SQLQuery("""
-        DO $lockWrapper$
-        BEGIN
-          ${{lockQuery}}
-          ${{installationQuery}}
-          ${{unlockQuery}}
-        END$lockWrapper$;
-        """)
+    SQLQuery lockWrapper = new SQLQuery(
+        "DO $lockWrapper$\n" +
+        "BEGIN\n" +
+        "  ${{lockQuery}}\n" +
+        "  ${{installationQuery}}\n" +
+        "  ${{unlockQuery}}\n" +
+        "END$lockWrapper$;")
         .withQueryFragment("lockQuery", buildAdvisoryLockQuery(targetSchema))
         .withQueryFragment("installationQuery", installationQuery)
         .withQueryFragment("unlockQuery", buildAdvisoryUnlockQuery(targetSchema));
@@ -223,28 +222,26 @@ public class Script {
 
   private SQLQuery buildHashFunctionQuery() throws IOException {
     //SELECT set_config(#{scriptHashVariable}, #{#scriptHash}, false);
-    return new SQLQuery("""
-        CREATE OR REPLACE FUNCTION script_hash() RETURNS TEXT AS
-        $BODY$
-        BEGIN
-            RETURN '${{scriptHash}}';
-        END
-        $BODY$
-        LANGUAGE plpgsql IMMUTABLE
-        """)
+    return new SQLQuery(
+        "CREATE OR REPLACE FUNCTION script_hash() RETURNS TEXT AS\n" +
+        "$BODY$\n" +
+        "BEGIN\n" +
+        "    RETURN '${{scriptHash}}';\n" +
+        "END\n" +
+        "$BODY$\n" +
+        "LANGUAGE plpgsql IMMUTABLE")
         .withQueryFragment("scriptHash", getHash());
   }
 
   private SQLQuery buildVersionFunctionQuery() {
-    return new SQLQuery("""
-        CREATE OR REPLACE FUNCTION script_version() RETURNS TEXT AS
-        $BODY$
-        BEGIN
-            RETURN '${{scriptVersion}}';
-        END
-        $BODY$
-        LANGUAGE plpgsql IMMUTABLE
-        """)
+    return new SQLQuery(
+        "CREATE OR REPLACE FUNCTION script_version() RETURNS TEXT AS\n" +
+        "$BODY$\n" +
+        "BEGIN\n" +
+        "    RETURN '${{scriptVersion}}';\n" +
+        "END\n" +
+        "$BODY$\n" +
+        "LANGUAGE plpgsql IMMUTABLE")
         .withQueryFragment("scriptVersion", scriptVersion);
   }
 
@@ -262,11 +259,19 @@ public class Script {
   }
 
   private static List<String> scanResourceFolderWA(String resourceFolder, String fileSuffix) throws IOException {
-    return ((List<String>) switch (fileSuffix) {
-      case ".sql" -> List.of("/sql/common.sql",  "/sql/geo.sql", "/sql/feature_writer.sql",  "/sql/h3.sql", "/sql/ext.sql", "/jobs/transport.sql");
-      case ".js" -> List.of("/sql/Exception.js", "/sql/FeatureWriter.js", "/sql/DatabaseWriter.js");
-      default -> List.of();
-    }).stream().filter(filePath -> filePath.startsWith(resourceFolder)).toList();
+    List<String> files;
+    switch (fileSuffix) {
+      case ".sql":
+        files = List.of("/sql/common.sql",  "/sql/geo.sql", "/sql/feature_writer.sql",  "/sql/h3.sql", "/sql/ext.sql", "/jobs/transport.sql");
+        break;
+      case ".js":
+        files = List.of("/sql/Exception.js", "/sql/FeatureWriter.js", "/sql/DatabaseWriter.js");
+        break;
+      default:
+        files = List.of();
+        break;
+    }
+    return files.stream().filter(filePath -> filePath.startsWith(resourceFolder)).collect(Collectors.toList());
   }
 
   private static List<String> scanResourceFolder(ScriptResourcePath scriptResourcePath, String fileSuffix) throws IOException {
@@ -287,7 +292,7 @@ public class Script {
     return ensureInitScriptIsFirst(files.stream()
         .filter(fileName -> fileName.endsWith(fileSuffix))
         .map(fileName -> resourceFolder + "/" + fileName)   // script.scriptResourcePath always stored as unix path
-        .toList(), scriptResourcePath.initScript());
+        .collect(Collectors.toList()), scriptResourcePath.initScript());
   }
 
   private static List<String> ensureInitScriptIsFirst(List<String> scriptPaths, String initScript) {
@@ -340,7 +345,7 @@ public class Script {
   private static List<Script> loadJsScripts(String scriptsResourcePath) throws IOException {
     return scanResourceFolder(new ScriptResourcePath(scriptsResourcePath), ".js").stream()
         .map(scriptLocation -> new Script(scriptLocation, null, "0.0.0"))
-        .toList();
+        .collect(Collectors.toList());
   }
 
   private String extractVersion(String targetSchema) {
@@ -364,7 +369,7 @@ public class Script {
         .map(schema -> extractVersion(schema))
         .filter(version -> version != null)
         .sorted(Comparator.comparing(Script::parseVersion))
-        .toList();
+        .collect(Collectors.toList());
   }
 
   private void uninstall(String scriptVersion) throws SQLException {
@@ -390,14 +395,13 @@ public class Script {
   private static List<SQLQuery> buildDeleteFunctionQueries(List<String> functionSignatures) {
     return functionSignatures.stream()
         .map(signature -> new SQLQuery("DROP FUNCTION " + signature + " CASCADE"))
-        .toList();
+        .collect(Collectors.toList());
   }
 
   private List<String> loadSchemaFunctions(String schema) throws SQLException {
-    return new SQLQuery("""
-        SELECT proc.oid::REGPROCEDURE as signature FROM pg_proc proc LEFT JOIN pg_namespace ns ON proc.pronamespace = ns.oid
-        WHERE ns.nspname = #{schema} AND proc.prokind = 'f'
-        """)
+    return new SQLQuery(
+        "SELECT proc.oid::REGPROCEDURE as signature FROM pg_proc proc LEFT JOIN pg_namespace ns ON proc.pronamespace = ns.oid\n" +
+        "WHERE ns.nspname = #{schema} AND proc.prokind = 'f'")
         .withNamedParameter("schema", schema)
         .run(dataSourceProvider, rs -> {
           List<String> signatures = new ArrayList<>();

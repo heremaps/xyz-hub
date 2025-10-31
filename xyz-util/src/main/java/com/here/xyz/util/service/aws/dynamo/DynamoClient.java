@@ -47,8 +47,11 @@ import com.here.xyz.util.service.Core;
 import io.vertx.core.Future;
 import io.vertx.core.WorkerExecutor;
 import java.util.ArrayList;
+import java.util.stream.Collectors;
 import java.util.List;
+import java.util.stream.Collectors;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import software.amazon.awssdk.regions.Region;
@@ -126,7 +129,7 @@ public class DynamoClient {
 
       // optional
       if (!CollectionUtils.isNullOrEmpty(indexes)) {
-        final List<GlobalSecondaryIndex> gsiList = indexes.stream().map(this::createGSI).toList();
+        final List<GlobalSecondaryIndex> gsiList = indexes.stream().map(this::createGSI).collect(Collectors.toList());
         req = req.withGlobalSecondaryIndexes(gsiList);
       }
 

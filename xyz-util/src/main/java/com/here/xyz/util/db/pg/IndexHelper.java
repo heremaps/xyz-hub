@@ -72,45 +72,76 @@ public class IndexHelper {
 
     @Override
     public String getIndexName(String tableName) {
-      return switch (this) {
-        case SERIAL, VIZ -> idxPrefix + tableName +  "_" + name().toLowerCase();
-        case NEXT_VERSION -> idxPrefix + tableName +  "_nextversion";
-        case VERSION_ID -> idxPrefix + tableName +  "_versionid";
-        default -> idxPrefix + tableName + "_" + getIndexContent().get(0);
-      };
+      switch (this) {
+        case SERIAL:
+        case VIZ:
+          return idxPrefix + tableName +  "_" + name().toLowerCase();
+        case NEXT_VERSION:
+          return idxPrefix + tableName +  "_nextversion";
+        case VERSION_ID:
+          return idxPrefix + tableName +  "_versionid";
+        default:
+          return idxPrefix + tableName + "_" + getIndexContent().get(0);
+      }
     }
 
     public String getIndexType() {
-      return switch (this) {
-        case GEO -> "GIST";
-        case VERSION_ID, NEXT_VERSION, OPERATION, SERIAL, VIZ, AUTHOR -> "BTREE";
-      };
+      switch (this) {
+        case GEO:
+          return "GIST";
+        case VERSION_ID:
+        case NEXT_VERSION:
+        case OPERATION:
+        case SERIAL:
+        case VIZ:
+        case AUTHOR:
+          return "BTREE";
+        default:
+          throw new IllegalStateException("Unexpected index type: " + this);
+      }
     }
 
     public List<String> getIndexContent() {
-      return switch (this) {
-        case GEO -> List.of("geo");
-        case VERSION_ID -> List.of("version", "id");
-        case NEXT_VERSION -> List.of("next_version");
-        case OPERATION -> List.of("operation");
-        case SERIAL -> List.of("i");
-        case VIZ -> List.of("(left(md5('' || i), 5))");
-        case AUTHOR -> List.of("author");
-      };
+      switch (this) {
+        case GEO:
+          return List.of("geo");
+        case VERSION_ID:
+          return List.of("version", "id");
+        case NEXT_VERSION:
+          return List.of("next_version");
+        case OPERATION:
+          return List.of("operation");
+        case SERIAL:
+          return List.of("i");
+        case VIZ:
+          return List.of("(left(md5('' || i), 5))");
+        case AUTHOR:
+          return List.of("author");
+        default:
+          throw new IllegalStateException("Unexpected index: " + this);
+      }
     }
 
     public static SystemIndex fromString(String name) {
       if (name == null) return null;
-      return switch (name.toLowerCase()) {
-        case "geo" -> GEO;
-        case "versionid" -> VERSION_ID;
-        case "nextversion" -> NEXT_VERSION;
-        case "operation" -> OPERATION;
-        case "serial" -> SERIAL;
-        case "viz" -> VIZ;
-        case "author" -> AUTHOR;
-        default -> null;
-      };
+      switch (name.toLowerCase()) {
+        case "geo":
+          return GEO;
+        case "versionid":
+          return VERSION_ID;
+        case "nextversion":
+          return NEXT_VERSION;
+        case "operation":
+          return OPERATION;
+        case "serial":
+          return SERIAL;
+        case "viz":
+          return VIZ;
+        case "author":
+          return AUTHOR;
+        default:
+          return null;
+      }
     }
   }
 
@@ -217,17 +248,15 @@ public class IndexHelper {
 
   public static SQLQuery buildOnDemandIndexCreationQuery(String schema, String table, String propertyPath, String targetColumn, boolean async){
     return new SQLQuery((async ? "PERFORM " : "SELECT ") +
-            """
-            xyz_index_creation_on_property_object(
-                #{schema_name},
-                #{table_name},
-                #{property_name},
-                xyz_index_name_for_property(#{table_name}, #{property_name}, #{idx_type}),
-                xyz_property_datatype(#{schema_name}, #{table_name}, #{property_name}, #{table_sample_cnt}, #{target_column} ),
-                #{idx_type},
-                #{target_column}
-              )
-            """)
+            "xyz_index_creation_on_property_object(\n" +
+            "    #{schema_name},\n" +
+            "    #{table_name},\n" +
+            "    #{property_name},\n" +
+            "    xyz_index_name_for_property(#{table_name}, #{property_name}, #{idx_type}),\n" +
+            "    xyz_property_datatype(#{schema_name}, #{table_name}, #{property_name}, #{table_sample_cnt}, #{target_column} ),\n" +
+            "    #{idx_type},\n" +
+            "    #{target_column}\n" +
+            "  )\n")
             .withNamedParameter("schema_name", schema)
             .withNamedParameter("table_name", table)
             .withNamedParameter("property_name", propertyPath)
@@ -237,10 +266,9 @@ public class IndexHelper {
   }
 
   public static SQLQuery checkIndexType(String schema, String table, String propertyName, int tableSampleCnt) {
-    return new SQLQuery("""
-        SELECT * FROM xyz_index_creation_on_property_object( #{schema_name}, #{table_name},
-            #{property_name}, #{table_sample_cnt} )
-        """)
+    return new SQLQuery(
+        "SELECT * FROM xyz_index_creation_on_property_object( #{schema_name}, #{table_name},\n" +
+        "    #{property_name}, #{table_sample_cnt} )\n")
         .withNamedParameter("schema_name", schema)
         .withNamedParameter("table_name", table)
         .withNamedParameter("property_name", propertyName)
@@ -263,7 +291,7 @@ public class IndexHelper {
     if(layout == OLD_LAYOUT)
       return Arrays.asList(SystemIndex.values()).stream()
               .map(index -> buildCreateIndexQuery(schema, table, index.getIndexContent(), index.getIndexType(), index.getIndexName(table)))
-              .toList();
+              .collect(Collectors.toList());
     else if (layout == NEW_LAYOUT)
       return Stream.of(SystemIndex.GEO,
                       SystemIndex.NEXT_VERSION,
@@ -271,7 +299,7 @@ public class IndexHelper {
               .map(index -> buildCreateIndexQuery(
                       schema, table, index.getIndexContent(),
                       index.getIndexType(), index.getIndexName(table))
-              ).toList();
+              ).collect(Collectors.toList());
 
     throw new IllegalArgumentException("Unsupported layout " + layout);
   }
@@ -288,7 +316,7 @@ public class IndexHelper {
     return buildSpaceTableIndexQueries(schema, table, TableLayout.OLD_LAYOUT)
             .stream()
             .map(q -> addQueryComment(q, queryComment))
-            .toList();
+            .collect(Collectors.toList());
   }
   /**
    * @deprecated Please use labels instead. See: {@link SQLQuery#withLabel(String, String)}

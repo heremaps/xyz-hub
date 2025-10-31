@@ -238,18 +238,22 @@ public class SQLQuery {
   private String paramValueToString(Object paramValue) {
     if (paramValue == null)
       return "NULL";
-    if (paramValue instanceof String stringParam)
+    if (paramValue instanceof String) {
+      String stringParam = (String) paramValue;
       return escapeDollarSigns(customQuote(stringParam));
+    }
     if (paramValue instanceof Long)
       return paramValue + "::BIGINT";
     if (paramValue instanceof Number)
       return paramValue.toString();
     if (paramValue instanceof Boolean)
       return paramValue + "::BOOLEAN";
-    if (paramValue instanceof Object[] arrayValue)
+    if (paramValue instanceof Object[]) {
+      Object[] arrayValue = (Object[]) paramValue;
       return "ARRAY[" + Arrays.stream(arrayValue)
           .map(elementValue -> paramValueToString(elementValue))
           .collect(Collectors.joining(",")) + "]";
+    }
     return paramValue.toString();
   }
 
@@ -899,10 +903,9 @@ public class SQLQuery {
    */
   public static boolean isRunning(DataSourceProvider dataSourceProvider, boolean useReplica, String labelIdentifier, String labelValue)
       throws SQLException {
-    return new SQLQuery("""
-        SELECT 1 FROM pg_stat_activity
-          WHERE state = 'active' AND ${{labelMatching}} AND pid != pg_backend_pid()
-        """)
+    return new SQLQuery(
+        "SELECT 1 FROM pg_stat_activity\n" +
+        "  WHERE state = 'active' AND ${{labelMatching}} AND pid != pg_backend_pid()")
         .withQueryFragment("labelMatching", buildLabelMatchQuery(labelIdentifier, labelValue))
         .withLoggingEnabled(false)
         .run(dataSourceProvider, rs -> rs.next(), useReplica);
@@ -1026,11 +1029,16 @@ public class SQLQuery {
 
       if (isAsync())
         operation = ExecutionOperation.QUERY;
-      return switch (operation) {
-        case QUERY -> executeQuery(dataSource, executionContext, handler);
-        case UPDATE -> executeUpdate(dataSource, executionContext);
-        case UPDATE_BATCH -> executeBatchUpdate(dataSource, executionContext);
-      };
+      switch (operation) {
+        case QUERY:
+          return executeQuery(dataSource, executionContext, handler);
+        case UPDATE:
+          return executeUpdate(dataSource, executionContext);
+        case UPDATE_BATCH:
+          return executeBatchUpdate(dataSource, executionContext);
+        default:
+          throw new IllegalStateException("Unexpected operation: " + operation);
+      }
     }
     catch (SQLException e) {
       if (executionContext.mayRetry(e)) {
@@ -1053,7 +1061,7 @@ public class SQLQuery {
         usedTimeMsg = "attempt time: " + usedTimeForAttempt + "ms, ";
 
       logger.info("{} query time: {}ms, {}dataSource: {}", getQueryId(), overallTime, usedTimeMsg,
-          dataSource instanceof ComboPooledDataSource comboPooledDataSource ? comboPooledDataSource.getJdbcUrl() : "n/a");
+          dataSource instanceof ComboPooledDataSource ? ((ComboPooledDataSource) dataSource).getJdbcUrl() : "n/a");
     }
   }
 
@@ -1184,7 +1192,9 @@ public class SQLQuery {
     }
 
     private boolean isRecoverable(Exception e) {
-      if (e instanceof SQLException sqlEx && sqlEx.getSQLState() != null && (
+      if (e instanceof SQLException) {
+        SQLException sqlEx = (SQLException) e;
+        if (sqlEx.getSQLState() != null && (
           /*
           If a timeout occurs right after the invocation, it could be caused
           by a serverless aurora scaling. Then we should retry again.
@@ -1201,9 +1211,10 @@ public class SQLQuery {
               //|| sqlEx.getSQLState().equalsIgnoreCase("57P01")
               || sqlEx.getSQLState().equalsIgnoreCase("08003")
               || sqlEx.getSQLState().equalsIgnoreCase("08006")
-      )) {
-        logger.warn("{} Error based on serverless scaling detected! RemainingTime: {}", getQueryId(), remainingQueryTimeout, e);
-        return true;
+        )) {
+          logger.warn("{} Error based on serverless scaling detected! RemainingTime: {}", getQueryId(), remainingQueryTimeout, e);
+          return true;
+        }
       }
       return false;
     }

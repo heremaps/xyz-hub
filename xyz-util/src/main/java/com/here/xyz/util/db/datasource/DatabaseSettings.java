@@ -28,9 +28,13 @@ import com.here.xyz.util.runtime.FunctionRuntime;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
+import java.util.stream.Collectors;
 import java.util.List;
+import java.util.stream.Collectors;
 import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -503,7 +507,7 @@ public class DatabaseSettings extends Payload {
             }
         }
         List<String> extendedSearchPath = new ArrayList<>(getSearchPath() == null ? List.of() : getSearchPath());
-        extendedSearchPath.addAll(sqlScripts.get(getId()).stream().map(script -> script.getCompatibleSchema(softwareVersion)).toList());
+        extendedSearchPath.addAll(sqlScripts.get(getId()).stream().map(script -> script.getCompatibleSchema(softwareVersion)).collect(Collectors.toList()));
         logger.info("Set searchPath for connector {} to... {}", getId(), extendedSearchPath);
         setSearchPath(extendedSearchPath);
     }
@@ -518,13 +522,35 @@ public class DatabaseSettings extends Payload {
         }
     }
 
-    public record ScriptResourcePath(String path, String schemaPrefix, String initScript) {
+    public static class ScriptResourcePath {
+        private final String path;
+        private final String schemaPrefix;
+        private final String initScript;
+
         public ScriptResourcePath(String path) {
             this(path, null);
         }
 
         public ScriptResourcePath(String path, String schemaPrefix) {
             this(path, schemaPrefix, null);
+        }
+
+        public ScriptResourcePath(String path, String schemaPrefix, String initScript) {
+            this.path = path;
+            this.schemaPrefix = schemaPrefix;
+            this.initScript = initScript;
+        }
+
+        public String path() {
+            return path;
+        }
+
+        public String schemaPrefix() {
+            return schemaPrefix;
+        }
+
+        public String initScript() {
+            return initScript;
         }
     }
 }

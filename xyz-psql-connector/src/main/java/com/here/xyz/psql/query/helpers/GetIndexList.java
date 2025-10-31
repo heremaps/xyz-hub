@@ -64,33 +64,31 @@ public class GetIndexList extends QueryRunner<String, List<String>> {
   @Override
   protected SQLQuery buildQuery(String tableName) throws SQLException, ErrorResponseException {
     return new SQLQuery(
-      """
-        with indata as
-        ( select idx_available from
-         (
-          select jsonb_build_object ( 'src',src,'property', idx_property ) as idx_available
-          from xyz_index_list_all_available( #{schema},#{table} )
-          where true and
-          #{threshold} <=
-          ( select sum( coalesce( reltuples::bigint, 0 ) ) from pg_class 
-            where true
-            and relkind = 'r'
-            and relname in 
-            ( select unnest( array_remove( array[m.h_id || '_head', m.meta#>>'{extends,intermediateTable}' || '_head', m.meta#>>'{extends,extendedTable}' || '_head'], null ) ) as tbl 
-              from xyz_config.space_meta m 
-              where m.schem = #{schema} and m.h_id = #{table}
-            )
-          )
-         ) o
-        ),
-        iindata as ( select json_agg( idx_available )::jsonb as idx_available from indata )
-        select idx_available from iindata where 0 < ( select count(*) from indata )
-      """
-/*      
+      "with indata as\n" +
+      "( select idx_available from\n" +
+      " (\n" +
+      "  select jsonb_build_object ( 'src',src,'property', idx_property ) as idx_available\n" +
+      "  from xyz_index_list_all_available( #{schema},#{table} )\n" +
+      "  where true and\n" +
+      "  #{threshold} <=\n" +
+      "  ( select sum( coalesce( reltuples::bigint, 0 ) ) from pg_class \n" +
+      "    where true\n" +
+      "    and relkind = 'r'\n" +
+      "    and relname in \n" +
+      "    ( select unnest( array_remove( array[m.h_id || '_head', m.meta#>>'{extends,intermediateTable}' || '_head', m.meta#>>'{extends,extendedTable}' || '_head'], null ) ) as tbl \n" +
+      "      from xyz_config.space_meta m \n" +
+      "      where m.schem = #{schema} and m.h_id = #{table}\n" +
+      "    )\n" +
+      "  )\n" +
+      " ) o\n" +
+      "),\n" +
+      "iindata as ( select json_agg( idx_available )::jsonb as idx_available from indata )\n" +
+      "select idx_available from iindata where 0 < ( select count(*) from indata )\n"
+/*
           "SELECT coalesce(idx_available,'[]'::jsonb) as idx_available FROM " + ModifySpace.IDX_STATUS_TABLE_FQN
         + " WHERE spaceid = #{table} "
         + "  AND (select coalesce( (count->'value')::bigint, 0 ) from xyz_statistic_space(#{schema},#{table}, false)) >= #{threshold} "
-*/        
+*/
         )
         .withNamedParameter(TABLE, tableName)
         .withNamedParameter(SCHEMA, getSchema())

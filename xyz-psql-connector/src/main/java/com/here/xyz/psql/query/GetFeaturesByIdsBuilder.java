@@ -59,19 +59,33 @@ public class GetFeaturesByIdsBuilder extends XyzQueryBuilder<GetFeaturesByIdsInp
     }
   }
 
-  public record GetFeaturesByIdsInput(
-      String spaceId,
-      Map<String, Object> connectorParams,
-      Map<String, Object> spaceParams,
-      SpaceContext context,
-      int versionsToKeep,
-      Ref ref,
-      List<String> ids
-  ) {
-    public GetFeaturesByIdsInput {
-      if (ref == null)
-        ref = new Ref(Ref.HEAD);
+  public static class GetFeaturesByIdsInput {
+    private final String spaceId;
+    private final Map<String, Object> connectorParams;
+    private final Map<String, Object> spaceParams;
+    private final SpaceContext context;
+    private final int versionsToKeep;
+    private final Ref ref;
+    private final List<String> ids;
+
+    public GetFeaturesByIdsInput(String spaceId, Map<String, Object> connectorParams, Map<String, Object> spaceParams,
+                                 SpaceContext context, int versionsToKeep, Ref ref, List<String> ids) {
+      this.spaceId = spaceId;
+      this.connectorParams = connectorParams;
+      this.spaceParams = spaceParams;
+      this.context = context;
+      this.versionsToKeep = versionsToKeep;
+      this.ref = ref == null ? new Ref(Ref.HEAD) : ref;
+      this.ids = ids;
     }
+
+    public String spaceId() { return spaceId; }
+    public Map<String, Object> connectorParams() { return connectorParams; }
+    public Map<String, Object> spaceParams() { return spaceParams; }
+    public SpaceContext context() { return context; }
+    public int versionsToKeep() { return versionsToKeep; }
+    public Ref ref() { return ref; }
+    public List<String> ids() { return ids; }
   }
 
   private class GetFeaturesByIdWithModifiedFilter extends GetFeaturesById {

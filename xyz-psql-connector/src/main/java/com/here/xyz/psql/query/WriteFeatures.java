@@ -41,6 +41,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -67,7 +68,7 @@ public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureColl
       tables.addAll(branchPathToTableChain(rootTableName, event.getBranchPath(), event.getNodeId()));
       tableBaseVersions = new ArrayList<>();
       tableBaseVersions.add(0l);
-      tableBaseVersions.addAll(event.getBranchPath().stream().map(baseRef -> baseRef.getVersion()).toList());
+      tableBaseVersions.addAll(event.getBranchPath().stream().map(baseRef -> baseRef.getVersion()).collect(Collectors.toList()));
     }
     else {
       if (isExtendedSpace(event)) {
@@ -127,12 +128,22 @@ public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureColl
     catch (SQLException e) {
       final String message = e.getMessage();
       String cleanMessage = message.contains("\n") ? message.substring(0, message.indexOf("\n")) : message;
-      throw switch (SQLError.fromErrorCode(e.getSQLState())) {
-        case FEATURE_EXISTS, VERSION_CONFLICT_ERROR, MERGE_CONFLICT_ERROR -> new ErrorResponseException(CONFLICT, cleanMessage, e);
-        case FEATURE_NOT_EXISTS -> new ErrorResponseException(NOT_FOUND, cleanMessage, e);
-        case ILLEGAL_ARGUMENT -> new ErrorResponseException(XyzError.ILLEGAL_ARGUMENT, cleanMessage, e);
-        case XYZ_EXCEPTION, UNKNOWN -> new ErrorResponseException(EXCEPTION, e.getMessage(), e);
-      };
+      SQLError error = SQLError.fromErrorCode(e.getSQLState());
+      switch (error) {
+        case FEATURE_EXISTS:
+        case VERSION_CONFLICT_ERROR:
+        case MERGE_CONFLICT_ERROR:
+          throw new ErrorResponseException(CONFLICT, cleanMessage, e);
+        case FEATURE_NOT_EXISTS:
+          throw new ErrorResponseException(NOT_FOUND, cleanMessage, e);
+        case ILLEGAL_ARGUMENT:
+          throw new ErrorResponseException(XyzError.ILLEGAL_ARGUMENT, cleanMessage, e);
+        case XYZ_EXCEPTION:
+        case UNKNOWN:
+          throw new ErrorResponseException(EXCEPTION, e.getMessage(), e);
+        default:
+          throw new ErrorResponseException(EXCEPTION, e.getMessage(), e);
+      }
     }
   }
 

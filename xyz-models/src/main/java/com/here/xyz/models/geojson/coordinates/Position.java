@@ -131,9 +131,10 @@ public class Position extends ArrayList<Double> implements IBoundedCoordinates {
   @Override
   public boolean equals(Object o) {
     if (this == o) return true;
-    if (!(o instanceof Position other))
+    if (!(o instanceof Position))
       return false;
 
+    Position other = (Position) o;
     if (this.size() != other.size())
       return false;
 

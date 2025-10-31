@@ -42,6 +42,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public class BranchManager {
   protected final DataSourceProvider dataSourceProvider;
@@ -284,7 +285,7 @@ public class BranchManager {
           .map(branchTable -> new SQLQuery("DROP TABLE IF EXISTS ${schema}.${table}")
               .withVariable(SCHEMA, schema)
               .withVariable("table", branchTable))
-          .toList())
+          .collect(Collectors.toList()))
           .writeBatch(dataSourceProvider);
   }
 
@@ -297,11 +298,10 @@ public class BranchManager {
   private boolean hasBranches(int nodeId) throws SQLException {
     String tablePattern = basePrefix(nodeId) + "%_%";
     //TODO: Rather use a regex instead of 2 checks
-    return new SQLQuery("""
-        SELECT tablename FROM pg_tables WHERE schemaname = #{schema}
-        AND tablename LIKE #{tablePattern}
-        AND NOT tablename LIKE #{partitionsPattern}
-        """)
+    return new SQLQuery(
+        "SELECT tablename FROM pg_tables WHERE schemaname = #{schema}\n" +
+        "AND tablename LIKE #{tablePattern}\n" +
+        "AND NOT tablename LIKE #{partitionsPattern}\n")
         .withNamedParameter(SCHEMA, schema)
         .withNamedParameter("tablePattern", toLikePattern(tablePattern))
         .withNamedParameter("partitionsPattern", toLikePattern(tablePattern + "_%"))
@@ -459,8 +459,41 @@ public class BranchManager {
     boolean conflicting();
   }
 
-  public record BranchOpResult(int nodeId, Ref baseRef, boolean conflicting) implements BranchOperationResult {}
+  public static class BranchOpResult implements BranchOperationResult {
+    private final int nodeId;
+    private final Ref baseRef;
+    private final boolean conflicting;
 
-  public record MergeOperationResult(int nodeId, Ref baseRef, boolean conflicting, long mergedSourceVersion, Ref resolvedMergeTargetRef)
-      implements BranchOperationResult {}
+    public BranchOpResult(int nodeId, Ref baseRef, boolean conflicting) {
+      this.nodeId = nodeId;
+      this.baseRef = baseRef;
+      this.conflicting = conflicting;
+    }
+
+    public int nodeId() { return nodeId; }
+    public Ref baseRef() { return baseRef; }
+    public boolean conflicting() { return conflicting; }
+  }
+
+  public static class MergeOperationResult implements BranchOperationResult {
+    private final int nodeId;
+    private final Ref baseRef;
+    private final boolean conflicting;
+    private final long mergedSourceVersion;
+    private final Ref resolvedMergeTargetRef;
+
+    public MergeOperationResult(int nodeId, Ref baseRef, boolean conflicting, long mergedSourceVersion, Ref resolvedMergeTargetRef) {
+      this.nodeId = nodeId;
+      this.baseRef = baseRef;
+      this.conflicting = conflicting;
+      this.mergedSourceVersion = mergedSourceVersion;
+      this.resolvedMergeTargetRef = resolvedMergeTargetRef;
+    }
+
+    public int nodeId() { return nodeId; }
+    public Ref baseRef() { return baseRef; }
+    public boolean conflicting() { return conflicting; }
+    public long mergedSourceVersion() { return mergedSourceVersion; }
+    public Ref resolvedMergeTargetRef() { return resolvedMergeTargetRef; }
+  }
 }
