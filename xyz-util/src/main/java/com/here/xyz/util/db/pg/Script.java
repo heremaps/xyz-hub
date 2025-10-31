@@ -140,10 +140,47 @@ public class Script {
     return dataSourceProvider.getDatabaseSettings() == null ? "unknown" : dataSourceProvider.getDatabaseSettings().getId();
   }
 
+  private SQLQuery addJsLibRegisterFunctions(SQLQuery scriptContent) throws IOException
+  {
+   String
+    libPath = String.format("%s/lib-js",getScriptResourceFolder()),
+    registerSqlFunc =
+   """
+     CREATE OR REPLACE FUNCTION ${{regFunctionName}}() RETURNS text AS
+     $body$
+      with indata as
+      ( select $rfc$${{regFunctionCode}}$rfc$ as code )
+      select regexp_replace(code, '^var\\s+[^\\(]+','') as code from indata
+     $body$
+     LANGUAGE sql IMMUTABLE PARALLEL SAFE;
+   """;
+
+   List<SQLQuery> queries = new ArrayList<>();
+   queries.add(scriptContent);
+
+   List<Script> jsScripts = loadJsScripts( libPath );
+
+   for (Script jsScript : jsScripts ) {
+
+    String scriptName = jsScript.getScriptName(),
+           regFunctionName = scriptName.substring(0, scriptName.indexOf('.'));
+
+    queries.add( new SQLQuery(registerSqlFunc)
+                      .withQueryFragment("regFunctionName", regFunctionName)
+                      .withQueryFragment("regFunctionCode", jsScript.loadScriptContent()) );
+   }
+
+   return SQLQuery.join(queries," ");
+  }
+
   private void install(String targetSchema, boolean deleteBefore) throws SQLException, IOException {
     logger.info("Installing script {} on DB {} into schema {} ...", getScriptName(), getDbId(), targetSchema);
 
     SQLQuery scriptContent = loadSubstitutedScriptContent();
+
+    if( "common.sql".equals(getScriptName()) )
+     scriptContent = addJsLibRegisterFunctions(scriptContent);
+
     List<SQLQuery> installationQueries = new ArrayList<>();
     if (deleteBefore) {
       //TODO: Remove following workaround once "drop schema cascade"-bug creating orphaned functions is fixed in postgres
