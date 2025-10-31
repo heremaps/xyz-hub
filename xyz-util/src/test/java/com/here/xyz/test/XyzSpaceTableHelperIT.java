@@ -65,8 +65,8 @@ public class XyzSpaceTableHelperIT extends SQLITBase {
                   TableComment comment;
                   try {
                       comment = XyzSerializable.deserialize(rs.getString("comment"), TableComment.class);
-                      Assertions.assertEquals(TableLayout.NEW_LAYOUT, comment.tableLayout());
-                      Assertions.assertEquals(TABLE, comment.spaceId());
+                      Assertions.assertEquals(TableLayout.NEW_LAYOUT, comment.getTableLayout());
+                      Assertions.assertEquals(TABLE, comment.getSpaceId());
                   } catch (JsonProcessingException e) {
                       throw new RuntimeException(e);
                   }

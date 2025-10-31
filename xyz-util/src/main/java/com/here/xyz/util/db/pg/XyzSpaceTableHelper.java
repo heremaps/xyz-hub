@@ -320,11 +320,11 @@ public class XyzSpaceTableHelper {
       this.tableLayout = tableLayout;
     }
 
-    public String spaceId() {
+    public String getSpaceId() {
       return spaceId;
     }
 
-    public TableLayout tableLayout() {
+    public TableLayout getTableLayout() {
       return tableLayout;
     }
   }

@@ -30,11 +30,9 @@ import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.stream.Collectors;
 import java.util.List;
-import java.util.stream.Collectors;
 import java.util.Map;
-import java.util.stream.Collectors;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -541,15 +539,15 @@ public class DatabaseSettings extends Payload {
             this.initScript = initScript;
         }
 
-        public String path() {
+        public String getPath() {
             return path;
         }
 
-        public String schemaPrefix() {
+        public String getSchemaPrefix() {
             return schemaPrefix;
         }
 
-        public String initScript() {
+        public String getInitScript() {
             return initScript;
         }
     }

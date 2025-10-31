@@ -275,10 +275,10 @@ public class Script {
   }
 
   private static List<String> scanResourceFolder(ScriptResourcePath scriptResourcePath, String fileSuffix) throws IOException {
-    String resourceFolder = scriptResourcePath.path();
+    String resourceFolder = scriptResourcePath.getPath();
     //TODO: Remove this workaround once the actual implementation of this method supports scanning folders inside a JAR
     if ("/sql".equals(resourceFolder) || "/jobs".equals(resourceFolder))
-      return ensureInitScriptIsFirst(scanResourceFolderWA(resourceFolder, fileSuffix), scriptResourcePath.initScript());
+      return ensureInitScriptIsFirst(scanResourceFolderWA(resourceFolder, fileSuffix), scriptResourcePath.getInitScript());
 
     final InputStream folderResource = Script.class.getResourceAsStream(resourceFolder);
     if (folderResource == null)
@@ -292,7 +292,7 @@ public class Script {
     return ensureInitScriptIsFirst(files.stream()
         .filter(fileName -> fileName.endsWith(fileSuffix))
         .map(fileName -> resourceFolder + "/" + fileName)   // script.scriptResourcePath always stored as unix path
-        .collect(Collectors.toList()), scriptResourcePath.initScript());
+        .collect(Collectors.toList()), scriptResourcePath.getInitScript());
   }
 
   private static List<String> ensureInitScriptIsFirst(List<String> scriptPaths, String initScript) {
@@ -338,7 +338,7 @@ public class Script {
   public static List<Script> loadScripts(ScriptResourcePath scriptsResourcePath, DataSourceProvider dataSourceProvider, String scriptsVersion)
       throws IOException, URISyntaxException {
     return scanResourceFolder(scriptsResourcePath, ".sql").stream()
-        .map(scriptLocation -> new Script(scriptLocation, dataSourceProvider, scriptsVersion, scriptsResourcePath.schemaPrefix()))
+        .map(scriptLocation -> new Script(scriptLocation, dataSourceProvider, scriptsVersion, scriptsResourcePath.getSchemaPrefix()))
         .collect(Collectors.toUnmodifiableList());
   }
 
