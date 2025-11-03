@@ -130,9 +130,6 @@ public abstract class EntryConnectorHandler extends AbstractConnectorHandler imp
             .withError(EXCEPTION)
             .withErrorMessage("Unexpected exception occurred.");
       }
-      catch (OutOfMemoryError e) {
-        throw e;
-      }
 
       writeDataOut(output, dataOut, ifNoneMatch, streamId, maxUncompressedResponseSize);
     }
