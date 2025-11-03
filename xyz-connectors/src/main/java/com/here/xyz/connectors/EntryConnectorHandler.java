@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,9 @@
 
 package com.here.xyz.connectors;
 
+import static com.here.xyz.events.BinaryEvent.isXyzBinaryPayload;
+import static com.here.xyz.responses.XyzError.EXCEPTION;
+
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestStreamHandler;
 import com.fasterxml.jackson.databind.JsonMappingException;
@@ -35,16 +38,12 @@ import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.runtime.FunctionRuntime;
 import com.here.xyz.util.runtime.LambdaFunctionRuntime;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-
-import static com.here.xyz.events.BinaryEvent.isXyzBinaryPayload;
-import static com.here.xyz.responses.XyzError.EXCEPTION;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  *
@@ -123,6 +122,9 @@ public abstract class EntryConnectorHandler extends AbstractConnectorHandler imp
                 dataOut = reqHandler.handleEvent(event);
             }
             catch (ErrorResponseException e) {
+              switch (e.getErrorResponse().getError()) {
+                case EXCEPTION, BAD_GATEWAY, TIMEOUT -> logger.error("{} Exception in Connector:", streamId, e);
+              }
                 e.getErrorResponse().setStreamId(streamId);
                 dataOut = e.getErrorResponse();
             }
