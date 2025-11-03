@@ -48,9 +48,9 @@ import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 import static com.here.xyz.events.UpdateStrategy.DEFAULT_UPDATE_STRATEGY;
 import static com.here.xyz.jobs.steps.Step.Visibility.USER;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.ASYNC;
-import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpaceV2.EntityPerLine.Feature;
-import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpaceV2.EntityPerLine.FeatureCollection;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_ASYNC_SUCCESS;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildTemporaryJobTableDropStatement;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporaryJobTableName;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
 import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 
@@ -66,6 +66,14 @@ public class ImportFilesToSpaceV2 extends TaskedSpaceBasedStep<ImportFilesToSpac
     setOutputSets(List.of(new OutputSet(STATISTICS, USER, true)));
   }
 
+  //TODO: Work with enriched files which have a custom format. Here we plan to import into empty layers without
+  // using Triggers.
+  public enum Format {
+    GEOJSON;
+  }
+
+  private static final String TRIGGER_TABLE_SUFFIX = "_trigger_tbl";
+
   @JsonView({Internal.class, Static.class})
   private long targetTableFeatureCount = -1;
 
@@ -73,10 +81,10 @@ public class ImportFilesToSpaceV2 extends TaskedSpaceBasedStep<ImportFilesToSpac
   private UpdateStrategy updateStrategy = DEFAULT_UPDATE_STRATEGY;
 
   @JsonView({Internal.class, Static.class})
-  private EntityPerLine entityPerLine = Feature;
+  private Format format = Format.GEOJSON;
 
   @JsonView({Internal.class, Static.class})
-  private Format format = Format.GEOJSON;
+  private boolean retainMetadata = false;
 
   public UpdateStrategy getUpdateStrategy() {
     return updateStrategy;
@@ -88,31 +96,6 @@ public class ImportFilesToSpaceV2 extends TaskedSpaceBasedStep<ImportFilesToSpac
 
   public ImportFilesToSpaceV2 withUpdateStrategy(UpdateStrategy updateStrategy) {
     setUpdateStrategy(updateStrategy);
-    return this;
-  }
-
-  public enum Format {
-    GEOJSON;
-  }
-
-  public enum EntityPerLine {
-    Feature,
-    FeatureCollection
-  }
-
-  public EntityPerLine getEntityPerLine() {
-    return entityPerLine;
-  }
-
-  public void setEntityPerLine(EntityPerLine entityPerLine) {
-    this.entityPerLine = entityPerLine;
-  }
-
-  @JsonView({Internal.class, Static.class})
-  private boolean retainMetadata = false;
-
-  public ImportFilesToSpaceV2 withEntityPerLine(EntityPerLine entityPerLine) {
-    setEntityPerLine(entityPerLine);
     return this;
   }
 
@@ -135,24 +118,24 @@ public class ImportFilesToSpaceV2 extends TaskedSpaceBasedStep<ImportFilesToSpac
   }
 
   @Override
-  protected boolean queryRunsOnWriter() throws WebClientException, SQLException, TooManyResourcesClaimed {
+  protected boolean queryRunsOnWriter(){
     return true;
   }
 
   @Override
-  protected int setInitialThreadCount(String schema) throws WebClientException, SQLException, TooManyResourcesClaimed {
+  protected int setInitialThreadCount(String schema){
     return 15;
   }
 
   @Override
   protected void initialSetup() throws SQLException, TooManyResourcesClaimed, WebClientException {
     long newVersion = getOrIncreaseVersionSequence();
-    runWriteQuerySync(buildCreateImportTriggerStatement(space().getOwner(), newVersion), db(), 0);
+    runBatchWriteQuerySync(buildTemporaryTriggerTableBlock(space().getOwner(), newVersion), db(), 0);
   }
 
   @Override
   protected void finalCleanUp() throws WebClientException, SQLException, TooManyResourcesClaimed {
-    runWriteQuerySync(buildDropImportTriggerStatement(), db(), 0);
+    runBatchWriteQuerySync(buildCleanUpStatement(), db(), 0);
   }
 
   @Override
@@ -169,12 +152,6 @@ public class ImportFilesToSpaceV2 extends TaskedSpaceBasedStep<ImportFilesToSpac
         );
       }
     }
-
-    /*
-     * Old Tables should work with trigger and enrichment
-     * New Tables should work with enrichedFiles
-    */
-
     return taskItems;
   }
 
@@ -221,10 +198,10 @@ public class ImportFilesToSpaceV2 extends TaskedSpaceBasedStep<ImportFilesToSpac
                     "#{lambdaFunctionArn}, #{lambdaRegion})")
             .withContext(getQueryContext(schema))
             .withAsync(true)
-//            .withAsyncProcedure(false)
             .withNamedParameter("taskId", taskId)
             .withNamedParameter("schema", schema)
-            .withNamedParameter("targetTable", schema+".\"" + getRootTableName(space()) + "\"")
+            .withNamedParameter("targetTable", useFeatureWriter() ?
+                    schema+".\"" + getTemporaryTriggerTableName(getId()) + "\"" : schema+".\"" + getRootTableName(space()) + "\"")
             .withNamedParameter("format", "GEOJSON")
             .withNamedParameter("s3Bucket", taskInput.s3Bucket())
             .withNamedParameter("s3Key", taskInput.s3Key())
@@ -276,43 +253,61 @@ public class ImportFilesToSpaceV2 extends TaskedSpaceBasedStep<ImportFilesToSpac
     });
   }
 
-  private SQLQuery buildDropImportTriggerStatement() throws WebClientException {
-    return  new SQLQuery("DROP TRIGGER if exists insertTrigger ON ${schema}.${table};")
-            .withVariable("schema", getSchema(db()))
-            .withVariable("table", getRootTableName(space()));
-  }
-
-  private String getTriggerFunctionName(boolean targetLayerIsEmpty) {
-    if(!targetLayerIsEmpty)
-      return "import_from_s3_trigger_for_non_empty_layer";
-    else {
-      String triggerFunction = "import_from_s3_trigger_for_empty_layer_v2";
-      return triggerFunction + (entityPerLine == FeatureCollection ? "_geojsonfc" : "");
-    }
+  private SQLQuery buildCleanUpStatement() throws WebClientException {
+    return SQLQuery.batchOf(
+            new SQLQuery("DROP TRIGGER IF EXISTS insertTrigger ON ${schema}.${table};")
+                    .withVariable("schema", getSchema(db()))
+                    .withVariable("table", getRootTableName(space())),
+            //Only present if FeatureWriter is used
+            buildTemporaryJobTableDropStatement(getSchema(db()), getTemporaryTriggerTableName(getId())));
   }
 
   /** copied over functions */
-  private SQLQuery buildCreateImportTriggerStatement(String targetAuthor, long newVersion) throws WebClientException {
-    if(useFeatureWriter())
-      return buildCreateImportTrigger(targetAuthor, newVersion);
-    return buildCreateFeatureWriterImportTrigger(targetAuthor, newVersion);
+  private SQLQuery buildTemporaryTriggerTableBlock(String targetAuthor, long newVersion) throws WebClientException {
+    List<SQLQuery> queries = new ArrayList<>();
+    boolean requiresFeatureWriter = useFeatureWriter();
+
+    //if the FeatureWriter is required, we need to create the temporary trigger table
+    if(requiresFeatureWriter)
+      queries.add(buildTemporaryTriggerTableForImportQuery());
+
+    queries.add(buildCreateImportTriggerStatement(targetAuthor, newVersion, requiresFeatureWriter));
+    return SQLQuery.batchOf(queries);
   }
 
-  private SQLQuery buildCreateFeatureWriterImportTrigger(String targetAuthor, long targetSpaceVersion) throws WebClientException {
-    String triggerFunction = getTriggerFunctionName(true);
+  private SQLQuery buildCreateImportTriggerStatement(String targetAuthor, long newVersion, boolean requiresFeatureWriter) throws WebClientException {
+    if(requiresFeatureWriter)
+      return buildCreateFeatureWriterImportTrigger(targetAuthor, newVersion);
+    return buildCreateImportTriggerForEmptyLayers(targetAuthor, newVersion);
+  }
 
+  private SQLQuery buildTemporaryTriggerTableForImportQuery() throws WebClientException {
+    String tableFields =
+            "jsondata TEXT, "
+                    + "geo geometry(GeometryZ, 4326), "
+                    + "count INT ";
+    return new SQLQuery("CREATE TABLE IF NOT EXISTS ${schema}.${table} (${{tableFields}} )")
+            .withQueryFragment("tableFields", tableFields)
+            .withVariable("schema", getSchema(db()))
+            .withVariable("table", getTemporaryTriggerTableName(getId()));
+  }
+
+  private static String getTemporaryTriggerTableName(String stepId) {
+    return getTemporaryJobTableName(stepId) + TRIGGER_TABLE_SUFFIX;
+  }
+
+  private SQLQuery buildCreateImportTriggerForEmptyLayers(String targetAuthor, long targetSpaceVersion) throws WebClientException {
     return new SQLQuery("CREATE OR REPLACE TRIGGER insertTrigger BEFORE INSERT ON ${schema}.${table} "
             + "FOR EACH ROW EXECUTE PROCEDURE ${triggerFunction}('${{author}}', ${{spaceVersion}}, ${{retainMetadata}});")
             .withQueryFragment("spaceVersion", "" + targetSpaceVersion)
             .withQueryFragment("author", targetAuthor)
             .withQueryFragment("retainMetadata", "" + isRetainMetadata())
-            .withVariable("triggerFunction", triggerFunction)
+            .withVariable("triggerFunction", "import_from_s3_trigger_for_empty_layer_v2")
             .withVariable("schema", getSchema(db()))
             .withVariable("table", getRootTableName(space()));
   }
 
-  private SQLQuery buildCreateImportTrigger(String author, long newVersion) throws WebClientException {
-    String triggerFunction = getTriggerFunctionName(false);
+  private SQLQuery buildCreateFeatureWriterImportTrigger(String author, long newVersion) throws WebClientException {
     String superTable = space().getExtension() != null ? getRootTableName(superSpace()) : null;
 
     List<String> tables = superTable == null ? List.of(getRootTableName(space())) : List.of(superTable, getRootTableName(space()));
@@ -347,10 +342,11 @@ public class ImportFilesToSpaceV2 extends TaskedSpaceBasedStep<ImportFilesToSpac
             .withQueryFragment("context", superTable == null ? "NULL" : "'DEFAULT'")
             .withQueryFragment("tables", String.join(",", tables))
             .withQueryFragment("format", format.toString())
-            .withQueryFragment("entityPerLine", entityPerLine.toString())
+            //If FeatureCollection is supported in the future, this needs to be adapted with EMR
+            .withQueryFragment("entityPerLine", "Feature")
             .withVariable("schema", getSchema(db()))
-            .withVariable("triggerFunction", triggerFunction)
-            .withVariable("table", getRootTableName(space()));
+            .withVariable("triggerFunction", "import_from_s3_trigger_for_non_empty_layer")
+            .withVariable("table", getTemporaryTriggerTableName(getId()));
   }
 
   /*
@@ -375,5 +371,4 @@ public class ImportFilesToSpaceV2 extends TaskedSpaceBasedStep<ImportFilesToSpac
     }
     return targetTableFeatureCount;
   }
-
 }

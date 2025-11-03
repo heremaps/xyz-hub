@@ -43,6 +43,7 @@ import com.here.xyz.jobs.steps.impl.DropIndexes;
 import com.here.xyz.jobs.steps.impl.transport.CountSpace;
 import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
+import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpaceV2;
 import com.here.xyz.jobs.steps.impl.transport.TransportTools;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.outputs.Output;
@@ -377,6 +378,7 @@ public class StepTestBase {
     DataSourceProvider dsp = getDataSourceProvider();
 
     if(   step instanceof ExportSpaceToFiles
+       || step instanceof ImportFilesToSpaceV2
        || step instanceof CountSpace ){
       waitTillTaskItemsAreFinalized(step);
     }else{
