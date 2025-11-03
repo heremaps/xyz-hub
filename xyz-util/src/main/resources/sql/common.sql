@@ -237,7 +237,7 @@ $BODY$
   libs = {};
   libs.include = (nameOfLib, code) => {
     if (!globalThis[nameOfLib] && dependencies.includes(nameOfLib))
-      globalThis[nameOfLib] = code;
+      globalThis[nameOfLib] = eval(code);
   };
 
   //Beispiel zur Nutzung
