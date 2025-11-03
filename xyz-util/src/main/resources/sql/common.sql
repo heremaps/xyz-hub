@@ -273,11 +273,12 @@ RETURNS void AS $body$
 
             plv8.elog(NOTICE, `Loading module: ${name}`);
 			try {
-			 const res = plv8.execute(`select ${name}()`);
-			 globalThis[name] = res.length > 0 ? new Function("return " + res[0][name])() : `Unable to load code for module: ${name}`;
-             plv8.elog(NOTICE, `Loaded module source: ${res[0][name].substring(0,25)}`);
+             const libSqlName = 'libjs_' + name;
+			 const res = plv8.execute(`select ${libSqlName}()`);
+			 globalThis[name] = res.length > 0 ? new Function("return " + res[0][libSqlName])() : `Unable to load code for module: ${name}`;
+             plv8.elog(NOTICE, `Loaded module source: ${res[0][libSqlName].substring(0,25)}`);
 			} catch (err) {
-			 plv8.elog(NOTICE, 'Loading module ${name} failed: ' + err.message);
+			 plv8.elog(NOTICE, `Loading module ${name} failed: ` + err.message);
 			}
         }
     }

@@ -145,7 +145,7 @@ public class Script {
     libPath = String.format("%s/lib-js",getScriptResourceFolder()),
     registerSqlFunc =
    """
-     CREATE OR REPLACE FUNCTION ${{regFunctionName}}() RETURNS text AS
+     CREATE OR REPLACE FUNCTION libjs_${{regFunctionName}}() RETURNS text AS
      $body$
       with indata as
       ( select $rfc$${{regFunctionCode}}$rfc$ as code )
