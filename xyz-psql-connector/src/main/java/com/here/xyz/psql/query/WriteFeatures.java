@@ -129,6 +129,7 @@ public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureColl
       String cleanMessage = message.contains("\n") ? message.substring(0, message.indexOf("\n")) : message;
       throw switch (SQLError.fromErrorCode(e.getSQLState())) {
         case FEATURE_EXISTS, VERSION_CONFLICT_ERROR, MERGE_CONFLICT_ERROR -> new ErrorResponseException(CONFLICT, cleanMessage, e);
+        case DUPLICATE_KEY -> new ErrorResponseException(CONFLICT, "Conflict while writing features.", e); //TODO: Handle all conflicts in FeatureWriter properly
         case FEATURE_NOT_EXISTS -> new ErrorResponseException(NOT_FOUND, cleanMessage, e);
         case ILLEGAL_ARGUMENT -> new ErrorResponseException(XyzError.ILLEGAL_ARGUMENT, cleanMessage, e);
         case XYZ_EXCEPTION, UNKNOWN -> new ErrorResponseException(EXCEPTION, e.getMessage(), e);
