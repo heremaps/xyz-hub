@@ -22,10 +22,13 @@ package com.here.xyz.psql.query.branching;
 import static com.here.xyz.events.UpdateStrategy.DEFAULT_UPDATE_STRATEGY;
 import static com.here.xyz.psql.query.branching.BranchManager.getNodeId;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildCreateSpaceTableQueriesForTests;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.amazonaws.services.lambda.runtime.Context;
 import com.here.xyz.events.GetFeaturesByIdEvent;
+import com.here.xyz.events.UpdateStrategy;
 import com.here.xyz.events.WriteFeaturesEvent.Modification;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Feature;
@@ -62,6 +65,9 @@ public abstract class QueryTestBase {
 
   protected static final String PG_SCHEMA = "public";
   public static final String TEST_AUTHOR = "Test Author";
+  protected static final int MAIN_NODE_ID = 0;
+  protected static final String REF_MAIN = "~" + MAIN_NODE_ID;
+  protected static final Ref REF_MAIN_HEAD = new Ref(REF_MAIN + ":HEAD");
 
   static {
     Context ctx = new SimulatedContext("localLambda", null);
@@ -148,14 +154,22 @@ public abstract class QueryTestBase {
     writeFeature(feature, versionRef, defaultTestRootTable());
   }
 
+  protected void writeFeature(Feature feature, Ref versionRef, UpdateStrategy updateStrategy) throws Exception {
+    writeFeature(feature, versionRef, defaultTestRootTable(), updateStrategy);
+  }
+
   protected static void writeFeature(Feature feature, Ref versionRef, String rootTableName) throws Exception {
+    writeFeature(feature, versionRef, rootTableName, DEFAULT_UPDATE_STRATEGY);
+  }
+
+  protected static void writeFeature(Feature feature, Ref versionRef, String rootTableName, UpdateStrategy updateStrategy) throws Exception {
     try (DataSourceProvider dsp = getDataSourceProvider()) {
       BranchManager bm = branchManager(dsp, rootTableName);
       bm.writeCommit(
           getNodeId(versionRef),
           Set.of(new Modification()
               .withFeatureData(new FeatureCollection().withFeatures(List.of(feature)))
-              .withUpdateStrategy(DEFAULT_UPDATE_STRATEGY)),
+              .withUpdateStrategy(updateStrategy)),
           TEST_AUTHOR,
           versionRef
       );
@@ -173,5 +187,17 @@ public abstract class QueryTestBase {
         .withId(id)
         .withProperties(addRandomProperties ? new Properties().with("name", id + Random.randomAlpha(5)) : null)
             .withGeometry(new Point().withCoordinates(new PointCoordinates(0, 0)));
+  }
+
+  protected final String spaceId() {
+    return getClass().getSimpleName();
+  }
+
+  protected void assertFeatureExists(String id, Ref ref) throws Exception {
+    assertNotNull(readFeatureById(id, ref), "Feature " + id + " should exist in ref " + ref);
+  }
+
+  protected void assertFeatureNotExists(String id, Ref ref) throws Exception {
+    assertNull(readFeatureById(id, ref), "Feature " + id + " should not exist in ref " + ref);
   }
 }
