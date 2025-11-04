@@ -230,29 +230,6 @@ $BODY$
 LANGUAGE plpgsql STABLE
 PARALLEL SAFE;
 
-/* WIP */
-
-CREATE OR REPLACE FUNCTION execJs(jsToExecute TEXT, dependencies TEXT[]) RETURNS TEXT AS
-$BODY$
-  libs = {};
-  libs.include = (nameOfLib, code) => {
-    if (!globalThis[nameOfLib] && dependencies.includes(nameOfLib))
-      globalThis[nameOfLib] = eval(code);
-  };
-
-  //Beispiel zur Nutzung
-  libs.include("jsonpath_rfc9535", `$X{{/lib-js/jsonpath_rfc9535.min.js}}`.replace(/^[^(]*\(/, '') );
-  libs.include("sample_hello",  `${{/lib-js/sample_hello.min.js}}`.replace(/^[^(]*\(/, '') );
-
-  eval( jsToExecute );
-
-  return jsToExecute;
-
-$BODY$
-LANGUAGE plv8 VOLATILE;
-
-/**/
-
 /**
 
  *  register code of requirerd js libs in gobalThis
