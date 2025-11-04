@@ -1202,7 +1202,7 @@ public class SQLQuery {
               || sqlEx.getSQLState().equalsIgnoreCase("08003")
               || sqlEx.getSQLState().equalsIgnoreCase("08006")
       )) {
-        logger.warn("{} Error based on serverless scaling detected! RemainingTime: {}", getQueryId(), remainingQueryTimeout, e);
+        logger.warn("{} Retryable error detected! RemainingTime: {}", getQueryId(), remainingQueryTimeout, e);
         return true;
       }
       return false;
