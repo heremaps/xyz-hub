@@ -21,9 +21,8 @@ package com.here.xyz.jobs.steps.impl.transport;
 
 import static com.here.xyz.jobs.steps.Step.Visibility.SYSTEM;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_RESUME;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
+import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_EXECUTE;
+import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_RESUME;
 
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.outputs.CreatedVersion;
@@ -85,8 +84,8 @@ public class GetNextSpaceVersion<T extends GetNextSpaceVersion> extends SpaceBas
   @Override
   public void execute(boolean resume) throws Exception {
     if (resume)
-      infoLog(STEP_RESUME, this, "resume was called");
-    infoLog(STEP_EXECUTE, this, String.format("Fetch next version for %s%s", getSpaceId(), resume ? " - resumed" : "") );
+      infoLog(STEP_RESUME,  "resume was called");
+    infoLog(STEP_EXECUTE,  String.format("Fetch next version for %s%s", getSpaceId(), resume ? " - resumed" : "") );
     registerOutputs(List.of(new CreatedVersion().withVersion(setVersionToNextInSequence())), VERSION);
   }
 

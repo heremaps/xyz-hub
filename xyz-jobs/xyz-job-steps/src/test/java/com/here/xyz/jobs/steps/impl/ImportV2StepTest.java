@@ -24,7 +24,7 @@ import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPerLine;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format;
-import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpaceV2;
+import com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.service.BaseHttpServerVerticle;
@@ -97,7 +97,7 @@ public class ImportV2StepTest extends ImportStepTest {
 
   private void executeImportStepWithManyFiles(Format format, int fileCount, int featureCountPerFile, boolean runAsync) throws IOException, InterruptedException {
     uploadFiles(JOB_ID, fileCount, featureCountPerFile, format);
-    LambdaBasedStep step = new ImportFilesToSpaceV2()
+    LambdaBasedStep step = new TaskedImportFilesToSpace()
             .withVersionRef(new Ref(Ref.HEAD))
             .withJobId(JOB_ID)
             .withSpaceId(SPACE_ID)
@@ -139,7 +139,7 @@ public class ImportV2StepTest extends ImportStepTest {
     uploadInputFile(JOB_ID, ByteStreams.toByteArray(this.getClass().getResourceAsStream("/testFiles/file1" + fileExtension)), contentType);
     uploadInputFile(JOB_ID, ByteStreams.toByteArray(this.getClass().getResourceAsStream("/testFiles/file2" + fileExtension)), contentType);
 
-    ImportFilesToSpaceV2 step = new ImportFilesToSpaceV2()
+    TaskedImportFilesToSpace step = new TaskedImportFilesToSpace()
             .withJobId(JOB_ID)
             .withVersionRef(new Ref(Ref.HEAD))
             //.withFormat(format)

@@ -41,7 +41,7 @@ import com.here.xyz.jobs.steps.impl.transport.ExportChangedTiles;
 import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
 import com.here.xyz.jobs.steps.impl.transport.GetNextSpaceVersion;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
-import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpaceV2;
+import com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace;
 import com.here.xyz.models.hub.Connector;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
@@ -63,7 +63,7 @@ import org.apache.logging.log4j.Logger;
     @JsonSubTypes.Type(value = ExportSpaceToFiles.class),
     @JsonSubTypes.Type(value = ExportChangedTiles.class),
     @JsonSubTypes.Type(value = ImportFilesToSpace.class),
-    @JsonSubTypes.Type(value = ImportFilesToSpaceV2.class),
+    @JsonSubTypes.Type(value = TaskedImportFilesToSpace.class),
     @JsonSubTypes.Type(value = DropIndexes.class),
     @JsonSubTypes.Type(value = AnalyzeSpaceTable.class),
     @JsonSubTypes.Type(value = MarkForMaintenance.class),
@@ -292,5 +292,29 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
           .withCode("HTTP-" + e.getStatusCode())
           .withRetryable(true);
     throw e;
+  }
+
+  protected void infoLog(LogPhase phase, String... messages) {
+    logger.info("{} [{}@{}] ON '{}' {}", getClass().getSimpleName(), getGlobalStepId(),
+            phase.name(), spaceId, messages.length > 0 ? messages : "");
+  }
+
+  protected void errorLog(LogPhase phase, Exception e, String... message) {
+    logger.error("{} [{}@{}] ON '{}' {}", getClass().getSimpleName(), getGlobalStepId(),
+            phase.name(), spaceId, message, e);
+  }
+
+  public enum LogPhase {
+    GRAPH_TRANSFORMER,
+    JOB_EXECUTOR,
+    STEP_EXECUTE,
+    STEP_RESUME,
+    STEP_CANCEL,
+    STEP_ON_STATE_CHECK,
+    STEP_ON_ASYNC_FAILURE,
+    STEP_ON_ASYNC_UPDATE,
+    STEP_ON_ASYNC_SUCCESS,
+    JOB_DELETE,
+    JOB_VALIDATE
   }
 }

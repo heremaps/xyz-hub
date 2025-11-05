@@ -20,8 +20,7 @@
 package com.here.xyz.jobs.steps.impl.transport;
 
 import static com.here.xyz.jobs.steps.Step.Visibility.USER;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_ASYNC_SUCCESS;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
+import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_ON_ASYNC_SUCCESS;
 
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.events.PropertiesQuery;
@@ -191,17 +190,17 @@ public class CountSpace extends TaskedSpaceBasedStep<CountSpace, CountInput, Exp
   }
 
   @Override
-  protected int setInitialThreadCount(String schema) throws WebClientException, SQLException, TooManyResourcesClaimed {
+  protected int setInitialThreadCount() {
     return 1;
   }
 
   @Override
-  protected List<CountInput> createTaskItems(String schema){
+  protected List<CountInput> createTaskItems(){
     return List.of(new CountInput("CountSpace"));
   }
 
   @Override
-  protected SQLQuery buildTaskQuery(String schema, Integer taskId, CountInput taskData)
+  protected SQLQuery buildTaskQuery(Integer taskId, CountInput taskData, String failureCallback)
       throws QueryBuildingException, TooManyResourcesClaimed, WebClientException {
     return buildCountSpaceQuery( taskId );
   }
@@ -212,7 +211,7 @@ public class CountSpace extends TaskedSpaceBasedStep<CountSpace, CountInput, Exp
     if(!taskOutputs.isEmpty())
       count = taskOutputs.stream().mapToLong(ExportOutput::rows).sum();
 
-    infoLog(STEP_ON_ASYNC_SUCCESS, this, "Job Featurecount: count=" + count);
+    infoLog(STEP_ON_ASYNC_SUCCESS,  "Job Featurecount: count=" + count);
 
     FeatureStatistics featureStatistics = new FeatureStatistics()
             .withFeatureCount(count)

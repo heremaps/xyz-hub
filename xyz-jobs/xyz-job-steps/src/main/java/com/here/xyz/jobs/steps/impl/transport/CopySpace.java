@@ -22,9 +22,8 @@ package com.here.xyz.jobs.steps.impl.transport;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
 import static com.here.xyz.jobs.steps.execution.db.Database.loadDatabase;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_RESUME;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
+import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_EXECUTE;
+import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_RESUME;
 
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.events.PropertiesQuery;
@@ -47,8 +46,7 @@ import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.pg.FeatureWriterQueryBuilder.FeatureWriterQueryContextBuilder;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
-import java.io.IOException;
-import java.sql.SQLException;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -333,7 +331,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
       int threadId = getThreadInfo()[0],
           threadCount = getThreadInfo()[1];
 
-      infoLog(resume ? STEP_RESUME : STEP_EXECUTE, this, "Start ImlCopy thread number: " + threadId + " / " + threadCount
+      infoLog(resume ? STEP_RESUME : STEP_EXECUTE,  "Start ImlCopy thread number: " + threadId + " / " + threadCount
           + "; target version: " + getTargetVersion());
 
       Space targetSpace = targetSpace();
@@ -348,7 +346,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
   }
 
   @Override
-  protected void onAsyncSuccess() throws WebClientException, SQLException, TooManyResourcesClaimed, IOException {
+  protected void onAsyncSuccess(){
     logger.info("[{}] AsyncSuccess Copy {} -> {}", getGlobalStepId(), getSpaceId() , getTargetSpaceId());
   }
 

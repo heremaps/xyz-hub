@@ -21,9 +21,8 @@ package com.here.xyz.jobs.steps.impl.transport;
 
 import static com.here.xyz.jobs.steps.Step.Visibility.USER;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_RESUME;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
+import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_EXECUTE;
+import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_RESUME;
 
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
@@ -112,14 +111,14 @@ public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
   @Override
   public void execute(boolean resume) throws Exception {
     if (resume)
-      infoLog(STEP_RESUME, this, "resume was called");
+      infoLog(STEP_RESUME,  "resume was called");
     long fetchedVersion = _getCreatedVersion();
 
-    infoLog(STEP_EXECUTE, this, String.format("Get stats for version %d - %s", fetchedVersion, getSpaceId()));
+    infoLog(STEP_EXECUTE,  String.format("Get stats for version %d - %s", fetchedVersion, getSpaceId()));
 
     FeatureStatistics statistics = getCopiedFeatures(fetchedVersion);
 
-    infoLog(STEP_EXECUTE, this, "Job Statistics: bytes=" + statistics.getByteSize() + " rows=" + statistics.getFeatureCount());
+    infoLog(STEP_EXECUTE,  "Job Statistics: bytes=" + statistics.getByteSize() + " rows=" + statistics.getFeatureCount());
     registerOutputs(List.of(statistics), STATISTICS);
 
     setCopiedByteSize(statistics.getByteSize());

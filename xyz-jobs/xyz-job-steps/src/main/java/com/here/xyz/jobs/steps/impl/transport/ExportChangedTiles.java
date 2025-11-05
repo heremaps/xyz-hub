@@ -24,10 +24,8 @@ import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
 import static com.here.xyz.jobs.steps.Step.Visibility.SYSTEM;
 import static com.here.xyz.jobs.steps.Step.Visibility.USER;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_ASYNC_SUCCESS;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporaryJobTableName;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
+import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_EXECUTE;
+import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_ON_ASYNC_SUCCESS;
 import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 
 import com.fasterxml.jackson.annotation.JsonView;
@@ -194,13 +192,13 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
   }
 
   @Override
-  protected int setInitialThreadCount(String schema){
+  protected int setInitialThreadCount(){
     //always use 8 Threads
     return 8;
   }
 
   @Override
-  protected List<ExportInput> createTaskItems(String schema) throws TooManyResourcesClaimed,
+  protected List<ExportInput> createTaskItems() throws TooManyResourcesClaimed,
           QueryBuildingException, WebClientException, SQLException {
     Set<String> affectedTiles = new HashSet<>();
     List<String> changedFeatureIds = new ArrayList<>();
@@ -216,7 +214,7 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
       }
       return null;
     });
-    infoLog(STEP_EXECUTE, this, "Added affected tiles from delta in version range "
+    infoLog(STEP_EXECUTE,  "Added affected tiles from delta in version range "
             + versionRef +". Intermediate result size: "+ affectedTiles.size());
 
     if(!changedFeatureIds.isEmpty()){
@@ -228,7 +226,7 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
                 }
                 return null;
               });
-      infoLog(STEP_EXECUTE, this, "Added affected tiles from base version "
+      infoLog(STEP_EXECUTE,  "Added affected tiles from base version "
               + versionRef.getStart().getVersion() +". Final Result size: "+ affectedTiles.size());
     }
 
@@ -329,7 +327,7 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
                     : new TileInvalidations().withTileLevel(targetLevel).withQuadType(quadType));
 
     //Skip if tileList=0 ?
-    infoLog(STEP_ON_ASYNC_SUCCESS, this, "Write TILE_INVALIDATIONS output. Size: {}.",
+    infoLog(STEP_ON_ASYNC_SUCCESS,  "Write TILE_INVALIDATIONS output. Size: {}.",
             Integer.toString(tileList.getTileIds().size()));
 
     registerOutputs(List.of(tileList), TILE_INVALIDATIONS);
