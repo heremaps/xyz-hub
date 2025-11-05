@@ -400,7 +400,11 @@ public class StepTestBase {
         i = query.run(getDataSourceProvider(), rs -> rs.next() ? rs.getInt(1) : null);
         logger.info("{} Threads are not finished!", i);
       }
-    } catch (XyzWebClient.WebClientException | SQLException e) {
+    }catch (SQLException e){
+      //42P01 = relation does not exist - happens if the step is already finalized
+      if(!e.getSQLState().equals("42P01"))
+        throw new RuntimeException(e);
+    }catch (XyzWebClient.WebClientException e) {
       throw new RuntimeException(e);
     }
   }
