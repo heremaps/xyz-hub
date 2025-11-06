@@ -131,8 +131,7 @@ public class Script {
       }
     }
     catch (SQLException | IOException e) {
-      logger.warn("Unable to install script {} on DB {}. Falling back to previous version if possible.", getScriptName(),
-          getDbId(), e);
+      logger.warn("Unable to install script {} on DB {}. Falling back to previous version if possible.", getScriptName(), getDbId(), e);
     }
   }
 
@@ -140,10 +139,47 @@ public class Script {
     return dataSourceProvider.getDatabaseSettings() == null ? "unknown" : dataSourceProvider.getDatabaseSettings().getId();
   }
 
+  private SQLQuery addJsLibRegisterFunctions(SQLQuery scriptContent) throws IOException
+  {
+   String
+    libPath = String.format("%s/lib-js",getScriptResourceFolder()),
+    registerSqlFunc =
+   """
+     CREATE OR REPLACE FUNCTION libjs_${{regFunctionName}}() RETURNS text AS
+     $body$
+      with indata as
+      ( select $rfc$${{regFunctionCode}}$rfc$ as code )
+      select regexp_replace(code, '^var\\s+[^\\(]+','') as code from indata
+     $body$
+     LANGUAGE sql IMMUTABLE PARALLEL SAFE;
+   """;
+
+   List<SQLQuery> queries = new ArrayList<>();
+   queries.add(scriptContent);
+
+   List<Script> jsScripts = loadJsScripts( libPath );
+
+   for (Script jsScript : jsScripts ) {
+
+    String scriptName = jsScript.getScriptName(),
+           regFunctionName = scriptName.substring(0, scriptName.indexOf('.'));
+
+    queries.add( new SQLQuery(registerSqlFunc)
+                      .withQueryFragment("regFunctionName", regFunctionName)
+                      .withQueryFragment("regFunctionCode", jsScript.loadScriptContent()) );
+   }
+
+   return SQLQuery.join(queries," ");
+  }
+
   private void install(String targetSchema, boolean deleteBefore) throws SQLException, IOException {
     logger.info("Installing script {} on DB {} into schema {} ...", getScriptName(), getDbId(), targetSchema);
 
     SQLQuery scriptContent = loadSubstitutedScriptContent();
+
+    if( "common.sql".equals(getScriptName()) )
+     scriptContent = addJsLibRegisterFunctions(scriptContent);
+
     List<SQLQuery> installationQueries = new ArrayList<>();
     if (deleteBefore) {
       //TODO: Remove following workaround once "drop schema cascade"-bug creating orphaned functions is fixed in postgres
@@ -264,7 +300,10 @@ public class Script {
   private static List<String> scanResourceFolderWA(String resourceFolder, String fileSuffix) throws IOException {
     return ((List<String>) switch (fileSuffix) {
       case ".sql" -> List.of("/sql/common.sql",  "/sql/geo.sql", "/sql/feature_writer.sql",  "/sql/h3.sql", "/sql/ext.sql", "/jobs/transport.sql");
-      case ".js" -> List.of("/sql/Exception.js", "/sql/FeatureWriter.js", "/sql/DatabaseWriter.js");
+      case ".js" -> List.of(
+                          "/sql/Exception.js", "/sql/FeatureWriter.js", "/sql/DatabaseWriter.js",
+                          "/sql/lib-js/jsonpath_rfc9535.min.js", "/sql/lib-js/sample_hello.min.js"
+                           );
       default -> List.of();
     }).stream().filter(filePath -> filePath.startsWith(resourceFolder)).toList();
   }
@@ -272,7 +311,9 @@ public class Script {
   private static List<String> scanResourceFolder(ScriptResourcePath scriptResourcePath, String fileSuffix) throws IOException {
     String resourceFolder = scriptResourcePath.path();
     //TODO: Remove this workaround once the actual implementation of this method supports scanning folders inside a JAR
-    if ("/sql".equals(resourceFolder) || "/jobs".equals(resourceFolder))
+    if (    "/sql".equals(resourceFolder)
+         || "/sql/lib-js".equals(resourceFolder)
+         || "/jobs".equals(resourceFolder))
       return ensureInitScriptIsFirst(scanResourceFolderWA(resourceFolder, fileSuffix), scriptResourcePath.initScript());
 
     final InputStream folderResource = Script.class.getResourceAsStream(resourceFolder);
@@ -316,6 +357,10 @@ public class Script {
     //Load JS-scripts to be injected
     for (Script jsScript : loadJsScripts(getScriptResourceFolder())) {
       String relativeJsScriptPath = jsScript.getScriptResourceFolder().substring(getScriptResourceFolder().length());
+
+      if( relativeJsScriptPath != null && relativeJsScriptPath.length() > 0 && !relativeJsScriptPath.endsWith("/") )
+       relativeJsScriptPath = relativeJsScriptPath + "/";
+
       scriptContent
           .withQueryFragment(relativeJsScriptPath + jsScript.getScriptName(), jsScript.loadScriptContent())
           .withQueryFragment("./" + relativeJsScriptPath + jsScript.getScriptName(), jsScript.loadScriptContent());
