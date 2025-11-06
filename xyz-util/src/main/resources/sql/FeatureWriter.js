@@ -43,6 +43,7 @@ class FeatureWriter {
   isPartial;
   baseVersion;
   featureHooks;
+  writeHooks;
 
   onExists;
   onNotExists;
@@ -923,11 +924,11 @@ class FeatureWriter {
   /**
    * @returns {FeatureCollection}
    */
-  static writeFeatures(inputFeatures, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial, featureHooks, version = FeatureWriter.getNextVersion()) {
+  static writeFeatures(inputFeatures, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial, featureHooks, writeHooks, version = FeatureWriter.getNextVersion()) {
     FeatureWriter.dbWriter = new DatabaseWriter(queryContext().schema, FeatureWriter._targetTable(), FeatureWriter._tableBaseVersions().at(-1), FW_BATCH_MODE(), queryContext().tableLayout);
     let result = this.newFeatureCollection();
     for (let feature of inputFeatures) {
-      let execution = new FeatureWriter(feature, version, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial, featureHooks).writeFeature();
+      let execution = new FeatureWriter(feature, version, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial, featureHooks, writeHooks).writeFeature();
       this._collectResult(execution, result);
     }
 
@@ -969,16 +970,18 @@ class FeatureWriter {
     let featureCollections = featureModifications.map(modification => FeatureWriter.writeFeatures(this.toFeatureList(modification),
         author, modification.updateStrategy.onExists, modification.updateStrategy.onNotExists,
         modification.updateStrategy.onVersionConflict, modification.updateStrategy.onMergeConflict, modification.partialUpdates,
-        modification.featureHooks && modification.featureHooks.map(hook => eval(hook)), version));
+        modification.featureHooks && modification.featureHooks.map(hook => eval(hook)),
+        modification.writeHooks && modification.writeHooks.map(hook => eval(hook)),
+        version));
     return this.combineResults(featureCollections);
   }
 
   /**
    * @returns {FeatureCollection}
    */
-  static writeFeature(inputFeature, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial, featureHooks, version = undefined) {
+  static writeFeature(inputFeature, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial, featureHooks, writeHooks, version = undefined) {
     return FeatureWriter.writeFeatures([inputFeature], author, onExists, onNotExists, onVersionConflict, onMergeConflict,
-        isPartial, featureHooks, version);
+        isPartial, featureHooks, writeHooks, version);
   }
 }
 

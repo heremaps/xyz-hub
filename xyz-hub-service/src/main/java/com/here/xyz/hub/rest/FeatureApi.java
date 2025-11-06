@@ -586,9 +586,45 @@ public class FeatureApi extends SpaceBasedApi {
     );
   }
 
+  private String writeHook()
+  {
+   return    // TODO:  paths = [name, jsonpath] needs to be filled from index configuration
+    """
+  feature => {
+
+  const paths = [
+  ["$alias1", "$.properties.name"],
+  ["$alias2", "$.properties.location.lat"],
+  ["$alias3", "$.properties.tags[*]"]
+];
+
+function extractJsonPaths(feature, paths) {
+  const result = {};
+
+  for (const [name, jsonPath] of paths) {
+    try {
+      const value = jp.query(feature, jsonPath);
+      // decide whether to store arrays or single values:
+      result[name] = value.length === 1 ? value[0] : value;
+    } catch (err) {
+      result[name] = null; // or undefined / error message
+      console.error(`Error evaluating JSONPath for ${name}:`, err.message);
+    }
+  }
+
+  return result;
+}
+
+ return ["searchable",extractJsonPaths(feature, paths) ];
+}
+
+    """;
+}
+
   private Set<Modification> toModifications(RoutingContext context, Space space, FeatureModificationList featureModificationList,
       boolean versionConflictDetectionEnabled) {
     List<String> featureHooks = new ArrayList<>();
+    List<String> writeHooks = new ArrayList<>();
     List<String> addTags = getAddTags(context);
     List<String> removeTags = getRemoveTags(context);
     String idPrefix = getIdPrefix(context);
@@ -599,13 +635,20 @@ public class FeatureApi extends SpaceBasedApi {
     if (idPrefix != null)
       featureHooks.add("feature => feature.id = \"" + idPrefix + "\" + feature.id");
 
+    boolean useWriteHook = true;
+
+    if( useWriteHook )
+     writeHooks.add(writeHook()); // todo: pass searchable aliases to use within writehook
+
     return featureModificationList.getModifications().stream()
         .map(modification -> new Modification()
             .withFeatureData(modification.getFeatureData())
             .withUpdateStrategy(toUpdateStrategy(space, modification.getOnFeatureExists(), modification.getOnFeatureNotExists(),
                 modification.getOnMergeConflict(), versionConflictDetectionEnabled))
             .withPartialUpdates(modification.getOnFeatureExists() == PATCH)
-            .withFeatureHooks(featureHooks.isEmpty() ? null : featureHooks))
+            .withFeatureHooks(featureHooks.isEmpty() ? null : featureHooks)
+            .withWriteHooks(writeHooks.isEmpty() ? null : writeHooks)
+            )
         .collect(Collectors.toSet());
   }
 
