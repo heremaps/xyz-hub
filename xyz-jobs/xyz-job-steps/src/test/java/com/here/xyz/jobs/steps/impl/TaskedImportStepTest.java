@@ -38,14 +38,14 @@ import java.util.List;
 import static com.here.xyz.jobs.steps.Step.InputSet.USER_INPUTS;
 
 @Disabled
-public class ImportV2StepTest extends ImportStepTest {
+public class TaskedImportStepTest extends ImportStepTest {
 
   @Test
   public void testSyncImport_with_many_files() throws Exception {
     executeImportStepWithManyFiles(Format.GEOJSON, 10, 2 , false);
   }
 
-  @Test
+  //@Test
   @Disabled("Takes extra 6 minutes of execution time, disabled by default")
   public void testSyncImport_with_more_than_default_pagination_size_files() throws Exception {
     executeImportStepWithManyFiles(Format.GEOJSON, 1010, 2 , false);
