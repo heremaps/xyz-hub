@@ -52,6 +52,9 @@ BEGIN
     ELSEIF format = 'geojson' THEN
         plugin_columns := 'jsondata';
         plugin_options := format('(FORMAT CSV, ENCODING ''UTF8'', DELIMITER %1$L , QUOTE  %2$L)', CHR(2), CHR(1));
+    ELSEIF format = 'fast_import_into_empty' THEN
+        plugin_columns := 'id,author,version,operation,jsondata,geo,searchable';
+        plugin_options := 'DELIMITER '','' CSV ENCODING  ''UTF8'' QUOTE ''"'' ESCAPE '''''''' ';
     ELSE
         RAISE EXCEPTION 'Format ''%'' not supported! ',format
             USING HINT = 'geojson | csv_geojson | csv_json_wkb are available',

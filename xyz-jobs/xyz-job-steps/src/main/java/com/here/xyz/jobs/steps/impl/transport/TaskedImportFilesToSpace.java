@@ -57,7 +57,8 @@ import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.JOB_EXECUTOR;
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.JOB_VALIDATE;
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_ON_ASYNC_SUCCESS;
 import static com.here.xyz.util.web.XyzWebClient.WebClientException;
-
+import static com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace.Format.GEOJSON;
+import static com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace.Format.FAST_IMPORT_INTO_EMPTY;
 /**
  * TODO:
  *  - implement retry mechanism for failed imports
@@ -78,10 +79,13 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
 
   //TODO: Work with enriched files which have a custom format. Here we plan to import into empty layers without using Triggers.
   public enum Format {
-    GEOJSON;
+    GEOJSON, FAST_IMPORT_INTO_EMPTY
   }
 
   private ImportQueryBuilder importQueryBuilder;
+
+  @JsonView({Internal.class, Static.class})
+  private Format format = GEOJSON;
 
   @JsonView({Internal.class, Static.class})
   private int fileCount = -1;
@@ -133,6 +137,19 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
     return this;
   }
 
+  public void setFormat(Format format) {
+    this.format = format;
+  }
+
+  public Format getFormat() {
+    return format;
+  }
+
+  public TaskedImportFilesToSpace withFormat(Format format) {
+    setFormat(format);
+    return this;
+  }
+
   public long getMaxInputBytesForNonEmptyImport() {
     return maxInputBytesForNonEmptyImport;
   }
@@ -165,6 +182,8 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
       runBatchWriteQuerySync(getQueryBuilder().buildTemporaryTriggerTableBlockForImportWithFW(space().getOwner(),
              newVersion, superRootTable, updateStrategy), db(), 0);
     }else{
+      if(format.equals(FAST_IMPORT_INTO_EMPTY))
+        return;
       //import into an empty, non-composite, layer
       runBatchWriteQuerySync(getQueryBuilder().buildTemporaryTriggerTableBlockForImportIntoEmpty(space().getOwner(), newVersion, retainMetadata),
               db(), 0);
@@ -270,7 +289,7 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
   protected SQLQuery buildTaskQuery(Integer taskId, ImportInput taskInput, String failureCallback)
           throws WebClientException {
 
-    return getQueryBuilder().buildImportTaskQuery(taskId, taskInput, new LambdaStepRequest().withStep(this).serialize(),
+    return getQueryBuilder().buildImportTaskQuery(format, taskId, taskInput, new LambdaStepRequest().withStep(this).serialize(),
                     getwOwnLambdaArn().toString(), getwOwnLambdaArn().getRegion(), getQueryContext(getSchema(db())),
                     useFeatureWriter(), failureCallback);
   }

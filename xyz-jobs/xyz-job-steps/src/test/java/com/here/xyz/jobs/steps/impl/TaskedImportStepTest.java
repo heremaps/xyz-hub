@@ -26,19 +26,33 @@ import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPerLine;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format;
 import com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace;
 import com.here.xyz.models.hub.Ref;
+import com.here.xyz.models.hub.Space;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.service.BaseHttpServerVerticle;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import java.sql.SQLException;
 import java.util.List;
 
 import static com.here.xyz.jobs.steps.Step.InputSet.USER_INPUTS;
 
 @Disabled
 public class TaskedImportStepTest extends ImportStepTest {
+
+  @BeforeEach
+  public void setup() throws SQLException {
+    cleanup();
+    createSpace(new Space().withId(SPACE_ID).withVersionsToKeep(100).withStorage(new Space.ConnectorRef().withId("psql-new-table-layout")), false);
+  }
+
+  @Test
+  public void testNewFormat() throws Exception {
+    executeImportStep(TaskedImportFilesToSpace.Format.FAST_IMPORT_INTO_EMPTY,0, EntityPerLine.Feature);
+  }
 
   @Test
   public void testSyncImport_with_many_files() throws Exception {
@@ -48,13 +62,13 @@ public class TaskedImportStepTest extends ImportStepTest {
   //@Test
   @Disabled("Takes extra 6 minutes of execution time, disabled by default")
   public void testSyncImport_with_more_than_default_pagination_size_files() throws Exception {
-    executeImportStepWithManyFiles(Format.GEOJSON, 1010, 2 , false);
+    executeImportStepWithManyFiles(Format.GEOJSON, 1010, 2, false );
   }
 
   @Test
   public void testImport_inEmpty_GEOJSON_Entity_Feature() throws Exception {
     //Gets executed SYNC
-    executeImportStep(Format.GEOJSON, 0, EntityPerLine.Feature, false);
+    executeImportStep(TaskedImportFilesToSpace.Format.GEOJSON, 0, EntityPerLine.Feature);
   }
 
   @Test
@@ -73,7 +87,7 @@ public class TaskedImportStepTest extends ImportStepTest {
     int existingFeatureCount = 10;
     //CSV_JSON_WKB gets always executed ASYNC
     putRandomFeatureCollectionToSpace(SPACE_ID, existingFeatureCount);
-    executeImportStep(Format.GEOJSON, existingFeatureCount, EntityPerLine.Feature, true);
+    executeImportStep(TaskedImportFilesToSpace.Format.GEOJSON, existingFeatureCount, EntityPerLine.Feature);
   }
 
   @Test
@@ -114,9 +128,8 @@ public class TaskedImportStepTest extends ImportStepTest {
     checkStatistics(fileCount * featureCountPerFile, step.loadUserOutputs());
   }
 
-  @Override
-  protected void executeImportStep(Format format, int featureCountSource,
-                                   ImportFilesToSpace.EntityPerLine entityPerLine, boolean runAsync) throws IOException, InterruptedException {
+  protected void executeImportStep(TaskedImportFilesToSpace.Format format, int featureCountSource,
+                                   ImportFilesToSpace.EntityPerLine entityPerLine) throws IOException, InterruptedException {
 
     StatisticsResponse statsBefore = getStatistics(SPACE_ID);
     if(featureCountSource == 0)
@@ -126,30 +139,24 @@ public class TaskedImportStepTest extends ImportStepTest {
 
     String fileExtension = switch(format) {
       case GEOJSON -> ".geojson";
-      case CSV_JSON_WKB -> ".csvwkb";
-      case CSV_GEOJSON ->  ".csvgeojson";
+      case FAST_IMPORT_INTO_EMPTY ->  ".new";
     };
 
     if (entityPerLine == EntityPerLine.FeatureCollection)
       fileExtension += "fc";
 
-    S3ContentType contentType = format == Format.GEOJSON ? S3ContentType.APPLICATION_JSON : S3ContentType.TEXT_CSV;
+    S3ContentType contentType = format == TaskedImportFilesToSpace.Format.GEOJSON ? S3ContentType.APPLICATION_JSON : S3ContentType.TEXT_CSV;
 
-    //* Only files with enriched features are allowd */
+    //* Only files with enriched features are allowed */
     uploadInputFile(JOB_ID, ByteStreams.toByteArray(this.getClass().getResourceAsStream("/testFiles/file1" + fileExtension)), contentType);
     uploadInputFile(JOB_ID, ByteStreams.toByteArray(this.getClass().getResourceAsStream("/testFiles/file2" + fileExtension)), contentType);
 
     TaskedImportFilesToSpace step = new TaskedImportFilesToSpace()
             .withJobId(JOB_ID)
             .withVersionRef(new Ref(Ref.HEAD))
-            //.withFormat(format)
-            //.withEntityPerLine(entityPerLine)
-            //.withUpdateStrategy(DEFAULT_UPDATE_STRATEGY)
+            .withFormat(format)
             .withSpaceId(SPACE_ID)
             .withInputSets(List.of(USER_INPUTS.get()));
-
-    if(runAsync)
-      step.setUncompressedUploadBytesEstimation(1024 * 1024 * 1024);
 
     sendLambdaStepRequestBlock(step, true);
 

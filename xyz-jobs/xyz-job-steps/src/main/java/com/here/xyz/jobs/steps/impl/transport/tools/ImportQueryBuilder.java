@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 
 import static com.here.xyz.jobs.steps.impl.transport.TaskedSpaceBasedStep.getTemporaryJobTableName;
+import static com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace.Format;
 import static com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace.Format.GEOJSON;
 
 public class ImportQueryBuilder {
@@ -55,7 +56,7 @@ public class ImportQueryBuilder {
             .withVariable("sequence", rootTable + "_version_seq");
   }
 
-  public SQLQuery buildImportTaskQuery(Integer taskId, ImportInput taskInput, String serializedImportStep,
+  public SQLQuery buildImportTaskQuery(Format format, Integer taskId, ImportInput taskInput, String serializedImportStep,
                                        String lambdaArn, String ownLambdaRegion, Map<String, Object> context,
                                        boolean useFeatureWriter, String failureCallback){
 
@@ -70,7 +71,7 @@ public class ImportQueryBuilder {
             .withNamedParameter("taskId", taskId)
             .withNamedParameter("schema", schema)
             .withNamedParameter("targetTable", targetTable)
-            .withNamedParameter("format", GEOJSON.name())
+            .withNamedParameter("format", format.name())
             .withNamedParameter("s3Bucket", taskInput.s3Bucket())
             .withNamedParameter("s3Key", taskInput.s3Key())
             .withNamedParameter("s3Region", taskInput.s3Region())
