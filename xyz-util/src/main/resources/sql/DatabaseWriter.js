@@ -40,6 +40,10 @@ class DatabaseWriter {
    * @type {{<string>: (function(object[]) : FeatureModificationExecutionResult)[]}}
    */
   resultParsers = {};
+  /**
+   * @type {{<string>: object[]}}
+   */
+  queryOptions = {};
 
   /**
    * @type {number} The timestamp of when the transaction started
@@ -61,7 +65,7 @@ class DatabaseWriter {
   execute() {
     let results = [];
     for (let method in this.plans)
-      results = results.concat(this._executePlan(this.plans[method], this.parameterSets[method], this.resultParsers[method]));
+      results = results.concat(this._executePlan(this.plans[method], this.parameterSets[method], this.resultParsers[method], this.queryOptions[method]));
 
     this.clear();
     return results;
@@ -79,15 +83,30 @@ class DatabaseWriter {
    * @param {PreparedPlan} plan
    * @param {object[][]} parameterSet
    * @param {(function(object[]) : FeatureModificationExecutionResult)[]} resultParsers
+   * @param {object} queryOptions
    * @returns {FeatureModificationExecutionResult[]}
    * @private
    */
-  _executePlan(plan, parameterSet, resultParsers) {
+  _executePlan(plan, parameterSet, resultParsers, queryOptions) {
     let results = [];
     for (let index in parameterSet) {
-      let result = resultParsers[index](plan.execute(parameterSet[index]));
-      if (result != null)
-        results.push(result);
+      try {
+        let result = resultParsers[index](plan.execute(parameterSet[index]));
+        if (result != null)
+          results.push(result);
+      }
+      catch (e) {
+        if (e.sqlerrcode === SQLErrors.CONFLICT) {
+          let exceptionToThrow;
+          if (queryOptions?.onVersionConflict == "ERROR")
+            exceptionToThrow = new VersionConflictError(`Version conflict while trying to write feature with ID ${parameterSet[0]} in version ${parameterSet[1]}.`);
+          else
+            exceptionToThrow = new RetryableVersionConflictError(`Retryable version conflict while trying to write feature with ID ${parameterSet[0]} in version ${parameterSet[1]}.`);
+          throw exceptionToThrow.withHint("The feature has been modified in the meantime.");
+        }
+        else
+          throw e;
+      }
     }
     plan.free();
     return results;
@@ -111,9 +130,8 @@ class DatabaseWriter {
    * @returns {FeatureModificationExecutionResult}
    */
   upsertRow(inputFeature, version, operation, author, onExists, resultHandler) {
-    let uniqueConstraintExists = queryContext().uniqueConstraintExists !== false;
     this.enrichTimestamps(inputFeature, true);
-    let onConflict = onExists == "REPLACE" && uniqueConstraintExists
+    let onConflict = onExists == "REPLACE"
         ? ` ON CONFLICT (id, next_version) DO UPDATE SET
           version = greatest(tbl.version, EXCLUDED.version),
           operation = CASE WHEN $3 = 'H' THEN 'J' ELSE 'U' END,
@@ -215,7 +233,7 @@ class DatabaseWriter {
    * @param {function(FeatureModificationExecutionResult) : FeatureModificationExecutionResult} resultHandler
    * @returns {FeatureModificationExecutionResult}
    */
-  insertHistoryRow(inputFeature, baseFeature, version, operation, author, resultHandler) {
+  insertHistoryRow(inputFeature, onVersionConflict, baseVersion, baseFeature, version, operation, author, resultHandler) {
     //TODO: Improve performance by reading geo inside JS and then pass it separately and use TEXT / WKB / BYTEA
     this.enrichTimestamps(inputFeature, operation == "I" || operation == "H", baseFeature);
     let extraCols = '';
@@ -223,10 +241,16 @@ class DatabaseWriter {
 
     if (this.tableLayout === 'NEW_LAYOUT') {
       extraCols = ', searchable';
-      extraVals = ', $7::JSONB ';
+      extraVals = ', $9::JSONB ';
     }
 
-    const sql = `INSERT INTO "${this.schema}"."${this.table}"
+    const sql = `UPDATE "${this.schema}"."${this.table}"
+                 SET next_version = $2
+                 WHERE id = $1
+                   AND next_version = $7::BIGINT
+                   AND CASE WHEN $8 = -1 THEN version < $2 ELSE (version = $8 OR operation = 'D' AND version < $2) END;
+
+                INSERT INTO "${this.schema}"."${this.table}"
                 (id, version, operation, author, jsondata, geo ${extraCols})
                  VALUES ($1, $2, $3, $4,
                          $5::JSONB - 'geometry',
@@ -242,7 +266,7 @@ class DatabaseWriter {
 
     let method = "insertHistoryRow";
     if (!this.plans[method]) {
-      const paramTypes = ["TEXT", "BIGINT", "CHAR", "TEXT", "JSONB", "JSONB"];
+      const paramTypes = ["TEXT", "BIGINT", "CHAR", "TEXT", "JSONB", "JSONB", "BIGINT", "BIGINT"];
 
       if (this.tableLayout === 'NEW_LAYOUT') {
         paramTypes.push("JSONB");
@@ -251,6 +275,7 @@ class DatabaseWriter {
       this.plans[method] = this._preparePlan(sql, paramTypes);
       this.parameterSets[method] = [];
       this.resultParsers[method] = [];
+      this.queryOptions[method] = [];
     }
 
     if (inputFeature == null) {
@@ -264,7 +289,9 @@ class DatabaseWriter {
       operation,
       author,
       inputFeature,
-      inputFeature.geometry
+      inputFeature.geometry,
+      MAX_BIG_INT,
+      onVersionConflict != null ? baseVersion : -1
     ];
 
     if (this.tableLayout === 'NEW_LAYOUT') {
@@ -280,6 +307,7 @@ class DatabaseWriter {
       let executedAction = inputFeature.properties[XYZ_NS].deleted ? ExecutionAction.DELETED : ExecutionAction.fromOperation[operation];
       return resultHandler(new FeatureModificationExecutionResult(executedAction, inputFeature, version + this.tableBaseVersion, author));
     });
+    this.queryOptions[method].push({onVersionConflict: onVersionConflict});
 
     if (!this.batchMode)
       return this.execute()[0];
