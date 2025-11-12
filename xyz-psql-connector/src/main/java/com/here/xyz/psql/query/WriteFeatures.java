@@ -23,6 +23,7 @@ import static com.here.xyz.psql.query.branching.CommitManager.branchPathToTableC
 import static com.here.xyz.responses.XyzError.CONFLICT;
 import static com.here.xyz.responses.XyzError.EXCEPTION;
 import static com.here.xyz.responses.XyzError.NOT_FOUND;
+import static com.here.xyz.util.db.pg.SQLError.RETRYABLE_VERSION_CONFLICT;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.PARTITION_SIZE;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -41,19 +42,17 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureCollection> {
   private static final Logger logger = LogManager.getLogger();
   boolean responseDataExpected;
-  private String rootTable;
-  private boolean uniqueConstraintExists = false;
 
   public WriteFeatures(WriteFeaturesEvent event) throws SQLException, ErrorResponseException {
     super(event);
     responseDataExpected = event.isResponseDataExpected();
-    rootTable = getDefaultTable(event);
   }
 
   @Override
@@ -92,7 +91,6 @@ public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureColl
         .with("PARTITION_SIZE", PARTITION_SIZE)
         .with("minVersion", event.getMinVersion())
         .with("versionsToKeep", event.getVersionsToKeep())
-        .with("uniqueConstraintExists", uniqueConstraintExists)
         .with("pw", getDataSourceProvider().getDatabaseSettings().getPassword());
 
     if (event.getRef() != null && event.getRef().isSingleVersion() && !event.getRef().isHead())
@@ -103,24 +101,12 @@ public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureColl
         .withContext(queryContextBuilder.build())
         .withNamedParameter("modifications", XyzSerializable.serialize(event.getModifications()))
         .withNamedParameter("author", event.getAuthor())
-        .withNamedParameter("responseDataExpected", event.isResponseDataExpected());
+        .withNamedParameter("responseDataExpected", event.isResponseDataExpected())
+        .withRetryableErrorCodes(Set.of(RETRYABLE_VERSION_CONFLICT.errorCode));
   }
 
   @Override
   protected FeatureCollection run(DataSourceProvider dataSourceProvider) throws ErrorResponseException {
-    //TODO: Remove this workaround once all constraints have been adjusted accordingly
-    try {
-      uniqueConstraintExists = new SQLQuery("SELECT 1 FROM pg_catalog.pg_constraint "
-          + "WHERE connamespace::regnamespace::text = #{schema} AND conname = #{constraintName}")
-          .withNamedParameter("schema", getSchema())
-          .withNamedParameter("constraintName", rootTable + "_unique")
-          .run(dataSourceProvider, rs -> rs.next());
-    }
-    catch (SQLException e) {
-      logger.error("Error evaluating whether the table has a unique constraint");
-      //ignore and continue with uniqueConstraintExists = false
-    }
-
     try {
       return super.run(dataSourceProvider);
     }
@@ -128,7 +114,7 @@ public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureColl
       final String message = e.getMessage();
       String cleanMessage = message.contains("\n") ? message.substring(0, message.indexOf("\n")) : message;
       throw switch (SQLError.fromErrorCode(e.getSQLState())) {
-        case FEATURE_EXISTS, VERSION_CONFLICT_ERROR, MERGE_CONFLICT_ERROR -> new ErrorResponseException(CONFLICT, cleanMessage, e);
+        case FEATURE_EXISTS, VERSION_CONFLICT_ERROR, MERGE_CONFLICT_ERROR, RETRYABLE_VERSION_CONFLICT -> new ErrorResponseException(CONFLICT, cleanMessage, e);
         case DUPLICATE_KEY -> new ErrorResponseException(CONFLICT, "Conflict while writing features.", e); //TODO: Handle all conflicts in FeatureWriter properly
         case FEATURE_NOT_EXISTS -> new ErrorResponseException(NOT_FOUND, cleanMessage, e);
         case ILLEGAL_ARGUMENT -> new ErrorResponseException(XyzError.ILLEGAL_ARGUMENT, cleanMessage, e);

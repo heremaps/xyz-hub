@@ -861,25 +861,7 @@ class FeatureWriter {
    * @returns {FeatureModificationExecutionResult}
    */
   _insertHistoryRow(resultHandler = IDENTITY_HANDLER) {
-    this._updateNextVersion();
-    return FeatureWriter.dbWriter.insertHistoryRow(this.inputFeature, this.baseFeature, this.version - this.tableBaseVersions.at(-1), this.operation, this.author, resultHandler);
-  }
-
-  _updateNextVersion() {
-    if (this.onVersionConflict != null)
-      return plv8.execute(`UPDATE "${this.schema}"."${this._targetTable()}"
-                           SET next_version = $1
-                           WHERE id = $2
-                             AND next_version = $3::BIGINT
-                             AND (version = $4 OR operation = 'D' AND version < $1)`,
-          [this.version - this.tableBaseVersions.at(-1), this.inputFeature.id, MAX_BIG_INT, this.baseVersion]);
-    else
-      return plv8.execute(`UPDATE "${this.schema}"."${this._targetTable()}"
-                           SET next_version = $1
-                           WHERE id = $2
-                             AND next_version = $3::BIGINT
-                             AND version < $1`,
-          [this.version - this.tableBaseVersions.at(-1), this.inputFeature.id, MAX_BIG_INT]);
+    return FeatureWriter.dbWriter.insertHistoryRow(this.inputFeature, this.onVersionConflict, this.baseVersion, this.baseFeature, this.version - this.tableBaseVersions.at(-1), this.operation, this.author, resultHandler);
   }
 
   /**
