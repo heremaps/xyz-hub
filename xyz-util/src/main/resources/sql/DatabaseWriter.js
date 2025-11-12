@@ -98,7 +98,8 @@ class DatabaseWriter {
       catch (e) {
         if (e.sqlerrcode === SQLErrors.CONFLICT) {
           let exceptionToThrow;
-          if (queryOptions?.onVersionConflict == "ERROR")
+          let onVersionConflict = queryOptions?.onVersionConflict;
+          if (!onVersionConflict || onVersionConflict == "ERROR")
             exceptionToThrow = new VersionConflictError(`Version conflict while trying to write feature with ID ${parameterSet[0]} in version ${parameterSet[1]}.`);
           else
             exceptionToThrow = new RetryableVersionConflictError(`Retryable version conflict while trying to write feature with ID ${parameterSet[0]} in version ${parameterSet[1]}.`);
