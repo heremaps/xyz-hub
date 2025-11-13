@@ -155,13 +155,12 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
         .withQueryFragment("filters", buildFiltersFragment(event, false, filterWhereClause, nodeId))
         .withQueryFragment("versionCheck", buildVersionCheckFragment(event, successorBaseRef, baseRef.getVersion()));
 
-    SQLQuery wrappedBranchAndBaseQuery = new SQLQuery("""
-        (${{branchData}})
-        UNION ALL
-        (
-          SELECT * FROM (${{base}}) ${{datasetId}} ${{branchCompositionFilter}} ${{limit}}
-        )
-        """)
+    SQLQuery wrappedBranchAndBaseQuery = new SQLQuery(
+        "(${{branchData}})\n"
+        + "UNION ALL\n"
+        + "(\n"
+        + "  SELECT * FROM (${{base}}) ${{datasetId}} ${{branchCompositionFilter}} ${{limit}}\n"
+        + ")\n")
         .withQueryFragment("branchData", branchDataQuery)
         .withQueryFragment("base", baseQuery)
         .withQueryFragment("datasetId", "dataset" + baseNodeId)

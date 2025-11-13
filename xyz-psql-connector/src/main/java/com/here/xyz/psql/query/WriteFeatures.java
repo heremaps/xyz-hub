@@ -128,13 +128,24 @@ public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureColl
     catch (SQLException e) {
       final String message = e.getMessage();
       String cleanMessage = message.contains("\n") ? message.substring(0, message.indexOf("\n")) : message;
-      throw switch (SQLError.fromErrorCode(e.getSQLState())) {
-        case FEATURE_EXISTS, VERSION_CONFLICT_ERROR, MERGE_CONFLICT_ERROR -> new ErrorResponseException(CONFLICT, cleanMessage, e);
-        case DUPLICATE_KEY -> new ErrorResponseException(CONFLICT, "Conflict while writing features.", e); //TODO: Handle all conflicts in FeatureWriter properly
-        case FEATURE_NOT_EXISTS -> new ErrorResponseException(NOT_FOUND, cleanMessage, e);
-        case ILLEGAL_ARGUMENT -> new ErrorResponseException(XyzError.ILLEGAL_ARGUMENT, cleanMessage, e);
-        case XYZ_EXCEPTION, UNKNOWN -> new ErrorResponseException(EXCEPTION, e.getMessage(), e);
-      };
+      SQLError sqlError = SQLError.fromErrorCode(e.getSQLState());
+      switch (sqlError) {
+        case FEATURE_EXISTS:
+        case VERSION_CONFLICT_ERROR:
+        case MERGE_CONFLICT_ERROR:
+          throw new ErrorResponseException(CONFLICT, cleanMessage, e);
+        case DUPLICATE_KEY:
+          throw new ErrorResponseException(CONFLICT, "Conflict while writing features.", e); //TODO: Handle all conflicts in FeatureWriter properly
+        case FEATURE_NOT_EXISTS:
+          throw new ErrorResponseException(NOT_FOUND, cleanMessage, e);
+        case ILLEGAL_ARGUMENT:
+          throw new ErrorResponseException(XyzError.ILLEGAL_ARGUMENT, cleanMessage, e);
+        case XYZ_EXCEPTION:
+        case UNKNOWN:
+          throw new ErrorResponseException(EXCEPTION, e.getMessage(), e);
+        default:
+          throw new ErrorResponseException(EXCEPTION, e.getMessage(), e);
+      }
     }
   }
 

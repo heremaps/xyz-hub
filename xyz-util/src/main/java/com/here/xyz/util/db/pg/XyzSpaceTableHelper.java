@@ -145,7 +145,7 @@ public class XyzSpaceTableHelper {
               .withVariable("partitionTable", rootTable + HEAD_TABLE_SUFFIX);
 
       SQLQuery headTablePartitionCreations = new SQLQuery(
-              "DO $$\n" +
+              ("DO $$\n" +
               "BEGIN\n" +
               "  FOR i IN 0..$partitionCountLoop$ LOOP\n" +
               "    EXECUTE format('\n" +
@@ -153,7 +153,7 @@ public class XyzSpaceTableHelper {
               "        PARTITION OF $schema$.\"$headTable$\"\n" +
               "        FOR VALUES WITH (MODULUS $partitionCount$, REMAINDER %s);', i, i);\n" +
               "  END LOOP;\n" +
-              "END $$;\n"
+              "END $$;\n")
               .replace("$partitionCountLoop$", Long.toString(HEAD_TABLE_PARTION_COUNT - 1))
               .replace("$schema$",schema)
               .replace("$headTable$",rootTable + HEAD_TABLE_SUFFIX)

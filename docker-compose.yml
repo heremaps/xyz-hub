@@ -17,7 +17,7 @@ services:
         build:
             context: ./
             dockerfile: ./xyz-util/src/main/resources/docker/Dockerfile-postgres
-        container_name: "postgres"
+        container_name: "test"
         ports:
             - "5432:5432"
     redis:

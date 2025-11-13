@@ -118,7 +118,11 @@ public abstract class EntryConnectorHandler extends AbstractConnectorHandler imp
       }
       catch (ErrorResponseException e) {
         switch (e.getErrorResponse().getError()) {
-          case EXCEPTION, BAD_GATEWAY, TIMEOUT -> logger.error("{} Exception in Connector:", streamId, e);
+          case EXCEPTION:
+          case BAD_GATEWAY:
+          case TIMEOUT:
+            logger.error("{} Exception in Connector:", streamId, e);
+            break;
         }
         e.getErrorResponse().setStreamId(streamId);
         dataOut = e.getErrorResponse();
