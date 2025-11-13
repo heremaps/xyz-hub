@@ -87,6 +87,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 import static com.here.xyz.util.db.ConnectorParameters.TableLayout.NEW_LAYOUT;
 import static com.here.xyz.events.UpdateStrategy.OnExists;
@@ -96,6 +97,7 @@ import static com.here.xyz.responses.XyzError.NOT_IMPLEMENTED;
 
 public class NLConnector extends PSQLXyzConnector {
   private static final Logger logger = LogManager.getLogger();
+  private static final String STATUS_PROPERTY_KEY = "status";
   private static final String GLOBAL_VERSION_PROPERTY_KEY = "globalVersion";
   private static final String GLOBAL_VERSION_SEARCH_KEY = "globalVersions";
   private static final String REF_QUAD_PROPERTY_KEY = "refQuad";
@@ -155,7 +157,7 @@ public class NLConnector extends PSQLXyzConnector {
   @Override
   protected FeatureCollection processSearchForFeaturesEvent(SearchForFeaturesEvent event) throws Exception {
     if (event.getPropertiesQuery() != null && !event.getPropertiesQuery().isEmpty()) {
-      PropertiesQueryInput propertiesQueryInput = getRefQuadAndGlobalVersion(event.getPropertiesQuery());
+      PropertiesQueryInput propertiesQueryInput = getPropertiesQueryInput(event.getPropertiesQuery());
       String selectionValue = getSelectionValue(event.getSelection());
 
       List<String> tables = new ArrayList<>();
@@ -169,12 +171,19 @@ public class NLConnector extends PSQLXyzConnector {
       logger.info("refquad: {}, globalVersion: {}, selection: {}", propertiesQueryInput.refQuad,
               propertiesQueryInput.globalVersions, selectionValue);
 
+      //Get all status counts
+      if(propertiesQueryInput.status != null)
+        return getStatus(dbSettings.getSchema(), tables, propertiesQueryInput.getOperations());
+
       if (selectionValue == null) {
+        //Get Features by refQuad or globalVersions
         return getFeaturesByRefOrGlobalVersionsQuad(dbSettings.getSchema(),
                 tables, propertiesQueryInput, event.getLimit());
       }else {
-        return getFeatureCountByRefQuadOrGlobalVersions(dbSettings.getSchema(),
-                tables, propertiesQueryInput.refQuad, propertiesQueryInput.globalVersions, event.getLimit());
+        //Get FeatureCount by refQuad and quadLevel
+        int refQuadLevel = extractRefQuadLevelValue(selectionValue);
+        return getFeatureCountByRefQuadAndLevel(dbSettings.getSchema(),
+                tables, propertiesQueryInput.refQuad, refQuadLevel);
       }
     }
 
@@ -196,23 +205,38 @@ public class NLConnector extends PSQLXyzConnector {
 
   private String getSelectionValue(List<String> selection){
     String errorMessageSelection = "Property based search supports only selection=" + REF_QUAD_COUNT_SELECTION_KEY
-            + " search in NLConnector!";
+            + " or selection=" + REF_QUAD_COUNT_SELECTION_KEY + "@[0-32] search in NLConnector!";
     String selectionValue = null;
 
-    if (selection != null && !selection.contains(REF_QUAD_COUNT_SELECTION_KEY))
-      throw new IllegalArgumentException(errorMessageSelection);
-    else if (selection != null) {
+    if (selection != null) {
       selectionValue = selection.get(0).toString();
-      if (!selectionValue.equals(REF_QUAD_COUNT_SELECTION_KEY))
-        throw new IllegalArgumentException(errorMessageSelection);
+      if (selectionValue.equals(REF_QUAD_COUNT_SELECTION_KEY)) {
+        return selectionValue;
+      }
+      if (selectionValue.startsWith(REF_QUAD_COUNT_SELECTION_KEY + "@")) {
+        Integer level = extractRefQuadLevelValue(selectionValue);
+        if(level == null || (level >=0 && level <= 32)){
+          return selectionValue;
+        }
+      }
+      throw new IllegalArgumentException(errorMessageSelection);
     }
-
     return selectionValue;
   }
 
-  private PropertiesQueryInput getRefQuadAndGlobalVersion(PropertiesQuery propertiesQuery) {
+  public static int extractRefQuadLevelValue(String selection) {
+    if (selection != null && selection.startsWith(REF_QUAD_COUNT_SELECTION_KEY + "@")) {
+      try {
+        return Integer.parseInt(selection.substring((REF_QUAD_COUNT_SELECTION_KEY + "@").length()));
+      } catch (NumberFormatException ignored) {}
+    }
+    return 0;
+  }
+
+  private PropertiesQueryInput getPropertiesQueryInput(PropertiesQuery propertiesQuery) {
     String errorMessageProperties = "Property based search supports only p." + REF_QUAD_PROPERTY_KEY
-            + "^=... (and optional globalVersions=...) search in NLConnector!";
+            + "^=string || globalversions=int|List<int> || status=string searches in NLConnector!";
+    String status = null;
     String refQuad = null;
     List<Integer> globalVersions = new ArrayList<>();
 
@@ -249,12 +273,19 @@ public class NLConnector extends PSQLXyzConnector {
               throw new IllegalArgumentException("Value for 'p." + GLOBAL_VERSION_SEARCH_KEY + "' must be an Integer or a List<Integer>!");
           }
         }
+        else if (key.equalsIgnoreCase("properties." + STATUS_PROPERTY_KEY)
+                && operation.equals(QueryOperation.EQUALS)) {
+          if (!(values.get(0) instanceof String))
+            throw new IllegalArgumentException("p." + REF_QUAD_PROPERTY_KEY + " must be a single String!");
+          else
+            status = values.get(0).toString();
+        }
         else {
           throw new IllegalArgumentException(errorMessageProperties);
         }
       }
     }
-    return new PropertiesQueryInput(refQuad, globalVersions);
+    return new PropertiesQueryInput(refQuad, globalVersions, status);
   }
 
   @Override
@@ -264,8 +295,17 @@ public class NLConnector extends PSQLXyzConnector {
     return run( new EraseSpace(event).withTableLayout(NEW_LAYOUT));
   }
 
-  public record PropertiesQueryInput(String refQuad, List<Integer> globalVersions) {}
-
+  public record PropertiesQueryInput(String refQuad, List<Integer> globalVersions, String status) {
+    public Character[] getOperations(){
+      if (status == null || status.isEmpty()) return new Character[0];
+      String[] ops = status.split(",");
+      Character[] result = new Character[ops.length];
+      for (int i = 0; i < ops.length; i++) {
+        result[i] = ops[i].trim().charAt(0);
+      }
+      return result;
+    }
+  }
 
   @Override
   protected BinaryResponse processBinaryGetFeaturesByTileEvent(GetFeaturesByTileEvent event) throws Exception {
@@ -344,41 +384,12 @@ public class NLConnector extends PSQLXyzConnector {
       logger.error("OnNotExists Strategy '{}' is not supported in NLConnector!", updateStrategy.onNotExists());
   }
 
-  private void batchDeleteFeatures(String schema, String table, List<String> featureIds,
-          List<ModificationFailure> fails)
-          throws SQLException {
-    String deletionSql = "DELETE FROM $table$ WHERE id = ANY(?)".replace("$table$","\""+schema+"\".\""+table+"\"");
-
-    try (final Connection connection = dataSourceProvider.getWriter().getConnection()) {
-      try (PreparedStatement ps = connection.prepareStatement(deletionSql)) {
-        connection.setAutoCommit(false);
-
-        Array idArray = connection.createArrayOf("text", featureIds.toArray());
-        ps.setArray(1, idArray);
-
-        int deleted = ps.executeUpdate();
-        if(deleted != featureIds.size()){
-          logger.warn("Requested to delete {} features, but only {} are available for deletion!", featureIds.size(), deleted);
-          fails.add(new ModificationFailure().withMessage("Deletion failed: not all requested IDs exist."));
-          connection.rollback();
-        }else {
-          logger.info("Successfully deleted {} features.", deleted);
-          connection.commit();
-        }
-      }catch (SQLException e){
-        logger.error(e);
-      }
-    }
-  }
-
   private FeatureCollection getFeaturesByRefOrGlobalVersionsQuad(String schema, List<String> tables,
               PropertiesQueryInput propertiesQueryInput, long limit)  throws SQLException, JsonProcessingException {
     try (final Connection connection = dataSourceProvider.getWriter().getConnection()) {
       String query = createReadByRefQuadOrGlobalVersionsQuery(schema, tables, propertiesQueryInput.refQuad,
               propertiesQueryInput.globalVersions, limit);
-
       try (PreparedStatement ps = connection.prepareStatement(query)) {
-
         try (ResultSet rs = ps.executeQuery()) {
           if(rs.next()){
             return XyzSerializable.deserialize(rs.getString("featureCollection"), FeatureCollection.class);
@@ -393,57 +404,192 @@ public class NLConnector extends PSQLXyzConnector {
     return null;
   }
 
-  private FeatureCollection getFeatureCountByRefQuadOrGlobalVersions(String schema, List<String> tables, String refQuad, List<Integer> globalVersions, long limit)
+  private FeatureCollection getFeatureCountByRefQuadAndLevel(String schema, List<String> tables, String refQuad, Integer refQuadLevel)
           throws SQLException {
     try (final Connection connection = dataSourceProvider.getWriter().getConnection()) {
-
-      String query = createReadByRefQuadOrGlobalVersionsCountQuery(schema, tables, refQuad, globalVersions, limit);
+      String query = createCountByRefQuadQuery(schema, tables, refQuad, refQuadLevel);
 
       try (PreparedStatement ps = connection.prepareStatement(query)) {
-
         try (ResultSet rs = ps.executeQuery()) {
-          if(rs.next()){
-            PolygonCoordinates polygonCoordinates = new PolygonCoordinates();
-
-            if(refQuad != null){
-              BBox bBox = WebMercatorTile.forQuadkey(refQuad).getBBox(false);
-              LinearRingCoordinates lrc = new LinearRingCoordinates();
-              lrc.add(new Position(bBox.minLon(), bBox.minLat()));
-              lrc.add(new Position(bBox.maxLon(), bBox.minLat()));
-              lrc.add(new Position(bBox.maxLon(), bBox.maxLat()));
-              lrc.add(new Position(bBox.minLon(), bBox.maxLat()));
-              lrc.add(new Position(bBox.minLon(), bBox.minLat()));
-              polygonCoordinates.add(lrc);
-            }
-
-            return new FeatureCollection().withFeatures(List.of(
-                    new Feature()
-                       .withId(refQuad)
-                       .withGeometry(
-                               refQuad == null ? null : new Polygon().withCoordinates(polygonCoordinates)
-                       )
-                       .withProperties(
-                            new Properties()
-                                    .with("count", rs.getLong("cnt")
-                            ))
-            ));
-          }
+          return getRefQuadCountFc(refQuad, rs);
         }
       }catch (SQLException e){
         logger.error(e);
         throw e;
       }
     }
-    //should not happen - but for compiler
-    return null;
   }
 
-  private String createReadByRefQuadOrGlobalVersionsCountQuery(String schema, List<String> tables, String refQuad, List<Integer> globalVersions, long limit) {
-    return createReadByRefQuadOrGlobalVersionsQuery(schema, tables, refQuad, globalVersions, limit, true);
+  private static FeatureCollection getRefQuadCountFc(String refQuad, ResultSet rs) throws SQLException {
+    List<Feature> features = new ArrayList<>();
+    while(rs.next()){
+      String childQuad = rs.getString("child_quad");
+      PolygonCoordinates polygonCoordinates = new PolygonCoordinates();
+
+      if(childQuad != null){
+        BBox bBox = WebMercatorTile.forQuadkey(childQuad).getBBox(false);
+        LinearRingCoordinates lrc = new LinearRingCoordinates();
+        lrc.add(new Position(bBox.minLon(), bBox.minLat()));
+        lrc.add(new Position(bBox.maxLon(), bBox.minLat()));
+        lrc.add(new Position(bBox.maxLon(), bBox.maxLat()));
+        lrc.add(new Position(bBox.minLon(), bBox.maxLat()));
+        lrc.add(new Position(bBox.minLon(), bBox.minLat()));
+        polygonCoordinates.add(lrc);
+      }
+
+      features.add(
+              new Feature()
+                      .withId(childQuad)
+                      .withGeometry(
+                              refQuad == null ? null : new Polygon().withCoordinates(polygonCoordinates)
+                      )
+                      .withProperties(new Properties().with("count", rs.getLong("cnt")))
+      );
+    }
+    return new FeatureCollection().withFeatures(features);
   }
 
-  private String createReadByRefQuadOrGlobalVersionsQuery(String schema, List<String> tables, String refQuad, List<Integer> globalVersions, long limit) {
-    return createReadByRefQuadOrGlobalVersionsQuery(schema, tables, refQuad, globalVersions, limit, false);
+  private FeatureCollection getStatus(String schema, List<String> tables, Character[] operations)
+          throws SQLException {
+    try (final Connection connection = dataSourceProvider.getWriter().getConnection()) {
+
+      String query = createStausQuery(schema, tables, operations);
+
+      try (PreparedStatement ps = connection.prepareStatement(query)) {
+        try (ResultSet rs = ps.executeQuery()) {
+          Properties properties = new Properties()
+                  .with("I",0)
+                  .with("U",0)
+                  .with("D",0)
+                  .with("H",0)
+                  .with("J",0);
+
+          while(rs.next()){
+            properties.put(rs.getString("operation"),rs.getLong("cnt"));
+          }
+
+          return new FeatureCollection().withFeatures(List.of(
+                    new Feature()
+                            .withId(UUID.randomUUID().toString())
+                            .withProperties(properties)));
+          }
+      }catch (SQLException e){
+        logger.error(e);
+        throw e;
+      }
+    }
+  }
+
+  private String createCountByRefQuadQuery(String schema, List<String> tables, String refQuad, int quadKeyLevel){
+    String extensionTable = tables.get(0);
+    String baseTable = tables.size() == 2 ? tables.get(1) : null;
+
+    if(baseTable == null) {
+      return """
+               WITH params AS (
+                   SELECT '$refQuad$'::text AS parent, $quadKeyLevel$ AS relative_level
+               )
+               SELECT LEFT(searchable->>'refQuad', LENGTH(parent) + relative_level) AS child_quad,
+                      COUNT(*) AS cnt
+               FROM "$schema$"."$table$", params
+               	  WHERE searchable->>'refQuad' LIKE parent || '%'
+               GROUP BY child_quad;
+              """
+              .replace("$refQuad$", refQuad)
+              .replace("$quadKeyLevel$", Integer.toString(quadKeyLevel))
+              .replace("$schema$", schema)
+              .replace("$table$", extensionTable + "_head");
+    }
+    return """
+          WITH params AS (
+              SELECT '$refQuad$'::text AS parent, $quadKeyLevel$ AS relative_level
+          ),
+          combined AS (
+            SELECT *
+            FROM (
+                SELECT
+                    id,
+                    searchable->>'refQuad' AS refquad,
+                    operation,
+                    next_version
+                FROM "$schema$"."$extensionTable$"
+                WHERE operation NOT IN ('D', 'H', 'J')
+            )
+            UNION ALL
+            (
+                SELECT *
+                FROM (
+                    SELECT
+                        id,
+                        searchable->>'refQuad' AS refquad,
+                        operation,
+                        next_version
+                    FROM "$schema$"."$baseTable$"
+                ) base
+                WHERE NOT EXISTS (
+                    SELECT 1
+                    FROM "$schema$"."$extensionTable$"
+                    WHERE id = base.id
+                      AND next_version = 9223372036854775807::BIGINT
+                      AND operation != 'D'
+                )
+              )
+            ),
+            filtered AS (
+                SELECT c.*
+                  FROM combined c
+                 WHERE c.refquad LIKE (SELECT parent FROM params) || '%'
+            )
+            SELECT LEFT(f.refquad, LENGTH(p.parent) + p.relative_level) AS child_quad,
+                   COUNT(f.refquad) AS cnt
+              FROM filtered f, params p
+             GROUP BY child_quad;
+          """.replace("$refQuad$", refQuad)
+            .replace("$quadKeyLevel$", Integer.toString(quadKeyLevel))
+            .replace("$schema$", schema)
+            .replace("$baseTable$", baseTable + "_head")
+            .replace("$extensionTable$", extensionTable + "_head");
+  }
+
+  private String createStausQuery(String schema, List<String> tables, Character[] operations){
+    String extensionTable = tables.get(0);
+    String baseTable = tables.size() == 2 ? tables.get(1) : null;
+
+    String opsString = "";
+    if (operations != null && operations.length > 0) {
+      StringBuilder sb = new StringBuilder();
+      for (int i = 0; i < operations.length; i++) {
+        sb.append("'").append(operations[i].toString().toUpperCase()).append("'");
+        if (i < operations.length - 1) sb.append(",");
+      }
+      opsString = sb.toString();
+    }
+
+    if(baseTable == null)
+      return """
+               SELECT operation, COUNT(*) AS cnt
+                FROM "$schema$"."$table$"
+               WHERE operation IN($operations$)
+               GROUP BY operation;
+              """
+             .replace("$operations$", opsString)
+             .replace("$schema$", schema)
+             .replace("$table$", extensionTable + "_head");
+    return """
+            SELECT operation, COUNT(*) AS cnt
+            FROM (
+              SELECT operation FROM "$schema$"."$baseTable$"
+                WHERE operation IN($operations$)
+              UNION ALL
+              SELECT operation FROM "$schema$"."$extensionTable$"
+                WHERE operation IN($operations$)
+            ) AS combined
+            GROUP BY operation
+            """
+            .replace("$operations$", opsString)
+            .replace("$schema$", schema)
+            .replace("$baseTable$", baseTable + "_head")
+            .replace("$extensionTable$", extensionTable + "_head");
   }
 
   private String createReadByRefQuadOrGlobalVersionsQuery(
@@ -451,8 +597,7 @@ public class NLConnector extends PSQLXyzConnector {
           List<String> tables,
           String refQuad,
           List<Integer> globalVersions,
-          long limit,
-          boolean returnCount
+          long limit
   ) {
     String extensionTable = tables.get(0);
     String baseTable = tables.size() == 2 ? tables.get(1) : null;
@@ -482,8 +627,13 @@ public class NLConnector extends PSQLXyzConnector {
 
     // Inner selects (no LIMIT yet, apply after UNION to keep global limit semantics)
     String inner1 = "SELECT * FROM \"" + schema + "\".\"" + extensionTable + "_head\" " + filter;
-    String inner2 = "SELECT * FROM \"" + schema + "\".\"" + baseTable + "_head\" " + filter;
-    String whereNotExistsCondition = """
+
+    String finalQuery;
+    if(baseTable == null) {
+      finalQuery = inner1;
+    }else {
+      String inner2 = "SELECT * FROM \"" + schema + "\".\"" + baseTable + "_head\" " + filter;
+      String whereNotExistsCondition = """
             WHERE NOT EXISTS (
                   SELECT 1
                   	FROM "$schema$"."$table$"
@@ -492,13 +642,8 @@ public class NLConnector extends PSQLXyzConnector {
                     AND operation != 'D'
                 )
             """
-            .replace("$schema$", schema)
-            .replace("$table$", extensionTable);
-
-    String finalQuery;
-    if(baseTable == null) {
-      finalQuery = inner1;
-    }else {
+              .replace("$schema$", schema)
+              .replace("$table$", extensionTable);
       // UNION ALL combined set
       finalQuery = "(" + inner1 + ") UNION ALL (SELECT * FROM(" + inner2 + ") a " + whereNotExistsCondition + ")";
     }
@@ -506,11 +651,6 @@ public class NLConnector extends PSQLXyzConnector {
     // Apply global limit if > 0
     if (limit > 0) {
       finalQuery = finalQuery + " LIMIT " + limit;
-    }
-
-    if (returnCount) {
-      // Sum counts from both tables honoring the global limit (limit applied before counting)
-      return "SELECT count(1) AS cnt FROM (" + finalQuery + ") t";
     }
 
     // FeatureCollection aggregation across unioned rows
@@ -537,72 +677,6 @@ public class NLConnector extends PSQLXyzConnector {
         """;
 
     return "SELECT " + selection + " FROM (" + finalQuery + ") t";
-  }
-
-  private void batchMergeFeatures(
-          String schema,
-          String table,
-          FeatureCollection featureCollection,
-          long version,
-          String author,
-          List<ModificationFailure> fails
-  ) throws SQLException, JsonProcessingException {
-
-    String mergeSql = """
-        MERGE INTO %s.%s AS t
-        USING (
-          VALUES (?, ?, ?, ?, ?, ?, ?)
-        ) AS s(id, geo, operation, author, version, jsondata, searchable)
-        --ON (t.id = s.id AND t.next_version = 9223372036854775807 AND t.global_version = s.global_version)
-        ON (t.id = s.id AND t.version = s.version AND t.next_version = 9223372036854775807)
-        WHEN MATCHED THEN
-          UPDATE SET
-            jsondata  = s.jsondata,
-            geo       = s.geo,
-            version   = s.version,
-            author    = s.author,
-            operation = 'U',
-            searchable = s.searchable
-        WHEN NOT MATCHED THEN
-          INSERT (id, geo, operation, author, version, jsondata, searchable)
-          VALUES (s.id, s.geo, s.operation, s.author, s.version, s.jsondata, s.searchable);
-        """.formatted(schema, table);
-
-    try (Connection connection = dataSourceProvider.getWriter().getConnection()) {
-      connection.setAutoCommit(false);
-
-      try (PreparedStatement ps = connection.prepareStatement(mergeSql)) {
-        for (Feature feature : featureCollection.getFeatures()) {
-          Geometry geo = feature.getGeometry();
-
-          if (geo != null) {
-            for (Coordinate coord : geo.getJTSGeometry().getCoordinates()) {
-              if (Double.isNaN(coord.z))
-                coord.z = 0; // avoid NaN
-            }
-          }
-
-          ensureFeatureId(feature);
-          ps.setString(1, feature.getId());
-          ps.setBytes(2, geo == null ? null : new WKBWriter(3).write(geo.getJTSGeometry()));
-          ps.setString(3, "I"); // operation always insert initially
-          ps.setString(4, author == null ? "ANONYMOUS" : author);
-          ps.setLong(5, version);
-          ps.setString(6, enrichFeaturePayload(feature));
-          ps.setObject(7, getSearchableObject(feature));
-          ps.addBatch();
-        }
-
-        int[] updated = ps.executeBatch();
-        connection.commit();
-        logger.info("Successfully upserted {} features.", updated);
-
-      } catch (SQLException e) {
-        connection.rollback();
-        logger.error("Upsert failed", e);
-        fails.add(new ModificationFailure().withMessage("Upsert failed: " + e.getMessage()));
-      }
-    }
   }
 
   private void batchInsertFeatures(
@@ -676,15 +750,6 @@ public class NLConnector extends PSQLXyzConnector {
     return jsonObject;
   }
 
-  private String getRefQuad(Feature feature) {
-    return feature.getProperties().get(REF_QUAD_PROPERTY_KEY);
-  }
-
-  private Integer getGlobalVersion(Feature feature) {
-    Integer globalVersion = feature.getProperties().get(GLOBAL_VERSION_PROPERTY_KEY);
-    return globalVersion == null ? -1 : globalVersion;
-  }
-
   private String enrichFeaturePayload(Feature feature) {
     //LFE is missing - so we do not have the createdAt from db | also patch possibility is missing
     //TODO: check if we want to use the same timestamp for all features in one request
@@ -704,5 +769,108 @@ public class NLConnector extends PSQLXyzConnector {
     }
     feature.getProperties().getXyzNamespace().setUpdatedAt(currentTime);
     return feature.serialize().replace("\"geometry\":null,", "");
+  }
+
+  /** Currently unsued functions */
+  private String getRefQuad(Feature feature) {
+    return feature.getProperties().get(REF_QUAD_PROPERTY_KEY);
+  }
+
+  private Integer getGlobalVersion(Feature feature) {
+    Integer globalVersion = feature.getProperties().get(GLOBAL_VERSION_PROPERTY_KEY);
+    return globalVersion == null ? -1 : globalVersion;
+  }
+
+  private void batchMergeFeatures(
+          String schema,
+          String table,
+          FeatureCollection featureCollection,
+          long version,
+          String author,
+          List<ModificationFailure> fails
+  ) throws SQLException, JsonProcessingException {
+
+    String mergeSql = """
+        MERGE INTO %s.%s AS t
+        USING (
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        ) AS s(id, geo, operation, author, version, jsondata, searchable)
+        --ON (t.id = s.id AND t.next_version = 9223372036854775807 AND t.global_version = s.global_version)
+        ON (t.id = s.id AND t.version = s.version AND t.next_version = 9223372036854775807)
+        WHEN MATCHED THEN
+          UPDATE SET
+            jsondata  = s.jsondata,
+            geo       = s.geo,
+            version   = s.version,
+            author    = s.author,
+            operation = 'U',
+            searchable = s.searchable
+        WHEN NOT MATCHED THEN
+          INSERT (id, geo, operation, author, version, jsondata, searchable)
+          VALUES (s.id, s.geo, s.operation, s.author, s.version, s.jsondata, s.searchable);
+        """.formatted(schema, table);
+
+    try (Connection connection = dataSourceProvider.getWriter().getConnection()) {
+      connection.setAutoCommit(false);
+
+      try (PreparedStatement ps = connection.prepareStatement(mergeSql)) {
+        for (Feature feature : featureCollection.getFeatures()) {
+          Geometry geo = feature.getGeometry();
+
+          if (geo != null) {
+            for (Coordinate coord : geo.getJTSGeometry().getCoordinates()) {
+              if (Double.isNaN(coord.z))
+                coord.z = 0; // avoid NaN
+            }
+          }
+
+          ensureFeatureId(feature);
+          ps.setString(1, feature.getId());
+          ps.setBytes(2, geo == null ? null : new WKBWriter(3).write(geo.getJTSGeometry()));
+          ps.setString(3, "I"); // operation always insert initially
+          ps.setString(4, author == null ? "ANONYMOUS" : author);
+          ps.setLong(5, version);
+          ps.setString(6, enrichFeaturePayload(feature));
+          ps.setObject(7, getSearchableObject(feature));
+          ps.addBatch();
+        }
+
+        int[] updated = ps.executeBatch();
+        connection.commit();
+        logger.info("Successfully upserted {} features.", updated);
+
+      } catch (SQLException e) {
+        connection.rollback();
+        logger.error("Upsert failed", e);
+        fails.add(new ModificationFailure().withMessage("Upsert failed: " + e.getMessage()));
+      }
+    }
+  }
+
+  private void batchDeleteFeatures(String schema, String table, List<String> featureIds,
+                                   List<ModificationFailure> fails)
+          throws SQLException {
+    String deletionSql = "DELETE FROM $table$ WHERE id = ANY(?)".replace("$table$","\""+schema+"\".\""+table+"\"");
+
+    try (final Connection connection = dataSourceProvider.getWriter().getConnection()) {
+      try (PreparedStatement ps = connection.prepareStatement(deletionSql)) {
+        connection.setAutoCommit(false);
+
+        Array idArray = connection.createArrayOf("text", featureIds.toArray());
+        ps.setArray(1, idArray);
+
+        int deleted = ps.executeUpdate();
+        if(deleted != featureIds.size()){
+          logger.warn("Requested to delete {} features, but only {} are available for deletion!", featureIds.size(), deleted);
+          fails.add(new ModificationFailure().withMessage("Deletion failed: not all requested IDs exist."));
+          connection.rollback();
+        }else {
+          logger.info("Successfully deleted {} features.", deleted);
+          connection.commit();
+        }
+      }catch (SQLException e){
+        logger.error(e);
+      }
+    }
   }
 }
