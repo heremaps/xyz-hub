@@ -145,7 +145,13 @@ public class PerformanceTestHelper {
   }
 
   public static Typed readFeaturesByRefQuadAndGlobalVersions(StorageConnector connector, List<String> spaceNames, String refQuad,
-                                                             List<Integer> globalVersions, int limit, boolean isCount)
+                                                             List<Integer> globalVersions, int limit, boolean isCount) throws Exception {
+    return readFeaturesByRefQuadAndGlobalVersions(connector, spaceNames, refQuad, globalVersions, limit, isCount, null);
+  }
+
+  public static Typed readFeaturesByRefQuadAndGlobalVersions(StorageConnector connector, List<String> spaceNames, String refQuad,
+                                                             List<Integer> globalVersions, int limit, boolean isCount, Integer
+                                                                     refQuadLevel)
           throws Exception {
     Event searchForFeaturesEvent;
 
@@ -169,8 +175,32 @@ public class PerformanceTestHelper {
             .withLimit(limit)
             .withPropertiesQuery(propertiesQuery);
 
-    if (isCount)
-      ((SearchForFeaturesEvent) searchForFeaturesEvent).setSelection(List.of("f.refQuadCount"));
+    if (isCount) {
+      String selectionParam = "f.refQuadCount";
+      if(refQuadLevel != null)
+        selectionParam += "@"+refQuadLevel;
+
+      ((SearchForFeaturesEvent) searchForFeaturesEvent).setSelection(List.of(selectionParam));
+    }
+
+    return handleRequest(connector, (ContextAwareEvent<?>) searchForFeaturesEvent, spaceNames);
+  }
+
+  public static Typed readStatus(StorageConnector connector, List<String> spaceNames, String operations)
+          throws Exception {
+    Event searchForFeaturesEvent;
+
+    PropertiesQuery propertiesQuery = new PropertiesQuery();
+    PropertyQueryList queries = new PropertyQueryList();
+
+    queries.add(new PropertyQuery()
+            .withKey("properties.status")
+            .withOperation(EQUALS)
+            .withValues(List.of(operations)));
+
+    propertiesQuery.add(queries);
+    searchForFeaturesEvent = new SearchForFeaturesEvent()
+            .withPropertiesQuery(propertiesQuery);
 
     return handleRequest(connector, (ContextAwareEvent<?>) searchForFeaturesEvent, spaceNames);
   }
