@@ -285,7 +285,8 @@ public class PSQLXyzConnector extends DatabaseHandler {
           throw new ErrorResponseException(ILLEGAL_ARGUMENT, "dataset contains invalid geometries");
         if (e.getMessage().indexOf("ERROR: can not mix dimensionality in a geometry") != -1)
           throw new ErrorResponseException(ILLEGAL_ARGUMENT, "can not mix dimensionality in a geometry");
-        //fall thru - timeout assuming timeout
+        else
+          throw new ErrorResponseException(EXCEPTION, "Unexpected database error occurred: " + e.getMessage(), e);
 
       case "57014": //57014 - query_canceled
       case "57P01": //57P01 - admin_shutdown
