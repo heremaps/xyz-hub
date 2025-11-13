@@ -206,10 +206,10 @@ public class NLConnector extends PSQLXyzConnector {
   private String getSelectionValue(List<String> selection){
     String errorMessageSelection = "Property based search supports only selection=" + REF_QUAD_COUNT_SELECTION_KEY
             + " or selection=" + REF_QUAD_COUNT_SELECTION_KEY + "@[0-32] search in NLConnector!";
-    String selectionValue = null;
+    if(selection == null)
+      return null;
 
-    if (selection != null) {
-      selectionValue = selection.get(0).toString();
+    for(String selectionValue : selection){
       if (selectionValue.equals(REF_QUAD_COUNT_SELECTION_KEY)) {
         return selectionValue;
       }
@@ -219,9 +219,11 @@ public class NLConnector extends PSQLXyzConnector {
           return selectionValue;
         }
       }
-      throw new IllegalArgumentException(errorMessageSelection);
+      if(!selectionValue.equalsIgnoreCase("type") && !selectionValue.equalsIgnoreCase("id"))
+        throw new IllegalArgumentException(errorMessageSelection);
     }
-    return selectionValue;
+
+    return null;
   }
 
   public static int extractRefQuadLevelValue(String selection) {
@@ -279,6 +281,8 @@ public class NLConnector extends PSQLXyzConnector {
             throw new IllegalArgumentException("p." + REF_QUAD_PROPERTY_KEY + " must be a single String!");
           else
             status = values.get(0).toString();
+          if(status.equalsIgnoreCase("global"))
+            status = "I,U,D,H,J";
         }
         else {
           throw new IllegalArgumentException(errorMessageProperties);
