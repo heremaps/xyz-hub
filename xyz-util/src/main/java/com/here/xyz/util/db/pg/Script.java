@@ -169,7 +169,7 @@ public class Script {
                       .withQueryFragment("regFunctionCode", jsScript.loadScriptContent()) );
    }
 
-   return SQLQuery.join(queries," ");
+   return SQLQuery.join(queries,"\n\n");
   }
 
   private void install(String targetSchema, boolean deleteBefore) throws SQLException, IOException {
@@ -177,14 +177,11 @@ public class Script {
 
     SQLQuery scriptContent = loadSubstitutedScriptContent();
 
-    if( "common.sql".equals(getScriptName()) )
-     scriptContent = addJsLibRegisterFunctions(scriptContent);
-
     List<SQLQuery> installationQueries = new ArrayList<>();
     if (deleteBefore) {
       //TODO: Remove following workaround once "drop schema cascade"-bug creating orphaned functions is fixed in postgres
       installationQueries.addAll(buildDeleteFunctionQueries(loadSchemaFunctions(targetSchema)));
-      installationQueries.add(buildDeleteSchemaQuery(getTargetSchema(targetSchema)));
+      installationQueries.add(buildDeleteSchemaQuery(getTargetSchema(null)));
     }
     installationQueries.addAll(List.of(buildCreateSchemaQuery(targetSchema), buildSetCurrentSearchPathQuery(targetSchema),
         buildHashFunctionQuery(), buildVersionFunctionQuery(), scriptContent));
@@ -365,6 +362,10 @@ public class Script {
           .withQueryFragment(relativeJsScriptPath + jsScript.getScriptName(), jsScript.loadScriptContent())
           .withQueryFragment("./" + relativeJsScriptPath + jsScript.getScriptName(), jsScript.loadScriptContent());
     }
+
+    if ("common.sql".equals(getScriptName())) //TODO: Use a new init-script property instead of hard-coding that one
+      scriptContent = addJsLibRegisterFunctions(scriptContent);
+
     return scriptContent;
   }
 
