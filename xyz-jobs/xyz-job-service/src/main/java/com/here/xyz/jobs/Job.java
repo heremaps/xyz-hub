@@ -313,8 +313,9 @@ public class Job implements XyzSerializable {
             getStatus().setState(CANCELLED);
             return storeStatus(CANCELLING);
           }
-          return JobExecutor.getInstance().cancel(getExecutionId(), "Cancelled as it was requested by the user");
+          return Future.succeededFuture();
         })
+        .compose(v -> JobExecutor.getInstance().cancel(getExecutionId(), "Cancelled as it was requested by the user"))
         /*
         NOTE: Cancellation is still in progress. The JobExecutor will now monitor the different step cancellations
         and update the Job to CANCELLED once all cancellations are completed.
@@ -448,7 +449,7 @@ public class Job implements XyzSerializable {
   }
 
   public Future<Void> storeStatus(State expectedPreviousState) {
-    logger.info("[{}] Store Job-Status: {}", getId(), getStatus().getState());
+    logger.info("[{}] Store Job-Status: {} (expecting previous state: {})", getId(), getStatus().getState(), expectedPreviousState);
     return JobConfigClient.getInstance().updateStatus(this, expectedPreviousState);
   }
 

@@ -233,22 +233,29 @@ public abstract class JobExecutor implements Initializable {
    */
   protected static void checkCancellations() {
     if (cancellationCheckRunning.compareAndSet(false, true)) {
-      logger.info("Starting checkCancellations process ...");
+      logger.info("[checkCancellations] Starting process ...");
       JobConfigClient.getInstance().loadJobs(CANCELLING)
-          .compose(jobs -> Future.all(jobs.stream().map(job -> {
-                if (job.getSteps().stepStream().map(step -> cancelNonRunningStep(job, step))
-                    .allMatch(step -> step.getStatus().getState().isFinal())) {
-                  job.getStatus().withState(CANCELLED).withDesiredAction(null);
-                  return job.storeStatus(CANCELLING);
-                }
-                return Future.succeededFuture();
-              }).toList())
-              .map(jobs.stream().filter(job -> job.getStatus().getState() != CANCELLED).toList()))
+          .compose(jobs -> {
+            logger.info("[checkCancellations] The following jobs have been found to be in state CANCELLING and need to be processed:\n{}",
+                jobs.stream().map(job -> "- " + job.getId()).collect(Collectors.joining("\n")));
+
+            return Future.all(jobs.stream().map(job -> {
+                      if (job.getSteps().stepStream()
+                          .map(step -> cancelNonRunningStep(job, step)) //Tries to set all steps to CANCELLED that are not (yet) running (e.g. PENDING ones)
+                          .allMatch(step -> step.getStatus().getState().isFinal())) {
+                        //If all steps are in a final state now, set the job to state CANCELLED and store it
+                        job.getStatus().withState(CANCELLED).withDesiredAction(null);
+                        return job.storeStatus(CANCELLING);
+                      }
+                      return Future.succeededFuture();
+                    }).toList())
+                    .map(jobs.stream().filter(job -> job.getStatus().getState() != CANCELLED).toList());
+          })
           .compose(remainingJobs -> {
             if (remainingJobs.isEmpty())
               return Future.succeededFuture(false);
 
-            logger.info("[checkCancellations] The following jobs are currently in state CANCELLING:\n{}",
+            logger.info("[checkCancellations] The following jobs are currently still in state CANCELLING:\n{}",
                 remainingJobs.stream().map(job -> "- " + job.getId()).collect(Collectors.joining("\n")));
 
             //Fail all jobs of which the cancellation did not work within <CANCELLATION_TIMEOUT> ms
@@ -257,9 +264,10 @@ public abstract class JobExecutor implements Initializable {
                 .filter(job -> job.getStatus().getUpdatedAt() + CANCELLATION_TIMEOUT < Core.currentTimeMillis())
                 .toList();
 
-            logger.info("[checkCancellations] The following jobs could not be cancelled within {} ms and will be marked as FAILED:\n{}",
-                CANCELLATION_TIMEOUT,
-                jobsToFail.stream().map(job -> "- " + job.getId()).collect(Collectors.joining("\n")));
+            if (!jobsToFail.isEmpty())
+              logger.info("[checkCancellations] The following jobs could not be cancelled within {} ms and will be marked as FAILED:\n{}",
+                  CANCELLATION_TIMEOUT,
+                  jobsToFail.stream().map(job -> "- " + job.getId()).collect(Collectors.joining("\n")));
 
             jobsToFail.forEach(job -> {
               job.getStatus()
@@ -275,20 +283,20 @@ public abstract class JobExecutor implements Initializable {
             //If there are still remaining jobs, run the cancellation check again
             return Future.succeededFuture(jobsToFail.size() < remainingJobs.size());
           })
-          .onFailure(t -> logger.error("Error in checkCancellations process:", t))
+          .onFailure(t -> logger.error("[checkCancellations] Error in process:", t))
           .onSuccess(runAgain -> {
             if (runAgain) {
-              logger.info("Starting another run of checkCancellations process in {} ms ...", CANCELLATION_CHECK_RERUN_PERIOD);
+              logger.info("[checkCancellations] Starting another run of the process in {} ms ...", CANCELLATION_CHECK_RERUN_PERIOD);
               exec.schedule(() -> checkCancellations(), CANCELLATION_CHECK_RERUN_PERIOD, MILLISECONDS);
             }
           })
           .onComplete(ar -> {
             cancellationCheckRunning.set(false);
-            logger.info("checkCancellations process completed.");
+            logger.info("[checkCancellations] Process completed.");
           });
     }
     else
-      logger.info("Not starting checkCancellations process again, as there is already one running.");
+      logger.info("[checkCancellations] Not starting the process again, as there is already one running.");
   }
 
   private static Step cancelNonRunningStep(Job job, Step step) {
