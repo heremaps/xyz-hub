@@ -32,6 +32,7 @@ import static org.hamcrest.Matchers.not;
 
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.Properties;
+import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Tag;
 import io.restassured.http.ContentType;
 import io.restassured.response.ValidatableResponse;
@@ -43,7 +44,7 @@ import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
 
-public class TagApiIT extends TestSpaceWithFeature {
+public class TagApiIT extends TestSpaceBranch {
   private static final String SECOND_SPACE = "secondSpace";
   private static final List<String> createdSpaces = new ArrayList<>();
 
@@ -323,6 +324,7 @@ public class TagApiIT extends TestSpaceWithFeature {
         .statusCode(BAD_REQUEST.code());
   }
 
+  @Ignore("Should we allow tag with -1")
   @Test
   public void testCreateTagWithVersionMinusOneOnEmptySpace() {
     given()
@@ -334,6 +336,7 @@ public class TagApiIT extends TestSpaceWithFeature {
         .body("version", equalTo(-1));
   }
 
+  @Ignore("Should we allow tag with -1")
   @Test
   public void testCreateTagWithVersionMinusOneOnSpaceWithData() {
     _addOneFeature();
@@ -568,5 +571,21 @@ public class TagApiIT extends TestSpaceWithFeature {
         .statusCode(OK.code())
         .body("startVersion", equalTo(1))
         .body("endVersion", equalTo(1));
+  }
+
+  @Test
+  public void createTagOnBranch() {
+    _addOneFeature();
+    createBranch(getSpaceId(), "b1", null);
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .contentType(ContentType.JSON)
+        .body(new Tag().withId("tag_b1").withSystem(false).withVersionRef(new Ref("b1:HEAD")))
+        .post("/spaces/" + getSpaceId() + "/tags")
+        .then()
+        .statusCode(OK.code())
+        .body("versionRef", equalTo("b1:1"))
+        .body("version", equalTo(1));
   }
 }

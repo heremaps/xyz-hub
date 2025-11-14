@@ -767,38 +767,6 @@ public class FeatureTaskHandler {
     return f;
   }
 
-  static <X extends FeatureTask> void resolveVersionRef(final X task, final Callback<X> callback) {
-    if (!(task.getEvent() instanceof SelectiveEvent event)) {
-      callback.call(task);
-      return;
-    }
-
-    if (event.getRef() == null || !event.getRef().isTag()) {
-      callback.call(task);
-      return;
-    }
-
-    TagConfigClient.getInstance().getTag(task.getMarker(), event.getRef().getTag(), task.space.getId())
-        .compose(tag -> {
-          if (tag == null) {
-            return Future.failedFuture(new HttpException(NOT_FOUND, "Version ref not found: " + event.getRef().getTag()));
-          }
-
-          try {
-            event.setRef(new Ref(tag.getVersion()));
-          } catch (InvalidRef e) {
-            return Future.failedFuture(e);
-          }
-
-          return Future.succeededFuture(tag);
-        })
-        .onSuccess(tag -> callback.call(task))
-        .onFailure(t -> {
-          logger.warn(task.getMarker(), "Unable to resolve version ref.", t);
-          callback.exception(t);
-        });
-  }
-
   private static class RpcContextHolder {
     RpcContext rpcContext;
   }

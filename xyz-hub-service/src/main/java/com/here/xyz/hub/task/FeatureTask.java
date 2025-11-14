@@ -49,6 +49,7 @@ import com.here.xyz.hub.Service;
 import com.here.xyz.hub.auth.Authorization;
 import com.here.xyz.hub.auth.FeatureAuthorization;
 import com.here.xyz.hub.config.BranchConfigClient;
+import com.here.xyz.hub.config.TagConfigClient;
 import com.here.xyz.hub.connectors.RpcClient;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Space;
@@ -147,13 +148,25 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     this.requestBodySize = requestBodySize;
   }
 
-  //TODO: Merge into resolveVersionRef
-  void resolveBranch(final X task, final Callback<X> callback) {
+  void resolveVersionRef(final X task, final Callback<X> callback) {
     try {
       if (task.getEvent() instanceof ContextAwareEvent<?> event) {
-        resolveBranchFor(event, task.space)
-                .onFailure(callback::exception)
-                .onSuccess(v -> callback.call(task));
+        Future<Void> future = Future.succeededFuture();
+        if (event.getRef().isTag()) {
+          future = TagConfigClient.getInstance().getTag(task.getMarker(), event.getRef().getTag(), task.space.getId())
+              .compose(tag -> {
+                if (tag == null) {
+                  //It could be a branch
+                  event.setRef(Ref.fromBranchId(event.getRef().getTag()));
+                } else {
+                  event.setRef(tag.getVersionRef());
+                }
+                return Future.succeededFuture();
+              });
+        }
+        future.compose(v -> resolveBranchFor(event, task.space))
+              .onFailure(callback::exception)
+              .onSuccess(v -> callback.call(task));
       } else
         callback.call(task);
     } catch (Exception e) {
@@ -162,27 +175,11 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
   }
 
   public static Future<Void> resolveBranchFor(ContextAwareEvent<?> event, Space space) {
-    if (event.getRef() == null || (event.getRef().isMainBranch() && !event.getRef().isTag()))
+    if (event.getRef() == null || event.getRef().isMainBranch())
       return Future.succeededFuture();
 
-    Ref branchRef = event.getRef().isTag() ? Ref.fromBranchId(event.getRef().getTag()) : event.getRef();
-    Future<Branch> future = getReferencedBranch(space.getId(), branchRef);
-    if (event.getRef().isTag()) {
-      // Check if it's a branch or a tag
-      future = future.compose(branch -> {
-            if (branch != null)
-              event.setRef(branchRef);
-            return Future.succeededFuture(branch);
-          })
-          .recover(t -> {
-            // If the branch does not exist, then it could be a normal tag
-            if (t instanceof HttpException e && e.status == NOT_FOUND)
-              return Future.succeededFuture();
-            return Future.failedFuture(t);
-          });
-    }
-
-    return future.compose(referencedBranch -> {
+    return getReferencedBranch(space.getId(), event.getRef())
+        .compose(referencedBranch -> {
           if (referencedBranch != null) {
             LinkedList<Ref> branchPath = new LinkedList<>(referencedBranch.getBranchPath());
             event.withNodeId(referencedBranch.getNodeId())
@@ -211,7 +208,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     return BranchConfigClient.getInstance().load(spaceId, ref.getBranch())
         .compose(branch -> {
           if (branch == null)
-            return Future.failedFuture(new HttpException(NOT_FOUND, "Branch \"" + ref.getBranch() + "\" was not found on resource \"" + spaceId + "\"."));
+            return Future.failedFuture(new HttpException(NOT_FOUND, "Tag or Branch \"" + ref.getBranch() + "\" was not found on resource \"" + spaceId + "\"."));
           return Future.succeededFuture(branch);
         });
   }
@@ -342,8 +339,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public TaskPipeline<GeometryQuery> createPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
-          .then(this::resolveBranch) //TODO: Merge into resolveVersionRef and move back again after checkImmutability
-          .then(FeatureTaskHandler::resolveVersionRef)
+          .then(this::resolveVersionRef)
           .then(this::resolveRefSpace)
           .then(this::resolveRefConnector)
           .then(Authorization::authorizeComposite)
@@ -473,8 +469,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public TaskPipeline<BBoxQuery> createPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
-          .then(this::resolveBranch) //TODO: Merge into resolveVersionRef and move back again after checkImmutability
-          .then(FeatureTaskHandler::resolveVersionRef)
+          .then(this::resolveVersionRef)
           .then(Authorization::authorizeComposite)
           .then(FeatureAuthorization::authorize)
           .then(FeatureTaskHandler::checkImmutability)
@@ -504,8 +499,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public TaskPipeline<TileQuery> createPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
-          .then(this::resolveBranch) //TODO: Merge into resolveVersionRef and move back again after checkImmutability
-          .then(FeatureTaskHandler::resolveVersionRef)
+          .then(this::resolveVersionRef)
           .then(Authorization::authorizeComposite)
           .then(FeatureAuthorization::authorize)
           .then(FeatureTaskHandler::checkImmutability)
@@ -540,8 +534,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public TaskPipeline<IdsQuery> createPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
-          .then(this::resolveBranch) //TODO: Merge into resolveVersionRef and move back again after auth
-          .then(FeatureTaskHandler::resolveVersionRef)
+          .then(this::resolveVersionRef)
           .then(Authorization::authorizeComposite)
           .then(FeatureAuthorization::authorize)
           .then(FeatureTaskHandler::checkImmutability)
@@ -562,8 +555,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public TaskPipeline<IterateQuery> createPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
-          .then(this::resolveBranch) //TODO: Merge into resolveVersionRef and move back again after auth
-          .then(FeatureTaskHandler::resolveVersionRef)
+          .then(this::resolveVersionRef)
           .then(Authorization::authorizeComposite)
           .then(FeatureAuthorization::authorize)
           .then(FeatureTaskHandler::checkImmutability)
@@ -584,8 +576,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public TaskPipeline<SearchQuery> createPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
-          .then(this::resolveBranch) //TODO: Merge into resolveVersionRef and move back again after auth
-          .then(FeatureTaskHandler::resolveVersionRef)
+          .then(this::resolveVersionRef)
           .then(Authorization::authorizeComposite)
           .then(FeatureAuthorization::authorize)
           .then(FeatureTaskHandler::checkImmutability)
@@ -610,7 +601,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
           .then(FeatureTaskHandler::resolveSpace)
           .then(Authorization::authorizeComposite)
           .then(FeatureAuthorization::authorize)
-          .then(this::resolveBranch) //TODO: Merge into resolveVersionRef?
+          .then(this::resolveVersionRef)
           .then(FeatureTaskHandler::readCache)
           .then(FeatureTaskHandler::invoke)
           .then(FeatureTaskHandler::convertResponse)
@@ -639,7 +630,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public TaskPipeline<ModifySpaceQuery> createPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
-          .then(this::resolveBranch)
+          .then(this::resolveVersionRef)
           .then(SpaceTaskHandler::invokeConditionally);
     }
   }
@@ -699,7 +690,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
           .then(FeatureTaskHandler::resolveSpace)
           .then(FeatureTaskHandler::registerRequestMemory)
           .then(FeatureTaskHandler::throttle)
-          .then(this::resolveBranch)
+          .then(this::resolveVersionRef)
           .then(FeatureTaskHandler::injectSpaceParams)
           .then(FeatureTaskHandler::checkPreconditions)
           .then(FeatureTaskHandler::prepareModifyFeatureOp)
