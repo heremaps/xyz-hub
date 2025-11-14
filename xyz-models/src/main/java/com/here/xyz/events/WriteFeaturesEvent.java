@@ -59,6 +59,7 @@ public class WriteFeaturesEvent extends ContextAwareEvent<WriteFeaturesEvent> {
     private List<String> featureIds; //To be used only for deletions
     private boolean partialUpdates;
     private List<String> featureHooks; //NOTE: The featureHooks will be applied in the given order
+    private List<String> writeHooks; //NOTE: The Hooks will be applied in the given order
 
     public UpdateStrategy getUpdateStrategy() {
       return updateStrategy;
@@ -124,5 +125,20 @@ public class WriteFeaturesEvent extends ContextAwareEvent<WriteFeaturesEvent> {
       setFeatureHooks(featureHooks);
       return this;
     }
+
+    public List<String> getWriteHooks() {
+      return writeHooks;
+    }
+
+    public void setWriteHooks(List<String> writeHooks) {
+      this.writeHooks = writeHooks;
+    }
+
+    public Modification withWriteHooks(List<String> writeHooks) {
+      setWriteHooks(writeHooks);
+      return this;
+    }
+
+
   }
 }
