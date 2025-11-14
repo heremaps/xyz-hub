@@ -82,7 +82,8 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   private static final Logger logger = LogManager.getLogger();
 
   @JsonView({Internal.class, Static.class})
-  protected double overallNeededAcus = -1;
+  private boolean noTasksCreated = false;
+
   @JsonView({Internal.class, Static.class})
   protected int calculatedThreadCount = -1;
   @JsonView({Internal.class, Static.class})
@@ -93,8 +94,6 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   protected Ref versionRef;
   @JsonView({Internal.class, Static.class})
   protected long spaceCreatedAt;
-  @JsonView({Internal.class, Static.class})
-  protected boolean noTasksCreated = false;
 
   public Ref getVersionRef() {
     return versionRef;
@@ -183,6 +182,17 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
    */
   protected abstract void processOutputs(List<O> taskOutputs)
           throws IOException, WebClientException;
+
+  /**
+   * Calculates the overall needed ACUs (Amazon Compute Units) for the job step based on the provided data.
+   *
+   * Implementations should estimate the total compute resources required to process all tasks,
+   * using the input data (e.g. statistics, item count, or other relevant metrics).
+   * The implementations should use this method in their getNeededResources() methods.
+   *
+   * @return The estimated total ACUs required for the job step.
+   */
+  protected abstract double calculateOverallNeededACUs();
 
   /**
    * Performs initial setup before starting the job step execution.
@@ -306,14 +316,14 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   /**
    * Starts the initial tasks for the process based on the calculated thread count.
    *
-   * @param schema The database schema to use.
    * @throws TooManyResourcesClaimed If too many resources are claimed during the process.
    * @throws QueryBuildingException If an error occurs while building the SQL query.
    * @throws WebClientException If an error occurs while interacting with the web client.
    * @throws SQLException If an error occurs while executing SQL queries.
    */
-  private void startInitialTasks(String schema) throws TooManyResourcesClaimed,
+  private void startInitialTasks() throws TooManyResourcesClaimed,
           QueryBuildingException, WebClientException, SQLException, InvalidGeometryException {
+
     for (int i = 0; i < calculatedThreadCount; i++) {
       TaskProgress taskProgressAndTaskItem = getTaskProgressAndTaskItem();
       if(taskProgressAndTaskItem.getTaskId() == -1)
@@ -341,7 +351,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
 
     //if taskId is -1 all tasks are already started
     if (taskProgressAndItem.getTaskId() != -1) {
-      BigDecimal overallAcusBD = BigDecimal.valueOf(overallNeededAcus);
+      BigDecimal overallAcusBD = BigDecimal.valueOf(calculateOverallNeededACUs());
       BigDecimal itemCountBD = BigDecimal.valueOf(taskItemCount);
 
       // Perform precise division
@@ -370,7 +380,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
       taskItemCount = taskDataList.size();
       insertTaskItemsInTaskTable(schema, this, taskDataList);
     }
-    startInitialTasks(schema);
+    startInitialTasks();
     noTasksCreated = taskItemCount == 0;
   }
 

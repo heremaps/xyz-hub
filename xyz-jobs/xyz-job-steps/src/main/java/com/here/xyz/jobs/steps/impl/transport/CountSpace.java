@@ -231,11 +231,16 @@ public class CountSpace extends TaskedSpaceBasedStep<CountSpace, CountInput, Exp
   }
 
   @Override
+  protected double calculateOverallNeededACUs(){
+    return 0.0;
+  }
+
+  @Override
   public List<Load> getNeededResources() {
     try {
       Load expectedLoad = new Load()
           .withResource(db())
-          .withEstimatedVirtualUnits(0.0);
+          .withEstimatedVirtualUnits(calculateOverallNeededACUs());
 
       logger.info("[{}] getNeededResources {}", getGlobalStepId(), getSpaceId());
 

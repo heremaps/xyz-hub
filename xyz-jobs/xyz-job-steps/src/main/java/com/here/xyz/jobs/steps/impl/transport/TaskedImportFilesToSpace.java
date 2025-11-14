@@ -216,7 +216,7 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
   public List<Load> getNeededResources() {
     try {
       //Calculate estimation for ACUs for all parallel running threads
-      overallNeededAcus = overallNeededAcus != -1 ? overallNeededAcus : calculateNeededAcus(IMPORT_THREAD_COUNT);
+      double overallNeededAcus = calculateOverallNeededACUs();
       return List.of(new Load().withResource(db()).withEstimatedVirtualUnits(overallNeededAcus),
               new Load().withResource(IOResource.getInstance()).withEstimatedVirtualUnits(getUncompressedUploadBytesEstimation()));
     }
@@ -225,11 +225,12 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
     }
   }
 
-  private double calculateNeededAcus(int threadCount) {
+  @Override
+  protected double calculateOverallNeededACUs(){
     double neededACUs;
 
     neededACUs = ResourceAndTimeCalculator.getInstance().calculateNeededImportAcus(
-            getUncompressedUploadBytesEstimation(), countFiles(), threadCount);
+            getUncompressedUploadBytesEstimation(), countFiles(), IMPORT_THREAD_COUNT);
     neededACUs /= 4d; //TODO: Remove workaround once GraphSequentializer was implemented
 
     infoLog(JOB_EXECUTOR,  "Calculated ACUS: expectedMemoryConsumption: "

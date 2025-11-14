@@ -251,18 +251,32 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
         );
 
       long estimatedIOBytes = getEstimatedIOBytes();
-      overallNeededAcus = overallNeededAcus != -1 ? overallNeededAcus : calculateNeededExportAcus(estimatedIOBytes);
+      double overallNeededAcus = calculateOverallNeededACUs();
 
       infoLog(JOB_EXECUTOR,  "Calculated ACUS: byteSize of layer: " + estimatedIOBytes
           + " => neededACUs:" + overallNeededAcus);
 
       return List.of(
           new Load().withResource(dbReader()).withEstimatedVirtualUnits(overallNeededAcus),
-          new Load().withResource(IOResource.getInstance()).withEstimatedVirtualUnits(estimatedIOBytes));
+          new Load().withResource(IOResource.getInstance()).withEstimatedVirtualUnits(getEstimatedIOBytes()));
     }
     catch (WebClientException e) {
       throw new StepException("Error calculating the necessary resources for the step.", e).withRetryable(true);
     }
+  }
+
+  @Override
+  protected double calculateOverallNeededACUs() {
+    //maximum auf Acus - to prevent that job never gets executed. @TODO: check how to deal is maxUnits of DB
+    final double maxAcus = 70;
+    //exports are not as heavy as imports
+    //TODO: Implement more specific load calculation that matches the actual use case of exporting data
+    final double exportDivisor = 3;
+
+    //Calculate the needed ACUs
+    double neededAcus = ResourceAndTimeCalculator.getInstance().calculateNeededAcusFromByteSize(getEstimatedIOBytes())
+            / exportDivisor;
+    return Math.min(neededAcus, maxAcus);
   }
 
   protected long getEstimatedIOBytes() {
@@ -273,18 +287,6 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
       throw new StepException("Error calculating the necessary resources for the step.", e).withRetryable(true);
     }
     return statistics.getDataSize().getValue();
-  }
-
-  private double calculateNeededExportAcus(long bytesSizeEstimation) {
-    //maximum auf Acus - to prevent that job never gets executed. @TODO: check how to deal is maxUnits of DB
-    final double maxAcus = 70;
-    //exports are not as heavy as imports
-    //TODO: Implement more specific load calculation that matches the actual use case of exporting data
-    final double exportDivisor = 3;
-
-    //Calculate the needed ACUs
-    double neededAcus = ResourceAndTimeCalculator.getInstance().calculateNeededAcusFromByteSize(bytesSizeEstimation) / exportDivisor;
-    return Math.min(neededAcus, maxAcus);
   }
 
   @Override
