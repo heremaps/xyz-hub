@@ -29,15 +29,13 @@ import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPe
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPerLine.FeatureCollection;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.CSV_JSON_WKB;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.GEOJSON;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_EXECUTOR;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_VALIDATE;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_ASYNC_SUCCESS;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_STATE_CHECK;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildTemporaryJobTableDropStatement;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.errorLog;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporaryJobTableName;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
+import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.JOB_EXECUTOR;
+import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.JOB_VALIDATE;
+import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_EXECUTE;
+import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_ON_ASYNC_SUCCESS;
+import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_ON_STATE_CHECK;
+import static com.here.xyz.jobs.steps.impl.transport.TaskedSpaceBasedStep.buildTemporaryJobTableDropStatement;
+import static com.here.xyz.jobs.steps.impl.transport.TaskedSpaceBasedStep.getTemporaryJobTableName;
 import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -88,6 +86,7 @@ import org.locationtech.jts.io.ParseException;
  * This step imports a set of user provided inputs and imports their data into a specified space. This step produces exactly one output of
  * type {@link FeatureStatistics}.
  */
+@Deprecated
 public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
   private static final long MAX_INPUT_BYTES_FOR_SYNC_IMPORT = 100l * 1024 * 1024;
@@ -294,7 +293,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     if (estimatedSeconds == -1 && getSpaceId() != null) {
       estimatedSeconds = ResourceAndTimeCalculator.getInstance()
           .calculateImportTimeInSeconds(getSpaceId(), getUncompressedUploadBytesEstimation(), getExecutionMode());
-      infoLog(JOB_EXECUTOR, this, "Calculated estimatedSeconds: "+estimatedSeconds );
+      infoLog(JOB_EXECUTOR,  "Calculated estimatedSeconds: "+estimatedSeconds );
     }
     return estimatedSeconds;
   }
@@ -331,7 +330,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   public boolean validate() throws ValidationException {
     super.validate();
     try {
-      infoLog(JOB_VALIDATE, this);
+      infoLog(JOB_VALIDATE);
       //Check if the space is actually existing
       Space space = space();
       if (!space.isActive())
@@ -369,17 +368,17 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       syncExecution();
     else {
       if (!resume) {
-        infoLog(STEP_EXECUTE, this,"Retrieve new version");
+        infoLog(STEP_EXECUTE, "Retrieve new version");
         long newVersion = getOrIncreaseVersionSequence();
 
-        infoLog(STEP_EXECUTE, this,"Create TriggerTable and Trigger");
+        infoLog(STEP_EXECUTE, "Create TriggerTable and Trigger");
         //Create Temp-ImportTable to avoid deserialization of JSON and fix missing row count
         //FIXME: Use job owner as author
         runBatchWriteQuerySync(buildTemporaryTriggerTableBlock(space().getOwner(), newVersion), db(), 0);
       }
 
       if(!createAndFillTemporaryJobTable()) {
-        infoLog(STEP_EXECUTE, this,"No files available - nothing to do!");
+        infoLog(STEP_EXECUTE, "No files available - nothing to do!");
         //Report Success with a new invocation.
         runReadQueryAsync(buildSuccessReportQuery(), db(), 0, true);
         //no Files to process simply return successfully!
@@ -388,7 +387,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
       double neededAcusForOneThread = calculateNeededAcus(1);
       for (int i = 1; i <= calculateThreadCount(); i++) {
-        infoLog(STEP_EXECUTE, this,"Start Import Thread number " + i);
+        infoLog(STEP_EXECUTE, "Start Import Thread number " + i);
         runReadQueryAsync(buildImportQuery(), db(), neededAcusForOneThread, false);
       }
     }
@@ -396,7 +395,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
   private void syncExecution() throws WebClientException, SQLException, TooManyResourcesClaimed, IOException {
     //TODO: Support resume
-    infoLog(STEP_EXECUTE, this,"Retrieve new version");
+    infoLog(STEP_EXECUTE, "Retrieve new version");
     long newVersion = getOrIncreaseVersionSequence();
 
     ExecutorService exec = Executors.newFixedThreadPool(5);
@@ -425,7 +424,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     exec.shutdown();
 
     registerOutputs(List.of(resultOutput), STATISTICS);
-    infoLog(STEP_EXECUTE, this,"Set contentUpdatedAt on target space");
+    infoLog(STEP_EXECUTE, "Set contentUpdatedAt on target space");
     hubWebClient().patchSpace(getSpaceId(), Map.of("contentUpdatedAt", Core.currentTimeMillis()));
   }
 
@@ -438,7 +437,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
    */
   private int syncWriteFileToSpace(UploadUrl input, long newVersion) throws IOException, WebClientException, SQLException,
       TooManyResourcesClaimed {
-    infoLog(STEP_EXECUTE, this,"Start sync write of file " + input.getS3Key() + " ...");
+    infoLog(STEP_EXECUTE, "Start sync write of file " + input.getS3Key() + " ...");
 
     InputStream inputStream = S3Client.getInstance(input.getS3Bucket()).streamObjectContent(input.getS3Key());
     if (input.isCompressed())
@@ -463,7 +462,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
         return rs.getInt("count");
       });
 
-      infoLog(STEP_EXECUTE, this,"Completed sync write of file " + input.getS3Key() + ". Written features: "
+      infoLog(STEP_EXECUTE, "Completed sync write of file " + input.getS3Key() + ". Written features: "
           + writtenFeatureCount + ", input bytes: " + input.getByteSize());
 
       return writtenFeatureCount;
@@ -494,15 +493,15 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
   private boolean createAndFillTemporaryJobTable() throws SQLException, TooManyResourcesClaimed, WebClientException {
     if (isResume()) {
-      infoLog(STEP_EXECUTE, this, "Reset SuccessMarker");
+      infoLog(STEP_EXECUTE,  "Reset SuccessMarker");
       runWriteQuerySync(buildResetJobTableItemsForResumeStatement(), db(), 0);
       return true;
     }
     else {
-      infoLog(STEP_EXECUTE, this, "Create temporary job table");
+      infoLog(STEP_EXECUTE,  "Create temporary job table");
       runWriteQuerySync(buildTemporaryJobTableCreateStatement(), db(), 0);
 
-      infoLog(STEP_EXECUTE, this, "Fill temporary job table");
+      infoLog(STEP_EXECUTE,  "Fill temporary job table");
 
       List<?> inputs = loadInputs(UploadUrl.class);
       runBatchWriteQuerySync(SQLQuery.batchOf(buildTemporaryJobTableInsertStatements((List<S3DataFile>) inputs)), db(), 0);
@@ -526,14 +525,14 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
             getStatus().setEstimatedProgress(progress);
 
-            infoLog(STEP_ON_STATE_CHECK,this,"Progress[" + progress + "] => " + " processedBytes:"
+            infoLog(STEP_ON_STATE_CHECK,"Progress[" + progress + "] => " + " processedBytes:"
                     + processedBytes + " ,finishedCnt:" + finishedCnt + " ,failedCnt:" + failedCnt);
             return progress;
           });
     }
     catch (Exception e) {
       //TODO: What to do? Only log? Report Status is not that important. Further Ignore "table does not exists error" - report 0 in this case.
-      errorLog(STEP_ON_STATE_CHECK, this, e);
+      errorLog(STEP_ON_STATE_CHECK, e);
     }
   }
 
@@ -546,19 +545,19 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
               ? new FeatureStatistics().withFeatureCount(rs.getLong("imported_rows")).withByteSize(rs.getLong("imported_bytes"))
               : new FeatureStatistics());
 
-      infoLog(STEP_ON_ASYNC_SUCCESS, this,"Job Statistics: bytes=" + statistics.getByteSize() + " rows=" + statistics.getFeatureCount());
+      infoLog(STEP_ON_ASYNC_SUCCESS, "Job Statistics: bytes=" + statistics.getByteSize() + " rows=" + statistics.getFeatureCount());
       registerOutputs(List.of(statistics), STATISTICS);
 
       cleanUpDbRelatedResources();
 
-      infoLog(STEP_ON_ASYNC_SUCCESS, this,"Set contentUpdatedAt on target space");
+      infoLog(STEP_ON_ASYNC_SUCCESS, "Set contentUpdatedAt on target space");
       hubWebClient().patchSpace(getSpaceId(), Map.of("contentUpdatedAt", Core.currentTimeMillis()));
     }
     catch (SQLException e) {
       //relation "*_job_data" does not exist - can happen when we have received twice a SUCCESS_CALLBACK
       //TODO: Find out the cases in which that could happen and prevent it from happening
       if (e.getSQLState() != null && e.getSQLState().equals("42P01")) {
-        errorLog(STEP_ON_ASYNC_SUCCESS, this, e, "_job_data table got already deleted!");
+        errorLog(STEP_ON_ASYNC_SUCCESS,  e, "_job_data table got already deleted!");
         return;
       }
       throw e;
@@ -566,7 +565,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   }
 
   private void cleanUpDbRelatedResources() throws TooManyResourcesClaimed, SQLException, WebClientException {
-    infoLog(STEP_ON_ASYNC_SUCCESS, this, "Clean up database resources");
+    infoLog(STEP_ON_ASYNC_SUCCESS,  "Clean up database resources");
     runBatchWriteQuerySync(SQLQuery.batchOf(
             buildTemporaryJobTableDropStatement(getSchema(db()), getTemporaryJobTableName(getId())),
             buildTemporaryJobTableDropStatement(getSchema(db()), getTemporaryTriggerTableName(getId()))
@@ -864,7 +863,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
         getUncompressedUploadBytesEstimation(), countFiles(), threadCount);
     neededACUs /= 4d; //TODO: Remove workaround once GraphSequentializer was implemented
 
-    infoLog(JOB_EXECUTOR, this, "Calculated ACUS: expectedMemoryConsumption: "
+    infoLog(JOB_EXECUTOR,  "Calculated ACUS: expectedMemoryConsumption: "
             + getUncompressedUploadBytesEstimation() + " => neededACUs:" + neededACUs);
     return neededACUs;
   }

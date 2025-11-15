@@ -23,7 +23,7 @@ import static com.google.common.net.HttpHeaders.CONTENT_TYPE;
 import static com.here.xyz.jobs.steps.Step.InputSet.DEFAULT_SET_NAME;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.START_EXECUTION;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.SUCCESS_CALLBACK;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporaryJobTableName;
+import static com.here.xyz.jobs.steps.impl.transport.TaskedSpaceBasedStep.getTemporaryJobTableName;
 import static com.here.xyz.jobs.steps.inputs.Input.inputS3Prefix;
 import static com.here.xyz.util.Random.randomAlpha;
 import static com.here.xyz.util.db.pg.IndexHelper.buildSpaceTableDropIndexQueries;
@@ -43,7 +43,7 @@ import com.here.xyz.jobs.steps.impl.DropIndexes;
 import com.here.xyz.jobs.steps.impl.transport.CountSpace;
 import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
-import com.here.xyz.jobs.steps.impl.transport.TransportTools;
+import com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.jobs.util.S3Client;
@@ -345,7 +345,7 @@ public class StepTestBase {
     for (String stepId : stepIds) {
       dropQueries.add(new SQLQuery("DROP TABLE IF EXISTS ${schema}.${table};")
           .withVariable("schema", SCHEMA)
-          .withVariable("table", TransportTools.getTemporaryJobTableName(stepId))
+          .withVariable("table", getTemporaryJobTableName(stepId))
       );
       dropQueries.add(
           new SQLQuery("DROP TABLE IF EXISTS ${schema}.${table};")
@@ -377,6 +377,7 @@ public class StepTestBase {
     DataSourceProvider dsp = getDataSourceProvider();
 
     if(   step instanceof ExportSpaceToFiles
+       || step instanceof TaskedImportFilesToSpace
        || step instanceof CountSpace ){
       waitTillTaskItemsAreFinalized(step);
     }else{
@@ -399,7 +400,11 @@ public class StepTestBase {
         i = query.run(getDataSourceProvider(), rs -> rs.next() ? rs.getInt(1) : null);
         logger.info("{} Threads are not finished!", i);
       }
-    } catch (XyzWebClient.WebClientException | SQLException e) {
+    }catch (SQLException e){
+      //42P01 = relation does not exist - happens if the step is already finalized
+      if(!e.getSQLState().equals("42P01"))
+        throw new RuntimeException(e);
+    }catch (XyzWebClient.WebClientException e) {
       throw new RuntimeException(e);
     }
   }

@@ -39,13 +39,14 @@ import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.JobCompiler.CompilationError;
 import com.here.xyz.jobs.steps.StepExecution;
 import com.here.xyz.jobs.steps.compiler.tools.IndexCompilerHelper;
-import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
 import com.here.xyz.jobs.steps.impl.AnalyzeSpaceTable;
 import com.here.xyz.jobs.steps.impl.CreateIndex;
 import com.here.xyz.jobs.steps.impl.DropIndexes;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPerLine;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format;
+import com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace;
+import com.here.xyz.models.hub.Ref;
 import com.here.xyz.util.db.pg.IndexHelper.Index;
 import com.here.xyz.util.db.pg.IndexHelper.SystemIndex;
 import com.here.xyz.util.web.HubWebClient;
@@ -58,6 +59,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class ImportFromFiles implements JobCompilationInterceptor {
+  private final boolean useNewTaskedImportStep = true;
+
   public static Set<Class<? extends Space>> allowedTargetTypes = new HashSet<>(Set.of(Space.class));
 
   @Override
@@ -84,23 +87,37 @@ public class ImportFromFiles implements JobCompilationInterceptor {
     else
       throw new CompilationError("Unsupported import file format: " + sourceFormat.getClass().getSimpleName());
 
-    ImportFilesToSpace importFilesStep = new ImportFilesToSpace() //Perform import
-        .withSpaceId(spaceId)
-        .withFormat(importStepFormat)
-        .withEntityPerLine(getEntityPerLine(sourceFormat))
-        .withJobId(job.getId())
-        .withInputSets(List.of(USER_INPUTS.get()));
-
     //This validation check is necessary to deliver a constructive error to the user - otherwise keepIndices will throw a runtime error.
     checkIfSpaceIsAccessible(spaceId);
 
-    if (importFilesStep.getExecutionMode().equals(LambdaBasedStep.ExecutionMode.SYNC) || importFilesStep.keepIndices())
-      //Perform only the import Step
-      return (CompilationStepGraph) new CompilationStepGraph()
-          .addExecution(importFilesStep);
+    if(useNewTaskedImportStep) {
+      TaskedImportFilesToSpace importFilesStep = new TaskedImportFilesToSpace() //Perform import
+              .withSpaceId(spaceId)
+              .withVersionRef(new Ref(Ref.HEAD))
+              .withJobId(job.getId())
+              .withInputSets(List.of(USER_INPUTS.get()));
+      if (importFilesStep.keepIndices())
+        //Perform only the import Step
+        return (CompilationStepGraph) new CompilationStepGraph()
+                .addExecution(importFilesStep);
 
-    //perform full Import with all 11 Steps (IDX deletion/creation..)
-    return compileImportSteps(importFilesStep);
+      //perform full Import with all 11 Steps (IDX deletion/creation..)
+      return compileTaskedImportSteps(importFilesStep);
+    }else{
+      ImportFilesToSpace importFilesStep = new ImportFilesToSpace() //Perform import
+              .withSpaceId(spaceId)
+              .withFormat(importStepFormat)
+              .withEntityPerLine(getEntityPerLine(sourceFormat))
+              .withJobId(job.getId())
+              .withInputSets(List.of(USER_INPUTS.get()));
+      if (importFilesStep.keepIndices())
+        //Perform only the import Step
+        return (CompilationStepGraph) new CompilationStepGraph()
+                .addExecution(importFilesStep);
+
+      //perform full Import with all 11 Steps (IDX deletion/creation..)
+      return compileImportSteps(importFilesStep);
+    }
   }
 
   public static CompilationStepGraph compileWrapWithDropRecreateIndices(String spaceId, StepExecution stepExecution) {
@@ -137,6 +154,16 @@ public class ImportFromFiles implements JobCompilationInterceptor {
 
   }
 
+  public static CompilationStepGraph compileTaskedImportSteps(TaskedImportFilesToSpace importFilesStep) {
+    try {
+      //Keep these indices if FeatureWriter is used
+      List<Index> whiteListIndex = importFilesStep.useFeatureWriter() ? List.of(VERSION_ID, NEXT_VERSION, OPERATION) : null;
+      return compileWrapWithDropRecreateIndices(importFilesStep.getSpaceId(), importFilesStep, whiteListIndex);
+    } catch (WebClientException e) {
+      throw new CompilationError("Unexpected error occurred during compilation", e);
+    }
+  }
+
   public static CompilationStepGraph compileImportSteps(ImportFilesToSpace importFilesStep) {
     try {
       //Keep these indices if FeatureWriter is used
@@ -167,6 +194,4 @@ public class ImportFromFiles implements JobCompilationInterceptor {
       throw new CompilationError("Target is not accessible!" + e.getMessage());
     }
   }
-
-
 }
