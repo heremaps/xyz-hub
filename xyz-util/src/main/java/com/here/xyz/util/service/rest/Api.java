@@ -58,6 +58,7 @@ import io.vertx.core.json.Json;
 import io.vertx.ext.web.RoutingContext;
 import java.io.ByteArrayOutputStream;
 import java.util.List;
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
@@ -135,7 +136,8 @@ public class Api {
         error = XyzError.EXCEPTION;
 
       //This is an exception sent by intention and nothing special, no need for stacktrace logging.
-      logger.warn(Api.getMarker(context), "Error was handled by Api and will be sent as response: {}", httpException.status.code());
+      logger.log(httpException.status.code() >= 500 ? Level.ERROR : Level.WARN, Api.getMarker(context),
+          "Error was handled by Api and will be sent as response: {}", httpException.status.code());
       logger.info(Api.getMarker(context), "Handled exception was:", httpException);
       sendErrorResponse(context, httpException, error);
     }

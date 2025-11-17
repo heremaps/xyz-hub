@@ -189,13 +189,17 @@ public class FeatureApi extends SpaceBasedApi {
    * Creates or replaces a feature.
    */
   private void putFeature(final RoutingContext context) throws HttpException {
-    if (Config.instance.USE_WRITE_FEATURES_EVENT)
+    if (useWFE(context))
       executeWriteFeatures(context, FEATURE,
           toFeatureModificationList(readFeature(context).withId(getFeatureId(context)), IfNotExists.CREATE, IfExists.REPLACE,
               ConflictResolution.ERROR), getSpaceContext(context));
     else
       executeConditionalOperationChain(false, context, FEATURE, IfExists.REPLACE, IfNotExists.CREATE, true,
           ConflictResolution.ERROR);
+  }
+
+  private boolean useWFE(RoutingContext context) {
+    return Config.instance.USE_WRITE_FEATURES_EVENT && getSpaceId(context).contains("drgnstn");
   }
 
   private FeatureModificationList toFeatureModificationList(Feature feature, IfNotExists ifNotExists, IfExists ifExists,
@@ -230,7 +234,7 @@ public class FeatureApi extends SpaceBasedApi {
    */
   private void putFeatures(final RoutingContext context) throws HttpException {
     ApiResponseType responseType = getEmptyResponseTypeOr(context, FEATURE_COLLECTION);
-    if (Config.instance.USE_WRITE_FEATURES_EVENT)
+    if (useWFE(context))
       executeWriteFeatures(context, responseType,
           toFeatureModificationList(readFeatureOrFeatureCollection(context), IfNotExists.CREATE, IfExists.REPLACE, ConflictResolution.ERROR),
           getSpaceContext(context));
@@ -366,7 +370,7 @@ public class FeatureApi extends SpaceBasedApi {
    * Patches a feature
    */
   private void patchFeature(final RoutingContext context) throws HttpException {
-    if (Config.instance.USE_WRITE_FEATURES_EVENT)
+    if (useWFE(context))
       executeWriteFeatures(context, FEATURE,
           toFeatureModificationList(readFeature(context).withId(getFeatureId(context)), IfNotExists.RETAIN, PATCH, ConflictResolution.ERROR),
           getSpaceContext(context));
@@ -385,7 +389,7 @@ public class FeatureApi extends SpaceBasedApi {
     ApiResponseType responseType = getEmptyResponseTypeOr(context, FEATURE_COLLECTION);
     String contentType = context.parsedHeaders().contentType().value();
 
-    if (Config.instance.USE_WRITE_FEATURES_EVENT) {
+    if (useWFE(context)) {
       FeatureModificationList featureModificationList = APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST.equals(contentType)
           ? readFeatureModificationList(context, ifExists, ifNotExists, conflictResolution)
           : toFeatureModificationList(readFeatureOrFeatureCollection(context), ifNotExists, ifExists, conflictResolution);
@@ -404,7 +408,7 @@ public class FeatureApi extends SpaceBasedApi {
     String featureId = context.pathParam(Path.FEATURE_ID);
     final SpaceContext spaceContext = getSpaceContext(context);
 
-    if (Config.instance.USE_WRITE_FEATURES_EVENT)
+    if (useWFE(context))
       executeDeleteFeatures(context, EMPTY, List.of(featureId), spaceContext, true);
     else
       executeConditionalOperationChain(true, context, ApiResponseType.EMPTY, IfExists.DELETE, IfNotExists.RETAIN,
@@ -426,7 +430,7 @@ public class FeatureApi extends SpaceBasedApi {
       sendErrorResponse(context, new DetailedHttpException("E318406"));
     else {
       //Delete features by IDs
-      if (Config.instance.USE_WRITE_FEATURES_EVENT && !eraseContent)
+      if (useWFE(context) && !eraseContent)
         executeDeleteFeatures(context, responseType, featureIds, spaceContext, false);
       else
         executeConditionalOperationChain(false, context, responseType, IfExists.DELETE, IfNotExists.RETAIN, true,

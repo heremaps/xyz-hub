@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -119,6 +119,43 @@ public class SQLScriptsIT extends SQLITBase {
       assertEquals("There should be kept only one script version after cleaning up old script versions", 1,
           installedVersions.size());
       assertTrue("The kept script version should be the newest of the installed ones.", installedVersions.contains("1.0.2"));
+    }
+  }
+
+  @Test
+  public void useInstalledJsLib() throws Exception {
+    try (DataSourceProvider dsp = getDataSourceProvider()) {
+      new SQLQuery("""
+          CREATE OR REPLACE FUNCTION jsonpath(document TEXT, path TEXT)
+          RETURNS text AS
+          $BODY$
+            plv8.execute("SELECT require('jsonpath_rfc9535')");
+            return jsonpath_rfc9535.query(JSON.parse(document), path)[0];
+          $BODY$
+          LANGUAGE 'plv8' IMMUTABLE
+          PARALLEL UNSAFE;
+          """).write(dsp);
+
+      String returnedValue = new SQLQuery("SELECT jsonpath(#{document}, #{path})")
+          .withVariable("schema", "hub.common")
+          .withNamedParameter("document", """
+              {
+                "store": {
+                  "book": [
+                    {
+                      "category": "reference",
+                      "author": "Nigel Rees",
+                      "title": "Sayings of the Century",
+                      "price": 8.95
+                    }
+                  ]
+                }
+              }
+              """)
+          .withNamedParameter("path", "$.store.book[0].author")
+          .run(dsp, rs -> rs.next() ? rs.getString(1) : null);
+
+      assertEquals(returnedValue, "Nigel Rees");
     }
   }
 

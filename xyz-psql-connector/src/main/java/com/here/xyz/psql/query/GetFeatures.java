@@ -147,7 +147,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     int baseNodeId = getNodeId(baseRef);
     String branchTable = branchTableName(rootTableName, baseRef, nodeId);
 
-    SQLQuery branchDataQuery = new SQLQuery("SELECT ${{selectClause}} FROM ${schema}.${table} WHERE ${{filters}} ${{versionCheck}}")
+    SQLQuery branchDataQuery = new SQLQuery("SELECT ${{selectClause}} FROM ${schema}.${table} WHERE ${{filters}} ${{versionCheck}} ${{limit}}")
         .withVariable(TABLE, branchTable)
         .withQueryFragment("selectClause", buildSelectClause(event, nodeId, baseRef.getVersion()))
         .withQueryFragment("filters", buildFiltersFragment(event, false, filterWhereClause, nodeId))
@@ -157,7 +157,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
         (${{branchData}})
         UNION ALL
         (
-          SELECT * FROM (${{base}}) ${{datasetId}} ${{branchCompositionFilter}}
+          SELECT * FROM (${{base}}) ${{datasetId}} ${{branchCompositionFilter}} ${{limit}}
         )
         """)
         .withQueryFragment("branchData", branchDataQuery)
