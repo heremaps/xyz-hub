@@ -42,6 +42,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -96,6 +97,9 @@ public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureColl
     if (event.getRef() != null && event.getRef().isSingleVersion() && !event.getRef().isHead())
       queryContextBuilder.withBaseVersion(event.getRef().getVersion());
 
+    if (event.getSearchableProperties() != null && !event.getSearchableProperties().isEmpty())
+      queryContextBuilder.with("writeHooks", List.of(writeHook(event.getSearchableProperties())));
+
     return new SQLQuery("SELECT write_features(#{modifications}, 'Modifications', #{author}, #{responseDataExpected});")
         .withLoggingEnabled(false)
         .withContext(queryContextBuilder.build())
@@ -133,5 +137,28 @@ public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureColl
     catch (JsonProcessingException e) {
       throw new RuntimeException("Error parsing query result.", e);
     }
+  }
+
+  private String writeHook(Map<String, String> searchableProperties) {
+    return """
+        feature => {
+          const searchableProperties = ${searchableProperties};
+          let searchables = {};
+          
+          for (const alias in searchableProperties) {
+            const jsonPath = searchableProperties[alias];
+            try {
+              searchables[alias] = jsonpath_rfc9535.query(feature, jsonPath)[0];
+            }
+            catch (err) {
+              throw new Error(`Error evaluating JSONPath for alias ${alias} and expression ${jsonPath} message: ${err.message}`);
+            }
+          }
+          
+          return {
+            "searchable": searchables
+          };
+        }
+        """.replace("${searchableProperties}", XyzSerializable.serialize(searchableProperties));
   }
 }

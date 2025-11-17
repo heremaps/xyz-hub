@@ -314,6 +314,12 @@ class DatabaseWriter {
       return this.execute()[0];
   }
 
+  createJsonData(inputFeature) {
+    let writeHooks = queryContext().writeHooks;
+    //TODO: Translate the inputFeature into the value for the jsondata column (also apply the write hooks here if some are specified)
+    return inputFeature;
+  }
+
   _PARTITION_SIZE() {
     return queryContext().PARTITION_SIZE || 100000; //TODO: Ensure the partition size is always set in the query context
   }

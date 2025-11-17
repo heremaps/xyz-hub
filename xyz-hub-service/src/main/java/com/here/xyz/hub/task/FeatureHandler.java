@@ -19,8 +19,8 @@
 
 package com.here.xyz.hub.task;
 
-import static com.here.xyz.hub.task.FeatureTaskHandler.injectMinVersion;
 import static com.here.xyz.hub.task.FeatureTask.resolveBranchFor;
+import static com.here.xyz.hub.task.FeatureTaskHandler.injectMinVersion;
 import static com.here.xyz.util.service.rest.TooManyRequestsException.ThrottlingReason.MEMORY;
 import static com.here.xyz.util.service.rest.TooManyRequestsException.ThrottlingReason.STORAGE_QUEUE_FULL;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
@@ -65,6 +65,7 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.stream.Collectors;
 import net.jodah.expiringmap.ExpirationPolicy;
 import net.jodah.expiringmap.ExpiringMap;
 import org.apache.logging.log4j.LogManager;
@@ -95,7 +96,12 @@ public class FeatureHandler {
           .withContext(spaceContext)
           .withAuthor(author)
           .withResponseDataExpected(responseDataExpected)
-          .withRef(baseRef);
+          .withRef(baseRef)
+          .withSearchableProperties(space.getSearchableProperties().entrySet().stream()
+              .collect(Collectors.toMap(
+                  e -> e.getKey().startsWith("$") ? e.getKey().substring(1) : e.getKey(),
+                  e -> e.getKey().startsWith("$") ? toJsonPath(e.getKey().substring(e.getKey().indexOf(":") + 1)) : toJsonPath(e.getKey())
+              )));
 
       return Future.all(injectMinVersion(marker, space.getId(), event), injectSpaceParams(event, space))
           .compose(v -> {
@@ -129,6 +135,15 @@ public class FeatureHandler {
     catch (Exception e) {
       return Future.failedFuture(e);
     }
+  }
+
+  private static String toJsonPath(String jsonPathPointer) {
+    if (jsonPathPointer.startsWith("$"))
+      //The path pointer is already a JSONPath
+      return jsonPathPointer;
+
+    //TODO: Translate the path pointer like "prop1.prop2[0].prop3" to JSONPath "$.prop1.prop2[0].prop3" for all cases correctly
+    return "$." + jsonPathPointer;
   }
 
   static void throttle(Space space) throws HttpException {

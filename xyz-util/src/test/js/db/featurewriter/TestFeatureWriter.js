@@ -88,7 +88,7 @@ class TestFeatureWriter {
   }
 
   run() {
-    let result = FeatureWriter.writeFeature(this.inputFeature, null, "REPLACE", "CREATE", null, null, false, null, null);
+    let result = FeatureWriter.writeFeature(this.inputFeature, null, "REPLACE", "CREATE", null, null, false, null);
     console.log("Returned result from FeatureWriter: ", result);
   }
 

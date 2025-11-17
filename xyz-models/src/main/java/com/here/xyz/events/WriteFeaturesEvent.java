@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,11 +21,18 @@ package com.here.xyz.events;
 
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 public class WriteFeaturesEvent extends ContextAwareEvent<WriteFeaturesEvent> {
   private Set<Modification> modifications;
   private boolean responseDataExpected;
+  /**
+   * A map of properties that are searchable.
+   * The key is the name of the alias / field that should be indexed.
+   * The value is the JSON-Pointer to the property in the feature or a JSONPath expression.
+   */
+  private Map<String, String> searchableProperties;
 
   public Set<Modification> getModifications() {
     return modifications;
@@ -53,13 +60,25 @@ public class WriteFeaturesEvent extends ContextAwareEvent<WriteFeaturesEvent> {
     return this;
   }
 
+  public Map<String, String> getSearchableProperties() {
+    return searchableProperties;
+  }
+
+  public void setSearchableProperties(Map<String, String> searchableProperties) {
+    this.searchableProperties = searchableProperties;
+  }
+
+  public WriteFeaturesEvent withSearchableProperties(Map<String, String> searchableProperties) {
+    setSearchableProperties(searchableProperties);
+    return this;
+  }
+
   public static class Modification {
     private UpdateStrategy updateStrategy;
     private FeatureCollection featureData;
     private List<String> featureIds; //To be used only for deletions
     private boolean partialUpdates;
     private List<String> featureHooks; //NOTE: The featureHooks will be applied in the given order
-    private List<String> writeHooks; //NOTE: The Hooks will be applied in the given order
 
     public UpdateStrategy getUpdateStrategy() {
       return updateStrategy;
@@ -125,20 +144,5 @@ public class WriteFeaturesEvent extends ContextAwareEvent<WriteFeaturesEvent> {
       setFeatureHooks(featureHooks);
       return this;
     }
-
-    public List<String> getWriteHooks() {
-      return writeHooks;
-    }
-
-    public void setWriteHooks(List<String> writeHooks) {
-      this.writeHooks = writeHooks;
-    }
-
-    public Modification withWriteHooks(List<String> writeHooks) {
-      setWriteHooks(writeHooks);
-      return this;
-    }
-
-
   }
 }
