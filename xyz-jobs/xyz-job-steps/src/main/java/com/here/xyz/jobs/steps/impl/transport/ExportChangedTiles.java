@@ -140,6 +140,7 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
   }
 
   {
+    threadCount = 8;
     setOutputSets(List.of(
         new OutputSet(STATISTICS, USER, true),
         new OutputSet(EXPORTED_DATA, USER, false),
@@ -189,12 +190,6 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
       throw new ValidationException("TargetLevel must be between 0 and 12!");
     }
     return true;
-  }
-
-  @Override
-  protected int setInitialThreadCount(){
-    //always use 8 Threads
-    return 8;
   }
 
   @Override

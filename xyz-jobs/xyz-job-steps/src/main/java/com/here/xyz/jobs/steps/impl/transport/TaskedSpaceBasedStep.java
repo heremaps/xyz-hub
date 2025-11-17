@@ -82,10 +82,11 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   private static final Logger logger = LogManager.getLogger();
 
   @JsonView({Internal.class, Static.class})
-  private boolean noTasksCreated = false;
+  protected int threadCount = 8;
 
   @JsonView({Internal.class, Static.class})
-  protected int calculatedThreadCount = -1;
+  private boolean noTasksCreated = false;
+
   @JsonView({Internal.class, Static.class})
   protected int taskItemCount = -1;
   @JsonView({Internal.class, Static.class})
@@ -103,12 +104,22 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
     this.versionRef = versionRef;
   }
 
+  public T withVersionRef(Ref versionRef) {
+    setVersionRef(versionRef);
+    return (T) this;
+  }
+
   public long getSpaceCreatedAt() {
     return spaceCreatedAt;
   }
 
   public void setSpaceCreatedAt(long spaceCreatedAt) {
     this.spaceCreatedAt = spaceCreatedAt;
+  }
+
+  public T withSpaceCreatedAt(long spaceCreatedAt) {
+    setSpaceCreatedAt(spaceCreatedAt);
+    return (T) this;
   }
 
   public SpaceContext getContext() {
@@ -119,17 +130,37 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
     this.context = context;
   }
 
-  protected abstract boolean queryRunsOnWriter()
-          throws WebClientException, SQLException, TooManyResourcesClaimed;
+  public T withContext(SpaceContext context) {
+    setContext(context);
+    return (T) this;
+  }
+
+  public int getThreadCount() {
+    return threadCount;
+  }
+
+  public void setThreadCount(int threadCount) {
+    this.threadCount = threadCount;
+  }
+
+  public T withThreadCount(int threadCount) {
+    setThreadCount(threadCount);
+    return (T) this;
+  }
 
   /**
-   * Sets the initial thread count, which is getting used to start
-   * initially threadCount * Tasks.
+   * Determines whether the SQL query for a task should run on the writer database.
    *
-   * @return The initial thread count.
+   * Implementations should return {@code true} if the query requires write access (e.g., modifies data),
+   * or {@code false} if it can run on a read-only replica.
+   *
+   * @return {@code true} if the query must run on the writer DB, {@code false} otherwise.
    * @throws WebClientException If an error occurs while interacting with the web client.
+   * @throws SQLException If a database access error occurs.
+   * @throws TooManyResourcesClaimed If too many resources are claimed during the process.
    */
-  protected abstract int setInitialThreadCount() throws WebClientException;
+  protected abstract boolean queryRunsOnWriter()
+          throws WebClientException, SQLException, TooManyResourcesClaimed;
 
   /**
    * Creates generic task items in the taskAndStatistic table.
@@ -324,7 +355,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   private void startInitialTasks() throws TooManyResourcesClaimed,
           QueryBuildingException, WebClientException, SQLException, InvalidGeometryException {
 
-    for (int i = 0; i < calculatedThreadCount; i++) {
+    for (int i = 0; i < threadCount; i++) {
       TaskProgress taskProgressAndTaskItem = getTaskProgressAndTaskItem();
       if(taskProgressAndTaskItem.getTaskId() == -1)
         break;
@@ -375,7 +406,6 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
     String schema = getSchema(db());
     if (!resume) {
       initialSetup();
-      calculatedThreadCount = setInitialThreadCount();
       List<I> taskDataList = createTaskItems();
       taskItemCount = taskDataList.size();
       insertTaskItemsInTaskTable(schema, this, taskDataList);

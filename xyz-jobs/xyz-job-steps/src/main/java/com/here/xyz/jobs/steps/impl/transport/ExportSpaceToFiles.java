@@ -145,21 +145,6 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
     return this;
   }
 
-  public ExportSpaceToFiles withVersionRef(Ref versionRef) {
-    setVersionRef(versionRef);
-    return this;
-  }
-
-  public ExportSpaceToFiles withSpaceCreatedAt(long spaceCreateAt) {
-    setSpaceCreatedAt(spaceCreateAt);
-    return this;
-  }
-
-  public ExportSpaceToFiles withContext(SpaceContext context) {
-    setContext(context);
-    return this;
-  }
-
   {
     setOutputSets(List.of(
         new OutputSet(STATISTICS, USER, true),
@@ -304,6 +289,15 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
     return estimatedSeconds;
   }
 
+  @Override
+  public void execute(boolean resume) throws Exception {
+    //Set threadCount based on feature count
+    StatisticsResponse statistics = loadSpaceStatistics(getSpaceId(), context, true);
+    threadCount = statistics.getCount().getValue() > PARALLELIZTATION_MIN_THRESHOLD ? PARALLELIZTATION_THREAD_COUNT : 1;
+
+    super.execute(resume);
+  }
+
   private int calculateExportTimeInSeconds(String spaceId, long byteSize){
     int warmUpTime = 10;
     int bytesPerSecond = 57 * 1024 * 1024;
@@ -372,12 +366,6 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
     return super.onAsyncFailure();
   }
 
-  @Override
-  protected int setInitialThreadCount() throws WebClientException {
-    StatisticsResponse statistics = loadSpaceStatistics(getSpaceId(), context, true);
-    return statistics.getCount().getValue() > PARALLELIZTATION_MIN_THRESHOLD ? PARALLELIZTATION_THREAD_COUNT : 1;
-  }
-
   /**
    * Creates generic task items in the task and statistic table for each thread.
    * {@code generateTaskDataObject} is used to generate the task data for each thread.
@@ -391,7 +379,7 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
    */
   protected List<ExportInput> createTaskItems()
           throws WebClientException, SQLException, TooManyResourcesClaimed, QueryBuildingException{
-    int taskListCount = calculatedThreadCount;
+    int taskListCount = threadCount;
 
     //Todo: find a possibility to add more tasks if filters are set
     if(spatialFilter == null && propertyFilter == null) {

@@ -59,9 +59,17 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class ImportFromFiles implements JobCompilationInterceptor {
-  private final boolean useNewTaskedImportStep = true;
+  public boolean useNewTaskedImportStep = true;
 
   public static Set<Class<? extends Space>> allowedTargetTypes = new HashSet<>(Set.of(Space.class));
+
+  public void setUseNewTaskedImportStep(boolean useNewTaskedImportStep) {
+    this.useNewTaskedImportStep = useNewTaskedImportStep;
+  }
+  public ImportFromFiles withUseNewTaskedImportStep(boolean useNewTaskedImportStep) {
+    setUseNewTaskedImportStep(useNewTaskedImportStep);
+    return this;
+  }
 
   @Override
   public boolean chooseMe(Job job) {
@@ -87,10 +95,17 @@ public class ImportFromFiles implements JobCompilationInterceptor {
     else
       throw new CompilationError("Unsupported import file format: " + sourceFormat.getClass().getSimpleName());
 
+    EntityPerLine entityPerLine = getEntityPerLine(sourceFormat);
+
     //This validation check is necessary to deliver a constructive error to the user - otherwise keepIndices will throw a runtime error.
     checkIfSpaceIsAccessible(spaceId);
 
     if(useNewTaskedImportStep) {
+      if(!entityPerLine.equals(EntityPerLine.Feature))
+        throw new CompilationError("TaskedImportStep - Unsupported entityPerLine configuration: " + entityPerLine.name());
+      if(!(sourceFormat instanceof GeoJson))
+        throw new CompilationError("TaskedImportStep - Unsupported format configuration: " + sourceFormat.getClass().getSimpleName());
+
       TaskedImportFilesToSpace importFilesStep = new TaskedImportFilesToSpace() //Perform import
               .withSpaceId(spaceId)
               .withVersionRef(new Ref(Ref.HEAD))
@@ -107,7 +122,7 @@ public class ImportFromFiles implements JobCompilationInterceptor {
       ImportFilesToSpace importFilesStep = new ImportFilesToSpace() //Perform import
               .withSpaceId(spaceId)
               .withFormat(importStepFormat)
-              .withEntityPerLine(getEntityPerLine(sourceFormat))
+              .withEntityPerLine(entityPerLine)
               .withJobId(job.getId())
               .withInputSets(List.of(USER_INPUTS.get()));
       if (importFilesStep.keepIndices())

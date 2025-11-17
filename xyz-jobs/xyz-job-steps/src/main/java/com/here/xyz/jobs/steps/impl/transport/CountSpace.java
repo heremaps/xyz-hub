@@ -54,6 +54,7 @@ public class CountSpace extends TaskedSpaceBasedStep<CountSpace, CountInput, Exp
 
   public static final String FEATURECOUNT = "featurecount";
   {
+    threadCount = 1;
     setOutputSets(List.of(new OutputSet(FEATURECOUNT, USER, true)));
   }
 
@@ -187,11 +188,6 @@ public class CountSpace extends TaskedSpaceBasedStep<CountSpace, CountInput, Exp
     );
 
     return queryBuilder.buildQuery(input);
-  }
-
-  @Override
-  protected int setInitialThreadCount() {
-    return 1;
   }
 
   @Override

@@ -36,20 +36,4 @@ public record ExportInput(Integer threadId, String tileId) implements TaskPayloa
   public ExportInput(String tileId) {
     this(null, tileId);
   }
-
-  public static void main(String[] args) throws JsonProcessingException {
-    TaskedSpaceBasedStep.SpaceBasedTaskUpdate<ExportOutput> serialize = XyzSerializable.deserialize("""
-            {
-              "type" : "TaskedSpaceBasedStep$SpaceBasedTaskUpdate",
-              "taskId" : 1,
-              "taskOutput" : {
-                "rows" : 11,
-                "bytes" : 3968,
-                "files" : 1
-              }
-            }
-            """, TaskedSpaceBasedStep.SpaceBasedTaskUpdate.class);
-    System.out.println(serialize.taskOutput);
-
-  }
 }

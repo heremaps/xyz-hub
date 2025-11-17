@@ -36,7 +36,6 @@ import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
 import com.here.xyz.jobs.steps.resources.IOResource;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
-import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.SQLQuery;
@@ -74,6 +73,7 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
   public static final String STATISTICS = "statistics";
 
   {
+    threadCount = 18;
     setOutputSets(List.of(new OutputSet(STATISTICS, USER, true)));
   }
 
@@ -132,11 +132,6 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
     return this;
   }
 
-  public TaskedImportFilesToSpace withVersionRef(Ref versionRef) {
-    setVersionRef(versionRef);
-    return this;
-  }
-
   public void setFormat(Format format) {
     this.format = format;
   }
@@ -166,11 +161,6 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
   @Override
   protected boolean queryRunsOnWriter(){
     return true;
-  }
-
-  @Override
-  protected int setInitialThreadCount(){
-    return IMPORT_THREAD_COUNT;
   }
 
   @Override
@@ -230,7 +220,7 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
     double neededACUs;
 
     neededACUs = ResourceAndTimeCalculator.getInstance().calculateNeededImportAcus(
-            getUncompressedUploadBytesEstimation(), countFiles(), IMPORT_THREAD_COUNT);
+            getUncompressedUploadBytesEstimation(), countFiles(), threadCount);
     neededACUs /= 4d; //TODO: Remove workaround once GraphSequentializer was implemented
 
     infoLog(JOB_EXECUTOR,  "Calculated ACUS: expectedMemoryConsumption: "
