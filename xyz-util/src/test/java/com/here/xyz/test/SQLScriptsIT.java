@@ -125,12 +125,37 @@ public class SQLScriptsIT extends SQLITBase {
   @Test
   public void useInstalledJsLib() throws Exception {
     try (DataSourceProvider dsp = getDataSourceProvider()) {
-      String returnedValue = new SQLQuery("SELECT ${schema}.sample_hello_test(#{param})")
+      new SQLQuery("""
+          CREATE OR REPLACE FUNCTION jsonpath(document TEXT, path TEXT)
+          RETURNS text AS
+          $BODY$
+            plv8.execute("SELECT require('jsonpath_rfc9535')");
+            return jsonpath_rfc9535.query(JSON.parse(document), path)[0];
+          $BODY$
+          LANGUAGE 'plv8' IMMUTABLE
+          PARALLEL UNSAFE;
+          """).write(dsp);
+
+      String returnedValue = new SQLQuery("SELECT jsonpath(#{document}, #{path})")
           .withVariable("schema", "hub.common")
-          .withNamedParameter("param", "TestUser")
+          .withNamedParameter("document", """
+              {
+                "store": {
+                  "book": [
+                    {
+                      "category": "reference",
+                      "author": "Nigel Rees",
+                      "title": "Sayings of the Century",
+                      "price": 8.95
+                    }
+                  ]
+                }
+              }
+              """)
+          .withNamedParameter("path", "$.store.book[0].author")
           .run(dsp, rs -> rs.next() ? rs.getString(1) : null);
 
-      assertEquals(returnedValue, "Hello TestUser");
+      assertEquals(returnedValue, "Nigel Rees");
     }
   }
 

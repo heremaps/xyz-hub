@@ -17,6 +17,25 @@
  * License-Filename: LICENSE
  */
 
+/*
+ * Copyright (C) 2017-2025 HERE Europe B.V.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ * License-Filename: LICENSE
+ */
+
 /**
  * Install required extensions
  */
@@ -235,51 +254,32 @@ LANGUAGE plpgsql STABLE
 PARALLEL SAFE;
 
 /**
-
  *  register code of requirerd js libs in gobalThis
  *  select require( 'libmod1', 'libmod2', 'libmod3' )
  *  select require(variadic array['libmod1','libmod2','libmod3'] )
-
  */
-
 CREATE OR REPLACE FUNCTION require(VARIADIC modules text[])
 RETURNS void AS $body$
+  for (let i = 0; i < modules.length; i++) {
+    const name = modules[i];
 
-    for (let i = 0; i < modules.length; i++) {
-        const name = modules[i];
+    if (!name || typeof name !== "string")
+      continue;
 
-        if (!name || typeof name !== 'string') continue;
-
-        if (!globalThis[name]) {
-
-            plv8.elog(NOTICE, `Loading module: ${name}`);
-			try {
-             const libSqlName = 'libjs_' + name;
-			 const res = plv8.execute(`select ${libSqlName}()`);
-			 globalThis[name] = res.length > 0 ? new Function("return " + res[0][libSqlName])() : `Unable to load code for module: ${name}`;
-             plv8.elog(NOTICE, `Loaded module source: ${res[0][libSqlName].substring(0,25)}`);
-			} catch (err) {
-			 plv8.elog(NOTICE, `Loading module ${name} failed: ` + err.message);
-			}
-        }
+    if (!globalThis[name]) {
+      plv8.elog(NOTICE, `Loading module: ${name}`);
+      try {
+        const libSqlName = 'libjs_' + name;
+        const res = plv8.execute(`SELECT ${libSqlName}()`);
+        globalThis[name] = res.length > 0 ? new Function("return " + res[0][libSqlName])()
+            : `Unable to load code for module: ${name}`;
+        plv8.elog(NOTICE, `Loaded module source: ${res[0][libSqlName].substring(0, 25)}`);
+      }
+      catch (err) {
+        plv8.elog(NOTICE, `Loading module ${name} failed: ` + err.message);
+      }
     }
+  }
 $body$
 LANGUAGE plv8 IMMUTABLE
-PARALLEL UNSAFE;
-
-/*
-   sample sql function to verify/demonstrate use of require
-   module sample_hello provides a function hello( input ) which simply returns "Hello + input"
-*/
-
-CREATE OR REPLACE FUNCTION sample_hello_test( sometext text)
-    RETURNS text AS
-$BODY$
-
-    plv8.execute("SELECT require( 'sample_hello' )");
-
-    return sample_hello.hello(sometext);
-
-$BODY$
-LANGUAGE 'plv8' IMMUTABLE
 PARALLEL UNSAFE;
