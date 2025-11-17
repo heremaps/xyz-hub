@@ -19,6 +19,7 @@
 
 package com.here.xyz.util.db.pg;
 
+import static com.google.common.base.Strings.isNullOrEmpty;
 import static com.here.xyz.util.db.pg.LockHelper.buildAdvisoryLockQuery;
 import static com.here.xyz.util.db.pg.LockHelper.buildAdvisoryUnlockQuery;
 
@@ -131,13 +132,39 @@ public class Script {
       }
     }
     catch (SQLException | IOException e) {
-      logger.warn("Unable to install script {} on DB {}. Falling back to previous version if possible.", getScriptName(),
-          getDbId(), e);
+      logger.warn("Unable to install script {} on DB {}. Falling back to previous version if possible.", getScriptName(), getDbId(), e);
     }
   }
 
   private String getDbId() {
     return dataSourceProvider.getDatabaseSettings() == null ? "unknown" : dataSourceProvider.getDatabaseSettings().getId();
+  }
+
+  private SQLQuery addJsLibRegisterFunctions(SQLQuery scriptContent) throws IOException {
+    String libPath = String.format("%s/lib-js", getScriptResourceFolder()),
+        registerSqlFunc = """
+                        CREATE OR REPLACE FUNCTION libjs_${{regFunctionName}}() RETURNS TEXT AS
+                        $body$
+                            SELECT regexp_replace($rfc$${{regFunctionCode}}$rfc$, '^var\\s+[^\\(]+','') AS code
+                        $body$
+                        LANGUAGE sql IMMUTABLE PARALLEL SAFE;
+                        """;
+
+    List<SQLQuery> queries = new ArrayList<>();
+    queries.add(scriptContent);
+
+    List<Script> jsScripts = loadJsScripts(libPath);
+
+    for (Script jsScript : jsScripts) {
+      String scriptName = jsScript.getScriptName(),
+          regFunctionName = scriptName.substring(0, scriptName.indexOf('.'));
+
+      queries.add(new SQLQuery(registerSqlFunc)
+          .withQueryFragment("regFunctionName", regFunctionName)
+          .withQueryFragment("regFunctionCode", jsScript.loadScriptContent()));
+    }
+
+    return SQLQuery.join(queries, "\n\n");
   }
 
   private void install(String targetSchema, boolean deleteBefore) throws SQLException, IOException {
@@ -263,8 +290,20 @@ public class Script {
 
   private static List<String> scanResourceFolderWA(String resourceFolder, String fileSuffix) throws IOException {
     return ((List<String>) switch (fileSuffix) {
-      case ".sql" -> List.of("/sql/common.sql",  "/sql/geo.sql", "/sql/feature_writer.sql",  "/sql/h3.sql", "/sql/ext.sql", "/jobs/transport.sql");
-      case ".js" -> List.of("/sql/Exception.js", "/sql/FeatureWriter.js", "/sql/DatabaseWriter.js");
+      case ".sql" -> List.of(
+          "/sql/common.sql",
+          "/sql/geo.sql",
+          "/sql/feature_writer.sql",
+          "/sql/h3.sql",
+          "/sql/ext.sql",
+          "/jobs/transport.sql"
+      );
+      case ".js" -> List.of(
+          "/sql/Exception.js",
+          "/sql/FeatureWriter.js",
+          "/sql/DatabaseWriter.js",
+          "/sql/lib-js/jsonpath_rfc9535.min.js"
+      );
       default -> List.of();
     }).stream().filter(filePath -> filePath.startsWith(resourceFolder)).toList();
   }
@@ -316,10 +355,21 @@ public class Script {
     //Load JS-scripts to be injected
     for (Script jsScript : loadJsScripts(getScriptResourceFolder())) {
       String relativeJsScriptPath = jsScript.getScriptResourceFolder().substring(getScriptResourceFolder().length());
+
+      if (relativeJsScriptPath.startsWith("/"))
+        relativeJsScriptPath = relativeJsScriptPath.substring(1);
+
+      if (!isNullOrEmpty(relativeJsScriptPath) && !relativeJsScriptPath.endsWith("/"))
+        relativeJsScriptPath = relativeJsScriptPath + "/";
+
       scriptContent
           .withQueryFragment(relativeJsScriptPath + jsScript.getScriptName(), jsScript.loadScriptContent())
           .withQueryFragment("./" + relativeJsScriptPath + jsScript.getScriptName(), jsScript.loadScriptContent());
     }
+
+    if ("common.sql".equals(getScriptName())) //TODO: Use a new init-script property instead of hard-coding that one
+      scriptContent = addJsLibRegisterFunctions(scriptContent);
+
     return scriptContent;
   }
 

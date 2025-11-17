@@ -51,6 +51,9 @@ $BODY$
         return _queryContext;
       };
 
+      // load required js libs
+      // plv8.execute("SELECT require( 'jsonpath_rfc9535' )");
+
       //Init block of internal feature_writer functionality
       ${{FeatureWriter.js}}
       ${{DatabaseWriter.js}}
