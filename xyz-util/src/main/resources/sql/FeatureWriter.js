@@ -580,12 +580,7 @@ class FeatureWriter {
   }
 
   _handleLoadedFeatureRow(resultSet) {
-    let feature;
-    if(queryContext().tableLayout === 'NEW_LAYOUT')
-      feature = JSON.parse(resultSet[0].jsondata);
-    else
-      feature = resultSet[0].jsondata;
-
+    let feature = resultSet[0] === "string" ? JSON.parse(resultSet[0].jsondata) : resultSet[0].jsondata;
     feature.id = resultSet[0].id;
     feature.geometry = resultSet[0].geo;
     feature.properties[XYZ_NS].version = Number(resultSet[0].version);
