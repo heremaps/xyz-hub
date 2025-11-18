@@ -19,19 +19,10 @@
 
 package com.here.xyz.jobs.steps.impl.transport;
 
-import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
-import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_ASYNC_UPDATE;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporaryJobTableName;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
-import static com.here.xyz.util.web.XyzWebClient.WebClientException;
-
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.here.xyz.Typed;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.jobs.JobClientInfo;
@@ -39,6 +30,8 @@ import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.ProcessUpdate;
 import com.here.xyz.jobs.steps.execution.StepException;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
+import com.here.xyz.jobs.steps.impl.transport.tasks.TaskPayload;
+import com.here.xyz.jobs.steps.impl.transport.tasks.TaskProgress;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
 import com.here.xyz.models.hub.Ref;
@@ -50,49 +43,50 @@ import com.here.xyz.util.db.pg.FeatureWriterQueryBuilder.FeatureWriterQueryConte
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.web.XyzWebClient;
 import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
+import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
+import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_EXECUTE;
+import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_ON_ASYNC_SUCCESS;
+import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_ON_ASYNC_UPDATE;
+import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 
 /**
- * TaskedSpaceBasedStep is an abstract step that represents a space-based task execution
- * with support for parallelization.
- * This class is responsible for managing task creation, execution, and asynchronous updates
- * in a distributed processing environment.
- *
- * <p>It provides mechanisms to:
+ * Abstract base class for space-based job steps that execute tasks in parallel.
+ * <p>
+ * Responsibilities:
  * <ul>
- *   <li>Determine the initial thread count for parallel execution.</li>
- *   <li>Create and manage task items in a database-backed task table.</li>
- *   <li>Build SQL queries dynamically for task execution.</li>
- *   <li>Handle asynchronous task updates and progress tracking.</li>
- *   <li>Manage resource allocation and compute unit estimations.</li>
- *   <li>Resolve version references for space-based processing.</li>
+ *   <li>Manages task creation, execution, and progress tracking for distributed processing.</li>
+ *   <li>Handles resource allocation and compute unit estimation.</li>
+ *   <li>Provides hooks for subclasses to implement task-specific logic, SQL query building, and output processing.</li>
+ *   <li>Supports asynchronous updates and finalization of tasks.</li>
  * </ul>
  *
- * <p>Subclasses must implement methods to define specific task execution logic,
- * including query construction and task item creation.</p>
- *
- * @param <T> The specific subclass type extending this step.
+ * @param <T> The concrete subclass type.
+ * @param <I> The input payload type for each task.fail
+ * @param <O> The output payload type for each task.
  */
-public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep> extends SpaceBasedStep<T> {
+public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I extends TaskPayload, O extends TaskPayload>
+        extends SpaceBasedStep<T> {
+  private static final String JOB_DATA_PREFIX = "job_data_";
   private static final Logger logger = LogManager.getLogger();
-  //Defines how many features a source layer need to have to start parallelization.
-  public static final int PARALLELIZTATION_MIN_THRESHOLD = 200_000;
-  //Defines how many export threads are getting used
-  public static final int PARALLELIZTATION_THREAD_COUNT = 8;
 
   @JsonView({Internal.class, Static.class})
-  protected double overallNeededAcus = -1;
+  protected int threadCount = 8;
 
   @JsonView({Internal.class, Static.class})
-  protected int calculatedThreadCount = -1;
+  private boolean noTasksCreated = false;
+
   @JsonView({Internal.class, Static.class})
   protected int taskItemCount = -1;
   @JsonView({Internal.class, Static.class})
@@ -102,15 +96,17 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep> exten
   @JsonView({Internal.class, Static.class})
   protected long spaceCreatedAt;
 
-  @JsonView({Internal.class, Static.class})
-  protected boolean noTasksCreated = false;
-
   public Ref getVersionRef() {
     return versionRef;
   }
 
   public void setVersionRef(Ref versionRef) {
     this.versionRef = versionRef;
+  }
+
+  public T withVersionRef(Ref versionRef) {
+    setVersionRef(versionRef);
+    return (T) this;
   }
 
   public long getSpaceCreatedAt() {
@@ -121,6 +117,11 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep> exten
     this.spaceCreatedAt = spaceCreatedAt;
   }
 
+  public T withSpaceCreatedAt(long spaceCreatedAt) {
+    setSpaceCreatedAt(spaceCreatedAt);
+    return (T) this;
+  }
+
   public SpaceContext getContext() {
     return this.context;
   }
@@ -129,48 +130,126 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep> exten
     this.context = context;
   }
 
+  public T withContext(SpaceContext context) {
+    setContext(context);
+    return (T) this;
+  }
+
+  public int getThreadCount() {
+    return threadCount;
+  }
+
+  public void setThreadCount(int threadCount) {
+    this.threadCount = threadCount;
+  }
+
+  public T withThreadCount(int threadCount) {
+    setThreadCount(threadCount);
+    return (T) this;
+  }
+
   /**
-   * Sets the initial thread count, which is getting used to start
-   * initially threadCount * Tasks.
+   * Determines whether the SQL query for a task should run on the writer database.
    *
-   * @param schema The database schema to use for determining the initial thread count.
-   * @return The initial thread count.
+   * Implementations should return {@code true} if the query requires write access (e.g., modifies data),
+   * or {@code false} if it can run on a read-only replica.
+   *
+   * @return {@code true} if the query must run on the writer DB, {@code false} otherwise.
    * @throws WebClientException If an error occurs while interacting with the web client.
-   * @throws SQLException If an error occurs while executing SQL queries.
+   * @throws SQLException If a database access error occurs.
    * @throws TooManyResourcesClaimed If too many resources are claimed during the process.
    */
-  protected abstract int setInitialThreadCount(String schema)
+  protected abstract boolean queryRunsOnWriter()
           throws WebClientException, SQLException, TooManyResourcesClaimed;
 
   /**
    * Creates generic task items in the taskAndStatistic table.
-   * {@code generateTaskDataObject} is used to generate the task data for each thread.
+   * {@code createTaskItems} is used to generate the task data for each thread.
    *
-   * @param schema The database schema to use for the task items.
    * @return The number of task items created.
    * @throws WebClientException If an error occurs while interacting with the web client.
    * @throws SQLException If an error occurs while executing SQL queries.
    * @throws TooManyResourcesClaimed If too many resources are claimed during the process.
    * @throws QueryBuildingException If an error occurs while building the SQL query.
    */
-  protected abstract List<TaskData> createTaskItems(String schema)
+  protected abstract List<I> createTaskItems()
           throws WebClientException, SQLException, TooManyResourcesClaimed, QueryBuildingException;
 
   /**
-   * Builds a SQL query for a specific task based on the provided schema, task ID, and task data.
-   * The implementor needs to invoke the lambda with an ProcessUpdate<SpaceBasedTaskUpdate> payload.
-   * Look into transport.sql : report_task_progress()
+   * Builds the SQL query for processing a specific task.
+   * <p>
+   * Implementations should construct and return the SQLQuery required to execute the task logic
+   * for the given schema, task ID, and input payload.
+   * Please review the reference SQL function implementation {@code perform_example_task(..)} in transport.sql.
+   * </p>
    *
-   * @param schema The database schema to use for the task query.
-   * @param taskId The ID of the task for which the query is being built.
-   * @param taskData The data associated with the task.
-   * @return The constructed SQL query.
+   * @param taskId The unique identifier of the task.
+   * @param taskInput The input payload for the task.
+   * @return The SQLQuery to execute for the task.
    * @throws QueryBuildingException If an error occurs while building the SQL query.
-   * @throws TooManyResourcesClaimed If too many resources are claimed during the process.
+   * @throws TooManyResourcesClaimed If too many resources are claimed during query construction.
+   * @throws WebClientException If an error occurs while interacting with the web client.
+   * @throws InvalidGeometryException If the input contains invalid geometry data.
+   */
+  protected abstract SQLQuery buildTaskQuery(Integer taskId, I taskInput, String failureCallback)
+          throws QueryBuildingException, TooManyResourcesClaimed, WebClientException, InvalidGeometryException;
+
+  /**
+   * Processes the collected task outputs after all parallel tasks have finalized.
+   * <p>
+   * This hook is invoked during asynchronous success handling to allow subclasses
+   * to aggregate, transform, persist, or derive final statistics from the per-task
+   * output payloads.
+   * </p>
+   *
+   * <ul>
+   *   <li>Called exactly once after all task rows are finalized.</li>
+   *   <li>Implementations may perform I/O (e.g. serialization, storage, enrichment).</li>
+   *   <li>May produce aggregated results for outputs.</li>
+   * </ul>
+   *
+   * @param taskOutputs The list of per-task output payloads of type {@code O}.
+   * @throws IOException If an I/O error occurs while processing or persisting outputs.
+   */
+  protected abstract void processOutputs(List<O> taskOutputs)
+          throws IOException, WebClientException;
+
+  /**
+   * Calculates the overall needed ACUs (Amazon Compute Units) for the job step based on the provided data.
+   *
+   * Implementations should estimate the total compute resources required to process all tasks,
+   * using the input data (e.g. statistics, item count, or other relevant metrics).
+   * The implementations should use this method in their getNeededResources() methods.
+   *
+   * @return The estimated total ACUs required for the job step.
+   */
+  protected abstract double calculateOverallNeededACUs();
+
+  /**
+   * Performs initial setup before starting the job step execution.
+   * <p>
+   * This method can be overridden by subclasses to implement any required initialization logic,
+   * such as preparing resources, validating prerequisites, or configuring the environment.
+   * </p>
+   *
+   * @throws SQLException If a database access error occurs.
+   * @throws TooManyResourcesClaimed If too many resources are claimed during setup.
    * @throws WebClientException If an error occurs while interacting with the web client.
    */
-  protected abstract SQLQuery buildTaskQuery(String schema, Integer taskId, TaskData taskData)
-          throws QueryBuildingException, TooManyResourcesClaimed, WebClientException, InvalidGeometryException;
+  protected void initialSetup() throws SQLException, TooManyResourcesClaimed, WebClientException {};
+
+  /**
+   * Performs final cleanup after all tasks have completed.
+   * <p>
+   * This method can be overridden by subclasses to implement resource deallocation,
+   * temporary data removal, or any other necessary cleanup logic at the end of the job step.
+   * </p>
+   *
+   * @throws WebClientException If an error occurs while interacting with the web client.
+   * @throws SQLException If a database access error occurs.
+   * @throws TooManyResourcesClaimed If too many resources are claimed during cleanup.
+   */
+  protected void finalCleanUp() throws WebClientException, SQLException, TooManyResourcesClaimed {};
 
   /**
    * Prepares the process by resolving the version reference to an actual version.
@@ -259,7 +338,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep> exten
     }
   }
 
-  protected ValidationException handleWebClientException(String message, WebClientException e) throws ValidationException {
+  private ValidationException handleWebClientException(String message, WebClientException e) throws ValidationException {
     if (e instanceof XyzWebClient.ErrorResponseException err && err.getStatusCode() == 428)
       throw new ValidationException(getSpaceId() + " is deactivated!", e);
     throw new ValidationException(message, e);
@@ -268,49 +347,56 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep> exten
   /**
    * Starts the initial tasks for the process based on the calculated thread count.
    *
-   * @param schema The database schema to use for the export.
    * @throws TooManyResourcesClaimed If too many resources are claimed during the process.
    * @throws QueryBuildingException If an error occurs while building the SQL query.
    * @throws WebClientException If an error occurs while interacting with the web client.
    * @throws SQLException If an error occurs while executing SQL queries.
    */
-  protected void startInitialTasks(String schema) throws TooManyResourcesClaimed,
+  private void startInitialTasks() throws TooManyResourcesClaimed,
           QueryBuildingException, WebClientException, SQLException, InvalidGeometryException {
-    for (int i = 0; i < calculatedThreadCount; i++) {
+
+    for (int i = 0; i < threadCount; i++) {
       TaskProgress taskProgressAndTaskItem = getTaskProgressAndTaskItem();
-      if(taskProgressAndTaskItem.taskId() == -1)
+      if(taskProgressAndTaskItem.getTaskId() == -1)
         break;
-      startTask(schema, taskProgressAndTaskItem);
+      startTask(taskProgressAndTaskItem);
     }
   }
 
   /**
-   * Starts a task for a given schema and taskItem. If the task is finished an invocation with
-   * a ProcessUpdate<SpaceBasedTaskUpdate> get send from the database.
+   * Starts a task for the given task progress and item.
+   * <p>
+   * If not all tasks are started (taskId != -1), this method calculates the required compute units (ACUs)
+   * for the task, logs the start, and executes the task asynchronously.
+   * </p>
    *
-   * @param schema The database schema to use for the export.
    * @param taskProgressAndItem The task progress and item details.
    * @throws TooManyResourcesClaimed If too many resources are claimed during the process.
    * @throws QueryBuildingException If an error occurs while building the SQL query.
    * @throws WebClientException If an error occurs while interacting with the web client.
    * @throws SQLException If an error occurs while executing SQL queries.
+   * @throws InvalidGeometryException If the input contains invalid geometry data.
    */
-  protected void startTask(String schema, TaskProgress taskProgressAndItem) throws TooManyResourcesClaimed,
+  private void startTask(TaskProgress<I> taskProgressAndItem) throws TooManyResourcesClaimed,
           QueryBuildingException, WebClientException, SQLException, InvalidGeometryException {
 
-    if (taskProgressAndItem.taskId() != -1) {
-      BigDecimal overallAcusBD = BigDecimal.valueOf(overallNeededAcus);
+    //if taskId is -1 all tasks are already started
+    if (taskProgressAndItem.getTaskId() != -1) {
+      BigDecimal overallAcusBD = BigDecimal.valueOf(calculateOverallNeededACUs());
       BigDecimal itemCountBD = BigDecimal.valueOf(taskItemCount);
 
       // Perform precise division
       BigDecimal perItemAcus = overallAcusBD.divide(itemCountBD, 30, RoundingMode.HALF_UP);
 
-      infoLog(STEP_EXECUTE, this, "Start export with taskId: " + taskProgressAndItem.taskId()
+      infoLog(STEP_EXECUTE,  "Start task[" +taskProgressAndItem.getTaskId() +  "] with input: " + taskProgressAndItem.getTaskInput()
               + " " + perItemAcus.stripTrailingZeros().toPlainString()
               + "/" + overallAcusBD.stripTrailingZeros().toPlainString());
 
-      runReadQueryAsync(buildTaskQuery(schema, taskProgressAndItem.taskId(), taskProgressAndItem.taskInput()),
-              dbReader(), 0d/*perItemAcus.doubleValue()*/, false);
+      //We can`t use the default callback here because we are reporting success during onAsyncUpdate in Java.
+      //The failureCallback is still needed to report failures from the DB-side
+      String failureCallback = buildFailureCallbackQuery().substitute().text().replaceAll("'", "''");
+      runReadQueryAsync(buildTaskQuery(taskProgressAndItem.getTaskId(), (I) taskProgressAndItem.getTaskInput(), failureCallback),
+                queryRunsOnWriter() ? dbWriter() : dbReader(), 0d/*perItemAcus.doubleValue()*/,  false);
     }
   }
 
@@ -319,20 +405,20 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep> exten
     //The following code is running synchronously till the first task is getting started.
     String schema = getSchema(db());
     if (!resume) {
-      calculatedThreadCount = setInitialThreadCount(schema);
-      List<TaskData> taskDataList = createTaskItems(schema);
+      initialSetup();
+      List<I> taskDataList = createTaskItems();
       taskItemCount = taskDataList.size();
-      insertTaskItemsInTaskAndStatisticTable(schema, this, taskDataList);
+      insertTaskItemsInTaskTable(schema, this, taskDataList);
     }
-    startInitialTasks(schema);
+    startInitialTasks();
     noTasksCreated = taskItemCount == 0;
   }
 
   /**
-   * Handles asynchronous updates during the export process. The invocation happens from the
+   * Handles asynchronous updates during the process. The invocation happens from the
    * database if a task is finished. If unstarted task are present the next one gets started.
    *
-   * @param processUpdate The process update containing information about the export progress.
+   * @param processUpdate The process update containing information about the progress.
    * @return {@code true} if all tasks are complete, {@code false} otherwise.
    * @throws RuntimeException If an unexpected error occurs during the update process.
    */
@@ -341,26 +427,79 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep> exten
     try {
       //Update the task table and mark item as finalized
       SpaceBasedTaskUpdate update = (SpaceBasedTaskUpdate) processUpdate;
-      updateTaskAndStatisticTable(update);
+      updateTaskItemInTaskTable(update);
 
-      infoLog(STEP_ON_ASYNC_UPDATE, this,"received progress update from: "
-              + ((SpaceBasedTaskUpdate) processUpdate).taskId);
+      infoLog(STEP_ON_ASYNC_UPDATE, "received progress update: "
+              + processUpdate.serialize());
       TaskProgress taskProgressAndItem = getTaskProgressAndTaskItem();
       if (taskProgressAndItem.isComplete()) {
-        infoLog(STEP_ON_ASYNC_UPDATE, this,"All tasks are finished."
-                + taskProgressAndItem);
+        infoLog(STEP_ON_ASYNC_UPDATE, "All tasks are finished." + taskProgressAndItem);
+
+        //Collect outputs and process them
+        processOutputs(collectOutputs());
+
+        //Clean up temporary resources
+        cleanUpDbResources();
+
         return true;
       }else {
-        //If we are not finished, start the next export task
-        startTask(getSchema(db()), taskProgressAndItem);
+        infoLog(STEP_ON_ASYNC_UPDATE, "Found existing tasks. Start new item:" + taskProgressAndItem);
+        //If we are not finished, start the next task
+        startTask(taskProgressAndItem);
         //Calculate progress and set it on the step's status
-        getStatus().setEstimatedProgress((float) taskProgressAndItem.finalizedTasks() / (float) taskProgressAndItem.totalTasks);
+        getStatus().setEstimatedProgress((float) taskProgressAndItem.getFinalizedTasks() / (float) taskProgressAndItem.getTotalTasks());
       }
 
       return false;
     }catch (Exception e) {
       throw new RuntimeException(e);
     }
+  }
+
+  @Override
+  protected boolean onAsyncFailure() {
+    try {
+      //TODO: Inspect the error provided in the status and decide whether it is retryable (return-value)
+      boolean isRetryable = false;
+
+      if (!isRetryable)
+        cleanUpDbResources();
+
+      return isRetryable;
+    }
+    catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  private void cleanUpDbResources() throws WebClientException, SQLException, TooManyResourcesClaimed {
+    infoLog(STEP_ON_ASYNC_SUCCESS,  "Cleanup temporary table");
+    runWriteQuerySync(buildTemporaryJobTableDropStatement(getSchema(db()), getTemporaryJobTableName(getId())), db(WRITER), 0);
+
+    infoLog(STEP_ON_ASYNC_SUCCESS,  "Executing cleanUp Hook");
+    finalCleanUp();
+  }
+
+  private List<O> collectOutputs() throws SQLException, TooManyResourcesClaimed, WebClientException {
+    return runReadQuerySync(retrieveTaskOutputsQuery(), db(WRITER), 0, rs -> {
+      try {
+        List<O> outputs = new ArrayList<>();
+        while (rs.next()){
+          String taskOutput = rs.getString("task_output");
+          if(taskOutput != null){
+            SpaceBasedTaskUpdate<O> update =
+                    XyzSerializable.deserialize(taskOutput, SpaceBasedTaskUpdate.class);
+            outputs.add(update.taskOutput);
+          }else{
+            infoLog(STEP_ON_ASYNC_SUCCESS,  "Empty task output found - skip.");
+          }
+
+        }
+        return outputs;
+      } catch (JsonProcessingException e) {
+        throw new RuntimeException(e);
+      }
+    });
   }
 
   @Override
@@ -371,7 +510,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep> exten
   }
 
   /**
-   * Retrieves the task progress and a unstarted task item (if present) from the database.
+   * Retrieves the task progress and an unstarted task item (if present) from the database.
    *
    * @return The task progress and task item details.
    * @throws WebClientException If an error occurs while interacting with the web client.
@@ -379,28 +518,26 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep> exten
    * @throws TooManyResourcesClaimed If too many resources are claimed during the process.
    */
   private TaskProgress getTaskProgressAndTaskItem() throws WebClientException, SQLException, TooManyResourcesClaimed {
-    return runReadQuerySync(retrieveTaskItemAndStatistics(getSchema(db(WRITER))), db(WRITER), 0,
+    return runReadQuerySync(retrieveTaskItemAndStatisticsQuery(getSchema(db(WRITER))), db(WRITER), 0,
       rs -> {
         if(!rs.next())
           return null;
         try {
           return new TaskProgress(rs.getInt("total"), rs.getInt("started"), rs.getInt("finalized"),
-                  rs.getInt("task_id") , XyzSerializable.deserialize(rs.getString("task_data"), TaskData.class));
+                  rs.getInt("task_id"), XyzSerializable.deserialize(rs.getString("task_input"),  new TypeReference<I>() {}));
         } catch (JsonProcessingException e) {
-            throw new RuntimeException("Can not deserialize task_data!",e);
+            throw new RuntimeException("Can not deserialize task_input!",e);
         }
       });
   }
 
-  private static SQLQuery buildTaskAndStatisticTableStatement(String schema, Step step) {
+  private static SQLQuery buildTaskTableStatement(String schema, Step step) {
     return new SQLQuery("""          
             CREATE TABLE IF NOT EXISTS ${schema}.${table}
             (
             	task_id SERIAL,
-            	task_data JSONB,
-            	bytes_uploaded BIGINT DEFAULT 0,
-            	rows_uploaded BIGINT DEFAULT 0,
-            	files_uploaded INT DEFAULT 0,
+            	task_input JSONB,
+            	task_output JSONB,
             	started BOOLEAN DEFAULT false,
             	finalized BOOLEAN DEFAULT false,
             	CONSTRAINT ${primaryKey} PRIMARY KEY (task_id)
@@ -412,77 +549,75 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep> exten
             .withVariable("primaryKey", getTemporaryJobTableName(step.getId()) + "_primKey");
   }
 
-  private void updateTaskAndStatisticTable(SpaceBasedTaskUpdate update) throws WebClientException, SQLException, TooManyResourcesClaimed {
-    infoLog(STEP_ON_ASYNC_UPDATE, this, "Update process table for taskId: " + update.taskId + " with " + update.featureCount + " features");
+  private void updateTaskItemInTaskTable(SpaceBasedTaskUpdate update) throws WebClientException, SQLException, TooManyResourcesClaimed {
+    infoLog(STEP_ON_ASYNC_UPDATE,  "Update process table with: " + update.serialize());
     /** create update process table */
     runWriteQuerySync(
-            updateTaskItemInTaskAndStatisticTable(getSchema(db(WRITER)), this, update.taskId,
-                    update.byteCount, update.featureCount, update.fileCount,  true
+            buildUpdateTaskItemStatement(getSchema(db(WRITER)), this, update.taskId,
+                    update,  true
             ), db(WRITER), 0);
   }
 
-  private static SQLQuery updateTaskItemInTaskAndStatisticTable(String schema, Step step, int taskId,
-                                                                  long bytesUploaded, long rowsUploaded,
-                                                                  int filesUploaded, boolean finalized) {
+  private static SQLQuery buildUpdateTaskItemStatement(String schema, Step step, int taskId,
+                                                       SpaceBasedTaskUpdate update, boolean finalized) {
     return new SQLQuery("""             
             UPDATE ${schema}.${table} t
-                SET bytes_uploaded = t.bytes_uploaded + #{bytesUploaded},
-                    rows_uploaded = t.rows_uploaded + #{rowsUploaded},
-                    files_uploaded = t.files_uploaded + #{filesUploaded},
+                SET task_output = #{taskOutput}::JSONB,
                     finalized = #{finalized}
                 WHERE task_id = #{taskId};
         """)
             .withVariable("schema", schema)
             .withVariable("table", getTemporaryJobTableName(step.getId()))
             .withNamedParameter("taskId", taskId)
-            .withNamedParameter("bytesUploaded", bytesUploaded)
-            .withNamedParameter("rowsUploaded", rowsUploaded)
-            .withNamedParameter("filesUploaded", filesUploaded)
+            .withNamedParameter("taskOutput", XyzSerializable.serialize(update))
             .withNamedParameter("finalized", finalized); //future prove
   }
 
-  private SQLQuery retrieveTaskItemAndStatistics(String schema) throws WebClientException {
-    return new SQLQuery("SELECT total, started, finalized, task_id, task_data from get_task_item_and_statistics();")
+  private SQLQuery retrieveTaskItemAndStatisticsQuery(String schema) throws WebClientException {
+    return new SQLQuery("SELECT total, started, finalized, task_id, task_input from get_task_item_and_statistics();")
             .withContext(getQueryContext(schema));
   }
 
-  protected SQLQuery retrieveStatisticFromTaskAndStatisticTable(String schema) {
-    return new SQLQuery("""
-          SELECT sum(rows_uploaded) as rows_uploaded,
-                 sum(CASE
-                     WHEN (bytes_uploaded)::bigint > 0
-                     THEN (files_uploaded)::bigint
-                     ELSE 0
-                 END) as files_uploaded,
-                 sum(bytes_uploaded)::bigint as bytes_uploaded
-                  FROM ${schema}.${tmpTable};
-        """)
-            .withVariable("schema", schema)
+  private SQLQuery retrieveTaskOutputsQuery() throws WebClientException {
+    return new SQLQuery("SELECT task_output FROM ${schema}.${tmpTable};")
+            .withVariable("schema", getSchema(db()))
             .withVariable("tmpTable", getTemporaryJobTableName(getId()));
   }
 
-  protected void insertTaskItemsInTaskAndStatisticTable(String schema, Step step, List<TaskData> taskData)
+  private void insertTaskItemsInTaskTable(String schema, Step step, List<I> taskInputs)
           throws WebClientException, SQLException, TooManyResourcesClaimed {
     List<SQLQuery> insertQueries = new ArrayList<>();
 
     //Create process table
-    runWriteQuerySync(buildTaskAndStatisticTableStatement(schema, this), db(WRITER), 0);
+    runWriteQuerySync(buildTaskTableStatement(schema, this), db(WRITER), 0);
 
-    for (TaskData task : taskData) {
-      String taskItem = task.serialize();
+    for (I taskInput : taskInputs) {
+      String taskItem = taskInput.serialize();
 
-      infoLog(STEP_EXECUTE, this,"Add initial entry in process_table: " + taskItem );
+      infoLog(STEP_EXECUTE, "Add initial entry in process_table: " + taskItem );
       insertQueries.add(new SQLQuery("""             
-            INSERT INTO  ${schema}.${table} AS t (task_data)
-                VALUES (#{taskData}::JSONB);
+            INSERT INTO  ${schema}.${table} AS t (task_input)
+                VALUES (#{taskItem}::JSONB);
         """)
               .withVariable("schema", schema)
               .withVariable("table", getTemporaryJobTableName(step.getId()))
-              .withNamedParameter("taskData", taskItem));
+              .withNamedParameter("taskItem", taskItem));
     }
     if(!insertQueries.isEmpty()) {
+      //Insert TaskItem into process table
       runBatchWriteQuerySync(SQLQuery.batchOf(insertQueries), db(WRITER), 0);
     }
+  }
+
+  public static String getTemporaryJobTableName(String stepId) {
+    return JOB_DATA_PREFIX + stepId;
+  }
+
+  //TODO: if ImportSpaceToFilesStep is removed make it private
+  protected static SQLQuery buildTemporaryJobTableDropStatement(String schema, String tableName) {
+    return new SQLQuery("DROP TABLE IF EXISTS ${schema}.${table};")
+            .withVariable("table", tableName)
+            .withVariable("schema", schema);
   }
 
   @JsonIgnore
@@ -503,30 +638,13 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep> exten
         .build();
   }
 
-  protected record TaskProgress(int totalTasks, int startedTasks, int finalizedTasks, Integer taskId, TaskData taskInput) {
-    public boolean isComplete() {
-      return totalTasks == finalizedTasks;
-    }
-
-    @Override
-    public String toString() {
-      return "TaskProgress{" +
-              "totalTasks=" + totalTasks +
-              ", startedTasks=" + startedTasks +
-              ", finalizedTasks=" + finalizedTasks +
-              ", taskId=" + taskId +
-              ", taskInput=" + taskInput +
-              '}';
-    }
-  }
-
-  public static class SpaceBasedTaskUpdate extends ProcessUpdate<SpaceBasedTaskUpdate> {
+  /**
+   * Represents an update for a space-based task, containing the task ID and its output payload.
+   *
+   * @param <O> The type of the output payload, extending TaskPayload.
+   */
+  public static class SpaceBasedTaskUpdate<O extends TaskPayload> extends ProcessUpdate<SpaceBasedTaskUpdate<O>> {
     public int taskId;
-    public long byteCount;
-    public long featureCount;
-    public int fileCount;
+    public O taskOutput;
   }
-
-  @JsonTypeName("TaskData")
-  protected record TaskData(Object taskInput) implements Typed{ }
 }

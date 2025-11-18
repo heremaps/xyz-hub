@@ -22,15 +22,10 @@ package com.here.xyz.jobs.steps.impl.transport;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
 import static com.here.xyz.jobs.steps.Step.Visibility.USER;
-import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_EXECUTOR;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_VALIDATE;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_ASYNC_SUCCESS;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildTemporaryJobTableDropStatement;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.errorLog;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporaryJobTableName;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
+import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.JOB_EXECUTOR;
+import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.JOB_VALIDATE;
+import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_EXECUTE;
+import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_ON_ASYNC_SUCCESS;
 
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
@@ -40,6 +35,8 @@ import com.here.xyz.jobs.steps.StepExecution;
 import com.here.xyz.jobs.steps.execution.StepException;
 import com.here.xyz.jobs.steps.execution.db.Database;
 import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
+import com.here.xyz.jobs.steps.impl.transport.tasks.inputs.ExportInput;
+import com.here.xyz.jobs.steps.impl.transport.tasks.outputs.ExportOutput;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
 import com.here.xyz.jobs.steps.resources.IOResource;
@@ -56,6 +53,8 @@ import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.geo.GeoTools;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
+
+import java.io.IOException;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
@@ -83,9 +82,15 @@ import org.locationtech.jts.geom.Geometry;
  *
  * <p>This step produces outputs of type {@link FeatureStatistics} and {@link DownloadUrl}.</p>
  */
-public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles> {
+public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles, ExportInput, ExportOutput> {
   public static final String STATISTICS = "statistics";
   public static final String EXPORTED_DATA = "exportedData";
+
+  //Defines how many features a source layer need to have to start parallelization.
+  public static final int PARALLELIZTATION_MIN_THRESHOLD = 200_000;
+  //Defines how many threads are getting used
+  public static final int PARALLELIZTATION_THREAD_COUNT = 8;
+
   //Defines how large the area of a defined spatialFilter can be
   //If a point is defined - the maximum radius can be 17898 meters
   private static final int MAX_ALLOWED_SPATALFILTER_AREA_IN_SQUARE_KM = 1_000;
@@ -113,7 +118,6 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
   @JsonView({Internal.class, Static.class})
   protected Ref providedVersionRef;
 
-
   public void setProvidedVersionRef(Ref providedVersionRef) {
     this.providedVersionRef = providedVersionRef;
   }
@@ -138,21 +142,6 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
 
   public ExportSpaceToFiles withStepExecutionHeartBeatTimeoutOverride(int timeOutSeconds) {
     setStepExecutionHeartBeatTimeoutOverride(timeOutSeconds);
-    return this;
-  }
-
-  public ExportSpaceToFiles withVersionRef(Ref versionRef) {
-    setVersionRef(versionRef);
-    return this;
-  }
-
-  public ExportSpaceToFiles withSpaceCreatedAt(long spaceCreateAt) {
-    setSpaceCreatedAt(spaceCreateAt);
-    return this;
-  }
-
-  public ExportSpaceToFiles withContext(SpaceContext context) {
-    setContext(context);
     return this;
   }
 
@@ -187,6 +176,11 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
   public ExportSpaceToFiles withPropertyFilter(PropertiesQuery propertyFilter){
     setPropertyFilter(propertyFilter);
     return this;
+  }
+
+  @Override
+  protected boolean queryRunsOnWriter() throws WebClientException, SQLException, TooManyResourcesClaimed {
+    return false;
   }
 
   /**
@@ -242,18 +236,32 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
         );
 
       long estimatedIOBytes = getEstimatedIOBytes();
-      overallNeededAcus = overallNeededAcus != -1 ? overallNeededAcus : calculateNeededExportAcus(estimatedIOBytes);
+      double overallNeededAcus = calculateOverallNeededACUs();
 
-      infoLog(JOB_EXECUTOR, this, "Calculated ACUS: byteSize of layer: " + estimatedIOBytes
+      infoLog(JOB_EXECUTOR,  "Calculated ACUS: byteSize of layer: " + estimatedIOBytes
           + " => neededACUs:" + overallNeededAcus);
 
       return List.of(
           new Load().withResource(dbReader()).withEstimatedVirtualUnits(overallNeededAcus),
-          new Load().withResource(IOResource.getInstance()).withEstimatedVirtualUnits(estimatedIOBytes));
+          new Load().withResource(IOResource.getInstance()).withEstimatedVirtualUnits(getEstimatedIOBytes()));
     }
     catch (WebClientException e) {
       throw new StepException("Error calculating the necessary resources for the step.", e).withRetryable(true);
     }
+  }
+
+  @Override
+  protected double calculateOverallNeededACUs() {
+    //maximum auf Acus - to prevent that job never gets executed. @TODO: check how to deal is maxUnits of DB
+    final double maxAcus = 70;
+    //exports are not as heavy as imports
+    //TODO: Implement more specific load calculation that matches the actual use case of exporting data
+    final double exportDivisor = 3;
+
+    //Calculate the needed ACUs
+    double neededAcus = ResourceAndTimeCalculator.getInstance().calculateNeededAcusFromByteSize(getEstimatedIOBytes())
+            / exportDivisor;
+    return Math.min(neededAcus, maxAcus);
   }
 
   protected long getEstimatedIOBytes() {
@@ -266,18 +274,6 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
     return statistics.getDataSize().getValue();
   }
 
-  private double calculateNeededExportAcus(long bytesSizeEstimation) {
-    //maximum auf Acus - to prevent that job never gets executed. @TODO: check how to deal is maxUnits of DB
-    final double maxAcus = 70;
-    //exports are not as heavy as imports
-    //TODO: Implement more specific load calculation that matches the actual use case of exporting data
-    final double exportDivisor = 3;
-
-    //Calculate the needed ACUs
-    double neededAcus = ResourceAndTimeCalculator.getInstance().calculateNeededAcusFromByteSize(bytesSizeEstimation) / exportDivisor;
-    return Math.min(neededAcus, maxAcus);
-  }
-
   @Override
   public int getTimeoutSeconds() {
     return 24 * 3600;
@@ -288,9 +284,18 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
     //TODO: Fix estimation. Calculate estimatedSeconds on expected the number of features and the size of the data.
     if (estimatedSeconds == -1 && getSpaceId() != null) {
       estimatedSeconds = calculateExportTimeInSeconds(getSpaceId(), getUncompressedUploadBytesEstimation());
-      infoLog(JOB_EXECUTOR, this,"Calculated estimatedSeconds: "+estimatedSeconds );
+      infoLog(JOB_EXECUTOR, "Calculated estimatedSeconds: "+estimatedSeconds );
     }
     return estimatedSeconds;
+  }
+
+  @Override
+  public void execute(boolean resume) throws Exception {
+    //Set threadCount based on feature count
+    StatisticsResponse statistics = loadSpaceStatistics(getSpaceId(), context, true);
+    threadCount = statistics.getCount().getValue() > PARALLELIZTATION_MIN_THRESHOLD ? PARALLELIZTATION_THREAD_COUNT : 1;
+
+    super.execute(resume);
   }
 
   private int calculateExportTimeInSeconds(String spaceId, long byteSize){
@@ -340,7 +345,7 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
           }
         } catch (FactoryException | org.geotools.api.referencing.operation.TransformException | TransformException |
                  NullPointerException e) {
-          errorLog(JOB_VALIDATE, this, e, "Invalid SpatialFilter provided! ", spatialFilter.getGeometry().serialize());
+          errorLog(JOB_VALIDATE,  e, "Invalid SpatialFilter provided! ", spatialFilter.getGeometry().serialize());
           throw new ValidationException("Invalid SpatialFilter!");
         }
       }
@@ -356,46 +361,9 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
   }
 
   @Override
-  protected void onAsyncSuccess() throws Exception {
-    try {
-      infoLog(STEP_ON_ASYNC_SUCCESS, this, "Received async success call");
-      String schema = getSchema(db());
-
-      TransportStatistics stepStatistics = runReadQuerySync(retrieveStatisticFromTaskAndStatisticTable(schema), db(WRITER),
-              0, rs -> rs.next()
-                      ? new TransportStatistics(rs.getLong("rows_uploaded"), rs.getLong("bytes_uploaded"), rs.getInt("files_uploaded"))
-                      : new TransportStatistics(0, 0, 0));
-
-      infoLog(STEP_ON_ASYNC_SUCCESS, this, "Job Statistics: bytes=" + stepStatistics.byteSize + " files=" + stepStatistics.fileCount);
-
-      registerOutputs(List.of(
-              new FeatureStatistics()
-                      .withFeatureCount(stepStatistics.rowCount)
-                      .withByteSize(stepStatistics.byteSize)
-                      .withVersionRef(providedVersionRef)
-      ), STATISTICS);
-
-      infoLog(STEP_ON_ASYNC_SUCCESS, this, "Cleanup temporary table");
-      runWriteQuerySync(buildTemporaryJobTableDropStatement(schema, getTemporaryJobTableName(getId())), db(WRITER), 0);
-    }catch (Exception e){
-      if(e instanceof SQLException exp && exp.getSQLState().equalsIgnoreCase("42P01")){
-        infoLog(STEP_ON_ASYNC_SUCCESS, this, "Table is already dropped - ignore.");
-        return;
-      }
-      throw e;
-    }
-  }
-
-  @Override
   protected boolean onAsyncFailure() {
     //TODO
     return super.onAsyncFailure();
-  }
-
-  @Override
-  protected int setInitialThreadCount(String schema) throws WebClientException {
-    StatisticsResponse statistics = loadSpaceStatistics(getSpaceId(), context, true);
-    return statistics.getCount().getValue() > PARALLELIZTATION_MIN_THRESHOLD ? PARALLELIZTATION_THREAD_COUNT : 1;
   }
 
   /**
@@ -403,51 +371,73 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
    * {@code generateTaskDataObject} is used to generate the task data for each thread.
    * This method can get overridden easily from other ExportProcesses.
    *
-   * @param schema The database schema to use for the task items.
    * @return The number of task items created, which is equal to the calculated thread count.
    * @throws WebClientException If an error occurs while interacting with the web client.
    * @throws SQLException If an error occurs while executing SQL queries.
    * @throws TooManyResourcesClaimed If too many resources are claimed during the process.
    * @throws QueryBuildingException If an error occurs while building the SQL query.
    */
-  protected List<TaskData> createTaskItems(String schema)
+  protected List<ExportInput> createTaskItems()
           throws WebClientException, SQLException, TooManyResourcesClaimed, QueryBuildingException{
-    int taskListCount = calculatedThreadCount;
+    int taskListCount = threadCount;
 
     //Todo: find a possibility to add more tasks if filters are set
     if(spatialFilter == null && propertyFilter == null) {
       //The dataSize includes indexes and other overhead so the resulting files will be smaller than the
       //defined MAX_BYTES_PER_TASK.
       Long estByteCount = spaceStatistics(context, true).getDataSize().getValue();
-      infoLog(STEP_EXECUTE, this,"Retrieved estByteCount: " + estByteCount);
+      infoLog(STEP_EXECUTE, "Retrieved estByteCount: " + estByteCount);
       long calculatedTaskCount = (estByteCount + MAX_BYTES_PER_TASK - 1) / MAX_BYTES_PER_TASK;
       // Ensure taskListCount does not exceed the maximum allowed limit
       taskListCount = (int) Math.min(calculatedTaskCount, MAX_TASK_COUNT);
     }
 
-    List<TaskData> taskDataList = new ArrayList<>();
+    List<ExportInput> taskDataList = new ArrayList<>();
     for (int i = 0; i < taskListCount; i++) {
-      taskDataList.add(new TaskData(i));
+      taskDataList.add(new ExportInput(i));
     }
     return taskDataList;
   }
 
   /**
-   * Builds an SQL query for exporting data to S3 on the provided schema,
-   * task ID, and task data. The AWS RDS EXPORT plugin is getting used.
+   * Builds the SQL query for a specific export task to S3 using the AWS RDS export plugin.
    *
-   * @param schema The database schema to use for the query.
-   * @param taskId The ID of the task for which the query is being built.
-   * @param taskData The data associated with the task.
-   * @return The constructed SQL query.
+   * @param taskId The unique identifier for the export task.
+   * @param taskInput The input data for the export task.
+   * @param failureCallback The callback to be used in case of failure.
+   * @return The constructed SQLQuery for the export operation.
    * @throws QueryBuildingException If an error occurs while building the SQL query.
    * @throws TooManyResourcesClaimed If too many resources are claimed during the process.
    * @throws WebClientException If an error occurs while interacting with the web client.
+   * @throws InvalidGeometryException If the geometry provided is invalid.
    */
   @Override
-  protected SQLQuery buildTaskQuery(String schema, Integer taskId, TaskData taskData)
+  protected SQLQuery buildTaskQuery(Integer taskId, ExportInput taskInput, String failureCallback)
           throws QueryBuildingException, TooManyResourcesClaimed, WebClientException, InvalidGeometryException {
-    return buildExportToS3PluginQuery(schema, taskId, generateContentQueryForExportPlugin(taskData));
+    return buildExportToS3PluginQuery(getSchema(db()), taskId,
+            generateContentQueryForExportPlugin(taskInput), failureCallback);
+  }
+
+  @Override
+  protected void processOutputs(List<ExportOutput> taskOutputs) throws IOException {
+    TransportStatistics transportStatistics = new TransportStatistics(0, 0, 0);
+
+    if(!taskOutputs.isEmpty()){
+      long totalRows = taskOutputs.stream().mapToLong(ExportOutput::rows).sum();
+      long totalBytes = taskOutputs.stream().mapToLong(ExportOutput::bytes).sum();
+      int totalFiles = (int) taskOutputs.stream().mapToLong(ExportOutput::files).sum();
+      transportStatistics = new TransportStatistics(totalRows, totalBytes, totalFiles);
+    }
+
+    infoLog(STEP_ON_ASYNC_SUCCESS,  "Job Statistics: bytes=" + transportStatistics.byteSize
+            + " files=" + transportStatistics.fileCount);
+
+    registerOutputs(List.of(
+            new FeatureStatistics()
+                    .withFeatureCount(transportStatistics.rowCount)
+                    .withByteSize(transportStatistics.byteSize)
+                    .withVersionRef(providedVersionRef)
+    ), STATISTICS);
   }
 
   protected GetFeaturesByGeometryInput createGetFeaturesByGeometryInput(SpaceContext context, SpatialFilter spatialFilter, Ref versionRef)
@@ -460,7 +450,7 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
         spatialFilter != null && spatialFilter.isClip(), propertyFilter);
   }
 
-  private SQLQuery buildExportToS3PluginQuery(String schema, int taskId, String contentQuery) throws WebClientException {
+  private SQLQuery buildExportToS3PluginQuery(String schema, int taskId, String contentQuery, String failureCallback) throws WebClientException {
     //TODO Group by threadId
     DownloadUrl downloadUrl = new DownloadUrl().withS3Key(toS3Path(getOutputSet(EXPORTED_DATA)) + "/" + taskId + "/" + UUID.randomUUID() + ".json");
     return new SQLQuery(
@@ -476,7 +466,7 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
             .withNamedParameter("lambda_function_arn", getwOwnLambdaArn().toString())
             .withNamedParameter("lambda_region", getwOwnLambdaArn().getRegion())
             .withNamedParameter("contentQuery", contentQuery)
-            .withQueryFragment("failureCallback",  buildFailureCallbackQuery().substitute().text().replaceAll("'", "''"));
+            .withQueryFragment("failureCallback",  failureCallback);
   }
 
   private void loadIRange() {
@@ -527,17 +517,17 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
    *
    * We will build here a GetFeaturesByGeometry query and add a custom thread condition to it
    *
-   * @param taskData The task data containing generic task data.
+   * @param taskInput The task data containing generic task data.
    * @return The generated content query as a string.
    * @throws WebClientException If an error occurs while interacting with the web client.
    * @throws TooManyResourcesClaimed If too many resources are claimed during the process.
    * @throws QueryBuildingException If an error occurs while building the SQL query.
    */
-  protected String generateContentQueryForExportPlugin(TaskData taskData) throws WebClientException, TooManyResourcesClaimed,
+  protected String generateContentQueryForExportPlugin(ExportInput taskInput) throws WebClientException, TooManyResourcesClaimed,
       QueryBuildingException, InvalidGeometryException {
 
     //We use the thread number as a condition for the query
-    int taskNumber = (int) taskData.taskInput();
+    int taskNumber = taskInput.threadId();
 
     GetFeaturesByGeometryBuilder queryBuilder = new GetFeaturesByGeometryBuilder()
         .withDataSourceProvider(requestResource(dbReader(), 0));

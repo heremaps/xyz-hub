@@ -291,10 +291,9 @@ public class CopySpaceStepsTest extends StepTest {
         .withSpaceId(sourceSpaceId)
         .withSpatialFilter( geo == null ? null : new SpatialFilter().withGeometry(geo) )
         .withPropertyFilter(PropertiesQuery.fromString(propertyFilter))
+        .withVersionRef(resolvedRef)
+        .withContext(ctx != null ? ctx : DEFAULT )
         .withJobId(JOB_ID);
-
-    step.setVersionRef(resolvedRef);
-    step.setContext( ctx != null ? ctx : DEFAULT );
 
     sendLambdaStepRequestBlock(step, true);
 
