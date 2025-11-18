@@ -59,20 +59,17 @@ import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 import static com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace.Format.GEOJSON;
 import static com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace.Format.FAST_IMPORT_INTO_EMPTY;
 /**
- * TODO:
- *  - implement retry mechanism for failed imports
- *  - take over missing parts from ImportFilesToSpace (like resource calculation)
  * This step imports a set of user provided inputs and imports their data into a specified space. This step produces exactly one output of
  * type {@link FeatureStatistics}.
  */
 public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportFilesToSpace, ImportInput, ImportOutput> {
-  private static final int IMPORT_THREAD_COUNT = 15;
   private static final long MAX_INPUT_BYTES_FOR_KEEP_INDICES = 1l * 1024 * 1024 * 1024;
   private static final int MIN_FEATURE_COUNT_IN_TARGET_TABLE_FOR_KEEP_INDICES = 5_000_000;
 
   public static final String STATISTICS = "statistics";
 
   {
+    //Use 18 Threads as default for import tasks
     threadCount = 18;
     setOutputSets(List.of(new OutputSet(STATISTICS, USER, true)));
   }
