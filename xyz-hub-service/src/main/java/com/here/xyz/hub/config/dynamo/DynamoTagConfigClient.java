@@ -222,15 +222,19 @@ public class DynamoTagConfigClient extends TagConfigClient {
     if (items == null || items.isEmpty())
       return Collections.emptyList();
 
-    return items.stream().map(tagData -> new Tag()
-        .withId(tagData.get("id").getS())
-        .withSpaceId(tagData.get("spaceId").getS())
-        .withVersion(Long.parseLong(tagData.get("version").getN()))
-        .withVersionRef(new Ref(tagData.get("versionRef").getS()))
-        .withSystem( tagData.get("system") != null ? tagData.get("system").getBOOL() : false )
-        .withDescription(tagData.get("description") != null ? tagData.get("description").getS() : "")
-        .withAuthor(tagData.get("author") != null ? tagData.get("author").getS() : "system")
-        .withCreatedAt(tagData.get("createdAt") != null ? Long.parseLong(tagData.get("createdAt").getN()) : -1)
+    return items.stream().map(tagData -> {
+              long version = Long.parseLong(tagData.get("version").getN());
+              String branchId = tagData.get("branchId") != null ? tagData.get("branchId").getS() : Ref.MAIN;
+              return new Tag()
+                      .withId(tagData.get("id").getS())
+                      .withSpaceId(tagData.get("spaceId").getS())
+                      .withVersion(version)
+                      .withVersionRef(Ref.fromBranchId(branchId, version))
+                      .withSystem(tagData.get("system") != null ? tagData.get("system").getBOOL() : false)
+                      .withDescription(tagData.get("description") != null ? tagData.get("description").getS() : "")
+                      .withAuthor(tagData.get("author") != null ? tagData.get("author").getS() : "system")
+                      .withCreatedAt(tagData.get("createdAt") != null ? Long.parseLong(tagData.get("createdAt").getN()) : -1);
+            }
     ).collect(Collectors.toList());
   }
 

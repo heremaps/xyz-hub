@@ -51,11 +51,13 @@ public class Tag implements XyzSerializable {
    *
    * @see Ref#getVersion()
    */
+
+  //TODO: Remove setter for the version field
   @Deprecated
   @JsonView({Public.class, Static.class})
   private long version = -2;
 
-  @JsonView({Public.class, Static.class})
+  @JsonView({Public.class})
   private Ref versionRef;
 
   /**
@@ -84,6 +86,11 @@ public class Tag implements XyzSerializable {
   @JsonView({Public.class, Static.class})
   @JsonProperty(access = JsonProperty.Access.READ_ONLY)
   private long createdAt = -1;
+
+  @JsonView({Static.class})
+  public String getBranchId() {
+    return versionRef != null ? versionRef.getBranch() : MAIN;
+  }
 
   public String getId() {
     return id;
