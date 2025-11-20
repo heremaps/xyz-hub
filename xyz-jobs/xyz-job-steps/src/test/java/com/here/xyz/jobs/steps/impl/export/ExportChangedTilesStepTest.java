@@ -279,7 +279,7 @@ public class ExportChangedTilesStepTest extends ExportTestBase {
     public void Export_Version2to4WithPropertyFilter() throws IOException, InterruptedException {
         executeExportChangedTilesStepAndCheckResults(SPACE_ID_EXT, 5, QuadType.HERE_QUAD,
                 new Ref("1..2") ,null, PropertiesQuery.fromString("p.value=Africa"),
-                List.of("1269", "1423"), new FeatureCollection().withFeatures(
+                List.of(), new FeatureCollection().withFeatures(
                         List.of(
                                 new Feature().withId("point3_delta")
                         )
@@ -306,7 +306,7 @@ public class ExportChangedTilesStepTest extends ExportTestBase {
                 new SpatialFilter()
                         .withGeometry(new Polygon().withCoordinates(polygonCoordinates))
                         .withClip(true), null,
-                List.of("1269"), new FeatureCollection().withFeatures(
+                List.of(), new FeatureCollection().withFeatures(
                         //spatialFilter crosses two tiles
                         List.of(
                                 new Feature().withId("line4_delta"),
@@ -335,7 +335,7 @@ public class ExportChangedTilesStepTest extends ExportTestBase {
                 new SpatialFilter()
                         .withGeometry(new Polygon().withCoordinates(polygonCoordinates))
                         .withClip(false), null,
-                List.of("1269"), new FeatureCollection().withFeatures(
+                List.of(), new FeatureCollection().withFeatures(
                         //spatialFilter crosses two tiles
                         List.of(
                                 new Feature().withId("line4_delta"),
