@@ -36,6 +36,7 @@ import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
 import com.here.xyz.jobs.steps.resources.IOResource;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
+import com.here.xyz.jobs.util.S3Client;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.SQLQuery;
@@ -192,7 +193,8 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
     for (Input input : (List<Input>) inputs) {
       if (input instanceof S3DataFile) {
         taskItems.add(
-                new ImportInput(input.getS3Bucket(), input.getS3Key(), bucketRegion(), input.getByteSize())
+                new ImportInput(input.getS3Bucket(), input.getS3Key(), bucketRegion(input.getS3Bucket()),
+                        input.getByteSize())
         );
       }
     }
@@ -300,6 +302,10 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
 
     infoLog(STEP_ON_ASYNC_SUCCESS, "Set contentUpdatedAt on target space");
     hubWebClient().patchSpace(getSpaceId(), Map.of("contentUpdatedAt", Core.currentTimeMillis()));
+  }
+
+  protected String bucketRegion(String bucketName) {
+    return S3Client.getInstance(bucketName).region();
   }
 
   public boolean keepIndices() {
