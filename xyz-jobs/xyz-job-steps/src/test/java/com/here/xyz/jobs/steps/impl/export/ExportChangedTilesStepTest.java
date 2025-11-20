@@ -41,7 +41,6 @@ import java.io.IOException;
 import java.sql.SQLException;
 import java.util.List;
 
-@Disabled
 public class ExportChangedTilesStepTest extends ExportTestBase {
     private final static int VERSIONS_TO_KEEP = 100;
     private final String SPACE_ID_EXT = SPACE_ID + "_ext";
