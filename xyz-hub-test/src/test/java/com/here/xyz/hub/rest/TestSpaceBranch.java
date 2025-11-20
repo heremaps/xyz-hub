@@ -32,8 +32,11 @@ import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.hub.Branch;
+import com.here.xyz.models.hub.Ref;
+import com.here.xyz.models.hub.Tag;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
+import io.restassured.http.ContentType;
 import io.restassured.response.ValidatableResponse;
 import io.vertx.core.json.JsonObject;
 import java.util.List;
@@ -115,6 +118,14 @@ public class TestSpaceBranch extends TestSpaceWithFeature {
             .post(getSpaceBranchPath(spaceId, branchId))
             .then()
             .statusCode(OK.code());
+  }
+
+  protected ValidatableResponse createTag(String spaceId, String tagId, String ref) {
+    return given()
+            .contentType(ContentType.JSON)
+            .body(new Tag().withId(tagId).withSystem(false).withVersionRef(new Ref(ref)))
+            .post("/spaces/" + spaceId + "/tags")
+            .then().statusCode(OK.code());
   }
 
   protected FeatureCollection addFeaturesToBranch(String spaceId, String branchId, FeatureCollection featureCollection) throws WebClientException {
