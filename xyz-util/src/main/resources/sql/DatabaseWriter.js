@@ -17,6 +17,8 @@
  * License-Filename: LICENSE
  */
 
+const DEFAULT_COLUMN_NAMES = ["id", "version", "operation", "author", "jsondata", "geo"];
+
 class DatabaseWriter {
 
   schema;
@@ -237,13 +239,26 @@ class DatabaseWriter {
   insertHistoryRow(inputFeature, onVersionConflict, baseVersion, baseFeature, version, operation, author, resultHandler) {
     //TODO: Improve performance by reading geo inside JS and then pass it separately and use TEXT / WKB / BYTEA
     this.enrichTimestamps(inputFeature, operation == "I" || operation == "H", baseFeature);
-    let extraCols = '';
-    let extraVals = '';
 
-    if (this.tableLayout === 'NEW_LAYOUT') {
-      extraCols = ', searchable';
-      extraVals = ', $9::JSONB ';
+    const row = {
+      id: inputFeature.id,
+      version: version,
+      operation: operation,
+      author: author,
+      jsondata: inputFeature,
+      geo: inputFeature.geometry
+    };
+
+    this.patchRowData(inputFeature, row);
+
+    let extraCols = "";
+    let extraVals = "";
+    let extraColNames = this._extraColNames(row);
+    for (let i = 0; i < extraColNames.length; i++) {
+      extraCols += `, "${extraColNames[i]}"`;
+      extraVals += `, $${i + 9}`;
     }
+    const allColNames = DEFAULT_COLUMN_NAMES.concat(extraColNames);
 
     const sql = `UPDATE "${this.schema}"."${this.table}"
                  SET next_version = $2
@@ -269,9 +284,8 @@ class DatabaseWriter {
     if (!this.plans[method]) {
       const paramTypes = ["TEXT", "BIGINT", "CHAR", "TEXT", "JSONB", "JSONB", "BIGINT", "BIGINT"];
 
-      if (this.tableLayout === 'NEW_LAYOUT') {
-        paramTypes.push("JSONB");
-      }
+      if (extraColNames.length)
+        extraColNames.forEach(colName => paramTypes.push(this._sqlTypeOf(row[colName])));
 
       this.plans[method] = this._preparePlan(sql, paramTypes);
       this.parameterSets[method] = [];
@@ -285,23 +299,18 @@ class DatabaseWriter {
     }
 
     const params = [
-      inputFeature.id,
-      version,
-      operation,
-      author,
-      inputFeature,
-      inputFeature.geometry,
+      row.id,
+      row.version,
+      row.operation,
+      row.author,
+      row.jsondata,
+      row.geo,
       MAX_BIG_INT,
       onVersionConflict != null ? baseVersion : -1
     ];
 
-    if (this.tableLayout === 'NEW_LAYOUT') {
-      const searchable = {
-        refQuad: inputFeature.properties.refQuad,
-        globalVersion: inputFeature.properties.globalVersion
-      };
-      params.push(searchable);
-    }
+    if (extraColNames.length)
+      extraColNames.forEach(colName => params.push(row[colName]));
 
     this.parameterSets[method].push(params);
     this.resultParsers[method].push(result => {
@@ -312,6 +321,32 @@ class DatabaseWriter {
 
     if (!this.batchMode)
       return this.execute()[0];
+  }
+
+  _extraColNames(row) {
+    let extraColNames = [];
+    for (let columnName in row)
+      if (!DEFAULT_COLUMN_NAMES.includes(columnName))
+        extraColNames.push(columnName);
+    return extraColNames;
+  }
+
+  _sqlTypeOf(value) {
+    if (typeof value === "string")
+      return "TEXT";
+    else if (typeof value === "number")
+      return Number.isInteger(value) ? "BIGINT" : "DOUBLE PRECISION";
+    else if (typeof value === "boolean")
+      return "BOOLEAN";
+    else if (value instanceof Object)
+      return "JSONB";
+    else
+      return "TEXT";
+  }
+
+  patchRowData(inputFeature, row) {
+    let writeHooks = (queryContext().writeHooks || []).map(hookFunctionCode => eval(hookFunctionCode));
+    writeHooks.forEach(writeHook => writeHook(inputFeature, row));
   }
 
   _PARTITION_SIZE() {
