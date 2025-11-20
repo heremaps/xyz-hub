@@ -61,11 +61,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.LongAdder;
-import java.util.stream.Collectors;
 import net.jodah.expiringmap.ExpirationPolicy;
 import net.jodah.expiringmap.ExpiringMap;
 import org.apache.logging.log4j.LogManager;
@@ -97,11 +97,7 @@ public class FeatureHandler {
           .withAuthor(author)
           .withResponseDataExpected(responseDataExpected)
           .withRef(baseRef)
-          .withSearchableProperties(space.getSearchableProperties().entrySet().stream()
-              .collect(Collectors.toMap(
-                  e -> e.getKey().startsWith("$") ? e.getKey().substring(1) : e.getKey(),
-                  e -> e.getKey().startsWith("$") ? toJsonPath(e.getKey().substring(e.getKey().indexOf(":") + 1)) : toJsonPath(e.getKey())
-              )));
+          .withSearchableProperties(toExtractableSearchProperties(space));
 
       return Future.all(injectMinVersion(marker, space.getId(), event), injectSpaceParams(event, space))
           .compose(v -> {
@@ -137,13 +133,36 @@ public class FeatureHandler {
     }
   }
 
-  private static String toJsonPath(String jsonPathPointer) {
-    if (jsonPathPointer.startsWith("$"))
-      //The path pointer is already a JSONPath
-      return jsonPathPointer;
+  private static Map<String, String> toExtractableSearchProperties(Space space) {
+    Map<String, String> extractableSearchProperties = new HashMap<>();
+    for (Entry<String, Boolean> sp : space.getSearchableProperties().entrySet()) {
+      String searchableExpression = sp.getKey().contains("::") ? sp.getKey().substring(0, sp.getKey().indexOf("::")) : sp.getKey();
 
+      String alias, jsonPathExpression;
+      if (searchableExpression.startsWith("$") && searchableExpression.contains(":")) {
+        alias = searchableExpression.substring(1, searchableExpression.indexOf(":"));
+        jsonPathExpression = searchableExpression.startsWith("[")
+            ? searchableExpression.substring(1, searchableExpression.length() - 1) //expression is already a JSONPath
+            : toJsonPath(searchableExpression.substring(searchableExpression.indexOf(":") + 1)); //expression is an "old" dot-notation
+      }
+      else {
+        alias = searchableExpression;
+        jsonPathExpression = toJsonPath(searchableExpression);
+      }
+
+      extractableSearchProperties.put(alias, jsonPathExpression);
+    }
+    return extractableSearchProperties;
+  }
+
+  /**
+   * Translates a dot-notation path to a JSONPath expression.
+   * @param dotNotation
+   * @return
+   */
+  private static String toJsonPath(String dotNotation) {
     //TODO: Translate the path pointer like "prop1.prop2[0].prop3" to JSONPath "$.prop1.prop2[0].prop3" for all cases correctly
-    return "$." + jsonPathPointer;
+    return "$." + dotNotation;
   }
 
   static void throttle(Space space) throws HttpException {

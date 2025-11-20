@@ -249,7 +249,7 @@ class DatabaseWriter {
       geo: inputFeature.geometry
     };
 
-    this.patchRowData(feature, row);
+    this.patchRowData(inputFeature, row);
 
     let extraCols = "";
     let extraVals = "";
