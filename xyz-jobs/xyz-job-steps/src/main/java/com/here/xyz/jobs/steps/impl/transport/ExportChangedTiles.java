@@ -33,6 +33,7 @@ import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.jobs.datasets.filters.SpatialFilter;
 import com.here.xyz.jobs.steps.StepExecution;
 import com.here.xyz.jobs.steps.impl.transport.tasks.inputs.ExportInput;
+import com.here.xyz.jobs.steps.impl.transport.tasks.outputs.ExportOutput;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
 import com.here.xyz.jobs.steps.outputs.TileInvalidations;
@@ -276,15 +277,20 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
   }
 
   @Override
-  protected void onAsyncSuccess() throws Exception {
-    generateInvalidationTileListOutput();
-    super.onAsyncSuccess();
+  protected void processOutputs(List<ExportOutput> taskOutputs) throws IOException {
+    try {
+      //TODO: avoid an additional query. TileId is needed as output.
+      generateInvalidationTileListOutput();
+    } catch (Exception e) {
+      throw new IOException(e);
+    }
+    super.processOutputs(taskOutputs);
   }
 
   @Override
   protected void onStateCheck() {
       try {
-          //@TODO: Remove this is EMR is capable of handling not existing files
+          //@TODO: Remove this if EMR is capable of handling not existing files
           registerOutputs(List.of(new DownloadUrl()
                  .withContent(new byte[]{})
                 .withFileName("empty")
