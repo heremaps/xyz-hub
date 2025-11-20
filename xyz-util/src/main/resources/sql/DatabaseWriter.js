@@ -346,7 +346,7 @@ class DatabaseWriter {
 
   patchRowData(inputFeature, row) {
     let writeHooks = (queryContext().writeHooks || []).map(hookFunctionCode => eval(hookFunctionCode));
-    writeHooks.forEach(writeHook => writeHook(feature, row));
+    writeHooks.forEach(writeHook => writeHook(inputFeature, row));
   }
 
   _PARTITION_SIZE() {
