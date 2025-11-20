@@ -23,6 +23,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.here.xyz.Typed;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.jobs.JobClientInfo;
@@ -32,6 +33,7 @@ import com.here.xyz.jobs.steps.execution.StepException;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.impl.transport.tasks.TaskPayload;
 import com.here.xyz.jobs.steps.impl.transport.tasks.TaskProgress;
+import com.here.xyz.jobs.steps.impl.transport.tasks.inputs.ExportInput;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
 import com.here.xyz.models.hub.Ref;
@@ -196,7 +198,8 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
           throws QueryBuildingException, TooManyResourcesClaimed, WebClientException, InvalidGeometryException;
 
   /**
-   * Processes the collected task outputs after all parallel tasks have finalized.
+   * Processes the finalized task items after all parallel tasks have finalized.
+   * Task outputs, inputs and ids are available.
    * <p>
    * This hook is invoked during asynchronous success handling to allow subclasses
    * to aggregate, transform, persist, or derive final statistics from the per-task
@@ -209,10 +212,10 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
    *   <li>May produce aggregated results for outputs.</li>
    * </ul>
    *
-   * @param taskOutputs The list of per-task output payloads of type {@code O}.
+   * @param finalizedTaskItems The list of finalized taskItems<taskId,{@code I},{@code O}> .
    * @throws IOException If an I/O error occurs while processing or persisting outputs.
    */
-  protected abstract void processOutputs(List<O> taskOutputs)
+  protected abstract void processFinalizedTasks(List<FinalizedTaskItem<I,O>> finalizedTaskItems)
           throws IOException, WebClientException;
 
   /**
@@ -437,7 +440,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
         infoLog(STEP_ON_ASYNC_UPDATE, "All tasks are finished." + taskProgressAndItem);
 
         //Collect outputs and process them
-        processOutputs(collectOutputs());
+        processFinalizedTasks(collectOutputs());
 
         //Clean up temporary resources
         cleanUpDbResources();
@@ -481,22 +484,26 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
     finalCleanUp();
   }
 
-  private List<O> collectOutputs() throws SQLException, TooManyResourcesClaimed, WebClientException {
+  private List<FinalizedTaskItem<I,O>> collectOutputs() throws SQLException, TooManyResourcesClaimed, WebClientException {
     return runReadQuerySync(retrieveTaskOutputsQuery(), db(WRITER), 0, rs -> {
       try {
-        List<O> outputs = new ArrayList<>();
+        List<FinalizedTaskItem<I,O>> finalizedTaskItems = new ArrayList<>();
+
         while (rs.next()){
+          int taskId = rs.getInt("task_id");
+          String taskInput = rs.getString("task_input");
           String taskOutput = rs.getString("task_output");
+
           if(taskOutput != null){
-            SpaceBasedTaskUpdate<O> update =
-                    XyzSerializable.deserialize(taskOutput, SpaceBasedTaskUpdate.class);
-            outputs.add(update.taskOutput);
+            I input = XyzSerializable.deserialize(taskInput, new TypeReference<I>() {});
+            O output = XyzSerializable.deserialize(taskOutput, new TypeReference<O>() {});
+
+            finalizedTaskItems.add(new FinalizedTaskItem<>(taskId, input, output));
           }else{
             infoLog(STEP_ON_ASYNC_SUCCESS,  "Empty task output found - skip.");
           }
-
         }
-        return outputs;
+        return finalizedTaskItems;
       } catch (JsonProcessingException e) {
         throw new RuntimeException(e);
       }
@@ -593,7 +600,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   }
 
   private SQLQuery retrieveTaskOutputsQuery() throws WebClientException {
-    return new SQLQuery("SELECT task_output FROM ${schema}.${tmpTable};")
+    return new SQLQuery("SELECT task_id, task_input, task_output->'taskOutput' as task_output FROM ${schema}.${tmpTable};")
             .withVariable("schema", getSchema(db()))
             .withVariable("tmpTable", getTemporaryJobTableName(getId()));
   }
@@ -651,6 +658,8 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
         .with("stepId", getId())
         .build();
   }
+
+  public record FinalizedTaskItem<In extends TaskPayload, Out extends TaskPayload>(int taskId, In input, Out output) {}
 
   /**
    * Represents an update for a space-based task, containing the task ID and its output payload.

@@ -285,12 +285,12 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
   }
 
   @Override
-  protected void processOutputs(List<ImportOutput> taskOutputs) throws IOException, WebClientException {
+  protected void processFinalizedTasks(List<FinalizedTaskItem<ImportInput, ImportOutput>> finalizedTaskItems)throws IOException, WebClientException {
     FeatureStatistics statistics = new FeatureStatistics();
 
-    if(!taskOutputs.isEmpty()){
-      long totalImportedRows = taskOutputs.stream().mapToLong(ImportOutput::extractRowCount).sum();
-      long totalImportedBytes = taskOutputs.stream().mapToLong(ImportOutput::fileBytes).sum();
+    if(!finalizedTaskItems.isEmpty()){
+      long totalImportedRows = finalizedTaskItems.stream().mapToLong(item -> item.output().extractRowCount()).sum();
+      long totalImportedBytes = finalizedTaskItems.stream().mapToLong(item -> item.output().fileBytes()).sum();
 
       statistics = new FeatureStatistics()
               .withFeatureCount(totalImportedRows)
