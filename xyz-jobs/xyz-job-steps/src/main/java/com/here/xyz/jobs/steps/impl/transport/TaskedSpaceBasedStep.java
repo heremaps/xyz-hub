@@ -59,6 +59,7 @@ import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_EXECUTE;
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_ON_ASYNC_SUCCESS;
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_ON_ASYNC_UPDATE;
+import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.UNKNOWN;
 import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 
 /**
@@ -518,17 +519,30 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
    * @throws TooManyResourcesClaimed If too many resources are claimed during the process.
    */
   private TaskProgress getTaskProgressAndTaskItem() throws WebClientException, SQLException, TooManyResourcesClaimed {
-    return runReadQuerySync(retrieveTaskItemAndStatisticsQuery(getSchema(db(WRITER))), db(WRITER), 0,
-      rs -> {
-        if(!rs.next())
-          return null;
-        try {
-          return new TaskProgress(rs.getInt("total"), rs.getInt("started"), rs.getInt("finalized"),
-                  rs.getInt("task_id"), XyzSerializable.deserialize(rs.getString("task_input"),  new TypeReference<I>() {}));
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException("Can not deserialize task_input!",e);
-        }
-      });
+    TaskProgress taskProgress;
+    try {
+      taskProgress = runReadQuerySync(retrieveTaskItemAndStatisticsQuery(getSchema(db(WRITER))), db(WRITER), 0,
+              rs -> {
+                if (!rs.next())
+                  return null;
+                try {
+                  return new TaskProgress(rs.getInt("total"), rs.getInt("started"), rs.getInt("finalized"),
+                          rs.getInt("task_id"), XyzSerializable.deserialize(rs.getString("task_input"), new TypeReference<I>() {
+                  }));
+                } catch (JsonProcessingException e) {
+                  throw new RuntimeException("Can not deserialize task_input!", e);
+                }
+              });
+    }catch (SQLException e){
+      if(e.getSQLState().equalsIgnoreCase("42P01")) {
+        //If we are here a failure already happened and the task table does not exist anymore
+        //To avoid overriding the original failure we just log this and return a completed TaskProgress
+        infoLog(UNKNOWN,  "Task table does not exist anymore. Ignore.");
+        return new TaskProgress<>(-1);
+      }
+      throw e;
+    }
+    return taskProgress;
   }
 
   private static SQLQuery buildTaskTableStatement(String schema, Step step) {

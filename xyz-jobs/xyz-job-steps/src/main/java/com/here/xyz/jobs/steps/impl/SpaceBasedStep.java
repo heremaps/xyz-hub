@@ -315,6 +315,7 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
     STEP_ON_ASYNC_UPDATE,
     STEP_ON_ASYNC_SUCCESS,
     JOB_DELETE,
-    JOB_VALIDATE
+    JOB_VALIDATE,
+    UNKNOWN
   }
 }
