@@ -431,10 +431,10 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
     try {
       //Update the task table and mark item as finalized
       SpaceBasedTaskUpdate update = (SpaceBasedTaskUpdate) processUpdate;
+      infoLog(STEP_ON_ASYNC_UPDATE, "received progress update: " + processUpdate.serialize());
+
       updateTaskItemInTaskTable(update);
 
-      infoLog(STEP_ON_ASYNC_UPDATE, "received progress update: "
-              + processUpdate.serialize());
       TaskProgress taskProgressAndItem = getTaskProgressAndTaskItem();
       if (taskProgressAndItem.isComplete()) {
         infoLog(STEP_ON_ASYNC_UPDATE, "All tasks are finished." + taskProgressAndItem);
@@ -477,11 +477,24 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   }
 
   private void cleanUpDbResources() throws WebClientException, SQLException, TooManyResourcesClaimed {
-    infoLog(STEP_ON_ASYNC_SUCCESS,  "Cleanup temporary table");
-    runWriteQuerySync(buildTemporaryJobTableDropStatement(getSchema(db()), getTemporaryJobTableName(getId())), db(WRITER), 0);
+    try {
+      infoLog(STEP_ON_ASYNC_SUCCESS, "Executing cleanUp Hook");
+      finalCleanUp();
 
-    infoLog(STEP_ON_ASYNC_SUCCESS,  "Executing cleanUp Hook");
-    finalCleanUp();
+      infoLog(STEP_ON_ASYNC_SUCCESS, "Cleanup temporary table");
+      runWriteQuerySync(buildTemporaryJobTableDropStatement(getSchema(db()), getTemporaryJobTableName(getId())), db(WRITER), 0);
+    }catch (SQLException e){
+      if(e.getSQLState().equalsIgnoreCase("42P01")) {
+        //relation does not exists
+        warnLog(UNKNOWN,  "Resource does not exist anymore. Ignore ");
+      }else if(e.getSQLState().equalsIgnoreCase("40P01")) {
+        //deadlock detected
+        warnLog(UNKNOWN,  "Deadlock detected! Ignore ");
+      }
+      else{
+        throw e;
+      }
+    }
   }
 
   private List<FinalizedTaskItem<I,O>> collectOutputs() throws SQLException, TooManyResourcesClaimed, WebClientException {
