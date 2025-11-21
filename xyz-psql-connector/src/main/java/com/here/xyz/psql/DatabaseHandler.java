@@ -55,6 +55,7 @@ import com.here.xyz.util.db.datasource.DataSourceProvider;
 import com.here.xyz.util.db.datasource.DatabaseSettings;
 import com.here.xyz.util.db.datasource.DatabaseSettings.ScriptResourcePath;
 import com.here.xyz.util.runtime.FunctionRuntime;
+import com.here.xyz.util.runtime.LambdaFunctionRuntime;
 import java.sql.BatchUpdateException;
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -68,8 +69,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import com.here.xyz.util.runtime.LambdaFunctionRuntime;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -165,7 +164,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                 return false;
             }
             if (!retryAttempted) {
-                logger.warn("{} Retry based on serverless scaling detected! RemainingTime: {} ", traceItem, remainingSeconds, e);
+                logger.warn("{} Retryable error detected! RemainingTime: {} ", traceItem, remainingSeconds, e);
                 return true;
             }
         }

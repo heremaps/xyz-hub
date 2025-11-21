@@ -20,6 +20,7 @@
 package com.here.xyz.jobs.steps.impl.export;
 
 import static com.here.xyz.jobs.steps.Step.Visibility.SYSTEM;
+import static com.here.xyz.jobs.steps.Step.Visibility.USER;
 
 import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.PropertiesQuery;
@@ -116,14 +117,19 @@ public class ExportTestBase extends StepTest {
 
         //Send Lambda Requests
         sendLambdaStepRequestBlock(step, true);
-        checkExportChangedTilesOutputs(expectedFeatures, step.loadUserOutputs(), expectedTileInvalidations);
+        checkExportChangedTilesOutputs(expectedFeatures, step.loadOutputs(USER), step.loadOutputs(SYSTEM), expectedTileInvalidations);
     }
 
     protected void checkExportChangedTilesOutputs(FeatureCollection expectedFeatures, List<Output> userOutputs,
-               List<String> expectedTileInvalidations) throws IOException {
+                                                  List<Output> systemOutputs, List<String> expectedTileInvalidations) throws IOException {
         List<Feature>  exportedFeatures = new ArrayList<>();
+        boolean foundTileInvalidations = false;
 
-        for (Output output : userOutputs) {
+        List<Output> allOutputs = new ArrayList<>();
+        allOutputs.addAll(userOutputs);
+        allOutputs.addAll(systemOutputs);
+
+        for (Output output : allOutputs) {
             if (output instanceof DownloadUrl downloadUrl)
                 exportedFeatures.addAll(downloadFileAndSerializeFeatures(downloadUrl));
                 //TODO: FeatureStatistics could get only checked if we also support during simulation "UPDATE_CALLBACK"
@@ -131,11 +137,15 @@ public class ExportTestBase extends StepTest {
                 System.out.println(statistics.getFeatureCount());
                 Assertions.assertEquals(expectedFeatures.getFeatures().size(), statistics.getFeatureCount());
             }else if (output instanceof TileInvalidations tileInvalidations) {
+                foundTileInvalidations = true;
                 logger.info("TileInvalidations {} vs {}",expectedTileInvalidations, tileInvalidations.getTileIds());
                 Assertions.assertEquals(expectedTileInvalidations.size(), tileInvalidations.getTileIds().size());
                 Assertions.assertTrue(expectedTileInvalidations.containsAll(tileInvalidations.getTileIds()));
             }
         }
+        if(!expectedTileInvalidations.isEmpty())
+          Assertions.assertTrue(foundTileInvalidations);
+
         List<String> expectedFeaturesIdList = expectedFeatures.getFeatures().stream().map(Feature::getId).collect(Collectors.toList());
         List<String> exportedFeaturesFeaturesIdList = exportedFeatures.stream().map(Feature::getId).collect(Collectors.toList());
 

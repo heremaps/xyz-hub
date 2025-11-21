@@ -44,6 +44,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.regex.Matcher;
@@ -81,6 +82,7 @@ public class SQLQuery {
   private String lock;
   private int timeout = Integer.MAX_VALUE;
   private int maximumRetries;
+  private Set<String> retryableErrorCodes = Set.of();
   private HashMap<String, List<Integer>> namedParams2Positions = new HashMap<>();
   private PreparedStatement preparedStatement;
   private String queryId;
@@ -755,6 +757,19 @@ public class SQLQuery {
     return this;
   }
 
+  public Set<String> getRetryableErrorCodes() {
+    return retryableErrorCodes;
+  }
+
+  public void setRetryableErrorCodes(Set<String> retryableErrorCodes) {
+    this.retryableErrorCodes = retryableErrorCodes;
+  }
+
+  public SQLQuery withRetryableErrorCodes(Set<String> retryableErrorCodes) {
+    setRetryableErrorCodes(retryableErrorCodes);
+    return this;
+  }
+
   public String getQueryId() {
     //TODO: Call initQueryId() here?
     return queryId;
@@ -1211,10 +1226,10 @@ public class SQLQuery {
               //|| sqlEx.getSQLState().equalsIgnoreCase("57P01")
               || sqlEx.getSQLState().equalsIgnoreCase("08003")
               || sqlEx.getSQLState().equalsIgnoreCase("08006")
-        )) {
-          logger.warn("{} Error based on serverless scaling detected! RemainingTime: {}", getQueryId(), remainingQueryTimeout, e);
-          return true;
-        }
+              || getRetryableErrorCodes().contains(sqlEx.getSQLState())
+      )) {
+        logger.warn("{} Retryable error detected! RemainingTime: {}", getQueryId(), remainingQueryTimeout, e);
+        return true;
       }
       return false;
     }

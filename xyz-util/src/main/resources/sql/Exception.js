@@ -84,6 +84,13 @@ class MergeConflictError extends VersionConflictError {
   }
 }
 
+class RetryableVersionConflictError extends XyzException {
+  constructor(message, cause = null) {
+    super(message, cause);
+    this.withCode("XYZ33");
+  }
+}
+
 class IllegalArgumentException extends XyzException {
   constructor(message, cause = null) {
     super(message, cause);

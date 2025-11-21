@@ -92,15 +92,17 @@ import java.util.UUID;
 import static com.here.xyz.util.db.ConnectorParameters.TableLayout.NEW_LAYOUT;
 import static com.here.xyz.events.UpdateStrategy.OnExists;
 import static com.here.xyz.events.UpdateStrategy.OnNotExists;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.REF_QUAD_PROPERTY_KEY;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.GLOBAL_VERSION_PROPERTY_KEY;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.REFERENCES_PROPERTY_KEY;
 
 import static com.here.xyz.responses.XyzError.NOT_IMPLEMENTED;
 
 public class NLConnector extends PSQLXyzConnector {
   private static final Logger logger = LogManager.getLogger();
   private static final String STATUS_PROPERTY_KEY = "status";
-  private static final String GLOBAL_VERSION_PROPERTY_KEY = "globalVersion";
+
   private static final String GLOBAL_VERSION_SEARCH_KEY = "globalVersions";
-  private static final String REF_QUAD_PROPERTY_KEY = "refQuad";
   private static final String REF_QUAD_COUNT_SELECTION_KEY = "f.refQuadCount";
   //If seedingMode is active, we do not use the FeatureWriter, but a simple batch upsert and delete
   private boolean seedingMode = false;
@@ -236,11 +238,16 @@ public class NLConnector extends PSQLXyzConnector {
   }
 
   private PropertiesQueryInput getPropertiesQueryInput(PropertiesQuery propertiesQuery) {
-    String errorMessageProperties = "Property based search supports only p." + REF_QUAD_PROPERTY_KEY
-            + "^=string || globalversions=int|List<int> || status=string searches in NLConnector!";
+    String errorMessageProperties = "Property based search supports only p." + REF_QUAD_PROPERTY_KEY +" ^=string || "
+            + "p." + GLOBAL_VERSION_PROPERTY_KEY + "=int|List<int> || "
+            + "p." + STATUS_PROPERTY_KEY+"=String "
+            + "p." + REFERENCES_PROPERTY_KEY+"=string|List<String> "
+            + "searches in NLConnector!";
+
     String status = null;
     String refQuad = null;
     List<Integer> globalVersions = new ArrayList<>();
+    List<String> references = new ArrayList<>();
 
     for (PropertyQueryList propertyQueries : propertiesQuery) {
       for (PropertyQuery pq : propertyQueries) {
@@ -257,31 +264,39 @@ public class NLConnector extends PSQLXyzConnector {
         else if (key.equalsIgnoreCase("properties." + GLOBAL_VERSION_SEARCH_KEY)
                 && operation.equals(PropertyQuery.QueryOperation.EQUALS)) {
           for(Object v : values){
-            if(v instanceof Integer) {
-              Integer globalVersion = (Integer) v;
+            if(v instanceof Integer globalVersion)
               globalVersions.add(globalVersion);
-            }
-            else if(v instanceof Long) {
-              Long globalVersion = (Long) v;
+            else if(v instanceof Long globalVersion)
               globalVersions.add(globalVersion.intValue());
-            }
-            else if(v instanceof List<?>){
-              List<?> globalVersionList = (List<?>) v;
+            else if(v instanceof List<?> globalVersionList){
               for(Object vv : globalVersionList){
-                if(vv instanceof Integer) {
-                  Integer globalVersion = (Integer) vv;
+                if(vv instanceof Integer globalVersion)
                   globalVersions.add(globalVersion);
-                }
-                else if(vv instanceof Long) {
-                  Long globalVersion = (Long) vv;
+                else if(vv instanceof Long globalVersion)
                   globalVersions.add(globalVersion.intValue());
-                }
                 else
                   throw new IllegalArgumentException("Value for 'p." + GLOBAL_VERSION_SEARCH_KEY + "' must be an Integer or a List<Integer>!");
               }
             }
             else
               throw new IllegalArgumentException("Value for 'p." + GLOBAL_VERSION_SEARCH_KEY + "' must be an Integer or a List<Integer>!");
+          }
+        }
+        else if (key.equalsIgnoreCase("properties." + REFERENCES_PROPERTY_KEY)
+                && operation.equals(PropertyQuery.QueryOperation.EQUALS)) {
+          for(Object v : values){
+            if(v instanceof String reference)
+              references.add(reference);
+            else if(v instanceof List<?> referenceList){
+              for(Object vv : referenceList){
+                if(vv instanceof String reference)
+                  references.add(reference);
+                else
+                  throw new IllegalArgumentException("Value for 'p." + REFERENCES_PROPERTY_KEY + "' must be an String or a List<String>!");
+              }
+            }
+            else
+              throw new IllegalArgumentException("Value for 'p." + REFERENCES_PROPERTY_KEY + "' must be an String or a List<String>!");
           }
         }
         else if (key.equalsIgnoreCase("properties." + STATUS_PROPERTY_KEY)
@@ -298,7 +313,7 @@ public class NLConnector extends PSQLXyzConnector {
         }
       }
     }
-    return new PropertiesQueryInput(refQuad, globalVersions, status);
+    return new PropertiesQueryInput(refQuad, globalVersions, status, references);
   }
 
   @Override
@@ -308,34 +323,16 @@ public class NLConnector extends PSQLXyzConnector {
     return run( new EraseSpace(event).withTableLayout(NEW_LAYOUT));
   }
 
-  public static class PropertiesQueryInput {
-    private final String refQuad;
-    private final String status;
-    private final List<Integer> globalVersions;
-
-    public PropertiesQueryInput(String refQuad, List<Integer> globalVersions, String status) {
-      this.refQuad = refQuad;
-      this.globalVersions = globalVersions;
-      this.status = status;
-    }
-
-    public String refQuad() {
-      return refQuad;
-    }
-
-    public List<Integer> globalVersions() {
-      return globalVersions;
-    }
-
-      public Character[] getOperations(){
-          if (status == null || status.isEmpty()) return new Character[0];
-          String[] ops = status.split(",");
-          Character[] result = new Character[ops.length];
-          for (int i = 0; i < ops.length; i++) {
-              result[i] = ops[i].trim().charAt(0);
-          }
-          return result;
+  public record PropertiesQueryInput(String refQuad, List<Integer> globalVersions, String status, List<String> references) {
+    public Character[] getOperations(){
+      if (status == null || status.isEmpty()) return new Character[0];
+      String[] ops = status.split(",");
+      Character[] result = new Character[ops.length];
+      for (int i = 0; i < ops.length; i++) {
+        result[i] = ops[i].trim().charAt(0);
       }
+      return result;
+    }
   }
 
   @Override
@@ -419,7 +416,7 @@ public class NLConnector extends PSQLXyzConnector {
               PropertiesQueryInput propertiesQueryInput, long limit)  throws SQLException, JsonProcessingException {
     try (final Connection connection = dataSourceProvider.getWriter().getConnection()) {
       String query = createReadByRefQuadOrGlobalVersionsQuery(schema, tables, propertiesQueryInput.refQuad,
-              propertiesQueryInput.globalVersions, limit);
+              propertiesQueryInput.globalVersions, propertiesQueryInput.references, limit);
       try (PreparedStatement ps = connection.prepareStatement(query)) {
         try (ResultSet rs = ps.executeQuery()) {
           if(rs.next()){
@@ -516,63 +513,66 @@ public class NLConnector extends PSQLXyzConnector {
     String baseTable = tables.size() == 2 ? tables.get(1) : null;
 
     if(baseTable == null) {
-      return ("WITH params AS (\n"
-              + "    SELECT '$refQuad$'::text AS parent, $quadKeyLevel$ AS relative_level\n"
-              + ")\n"
-              + "SELECT LEFT(searchable->>'refQuad', LENGTH(parent) + relative_level) AS child_quad,\n"
-              + "       COUNT(*) AS cnt\n"
-              + "FROM \"$schema$\".\"$table$\", params\n"
-              + "	  WHERE searchable->>'refQuad' LIKE parent || '%'\n"
-              + "GROUP BY child_quad;\n")
+      return """
+               WITH params AS (
+                   SELECT '$refQuad$'::text AS parent, $quadKeyLevel$ AS relative_level
+               )
+               SELECT LEFT(searchable->>'refQuad', LENGTH(parent) + relative_level) AS child_quad,
+                      COUNT(*) AS cnt
+               FROM "$schema$"."$table$", params
+               	  WHERE searchable->>'refQuad' LIKE parent || '%'
+               GROUP BY child_quad;
+              """
               .replace("$refQuad$", refQuad)
               .replace("$quadKeyLevel$", Integer.toString(quadKeyLevel))
               .replace("$schema$", schema)
               .replace("$table$", extensionTable + "_head");
     }
-    return ("WITH params AS (\n"
-          + "    SELECT '$refQuad$'::text AS parent, $quadKeyLevel$ AS relative_level\n"
-          + "),\n"
-          + "combined AS (\n"
-          + "  SELECT *\n"
-          + "  FROM (\n"
-          + "      SELECT\n"
-          + "          id,\n"
-          + "          searchable->>'refQuad' AS refquad,\n"
-          + "          operation,\n"
-          + "          next_version\n"
-          + "      FROM \"$schema$\".\"$extensionTable$\"\n"
-          + "      WHERE operation NOT IN ('D', 'H', 'J')\n"
-          + "  )\n"
-          + "  UNION ALL\n"
-          + "  (\n"
-          + "      SELECT *\n"
-          + "      FROM (\n"
-          + "          SELECT\n"
-          + "              id,\n"
-          + "              searchable->>'refQuad' AS refquad,\n"
-          + "              operation,\n"
-          + "              next_version\n"
-          + "          FROM \"$schema$\".\"$baseTable$\"\n"
-          + "      ) base\n"
-          + "      WHERE NOT EXISTS (\n"
-          + "          SELECT 1\n"
-          + "          FROM \"$schema$\".\"$extensionTable$\"\n"
-          + "          WHERE id = base.id\n"
-          + "            AND next_version = 9223372036854775807::BIGINT\n"
-          + "            AND operation != 'D'\n"
-          + "      )\n"
-          + "    )\n"
-          + "  ),\n"
-          + "  filtered AS (\n"
-          + "      SELECT c.*\n"
-          + "        FROM combined c\n"
-          + "       WHERE c.refquad LIKE (SELECT parent FROM params) || '%'\n"
-          + "  )\n"
-          + "  SELECT LEFT(f.refquad, LENGTH(p.parent) + p.relative_level) AS child_quad,\n"
-          + "         COUNT(f.refquad) AS cnt\n"
-          + "    FROM filtered f, params p\n"
-          + "   GROUP BY child_quad;\n")
-            .replace("$refQuad$", refQuad)
+    return """
+          WITH params AS (
+              SELECT '$refQuad$'::text AS parent, $quadKeyLevel$ AS relative_level
+          ),
+          combined AS (
+            SELECT *
+            FROM (
+                SELECT
+                    id,
+                    searchable->>'refQuad' AS refquad,
+                    operation,
+                    next_version
+                FROM "$schema$"."$extensionTable$"
+                WHERE operation NOT IN ('D', 'H', 'J')
+            )
+            UNION ALL
+            (
+                SELECT *
+                FROM (
+                    SELECT
+                        id,
+                        searchable->>'refQuad' AS refquad,
+                        operation,
+                        next_version
+                    FROM "$schema$"."$baseTable$"
+                ) base
+                WHERE NOT EXISTS (
+                    SELECT 1
+                    FROM "$schema$"."$extensionTable$"
+                    WHERE id = base.id
+                      AND next_version = 9223372036854775807::BIGINT
+                      AND operation != 'D'
+                )
+              )
+            ),
+            filtered AS (
+                SELECT c.*
+                  FROM combined c
+                 WHERE c.refquad LIKE (SELECT parent FROM params) || '%'
+            )
+            SELECT LEFT(f.refquad, LENGTH(p.parent) + p.relative_level) AS child_quad,
+                   COUNT(f.refquad) AS cnt
+              FROM filtered f, params p
+             GROUP BY child_quad;
+          """.replace("$refQuad$", refQuad)
             .replace("$quadKeyLevel$", Integer.toString(quadKeyLevel))
             .replace("$schema$", schema)
             .replace("$baseTable$", baseTable + "_head")
@@ -594,22 +594,26 @@ public class NLConnector extends PSQLXyzConnector {
     }
 
     if(baseTable == null)
-      return ("SELECT operation, COUNT(*) AS cnt\n"
-               + " FROM \"$schema$\".\"$table$\"\n"
-               + "WHERE operation IN($operations$)\n"
-               + "GROUP BY operation;\n")
+      return """
+               SELECT operation, COUNT(*) AS cnt
+                FROM "$schema$"."$table$"
+               WHERE operation IN($operations$)
+               GROUP BY operation;
+              """
              .replace("$operations$", opsString)
              .replace("$schema$", schema)
              .replace("$table$", extensionTable + "_head");
-    return ("SELECT operation, COUNT(*) AS cnt\n"
-            + "FROM (\n"
-            + "  SELECT operation FROM \"$schema$\".\"$baseTable$\"\n"
-            + "    WHERE operation IN($operations$)\n"
-            + "  UNION ALL\n"
-            + "  SELECT operation FROM \"$schema$\".\"$extensionTable$\"\n"
-            + "    WHERE operation IN($operations$)\n"
-            + ") AS combined\n"
-            + "GROUP BY operation\n")
+    return """
+            SELECT operation, COUNT(*) AS cnt
+            FROM (
+              SELECT operation FROM "$schema$"."$baseTable$"
+                WHERE operation IN($operations$)
+              UNION ALL
+              SELECT operation FROM "$schema$"."$extensionTable$"
+                WHERE operation IN($operations$)
+            ) AS combined
+            GROUP BY operation
+            """
             .replace("$operations$", opsString)
             .replace("$schema$", schema)
             .replace("$baseTable$", baseTable + "_head")
@@ -621,17 +625,19 @@ public class NLConnector extends PSQLXyzConnector {
           List<String> tables,
           String refQuad,
           List<Integer> globalVersions,
+          List<String> references,
           long limit
   ) {
     String extensionTable = tables.get(0);
     String baseTable = tables.size() == 2 ? tables.get(1) : null;
 
     // Build the WHERE filter fragment (shared)
-    StringBuilder filter = new StringBuilder(
-            "WHERE  operation NOT IN (\n" +
-            "  SELECT unnest(ARRAY['D','H','J']::CHAR[])\n" +
-            ")\n" +
-            "AND next_version = 9223372036854775807::BIGINT\n");
+    StringBuilder filter = new StringBuilder("""
+            WHERE  operation NOT IN (
+              SELECT unnest(ARRAY['D','H','J']::CHAR[])
+            )
+            AND next_version = 9223372036854775807::BIGINT
+            """);
     if (refQuad != null) {
       filter.append(" AND searchable->'refQuad' >= to_jsonb('")
               .append(refQuad)
@@ -647,6 +653,14 @@ public class NLConnector extends PSQLXyzConnector {
               .append(joinedVersions)
               .append(") ");
     }
+    if (references != null && !references.isEmpty()) {
+      String joinedReferences = references.stream()
+              .map(v -> "'" + v + "'")
+              .collect(java.util.stream.Collectors.joining(","));
+      filter.append(" AND searchable->'references' @> to_jsonb(ARRAY[")
+              .append(joinedReferences)
+              .append("]) ");
+    }
 
     // Inner selects (no LIMIT yet, apply after UNION to keep global limit semantics)
     String inner1 = "SELECT * FROM \"" + schema + "\".\"" + extensionTable + "_head\" " + filter;
@@ -656,13 +670,15 @@ public class NLConnector extends PSQLXyzConnector {
       finalQuery = inner1;
     }else {
       String inner2 = "SELECT * FROM \"" + schema + "\".\"" + baseTable + "_head\" " + filter;
-      String whereNotExistsCondition = ("WHERE NOT EXISTS (\n"
-            + "      SELECT 1\n"
-            + "      	FROM \"$schema$\".\"$table$\"\n"
-            + "      WHERE id = a.id\n"
-            + "        AND next_version = 9223372036854775807::BIGINT\n"
-            + "        AND operation != 'D'\n"
-            + "    )\n")
+      String whereNotExistsCondition = """
+            WHERE NOT EXISTS (
+                  SELECT 1
+                  	FROM "$schema$"."$table$"
+                  WHERE id = a.id
+                    AND next_version = 9223372036854775807::BIGINT
+                    AND operation != 'D'
+                )
+            """
               .replace("$schema$", schema)
               .replace("$table$", extensionTable);
       // UNION ALL combined set
@@ -675,28 +691,43 @@ public class NLConnector extends PSQLXyzConnector {
     }
 
     // FeatureCollection aggregation across unioned rows
-    String selection =
-        "'{ \"type\": \"FeatureCollection\", \"features\": [' ||\n" +
-        " COALESCE(\n" +
-        "   string_agg(\n" +
-        "     regexp_replace(\n" +
-        "       regexp_replace(\n" +
-        "         jsondata,\n" +
-        "         '(\"(@ns:com:here:xyz)\"\\s*:\\s*\\{)',\n" +
-        "         '\\1\"version\":' || version || ',\"author\":\"' || coalesce(author, 'ANONYMOUS') || '\",',\n" +
-        "         'g'\n" +
-        "       ),\n" +
-        "       '^{',\n" +
-        "       '{' || '\"geometry\":' || coalesce(ST_AsGeoJSON(geo, 8), 'null') || ',',\n" +
-        "       'g'\n" +
-        "     ),\n" +
-        "     ','\n" +
-        "   ),\n" +
-        "   ''\n" +
-        " )\n" +
-        " || '] }' AS featureCollection\n";
+    String selection = """
+        '{ "type": "FeatureCollection", "features": [' ||
+         COALESCE(
+           string_agg(
+             regexp_replace(
+               regexp_replace(
+                 jsondata,
+                 '("(@ns:com:here:xyz)"\\s*:\\s*\\{)',
+                 '\\1"version":' || version || ',"author":"' || coalesce(author, 'ANONYMOUS') || '",',
+                 'g'
+               ),
+               '^{',
+               '{' || '"geometry":' || coalesce(ST_AsGeoJSON(geo, 8), 'null') || ',',
+               'g'
+             ),
+             ','
+           ),
+           ''
+         )
+         || '] }' AS featureCollection
+        """;
 
-    return "SELECT " + selection + " FROM (" + finalQuery + ") t";
+    // This is used for a references search
+    String referencesSelection = """
+        '{ "type": "FeatureCollection", "features": ['
+           || '{"type":"Feature","references" : ['
+           || COALESCE(
+             string_agg(
+                '"'||id||'"',
+               ','
+             ),
+             ''
+           )
+           || ']}] }' AS featureCollection
+        """;
+
+    return "SELECT " + (references.isEmpty() ? selection : referencesSelection) + " FROM (" + finalQuery + ") t";
   }
 
   private void batchInsertFeatures(
@@ -708,10 +739,11 @@ public class NLConnector extends PSQLXyzConnector {
           List<ModificationFailure> fails
   ) throws SQLException, JsonProcessingException {
 
-    String insertSql = String.format(
-        "INSERT INTO %s.%s\n" +
-        "  (id, geo, operation, author, version, jsondata, searchable)\n" +
-        "VALUES (?, ?, ?, ?, ?, ?, ?)\n", schema, table);
+    String insertSql = """
+        INSERT INTO %s.%s
+          (id, geo, operation, author, version, jsondata, searchable)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """.formatted(schema, table);
 
     try (Connection connection = dataSourceProvider.getWriter().getConnection()) {
       connection.setAutoCommit(false);
@@ -765,6 +797,8 @@ public class NLConnector extends PSQLXyzConnector {
       searchable.put(REF_QUAD_PROPERTY_KEY, feature.getProperties().get(REF_QUAD_PROPERTY_KEY));
     if(feature.getProperties().get(GLOBAL_VERSION_PROPERTY_KEY) != null)
       searchable.put(GLOBAL_VERSION_PROPERTY_KEY, feature.getProperties().get(GLOBAL_VERSION_PROPERTY_KEY));
+    if(feature.getProperties().get(REFERENCES_PROPERTY_KEY) != null)
+      searchable.put(REFERENCES_PROPERTY_KEY, feature.getProperties().get(REFERENCES_PROPERTY_KEY));
     jsonObject.setValue(searchable.toString());
     return jsonObject;
   }
@@ -809,25 +843,25 @@ public class NLConnector extends PSQLXyzConnector {
           List<ModificationFailure> fails
   ) throws SQLException, JsonProcessingException {
 
-    String mergeSql = String.format(
-        "MERGE INTO %s.%s AS t\n"
-        + "USING (\n"
-        + "  VALUES (?, ?, ?, ?, ?, ?, ?)\n"
-        + ") AS s(id, geo, operation, author, version, jsondata, searchable)\n"
-        + "--ON (t.id = s.id AND t.next_version = 9223372036854775807 AND t.global_version = s.global_version)\n"
-        + "ON (t.id = s.id AND t.version = s.version AND t.next_version = 9223372036854775807)\n"
-        + "WHEN MATCHED THEN\n"
-        + "  UPDATE SET\n"
-        + "    jsondata  = s.jsondata,\n"
-        + "    geo       = s.geo,\n"
-        + "    version   = s.version,\n"
-        + "    author    = s.author,\n"
-        + "    operation = 'U',\n"
-        + "    searchable = s.searchable\n"
-        + "WHEN NOT MATCHED THEN\n"
-        + "  INSERT (id, geo, operation, author, version, jsondata, searchable)\n"
-        + "  VALUES (s.id, s.geo, s.operation, s.author, s.version, s.jsondata, s.searchable);\n",
-        schema, table);
+    String mergeSql = """
+        MERGE INTO %s.%s AS t
+        USING (
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        ) AS s(id, geo, operation, author, version, jsondata, searchable)
+        --ON (t.id = s.id AND t.next_version = 9223372036854775807 AND t.global_version = s.global_version)
+        ON (t.id = s.id AND t.version = s.version AND t.next_version = 9223372036854775807)
+        WHEN MATCHED THEN
+          UPDATE SET
+            jsondata  = s.jsondata,
+            geo       = s.geo,
+            version   = s.version,
+            author    = s.author,
+            operation = 'U',
+            searchable = s.searchable
+        WHEN NOT MATCHED THEN
+          INSERT (id, geo, operation, author, version, jsondata, searchable)
+          VALUES (s.id, s.geo, s.operation, s.author, s.version, s.jsondata, s.searchable);
+        """.formatted(schema, table);
 
     try (Connection connection = dataSourceProvider.getWriter().getConnection()) {
       connection.setAutoCommit(false);

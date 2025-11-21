@@ -51,8 +51,14 @@ public class Tag implements XyzSerializable {
    *
    * @see Ref#getVersion()
    */
+
+  //TODO: Remove setter for the version field
+  @Deprecated
   @JsonView({Public.class, Static.class})
   private long version = -2;
+
+  @JsonView({Public.class})
+  private Ref versionRef;
 
   /**
    * The indicator that this tag is a system tag, which is not allowed to be deleted or modified by users.
@@ -80,6 +86,11 @@ public class Tag implements XyzSerializable {
   @JsonView({Public.class, Static.class})
   @JsonProperty(access = JsonProperty.Access.READ_ONLY)
   private long createdAt = -1;
+
+  @JsonView({Static.class})
+  public String getBranchId() {
+    return versionRef != null ? versionRef.getBranch() : MAIN;
+  }
 
   public String getId() {
     return id;
@@ -118,6 +129,21 @@ public class Tag implements XyzSerializable {
   public Tag withVersion(long version) {
    setVersion(version);
    return this;
+  }
+
+  public Ref getVersionRef() {
+    return versionRef;
+  }
+
+  public void setVersionRef(Ref versionRef) {
+    this.versionRef = versionRef;
+    if (versionRef != null && !versionRef.isHead())
+      this.version = versionRef.getVersion();
+  }
+
+  public Tag withVersionRef(Ref versionRef) {
+    setVersionRef(versionRef);
+    return this;
   }
 
   public boolean isSystem() {
