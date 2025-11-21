@@ -456,10 +456,10 @@ BEGIN
                     max_attempts,
                     attempts + 1
                 );
-    ELSE
-        RAISE EXCEPTION 'Import of ''%'' failed after ''%'' attempts. SQLSTATE: %, Message: %',
-            s3_key, max_attempts, SQLSTATE, SQLERRM
-                USING ERRCODE = SQLSTATE;
+            ELSE
+                RAISE EXCEPTION 'Import of ''%'' failed after ''%'' attempts. SQLSTATE: %, Message: %',
+                    s3_key, max_attempts, SQLSTATE, SQLERRM
+                        USING ERRCODE = SQLSTATE;
     END IF;
 END;
 $BODY$;
