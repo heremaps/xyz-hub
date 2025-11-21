@@ -92,15 +92,17 @@ import java.util.UUID;
 import static com.here.xyz.util.db.ConnectorParameters.TableLayout.NEW_LAYOUT;
 import static com.here.xyz.events.UpdateStrategy.OnExists;
 import static com.here.xyz.events.UpdateStrategy.OnNotExists;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.REF_QUAD_PROPERTY_KEY;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.GLOBAL_VERSION_PROPERTY_KEY;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.REFERENCES_PROPERTY_KEY;
 
 import static com.here.xyz.responses.XyzError.NOT_IMPLEMENTED;
 
 public class NLConnector extends PSQLXyzConnector {
   private static final Logger logger = LogManager.getLogger();
   private static final String STATUS_PROPERTY_KEY = "status";
-  private static final String GLOBAL_VERSION_PROPERTY_KEY = "globalVersion";
+
   private static final String GLOBAL_VERSION_SEARCH_KEY = "globalVersions";
-  private static final String REF_QUAD_PROPERTY_KEY = "refQuad";
   private static final String REF_QUAD_COUNT_SELECTION_KEY = "f.refQuadCount";
   //If seedingMode is active, we do not use the FeatureWriter, but a simple batch upsert and delete
   private boolean seedingMode = false;
@@ -236,11 +238,16 @@ public class NLConnector extends PSQLXyzConnector {
   }
 
   private PropertiesQueryInput getPropertiesQueryInput(PropertiesQuery propertiesQuery) {
-    String errorMessageProperties = "Property based search supports only p." + REF_QUAD_PROPERTY_KEY
-            + "^=string || globalversions=int|List<int> || status=string searches in NLConnector!";
+    String errorMessageProperties = "Property based search supports only p." + REF_QUAD_PROPERTY_KEY +" ^=string || "
+            + "p." + GLOBAL_VERSION_PROPERTY_KEY + "=int|List<int> || "
+            + "p." + STATUS_PROPERTY_KEY+"=String "
+            + "p." + REFERENCES_PROPERTY_KEY+"=string|List<String> "
+            + "searches in NLConnector!";
+
     String status = null;
     String refQuad = null;
     List<Integer> globalVersions = new ArrayList<>();
+    List<String> references = new ArrayList<>();
 
     for (PropertyQueryList propertyQueries : propertiesQuery) {
       for (PropertyQuery pq : propertyQueries) {
@@ -275,6 +282,23 @@ public class NLConnector extends PSQLXyzConnector {
               throw new IllegalArgumentException("Value for 'p." + GLOBAL_VERSION_SEARCH_KEY + "' must be an Integer or a List<Integer>!");
           }
         }
+        else if (key.equalsIgnoreCase("properties." + REFERENCES_PROPERTY_KEY)
+                && operation.equals(PropertyQuery.QueryOperation.EQUALS)) {
+          for(Object v : values){
+            if(v instanceof String reference)
+              references.add(reference);
+            else if(v instanceof List<?> referenceList){
+              for(Object vv : referenceList){
+                if(vv instanceof String reference)
+                  references.add(reference);
+                else
+                  throw new IllegalArgumentException("Value for 'p." + REFERENCES_PROPERTY_KEY + "' must be an String or a List<String>!");
+              }
+            }
+            else
+              throw new IllegalArgumentException("Value for 'p." + REFERENCES_PROPERTY_KEY + "' must be an String or a List<String>!");
+          }
+        }
         else if (key.equalsIgnoreCase("properties." + STATUS_PROPERTY_KEY)
                 && operation.equals(QueryOperation.EQUALS)) {
           if (!(values.get(0) instanceof String))
@@ -289,7 +313,7 @@ public class NLConnector extends PSQLXyzConnector {
         }
       }
     }
-    return new PropertiesQueryInput(refQuad, globalVersions, status);
+    return new PropertiesQueryInput(refQuad, globalVersions, status, references);
   }
 
   @Override
@@ -299,7 +323,7 @@ public class NLConnector extends PSQLXyzConnector {
     return run( new EraseSpace(event).withTableLayout(NEW_LAYOUT));
   }
 
-  public record PropertiesQueryInput(String refQuad, List<Integer> globalVersions, String status) {
+  public record PropertiesQueryInput(String refQuad, List<Integer> globalVersions, String status, List<String> references) {
     public Character[] getOperations(){
       if (status == null || status.isEmpty()) return new Character[0];
       String[] ops = status.split(",");
@@ -392,7 +416,7 @@ public class NLConnector extends PSQLXyzConnector {
               PropertiesQueryInput propertiesQueryInput, long limit)  throws SQLException, JsonProcessingException {
     try (final Connection connection = dataSourceProvider.getWriter().getConnection()) {
       String query = createReadByRefQuadOrGlobalVersionsQuery(schema, tables, propertiesQueryInput.refQuad,
-              propertiesQueryInput.globalVersions, limit);
+              propertiesQueryInput.globalVersions, propertiesQueryInput.references, limit);
       try (PreparedStatement ps = connection.prepareStatement(query)) {
         try (ResultSet rs = ps.executeQuery()) {
           if(rs.next()){
@@ -601,6 +625,7 @@ public class NLConnector extends PSQLXyzConnector {
           List<String> tables,
           String refQuad,
           List<Integer> globalVersions,
+          List<String> references,
           long limit
   ) {
     String extensionTable = tables.get(0);
@@ -627,6 +652,14 @@ public class NLConnector extends PSQLXyzConnector {
       filter.append(" AND (searchable->'globalVersion') IN (")
               .append(joinedVersions)
               .append(") ");
+    }
+    if (references != null && !references.isEmpty()) {
+      String joinedReferences = references.stream()
+              .map(v -> "'" + v + "'")
+              .collect(java.util.stream.Collectors.joining(","));
+      filter.append(" AND searchable->'references' @> to_jsonb(ARRAY[")
+              .append(joinedReferences)
+              .append("]) ");
     }
 
     // Inner selects (no LIMIT yet, apply after UNION to keep global limit semantics)
@@ -680,7 +713,21 @@ public class NLConnector extends PSQLXyzConnector {
          || '] }' AS featureCollection
         """;
 
-    return "SELECT " + selection + " FROM (" + finalQuery + ") t";
+    // This is used for a references search
+    String referencesSelection = """
+        '{ "type": "FeatureCollection", "features": ['
+           || '{"type":"Feature","references" : ['
+           || COALESCE(
+             string_agg(
+                '"'||id||'"',
+               ','
+             ),
+             ''
+           )
+           || ']}] }' AS featureCollection
+        """;
+
+    return "SELECT " + (references.isEmpty() ? selection : referencesSelection) + " FROM (" + finalQuery + ") t";
   }
 
   private void batchInsertFeatures(
@@ -750,6 +797,8 @@ public class NLConnector extends PSQLXyzConnector {
       searchable.put(REF_QUAD_PROPERTY_KEY, feature.getProperties().get(REF_QUAD_PROPERTY_KEY));
     if(feature.getProperties().get(GLOBAL_VERSION_PROPERTY_KEY) != null)
       searchable.put(GLOBAL_VERSION_PROPERTY_KEY, feature.getProperties().get(GLOBAL_VERSION_PROPERTY_KEY));
+    if(feature.getProperties().get(REFERENCES_PROPERTY_KEY) != null)
+      searchable.put(REFERENCES_PROPERTY_KEY, feature.getProperties().get(REFERENCES_PROPERTY_KEY));
     jsonObject.setValue(searchable.toString());
     return jsonObject;
   }
