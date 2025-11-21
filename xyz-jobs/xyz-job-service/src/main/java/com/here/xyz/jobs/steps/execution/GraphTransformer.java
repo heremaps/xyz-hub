@@ -305,6 +305,17 @@ public class GraphTransformer {
         "ApplicationId", emrStep.getApplicationId(),
         "ExecutionRoleArn", emrStep.getExecutionRoleArn(),
         "ExecutionTimeoutMinutes", EMR_EXECUTION_TIMEOUT_MINUTES,
+        "ConfigurationOverrides", Map.of(
+            "MonitoringConfiguration", Map.of(
+                "CloudWatchLoggingConfiguration", Map.of(
+                    "Enabled", true,
+                    "LogTypes", Map.of(
+                        "SPARK_DRIVER", List.of("STDERR", "STDOUT"),
+                        "SPARK_EXECUTOR", List.of("STDERR", "STDOUT")
+                    )
+                )
+            )
+        ),
         "JobDriver", Map.of(
             "SparkSubmit", Map.of(
                 "EntryPoint", emrStep.getJarUrl(),
