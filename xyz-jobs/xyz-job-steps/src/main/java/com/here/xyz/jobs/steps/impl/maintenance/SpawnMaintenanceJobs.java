@@ -17,24 +17,23 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.jobs.steps.impl;
+package com.here.xyz.jobs.steps.impl.maintenance;
+
+import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
 
 import com.here.xyz.jobs.steps.Config;
+import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.jobs.util.StepWebClient;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.util.web.HubWebClient;
-import com.here.xyz.util.web.XyzWebClient;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import io.vertx.core.json.JsonObject;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import java.sql.SQLException;
 import java.util.List;
-
-import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class SpawnMaintenanceJobs extends SpaceBasedStep<SpawnMaintenanceJobs> {
   private static final Logger logger = LogManager.getLogger();
