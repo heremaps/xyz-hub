@@ -78,7 +78,7 @@ public class ImportFromFiles implements JobCompilationInterceptor {
   }
 
   private boolean isSupportedFormat(Files files) {
-    return files.getInputSettings().getFormat() instanceof GeoJson || files.getInputSettings().getFormat() instanceof Csv;
+    return files.getInputSettings().getFormat() instanceof GeoJson;
   }
 
   @Override
