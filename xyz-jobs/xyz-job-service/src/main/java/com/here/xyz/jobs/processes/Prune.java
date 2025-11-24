@@ -19,13 +19,6 @@
 
 package com.here.xyz.jobs.processes;
 
-import com.fasterxml.jackson.annotation.JsonSubTypes;
-import com.here.xyz.Typed;
-
-@JsonSubTypes({
-    @JsonSubTypes.Type(value = Maintain.class),
-    @JsonSubTypes.Type(value = Prune.class)
-})
-public abstract class ProcessDescription implements Typed {
+public class Prune extends ProcessDescription {
 
 }
