@@ -103,7 +103,6 @@ public abstract class EntryConnectorHandler extends AbstractConnectorHandler imp
         String className = "com.here.xyz.psql.PSQLXyzConnector";
         if (event.getConnectorParams() != null && event.getConnectorParams().containsKey("className"))
           className = event.getConnectorParams().get("className").toString();
-        //TBD: read from connector config
         final Class<?> mainClass = Class.forName(className);
         final AbstractConnectorHandler reqHandler = (AbstractConnectorHandler) mainClass.getDeclaredConstructor().newInstance();
 
@@ -118,8 +117,12 @@ public abstract class EntryConnectorHandler extends AbstractConnectorHandler imp
       }
       catch (ErrorResponseException e) {
         switch (e.getErrorResponse().getError()) {
-          case EXCEPTION, BAD_GATEWAY, TIMEOUT -> logger.error("{} Exception in Connector:", streamId, e);
+          case EXCEPTION, BAD_GATEWAY, TIMEOUT -> logger.error("[{}] Unexpected exception in connector:", streamId, e);
+          default -> logger.warn("[{}] Exception in connector:", streamId, e);
         }
+        if (e.getInternalDetails() != null)
+          logger.warn("[{}] Internal details of exception: {}", streamId, e.getInternalDetails());
+
         e.getErrorResponse().setStreamId(streamId);
         dataOut = e.getErrorResponse();
       }
