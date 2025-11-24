@@ -295,17 +295,22 @@ public class BranchManager {
    * @return True, if other branches are based on the branch
    */
   private boolean hasBranches(int nodeId) throws SQLException {
+    return buildHasBranchesQuery(nodeId)
+        .run(dataSourceProvider, rs -> rs.next());
+  }
+
+  public SQLQuery buildHasBranchesQuery(int nodeId) {
     String tablePattern = basePrefix(nodeId) + "%_%";
     //TODO: Rather use a regex instead of 2 checks
-    return new SQLQuery("""
+    final SQLQuery sqlQuery = new SQLQuery("""
         SELECT tablename FROM pg_tables WHERE schemaname = #{schema}
         AND tablename LIKE #{tablePattern}
         AND NOT tablename LIKE #{partitionsPattern}
         """)
         .withNamedParameter(SCHEMA, schema)
         .withNamedParameter("tablePattern", toLikePattern(tablePattern))
-        .withNamedParameter("partitionsPattern", toLikePattern(tablePattern + "_%"))
-        .run(dataSourceProvider, rs -> rs.next());
+        .withNamedParameter("partitionsPattern", toLikePattern(tablePattern + "_%"));
+    return sqlQuery;
   }
 
   private String toLikePattern(String pattern) {
@@ -361,7 +366,7 @@ public class BranchManager {
     return rootTable + "_" + nodeId + "_";
   }
 
-  private int baseNodeId(String branchTableName) {
+  public static int baseNodeId(String branchTableName) {
     return Integer.parseInt(branchTableName.split("_")[1]);
   }
 
@@ -369,7 +374,7 @@ public class BranchManager {
     return Long.parseLong(branchTableName.split("_")[2]);
   }
 
-  private int nodeId(String branchTableName) {
+  public static int nodeId(String branchTableName) {
     return Integer.parseInt(branchTableName.split("_")[3]);
   }
 

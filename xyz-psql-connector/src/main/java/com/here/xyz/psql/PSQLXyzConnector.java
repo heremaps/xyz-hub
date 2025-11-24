@@ -228,7 +228,9 @@ public class PSQLXyzConnector extends DatabaseHandler {
               .withConflicting(result.conflicting());
         }
         case DELETE -> {
-          branchManager.deleteBranch(event.getNodeId());
+          //NOTE: Actual branch table deletion will be one by the "prune" process asynchronously
+          //TODO: Do not even send an event anymore in this case?
+          //branchManager.deleteBranch(event.getNodeId());
           yield new ModifiedBranchResponse()
               .withNodeId(-1);
         }

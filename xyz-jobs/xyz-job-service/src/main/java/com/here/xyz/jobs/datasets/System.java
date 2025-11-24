@@ -17,15 +17,12 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.jobs.processes;
+package com.here.xyz.jobs.datasets;
 
-import com.fasterxml.jackson.annotation.JsonSubTypes;
-import com.here.xyz.Typed;
+public class System extends DatasetDescription {
 
-@JsonSubTypes({
-    @JsonSubTypes.Type(value = Maintain.class),
-    @JsonSubTypes.Type(value = Prune.class)
-})
-public abstract class ProcessDescription implements Typed {
-
+  @Override
+  public String getKey() {
+    return "System";
+  }
 }

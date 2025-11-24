@@ -25,6 +25,7 @@ import com.here.xyz.hub.Service;
 import com.here.xyz.hub.config.dynamo.DynamoBranchConfigClient;
 import com.here.xyz.hub.rest.admin.messages.RelayedMessage;
 import com.here.xyz.models.hub.Branch;
+import com.here.xyz.models.hub.Branch.DeletedBranch;
 import com.here.xyz.util.service.Initializable;
 import io.vertx.core.Future;
 import java.util.List;
@@ -36,6 +37,7 @@ public abstract class BranchConfigClient implements Initializable {
           .newBuilder()
           .expireAfterWrite(3, TimeUnit.MINUTES)
           .build();
+  protected EntityConfigClient entityConfigClient = EntityConfigClient.getInstance();
 
   private static String cacheKey(String spaceId, String branchId) {
     return spaceId + ":" + branchId;
@@ -77,7 +79,7 @@ public abstract class BranchConfigClient implements Initializable {
     if (!branchId.equals(branch.getId()))
       //The branch was renamed, as the branch ID attribute is part of the primary key, the item has to be deleted & re-created
       //TODO: Instead use an insert query (with concurrently checking if the old ID exists) with deletion afterwards
-      return delete(spaceId, branchId)
+      return delete(spaceId, branchId, true)
               .compose(v -> store(spaceId, branch));
 
     return storeBranch(spaceId, branch)
@@ -130,17 +132,25 @@ public abstract class BranchConfigClient implements Initializable {
    *
    * @param spaceId The id of the space for which to delete the specified branch
    * @param branchId The id of the branch to be deleted
+   * @param erase Whether to actually delete the branch item from the underlying storage
+   *  rather than only flagging it as deleted (for later pruning)
    * @return
    */
-  public Future<Void> delete(String spaceId, String branchId) {
-    return deleteBranch(spaceId, branchId)
+  public Future<Void> delete(String spaceId, String branchId, boolean erase) {
+    return deleteBranch(spaceId, branchId, erase)
             .onSuccess(v -> invalidateCache(spaceId, branchId));
   }
 
   protected abstract Future<Void> storeBranch(String spaceId, Branch branch);
   protected abstract Future<Branch> loadBranch(String spaceId, String branchId);
   protected abstract Future<List<Branch>> loadBranchesForSpace(String spaceId);
-  protected abstract Future<Void> deleteBranch(String spaceId, String branchId);
+  protected abstract Future<Void> deleteBranch(String spaceId, String branchId, boolean erase);
+  public Future<List<DeletedBranch>> loadDeletedBranches() {
+    return entityConfigClient.loadAll(DeletedBranch.class);
+  }
+  public Future<Void> eraseDeletedBranch(String uuid) {
+    return entityConfigClient.deleteEntity(DeletedBranch.class, uuid);
+  }
 
   public void invalidateCache(String spaceId, String branchId) {
     String cacheKey = cacheKey(spaceId, branchId);
@@ -166,5 +176,4 @@ public abstract class BranchConfigClient implements Initializable {
       cache.invalidate(cacheKey);
     }
   }
-
 }

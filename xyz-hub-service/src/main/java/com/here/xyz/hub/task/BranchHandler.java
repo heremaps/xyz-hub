@@ -233,7 +233,7 @@ public class BranchHandler {
             //Nothing to delete as the branch does not exist
             return Future.succeededFuture();
 
-          return Service.branchConfigClient.delete(spaceId, branchId)
+          return Service.branchConfigClient.delete(spaceId, branchId, false)
               .onSuccess(v -> {
                 //Invalidate the space to ensure the deleted branch will not be listed inside anymore
                 Service.spaceConfigClient.invalidateCache(spaceId);

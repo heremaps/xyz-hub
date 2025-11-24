@@ -19,28 +19,37 @@
 
 package com.here.xyz.hub.util;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder;
-import com.amazonaws.services.dynamodbv2.model.*;
+import com.amazonaws.services.dynamodbv2.model.GlobalSecondaryIndexDescription;
+import com.amazonaws.services.dynamodbv2.model.KeySchemaElement;
+import com.amazonaws.services.dynamodbv2.model.ResourceNotFoundException;
+import com.amazonaws.services.dynamodbv2.model.TableDescription;
 import com.here.xyz.hub.config.dynamo.DynamoBranchConfigClient;
 import com.here.xyz.models.hub.Branch;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.aws.dynamo.DynamoClient;
 import io.vertx.core.Vertx;
-import org.junit.jupiter.api.*;
+import java.lang.reflect.Field;
+import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.api.TestMethodOrder;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
-
-import java.lang.reflect.Field;
-import java.util.List;
-import java.util.concurrent.ThreadLocalRandom;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @TestMethodOrder(MethodOrderer.DisplayName.class)
@@ -183,7 +192,7 @@ public class DynamoBranchConfigClientIT {
         assertThat(loaded).isNotNull();
         assertThat(loaded.getId()).isEqualTo("main");
 
-        client.delete(spaceId, "main").toCompletionStage().toCompletableFuture().join();
+        client.delete(spaceId, "main", false).toCompletionStage().toCompletableFuture().join();
         Branch afterDelete = client.load(spaceId, "main").toCompletionStage().toCompletableFuture().join();
         assertThat(afterDelete).isNull();
     }
