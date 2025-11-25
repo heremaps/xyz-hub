@@ -415,8 +415,14 @@ public class NLConnector extends PSQLXyzConnector {
   private FeatureCollection getFeaturesByRefOrGlobalVersionsQuad(String schema, List<String> tables,
               PropertiesQueryInput propertiesQueryInput, long limit)  throws SQLException, JsonProcessingException {
     try (final Connection connection = dataSourceProvider.getWriter().getConnection()) {
-      String query = createReadByRefQuadOrGlobalVersionsQuery(schema, tables, propertiesQueryInput.refQuad,
-              propertiesQueryInput.globalVersions, propertiesQueryInput.references, limit);
+      String query;
+      if(!propertiesQueryInput.references.isEmpty())
+        query = createReadByReferencesQuery(dbSettings.getSchema(),
+              tables, propertiesQueryInput.references, limit);
+      else
+        query = createReadByRefQuadOrGlobalVersionsQuery(schema, tables, propertiesQueryInput.refQuad,
+                propertiesQueryInput.globalVersions, propertiesQueryInput.references, limit);
+
       try (PreparedStatement ps = connection.prepareStatement(query)) {
         try (ResultSet rs = ps.executeQuery()) {
           if(rs.next()){
@@ -620,11 +626,92 @@ public class NLConnector extends PSQLXyzConnector {
             .replace("$extensionTable$", extensionTable + "_head");
   }
 
+  private String createReadByReferencesQuery(
+          String schema,
+          List<String> tables,
+          List<String> references,
+          long limit
+  ) {
+    if(references == null || references.isEmpty())
+      throw new IllegalArgumentException("At least one reference must be provided!");
+
+    String extensionTable = tables.get(0);
+    String baseTable = tables.size() == 2 ? tables.get(1) : null;
+    //('ref1'), ('ref2'), ('ref3'), ('ref4')
+    String joinedReferences =  references.stream()
+              .map(v -> "('" + v + "')")
+              .collect(java.util.stream.Collectors.joining(","));
+
+    String selection = """
+            jsonb_build_object(
+                          'type', 'FeatureCollection',
+                          'features', jsonb_build_array(
+                               jsonb_build_object(
+                                   'type', 'Feature',
+                                   'properties',jsonb_build_object('references', jsonb_object_agg(ref, ids))
+                               )
+                           )
+            ) AS featureCollection
+            """;
+
+    String query = """
+            SELECT
+                id,
+                ref
+            FROM "$schema$"."$table$" t
+            CROSS JOIN (
+                VALUES $joinedReferences$
+            ) AS v(ref)
+            WHERE
+                t.searchable->'references' @> jsonb_build_array(v.ref)
+                AND t.operation NOT IN ('D','H','J')
+                AND t.next_version = 9223372036854775807::BIGINT
+                $limit$
+            """.replace("$joinedReferences$", joinedReferences)
+               .replace("$limit$", limit > 0 ? " LIMIT " + limit : "");
+
+    String inner1 = query.replace("$schema$", schema).replace("$table$", extensionTable + "_head");;
+
+    if(baseTable == null) {
+      return "SELECT " + selection + " FROM ( SELECT " +
+              "  ref," +
+              "  jsonb_agg(id ORDER BY id) AS ids " +
+              "FROM (" + inner1 + ") t GROUP BY ref )";
+    }
+    //unified case
+    String inner2 = query.replace("$schema$", schema).replace("$table$", baseTable + "_head");;
+    String whereNotExistsCondition = """
+            WHERE NOT EXISTS (
+                  SELECT 1
+                    FROM "$schema$"."$table$"
+                  WHERE id = a.id
+                    AND next_version = 9223372036854775807::BIGINT
+                    AND operation != 'D'
+                )
+            """
+            .replace("$schema$", schema)
+            .replace("$table$", extensionTable);
+
+    return  "SELECT " + selection + " FROM " +
+            "( " +
+            "  SELECT " +
+            "    ref, " +
+            "    jsonb_agg(id ORDER BY id) AS ids "+
+            "  FROM ( "+
+            "    (" + inner1 + ") " +
+            "    UNION ALL " +
+            "    (SELECT * FROM(" + inner2 + ") a " + whereNotExistsCondition + ") "+
+            "  ) AS all_data " +
+            "  GROUP BY ref" +
+            ") t";
+  }
+
   private String createReadByRefQuadOrGlobalVersionsQuery(
           String schema,
           List<String> tables,
           String refQuad,
           List<Integer> globalVersions,
+          //references are not getting used anymore in this method
           List<String> references,
           long limit
   ) {
