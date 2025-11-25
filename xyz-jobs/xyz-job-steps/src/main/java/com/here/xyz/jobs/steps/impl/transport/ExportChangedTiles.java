@@ -24,22 +24,19 @@ import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
 import static com.here.xyz.jobs.steps.Step.Visibility.SYSTEM;
 import static com.here.xyz.jobs.steps.Step.Visibility.USER;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_EXECUTOR;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_ASYNC_SUCCESS;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporaryJobTableName;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
+import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_EXECUTE;
+import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_ON_ASYNC_SUCCESS;
 import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.jobs.datasets.filters.SpatialFilter;
 import com.here.xyz.jobs.steps.StepExecution;
+import com.here.xyz.jobs.steps.impl.transport.tasks.inputs.ExportInput;
+import com.here.xyz.jobs.steps.impl.transport.tasks.outputs.ExportOutput;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
 import com.here.xyz.jobs.steps.outputs.TileInvalidations;
-import com.here.xyz.jobs.steps.resources.IOResource;
-import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.models.geojson.HQuad;
 import com.here.xyz.models.geojson.WebMercatorTile;
@@ -60,12 +57,9 @@ import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 
 
@@ -144,6 +138,7 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
   }
 
   {
+    threadCount = 8;
     setOutputSets(List.of(
         new OutputSet(STATISTICS, USER, true),
         new OutputSet(EXPORTED_DATA, USER, false),
@@ -196,13 +191,7 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
   }
 
   @Override
-  protected int setInitialThreadCount(String schema){
-    //always use 8 Threads
-    return 8;
-  }
-
-  @Override
-  protected List<TaskData> createTaskItems(String schema) throws TooManyResourcesClaimed,
+  protected List<ExportInput> createTaskItems() throws TooManyResourcesClaimed,
           QueryBuildingException, WebClientException, SQLException {
     Set<String> affectedTiles = new HashSet<>();
     List<String> changedFeatureIds = new ArrayList<>();
@@ -218,7 +207,7 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
       }
       return null;
     });
-    infoLog(STEP_EXECUTE, this, "Added affected tiles from delta in version range "
+    infoLog(STEP_EXECUTE,  "Added affected tiles from delta in version range "
             + versionRef +". Intermediate result size: "+ affectedTiles.size());
 
     if(!changedFeatureIds.isEmpty()){
@@ -230,16 +219,16 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
                 }
                 return null;
               });
-      infoLog(STEP_EXECUTE, this, "Added affected tiles from base version "
+      infoLog(STEP_EXECUTE,  "Added affected tiles from base version "
               + versionRef.getStart().getVersion() +". Final Result size: "+ affectedTiles.size());
     }
 
-    List<TaskData> taskList = new ArrayList<>();
+    List<ExportInput> taskList = new ArrayList<>();
     //Write taskList with all unique tileIds which we need to export
     for(String tileId : affectedTiles){
       if(!tileIsRelevant(tileId))
         continue;
-      taskList.add(new TaskData(tileId));
+      taskList.add(new ExportInput(tileId));
     }
     return taskList;
   }
@@ -272,28 +261,48 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
   }
 
   @Override
-  protected String generateContentQueryForExportPlugin(TaskData taskData)
+  protected String generateContentQueryForExportPlugin(ExportInput taskInput)
           throws WebClientException, TooManyResourcesClaimed, QueryBuildingException, InvalidGeometryException {
     //We are exporting now the data from the provided tile ID.
     return getFeaturesByTileIdQuery(
             DEFAULT,
             null, //no override needed - use default
             spatialFilter, //no spatial Filter is needed - we take Geometry from tile
-            taskData.taskInput().toString(), //tileId from task_item
+            taskInput.tileId(), //tileId from task_item
             new Ref(versionRef.getEnd().getVersion()) //export tiles from endVersion
     ).toExecutableQueryString();
   }
 
   @Override
-  protected void onAsyncSuccess() throws Exception {
-    generateInvalidationTileListOutput();
-    super.onAsyncSuccess();
+  protected void processFinalizedTasks(List<FinalizedTaskItem<ExportInput, ExportOutput>> finalizedTaskItems) throws IOException {
+    try {
+      List<String> invalidatedTileIds = new ArrayList<>();
+
+      for(FinalizedTaskItem<ExportInput, ExportOutput> item : finalizedTaskItems){
+        if(item.output().bytes() == 0)
+          invalidatedTileIds.add(item.input().tileId());
+      }
+
+      TileInvalidations tileList = new TileInvalidations()
+              .withTileLevel(targetLevel)
+              .withQuadType(quadType)
+              .withTileIds(invalidatedTileIds);
+
+      infoLog(STEP_ON_ASYNC_SUCCESS,  "Write TILE_INVALIDATIONS output. Size: {}.",
+              Integer.toString(tileList.getTileIds().size()));
+
+      registerOutputs(List.of(tileList), TILE_INVALIDATIONS);
+
+    } catch (Exception e) {
+      throw new IOException(e);
+    }
+    super.processFinalizedTasks(finalizedTaskItems);
   }
 
   @Override
   protected void onStateCheck() {
       try {
-          //@TODO: Remove this is EMR is capable of handling not existing files
+          //@TODO: Remove this if EMR is capable of handling not existing files
           registerOutputs(List.of(new DownloadUrl()
                  .withContent(new byte[]{})
                 .withFileName("empty")
@@ -308,34 +317,6 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
   protected long getEstimatedIOBytes() {
     // replace with real data usage
     return ESTIMATED_SPATIAL_FILTERED_IO_BYTES;
-  }
-
-  private void generateInvalidationTileListOutput() throws WebClientException
-          , SQLException, TooManyResourcesClaimed, IOException {
-
-    SQLQuery invalidationListQuery = getInvalidationList(getSchema(dbReader()), getTemporaryJobTableName(getId()));
-    TileInvalidations tileList = runReadQuerySync(invalidationListQuery, dbReader(),
-            0, rs -> rs.next()
-                    ? new TileInvalidations()
-                          .withTileLevel(targetLevel)
-                          .withQuadType(quadType)
-                          .withTileIds(Optional.ofNullable(rs.getArray("tile_list"))
-                                  .map(array -> {
-                                    try {
-                                      return (String[]) array.getArray();
-                                    } catch (SQLException e) {
-                                      throw new RuntimeException("Error retrieving tile_list array from ResultSet", e);
-                                    }
-                                  })
-                                  .map(Arrays::asList)
-                                  .orElse(Collections.emptyList()))
-                    : new TileInvalidations().withTileLevel(targetLevel).withQuadType(quadType));
-
-    //Skip if tileList=0 ?
-    infoLog(STEP_ON_ASYNC_SUCCESS, this, "Write TILE_INVALIDATIONS output. Size: {}.",
-            Integer.toString(tileList.getTileIds().size()));
-
-    registerOutputs(List.of(tileList), TILE_INVALIDATIONS);
   }
 
   private String getQuadFunctionName(){
@@ -427,21 +408,6 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
             .buildQuery(input);
 
     return buildTileQuery(contentQuery, tileId);
-  }
-
-  private SQLQuery getInvalidationList(String schema, String tmpTableName){
-    return new SQLQuery("""
-          SELECT array_agg(element) AS tile_list
-              FROM (
-                  SELECT jsonb_array_elements_text(
-                          jsonb_build_array(task_data->'taskInput')
-                  ) AS element
-                  FROM ${schema}.${table}
-                  WHERE bytes_uploaded = 0
-             ) X
-        """)
-          .withVariable("table", tmpTableName)
-          .withVariable("schema", schema);
   }
 
   private SQLQuery buildTileQuery(SQLQuery contentQuery, String tileId) {

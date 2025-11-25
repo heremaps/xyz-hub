@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,19 +19,25 @@
 
 package com.here.xyz.hub.rest;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import static com.here.xyz.hub.auth.TestAuthenticator.AuthProfile.ACCESS_ALL;
-import com.here.xyz.models.geojson.coordinates.PointCoordinates;
-import com.here.xyz.models.geojson.implementation.Feature;
-import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.models.geojson.implementation.Point;
-import com.here.xyz.models.geojson.implementation.Properties;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_GEO_JSON;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST;
 import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.restassured.RestAssured.given;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.isIn;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.here.xyz.models.geojson.coordinates.PointCoordinates;
+import com.here.xyz.models.geojson.implementation.Feature;
+import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.models.geojson.implementation.Point;
+import com.here.xyz.models.geojson.implementation.Properties;
 import io.restassured.response.ValidatableResponse;
 import io.vertx.core.json.JsonObject;
 import java.util.ArrayList;
@@ -47,11 +53,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.commons.lang3.RandomStringUtils;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.everyItem;
-import static org.hamcrest.Matchers.isIn;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThat;
 
 public class TestSpaceWithFeature extends TestWithSpaceCleanup {
   protected static String embeddedStorageId = "psql";
@@ -63,8 +64,8 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
     remove("x-psql-test");
   }
 
-  protected static void remove(String spaceId) { 
-   TestWithSpaceCleanup.removeSpace(spaceId); 
+  protected static void remove(String spaceId) {
+   TestWithSpaceCleanup.removeSpace(spaceId);
   }
 
   public static ValidatableResponse createSpace(String content) {
@@ -498,11 +499,11 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
         .post(getSpacesPath() + "/"+ spaceId +"/features");
   }
 
-  protected static void makeComposite(String spaceId, String newExtendingId) {
+  protected static void makeComposite(String spaceId, String extendedSpaceId) {
     given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
-        .body("{\"extends\":{\"spaceId\":\"" + newExtendingId + "\"}}")
+        .body(new JsonObject().put("extends", new JsonObject().put("spaceId", extendedSpaceId)).toString())
         .when()
         .patch("/spaces/" + spaceId)
         .then()

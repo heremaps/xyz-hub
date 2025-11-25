@@ -647,7 +647,8 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
         }
         catch (Exception e) {
           request.getStep().reportFailure(e, false, true); //TODO: Distinguish between sync / async execution once sync error reporting was implemented
-          throw new RuntimeException("Error executing request of type {} for step " + request.getStep().getGlobalStepId(), e);
+          logger.error("[{}] Error executing request of type {} for step ", request.getStep().getGlobalStepId(), request.getType(), e);
+          //We do not re-throw here to ensure that we do not have a native lambda retry for software related errors
         }
       }
       finally {

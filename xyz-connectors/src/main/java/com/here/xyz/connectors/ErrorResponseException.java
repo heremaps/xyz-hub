@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,6 +30,11 @@ import com.here.xyz.responses.XyzError;
 public class ErrorResponseException extends Exception {
 
   private ErrorResponse errorResponse;
+
+  /**
+   * Additional details about the error, that will be logged but won't be added to the (user-facing) error message.
+   */
+  private String internalDetails;
 
   public ErrorResponseException(XyzError xyzError, String errorMessage) {
     super(errorMessage);
@@ -77,5 +82,18 @@ public class ErrorResponseException extends Exception {
 
   public ErrorResponse getErrorResponse() {
     return errorResponse;
+  }
+
+  public String getInternalDetails() {
+    return internalDetails;
+  }
+
+  public void setInternalDetails(String internalDetails) {
+    this.internalDetails = internalDetails;
+  }
+
+  public ErrorResponseException withInternalDetails(String internalDetails) {
+    setInternalDetails(internalDetails);
+    return this;
   }
 }
