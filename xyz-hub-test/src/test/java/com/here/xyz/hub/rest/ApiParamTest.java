@@ -219,15 +219,15 @@ public class ApiParamTest {
 
   @Test
   public void parsePropertiesQuerySpaceJsonPath() {
-    String URISpaceQuery = "a=1&b=2&contentUpatedAt=$.space.properties.version";
-    PropertiesQuery pq = PropertiesQuery.fromString(URISpaceQuery, "contentUpatedAt", true);
+    String URISpaceQuery = "a=1&b=2&jsonPath=$.space.properties.version";
+    PropertiesQuery pq = PropertiesQuery.fromString(URISpaceQuery, "jsonPath", true);
 
     assertEquals("1 OR block is expected", 1, pq.size());
     PropertyQueryList pql = pq.get(0);
     assertEquals("1 AND block is expected.", 1, pql.size());
 
     PropertyQuery query = pql.stream()
-            .filter(q -> q.getKey().equals("contentUpatedAt"))
+            .filter(q -> q.getKey().equals("jsonPath"))
             .findFirst()
             .get();
 

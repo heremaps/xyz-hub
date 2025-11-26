@@ -535,10 +535,12 @@ public class Space {
   }
 
   public void setSearchableProperties(final Map<String, Boolean> searchableProperties) {
-    if(!validateSearchableProperties(searchableProperties))
+    Map<String, Boolean> generatedProperties = generateAndValidateAliases(searchableProperties);
+
+    if(!validateSearchableProperties(generatedProperties))
       throw new IllegalArgumentException("Searchable Property definition includes one or more malformed entries");
 
-    this.searchableProperties = generateAndValidateAliases(searchableProperties);
+    this.searchableProperties = generatedProperties;
   }
 
   public Space withSearchableProperties(final Map<String, Boolean> searchableProperties) {
@@ -572,7 +574,12 @@ public class Space {
       JsonPathValidator.ValidationResult result;
       if (str.startsWith("$")){
         String[] subParts = jsonPath.split(":", 2);
-        result = JsonPathValidator.validate(subParts[1]);
+        String expression = subParts[1].trim();
+
+        if(expression.startsWith("[") && expression.endsWith("]"))
+          expression = expression.substring(1, expression.length() - 1).trim();
+
+        result = JsonPathValidator.validate(expression);
       }
       else {
         result = JsonPathValidator.validate(jsonPath);
@@ -598,7 +605,11 @@ public class Space {
       String alias;
       if (!entry.getKey().startsWith("$")) {
         String[] parts = entry.getKey().split("::", 2);
-        alias = "$" + parts[0] + ":" + entry.getKey();
+
+        if (parts.length > 1) {
+          alias = "$" + parts[0] + ":[$." + entry.getKey() +"]";
+        } else
+          alias = "$" + parts[0] + ":[$." + entry.getKey() + "]::scalar";
       } else {
         alias = entry.getKey();
       }
