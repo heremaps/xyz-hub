@@ -141,6 +141,8 @@ public class FeatureHandler {
       String alias, jsonPathExpression;
       if (searchableExpression.startsWith("$") && searchableExpression.contains(":")) {
         alias = searchableExpression.substring(1, searchableExpression.indexOf(":"));
+        searchableExpression = searchableExpression.substring(searchableExpression.indexOf(":")+1);
+
         jsonPathExpression = searchableExpression.startsWith("[")
             ? searchableExpression.substring(1, searchableExpression.length() - 1) //expression is already a JSONPath
             : toJsonPath(searchableExpression.substring(searchableExpression.indexOf(":") + 1)); //expression is an "old" dot-notation
