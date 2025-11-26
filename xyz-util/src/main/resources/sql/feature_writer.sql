@@ -52,7 +52,7 @@ $BODY$
       };
 
       // load required js libs
-      // plv8.execute("SELECT require( 'jsonpath_rfc9535' )");
+      plv8.execute("SELECT require( 'jsonpath_rfc9535' )");
 
       //Init block of internal feature_writer functionality
       ${{FeatureWriter.js}}

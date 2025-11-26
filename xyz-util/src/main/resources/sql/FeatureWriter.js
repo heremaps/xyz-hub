@@ -580,11 +580,9 @@ class FeatureWriter {
   }
 
   _handleLoadedFeatureRow(resultSet) {
-    let feature;
-    if(queryContext().tableLayout === 'NEW_LAYOUT')
-      feature = JSON.parse(resultSet[0].jsondata);
-    else
-      feature = resultSet[0].jsondata;
+
+    let raw = resultSet[0].jsondata;
+    let feature = (typeof raw === "string") ? JSON.parse(raw) : raw;
 
     let dataset = resultSet[0].dataset;
     let version = FeatureWriter._isComposite() && dataset < this.tables.length - 1 ? 0 : Number(resultSet[0].version);
