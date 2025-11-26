@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 package com.here.xyz.hub.rest;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.PropertyQuery;
@@ -69,7 +70,6 @@ public class ApiParamTest {
     assertEquals(2, query.getValues().size());
     assertEquals("string", query.getValues().get(0));
     assertEquals("5", query.getValues().get(1));
-
   }
 
   @Test
@@ -147,5 +147,94 @@ public class ApiParamTest {
     assertEquals(QueryOperation.LESS_THAN_OR_EQUALS, query.getOperation());
     assertEquals(1, query.getValues().size());
     assertEquals(3L, query.getValues().get(0));
+  }
+
+  @Test
+  public void parsePropertiesQueryJsonPath() {
+    String URIquery = "p.jsonPath=$.properties.address.city";
+    PropertiesQuery pq = PropertiesQuery.fromString(URIquery, "", false);
+
+    assertEquals("1 OR block is expected", 1, pq.size());
+    PropertyQueryList pql = pq.get(0);
+    assertEquals("1 AND block is expected.", 1, pql.size());
+
+    PropertyQuery query = pql.stream()
+            .filter(q -> q.getKey().equals("properties.jsonPath"))
+            .findFirst()
+            .get();
+
+    assertEquals(QueryOperation.EQUALS, query.getOperation());
+    assertEquals(1, query.getValues().size());
+    Object value = query.getValues().get(0);
+    assertTrue("JSONPath value should be a String", value instanceof String);
+    assertEquals("$.properties.address.city", value);
+  }
+
+  @Test
+  public void parsePropertiesQueryJsonPathWithOtherFilters() {
+    String URIquery =
+            "p.jsonPath=$.properties.address.city"
+                    + "&p.a=3"
+                    + "&p.boolean=true"
+                    + "&f.createdAt>0";
+
+    PropertiesQuery pq = PropertiesQuery.fromString(URIquery, "", false);
+    assertEquals("1 OR block is expected", 1, pq.size());
+
+    PropertyQueryList pql = pq.get(0);
+    // 4 AND blocks: jsonPath, a, boolean, createdAt
+    assertEquals("4 AND blocks are expected.", 4, pql.size());
+
+    // jsonPath
+    PropertyQuery query = pql.stream()
+            .filter(q -> q.getKey().equals("properties.jsonPath"))
+            .findFirst()
+            .get();
+    assertEquals(QueryOperation.EQUALS, query.getOperation());
+    assertEquals(1, query.getValues().size());
+    assertTrue(query.getValues().get(0) instanceof String);
+    assertEquals("$.properties.address.city", query.getValues().get(0));
+
+    // properties.a (still parsed as number)
+    query = pql.stream().filter(q -> q.getKey().equals("properties.a")).findFirst().get();
+    assertEquals(QueryOperation.EQUALS, query.getOperation());
+    assertEquals(1, query.getValues().size());
+    assertEquals(3L, query.getValues().get(0));
+
+    // properties.boolean (still parsed as boolean)
+    query = pql.stream().filter(q -> q.getKey().equals("properties.boolean")).findFirst().get();
+    assertEquals(QueryOperation.EQUALS, query.getOperation());
+    assertEquals(1, query.getValues().size());
+    assertEquals(true, query.getValues().get(0));
+
+    // createdAt (mapped via SEARCH_KEY_REPLACEMENTS)
+    query = pql.stream()
+            .filter(q -> q.getKey().equals("properties.@ns:com:here:xyz.createdAt"))
+            .findFirst()
+            .get();
+    assertEquals(QueryOperation.GREATER_THAN, query.getOperation());
+    assertEquals(1, query.getValues().size());
+    assertEquals(0L, query.getValues().get(0));
+  }
+
+  @Test
+  public void parsePropertiesQuerySpaceJsonPath() {
+    String URISpaceQuery = "a=1&b=2&contentUpatedAt=$.space.properties.version";
+    PropertiesQuery pq = PropertiesQuery.fromString(URISpaceQuery, "contentUpatedAt", true);
+
+    assertEquals("1 OR block is expected", 1, pq.size());
+    PropertyQueryList pql = pq.get(0);
+    assertEquals("1 AND block is expected.", 1, pql.size());
+
+    PropertyQuery query = pql.stream()
+            .filter(q -> q.getKey().equals("contentUpatedAt"))
+            .findFirst()
+            .get();
+
+    assertEquals(QueryOperation.EQUALS, query.getOperation());
+    assertEquals(1, query.getValues().size());
+    Object value = query.getValues().get(0);
+    assertTrue("JSONPath value should be a String", value instanceof String);
+    assertEquals("$.space.properties.version", value);
   }
 }
