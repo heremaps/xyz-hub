@@ -535,12 +535,12 @@ public class Space {
   }
 
   public void setSearchableProperties(final Map<String, Boolean> searchableProperties) {
-    Map<String, Boolean> generatedProperties = generateAndValidateAliases(searchableProperties);
+    if (searchableProperties == null || searchableProperties.isEmpty()) {
+      this.searchableProperties = searchableProperties;
+      return;
+    }
 
-    if(!validateSearchableProperties(generatedProperties))
-      throw new IllegalArgumentException("Searchable Property definition includes one or more malformed entries");
-
-    this.searchableProperties = generatedProperties;
+    this.searchableProperties = normalizeSearchableProperties(searchableProperties);
   }
 
   public Space withSearchableProperties(final Map<String, Boolean> searchableProperties) {
@@ -559,69 +559,6 @@ public class Space {
   public Space withSortableProperties(final List<List<Object>> sortableProperties) {
     setSortableProperties(sortableProperties);
     return this;
-  }
-
-  private boolean validateSearchableProperties(final Map<String, Boolean> searchableProperties) {
-    for (String str : searchableProperties.keySet()) {
-      if (!str.contains("::"))
-        return false;
-
-      String[] parts = str.split("::", 2);
-      if (parts.length != 2)
-        return false;
-
-      String jsonPath = parts[0];
-      JsonPathValidator.ValidationResult result;
-      if (str.startsWith("$")){
-        String[] subParts = jsonPath.split(":", 2);
-        String expression = subParts[1].trim();
-
-        if(expression.startsWith("[") && expression.endsWith("]"))
-          expression = expression.substring(1, expression.length() - 1).trim();
-
-        result = JsonPathValidator.validate(expression);
-      }
-      else {
-        result = JsonPathValidator.validate(jsonPath);
-      }
-
-      if (!result.isValid()) {
-        throw new IllegalArgumentException(String.format("Invalid character at position %d for JsonPath string", result.errorPosition().orElse(-1)));
-      }
-
-      String resultType = parts[1];
-      if (!resultType.equals("scalar") && !resultType.equals("array"))
-        return false;
-    }
-
-    return true;
-  }
-
-  private Map<String, Boolean> generateAndValidateAliases(Map<String, Boolean> searchableProperties) {
-    Map<String, Boolean> generated = new HashMap<>();
-    Set<String> aliases = new HashSet<>();
-
-    for (Map.Entry<String, Boolean> entry : searchableProperties.entrySet()) {
-      String alias;
-      if (!entry.getKey().startsWith("$")) {
-        String[] parts = entry.getKey().split("::", 2);
-
-        if (parts.length > 1) {
-          alias = "$" + parts[0] + ":[$." + entry.getKey() +"]";
-        } else
-          alias = "$" + parts[0] + ":[$." + entry.getKey() + "]::scalar";
-      } else {
-        alias = entry.getKey();
-      }
-
-      if (!aliases.add(alias)) {
-        throw new IllegalArgumentException("Duplicate alias detected: " + alias);
-      }
-
-      generated.put(alias, entry.getValue());
-    }
-
-    return generated;
   }
 
   public Map<String, Tag> getTags() {
@@ -676,6 +613,167 @@ public class Space {
   public Space withMimeType(String mimeType) {
     setMimeType(mimeType);
     return this;
+  }
+
+  /**
+   * Normalizes all searchable property definitions into the canonical form:
+   *   $<alias>:[<jsonPathExpression>]::scalar|array
+   */
+  private Map<String, Boolean> normalizeSearchableProperties(Map<String, Boolean> rawProps) {
+    Map<String, Boolean> normalized = new LinkedHashMap<>();
+    Set<String> aliases = new HashSet<>();
+
+    for (Map.Entry<String, Boolean> entry : rawProps.entrySet()) {
+      String rawKey = entry.getKey();
+      Boolean value = entry.getValue();
+
+      if (rawKey == null || rawKey.trim().isEmpty()) {
+        throw new IllegalArgumentException("Searchable property key must not be null or empty");
+      }
+
+      NormalizedProperty np = parseAndNormalizeKey(rawKey.trim());
+
+      // Enforce alias uniqueness
+      if (!aliases.add(np.alias)) {
+        throw new IllegalArgumentException("Duplicate alias detected: " + np.alias);
+      }
+
+      String canonicalKey = buildCanonicalKey(np);
+      normalized.put(canonicalKey, value);
+    }
+
+    return normalized;
+  }
+
+  private String buildCanonicalKey(NormalizedProperty np) {
+    return "$" + np.alias + ":[" + np.jsonPathExpression + "]::" + np.resultType;
+  }
+
+  private static class NormalizedProperty {
+    String alias;
+    String jsonPathExpression;
+    String resultType;
+  }
+
+  /**
+   * Parse a raw key and normalize it to (alias, jsonPathExpression, resultType).
+   *  - New-style keys: "$alias:[$.path]::scalar" (or without [])
+   *  - Legacy keys: "path", "path::scalar", "path::array"
+   */
+  private NormalizedProperty parseAndNormalizeKey(String key) {
+    if (key.startsWith("$") && key.contains("::")) {
+      NormalizedProperty np = tryParseNewStyleKey(key);
+      if (np != null) {
+        return np;
+      }
+    }
+
+    // Fallback
+    return parseLegacyKey(key);
+  }
+
+  /**
+   * Parses a new-style key of form
+   *   $alias:[$.jsonPath]::scalar|array
+   */
+  private NormalizedProperty tryParseNewStyleKey(String key) {
+    String[] typeSplit = key.split("::", 2);
+    if (typeSplit.length != 2) {
+      return null;
+    }
+
+    String leftPart = typeSplit[0].trim();
+    String typePart = typeSplit[1].trim();
+
+    if (!"scalar".equals(typePart) && !"array".equals(typePart)) {
+      return null;
+    }
+
+    int colonIdx = leftPart.indexOf(':');
+    if (colonIdx <= 1) {
+      return null;
+    }
+
+    String aliasPart = leftPart.substring(1, colonIdx).trim();
+    String exprPart = leftPart.substring(colonIdx + 1).trim();
+
+    if (aliasPart.isEmpty() || exprPart.isEmpty()) {
+      return null;
+    }
+
+    String expression = exprPart;
+    if (expression.startsWith("[") && expression.endsWith("]") && expression.length() >= 2) {
+      expression = expression.substring(1, expression.length() - 1).trim();
+    }
+
+    // Validate JSONPath on the stripped expression
+    validateJsonPath(expression);
+
+    NormalizedProperty np = new NormalizedProperty();
+    np.alias = aliasPart;
+    np.jsonPathExpression = expression;
+    np.resultType = typePart;
+    return np;
+  }
+
+  /**
+   * Parses legacy keys like:
+   *  - "foo"
+   *  - "foo::array"
+   */
+  private NormalizedProperty parseLegacyKey(String key) {
+    String base = key;
+    String resultType = "scalar"; //default
+
+    int sepIdx = key.lastIndexOf("::");
+    if (sepIdx > -1 && sepIdx + 2 < key.length()) {
+      String maybeType = key.substring(sepIdx + 2).trim();
+      if ("scalar".equals(maybeType) || "array".equals(maybeType)) {
+        base = key.substring(0, sepIdx).trim();
+        resultType = maybeType;
+      }
+    }
+
+    if (base.isEmpty()) {
+      throw new IllegalArgumentException("Malformed searchable property key: '" + key + "'");
+    }
+
+    String expression;
+    if (base.startsWith("$")) {
+      expression = base;
+    }
+    else {
+      expression = "$." + base;
+    }
+
+    // Derive alias from the path (without the leading '$' or '$.')
+    String alias;
+    if (expression.startsWith("$.") && expression.length() > 2) {
+      alias = expression.substring(2);
+    }
+    else if (expression.startsWith("$") && expression.length() > 1) {
+      alias = expression.substring(1);
+    }
+    else {
+      alias = base;
+    }
+
+    validateJsonPath(expression);
+
+    NormalizedProperty np = new NormalizedProperty();
+    np.alias = alias;
+    np.jsonPathExpression = expression;
+    np.resultType = resultType;
+    return np;
+  }
+
+  private void validateJsonPath(String expression) {
+    JsonPathValidator.ValidationResult result = JsonPathValidator.validate(expression);
+    if (!result.isValid()) {
+      int pos = result.errorPosition().orElse(-1);
+      throw new IllegalArgumentException(
+              String.format("Invalid JSONPath expression '%s'. Error at position %d.", expression, pos));
+    }
   }
 
   /**
