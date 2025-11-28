@@ -23,6 +23,7 @@ import static com.here.xyz.psql.query.branching.CommitManager.branchPathToTableC
 import static com.here.xyz.responses.XyzError.CONFLICT;
 import static com.here.xyz.responses.XyzError.EXCEPTION;
 import static com.here.xyz.responses.XyzError.NOT_FOUND;
+import static com.here.xyz.util.db.ConnectorParameters.TableLayout.NEW_LAYOUT;
 import static com.here.xyz.util.db.pg.SQLError.FEATURE_EXISTS;
 import static com.here.xyz.util.db.pg.SQLError.FEATURE_NOT_EXISTS;
 import static com.here.xyz.util.db.pg.SQLError.RETRYABLE_VERSION_CONFLICT;
@@ -43,7 +44,9 @@ import com.here.xyz.util.runtime.FunctionRuntime;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -87,7 +90,7 @@ public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureColl
         .withSpaceContext(spaceContext)
         .withHistoryEnabled(event.getVersionsToKeep() > 1)
         .withBatchMode(true)
-        .with("tableLayout",getTableLayout())
+        .with("tableLayout", getTableLayout())
         .with("debug", "true".equals(System.getenv("FW_DEBUG")))
         .with("queryId", FunctionRuntime.getInstance().getStreamId())
         .with("PARTITION_SIZE", PARTITION_SIZE)
@@ -97,6 +100,17 @@ public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureColl
 
     if (event.getRef() != null && event.getRef().isSingleVersion() && !event.getRef().isHead())
       queryContextBuilder.withBaseVersion(event.getRef().getVersion());
+
+    if (getTableLayout() == NEW_LAYOUT) {
+      //Temporary workaround for NL connector
+        Map<String, String> searchableProperties = new HashMap<>(event.getSearchableProperties());
+        searchableProperties.put("refQuad", "$.properties.refQuad");
+        searchableProperties.put("globalVersion", "$.properties.globalVersion");
+      //End of workaround
+
+      if (searchableProperties != null && !searchableProperties.isEmpty())
+        queryContextBuilder.with("writeHooks", List.of(writeHook(searchableProperties)));
+    }
 
     return new SQLQuery("SELECT write_features(#{modifications}, 'Modifications', #{author}, #{responseDataExpected});")
         .withLoggingEnabled(false)
@@ -139,5 +153,26 @@ public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureColl
     catch (JsonProcessingException e) {
       throw new RuntimeException("Error parsing query result.", e);
     }
+  }
+
+  private String writeHook(Map<String, String> searchableProperties) {
+    return """
+        (feature, row) => {
+          const searchableProperties = ${searchableProperties};
+          let searchables = {};
+          
+          for (const alias in searchableProperties) {
+            const jsonPath = searchableProperties[alias];
+            try {
+              searchables[alias] = jsonpath_rfc9535.query(feature, jsonPath)[0];
+            }
+            catch (err) {
+              throw new Error(`Error evaluating JSONPath for alias ${alias} and expression ${jsonPath} message: ${err.message}`);
+            }
+          }
+          
+          row.searchable = !row.searchable ? searchables : {...row.searchable, ...searchables};
+        }
+        """.replace("${searchableProperties}", XyzSerializable.serialize(searchableProperties));
   }
 }
