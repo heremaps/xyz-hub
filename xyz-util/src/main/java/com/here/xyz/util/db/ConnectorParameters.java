@@ -42,7 +42,7 @@ public class ConnectorParameters {
   public enum TableLayout {
     OLD_LAYOUT(false),
     OLD_LAYOUT_WITH_SEARCHABLE(true),
-    NEW_LAYOUT(false);
+    NEW_LAYOUT(true);
 
     private final boolean hasSearchableColumn;
 
