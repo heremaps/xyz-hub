@@ -530,58 +530,23 @@ public class Space {
     return this;
   }
 
-  // -------- Internal canonical accessors (used by server-side code) --------
-  @JsonIgnore
   public Map<String, Boolean> getSearchableProperties() {
     return searchableProperties;
   }
 
   @JsonIgnore
   public void setSearchableProperties(final Map<String, Boolean> searchableProperties) {
-    this.searchableProperties = searchableProperties;
+    if (searchableProperties == null || searchableProperties.isEmpty()) {
+      this.searchableProperties = searchableProperties;
+      return;
+    }
+
+    this.searchableProperties = normalizeSearchableProperties(searchableProperties);
   }
 
   public Space withSearchableProperties(final Map<String, Boolean> searchableProperties) {
     setSearchableProperties(searchableProperties);
     return this;
-  }
-
-  // -------- JSON-facing alias accessors --------
-
-  @JsonInclude(Include.NON_EMPTY)
-  @JsonView({Public.class, Static.class})
-  @JsonProperty("searchableProperties")
-  public Map<String, Boolean> getSearchablePropertiesByAlias() {
-    if (searchableProperties == null || searchableProperties.isEmpty())
-      return null;
-
-    Map<String, Boolean> byAlias = new LinkedHashMap<>();
-
-    for (Map.Entry<String, Boolean> e : searchableProperties.entrySet()) {
-      String key = e.getKey();
-      Boolean value = e.getValue();
-
-      try {
-        NormalizedProperty np = parseAndNormalizeKey(key);
-        byAlias.put(np.alias, value);
-      }
-      catch (IllegalArgumentException ex) {
-        // In case of unexpected format, fallback
-        byAlias.put(key, value);
-      }
-    }
-
-    return byAlias;
-  }
-
-  @JsonProperty("searchableProperties")
-  public void setSearchablePropertiesByAlias(final Map<String, Boolean> searchablePropertiesByAlias) {
-    if (searchablePropertiesByAlias == null || searchablePropertiesByAlias.isEmpty()) {
-      this.searchableProperties = searchablePropertiesByAlias;
-      return;
-    }
-
-    this.searchableProperties = normalizeSearchableProperties(searchablePropertiesByAlias);
   }
 
   public List<List<Object>> getSortableProperties() {

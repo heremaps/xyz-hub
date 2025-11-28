@@ -119,8 +119,8 @@ public class CreateSpaceApiIT extends TestSpaceWithFeature {
 
     response
         .statusCode(OK.code())
-        .body("searchableProperties.name", equalTo(true))
-        .body("searchableProperties.other", equalTo(false));
+        .body("searchableProperties['$name:[$.name]::scalar']", equalTo(true))
+        .body("searchableProperties['$other:[$.other]::scalar']", equalTo(false));
   }
 
   @Test

@@ -135,6 +135,7 @@ public class IndexHelper {
 
     public void setPropertyPath(String propertyPath) {
       this.propertyPath = propertyPath;
+      transformIntoNewDefinition();
     }
 
     public String getPropertyPath() {
@@ -196,6 +197,45 @@ public class IndexHelper {
       return propertyPath;
     }
 
+    public void transformIntoNewDefinition() {
+      //if already in new format, return as is
+      if(propertyPath.startsWith("$"))
+        return;
+
+      // Trim whitespace
+      propertyPath = propertyPath.trim();
+
+      String path = propertyPath;
+      String datatype = "scalar"; // default
+
+      // Check if datatype explicitly provided
+      int idx = propertyPath.indexOf("::");
+      if (idx >= 0) {
+        path = propertyPath.substring(0, idx);
+        String dt = propertyPath.substring(idx + 2).trim();
+        if ("array".equalsIgnoreCase(dt)) {
+          datatype = "array";
+        }
+      }
+
+      propertyPath = "$" + path + ":[$." + path + "]::" + datatype;
+    }
+
+    public boolean definitionGotTransformed() {
+      propertyPath = propertyPath.trim();
+      int colonIndex = propertyPath.indexOf(':');
+
+      String leftPath = propertyPath.substring(1, colonIndex);
+
+      int openBracket = propertyPath.indexOf("[$.");
+      int closeBracket = propertyPath.indexOf("]", openBracket);
+
+      String inner = propertyPath.substring(openBracket + 3, closeBracket);
+
+      // Compare paths
+      return leftPath.equals(inner);
+    }
+
     @Override
     public String getIndexName(String tableName) {
       // Take the first 8 characters of md5 hash of the property path
@@ -246,7 +286,7 @@ public class IndexHelper {
     if(layout.hasSearchableColumn())
       return buildOnDemandIndexCreationQuery(schema, table, index.extractAlias(), NEW_LAYOUT_INDEX_COULMN, async);
 
-    return buildOnDemandIndexCreationQuery(schema, table, index.getPropertyPath(), OLD_LAYOUT_INDEX_COULMN, async);
+    return buildOnDemandIndexCreationQuery(schema, table, index.extractLogicalPropertyPath(), OLD_LAYOUT_INDEX_COULMN, async);
   }
 
   public static SQLQuery buildOnDemandIndexCreationQuery(String schema, String table, String propertyPath, String targetColumn, boolean async){
