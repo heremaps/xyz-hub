@@ -40,7 +40,23 @@ public class ConnectorParameters {
 
   private TableLayout tableLayout;
   public enum TableLayout {
-    OLD_LAYOUT, NEW_LAYOUT;
+    OLD_LAYOUT(false),
+    OLD_LAYOUT_WITH_SEARCHABLE(true),
+    NEW_LAYOUT(false);
+
+    private final boolean hasSearchableColumn;
+
+    TableLayout(boolean hasSearchableColumn) {
+      this.hasSearchableColumn = hasSearchableColumn;
+    }
+
+    public boolean hasSearchableColumn() {
+      return hasSearchableColumn;
+    }
+
+    public boolean isOld() {
+      return this == OLD_LAYOUT || this == OLD_LAYOUT_WITH_SEARCHABLE;
+    }
   }
 
   public ConnectorParameters() {}

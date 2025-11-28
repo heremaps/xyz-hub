@@ -25,7 +25,6 @@ import static com.here.xyz.events.ModifySpaceEvent.Operation.DELETE;
 import static com.here.xyz.events.ModifySpaceEvent.Operation.UPDATE;
 import static com.here.xyz.psql.query.helpers.versioning.GetNextVersion.VERSION_SEQUENCE_SUFFIX;
 import static com.here.xyz.responses.XyzError.ILLEGAL_ARGUMENT;
-import static com.here.xyz.util.db.ConnectorParameters.TableLayout.NEW_LAYOUT;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SCHEMA;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.TABLE;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildCreateSpaceTableQueries;
@@ -45,22 +44,8 @@ import java.util.ArrayList;
 import java.util.List;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildCleanUpQuery;
 import static com.here.xyz.util.db.pg.IndexHelper.getActivatedSearchableProperties;
-import static com.here.xyz.util.db.ConnectorParameters.TableLayout.OLD_LAYOUT;
-
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.here.xyz.connectors.ErrorResponseException;
-import com.here.xyz.events.ModifySpaceEvent;
-import com.here.xyz.events.ModifySpaceEvent.Operation;
-import com.here.xyz.responses.SuccessResponse;
-import com.here.xyz.util.db.ConnectorParameters;
-import com.here.xyz.util.db.SQLQuery;
-import com.here.xyz.util.db.datasource.DataSourceProvider;
-import com.here.xyz.util.db.pg.IndexHelper;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.List;
+import static com.here.xyz.util.db.ConnectorParameters.TableLayout;
+import static com.here.xyz.util.db.ConnectorParameters.TableLayout.NEW_LAYOUT;
 
 public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse> {
 
@@ -140,7 +125,9 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
 
     @Override
     protected SQLQuery buildQuery(ModifySpaceEvent event) throws SQLException {
-        if(getTableLayout().equals(ConnectorParameters.TableLayout.OLD_LAYOUT)){
+        TableLayout tableLayout = getTableLayout();
+
+        if(tableLayout.isOld()){
             if (event.getOperation() == CREATE || event.getOperation() == UPDATE) {
                 List<SQLQuery> queries = new ArrayList<>();
                 final String table = getDefaultTable(event);
@@ -151,7 +138,7 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
                             = getActivatedSearchableProperties(event.getSpaceDefinition().getSearchableProperties());
 
                     queries.addAll(buildCreateSpaceTableQueries(getSchema(), table, activatedSearchableProperties,
-                            event.getSpace(), OLD_LAYOUT));
+                            event.getSpace(), tableLayout));
                 }
 
                 //Write metadata
@@ -160,20 +147,20 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
                 return SQLQuery.batchOf(queries).withLock(table);
             }
             else if (event.getOperation() == DELETE) {
-                return SQLQuery.batchOf(buildCleanUpQuery(event, getSchema(), getDefaultTable(event), VERSION_SEQUENCE_SUFFIX, OLD_LAYOUT));
+                return SQLQuery.batchOf(buildCleanUpQuery(event, getSchema(), getDefaultTable(event), VERSION_SEQUENCE_SUFFIX, tableLayout));
             }
-        }else if(getTableLayout().equals(ConnectorParameters.TableLayout.NEW_LAYOUT)){
+        }else if(tableLayout.equals(NEW_LAYOUT)){
             if (event.getOperation() == CREATE) {
                 final String table = getDefaultTable(event);
                 List<SQLQuery> queries = new ArrayList<>(buildCreateSpaceTableQueries(getSchema(), table,
                         //No OnDemandIndices are supported in V2
-                        null, event.getSpace(), NEW_LAYOUT));
+                        null, event.getSpace(), tableLayout));
                 return SQLQuery.batchOf(queries).withLock(table);
             }
             else if (event.getOperation() == DELETE)
-                return SQLQuery.batchOf(buildCleanUpQuery(event, getSchema(), getDefaultTable(event), VERSION_SEQUENCE_SUFFIX, NEW_LAYOUT));
+                return SQLQuery.batchOf(buildCleanUpQuery(event, getSchema(), getDefaultTable(event), VERSION_SEQUENCE_SUFFIX, tableLayout));
         }
-        throw new IllegalArgumentException("Unsupported Table Layout: " + getTableLayout());
+        throw new IllegalArgumentException("Unsupported Table Layout: " + tableLayout);
     }
 
     @Override

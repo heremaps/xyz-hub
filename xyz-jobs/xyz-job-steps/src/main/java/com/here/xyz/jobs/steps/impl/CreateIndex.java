@@ -24,6 +24,7 @@ import com.here.xyz.jobs.steps.execution.StepException;
 import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
+import com.here.xyz.util.db.ConnectorParameters;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.pg.IndexHelper;
 import com.here.xyz.util.db.pg.IndexHelper.Index;
@@ -131,9 +132,11 @@ public class CreateIndex extends SpaceBasedStep<CreateIndex> {
     List<SQLQuery> indexCreationQueries = new ArrayList<>();
 
     indexCreationQueries.addAll(loadPartitionNamesOf(rootTableName).stream()
-        .map(partitionTableName -> new SQLQuery(IndexHelper.buildOnDemandIndexCreationQuery(schema, partitionTableName, onDemandIndex.getPropertyPath(), true).toExecutableQueryString()))
+        .map(partitionTableName -> new SQLQuery(IndexHelper.buildOnDemandIndexCreationQuery(schema, partitionTableName, onDemandIndex,
+                ConnectorParameters.TableLayout.OLD_LAYOUT, true).toExecutableQueryString()))
         .toList());
-    indexCreationQueries.add(new SQLQuery(IndexHelper.buildOnDemandIndexCreationQuery(schema, rootTableName, onDemandIndex.getPropertyPath(),true).toExecutableQueryString()));
+    indexCreationQueries.add(new SQLQuery(IndexHelper.buildOnDemandIndexCreationQuery(schema, rootTableName,
+            onDemandIndex, ConnectorParameters.TableLayout.OLD_LAYOUT,true).toExecutableQueryString()));
 
     return SQLQuery.join(indexCreationQueries, ";");
   }

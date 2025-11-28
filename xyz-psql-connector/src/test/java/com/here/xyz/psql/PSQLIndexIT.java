@@ -27,6 +27,7 @@ import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.XyzError;
+import com.here.xyz.util.db.ConnectorParameters;
 import com.here.xyz.util.db.pg.IndexHelper.OnDemandIndex;
 import org.junit.After;
 import org.junit.Before;
@@ -182,7 +183,7 @@ public class PSQLIndexIT extends PSQLAbstractIT {
             List<OnDemandIndex> activatedSearchableProperties = getActivatedSearchableProperties(searchableProperties);
 
             for(OnDemandIndex onDemandIndex : activatedSearchableProperties)
-                stmt.execute(buildOnDemandIndexCreationQuery("public", "foo", onDemandIndex.getPropertyPath(), false).toExecutableQueryString());
+                stmt.execute(buildOnDemandIndexCreationQuery("public", "foo", onDemandIndex, ConnectorParameters.TableLayout.OLD_LAYOUT, false).toExecutableQueryString());
 
             // Check which Indices are available
             ResultSet resultSet = stmt.executeQuery( DhString.format("select idx_property, src from xyz_index_list_all_available(%s, 'foo');",sqlSpaceSchema));

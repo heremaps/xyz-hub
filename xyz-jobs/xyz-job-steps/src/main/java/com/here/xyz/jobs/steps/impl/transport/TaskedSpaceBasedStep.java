@@ -406,6 +406,8 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
 
   @Override
   public void execute(boolean resume) throws Exception {
+    infoLog(STEP_EXECUTE, "execute called with resume=" + resume);
+
     //The following code is running synchronously till the first task is getting started.
     String schema = getSchema(db());
     if (!resume) {

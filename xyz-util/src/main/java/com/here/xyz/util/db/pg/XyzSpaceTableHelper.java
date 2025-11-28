@@ -22,6 +22,7 @@ package com.here.xyz.util.db.pg;
 import static com.here.xyz.models.hub.Space.TABLE_NAME;
 import static com.here.xyz.util.db.ConnectorParameters.TableLayout.OLD_LAYOUT;
 import static com.here.xyz.util.db.ConnectorParameters.TableLayout.NEW_LAYOUT;
+import static com.here.xyz.util.db.ConnectorParameters.TableLayout.OLD_LAYOUT_WITH_SEARCHABLE;
 import static com.here.xyz.util.db.pg.IndexHelper.OnDemandIndex;
 import static com.here.xyz.util.db.pg.IndexHelper.buildSpaceTableIndexQueries;
 import static com.here.xyz.util.db.pg.IndexHelper.buildOnDemandIndexCreationQuery;
@@ -75,7 +76,7 @@ public class XyzSpaceTableHelper {
 
   public static List<SQLQuery> buildCreateSpaceTableQueries(String schema, String table, boolean isMainTable,  List<OnDemandIndex> onDemandIndices,
                                                             String spaceId, TableLayout layout) {
-    if (layout != TableLayout.OLD_LAYOUT && layout != TableLayout.NEW_LAYOUT) {
+    if (layout != TableLayout.OLD_LAYOUT && layout != TableLayout.NEW_LAYOUT && layout != TableLayout.OLD_LAYOUT_WITH_SEARCHABLE) {
       throw new IllegalArgumentException("Unsupported Table Layout: " + layout);
     }
 
@@ -89,8 +90,9 @@ public class XyzSpaceTableHelper {
     queries.add(buildCreateHistoryPartitionQuery(schema, table, 0L, true));
     queries.add(buildCreateSequenceQuery(schema, table, "version", layout));
     if(onDemandIndices != null && !onDemandIndices.isEmpty()) {
-        for (OnDemandIndex onDemandIndex : onDemandIndices)
-            queries.add(buildOnDemandIndexCreationQuery(schema, table, onDemandIndex.getPropertyPath(), false));
+        for (OnDemandIndex onDemandIndex : onDemandIndices) {
+          queries.add(buildOnDemandIndexCreationQuery(schema, table, onDemandIndex, layout,false));
+        }
     }
     if(layout == NEW_LAYOUT) {
       queries.add(buildOnDemandIndexCreationQuery(schema, table, REF_QUAD_PROPERTY, SEARCHABLE_COLUMN ,false));
@@ -104,7 +106,7 @@ public class XyzSpaceTableHelper {
 
   public static SQLQuery buildColumnStorageAttributesQuery(String schema, String tableName, TableLayout layout) {
     //Not needed for V2 layout
-    if(layout == TableLayout.OLD_LAYOUT) {
+    if(layout.isOld()) {
       return new SQLQuery("ALTER TABLE ${schema}.${table} "
               + "ALTER COLUMN id SET STORAGE MAIN, "
               + "ALTER COLUMN jsondata SET STORAGE MAIN, "
@@ -121,52 +123,49 @@ public class XyzSpaceTableHelper {
               + "ALTER COLUMN author SET COMPRESSION lz4;")
               .withVariable(SCHEMA, schema)
               .withVariable(TABLE, tableName);
-    }else if(layout == TableLayout.NEW_LAYOUT) {
-      //Not needed for V2 layout
-      return new SQLQuery("");
     }
-    throw new IllegalArgumentException("Unsupported Table Layout: " + layout);
+    //Not needed for V2 layout
+    return new SQLQuery("");
   }
 
   public static List<SQLQuery>  buildCreateHeadPartitionQuery(String schema, String rootTable, TableLayout layout) {
-    if(layout == TableLayout.OLD_LAYOUT)
+    if(layout.isOld()){
       return List.of(new SQLQuery("CREATE TABLE IF NOT EXISTS ${schema}.${partitionTable} "
               + "PARTITION OF ${schema}.${rootTable} FOR VALUES FROM (max_bigint()) TO (MAXVALUE)")
               .withVariable(SCHEMA, schema)
               .withVariable("rootTable", rootTable)
               .withVariable("partitionTable", rootTable + HEAD_TABLE_SUFFIX));
-    else if (layout == TableLayout.NEW_LAYOUT) {
-      SQLQuery headTableCreation = new SQLQuery("""
-              CREATE TABLE IF NOT EXISTS ${schema}.${partitionTable}
-                PARTITION OF ${schema}.${rootTable} FOR VALUES FROM (max_bigint()) TO (MAXVALUE)
-                PARTITION BY HASH (id);
-              """)
-              .withVariable(SCHEMA, schema)
-              .withVariable("rootTable", rootTable)
-              .withVariable("partitionTable", rootTable + HEAD_TABLE_SUFFIX);
-
-      SQLQuery headTablePartitionCreations = new SQLQuery("""
-              DO $$
-              BEGIN
-                FOR i IN 0..$partitionCountLoop$ LOOP
-                  EXECUTE format('
-                    CREATE TABLE IF NOT EXISTS $schema$."$headTable$_p%s"
-                      PARTITION OF $schema$."$headTable$"
-                      FOR VALUES WITH (MODULUS $partitionCount$, REMAINDER %s);', i, i);
-                END LOOP;
-              END $$;
-              """
-              .replace("$partitionCountLoop$", Long.toString(HEAD_TABLE_PARTION_COUNT - 1))
-              .replace("$schema$",schema)
-              .replace("$headTable$",rootTable + HEAD_TABLE_SUFFIX)
-              .replace("$partitionCount$",Long.toString(HEAD_TABLE_PARTION_COUNT))
-      );
-      return List.of(
-              headTableCreation,
-              headTablePartitionCreations
-      );
     }
-    throw new IllegalArgumentException("Unsupported Table Layout: " + layout);
+    //TableLayout.NEW_LAYOUT
+    SQLQuery headTableCreation = new SQLQuery("""
+            CREATE TABLE IF NOT EXISTS ${schema}.${partitionTable}
+              PARTITION OF ${schema}.${rootTable} FOR VALUES FROM (max_bigint()) TO (MAXVALUE)
+              PARTITION BY HASH (id);
+            """)
+            .withVariable(SCHEMA, schema)
+            .withVariable("rootTable", rootTable)
+            .withVariable("partitionTable", rootTable + HEAD_TABLE_SUFFIX);
+
+    SQLQuery headTablePartitionCreations = new SQLQuery("""
+            DO $$
+            BEGIN
+              FOR i IN 0..$partitionCountLoop$ LOOP
+                EXECUTE format('
+                  CREATE TABLE IF NOT EXISTS $schema$."$headTable$_p%s"
+                    PARTITION OF $schema$."$headTable$"
+                    FOR VALUES WITH (MODULUS $partitionCount$, REMAINDER %s);', i, i);
+              END LOOP;
+            END $$;
+            """
+            .replace("$partitionCountLoop$", Long.toString(HEAD_TABLE_PARTION_COUNT - 1))
+            .replace("$schema$",schema)
+            .replace("$headTable$",rootTable + HEAD_TABLE_SUFFIX)
+            .replace("$partitionCount$",Long.toString(HEAD_TABLE_PARTION_COUNT))
+    );
+    return List.of(
+            headTableCreation,
+            headTablePartitionCreations
+    );
   }
 
   public static SQLQuery buildCreateHistoryPartitionQuery(String schema, String rootTable, long partitionNo, boolean useSelect) {
@@ -180,19 +179,21 @@ public class XyzSpaceTableHelper {
 
   private static SQLQuery buildCreateSpaceTableQuery(String schema, String table, TableLayout layout) {
     String tableFields = null;
-
-    if(layout == OLD_LAYOUT) {
-       tableFields = "id TEXT NOT NULL, "
+    if(layout.isOld()){
+      tableFields = "id TEXT NOT NULL, "
               + "version BIGINT NOT NULL, "
               + "next_version BIGINT NOT NULL DEFAULT 9223372036854775807::BIGINT, "
               + "operation CHAR NOT NULL, "
               + "author TEXT, "
               + "jsondata JSONB, "
-              + "geo geometry(GeometryZ, 4326), "
-              + "i BIGSERIAL, "
+              + "geo geometry(GeometryZ, 4326), ";
+      if (layout == OLD_LAYOUT_WITH_SEARCHABLE) {
+        tableFields += "searchable JSONB STORAGE MAIN COMPRESSION lz4,";
+      }
+      tableFields += "i BIGSERIAL, "
               + "CONSTRAINT ${uniqueConstraintName} UNIQUE (id, next_version), "
               + "CONSTRAINT ${primKeyConstraintName} PRIMARY KEY (id, version, next_version)";
-    } else if (layout == NEW_LAYOUT) {
+    }else if (layout == NEW_LAYOUT) {
       tableFields = "id TEXT STORAGE MAIN COMPRESSION lz4 NOT NULL, "
               + "version BIGINT STORAGE PLAIN NOT NULL, "
               + "next_version BIGINT STORAGE PLAIN NOT NULL DEFAULT 9223372036854775807::BIGINT, "
@@ -216,9 +217,7 @@ public class XyzSpaceTableHelper {
   }
 
   public static SQLQuery buildCreateSequenceQuery(String schema, String table, String columnName, TableLayout layout) {
-    if(layout == TableLayout.OLD_LAYOUT || layout == TableLayout.NEW_LAYOUT)
-      return buildCreateSequenceQuery(schema, table, columnName, columnName, 1);
-    throw new IllegalArgumentException("Unsupported Table Layout: " + layout);
+    return buildCreateSequenceQuery(schema, table, columnName, columnName, 1);
   }
 
   public static SQLQuery buildCreateBranchSequenceQuery(String schema, String table) {
@@ -278,7 +277,7 @@ public class XyzSpaceTableHelper {
             .withVariable("versionSequence", table + versionSequenceSuffix)
             .withVariable(SCHEMA, schema);
 
-    if(layout == TableLayout.OLD_LAYOUT) {
+    if(layout.isOld()) {
       //MMSUP-1092  tmp workaroung on db9 - skip deletion from spaceMetaTable
       //TODO: remove spaceMetaTable from overall code
       String storageID = event.getSpaceDefinition() != null && event.getSpaceDefinition().getStorage() != null
@@ -304,13 +303,11 @@ public class XyzSpaceTableHelper {
       queries.add(dropISequenceQuery);
       queries.add(dropVersionSequenceQuery);
       return queries;
-    }else if(layout == TableLayout.NEW_LAYOUT) {
-      queries.add(dropTableQuery);
-      queries.add(dropVersionSequenceQuery);
-      return queries;
     }
-
-    throw new IllegalArgumentException("Unsupported Table Layout: " + layout);
+    //TableLayout.NEW_LAYOUT
+    queries.add(dropTableQuery);
+    queries.add(dropVersionSequenceQuery);
+    return queries;
   }
 
   public record TableComment(String spaceId, TableLayout tableLayout) implements XyzSerializable{

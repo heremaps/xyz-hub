@@ -30,17 +30,16 @@ import com.here.xyz.util.db.SQLQuery;
 import org.apache.commons.codec.digest.DigestUtils;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_DEFAULT;
-import static com.here.xyz.util.db.ConnectorParameters.TableLayout.OLD_LAYOUT;
-import static com.here.xyz.util.db.ConnectorParameters.TableLayout.NEW_LAYOUT;
 
 public class IndexHelper {
+  private static String OLD_LAYOUT_INDEX_COULMN = "jsondata";
+  private static String NEW_LAYOUT_INDEX_COULMN = "searchable";
 
   @JsonInclude(NON_DEFAULT)
   @JsonIgnoreProperties(ignoreUnknown = true)
@@ -147,6 +146,56 @@ public class IndexHelper {
       return this;
     }
 
+    public String extractAlias(){
+      if (propertyPath == null)
+        return null;
+      if (propertyPath.startsWith("$"))
+        return propertyPath.substring(1, propertyPath.indexOf(':'));
+      throw new IllegalArgumentException("Cannot extract alias from property path: " + propertyPath);
+    }
+
+    public String extractLogicalPropertyPath() {
+      if (propertyPath == null)
+        return null;
+
+      propertyPath = propertyPath.trim();
+
+      // New-style: $alias:[$.jsonPath]::scalar|array
+      if (propertyPath.startsWith("$") && propertyPath.contains("::")) {
+        String[] typeSplit = propertyPath.split("::", 2);
+        String leftPart = typeSplit[0].trim();
+
+        int colonIdx = leftPart.indexOf(':');
+        String exprPart = colonIdx > -1
+                ? leftPart.substring(colonIdx + 1).trim()
+                : leftPart.substring(1).trim();
+
+        // Strip [] if present
+        if (exprPart.startsWith("[") && exprPart.endsWith("]") && exprPart.length() > 2) {
+          exprPart = exprPart.substring(1, exprPart.length() - 1).trim();
+        }
+
+        if (exprPart.startsWith("$.properties.") && exprPart.length() > "$.properties.".length()) {
+          return exprPart.substring("$.properties.".length());
+        }
+        if (exprPart.startsWith("$.") && exprPart.length() > 2) {
+          return exprPart.substring(2);
+        }
+        if (exprPart.startsWith("$") && exprPart.length() > 1) {
+          return exprPart.substring(1); // fallback
+        }
+        return exprPart;
+      }
+
+      // Legacy keys
+      int sepIdx = propertyPath.lastIndexOf("::");
+      if (sepIdx > -1) {
+        return propertyPath.substring(0, sepIdx).trim();
+      }
+
+      return propertyPath;
+    }
+
     @Override
     public String getIndexName(String tableName) {
       // Take the first 8 characters of md5 hash of the property path
@@ -154,27 +203,6 @@ public class IndexHelper {
 
       return idxPrefix + tableName + "_" + shortMd5 + "_m";
     }
-  }
-
-  public static SQLQuery buildCreateIndexQuery(String schema, String table, String columnName, String method) {
-    return buildCreateIndexQuery(schema, table, Collections.singletonList(columnName), method);
-  }
-
-  public static SQLQuery buildCreateIndexQuery(String schema, String table, Index index) {
-    return buildCreateIndexQuery(schema, table, ((SystemIndex)index).getIndexContent(), ((SystemIndex)index).getIndexType(), index.getIndexName(table));
-  }
-
-  public static SQLQuery buildCreateIndexQuery(String schema, String table, List<String> columnNames, String method) {
-    return buildCreateIndexQuery(schema, table, columnNames, method, "idx_" + table + "_"
-        + columnNames
-        .stream()
-        .map(colName -> colName.replace("_", ""))
-        .collect(Collectors.joining()), null);
-  }
-
-  public static SQLQuery buildCreateIndexQuery(String schema, String table, String columnNameOrExpression, String method,
-      String indexName) {
-      return buildCreateIndexQuery(schema, table, Collections.singletonList(columnNameOrExpression), method, indexName, null);
   }
 
   public static SQLQuery buildSpaceTableIndexQuery(String schema, String table, Index index) {
@@ -210,54 +238,15 @@ public class IndexHelper {
             : searchableProperties.entrySet().stream()
             .filter(Map.Entry::getValue)
             .map(entry -> new OnDemandIndex()
-                    .withPropertyPath(extractLogicalPropertyPath(entry.getKey())))
+                    .withPropertyPath(entry.getKey()))
             .collect(Collectors.toList());
   }
 
-  private static String extractLogicalPropertyPath(String key) {
-    if (key == null)
-      return null;
+  public static SQLQuery buildOnDemandIndexCreationQuery(String schema, String table, OnDemandIndex index, TableLayout layout, boolean async){
+    if(layout.hasSearchableColumn())
+      return buildOnDemandIndexCreationQuery(schema, table, index.extractAlias(), NEW_LAYOUT_INDEX_COULMN, async);
 
-    key = key.trim();
-
-    // New-style: $alias:[$.jsonPath]::scalar|array
-    if (key.startsWith("$") && key.contains("::")) {
-      String[] typeSplit = key.split("::", 2);
-      String leftPart = typeSplit[0].trim();
-
-      int colonIdx = leftPart.indexOf(':');
-      String exprPart = colonIdx > -1
-              ? leftPart.substring(colonIdx + 1).trim()
-              : leftPart.substring(1).trim();
-
-      // Strip [] if present
-      if (exprPart.startsWith("[") && exprPart.endsWith("]") && exprPart.length() > 2) {
-        exprPart = exprPart.substring(1, exprPart.length() - 1).trim();
-      }
-
-      if (exprPart.startsWith("$.properties.") && exprPart.length() > "$.properties.".length()) {
-        return exprPart.substring("$.properties.".length());
-      }
-      if (exprPart.startsWith("$.") && exprPart.length() > 2) {
-        return exprPart.substring(2);
-      }
-      if (exprPart.startsWith("$") && exprPart.length() > 1) {
-        return exprPart.substring(1); // fallback
-      }
-      return exprPart;
-    }
-
-    // Legacy keys
-    int sepIdx = key.lastIndexOf("::");
-    if (sepIdx > -1) {
-      return key.substring(0, sepIdx).trim();
-    }
-
-    return key;
-  }
-
-  public static SQLQuery buildOnDemandIndexCreationQuery(String schema, String table, String propertyPath, boolean async){
-    return buildOnDemandIndexCreationQuery(schema, table, propertyPath, "jsondata", async);
+    return buildOnDemandIndexCreationQuery(schema, table, index.getPropertyPath(), OLD_LAYOUT_INDEX_COULMN, async);
   }
 
   public static SQLQuery buildOnDemandIndexCreationQuery(String schema, String table, String propertyPath, String targetColumn, boolean async){
@@ -305,44 +294,18 @@ public class IndexHelper {
   }
 
   public static List<SQLQuery> buildSpaceTableIndexQueries(String schema, String table, TableLayout layout) {
-    if(layout == OLD_LAYOUT)
+    if(layout.isOld())
       return Arrays.asList(SystemIndex.values()).stream()
               .map(index -> buildCreateIndexQuery(schema, table, index.getIndexContent(), index.getIndexType(), index.getIndexName(table)))
               .toList();
-    else if (layout == NEW_LAYOUT)
-      return Stream.of(SystemIndex.GEO,
-                      SystemIndex.NEXT_VERSION,
-                      SystemIndex.VERSION_ID)
-              .map(index -> buildCreateIndexQuery(
-                      schema, table, index.getIndexContent(),
-                      index.getIndexType(), index.getIndexName(table))
-              ).toList();
+    //layout == NEW_LAYOUT
 
-    throw new IllegalArgumentException("Unsupported layout " + layout);
-  }
-
-  /**
-   * @deprecated Please use only method {@link #buildSpaceTableIndexQueries(String, String, TableLayout)} instead.
-   * @param schema
-   * @param table
-   * @param queryComment
-   * @return
-   */
-  @Deprecated
-  public static List<SQLQuery> buildSpaceTableIndexQueries(String schema, String table, SQLQuery queryComment) {
-    return buildSpaceTableIndexQueries(schema, table, TableLayout.OLD_LAYOUT)
-            .stream()
-            .map(q -> addQueryComment(q, queryComment))
-            .toList();
-  }
-  /**
-   * @deprecated Please use labels instead. See: {@link SQLQuery#withLabel(String, String)}
-   * @param sourceQuery
-   * @param queryComment
-   * @return
-   */
-  @Deprecated
-  private static SQLQuery addQueryComment(SQLQuery sourceQuery, SQLQuery queryComment) {
-    return queryComment != null ? sourceQuery.withQueryFragment("queryComment", queryComment) : sourceQuery;
+    return Stream.of(SystemIndex.GEO,
+                    SystemIndex.NEXT_VERSION,
+                    SystemIndex.VERSION_ID)
+            .map(index -> buildCreateIndexQuery(
+                    schema, table, index.getIndexContent(),
+                    index.getIndexType(), index.getIndexName(table))
+            ).toList();
   }
 }

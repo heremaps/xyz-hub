@@ -75,7 +75,7 @@
         "type": "Embedded",
         "id": "xyz-psql-local",
         "warmUp": 1,
-        "className": "com.here.xyz.psql.PSQLXyzConnector",
+        "className": "com.here.xyz.psql.PSQLXyzNLConnector",
         "env": {
           "ECPS_PHRASE": "local"
         },
