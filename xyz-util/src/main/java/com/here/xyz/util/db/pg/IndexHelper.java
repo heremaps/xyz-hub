@@ -215,34 +215,18 @@ public class IndexHelper {
         }
       }
 
+      String alias = path;
       if(!path.startsWith("f."))
-        path = "properties."+path;
+        alias = path = "properties."+path;
+      else
+        path = path.substring("f.".length());
 
-      propertyPath = "$" + path + ":[$." + path + "]::" + datatype;
+      propertyPath = "$" + alias + ":[$." + path + "]::" + datatype;
     }
 
     public boolean definitionGotTransformed() {
       String alias = extractAlias();
-      if(alias.equals(extractLogicalPropertyPath())){
-        if(alias.startsWith("properties.") || alias.startsWith("f."))
-          return true;
-        return true;
-      }
-      return false;
-//      propertyPath = propertyPath.trim();
-//      int colonIndex = propertyPath.indexOf(':');
-//
-//      String leftPath = propertyPath.substring(1, colonIndex);
-//
-//      int openBracket = propertyPath.indexOf("[$.");
-//      int closeBracket = propertyPath.indexOf("]", openBracket);
-//
-//      String inner = propertyPath.substring(openBracket + 3, closeBracket);
-//
-//
-//
-//      // Compare paths
-//      return leftPath.equals(inner);
+      return alias.startsWith("f.") || alias.startsWith("properties.");
     }
 
     @Override
@@ -294,7 +278,6 @@ public class IndexHelper {
   public static SQLQuery buildOnDemandIndexCreationQuery(String schema, String table, OnDemandIndex index, TableLayout layout, boolean async){
     if(layout.hasSearchableColumn())
       return buildOnDemandIndexCreationQuery(schema, table, index.extractAlias(), NEW_LAYOUT_INDEX_COULMN, async);
-  index.definitionGotTransformed();
     return buildOnDemandIndexCreationQuery(schema, table, index.extractLogicalPropertyPath(), OLD_LAYOUT_INDEX_COULMN, async);
   }
 
