@@ -176,9 +176,6 @@ public class IndexHelper {
           exprPart = exprPart.substring(1, exprPart.length() - 1).trim();
         }
 
-        if (exprPart.startsWith("$.properties.") && exprPart.length() > "$.properties.".length()) {
-          return exprPart.substring("$.properties.".length());
-        }
         if (exprPart.startsWith("$.") && exprPart.length() > 2) {
           return exprPart.substring(2);
         }
@@ -218,22 +215,34 @@ public class IndexHelper {
         }
       }
 
+      if(!path.startsWith("f."))
+        path = "properties."+path;
+
       propertyPath = "$" + path + ":[$." + path + "]::" + datatype;
     }
 
     public boolean definitionGotTransformed() {
-      propertyPath = propertyPath.trim();
-      int colonIndex = propertyPath.indexOf(':');
-
-      String leftPath = propertyPath.substring(1, colonIndex);
-
-      int openBracket = propertyPath.indexOf("[$.");
-      int closeBracket = propertyPath.indexOf("]", openBracket);
-
-      String inner = propertyPath.substring(openBracket + 3, closeBracket);
-
-      // Compare paths
-      return leftPath.equals(inner);
+      String alias = extractAlias();
+      if(alias.equals(extractLogicalPropertyPath())){
+        if(alias.startsWith("properties.") || alias.startsWith("f."))
+          return true;
+        return true;
+      }
+      return false;
+//      propertyPath = propertyPath.trim();
+//      int colonIndex = propertyPath.indexOf(':');
+//
+//      String leftPath = propertyPath.substring(1, colonIndex);
+//
+//      int openBracket = propertyPath.indexOf("[$.");
+//      int closeBracket = propertyPath.indexOf("]", openBracket);
+//
+//      String inner = propertyPath.substring(openBracket + 3, closeBracket);
+//
+//
+//
+//      // Compare paths
+//      return leftPath.equals(inner);
     }
 
     @Override
@@ -285,7 +294,7 @@ public class IndexHelper {
   public static SQLQuery buildOnDemandIndexCreationQuery(String schema, String table, OnDemandIndex index, TableLayout layout, boolean async){
     if(layout.hasSearchableColumn())
       return buildOnDemandIndexCreationQuery(schema, table, index.extractAlias(), NEW_LAYOUT_INDEX_COULMN, async);
-
+  index.definitionGotTransformed();
     return buildOnDemandIndexCreationQuery(schema, table, index.extractLogicalPropertyPath(), OLD_LAYOUT_INDEX_COULMN, async);
   }
 

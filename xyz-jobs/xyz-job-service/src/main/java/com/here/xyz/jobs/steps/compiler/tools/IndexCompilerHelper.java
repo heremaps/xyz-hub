@@ -62,7 +62,7 @@ public class IndexCompilerHelper {
         try {
 
             Space space = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT)
-                    .loadSpace(spaceId);
+                    .loadSpace(spaceId, true);
             Map<String, Boolean> searchableProperties = space.getSearchableProperties();
 
             if(space.getExtension() != null){
