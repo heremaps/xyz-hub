@@ -1216,23 +1216,25 @@ public class SQLQuery {
           57014 - query_canceled
           57P01 - admin_shutdown
            */
-          //NOTE: 57014 occurs when a query got cancelled for various reasons. If the reason was a timeout it should not be retried.
-          sqlEx.getSQLState().equalsIgnoreCase("57014") && !sqlEx.getMessage().toLowerCase().contains("statement timeout")
+                //NOTE: 57014 occurs when a query got cancelled for various reasons. If the reason was a timeout it should not be retried.
+                sqlEx.getSQLState().equalsIgnoreCase("57014") && !sqlEx.getMessage().toLowerCase().contains("statement timeout")
               /*
               NOTE: "admin_shutdown" (57P01) also is used when some admin user kills the backend
               using pg_terminate_backend. So this SQL state is not treated as recoverable,
               since anyway in serverless v2 it's not applicable during scaling anymore.
                */
-              //|| sqlEx.getSQLState().equalsIgnoreCase("57P01")
-              || sqlEx.getSQLState().equalsIgnoreCase("08003")
-              || sqlEx.getSQLState().equalsIgnoreCase("08006")
-              || getRetryableErrorCodes().contains(sqlEx.getSQLState())
-      )) {
-        logger.warn("{} Retryable error detected! RemainingTime: {}", getQueryId(), remainingQueryTimeout, e);
-        return true;
+                        //|| sqlEx.getSQLState().equalsIgnoreCase("57P01")
+                        || sqlEx.getSQLState().equalsIgnoreCase("08003")
+                        || sqlEx.getSQLState().equalsIgnoreCase("08006")
+                        || getRetryableErrorCodes().contains(sqlEx.getSQLState())
+        )) {
+          logger.warn("{} Retryable error detected! RemainingTime: {}", getQueryId(), remainingQueryTimeout, e);
+          return true;
+        }
       }
       return false;
     }
+
 
     public void addRetriedException(Exception e) {
       if (retriedExceptions == null)

@@ -142,13 +142,11 @@ public class Script {
 
   private SQLQuery addJsLibRegisterFunctions(SQLQuery scriptContent) throws IOException {
     String libPath = String.format("%s/lib-js", getScriptResourceFolder()),
-        registerSqlFunc = """
-                        CREATE OR REPLACE FUNCTION libjs_${{regFunctionName}}() RETURNS TEXT AS
-                        $body$
-                            SELECT regexp_replace($rfc$${{regFunctionCode}}$rfc$, '^var\\s+[^\\(]+','') AS code
-                        $body$
-                        LANGUAGE sql IMMUTABLE PARALLEL SAFE;
-                        """;
+        registerSqlFunc = "CREATE OR REPLACE FUNCTION libjs_${{regFunctionName}}() RETURNS TEXT AS\n"
+            + "$body$\n"
+            + "    SELECT regexp_replace($rfc$${{regFunctionCode}}$rfc$, '^var\\s+[^\\(]+','') AS code\n"
+            + "$body$\n"
+            + "LANGUAGE sql IMMUTABLE PARALLEL SAFE;";
 
     List<SQLQuery> queries = new ArrayList<>();
     queries.add(scriptContent);
