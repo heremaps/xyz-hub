@@ -232,7 +232,9 @@ public class IndexHelper {
     @Override
     public String getIndexName(String tableName) {
       // Take the first 8 characters of md5 hash of the property path
-      String shortMd5 = DigestUtils.md5Hex(propertyPath).substring(0, 7);
+      String shortMd5 = DigestUtils.md5Hex(
+              definitionGotTransformed() ?  extractLogicalPropertyPath() : propertyPath
+      ).substring(0, 7);
 
       return idxPrefix + tableName + "_" + shortMd5 + "_m";
     }
