@@ -24,6 +24,7 @@ import static com.here.xyz.responses.XyzError.CONFLICT;
 import static com.here.xyz.responses.XyzError.EXCEPTION;
 import static com.here.xyz.responses.XyzError.NOT_FOUND;
 import static com.here.xyz.util.db.ConnectorParameters.TableLayout.NEW_LAYOUT;
+import static com.here.xyz.util.db.ConnectorParameters.TableLayout.OLD_LAYOUT_WITH_SEARCHABLE;
 import static com.here.xyz.util.db.pg.SQLError.FEATURE_EXISTS;
 import static com.here.xyz.util.db.pg.SQLError.FEATURE_NOT_EXISTS;
 import static com.here.xyz.util.db.pg.SQLError.RETRYABLE_VERSION_CONFLICT;
@@ -101,7 +102,7 @@ public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureColl
     if (event.getRef() != null && event.getRef().isSingleVersion() && !event.getRef().isHead())
       queryContextBuilder.withBaseVersion(event.getRef().getVersion());
 
-    if (getTableLayout() == NEW_LAYOUT) {
+    if (getTableLayout() == NEW_LAYOUT || getTableLayout() == OLD_LAYOUT_WITH_SEARCHABLE) {
       //Temporary workaround for NL connector
         Map<String, String> searchableProperties = new HashMap<>(event.getSearchableProperties());
         searchableProperties.put("refQuad", "$.properties.refQuad");
@@ -155,12 +156,12 @@ public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureColl
     }
   }
 
-  private String writeHook(Map<String, String> searchableProperties) {
+  private static String writeHook(Map<String, String> searchableProperties) {
     return """
         (feature, row) => {
           const searchableProperties = ${searchableProperties};
           let searchables = {};
-          
+
           for (const alias in searchableProperties) {
             const jsonPath = searchableProperties[alias];
             try {
@@ -170,7 +171,7 @@ public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureColl
               throw new Error(`Error evaluating JSONPath for alias ${alias} and expression ${jsonPath} message: ${err.message}`);
             }
           }
-          
+
           row.searchable = !row.searchable ? searchables : {...row.searchable, ...searchables};
         }
         """.replace("${searchableProperties}", XyzSerializable.serialize(searchableProperties));

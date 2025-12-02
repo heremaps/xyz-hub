@@ -134,30 +134,65 @@ class DatabaseWriter {
    */
   upsertRow(inputFeature, version, operation, author, onExists, resultHandler) {
     this.enrichTimestamps(inputFeature, true);
+
+   const row = {
+      id: inputFeature.id,
+      version: version,
+      operation: operation,
+      author: author,
+      jsondata: inputFeature,
+      geo: inputFeature.geometry
+    };
+
+    let extraColNames = this.patchRowData(inputFeature, row);
+    let extraSql = this._buildSqlColAndParameterStrings(extraColNames, 7); // 7 => offset, next parameter used in sql
+
+    let extraCols = extraSql[0] ? extraSql[0].split(",") : [];
+    let extraVals = extraSql[1] ? extraSql[1].split(",") : [];
+
+    const updateStmtSetValues = [];
+
+    for (let i = 0; i < extraCols.length; i++) {
+     updateStmtSetValues.push(`${extraCols[i]} = EXCLUDED.${extraCols[i]}`);
+    }
+
+    let castjsonb = "::JSONB" // cast needed in case jsondata col is of type text (tmp fix)
+
     let onConflict = onExists == "REPLACE"
         ? ` ON CONFLICT (id, next_version) DO UPDATE SET
           version = greatest(tbl.version, EXCLUDED.version),
           operation = CASE WHEN $3 = 'H' THEN 'J' ELSE 'U' END,
           author = EXCLUDED.author,
-          jsondata = jsonb_set(EXCLUDED.jsondata, '{properties, ${XYZ_NS}, createdAt}',
-                 tbl.jsondata->'properties'->'${XYZ_NS}'->'createdAt'),
+          jsondata = jsonb_set(EXCLUDED.jsondata${castjsonb}, '{properties, ${XYZ_NS}, createdAt}',
+                 tbl.jsondata${castjsonb}->'properties'->'${XYZ_NS}'->'createdAt'),
           geo = EXCLUDED.geo
-          WHERE EXCLUDED.jsondata #- ARRAY['properties', '${XYZ_NS}'] IS DISTINCT FROM tbl.jsondata #- ARRAY['properties', '${XYZ_NS}']`
+          ${ updateStmtSetValues.length > 0 ? ',' + updateStmtSetValues.join(",") : '' }
+          WHERE EXCLUDED.jsondata${castjsonb} #- ARRAY['properties', '${XYZ_NS}'] IS DISTINCT FROM tbl.jsondata${castjsonb} #- ARRAY['properties', '${XYZ_NS}']`
         : onExists == "RETAIN" ? " ON CONFLICT(id, next_version) DO NOTHING" : "";
 
     let sql = `INSERT INTO "${this.schema}"."${this.table}" AS tbl
-                        (id, version, operation, author, jsondata, geo)
-                        VALUES ($1, $2, $3, $4, $5::JSONB - 'geometry', CASE WHEN $6::JSONB IS NULL THEN NULL
-                            ELSE xyz_reduce_precision(ST_Force3D(ST_GeomFromGeoJSON($6::JSONB)), false) END) ${onConflict}
-                        RETURNING (jsondata->'properties'->'${XYZ_NS}'->'createdAt') as created_at, operation`;
+                        (id, version, operation, author, jsondata, geo ${ extraCols.length > 0 ? ',' + extraCols.join(",") : '' })
+                        VALUES ($1, $2, $3, $4, $5::JSONB - 'geometry',
+                                 CASE WHEN $6::JSONB IS NULL THEN NULL
+                                  ELSE xyz_reduce_precision(ST_Force3D(ST_GeomFromGeoJSON($6::JSONB)), false)
+                                 END
+                                 ${ extraVals.length > 0 ? ',' + extraVals.join(",") : '' }
+                                ) ${onConflict}
+                        RETURNING (jsondata${castjsonb}->'properties'->'${XYZ_NS}'->'createdAt') as created_at, operation`;
 
     //sql += " RETURNING COALESCE(jsonb_set(jsondata,'{geometry}',ST_ASGeojson(geo)::JSONB) as feature)";
 
     let method = "upsertRow";
     if (!this.plans[method]) {
-      this.plans[method] = this._preparePlan(sql, ["TEXT", "BIGINT", "CHAR", "TEXT", "JSONB", "JSONB"]);
+      const paramTypes = ["TEXT", "BIGINT", "CHAR", "TEXT", "JSONB", "JSONB"];
+
+      if (extraColNames.length)
+        extraColNames.forEach(colName => paramTypes.push(this._sqlTypeOf(row[colName])));
+
+      this.plans[method] = this._preparePlan(sql, paramTypes);
       this.parameterSets[method] = [];
       this.resultParsers[method] = [];
+      this.queryOptions[method] = [];
     }
 
     if (inputFeature == null) {
@@ -165,14 +200,20 @@ class DatabaseWriter {
       throw new XyzException("Can not write a feature that is null");
     }
 
-    this.parameterSets[method].push([
-      inputFeature.id,
-      version,
-      operation,
-      author,
-      inputFeature,
-      inputFeature.geometry //TODO: Use TEXT
-    ]);
+    const params = [
+      row.id,
+      row.version,
+      row.operation,
+      row.author,
+      row.jsondata,
+      row.geo //TODO: Use TEXT
+    ];
+
+    if (extraColNames.length)
+      extraColNames.forEach(colName => params.push(row[colName]));
+
+    this.parameterSets[method].push(params);
+
     this.resultParsers[method].push(result => {
       //TODO: In future return null here, if actually no update was taking place (due to non-changed content) - keeping status quo for BWC for now
       let executedAction = !result.length ? ExecutionAction.NONE : ExecutionAction.fromOperation[result[0].operation];
@@ -192,22 +233,53 @@ class DatabaseWriter {
    */
   updateRow(inputFeature, version, author, baseVersion, resultHandler) {
     this.enrichTimestamps(inputFeature);
+
+    const row = {
+      id: inputFeature.id,
+      version: version,
+      operation: "U",
+      author: author,
+      jsondata: inputFeature,
+      geo: inputFeature.geometry
+    };
+
+    let extraColNames = this.patchRowData(inputFeature, row);
+    let extraSql = this._buildSqlColAndParameterStrings(extraColNames, 8); // 8 => offset, next parameter used in sql
+
+    let extraCols = extraSql[0] ? extraSql[0].split(",") : [];
+    let extraVals = extraSql[1] ? extraSql[1].split(",") : [];
+
+    const updateStmtSetValues = [];
+
+    for (let i = 0; i < extraCols.length; i++) {
+     updateStmtSetValues.push(`${extraCols[i]}=${extraVals[i]}${extraCols[i] == 'searchable' ? '::JSONB' : '' }`);
+    }
+
+    let castjsonb = "::JSONB" // cast needed in case jsondata col is of type text (tmp fix)
+
     let sql = `UPDATE "${this.schema}"."${this.table}" AS tbl
                          SET version   = $1,
                              operation = $2,
                              author    = $3,
                              jsondata  = jsonb_set($4::JSONB - 'geometry', '{properties, ${XYZ_NS}, createdAt}',
-                                                   tbl.jsondata -> 'properties' -> '${XYZ_NS}' -> 'createdAt'),
+                                                   tbl.jsondata${castjsonb} -> 'properties' -> '${XYZ_NS}' -> 'createdAt'),
                              geo       = CASE WHEN $5::JSONB IS NULL THEN NULL ELSE xyz_reduce_precision(ST_Force3D(ST_GeomFromGeoJSON($5::JSONB)), false) END
+                             ${  updateStmtSetValues.length > 0 ? ',' + updateStmtSetValues.join(",") : '' }
                          WHERE id = $6
                            AND version = $7
-                         RETURNING (jsondata -> 'properties' -> '${XYZ_NS}' -> 'createdAt') as created_at, operation`;
+                         RETURNING ( jsondata${castjsonb} -> 'properties' -> '${XYZ_NS}' -> 'createdAt') as created_at, operation`;
 
     let method = "updateRow";
     if (!this.plans[method]) {
-      this.plans[method] = this._preparePlan(sql, ["BIGINT", "CHAR", "TEXT", "JSONB", "JSONB", "TEXT", "BIGINT"]);
+      const paramTypes = ["BIGINT", "CHAR", "TEXT", "JSONB", "JSONB", "TEXT", "BIGINT"];
+
+      if (extraColNames.length)
+        extraColNames.forEach(colName => paramTypes.push(this._sqlTypeOf(row[colName])));
+
+      this.plans[method] = this._preparePlan(sql, paramTypes);
       this.parameterSets[method] = [];
       this.resultParsers[method] = [];
+      this.queryOptions[method] = [];
     }
 
     if (inputFeature == null) {
@@ -215,15 +287,21 @@ class DatabaseWriter {
       throw new XyzException("Can not write a feature that is null");
     }
 
-    this.parameterSets[method].push([
-      version,
-      "U" /*TODO set version operation*/,
-      author,
-      inputFeature,
-      inputFeature.geometry, //TODO: Use TEXT
-      inputFeature.id,
+    const params = [
+      row.version,
+      row.operation,
+      row.author,
+      row.jsondata,
+      row.geo, //TODO: Use TEXT
+      row.id,
       baseVersion
-    ]);
+    ];
+
+    if (extraColNames.length)
+      extraColNames.forEach(colName => params.push(row[colName]));
+
+    this.parameterSets[method].push(params);
+
     this.resultParsers[method].push(result => {
       return resultHandler(!result.length ? null : new FeatureModificationExecutionResult(ExecutionAction.UPDATED, inputFeature, version, author));
     });
@@ -249,16 +327,11 @@ class DatabaseWriter {
       geo: inputFeature.geometry
     };
 
-    this.patchRowData(inputFeature, row);
+    let extraColNames = this.patchRowData(inputFeature, row);
+    let extraSql = this._buildSqlColAndParameterStrings(extraColNames, 9); // 9 => offset, next parameter used in sql
 
-    let extraCols = "";
-    let extraVals = "";
-    let extraColNames = this._extraColNames(row);
-    for (let i = 0; i < extraColNames.length; i++) {
-      extraCols += `, "${extraColNames[i]}"`;
-      extraVals += `, $${i + 9}`;
-    }
-    const allColNames = DEFAULT_COLUMN_NAMES.concat(extraColNames);
+    let extraCols = extraSql[0] ? extraSql[0].split(",") : [];
+    let extraVals = extraSql[1] ? extraSql[1].split(",") : [];
 
     const sql = `UPDATE "${this.schema}"."${this.table}"
                  SET next_version = $2
@@ -267,14 +340,14 @@ class DatabaseWriter {
                    AND CASE WHEN $8 = -1 THEN version < $2 ELSE (version = $8 OR operation = 'D' AND version < $2) END;
 
                 INSERT INTO "${this.schema}"."${this.table}"
-                (id, version, operation, author, jsondata, geo ${extraCols})
+                (id, version, operation, author, jsondata, geo ${ extraCols.length > 0 ? ',' + extraCols.join(",") : '' })
                  VALUES ($1, $2, $3, $4,
                          $5::JSONB - 'geometry',
                          CASE WHEN $6::JSONB IS NULL THEN
                             NULL
                         ELSE
                             xyz_reduce_precision(ST_Force3D(ST_GeomFromGeoJSON($6::JSONB)), false)
-                        END ${extraVals}
+                        END ${ extraVals.length > 0 ? ',' + extraVals.join(",") : '' }
             )`;
 
     this._createHistoryPartition(version);
@@ -323,6 +396,18 @@ class DatabaseWriter {
       return this.execute()[0];
   }
 
+ _buildSqlColAndParameterStrings(inputArray, offset) {
+
+  if (!Array.isArray(inputArray) || inputArray.length === 0) {
+    return ["", ""];
+  }
+
+  return [
+          inputArray.join(","),  // colnames
+          inputArray.map((_, index) => '$' + (index + offset)).join(",") // parameter index i.e "$n,$n+1,...."
+         ];
+ }
+
   _extraColNames(row) {
     let extraColNames = [];
     for (let columnName in row)
@@ -347,6 +432,7 @@ class DatabaseWriter {
   patchRowData(inputFeature, row) {
     let writeHooks = (queryContext().writeHooks || []).map(hookFunctionCode => eval(hookFunctionCode));
     writeHooks.forEach(writeHook => writeHook(inputFeature, row));
+    return this._extraColNames(row);
   }
 
   _PARTITION_SIZE() {
