@@ -515,20 +515,12 @@ $BODY$
 	*/
 
 	DECLARE
-        root_path text := CASE WHEN target_column = 'jsondata'
-                            THEN '''properties''->'
-                          ELSE ''
-                          END;
 		prop_path text;
 		idx_type text := 'btree';
 	BEGIN
 		source = lower(source);
-		prop_path := '''' || replace( regexp_replace( xyz_index_get_plain_propkey(propkey),'^f\.',''),'.','''->''') || '''';
-
         /** root level property detected */
-        IF (lower(SUBSTRING(propkey from 0 for 3)) = 'f.') THEN
-            root_path:='';
-        END IF;
+		prop_path := '''' || replace( regexp_replace( xyz_index_get_plain_propkey(propkey),'^f\.',''),'.','''->''') || '''';
 
         IF source not in ('a','m') THEN
             RAISE NOTICE 'Source ''%'' not supported. Use ''m'' for manual or ''a'' for automatic!',source;
@@ -549,7 +541,7 @@ $BODY$
             EXECUTE format('CREATE INDEX IF NOT EXISTS "%s" '
                 ||'ON %s."%s" '
                 ||' USING %s '
-                ||'((%s->%s %s))', idx_name, schema, spaceid, idx_type, target_column, root_path, prop_path);
+                ||'((%s->%s))', idx_name, schema, spaceid, idx_type, target_column, prop_path);
         END IF;
 
 		EXECUTE format('COMMENT ON INDEX %s."%s" '

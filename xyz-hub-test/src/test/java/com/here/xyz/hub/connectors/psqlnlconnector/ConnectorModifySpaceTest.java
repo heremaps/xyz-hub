@@ -25,6 +25,7 @@ public class ConnectorModifySpaceTest extends EventBasedConnectorTest {
     String spaceName =  this.getClass().getSimpleName() +"."+Random.randomAlpha(6);
 
     Map<String, Boolean> searchableProperties = Map.of(
+            "f.root", true,
             "foo1.nested", true,
             "$alias1:[$.properties.refQuad]::scalar", true,
             "$alias2:[$.properties.globalVersion]::scalar", true,

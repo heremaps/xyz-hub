@@ -40,6 +40,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import static com.here.xyz.util.db.pg.IndexHelper.buildSpaceTableIndexQuery;
+import static com.here.xyz.util.db.ConnectorParameters.TableLayout;
+import static com.here.xyz.util.db.ConnectorParameters.TableLayout.OLD_LAYOUT;
+import static com.here.xyz.util.db.ConnectorParameters.TableLayout.OLD_LAYOUT_WITH_SEARCHABLE;
 
 public class CreateIndex extends SpaceBasedStep<CreateIndex> {
   private static final Logger logger = LogManager.getLogger();
@@ -101,6 +104,7 @@ public class CreateIndex extends SpaceBasedStep<CreateIndex> {
       as it is using the "CREATE INDEX IF NOT EXISTS" semantics
        */
       logger.info("[{}] Creating the index {} for space {} ...", getGlobalStepId(), index, getSpaceId());
+
       SQLQuery indexCreationQuery = null;
       if (index instanceof SystemIndex)
         indexCreationQuery = buildSpaceTableIndexQuery(getSchema(db()), getRootTableName(space()), index);
@@ -131,12 +135,15 @@ public class CreateIndex extends SpaceBasedStep<CreateIndex> {
     String schema = getSchema(db());
     List<SQLQuery> indexCreationQueries = new ArrayList<>();
 
+    TableLayout layout = onDemandIndex.definitionGotTransformed() ? OLD_LAYOUT : OLD_LAYOUT_WITH_SEARCHABLE;
+    logger.info("[{}] Creating the index {} on {} layout ...", getGlobalStepId(), index, layout);
+
     indexCreationQueries.addAll(loadPartitionNamesOf(rootTableName).stream()
         .map(partitionTableName -> new SQLQuery(IndexHelper.buildOnDemandIndexCreationQuery(schema, partitionTableName, onDemandIndex,
-                ConnectorParameters.TableLayout.OLD_LAYOUT, true).toExecutableQueryString()))
+               layout, true).toExecutableQueryString()))
         .toList());
     indexCreationQueries.add(new SQLQuery(IndexHelper.buildOnDemandIndexCreationQuery(schema, rootTableName,
-            onDemandIndex, ConnectorParameters.TableLayout.OLD_LAYOUT,true).toExecutableQueryString()));
+            onDemandIndex, layout,true).toExecutableQueryString()));
 
     return SQLQuery.join(indexCreationQueries, ";");
   }

@@ -634,10 +634,12 @@ public class Space {
 
       NormalizedProperty np = parseAndNormalizeKey(rawKey.trim());
 
+      //TODO: check how to solve if searchableProperties are defined in old way via PATCH
+
       // Enforce alias uniqueness
-      if (!aliases.add(np.alias)) {
-        throw new IllegalArgumentException("Duplicate alias detected: " + np.alias);
-      }
+//      if (!aliases.add(np.alias)) {
+//        throw new IllegalArgumentException("Duplicate alias detected: " + np.alias);
+//      }
 
       String canonicalKey = buildCanonicalKey(np);
       normalized.put(canonicalKey, value);
@@ -723,7 +725,7 @@ public class Space {
    *  - "foo::array"
    */
   private NormalizedProperty parseLegacyKey(String key) {
-    String base = key;
+    String base = key.startsWith("f.") ? key.substring("f.".length()) : "properties." + key;
     String resultType = "scalar"; //default
 
     int sepIdx = key.lastIndexOf("::");
@@ -751,6 +753,8 @@ public class Space {
     String alias;
     if (expression.startsWith("$.") && expression.length() > 2) {
       alias = expression.substring(2);
+      if(!alias.startsWith("properties."))
+        alias = "f." + alias;
     }
     else if (expression.startsWith("$") && expression.length() > 1) {
       alias = expression.substring(1);

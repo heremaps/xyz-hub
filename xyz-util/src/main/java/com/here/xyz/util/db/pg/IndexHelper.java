@@ -176,9 +176,6 @@ public class IndexHelper {
           exprPart = exprPart.substring(1, exprPart.length() - 1).trim();
         }
 
-        if (exprPart.startsWith("$.properties.") && exprPart.length() > "$.properties.".length()) {
-          return exprPart.substring("$.properties.".length());
-        }
         if (exprPart.startsWith("$.") && exprPart.length() > 2) {
           return exprPart.substring(2);
         }
@@ -218,28 +215,26 @@ public class IndexHelper {
         }
       }
 
-      propertyPath = "$" + path + ":[$." + path + "]::" + datatype;
+      String alias = path;
+      if(!path.startsWith("f."))
+        alias = path = "properties."+path;
+      else
+        path = path.substring("f.".length());
+
+      propertyPath = "$" + alias + ":[$." + path + "]::" + datatype;
     }
 
     public boolean definitionGotTransformed() {
-      propertyPath = propertyPath.trim();
-      int colonIndex = propertyPath.indexOf(':');
-
-      String leftPath = propertyPath.substring(1, colonIndex);
-
-      int openBracket = propertyPath.indexOf("[$.");
-      int closeBracket = propertyPath.indexOf("]", openBracket);
-
-      String inner = propertyPath.substring(openBracket + 3, closeBracket);
-
-      // Compare paths
-      return leftPath.equals(inner);
+      String alias = extractAlias();
+      return alias.startsWith("f.") || alias.startsWith("properties.");
     }
 
     @Override
     public String getIndexName(String tableName) {
       // Take the first 8 characters of md5 hash of the property path
-      String shortMd5 = DigestUtils.md5Hex(propertyPath).substring(0, 7);
+      String shortMd5 = DigestUtils.md5Hex(
+              definitionGotTransformed() ?  extractLogicalPropertyPath() : propertyPath
+      ).substring(0, 7);
 
       return idxPrefix + tableName + "_" + shortMd5 + "_m";
     }
@@ -285,7 +280,6 @@ public class IndexHelper {
   public static SQLQuery buildOnDemandIndexCreationQuery(String schema, String table, OnDemandIndex index, TableLayout layout, boolean async){
     if(layout.hasSearchableColumn())
       return buildOnDemandIndexCreationQuery(schema, table, index.extractAlias(), NEW_LAYOUT_INDEX_COULMN, async);
-
     return buildOnDemandIndexCreationQuery(schema, table, index.extractLogicalPropertyPath(), OLD_LAYOUT_INDEX_COULMN, async);
   }
 
