@@ -185,7 +185,7 @@ public class NLConnector extends PSQLXyzConnector {
         //Get FeatureCount by refQuad and quadLevel
         int refQuadLevel = extractRefQuadLevelValue(selectionValue);
         return getFeatureCountByRefQuadAndLevel(dbSettings.getSchema(),
-                tables, propertiesQueryInput.refQuad, refQuadLevel);
+                tables, propertiesQueryInput, refQuadLevel);
       }
     }
 
@@ -438,14 +438,15 @@ public class NLConnector extends PSQLXyzConnector {
     return null;
   }
 
-  private FeatureCollection getFeatureCountByRefQuadAndLevel(String schema, List<String> tables, String refQuad, Integer refQuadLevel)
+  private FeatureCollection getFeatureCountByRefQuadAndLevel(String schema, List<String> tables, PropertiesQueryInput propertiesQueryInput,
+                                                             Integer refQuadLevel)
           throws SQLException {
     try (final Connection connection = dataSourceProvider.getWriter().getConnection()) {
-      String query = createCountByRefQuadQuery(schema, tables, refQuad, refQuadLevel);
+      String query = createCountByRefQuadQuery(schema, tables, propertiesQueryInput, refQuadLevel);
 
       try (PreparedStatement ps = connection.prepareStatement(query)) {
         try (ResultSet rs = ps.executeQuery()) {
-          return getRefQuadCountFc(refQuad, rs);
+          return getRefQuadCountFc(propertiesQueryInput.refQuad, rs);
         }
       }catch (SQLException e){
         logger.error(e);
@@ -514,11 +515,20 @@ public class NLConnector extends PSQLXyzConnector {
     }
   }
 
-  private String createCountByRefQuadQuery(String schema, List<String> tables, String refQuad, int quadKeyLevel){
+  private String createCountByRefQuadQuery(String schema, List<String> tables, PropertiesQueryInput input, int quadKeyLevel){
     String extensionTable = tables.get(0);
     String baseTable = tables.size() == 2 ? tables.get(1) : null;
 
-    if(baseTable == null) {
+    // Build optional globalVersion filter
+    String globalVersionFilter = "";
+    if (input.globalVersions != null && !input.globalVersions.isEmpty()) {
+      String joinedVersions = input.globalVersions.stream()
+              .map(v -> "to_jsonb(" + v + ")")
+              .collect(java.util.stream.Collectors.joining(","));
+      globalVersionFilter = " AND searchable->'globalVersion' IN (" + joinedVersions + ") ";
+    }
+
+    if (baseTable == null) {
       return """
                WITH params AS (
                    SELECT '$refQuad$'::text AS parent, $quadKeyLevel$ AS relative_level
@@ -526,14 +536,17 @@ public class NLConnector extends PSQLXyzConnector {
                SELECT LEFT(searchable->>'refQuad', LENGTH(parent) + relative_level) AS child_quad,
                       COUNT(*) AS cnt
                FROM "$schema$"."$table$", params
-               	  WHERE searchable->>'refQuad' LIKE parent || '%'
+               WHERE searchable->>'refQuad' LIKE parent || '%'
+                 $globalVersionFilter$
                GROUP BY child_quad;
               """
-              .replace("$refQuad$", refQuad)
+              .replace("$refQuad$", input.refQuad)
               .replace("$quadKeyLevel$", Integer.toString(quadKeyLevel))
               .replace("$schema$", schema)
-              .replace("$table$", extensionTable + "_head");
+              .replace("$table$", extensionTable + "_head")
+              .replace("$globalVersionFilter$", globalVersionFilter);
     }
+
     return """
           WITH params AS (
               SELECT '$refQuad$'::text AS parent, $quadKeyLevel$ AS relative_level
@@ -548,6 +561,7 @@ public class NLConnector extends PSQLXyzConnector {
                     next_version
                 FROM "$schema$"."$extensionTable$"
                 WHERE operation NOT IN ('D', 'H', 'J')
+                  $globalVersionFilter$
             )
             UNION ALL
             (
@@ -559,6 +573,8 @@ public class NLConnector extends PSQLXyzConnector {
                         operation,
                         next_version
                     FROM "$schema$"."$baseTable$"
+                    WHERE 1=1
+                      $globalVersionFilter$
                 ) base
                 WHERE NOT EXISTS (
                     SELECT 1
@@ -578,11 +594,13 @@ public class NLConnector extends PSQLXyzConnector {
                    COUNT(f.refquad) AS cnt
               FROM filtered f, params p
              GROUP BY child_quad;
-          """.replace("$refQuad$", refQuad)
+          """
+            .replace("$refQuad$", input.refQuad)
             .replace("$quadKeyLevel$", Integer.toString(quadKeyLevel))
             .replace("$schema$", schema)
+            .replace("$extensionTable$", extensionTable + "_head")
             .replace("$baseTable$", baseTable + "_head")
-            .replace("$extensionTable$", extensionTable + "_head");
+            .replace("$globalVersionFilter$", globalVersionFilter);
   }
 
   private String createStausQuery(String schema, List<String> tables, Character[] operations){
