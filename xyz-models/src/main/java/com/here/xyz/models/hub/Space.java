@@ -728,11 +728,11 @@ public class Space {
     String base = key.startsWith("f.") ? key.substring("f.".length()) : "properties." + key;
     String resultType = "scalar"; //default
 
-    int sepIdx = key.lastIndexOf("::");
-    if (sepIdx > -1 && sepIdx + 2 < key.length()) {
-      String maybeType = key.substring(sepIdx + 2).trim();
+    int sepIdx = base.lastIndexOf("::");
+    if (sepIdx > -1 && sepIdx + 2 < base.length()) {
+      String maybeType = base.substring(sepIdx + 2).trim();
       if ("scalar".equals(maybeType) || "array".equals(maybeType)) {
-        base = key.substring(0, sepIdx).trim();
+        base = base.substring(0, sepIdx).trim();
         resultType = maybeType;
       }
     }

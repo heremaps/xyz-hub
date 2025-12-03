@@ -135,7 +135,7 @@ public class CreateIndex extends SpaceBasedStep<CreateIndex> {
     String schema = getSchema(db());
     List<SQLQuery> indexCreationQueries = new ArrayList<>();
 
-    TableLayout layout = onDemandIndex.definitionGotTransformed() ? OLD_LAYOUT : OLD_LAYOUT_WITH_SEARCHABLE;
+    TableLayout layout = getTableLayout();
     logger.info("[{}] Creating the index {} on {} layout ...", getGlobalStepId(), index, layout);
 
     indexCreationQueries.addAll(loadPartitionNamesOf(rootTableName).stream()

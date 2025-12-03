@@ -22,11 +22,17 @@ package com.here.xyz.jobs.steps.impl;
 import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.READER;
 import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
 import static com.here.xyz.jobs.steps.execution.db.Database.loadDatabase;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildReadTableCommentQuery;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.getTableNameFromSpaceParamsOrSpaceId;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.TableComment;
+import static com.here.xyz.util.db.ConnectorParameters.TableLayout;
+import static com.here.xyz.util.db.ConnectorParameters.TableLayout.OLD_LAYOUT;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonView;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.execution.StepException;
@@ -42,16 +48,20 @@ import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
 import com.here.xyz.jobs.steps.impl.transport.GetNextSpaceVersion;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
 import com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace;
+import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.models.hub.Connector;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Tag;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.ConnectorParameters;
+import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
+
+import java.sql.SQLException;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -292,6 +302,30 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
           .withCode("HTTP-" + e.getStatusCode())
           .withRetryable(true);
     throw e;
+  }
+
+  protected TableLayout getTableLayout()
+          throws WebClientException, SQLException, TooManyResourcesClaimed {
+    TableComment comment = getComment();
+    return comment == null ? OLD_LAYOUT : comment.tableLayout();
+  }
+
+  protected TableComment getComment()
+          throws WebClientException, SQLException, TooManyResourcesClaimed {
+
+    SQLQuery readTableComment = buildReadTableCommentQuery(getSchema(db()), getRootTableName(space()));
+
+    return runReadQuerySync(readTableComment, db(), 0, rs -> {
+      TableComment comment = null;
+      if (rs.next()) {
+        try {
+          comment = XyzSerializable.deserialize(rs.getString("comment"), TableComment.class);
+        } catch (JsonProcessingException e) {
+          throw new RuntimeException(e);
+        }
+      }
+      return comment;
+    });
   }
 
   protected void infoLog(LogPhase phase, String... messages) {
