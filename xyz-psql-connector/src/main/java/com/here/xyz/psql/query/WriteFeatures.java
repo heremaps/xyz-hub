@@ -103,11 +103,16 @@ public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureColl
       queryContextBuilder.withBaseVersion(event.getRef().getVersion());
 
     if (getTableLayout() == NEW_LAYOUT || getTableLayout() == OLD_LAYOUT_WITH_SEARCHABLE) {
-      //Temporary workaround for NL connector
-        Map<String, String> searchableProperties = new HashMap<>(event.getSearchableProperties());
+
+      Map<String, String> searchableProperties
+              = new HashMap<>(java.util.Objects.requireNonNullElseGet(event.getSearchableProperties(), HashMap::new));
+
+      if(getTableLayout() == NEW_LAYOUT && !searchableProperties.isEmpty()) {
+        //Temporary workaround for NL connector
         searchableProperties.put("refQuad", "$.properties.refQuad");
         searchableProperties.put("globalVersion", "$.properties.globalVersion");
-      //End of workaround
+        //End of workaround
+      }
 
       if (searchableProperties != null && !searchableProperties.isEmpty())
         queryContextBuilder.with("writeHooks", List.of(writeHook(searchableProperties)));
