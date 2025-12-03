@@ -23,6 +23,8 @@ import static com.here.xyz.psql.query.branching.CommitManager.branchPathToTableC
 import static com.here.xyz.responses.XyzError.CONFLICT;
 import static com.here.xyz.responses.XyzError.EXCEPTION;
 import static com.here.xyz.responses.XyzError.NOT_FOUND;
+import static com.here.xyz.util.db.pg.SQLError.FEATURE_EXISTS;
+import static com.here.xyz.util.db.pg.SQLError.FEATURE_NOT_EXISTS;
 import static com.here.xyz.util.db.pg.SQLError.RETRYABLE_VERSION_CONFLICT;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.PARTITION_SIZE;
 
@@ -42,7 +44,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -67,7 +68,7 @@ public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureColl
       tables.addAll(branchPathToTableChain(rootTableName, event.getBranchPath(), event.getNodeId()));
       tableBaseVersions = new ArrayList<>();
       tableBaseVersions.add(0l);
-      tableBaseVersions.addAll(event.getBranchPath().stream().map(baseRef -> baseRef.getVersion()).collect(Collectors.toList()));
+      tableBaseVersions.addAll(event.getBranchPath().stream().map(baseRef -> baseRef.getVersion()).toList());
     }
     else {
       if (isExtendedSpace(event)) {
@@ -115,24 +116,16 @@ public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureColl
       final String message = e.getMessage();
       String cleanMessage = message.contains("\n") ? message.substring(0, message.indexOf("\n")) : message;
       SQLError sqlError = SQLError.fromErrorCode(e.getSQLState());
-      switch (sqlError) {
-        case FEATURE_EXISTS:
-        case VERSION_CONFLICT_ERROR:
-        case MERGE_CONFLICT_ERROR:
-        case RETRYABLE_VERSION_CONFLICT:
-          throw new ErrorResponseException(CONFLICT, cleanMessage, e);
-        case DUPLICATE_KEY:
-          throw new ErrorResponseException(CONFLICT, "Conflict while writing features.", e); //TODO: Handle all conflicts in FeatureWriter properly
-        case FEATURE_NOT_EXISTS:
-          throw new ErrorResponseException(NOT_FOUND, cleanMessage, e);
-        case ILLEGAL_ARGUMENT:
-          throw new ErrorResponseException(XyzError.ILLEGAL_ARGUMENT, cleanMessage, e);
-        case XYZ_EXCEPTION:
-        case UNKNOWN:
-          throw new ErrorResponseException(EXCEPTION, e.getMessage(), e);
-        default:
-          throw new ErrorResponseException(EXCEPTION, e.getMessage(), e);
-      }
+      String details = message.contains("\n") && sqlError != FEATURE_EXISTS && sqlError != FEATURE_NOT_EXISTS
+          ? message.substring(message.indexOf("\n") + 1)
+          : null;
+      throw switch (sqlError) {
+        case FEATURE_EXISTS, VERSION_CONFLICT_ERROR, MERGE_CONFLICT_ERROR, RETRYABLE_VERSION_CONFLICT -> new ErrorResponseException(CONFLICT, cleanMessage, e).withInternalDetails(details);
+        case DUPLICATE_KEY -> new ErrorResponseException(CONFLICT, "Conflict while writing features.", e).withInternalDetails(details); //TODO: Handle all conflicts in FeatureWriter properly
+        case FEATURE_NOT_EXISTS -> new ErrorResponseException(NOT_FOUND, cleanMessage, e).withInternalDetails(details);
+        case ILLEGAL_ARGUMENT -> new ErrorResponseException(XyzError.ILLEGAL_ARGUMENT, cleanMessage, e).withInternalDetails(details);
+        case XYZ_EXCEPTION, UNKNOWN -> new ErrorResponseException(EXCEPTION, e.getMessage(), e).withInternalDetails(details);
+      };
     }
   }
 

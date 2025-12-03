@@ -586,15 +586,18 @@ class FeatureWriter {
     else
       feature = resultSet[0].jsondata;
 
+    let dataset = resultSet[0].dataset;
+    let version = FeatureWriter._isComposite() && dataset < this.tables.length - 1 ? 0 : Number(resultSet[0].version);
+
     feature.id = resultSet[0].id;
     feature.geometry = resultSet[0].geo;
-    feature.properties[XYZ_NS].version = Number(resultSet[0].version);
+    feature.properties[XYZ_NS].version = version;
     Object.defineProperty(feature, "operation", {
       value: resultSet[0].operation,
       enumerable: false
     });
     Object.defineProperty(feature, "dataset", {
-      value: resultSet[0].dataset,
+      value: dataset,
       enumerable: false
     });
     Object.defineProperty(feature, "containingDatasets", {
@@ -825,7 +828,7 @@ class FeatureWriter {
 
   _loadFeature(id, version, tables) {
     let tableAliases = tables.map((table, i) => "t" + (tables.length - i - 1));
-     let branchTableMaxVersion = i => i == tables.length - 1 || FeatureWriter._isComposite() ? "" : `AND version <= ${this.tableBaseVersions[i + 1] - this.tableBaseVersions[i]}`;
+    let branchTableMaxVersion = i => i == tables.length - 1 || FeatureWriter._isComposite() ? "" : `AND version <= ${this.tableBaseVersions[i + 1] - this.tableBaseVersions[i]}`;
     let whereConditions = tables.map((table, i) => `WHERE id = $1 AND ${version == "HEAD" ? `next_version = ${MAX_BIG_INT}` : `version = ${version - this.tableBaseVersions[i]}`} ${branchTableMaxVersion(i)} AND operation != $2`).reverse();
     let tableBaseVersions = tables.map((table, i) => this.tableBaseVersions[i]).reverse();
 

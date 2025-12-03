@@ -299,6 +299,11 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
             phase.name(), spaceId, messages.length > 0 ? messages : "");
   }
 
+  protected void warnLog(LogPhase phase, String... messages) {
+    logger.warn("{} [{}@{}] ON '{}' {}", getClass().getSimpleName(), getGlobalStepId(),
+            phase.name(), spaceId, messages.length > 0 ? messages : "");
+  }
+
   protected void errorLog(LogPhase phase, Exception e, String... message) {
     logger.error("{} [{}@{}] ON '{}' {}", getClass().getSimpleName(), getGlobalStepId(),
             phase.name(), spaceId, message, e);

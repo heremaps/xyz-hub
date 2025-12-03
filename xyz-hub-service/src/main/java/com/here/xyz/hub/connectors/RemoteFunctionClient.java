@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -225,7 +225,7 @@ public abstract class RemoteFunctionClient {
           : context.getConnector().getMaxConnectionsPerRequester();
       logger.info("Connector id={}, maxConnectionsPerRequester={}", context.getConnector().id, maxConnectionsPerRequester);
       if (!compareAndIncrementUpTo(maxConnectionsPerRequester, connectionCount)) {
-        logger.warn(marker, "Sending to many concurrent requests for user {}. Number of active connections: {}, Maximum allowed per node: {}",
+        logger.warn(marker, "Sending too many concurrent requests for user {}. Number of active connections: {}, Maximum allowed per node: {}",
             context.getRequesterId(), connectionCount.get(), maxConnectionsPerRequester);
         callback.handle(Future.failedFuture(new TooManyRequestsException("Maximum number of concurrent requests. "
                 + "Max concurrent connections: " + Math.round(maxConnectionsPerRequester * 0.6), QUOTA)));

@@ -24,14 +24,14 @@ let pgClient = new Client({
   host: "localhost",
   user: "postgres",
   password: "password",
-  database: "postgres"
+  database: "postgres",
+  options: `-c search_path=public,topology,hub.common,hub.geo,hub.feature_writer,hub.h3,hub.ext`
 });
 
 let clientConnected = false;
-pgClient.connect().then(err => {
-  //pgClient.query(`SET search_path = "public", "topology", "hub.common", "hub.geo", "hub.feature_writer", "hub.h3", "hub.ext"`);
+pgClient.connect().then(result => {
   clientConnected = true;
-  console.log(err);
+  console.log(result);
 });
 
 class PreparedPlan {
@@ -84,7 +84,7 @@ global.plv8 = {
       deasync.loopWhile(() => !clientConnected);
 
     let queryResult = null;
-    pgClient.query(sql, params).then(result => queryResult = result);
+    pgClient.query(substituteSQL(sql, params)).then(result => queryResult = result);
     deasync.loopWhile(() => queryResult == null);
     return queryResult.rows;
   },
@@ -93,3 +93,33 @@ global.plv8 = {
   }
   //TODO: Support prepared / batch queries
 };
+
+//NOTE: The following helper function is necessary, because the NPN pg module does not support to have multiple SQL statements within prepared statements or queries.
+/**
+ * Substitute $1, $2, ... placeholders in a SQL string with values from params array
+ * @param {string} sql - SQL string with $1, $2, ... placeholders
+ * @param {Array} params - Array of parameter values
+ * @returns {string} SQL string with parameters substituted
+ */
+function substituteSQL(sql, params) {
+  return sql.replace(/\$(\d+)/g, (match, number) => {
+    const index = parseInt(number, 10) - 1;
+    if (index < 0 || index >= params.length) {
+      throw new Error(`No parameter provided for placeholder ${match}`);
+    }
+    const value = params[index];
+
+    if (value === null || value === undefined) return 'NULL';
+    if (typeof value === 'number') return value.toString();
+    if (typeof value === 'boolean') return value ? 'TRUE' : 'FALSE';
+    if (value instanceof Date) return `'${value.toISOString()}'`;
+
+    // Escape single quotes for strings
+    if (typeof value === 'string') {
+      return `'${value.replace(/'/g, "''")}'`;
+    }
+
+    // For objects/arrays, JSON stringify
+    return `'${JSON.stringify(value).replace(/'/g, "''")}'`;
+  });
+}

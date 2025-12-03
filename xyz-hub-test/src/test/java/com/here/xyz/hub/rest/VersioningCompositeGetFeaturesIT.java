@@ -26,6 +26,7 @@ import static org.hamcrest.Matchers.equalTo;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.geojson.implementation.Properties;
+import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.FixMethodOrder;
@@ -166,5 +167,15 @@ public class VersioningCompositeGetFeaturesIT extends VersioningGetFeaturesIT {
         .body("features[1].id", equalTo(fId))
         .body("features[0].properties.@ns:com:here:xyz.version", equalTo(0))
         .body("features[1].properties.@ns:com:here:xyz.version", equalTo(3));
+  }
+
+  @Test
+  public void testWriteFeatureWithConflictDetection() {
+    postFeature(BASE, newFeature().withId("f2"), ACCESS_ALL);
+    postFeature(DELTA, newFeature()
+        .withId("f2")
+        .withProperties(new Properties()
+            .withXyzNamespace(new XyzNamespace().withVersion(0))
+            .with("otherKey", "otherValue")), ACCESS_ALL, true);
   }
 }

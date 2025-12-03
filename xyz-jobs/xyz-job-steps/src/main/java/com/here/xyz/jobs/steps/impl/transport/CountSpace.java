@@ -202,10 +202,10 @@ public class CountSpace extends TaskedSpaceBasedStep<CountSpace, CountInput, Exp
   }
 
   @Override
-  protected void processOutputs(List<ExportOutput> taskOutputs) throws IOException {
-    long count = 0L;
-    if(!taskOutputs.isEmpty())
-      count = taskOutputs.stream().mapToLong(ExportOutput::rows).sum();
+  protected void processFinalizedTasks(List<FinalizedTaskItem<CountInput, ExportOutput>> finalizedTaskItems) throws IOException{
+  long count = 0L;
+    if(!finalizedTaskItems.isEmpty())
+      count = finalizedTaskItems.stream().mapToLong(item -> item.output().rows()).sum();
 
     infoLog(STEP_ON_ASYNC_SUCCESS,  "Job Featurecount: count=" + count);
 

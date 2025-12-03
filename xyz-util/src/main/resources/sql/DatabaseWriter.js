@@ -81,17 +81,17 @@ class DatabaseWriter {
    * Executes a prepared query using the specified parameterSet and returns the results after parsing them using the
    * specified resultParser.
    * @param {PreparedPlan} plan
-   * @param {object[][]} parameterSet
+   * @param {object[][]} parameterSets
    * @param {(function(object[]) : FeatureModificationExecutionResult)[]} resultParsers
    * @param {object} queryOptions
    * @returns {FeatureModificationExecutionResult[]}
    * @private
    */
-  _executePlan(plan, parameterSet, resultParsers, queryOptions) {
+  _executePlan(plan, parameterSets, resultParsers, queryOptions) {
     let results = [];
-    for (let index in parameterSet) {
+    for (let index in parameterSets) {
       try {
-        let result = resultParsers[index](plan.execute(parameterSet[index]));
+        let result = resultParsers[index](plan.execute(parameterSets[index]));
         if (result != null)
           results.push(result);
       }
@@ -100,9 +100,9 @@ class DatabaseWriter {
           let exceptionToThrow;
           let onVersionConflict = queryOptions?.onVersionConflict;
           if (!onVersionConflict || onVersionConflict == "ERROR")
-            exceptionToThrow = new VersionConflictError(`Version conflict while trying to write feature with ID ${parameterSet[0]} in version ${parameterSet[1]}.`);
+            exceptionToThrow = new VersionConflictError(`Version conflict while trying to write feature with ID ${parameterSets[index][0]} in version ${parameterSets[index][1]}.`);
           else
-            exceptionToThrow = new RetryableVersionConflictError(`Retryable version conflict while trying to write feature with ID ${parameterSet[0]} in version ${parameterSet[1]}.`);
+            exceptionToThrow = new RetryableVersionConflictError(`Retryable version conflict while trying to write feature with ID ${parameterSets[index][0]} in version ${parameterSets[index][1]}.`);
           throw exceptionToThrow.withHint("The feature has been modified in the meantime.");
         }
         else

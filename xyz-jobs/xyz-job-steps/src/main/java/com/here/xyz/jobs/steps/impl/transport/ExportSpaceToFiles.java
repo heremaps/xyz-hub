@@ -419,13 +419,13 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
   }
 
   @Override
-  protected void processOutputs(List<ExportOutput> taskOutputs) throws IOException {
+  protected void processFinalizedTasks(List<FinalizedTaskItem<ExportInput, ExportOutput>> finalizedTaskItems) throws IOException{
     TransportStatistics transportStatistics = new TransportStatistics(0, 0, 0);
 
-    if(!taskOutputs.isEmpty()){
-      long totalRows = taskOutputs.stream().mapToLong(ExportOutput::rows).sum();
-      long totalBytes = taskOutputs.stream().mapToLong(ExportOutput::bytes).sum();
-      int totalFiles = (int) taskOutputs.stream().mapToLong(ExportOutput::files).sum();
+    if(!finalizedTaskItems.isEmpty()){
+      long totalRows = finalizedTaskItems.stream().mapToLong(item -> item.output().rows()).sum();
+      long totalBytes = finalizedTaskItems.stream().mapToLong(item -> item.output().bytes()).sum();
+      int totalFiles = (int) finalizedTaskItems.stream().mapToLong(item -> item.output().files()).sum();
       transportStatistics = new TransportStatistics(totalRows, totalBytes, totalFiles);
     }
 

@@ -57,12 +57,9 @@ import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 
 
@@ -277,14 +274,29 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
   }
 
   @Override
-  protected void processOutputs(List<ExportOutput> taskOutputs) throws IOException {
+  protected void processFinalizedTasks(List<FinalizedTaskItem<ExportInput, ExportOutput>> finalizedTaskItems) throws IOException {
     try {
-      //TODO: avoid an additional query. TileId is needed as output.
-      generateInvalidationTileListOutput();
+      List<String> invalidatedTileIds = new ArrayList<>();
+
+      for(FinalizedTaskItem<ExportInput, ExportOutput> item : finalizedTaskItems){
+        if(item.output().bytes() == 0)
+          invalidatedTileIds.add(item.input().tileId());
+      }
+
+      TileInvalidations tileList = new TileInvalidations()
+              .withTileLevel(targetLevel)
+              .withQuadType(quadType)
+              .withTileIds(invalidatedTileIds);
+
+      infoLog(STEP_ON_ASYNC_SUCCESS,  "Write TILE_INVALIDATIONS output. Size: {}.",
+              Integer.toString(tileList.getTileIds().size()));
+
+      registerOutputs(List.of(tileList), TILE_INVALIDATIONS);
+
     } catch (Exception e) {
       throw new IOException(e);
     }
-    super.processOutputs(taskOutputs);
+    super.processFinalizedTasks(finalizedTaskItems);
   }
 
   @Override
@@ -305,33 +317,6 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
   protected long getEstimatedIOBytes() {
     // replace with real data usage
     return ESTIMATED_SPATIAL_FILTERED_IO_BYTES;
-  }
-
-  private void generateInvalidationTileListOutput() throws WebClientException
-          , SQLException, TooManyResourcesClaimed, IOException {
-    SQLQuery invalidationListQuery = getInvalidationList(getSchema(dbReader()), getTemporaryJobTableName(getId()));
-    TileInvalidations tileList = runReadQuerySync(invalidationListQuery, dbReader(),
-            0, rs -> rs.next()
-                    ? new TileInvalidations()
-                    .withTileLevel(targetLevel)
-                    .withQuadType(quadType)
-                    .withTileIds(Optional.ofNullable(rs.getArray("tile_list"))
-                            .map(array -> {
-                              try {
-                                return (String[]) array.getArray();
-                              } catch (SQLException e) {
-                                throw new RuntimeException("Error retrieving tile_list array from ResultSet", e);
-                              }
-                            })
-                            .map(Arrays::asList)
-                            .orElse(Collections.emptyList()))
-                    : new TileInvalidations().withTileLevel(targetLevel).withQuadType(quadType));
-
-    //Skip if tileList=0 ?
-    infoLog(STEP_ON_ASYNC_SUCCESS,  "Write TILE_INVALIDATIONS output. Size: {}.",
-            Integer.toString(tileList.getTileIds().size()));
-
-    registerOutputs(List.of(tileList), TILE_INVALIDATIONS);
   }
 
   private String getQuadFunctionName(){
@@ -423,21 +408,6 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
             .buildQuery(input);
 
     return buildTileQuery(contentQuery, tileId);
-  }
-
-  private SQLQuery getInvalidationList(String schema, String tmpTableName){
-    return new SQLQuery("""
-          SELECT array_agg(element) AS tile_list
-              FROM (
-                  SELECT jsonb_array_elements_text(
-                          jsonb_build_array(task_input->'tileId')
-                  ) AS element
-                  FROM ${schema}.${table}
-                  WHERE (task_output->'taskOutput'->>'bytes')::BIGINT = 0
-             ) X
-        """)
-          .withVariable("table", tmpTableName)
-          .withVariable("schema", schema);
   }
 
   private SQLQuery buildTileQuery(SQLQuery contentQuery, String tileId) {
