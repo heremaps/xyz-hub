@@ -258,6 +258,7 @@ RETURNS void AS $body$
       }
       catch (err) {
         plv8.elog(NOTICE, `Loading module ${name} failed: ` + err.message);
+        throw err;
       }
     }
   }

@@ -13,27 +13,34 @@ import com.here.xyz.psql.NLConnector;
 import com.here.xyz.psql.PSQLXyzConnector;
 import com.here.xyz.psql.PSQLXyzNLConnector;
 import com.here.xyz.util.Random;
+import com.here.xyz.util.db.SQLQuery;
+import com.here.xyz.util.db.datasource.DataSourceProvider;
 import com.here.xyz.util.db.datasource.DatabaseSettings;
+import com.here.xyz.util.db.datasource.PooledDataSources;
 
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import static com.here.xyz.events.ModifySpaceEvent.Operation.CREATE;
-import static org.junit.Assume.assumeTrue;
+import static org.junit.Assert.assertTrue;
 
 public class ConnectorWriteFeatures {
-  private enum TARGET_CONNECTOR { PSQL_CONNECTOR, PSQL_NL_CONNECTOR, NL_CONNECTOR};
+  private static enum TARGET_CONNECTOR { PSQL_CONNECTOR, PSQL_NL_CONNECTOR, NL_CONNECTOR};
   private static final DatabaseSettings dbSettings =
           PerformanceTestHelper.createDBSettings("localhost", "postgres", "postgres","password", 40);
-  private StorageConnector PSQL_CONNECTOR;
-  private StorageConnector NL_CONNECTOR;
-  private StorageConnector PSQL_NL_CONNECTOR;
-  private String spaceName =  this.getClass().getSimpleName() +"."+Random.randomAlpha(6);
-  private StorageConnector connector;
+  private static StorageConnector PSQL_CONNECTOR;
+  private static StorageConnector NL_CONNECTOR;
+  private static StorageConnector PSQL_NL_CONNECTOR;
+  private static String spaceName =  ConnectorWriteFeatures.class.getSimpleName() +"."+Random.randomAlpha(6);
+  private static StorageConnector connector;
 
   private static Map<String, Boolean> spaceSearchableProperties = Map.of(
         "foo1", true,  //equals to: "$foo1:foo1:scalar"
@@ -53,8 +60,8 @@ public class ConnectorWriteFeatures {
     );
 
 
-  @Before
-  public void setup() {
+  @BeforeAll
+  public static void setup() {
 
   try {
     connector = loadConnector(TARGET_CONNECTOR.PSQL_NL_CONNECTOR);
@@ -73,17 +80,17 @@ public class ConnectorWriteFeatures {
 
             // setup logic
     } catch (Exception e) {
-        assumeTrue("Skipping test because setup failed: " + e.getMessage(), false);
+        assertTrue("Skipping test because setup failed: " + e.getMessage(), false);
     }
 
   }
 
-  @After
-  public void tearDown() {
+  @AfterAll
+  public static void tearDown() {
    try {
     PerformanceTestHelper.deleteSpace(connector, spaceName);
   } catch (Exception e) {
-    assumeTrue("Skipping test because tearDown failed: " + e.getMessage(), false);
+    assertTrue("Skipping test because tearDown failed: " + e.getMessage(), false);
   }
   }
 
@@ -93,7 +100,7 @@ public class ConnectorWriteFeatures {
    "features": [
     {
       "type": "Feature",
-      "id": "test-09",
+      "id": "#TestID#",
       "geometry": { "type": "Point","coordinates": [-2.96084734567,53.43082834567] },
       "properties": {
         "foo1": "foo1-value",
@@ -112,16 +119,34 @@ public class ConnectorWriteFeatures {
     }
    ]
  }
+ """,
+ resultSearchable = """
+ {"foo1": "foo1-value",
+  "alias1": 5,
+  "alias2": "en",
+  "foo2.nested": "foo2-nested-value",
+  "foo3.nested.arr": ["foo3-nested-value1", "foo3-nested-value2", "foo3-nested-value3"]
+  }
  """;
 
-  @Test
-  public void testWriteFeaturesWithSearchableProperties() throws Exception {
+  private static Stream<Arguments> provideParameters() {
+    return Stream.of(
+        //Arguments.of(1),
+        Arguments.of(1000)
+    );
+  }
 
-  FeatureCollection fc = XyzSerializable.deserialize(testFc, FeatureCollection.class);
+  @ParameterizedTest
+  @MethodSource("provideParameters")
+  public void testWriteFeaturesWithSearchableProperties(int v2k) throws Exception {
+
+  String fid = "TestID-v2k-" + v2k;
+
+  FeatureCollection fc = XyzSerializable.deserialize(testFc.replace("#TestID#", fid), FeatureCollection.class);
 
   WriteFeaturesEvent wfe = new WriteFeaturesEvent()
             .withSpace(spaceName)
-            .withVersionsToKeep(1)
+            .withVersionsToKeep(v2k)
             .withSearchableProperties(eventSearchableProperties)
             .withModifications(Set.of(new WriteFeaturesEvent.Modification()
                                            .withUpdateStrategy(UpdateStrategy.DEFAULT_UPDATE_STRATEGY)
@@ -129,9 +154,31 @@ public class ConnectorWriteFeatures {
 
    Typed xyzResponse = connector.handleEvent(wfe);
 
+  // check for correct values in searchable column
+  try (DataSourceProvider dsp = new PooledDataSources(dbSettings)) {
+
+      String returnedValue = new SQLQuery("SELECT searchable::text from ${TheTable} where id = #{fid}")
+                                    .withVariable("TheTable", spaceName)
+                                    .withNamedParameter("fid", fid)
+          .run(dsp, rs -> rs.next() ? rs.getString(1) : null);
+
+      Map<String, Object> searchable = XyzSerializable.deserialize(returnedValue, Map.class);
+
+      assertTrue("searchable foo1 failed" ,
+                 searchable.containsKey("foo1") && searchable.get("foo1").equals("foo1-value"));
+      assertTrue("searchable alias1 failed" ,
+                 searchable.containsKey("alias1") && (int) searchable.get("alias1") == 5);
+      assertTrue("searchable alias2 failed" ,
+                 searchable.containsKey("alias2") && searchable.get("alias2").equals("en"));
+      assertTrue("searchable foo2.nested failed" ,
+                 searchable.containsKey("foo2.nested") && searchable.get("foo2.nested").equals("foo2-nested-value"));
+      assertTrue("searchable foo3.nested.arr failed" ,
+                 searchable.containsKey("foo3.nested.arr") && ((List<?>) searchable.get("foo3.nested.arr")).size() == 3 );
+    }
+
   }
 
-  private StorageConnector loadConnector(TARGET_CONNECTOR targetConnector) throws Exception {
+  private static StorageConnector loadConnector(TARGET_CONNECTOR targetConnector) throws Exception {
     if(PSQL_CONNECTOR != null)
       return PSQL_CONNECTOR;
     if(NL_CONNECTOR != null)
