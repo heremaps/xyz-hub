@@ -82,7 +82,7 @@ public class AnalyzeSpaceTable extends SpaceBasedStep<AnalyzeSpaceTable> {
     logger.info("Analyze table of space " + getSpaceId() + " ...");
 
     try {
-      runReadQueryAsync(buildAnalyseQuery(getSchema(db()), getRootTableName(space())), db(), calculateNeededAcus());
+      runReadQueryAsync(buildAnalyseQuery(getSchema(db()), getTableName(space(), getVersionRef())), db(), calculateNeededAcus());
     }
     catch (SQLException | TooManyResourcesClaimed | WebClientException e) {
       //@TODO: ErrorHandling! <- Is it necessary here? Anything that should be catched / transformed?

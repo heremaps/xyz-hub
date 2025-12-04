@@ -22,6 +22,7 @@ package com.here.xyz.jobs.steps.impl;
 import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.READER;
 import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
 import static com.here.xyz.jobs.steps.execution.db.Database.loadDatabase;
+import static com.here.xyz.psql.query.branching.BranchManager.branchTableName;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.getTableNameFromSpaceParamsOrSpaceId;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -45,6 +46,7 @@ import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
 import com.here.xyz.jobs.steps.impl.transport.GetNextSpaceVersion;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
 import com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace;
+import com.here.xyz.models.hub.Branch;
 import com.here.xyz.models.hub.Connector;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
@@ -83,6 +85,8 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
 
   @JsonView({Internal.class, Static.class})
   private String spaceId;
+  @JsonView({Internal.class, Static.class})
+  private Ref versionRef;
 
   @JsonIgnore
   private Map<String, Space> cachedSpaces = new ConcurrentHashMap<>();
@@ -108,6 +112,19 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
     return (T) this;
   }
 
+  public Ref getVersionRef() {
+    return versionRef;
+  }
+
+  public void setVersionRef(Ref versionRef) {
+    this.versionRef = versionRef;
+  }
+
+  public T withVersionRef(Ref versionRef) {
+    setVersionRef(versionRef);
+    return (T) this;
+  }
+
   @Override
   public String getOutputSetGroup() {
     if (super.getOutputSetGroup() == null || super.getOutputSetGroup().isEmpty()) {
@@ -120,6 +137,22 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
   protected final String getRootTableName(Space space) throws WebClientException {
     return getTableNameFromSpaceParamsOrSpaceId(space.getStorage().getParams(), space.getId(),
         ConnectorParameters.fromMap(loadConnector(space).params).isEnableHashedSpaceId());
+  }
+
+  protected final String getTableName(Space space, Ref versionRef) throws WebClientException {
+    //TODO: Check if compiler correctly resolves versionRef into branch (if exists)
+    if (versionRef != null  && (!versionRef.isMainBranch() || versionRef.isTag())) {
+      try {
+        Branch branch = hubWebClient().loadBranch(spaceId, versionRef, true);
+        return branchTableName(getRootTableName(space), branch.getBranchPath().get(branch.getBranchPath().size() - 1), branch.getNodeId());
+      } catch (ErrorResponseException httpError) {
+        //Ignore if the status code is 404, as the versionRef could actually be a tag and not a branch
+        if (httpError.getStatusCode() != 404)
+          throw httpError;
+      }
+    }
+
+    return getRootTableName(space);
   }
 
   protected final boolean isEnableHashedSpaceIdActivated(Space space) throws WebClientException {
