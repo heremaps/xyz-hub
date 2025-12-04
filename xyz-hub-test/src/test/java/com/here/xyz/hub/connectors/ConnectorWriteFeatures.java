@@ -131,7 +131,7 @@ public class ConnectorWriteFeatures {
 
   private static Stream<Arguments> provideParameters() {
     return Stream.of(
-        //Arguments.of(1),
+        Arguments.of(1),
         Arguments.of(1000)
     );
   }
