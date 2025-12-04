@@ -311,7 +311,9 @@ public class Script {
   private static List<String> scanResourceFolder(ScriptResourcePath scriptResourcePath, String fileSuffix) throws IOException {
     String resourceFolder = scriptResourcePath.path();
     //TODO: Remove this workaround once the actual implementation of this method supports scanning folders inside a JAR
-    if ("/sql".equals(resourceFolder) || "/jobs".equals(resourceFolder))
+    if (   "/sql".equals(resourceFolder)
+        || "/sql/lib-js".equals(resourceFolder)
+        || "/jobs".equals(resourceFolder))
       return ensureInitScriptIsFirst(scanResourceFolderWA(resourceFolder, fileSuffix), scriptResourcePath.initScript());
 
     final InputStream folderResource = Script.class.getResourceAsStream(resourceFolder);
