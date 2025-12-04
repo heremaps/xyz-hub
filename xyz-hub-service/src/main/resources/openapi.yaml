@@ -240,6 +240,27 @@ paths:
         '404':
           $ref: '#/components/responses/ErrorResponse404'
   '/spaces/{spaceId}/branches/{branchId}':
+    get:
+      tags:
+        - Manage Branches
+      summary: Get a Branch by ID
+      description: >-
+        Get Branch by ID for the specified space
+      operationId: getBranch
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/BranchId'
+      responses:
+        '200':
+          $ref: '#/components/responses/BranchResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
     patch:
       tags:
         - Manage Branches

@@ -19,45 +19,59 @@
 
 package com.here.xyz.jobs.steps.impl;
 
-import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
+import com.here.xyz.models.hub.Branch;
+import com.here.xyz.models.hub.Ref;
 import com.here.xyz.util.db.pg.IndexHelper.Index;
 import com.here.xyz.util.db.pg.IndexHelper.OnDemandIndex;
 import com.here.xyz.util.db.pg.IndexHelper.SystemIndex;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
-
 import java.util.List;
 
 public class CreateIndexStepTest extends StepTest {
 
     @Test
     public void testCreateSystemIndex() throws Exception {
-        deleteAllExistingIndices(SPACE_ID);
-        Assertions.assertTrue(getAllExistingIndices(SPACE_ID).isEmpty());
-
-        SystemIndex systemIndex = SystemIndex.GEO;
-        LambdaBasedStep step = new CreateIndex().withSpaceId(SPACE_ID).withIndex(SystemIndex.GEO);
-
-        sendLambdaStepRequestBlock(step, true);
-
-        List<Index> indexes = getSystemIndices(SPACE_ID);
-        Assertions.assertEquals(1, indexes.size());
-        Assertions.assertEquals(systemIndex.getIndexName(SPACE_ID), indexes.get(0).getIndexName(SPACE_ID));
+        executeCreateIndexStep(SPACE_ID, SystemIndex.GEO);
     }
 
     @Test
     public void testCreateOnDemandIndex() throws Exception {
-        deleteAllExistingIndices(SPACE_ID);
-        Assertions.assertTrue(getAllExistingIndices(SPACE_ID).isEmpty());
+        executeCreateIndexStep(SPACE_ID, new OnDemandIndex().withPropertyPath("foo"));
 
-        OnDemandIndex onDemandIndex = new OnDemandIndex().withPropertyPath("foo");
+    }
 
-        LambdaBasedStep step = new CreateIndex().withSpaceId(SPACE_ID).withIndex(onDemandIndex);
+    @Test
+    public void testCreateIndexOnBranch() throws Exception {
+        putFeatureToSpace(SPACE_ID, simpleFeature("f1"));
+        createBranch(SPACE_ID, new Branch().withId(BRANCH_ID));
+
+        //Create system index on branch
+        executeCreateIndexStep(SPACE_ID, BRANCH_ID, SystemIndex.GEO);
+
+        //Create on-demand index on branch
+        executeCreateIndexStep(SPACE_ID, BRANCH_ID, new OnDemandIndex().withPropertyPath("foo"));
+    }
+
+    private void executeCreateIndexStep(String spaceId, Index index) throws Exception {
+        executeCreateIndexStep(spaceId, null, index);
+    }
+
+    private void executeCreateIndexStep(String spaceId, String branchId, Index index) throws Exception {
+        String tableName = spaceId;
+        CreateIndex step = new CreateIndex().withSpaceId(spaceId).withIndex(index);
+
+        if (branchId != null) {
+            tableName = getBranchTableName(spaceId, branchId);
+            step.setVersionRef(new Ref(branchId));
+        }
+
+        deleteAllExistingIndices(tableName);
+        Assertions.assertTrue(getAllExistingIndices(tableName).isEmpty());
 
         sendLambdaStepRequestBlock(step, true);
-
-        List<Index> indexes = getOnDemandIndices(SPACE_ID);
+        List<Index> indexes = getIndices(tableName, step.getIndex() instanceof SystemIndex, step.getIndex() instanceof OnDemandIndex);
         Assertions.assertEquals(1, indexes.size());
-        Assertions.assertEquals(onDemandIndex.getIndexName(SPACE_ID), indexes.get(0).getIndexName());
+        Assertions.assertEquals(step.getIndex().getIndexName(tableName), indexes.get(0).getIndexName(tableName));
     }
 }
