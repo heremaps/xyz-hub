@@ -107,6 +107,14 @@ public class Api {
     });
   }
 
+  protected <R> Handler<RoutingContext> handleInternal(ThrowingTask<R, RoutingContext> taskHandler) {
+    return handleErrors(context -> {
+      taskHandler.execute(context)
+              .onSuccess(response -> sendInternalResponse(context, OK.code(), response))
+              .onFailure(t -> sendErrorResponse(context, t));
+    });
+  }
+
   /**
    * Send an error response to the client when an exception occurred while processing a task.
    *
@@ -259,6 +267,13 @@ public class Api {
         TypeReference listItemTypeReference) {
         serializeAndSendResponse(context, statusCode, list, listItemTypeReference, Public.class);
     }
+
+  protected void sendInternalResponse(RoutingContext context, int statusCode, Object object) {
+    if (object == null || object instanceof XyzSerializable)
+      sendInternalResponse(context, statusCode, (XyzSerializable) object);
+    else if (object instanceof List)
+      sendInternalResponse(context, statusCode, (List<? extends XyzSerializable>) object);
+  }
 
     protected void sendInternalResponse(RoutingContext context, int statusCode, XyzSerializable object) {
         serializeAndSendResponse(context, statusCode, object, null, Internal.class);

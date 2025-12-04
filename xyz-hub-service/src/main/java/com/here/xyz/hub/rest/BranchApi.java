@@ -22,6 +22,7 @@ package com.here.xyz.hub.rest;
 import static com.here.xyz.models.hub.Ref.HEAD;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
+import static io.vertx.core.http.HttpMethod.GET;
 
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -32,7 +33,9 @@ import com.here.xyz.models.hub.Branch;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.util.service.HttpException;
 import io.vertx.core.Future;
+import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
+import io.vertx.ext.web.handler.AuthenticationHandler;
 import io.vertx.ext.web.openapi.router.RouterBuilder;
 import java.util.List;
 
@@ -42,9 +45,20 @@ public class BranchApi extends SpaceBasedApi {
   public BranchApi(RouterBuilder rb) {
     rb.getRoute("getBranches").setDoValidation(false).addHandler(handle(this::getBranches));
     rb.getRoute("postBranch").setDoValidation(false).addHandler(handle(this::postBranch));
+    rb.getRoute("getBranch").setDoValidation(false).addHandler(handle(this::getBranch));
     rb.getRoute("patchBranch").setDoValidation(false).addHandler(handle(this::patchBranch));
     rb.getRoute("deleteBranch").setDoValidation(false).addHandler(handle(this::deleteBranch));
     rb.getRoute("execBranchOperation").setDoValidation(false).addHandler(handle(this::execBranchOperation));
+  }
+
+  public void activateAdminRoutes(Router router, AuthenticationHandler auth) {
+    router.route(GET, "/hub/admin/spaces/:spaceId/branches")
+        .handler(auth)
+        .handler(handleInternal(this::getBranches));
+
+    router.route(GET, "/hub/admin/spaces/:spaceId/branches/:branchId")
+            .handler(auth)
+            .handler(handleInternal(this::getBranch));
   }
 
   private Future<List<Branch>> getBranches(RoutingContext context) {
@@ -56,6 +70,18 @@ public class BranchApi extends SpaceBasedApi {
     Branch branch = getBranchPayload(context);
     return checkExistingAlias(getMarker(context), spaceId, branch.getId())
         .compose(v -> BranchHandler.createBranch(getMarker(context), getSpaceId(context), branch));
+  }
+
+  private Future<Branch> getBranch(RoutingContext context) {
+    String spaceId = getSpaceId(context);
+    String branchId = getBranchId(context);
+
+    return BranchHandler.loadBranch(spaceId, branchId)
+        .compose(branch -> {
+          if (branch == null)
+            return Future.failedFuture(new HttpException(NOT_FOUND, "No branch was found for space " + spaceId + " and ID " + branchId));
+          return Future.succeededFuture(branch);
+        });
   }
 
   private Future<Branch> patchBranch(RoutingContext context) throws HttpException {

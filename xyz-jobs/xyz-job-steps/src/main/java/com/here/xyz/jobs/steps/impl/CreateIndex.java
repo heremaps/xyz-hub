@@ -102,7 +102,7 @@ public class CreateIndex extends SpaceBasedStep<CreateIndex> {
       logger.info("[{}] Creating the index {} for space {} ...", getGlobalStepId(), index, getSpaceId());
       SQLQuery indexCreationQuery = null;
       if (index instanceof SystemIndex)
-        indexCreationQuery = buildSpaceTableIndexQuery(getSchema(db()), getRootTableName(space()), index);
+        indexCreationQuery = buildSpaceTableIndexQuery(getSchema(db()), getTableName(space(), getVersionRef()), index);
       else if (index instanceof OnDemandIndex onDemandIndex)
         indexCreationQuery = buildOnDemandIndexCreationQuery(onDemandIndex);
 
@@ -126,7 +126,7 @@ public class CreateIndex extends SpaceBasedStep<CreateIndex> {
     TODO: Remove the following workaround once the following PostgreSQL bug was fixed:
      https://postgrespro.com/list/id/18959-f63b53b864bb1417@postgresql.org
      */
-    String rootTableName = getRootTableName(space());
+    String rootTableName = getTableName(space(), getVersionRef());
     String schema = getSchema(db());
     List<SQLQuery> indexCreationQueries = new ArrayList<>();
 
