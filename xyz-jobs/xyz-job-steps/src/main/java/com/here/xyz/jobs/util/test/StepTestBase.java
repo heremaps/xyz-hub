@@ -25,6 +25,7 @@ import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepReques
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.SUCCESS_CALLBACK;
 import static com.here.xyz.jobs.steps.impl.transport.TaskedSpaceBasedStep.getTemporaryJobTableName;
 import static com.here.xyz.jobs.steps.inputs.Input.inputS3Prefix;
+import static com.here.xyz.psql.query.branching.BranchManager.branchTableName;
 import static com.here.xyz.util.Random.randomAlpha;
 import static com.here.xyz.util.db.pg.IndexHelper.buildSpaceTableDropIndexQueries;
 import static java.net.http.HttpClient.Redirect.NORMAL;
@@ -47,8 +48,11 @@ import com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.jobs.util.S3Client;
+import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.models.geojson.implementation.Point;
+import com.here.xyz.models.hub.Branch;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Tag;
@@ -135,6 +139,7 @@ public class StepTestBase {
 
   protected String SPACE_ID = getClass().getSimpleName() + "_" + randomAlpha(5);
   protected String JOB_ID = generateJobId();
+  protected String BRANCH_ID = "branch_on_" + SPACE_ID;
 
   private HubWebClient hubWebClient() {return HubWebClient.getInstance(config.HUB_ENDPOINT);}
 
@@ -204,6 +209,25 @@ public class StepTestBase {
     }
   }
 
+  protected void createBranch(String spaceId, Branch branch) {
+    try {
+      hubWebClient().createBranch(spaceId, branch);
+    }
+    catch (XyzWebClient.WebClientException e) {
+      System.out.println("Hub Error: " + e.getMessage());
+    }
+  }
+
+  protected Branch loadBranch(String spaceId, String branchId) {
+    try {
+      return hubWebClient().loadBranch(spaceId, branchId, true);
+    }
+    catch (XyzWebClient.WebClientException e) {
+      System.out.println("Hub Error: " + e.getMessage());
+    }
+    return null;
+  }
+
   protected StatisticsResponse getStatistics(String spaceId) {
     return getStatistics(spaceId, true);
   }
@@ -249,6 +273,10 @@ public class StepTestBase {
     return null;
   }
 
+  protected Feature simpleFeature(String id) {
+    return new Feature().withId(id).withGeometry(new Point().withCoordinates(new PointCoordinates(10, 10)));
+  }
+
   protected void putFeatureToSpace(String spaceId, Feature feature) {
     putFeatureCollectionToSpace(spaceId, new FeatureCollection().withFeatures(List.of(feature)));
   }
@@ -290,16 +318,16 @@ public class StepTestBase {
     }
   }
 
-  protected void deleteAllExistingIndices(String spaceId) throws SQLException {
-    List<String> existingIndexes = getAllExistingIndices(spaceId).stream().map(i ->i.getIndexName(SPACE_ID)).toList();
+  protected void deleteAllExistingIndices(String tableName) throws SQLException {
+    List<String> existingIndexes = getAllExistingIndices(tableName).stream().map(i ->i.getIndexName(tableName)).toList();
     List<SQLQuery> dropQueries = buildSpaceTableDropIndexQueries(SCHEMA, existingIndexes);
     SQLQuery.join(dropQueries, ";").write(getDataSourceProvider());
   }
 
-  protected List<Index> getAllExistingIndices(String spaceId) throws SQLException {
+  protected List<Index> getAllExistingIndices(String tableName) throws SQLException {
     return new SQLQuery("SELECT * FROM xyz_index_list_all_available(#{schema}, #{table});")
             .withNamedParameter("schema", SCHEMA)
-            .withNamedParameter("table", spaceId)
+            .withNamedParameter("table", tableName)
             .run(getDataSourceProvider(), DropIndexes::getIndicesFromResultSet);
   }
 
@@ -311,8 +339,8 @@ public class StepTestBase {
     return getIndices(spaceId, true, false);
   }
 
-  protected List<Index> getIndices(String spaceId, boolean systemIndices, boolean onDemandIndices) throws SQLException {
-    return getAllExistingIndices(spaceId).stream()
+  protected List<Index> getIndices(String tableName, boolean systemIndices, boolean onDemandIndices) throws SQLException {
+    return getAllExistingIndices(tableName).stream()
             .filter(index -> {
               if (systemIndices && index instanceof SystemIndex) {
                 return true;
@@ -616,5 +644,10 @@ public class StepTestBase {
 
   protected Ref resolveRef(String spaceId, Ref ref) throws WebClientException {
     return hubWebClient().resolveRef(spaceId, ref);
+  }
+
+  protected String getBranchTableName(String spaceId, String branchId) {
+    Branch branch = loadBranch(spaceId, branchId);
+    return branchTableName(spaceId, branch.getBranchPath().get(branch.getBranchPath().size() - 1), branch.getNodeId());
   }
 }

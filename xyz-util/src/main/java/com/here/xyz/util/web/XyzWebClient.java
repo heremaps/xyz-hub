@@ -25,6 +25,7 @@ import static java.time.temporal.ChronoUnit.SECONDS;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.responses.ErrorResponse;
+import com.here.xyz.util.KeyValue;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -34,8 +35,11 @@ import java.net.http.HttpRequest.Builder;
 import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public abstract class XyzWebClient {
   protected final String baseUrl;
@@ -56,6 +60,17 @@ public abstract class XyzWebClient {
 
   protected final URI uri(String path) {
     return URI.create(baseUrl + path);
+  }
+
+  protected final URI uri(String path, KeyValue<String, ?>... queryParams) {
+    String query = Arrays.stream(queryParams)
+            .flatMap(kv -> {
+              if (kv == null ||  kv.key() == null || kv.value() == null)
+                return Stream.of();
+              return Stream.of(kv.key() + "=" + kv.value());
+            })
+            .collect(Collectors.joining("&"));
+    return uri(path + "?" + query);
   }
 
   private HttpClient client() {
