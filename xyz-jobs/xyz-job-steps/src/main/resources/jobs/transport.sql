@@ -16,7 +16,7 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
- 
+
 -- ####################################################################################################################
 -- Common helper functions ---
 
@@ -243,9 +243,11 @@ DECLARE
     tables TEXT := TG_ARGV[9];
     format TEXT := TG_ARGV[10];
     entityPerLine TEXT := TG_ARGV[11];
+    writeHooks TEXT := TG_ARGV[12];
     featureCount INT := 0;
     input TEXT;
     inputType TEXT;
+    contextData jsonb;
 BEGIN
     --TODO: Remove the following workaround once the caller-side was fixed
     onExists = CASE WHEN onExists = 'null' THEN NULL ELSE onExists END;
@@ -274,16 +276,21 @@ BEGIN
     END IF;
 
     --TODO: check how to use asyncify instead
-    PERFORM context(
-        jsonb_build_object(
+
+    contextData =  jsonb_build_object(
             'stepId', get_stepid_from_work_table(TG_TABLE_NAME::REGCLASS) ,
             'schema', TG_TABLE_SCHEMA,
             'tables', string_to_array(tables, ','),
             'historyEnabled', historyEnabled,
             'context', CASE WHEN spaceContext = 'null' THEN null ELSE spaceContext END,
             'batchMode', inputType != 'Feature'
-        )
-    );
+        );
+
+    if writeHooks IS NOT NULL AND writeHooks != '' AND writeHooks != 'null' THEN
+     contextData = jsonb_set( contextData, '{writeHooks}', to_jsonb( array[writeHooks] ) );
+    END IF;
+
+    PERFORM context( contextData );
 
     SELECT write_features(
         input, inputType, author, false, currentVersion,
@@ -867,7 +874,7 @@ BEGIN
 END;
 $BODY$;
 
--- ####################################################################################################################   
+-- ####################################################################################################################
 -- Delete Functions below when movement to new tasked import is done --
 
 /**
@@ -1227,7 +1234,7 @@ BEGIN
 END;
 $BODY$
     LANGUAGE plpgsql VOLATILE;
-    
+
 CREATE OR REPLACE FUNCTION import_from_s3_trigger_for_empty_layer_geojsonfc()
     RETURNS trigger
 AS $BODY$

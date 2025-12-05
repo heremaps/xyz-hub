@@ -161,7 +161,7 @@ public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureColl
     }
   }
 
-  private static String writeHook(Map<String, String> searchableProperties) {
+  public static String writeHook(Map<String, String> searchableProperties) {
     return """
         (feature, row) => {
           const searchableProperties = ${searchableProperties};

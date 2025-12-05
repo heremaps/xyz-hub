@@ -1,0 +1,117 @@
+/*
+ * Copyright (C) 2017-2025 HERE Europe B.V.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ * License-Filename: LICENSE
+ */
+
+package com.here.xyz.jobs.steps.impl;
+
+import static com.here.xyz.util.Random.randomAlpha;
+
+import java.util.Map;
+
+import com.here.xyz.models.hub.Space;
+import com.here.xyz.models.hub.Space.ConnectorRef;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
+
+public class ImportStepTestPsqlNc extends ImportStepTest {
+
+  @Override
+  protected String createSpaceId()
+  { return getClass().getSimpleName() + "-drgnstn" + "_" + randomAlpha(5); }
+
+  @Override
+  protected Space createSpace(String spaceId) {
+    return createSpace(new Space().withId(spaceId)
+                                  .withVersionsToKeep(1000)
+                                  .withStorage( new ConnectorRef().withId("psql-nl-connector") )
+                                  .withSearchableProperties(Map.of("$testAlias:[$.properties.test]::scalar", true )),
+                        false);
+  }
+
+  /** Import in Empty Layer + Entity: Feature */
+  @Override
+  @Disabled(" -- overwrite -- disabled -- psql-nl-connector ")
+  @Test
+  public void testSyncImport_with_many_files() throws Exception {
+    super.testSyncImport_with_many_files();
+  }
+
+  @Override
+  @Disabled(" -- overwrite -- disabled -- psql-nl-connector - Takes extra 6 minutes of execution time, disabled by default")
+  @Test
+  public void testSyncImport_with_more_than_default_pagination_size_files() throws Exception {
+    super.testSyncImport_with_more_than_default_pagination_size_files();
+  }
+
+  //@Test //temporary deactivation
+  @Override
+  @Disabled(" -- overwrite -- disabled -- psql-nl-connector ")
+  //@Test //temporary deactivation
+  public void testAsyncSyncImport_with_many_files() throws Exception {
+    super.testAsyncSyncImport_with_many_files();
+  }
+
+  @Override
+  @Disabled(" -- overwrite -- disabled -- psql-nl-connector ")
+  @Test
+  public void testImport_inEmpty_GEOJSON_Entity_Feature() throws Exception {
+    super.testImport_inEmpty_GEOJSON_Entity_Feature();
+  }
+
+  @Override
+  @Disabled(" -- overwrite -- disabled -- psql-nl-connector ")
+  @Test
+  public void testImport_inEmpty_CSV_JSON_WKB_Entity_Feature() throws Exception {
+    super.testImport_inEmpty_CSV_JSON_WKB_Entity_Feature();
+  }
+
+  @Override
+  @Disabled(" -- overwrite -- disabled -- psql-nl-connector ")
+  @Test
+  public void testImport_inEmpty_CSV_GEOJSON_Entity_Feature() throws Exception {
+    super.testImport_inEmpty_CSV_GEOJSON_Entity_Feature();
+  }
+
+  /** Import in NON-Empty Layer + Entity: Feature */
+  @Override
+  @Test
+  public void testImport_inNonEmpty_GEOJSON_Entity_Feature() throws Exception {
+    super.testImport_inNonEmpty_GEOJSON_Entity_Feature();
+  }
+
+  @Override
+  @Test
+  public void testImport_inNonEmpty_CSV_JSON_WKB_Entity_Feature() throws Exception {
+    super.testImport_inNonEmpty_CSV_JSON_WKB_Entity_Feature();
+  }
+
+  /** Import in NON-Empty Layer + Entity: FeatureCollection */
+  @Override
+  @Test
+  public void testImport_inNonEmpty_GEOJSON_Entity_FeatureCollection() throws Exception {
+    super.testImport_inNonEmpty_GEOJSON_Entity_FeatureCollection();
+  }
+
+  @Override
+  @Disabled(" -- overwrite -- disabled -- psql-nl-connector ")
+  @Test
+  public void testImport_inNonEmpty_CSV_GEOJSON_Entity_FeatureCollection() throws Exception {
+    super.testImport_inNonEmpty_CSV_GEOJSON_Entity_FeatureCollection();
+  }
+
+}
