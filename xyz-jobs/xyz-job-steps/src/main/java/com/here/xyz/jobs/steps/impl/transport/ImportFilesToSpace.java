@@ -58,12 +58,15 @@ import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.jobs.util.S3Client;
 import com.here.xyz.models.hub.Space;
+import com.here.xyz.psql.query.WriteFeatures;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.pg.FeatureWriterQueryBuilder;
 import com.here.xyz.util.db.pg.FeatureWriterQueryBuilder.FeatureWriterQueryContextBuilder;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.service.Core;
+import com.here.xyz.util.web.XyzWebClient.WebClientException;
+
 import io.vertx.core.json.JsonObject;
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -71,8 +74,10 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -600,6 +605,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   }
 
   private SQLQuery buildCreateImportTrigger(String targetAuthor, long newVersion) throws WebClientException {
+
     if(useFeatureWriter())
       return buildCreateImportTriggerWithFeatureWriter(targetAuthor, newVersion);
     return buildCreateImportTriggerForInsertsOnly(targetAuthor, newVersion);
@@ -631,11 +637,20 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     String triggerFunction = "import_from_s3_trigger_for_non_empty_layer";
     String superTable = space().getExtension() != null ? getRootTableName(superSpace()) : null;
 
+    String writeHook = null;
+	  try {
+		  writeHook = space().getSearchableProperties() != null && getTableLayout().hasSearchableColumn() == true
+		                    ? WriteFeatures.writeHook( Space.toExtractableSearchProperties(space()) )
+		                    : null;
+	  } catch ( SQLException | TooManyResourcesClaimed e) {
+		 throw new WebClientException("Error build writeHook",e);
+	  }
+
     List<String> tables = superTable == null ? List.of(getRootTableName(space())) : List.of(superTable, getRootTableName(space()));
 
     //TODO: Check if we can forward the whole transaction to the FeatureWriter rather than doing it for each row
     return new SQLQuery("""
-        CREATE OR REPLACE TRIGGER insertTrigger BEFORE INSERT ON ${schema}.${table} 
+        CREATE OR REPLACE TRIGGER insertTrigger BEFORE INSERT ON ${schema}.${table}
           FOR EACH ROW EXECUTE PROCEDURE ${triggerFunction}(
              ${{author}},
              ${{spaceVersion}},
@@ -648,7 +663,8 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
              ${{context}},
              '${{tables}}',
              '${{format}}',
-             '${{entityPerLine}}'
+             '${{entityPerLine}}',
+             ${{writeHook}}
              )
         """)
         .withQueryFragment("spaceVersion", Long.toString(newVersion))
@@ -664,6 +680,8 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
         .withQueryFragment("tables", String.join(",", tables))
         .withQueryFragment("format", format.toString())
         .withQueryFragment("entityPerLine", entityPerLine.toString())
+//        .withQueryFragment("writeHook", "'(feature, row) => { row.searchable = { \"sname\" : \"value new\" }}'" )
+        .withQueryFragment("writeHook", writeHook == null ? "NULL" : "'" + writeHook + "'")
         .withVariable("schema", getSchema(db()))
         .withVariable("triggerFunction", triggerFunction)
         .withVariable("table", getTemporaryTriggerTableName(getId()));
@@ -778,7 +796,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
           data.put("filesize", input.getByteSize());
 
         queryList.add(
-            new SQLQuery("""                
+            new SQLQuery("""
                     INSERT INTO  ${schema}.${table} (s3_bucket, s3_path, s3_region, state, data)
                         VALUES (#{bucketName}, #{s3Key}, #{bucketRegion}, #{state}, #{data}::jsonb)
                         ON CONFLICT (s3_path) DO NOTHING;
@@ -796,7 +814,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
     //Add final entry
     queryList.add(
-        new SQLQuery("""                
+        new SQLQuery("""
                 INSERT INTO  ${schema}.${table} (s3_bucket, s3_path, s3_region, state, data)
                     VALUES (#{bucketName}, #{s3Key}, #{bucketRegion}, #{state}, #{data}::jsonb)
                     ON CONFLICT (s3_path) DO NOTHING;

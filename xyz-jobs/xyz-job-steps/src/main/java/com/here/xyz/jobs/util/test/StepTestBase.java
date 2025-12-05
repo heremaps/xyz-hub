@@ -52,6 +52,7 @@ import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Tag;
+import com.here.xyz.models.hub.Space.ConnectorRef;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
@@ -133,17 +134,21 @@ public class StepTestBase {
     }
   }
 
-  protected String SPACE_ID = getClass().getSimpleName() + "_" + randomAlpha(5);
+
+  protected String SPACE_ID = createSpaceId();
   protected String JOB_ID = generateJobId();
 
   private HubWebClient hubWebClient() {return HubWebClient.getInstance(config.HUB_ENDPOINT);}
+
+    protected String createSpaceId()
+  { return getClass().getSimpleName() + "_" + randomAlpha(5); }
 
   public String generateJobId() {
     return getClass().getSimpleName() + "_" + randomAlpha(5);
   }
 
   protected Space createSpace(String spaceId) {
-    return createSpace(new Space().withId(spaceId), false);
+   return createSpace(new Space().withId(spaceId), false);
   }
 
   protected Space createSpace(Space space, boolean force) {

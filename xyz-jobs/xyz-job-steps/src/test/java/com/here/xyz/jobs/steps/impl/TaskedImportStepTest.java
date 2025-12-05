@@ -109,7 +109,7 @@ public class TaskedImportStepTest extends ImportStepTest {
             .validate());
   }
 
-  private void executeImportStepWithManyFiles(Format format, int fileCount, int featureCountPerFile, boolean runAsync) throws IOException, InterruptedException {
+  protected void executeImportStepWithManyFiles(Format format, int fileCount, int featureCountPerFile, boolean runAsync) throws IOException, InterruptedException {
     uploadFiles(JOB_ID, fileCount, featureCountPerFile, format);
     LambdaBasedStep step = new TaskedImportFilesToSpace()
             .withVersionRef(new Ref(Ref.HEAD))
