@@ -82,12 +82,7 @@
             "stopAll": true
         },
         {
-            "name": "job2-suite",
-            "configurations": ["xyzhub-service","JobService"],
-            "stopAll": true
-        },
-        {
-            "name": "all-jobs-suite",
+            "name": "job-suite",
             "configurations": ["xyzhub-service","JobService"],
             "stopAll": true
         }

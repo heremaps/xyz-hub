@@ -35,6 +35,7 @@ import com.here.xyz.XyzSerializable.Static;
 import com.here.xyz.util.JsonPathValidator;
 
 import java.util.*;
+import java.util.Map.Entry;
 
 /**
  * The space configuration.
@@ -1038,4 +1039,40 @@ public class Space {
       return obj == null || (obj instanceof Boolean && obj.equals(true));
     }
   }
+
+  public static Map<String, String> toExtractableSearchProperties(Space space) {
+    Map<String, String> extractableSearchProperties = new HashMap<>();
+    for (Entry<String, Boolean> sp : space.getSearchableProperties().entrySet()) {
+      String searchableExpression = sp.getKey().contains("::") ? sp.getKey().substring(0, sp.getKey().indexOf("::")) : sp.getKey();
+
+      String alias, jsonPathExpression;
+      if (searchableExpression.startsWith("$") && searchableExpression.contains(":")) {
+        alias = searchableExpression.substring(1, searchableExpression.indexOf(":"));
+        searchableExpression = searchableExpression.substring(searchableExpression.indexOf(":")+1);
+
+        jsonPathExpression = searchableExpression.startsWith("[")
+            ? searchableExpression.substring(1, searchableExpression.length() - 1) //expression is already a JSONPath
+            : toJsonPath(searchableExpression.substring(searchableExpression.indexOf(":") + 1)); //expression is an "old" dot-notation
+      }
+      else {
+        alias = searchableExpression;
+        jsonPathExpression = toJsonPath(searchableExpression);
+      }
+
+      extractableSearchProperties.put(alias, jsonPathExpression);
+    }
+    return extractableSearchProperties;
+  }
+
+  /**
+   * Translates a dot-notation path to a JSONPath expression.
+   * @param dotNotation
+   * @return
+   */
+  private static String toJsonPath(String dotNotation) {
+    //TODO: Translate the path pointer like "prop1.prop2[0].prop3" to JSONPath "$.prop1.prop2[0].prop3" for all cases correctly
+    return "$." + dotNotation;
+  }
+
+
 }
