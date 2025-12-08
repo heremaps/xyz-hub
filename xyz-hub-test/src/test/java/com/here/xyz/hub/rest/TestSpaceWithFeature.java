@@ -56,7 +56,6 @@ import org.apache.commons.lang3.RandomStringUtils;
 
 public class TestSpaceWithFeature extends TestWithSpaceCleanup {
   protected static String embeddedStorageId = "psql";
-  protected static String httpStorageId = "psql-http";
 
   protected static String usedStorageId = embeddedStorageId;
 
@@ -86,7 +85,7 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
    */
   @Deprecated
   protected static void createSpace() {
-    String path = "/xyz/hub/createSpace.json";
+    String path = "/xyz/hub/createSpaceWithSearchableProperties.json";
     String content = usedStorageId == embeddedStorageId ? content(path) : content(path, usedStorageId);
     createSpace(content)
             .body("id", equalTo(getSpaceId()))

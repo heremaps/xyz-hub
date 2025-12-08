@@ -22,6 +22,7 @@ package com.here.xyz.psql.query;
 import static com.here.xyz.events.PropertyQuery.QueryOperation.CONTAINS;
 import static com.here.xyz.events.PropertyQuery.QueryOperation.NOT_EQUALS;
 import static com.here.xyz.responses.XyzError.ILLEGAL_ARGUMENT;
+import static com.here.xyz.util.db.ConnectorParameters.TableLayout;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.PropertiesQuery;
@@ -45,13 +46,12 @@ Once refactoring is complete, all members of SearchForFeaturesEvent can be pulle
 can be renamed to SearchForFeaturesEvent again.
  */
 public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzResponse> extends GetFeatures<E, R> {
+  private Boolean canSearch;
   private SearchForFeaturesEvent tmpEvent; //TODO: Remove after refactoring
 
   public SearchForFeatures(E event) throws SQLException, ErrorResponseException {
     super(event);
     tmpEvent = event;
-    //hasSearch = (event.getPropertiesQuery() == null || event.getPropertiesQuery().size() == 0)
-    //    && (event.getTags() == null || event.getTags().size() == 0);
   }
 
   @Override
@@ -62,9 +62,12 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
   }
 
   protected void checkCanSearchFor(SearchForFeaturesEvent event) throws ErrorResponseException {
-    if (!canSearchFor(event))
+    Boolean searchIsPossible = canSearchFor(event);
+    //TODO: throw exception inside canSearchFor
+    if (searchIsPossible != null && !searchIsPossible)
       throw new ErrorResponseException(ILLEGAL_ARGUMENT,
           "Invalid request parameters. Search for the provided properties is not supported for this space.");
+    this.canSearch = searchIsPossible;
   }
 
   @Override
@@ -78,7 +81,12 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
   }
 
   protected SQLQuery buildSearchFragment(E event) {
-    final SQLQuery searchQuery = generateSearchQuery(event);
+    TableLayout tableLayout = getTableLayout();
+
+    //Support global search if less than 10k features and no explicit searchable properties are defined
+    if(canSearch == null)
+      tableLayout = TableLayout.OLD_LAYOUT;
+    final SQLQuery searchQuery = generateSearchQuery(event, tableLayout);
     return searchQuery;
   }
 
@@ -88,19 +96,13 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
   }
 
   /**
-   * Determines if PropertiesQuery can be executed. Check if required Indices are created.
+   * Checks if search is possible for the given {@link SearchForFeaturesEvent}.
+   * Returns true if search is allowed, false if not, or null if table has less than 10k objects.
+   *
+   * @param event The search event containing query parameters.
+   * @return Boolean indicating if search is possible, or null if undetermined.
    */
-  private static List<String> sortableCanSearchForIndex( List<String> indices )
-  { if( indices == null ) return null;
-    List<String> skeys = new ArrayList<>();
-    for( String k : indices)
-      if( k.startsWith("o:") )
-        skeys.add( k.replaceFirst("^o:([^,]+).*$", "$1") );
-
-    return skeys;
-  }
-
-  private boolean canSearchFor(SearchForFeaturesEvent event) {
+  private Boolean canSearchFor(SearchForFeaturesEvent event) {
     DataSourceProvider dataSourceProvider = getDataSourceProvider();
     String tableName = XyzEventBasedQueryRunner.readTableFromEvent(event);
     PropertiesQuery query = event.getPropertiesQuery();
@@ -114,37 +116,38 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
 
       int idx_check = 0;
 
-      //NOTE: All keys are always full qualified property-"paths" (dot-separated)
       for (String key : keys) {
-        boolean isPropertyQuery = key.startsWith("properties.");
-
-        //If the property query hits a default existing system index - allow the search
-        if (key.equals("id"))
-          return true;
-
         //Check if custom Indices are available. E.g., properties.foo1
         List<String> indices = new GetIndexList(tableName).run(dataSourceProvider);
 
         //The table does not have too many records - Indices are not required
         if (indices == null)
+          return null;
+
+        //If the property query hits a default existing system index - allow the search
+        //We moved it below the index check, to be able to allow global searches on small tables without indices
+        if (key.equals("f.id") || key.equals("f.geometry.type"))
           return true;
 
-        List<String> sindices = sortableCanSearchForIndex( indices );
-        //If it is a root property query "foo=bar" we extend the suffix "f."
-        //If it is a property query "properties.foo=bar" we remove the suffix "properties."
-        //TODO: That seems to be a weired hack. Check why that is needed and remove if possible
-        String searchKey = isPropertyQuery ? key.substring("properties.".length()) : "f." + key;
+        /* eg:
+          indices = {ArrayList@10625}  size = 4
+          0 = "alias1"
+          1 = "alias2"
+          2 = "properties.foo.nested"
+          3 = "f.root"
 
-        if (indices.contains(searchKey) || sindices != null && sindices.contains(searchKey))
-          //Check if all properties are indexed
+          keys = {ArrayList@15397}  size = 4
+           0 = "alias.alias1"
+           1 = "alias.alias2"
+           2 = "root"
+           3 = "properties.foo1.nested"
+         */
+        //Check if all properties are indexed
+        if (indices.contains(key))
           idx_check++;
       }
 
-      if (idx_check == keys.size())
-        return true;
-
-      //TODO: Why is that 2nd extra call needed? Could we remove it?
-      return new GetIndexList(tableName).run(dataSourceProvider) == null;
+      return idx_check == keys.size();
     }
     catch (Exception e) {
       // In all cases, when something with the check went wrong, allow the search
@@ -158,7 +161,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
     return "userValue_" + key + (counter == null ? "" : "" + counter);
   }
 
-  protected static SQLQuery generatePropertiesQuery(SearchForFeaturesEvent event) {
+  protected static SQLQuery generatePropertiesQuery(SearchForFeaturesEvent event, TableLayout layout) {
     PropertiesQuery properties = event.getPropertiesQuery();
     if (properties == null || properties.size() == 0)
       return null;
@@ -186,7 +189,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
           String key = propertyQuery.getKey(),
               paramName = getParamNameForValue(countingMap, key),
               value = getValue(v, op, key, paramName);
-          SQLQuery keyPath = createKey(key);
+          SQLQuery keyPath = createKey(key, layout);
           SQLQuery predicateQuery;
           namedParams.putAll(keyPath.getNamedParameters());
 
@@ -197,7 +200,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
                 .withQueryFragment("not", op == NOT_EQUALS ? "" : "not")
                 .withQueryFragment("keyPath", keyPath)
                 .withQueryFragment("notJsonbComparison",
-                    "id".equals(key) || "geometry.type".equals(key) ? "" : "AND ${{keyPath}} != 'null'::jsonb");
+                    "f.id".equals(key) || "f.geometry.type".equals(key) ? "" : "AND ${{keyPath}} != 'null'::jsonb");
           }
           else {
             predicateQuery = new SQLQuery("${{keyPath}} ${{operation}} ${{value}}")
@@ -216,11 +219,16 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
         .withNamedParameters(namedParams);
   }
 
-  protected static SQLQuery generateSearchQuery(final SearchForFeaturesEvent event) {
-    return generatePropertiesQuery(event);
+  protected static SQLQuery generateSearchQuery(final SearchForFeaturesEvent event, TableLayout layout) {
+    return generatePropertiesQuery(event, layout);
   }
 
-  private static SQLQuery createKey(String key) {
+  private static SQLQuery createKey(String key, TableLayout layout) {
+    //Ensure BWC for root property search
+    if(!layout.hasSearchableColumn()
+          || key.equals("f.id") || key.equals("f.geometry.type"))
+      key = key.startsWith("f.") ? key.substring(2) : key;
+
     String[] keySegments = key.split("\\.");
 
     //ID is indexed as text
@@ -232,7 +240,18 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
       return new SQLQuery("GeometryType(geo) ");
 
     Map<String, Object> segmentNames = new HashMap<>();
-    String keyPath = "jsondata";
+    String keyPath = layout.hasSearchableColumn() ? "searchable" : "jsondata";
+
+    //layout with searchable column.. Reading extraction from searchable column
+    if(layout.hasSearchableColumn()) {
+      key = key.startsWith("alias.") ? key.substring("alias.".length()) : key;
+      String segmentParamName = "keySegment_" + key;
+      keyPath += "->#{" + segmentParamName + "}";
+      segmentNames.put(segmentParamName, key);
+      return new SQLQuery(keyPath).withNamedParameters(segmentNames);
+    }
+
+    //layout without searchable column.. Reading from jsondata column
     for (String keySegment : keySegments) {
       String segmentParamName = "keySegment_" + keySegment;
       keyPath += "->#{" + segmentParamName + "}";
@@ -245,14 +264,14 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
   private static String getValue(Object value, PropertyQuery.QueryOperation op, String key, String paramName) {
     String param = "#{" + paramName + "}";
 
-    if (key.equalsIgnoreCase("geometry.type"))
+    if (key.equalsIgnoreCase("f.geometry.type"))
       return "upper(" + param + "::TEXT)";
 
     if (value == null)
       return null;
 
     //The ID is indexed as text
-    if (key.equalsIgnoreCase("id"))
+    if (key.equalsIgnoreCase("f.id"))
       return param + "::TEXT";
 
     if (value instanceof String) {

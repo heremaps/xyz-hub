@@ -246,7 +246,7 @@ public class GetFeaturesByBBoxClustered<E extends GetFeaturesByBBoxEvent, R exte
         .withQueryFragment("geoFilter", expBboxSql)
         .withQueryFragment("samplingCondition", samplingCondition);
 
-    final SQLQuery searchQuery = generateSearchQuery(event);
+    final SQLQuery searchQuery = generateSearchQuery(event, getTableLayout());
     if (searchQuery != null)
       h3InnerQuery.setQueryFragment("searchQuery", new SQLQuery("AND ${{innerSearchQuery}}")
           .withQueryFragment("innerSearchQuery", searchQuery));
@@ -355,7 +355,7 @@ public class GetFeaturesByBBoxClustered<E extends GetFeaturesByBBoxEvent, R exte
                   "      'select 1 from ${schema}.${headTable}"+
                   "       WHERE ST_Intersects(geo, xyz_qk_qk2bbox(''',qk,''')) "+
                   " AND "+
-                  substituteCompletely(generatePropertiesQuery(event)).replaceAll("'","''")+
+                  substituteCompletely(generatePropertiesQuery(event, getTableLayout())).replaceAll("'","''")+
                   "'))";
         }
         else
@@ -417,7 +417,7 @@ public class GetFeaturesByBBoxClustered<E extends GetFeaturesByBBoxEvent, R exte
             ") x WHERE qkgeo IS NOT null ")
         .withVariable(SCHEMA, getSchema())
         .withVariable("headTable", getDefaultTable((E) event) + HEAD_TABLE_SUFFIX)
-        .withQueryFragment("propertiesQuery", event.getPropertiesQuery() != null ? generatePropertiesQuery(event) : new SQLQuery("TRUE"));
+        .withQueryFragment("propertiesQuery", event.getPropertiesQuery() != null ? generatePropertiesQuery(event, getTableLayout()) : new SQLQuery("TRUE"));
   }
 
   //------------------------- Hexbin / H3 related -------------------------

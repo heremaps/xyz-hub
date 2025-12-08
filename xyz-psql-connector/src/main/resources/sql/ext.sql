@@ -554,6 +554,42 @@ $BODY$
   LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
+CREATE OR REPLACE FUNCTION xyz_index_creation_for_searchable(
+	schema text,
+	tbl text,
+	searchable text,
+	datatype text)
+RETURNS text AS
+$BODY$
+	DECLARE
+        prop_path text := regexp_replace( searchable,'^f\.','');
+		idx_type text := 'btree';
+		idx_name text := xyz_index_name_for_property(tbl, searchable, 'm');
+    BEGIN
+        /** In all other cases we are using btree */
+        IF LOWER(datatype) = 'array' THEN
+            idx_type = 'GIN';
+        END IF;
+
+        EXECUTE format('CREATE INDEX IF NOT EXISTS "%s" '
+                   ||'ON %s."%s" '
+                   ||' USING %s '
+                   ||'((%s->''%s''))'
+            , idx_name, schema, tbl, idx_type, 'searchable', prop_path);
+
+        IF NOT (searchable LIKE 'f.%' OR searchable LIKE 'properties.%') THEN
+            searchable := 'alias.' || searchable;
+        END IF;
+
+        EXECUTE format('COMMENT ON INDEX %s."%s" '
+                           ||'IS ''p.name=%s''',
+            schema, idx_name, searchable);
+        RETURN idx_name;
+    END
+$BODY$
+    LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_property_path_to_array(propertypath text)
   RETURNS text[] AS
 $BODY$

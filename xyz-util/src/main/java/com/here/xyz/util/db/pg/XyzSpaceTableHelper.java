@@ -41,9 +41,6 @@ public class XyzSpaceTableHelper {
   public static final String SCHEMA = "schema";
   public static final String TABLE = "table";
   public static final String HEAD_TABLE_SUFFIX = "_head";
-  public static final String SEARCHABLE_COLUMN = "searchable";
-  public static final String REF_QUAD_PROPERTY = "refQuad";
-  public static final String GLOBAL_VERSION_PROPERTY = "globalVersion";
   public static final long HEAD_TABLE_PARTION_COUNT = 10;
   public static final long PARTITION_SIZE = 100_000;
 
@@ -93,10 +90,6 @@ public class XyzSpaceTableHelper {
         for (OnDemandIndex onDemandIndex : onDemandIndices) {
           queries.add(buildOnDemandIndexCreationQuery(schema, table, onDemandIndex, layout,false));
         }
-    }
-    if(layout == NEW_LAYOUT) {
-      queries.add(buildOnDemandIndexCreationQuery(schema, table, REF_QUAD_PROPERTY, SEARCHABLE_COLUMN ,false));
-      queries.add(buildOnDemandIndexCreationQuery(schema, table, GLOBAL_VERSION_PROPERTY, SEARCHABLE_COLUMN , false));
     }
     if (isMainTable)
       queries.add(buildCreateBranchSequenceQuery(schema, table));

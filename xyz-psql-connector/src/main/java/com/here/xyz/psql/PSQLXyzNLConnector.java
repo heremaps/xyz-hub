@@ -20,11 +20,14 @@
 package com.here.xyz.psql;
 
 import com.here.xyz.events.ModifySpaceEvent;
+import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.events.WriteFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.psql.query.ModifySpace;
+import com.here.xyz.psql.query.SearchForFeatures;
 import com.here.xyz.psql.query.WriteFeatures;
 import com.here.xyz.responses.SuccessResponse;
+import com.here.xyz.responses.XyzResponse;
 
 import static com.here.xyz.util.db.ConnectorParameters.TableLayout.OLD_LAYOUT_WITH_SEARCHABLE;
 
@@ -40,4 +43,8 @@ public class PSQLXyzNLConnector extends PSQLXyzConnector {
     return run(new WriteFeatures(event).withTableLayout(OLD_LAYOUT_WITH_SEARCHABLE) );
   }
 
+  @Override
+  protected FeatureCollection processSearchForFeaturesEvent(SearchForFeaturesEvent event) throws Exception {
+    return (FeatureCollection) run(new SearchForFeatures<>(event).withTableLayout(OLD_LAYOUT_WITH_SEARCHABLE));
+  }
 }

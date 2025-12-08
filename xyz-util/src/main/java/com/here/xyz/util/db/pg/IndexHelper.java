@@ -38,8 +38,7 @@ import java.util.stream.Stream;
 import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_DEFAULT;
 
 public class IndexHelper {
-  private static String OLD_LAYOUT_INDEX_COULMN = "jsondata";
-  private static String NEW_LAYOUT_INDEX_COULMN = "searchable";
+  private final static String OLD_LAYOUT_INDEX_COULMN = "jsondata";
 
   @JsonInclude(NON_DEFAULT)
   @JsonIgnoreProperties(ignoreUnknown = true)
@@ -153,6 +152,14 @@ public class IndexHelper {
       if (propertyPath.startsWith("$"))
         return propertyPath.substring(1, propertyPath.indexOf(':'));
       throw new IllegalArgumentException("Cannot extract alias from property path: " + propertyPath);
+    }
+
+    public String extractDataType(){
+      if (propertyPath == null)
+        return null;
+      if (propertyPath.contains("::"))
+        return propertyPath.substring(propertyPath.lastIndexOf("::") + 2);
+      throw new IllegalArgumentException("Cannot extract datatype from property path: " + propertyPath);
     }
 
     public String extractLogicalPropertyPath() {
@@ -279,11 +286,11 @@ public class IndexHelper {
 
   public static SQLQuery buildOnDemandIndexCreationQuery(String schema, String table, OnDemandIndex index, TableLayout layout, boolean async){
     if(layout.hasSearchableColumn())
-      return buildOnDemandIndexCreationQuery(schema, table, index.extractAlias(), NEW_LAYOUT_INDEX_COULMN, async);
+      return buildOnDemandIndexCreationQueryForSearchable(schema, table, index, async);
     return buildOnDemandIndexCreationQuery(schema, table, index.extractLogicalPropertyPath(), OLD_LAYOUT_INDEX_COULMN, async);
   }
 
-  public static SQLQuery buildOnDemandIndexCreationQuery(String schema, String table, String propertyPath, String targetColumn, boolean async){
+  private static SQLQuery buildOnDemandIndexCreationQuery(String schema, String table, String propertyPath, String targetColumn, boolean async){
     return new SQLQuery((async ? "PERFORM " : "SELECT ") +
             """
             xyz_index_creation_on_property_object(
@@ -302,6 +309,22 @@ public class IndexHelper {
             .withNamedParameter("table_sample_cnt", 5000)
             .withNamedParameter("idx_type", "m")
             .withNamedParameter("target_column", targetColumn);
+  }
+
+  private static SQLQuery buildOnDemandIndexCreationQueryForSearchable(String schema, String table, OnDemandIndex index, boolean async){
+    return new SQLQuery((async ? "PERFORM " : "SELECT ") +
+            """
+            xyz_index_creation_for_searchable(
+                #{schema_name},
+                #{table_name},
+                #{property_name},
+                #{data_type}
+              )
+            """)
+            .withNamedParameter("schema_name", schema)
+            .withNamedParameter("table_name", table)
+            .withNamedParameter("property_name", index.extractAlias())
+            .withNamedParameter("data_type", index.extractDataType());
   }
 
   public static SQLQuery checkIndexType(String schema, String table, String propertyName, int tableSampleCnt) {
@@ -332,8 +355,8 @@ public class IndexHelper {
       return Arrays.asList(SystemIndex.values()).stream()
               .map(index -> buildCreateIndexQuery(schema, table, index.getIndexContent(), index.getIndexType(), index.getIndexName(table)))
               .toList();
-    //layout == NEW_LAYOUT
 
+    //layout == NEW_LAYOUT
     return Stream.of(SystemIndex.GEO,
                     SystemIndex.NEXT_VERSION,
                     SystemIndex.VERSION_ID)

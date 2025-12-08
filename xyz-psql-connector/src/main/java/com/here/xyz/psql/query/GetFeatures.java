@@ -387,10 +387,10 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
   protected void handleFeature(ResultSet rs, StringBuilder result) throws SQLException {
     String geom = rs.getString("geo");
-    if(getTableLayout().equals(ConnectorParameters.TableLayout.OLD_LAYOUT))
-      result.append(rs.getString("jsondata"));
-    else if(getTableLayout().equals(ConnectorParameters.TableLayout.NEW_LAYOUT))
+    if(getTableLayout().equals(ConnectorParameters.TableLayout.NEW_LAYOUT))
       result.append(injectValuesIntoNameSpace(rs.getString("jsondata"), rs.getLong("version"), rs.getString("author")));
+    else
+      result.append(rs.getString("jsondata"));
     result.setLength(result.length() - 1);
     result.append(",\"geometry\":");
     result.append(geom == null ? "null" : geom);

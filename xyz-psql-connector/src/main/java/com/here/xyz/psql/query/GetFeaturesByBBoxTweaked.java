@@ -213,7 +213,7 @@ public class GetFeaturesByBBoxTweaked<E extends GetFeaturesByBBoxEvent, R extend
     SQLQuery filterWhereClause = new SQLQuery("${{indexedQuery}} AND ${{searchQuery}}");
 
     filterWhereClause.setQueryFragment("indexedQuery", indexedQuery);
-    SQLQuery searchQuery = generateSearchQuery(event);
+    SQLQuery searchQuery = generateSearchQuery(event, getTableLayout());
     if (searchQuery == null)
       filterWhereClause.setQueryFragment("searchQuery", "TRUE");
     else
@@ -450,7 +450,7 @@ public class GetFeaturesByBBoxTweaked<E extends GetFeaturesByBBoxEvent, R extend
 
 
      SQLQuery query = buildSimplificationTweaksMergeQuery(event, iMerge, tweaksGeoSql, minGeoHashLenToMerge, minGeoHashLenForLineMerge, bboxqry, convertGeo2Geojson);
-     final SQLQuery searchQuery = generateSearchQuery(event);
+     final SQLQuery searchQuery = generateSearchQuery(event, getTableLayout());
      if (searchQuery != null)
        query.setQueryFragment("searchQuery", new SQLQuery("AND ${{sq}}").withQueryFragment("sq", searchQuery));
      return query;
@@ -571,7 +571,7 @@ public class GetFeaturesByBBoxTweaked<E extends GetFeaturesByBBoxEvent, R extend
 
   private SQLQuery generateCombinedQueryTweaks(GetFeaturesByBBoxEvent event, SQLQuery indexedQuery, String tweaksgeo, boolean testTweaksGeoIfNull, float sampleRatio, boolean sortByHashedValue)
   {
-    SQLQuery searchQuery = generateSearchQuery(event);
+    SQLQuery searchQuery = generateSearchQuery(event, getTableLayout());
 
     final SQLQuery query = new SQLQuery("SELECT * FROM (SELECT ${{jsonData}}, ${{geo}} AS geo FROM ${schema}.${table} ${{sampling}} WHERE ${{indexedQuery}} ${{searchQuery}} ${{orderBy}}) tw ${{outerWhereClause}} LIMIT #{limit}")
         .withVariable(SCHEMA, getSchema())

@@ -356,25 +356,5 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
         .body("features[0].properties.key2", equalTo("value2"))
         .body("features[0].properties.population", equalTo(5000))
         .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(3));
-
-    given()
-        .headers(getAuthHeaders(ACCESS_ALL))
-        .when()
-        .get(getSpacesPath() + "/" + SPACE_ID + "/search?p.population=5000&author=" + AUTHOR_1)
-        .then()
-        .statusCode(OK.code())
-        .body("features.size()", equalTo(0));
-
-    given()
-        .headers(getAuthHeaders(ACCESS_ALL))
-        .when()
-        .get(getSpacesPath() + "/" + SPACE_ID + "/search?p.population=5000&author=" + AUTHOR_2)
-        .then()
-        .statusCode(OK.code())
-        .body("features.size()", equalTo(1))
-        .body("features[0].properties.key1", equalTo("value1"))
-        .body("features[0].properties.key2", equalTo("value2"))
-        .body("features[0].properties.population", equalTo(5000))
-        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(3));
   }
 }

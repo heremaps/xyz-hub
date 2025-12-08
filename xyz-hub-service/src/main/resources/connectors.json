@@ -4,10 +4,10 @@
     "params": {
       "autoIndexing": true,
       "propertySearch": true,
-      "onDemandIdxLimit": 8,
+      "onDemandIdxLimit": 20,
       "dbCheckoutTimeout": 12,
       "dbAcquireRetryAttempts": 10,
-      "connectorId" : "psql",
+      "connectorId" : "nl-connector",
       "ecps": "$encrypt({\"PSQL_HOST\":\"${PSQL_HOST}\",\"PSQL_REPLICA_HOST\":\"${PSQL_HOST}\",\"PSQL_REPLICA_USER\":\"ro_user\",\"PSQL_PORT\":\"${PSQL_PORT}\",\"PSQL_DB\":\"${PSQL_DB}\",\"PSQL_USER\":\"${PSQL_USER}\",\"PSQL_PASSWORD\":\"${PSQL_PASSWORD}\"})",
       "mvtSupport": true
     },
@@ -50,10 +50,10 @@
     "id": "psql-nl-connector",
     "params": {
       "propertySearch": true,
-      "onDemandIdxLimit": 8,
+      "onDemandIdxLimit": 20,
       "dbCheckoutTimeout": 12,
       "dbAcquireRetryAttempts": 10,
-      "connectorId" : "psql",
+      "connectorId" : "psql-nl-connector",
       "ecps": "$encrypt({\"PSQL_HOST\":\"${PSQL_HOST}\",\"PSQL_REPLICA_HOST\":\"${PSQL_HOST}\",\"PSQL_REPLICA_USER\":\"ro_user\",\"PSQL_PORT\":\"${PSQL_PORT}\",\"PSQL_DB\":\"${PSQL_DB}\",\"PSQL_USER\":\"${PSQL_USER}\",\"PSQL_PASSWORD\":\"${PSQL_PASSWORD}\"})",
       "mvtSupport": true
     },
@@ -94,7 +94,7 @@
     "params": {
       "autoIndexing": true,
       "propertySearch": true,
-      "onDemandIdxLimit": 8,
+      "onDemandIdxLimit": 20,
       "dbCheckoutTimeout": 12,
       "dbAcquireRetryAttempts": 10,
       "connectorId" : "psql",
@@ -135,44 +135,6 @@
       "headers": ["AuthorizatioN", "realm"],
       "queryParams": ["apiKey"]
     }
-  },
-  {
-    "id": "psql-http",
-    "capabilities": {
-      "clusteringTypes": [
-        "hexbin",
-        "quadbin"
-      ],
-      "enableAutoCache": true,
-      "maxPayloadSize": 2147483647,
-      "maxUncompressedSize": 1,
-      "preserializedResponseSupport": true,
-      "propertySearch": true,
-      "relocationSupport": false,
-      "searchablePropertiesConfiguration": true,
-      "mvtSupport": true
-    },
-    "connectionSettings": {
-      "maxConnections": 1024,
-      "minConnections": 0
-    },
-    "defaultEventTypes": null,
-    "params": {
-      "ecps": "$encrypt({\"PSQL_HOST\":\"${PSQL_HOST}\",\"PSQL_REPLICA_HOST\":\"${PSQL_HOST}\",\"PSQL_REPLICA_USER\":\"ro_user\",\"PSQL_PORT\":\"${PSQL_PORT}\",\"PSQL_DB\":\"${PSQL_DB}\",\"PSQL_USER\":\"${PSQL_USER}\",\"PSQL_PASSWORD\":\"${PSQL_PASSWORD}\",\"PSQL_MAX_CONN\":1024})",
-      "autoIndexing": true,
-      "propertySearch": true,
-      "mvtSupport": true
-    },
-    "remoteFunctions": {
-      "local": {
-        "id": "psql-http",
-        "type": "Http",
-        "url": "http://dummy",
-        "protocolVersion": "0.7.0",
-        "metricsActive": true
-      }
-    },
-    "trusted": true
   },
   {
     "id": "psql_db2_hashed",
