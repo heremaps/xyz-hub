@@ -680,7 +680,6 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
         .withQueryFragment("tables", String.join(",", tables))
         .withQueryFragment("format", format.toString())
         .withQueryFragment("entityPerLine", entityPerLine.toString())
-//        .withQueryFragment("writeHook", "'(feature, row) => { row.searchable = { \"sname\" : \"value new\" }}'" )
         .withQueryFragment("writeHook", writeHook == null ? "NULL" : "'" + writeHook + "'")
         .withVariable("schema", getSchema(db()))
         .withVariable("triggerFunction", triggerFunction)

@@ -1,9 +1,15 @@
 package com.here.xyz.jobs.steps.impl.transport.tools;
 
 import com.here.xyz.events.UpdateStrategy;
+import com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace.Format;
 import com.here.xyz.jobs.steps.impl.transport.tasks.inputs.ImportInput;
+import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
+import com.here.xyz.models.hub.Space;
+import com.here.xyz.psql.query.WriteFeatures;
 import com.here.xyz.util.db.SQLQuery;
+import com.here.xyz.util.web.XyzWebClient.WebClientException;
 
+import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
 
@@ -44,10 +50,10 @@ public class ImportQueryBuilder {
   }
 
   public SQLQuery buildTemporaryTriggerTableBlockForImportWithFW(String author, long newVersion, String superRootTable,
-                                                                 UpdateStrategy updateStrategy){
+                                                                 UpdateStrategy updateStrategy, String writeHook){
     return SQLQuery.batchOf(
             buildTemporaryTriggerTableForImportQuery(),
-            buildCreateFeatureWriterImportTrigger(author, newVersion, superRootTable, updateStrategy)
+            buildCreateFeatureWriterImportTrigger(author, newVersion, superRootTable, updateStrategy,writeHook)
     );
   }
   public SQLQuery buildNextVersionQuery(){
@@ -109,7 +115,7 @@ public class ImportQueryBuilder {
   }
 
   private SQLQuery buildCreateFeatureWriterImportTrigger(String author, long newVersion, String superRootTable,
-                                                         UpdateStrategy updateStrategy){
+                                                         UpdateStrategy updateStrategy, String writeHook){
     List<String> tables = superRootTable == null ? List.of(rootTable) : List.of(superRootTable, rootTable);
 
     //TODO: Check if we can forward the whole transaction to the FeatureWriter rather than doing it for each row
@@ -127,7 +133,8 @@ public class ImportQueryBuilder {
              ${{context}},
              '${{tables}}',
              '${{format}}',
-             '${{entityPerLine}}'
+             '${{entityPerLine}}',
+             ${{writeHook}}
              )
         """)
             .withQueryFragment("spaceVersion", Long.toString(newVersion))
@@ -145,6 +152,7 @@ public class ImportQueryBuilder {
             .withQueryFragment("format", GEOJSON.name())
             //If FeatureCollection is supported in the future, this needs to be adapted with EMR
             .withQueryFragment("entityPerLine", "Feature")
+            .withQueryFragment("writeHook", writeHook == null ? "NULL" : "'" + writeHook + "'")
             .withVariable("schema", schema)
             .withVariable("triggerFunction", "import_from_s3_trigger_for_non_empty_layer")
             .withVariable("table", temporaryImportTable);
