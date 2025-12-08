@@ -295,7 +295,7 @@ public class PSQLSearchIT extends PSQLAbstractIT {
     // Test 14
     Map<String, Object> test14 = MAPPER.readValue(ORIGINAL_EVENT, TYPE_REFERENCE);
     Map<String, Object> properties14_1 = new HashMap<>();
-    properties14_1.put("key", "id");
+    properties14_1.put("key", "f.id");
     properties14_1.put("operation", "GREATER_THAN");
     properties14_1.put("values", Collections.singletonList(0));
     addPropertiesQueryToSearchObject(test14, false, properties14_1);
@@ -311,7 +311,7 @@ public class PSQLSearchIT extends PSQLAbstractIT {
   public void test15() throws Exception { //TODO: rename
     Map<String, Object> test15 = MAPPER.readValue(ORIGINAL_EVENT, TYPE_REFERENCE);
     Map<String, Object> properties15_1 = new HashMap<>();
-    properties15_1.put("key", "id");
+    properties15_1.put("key", "f.id");
     properties15_1.put("operation", "EQUALS");
     properties15_1.put("values", Collections.singletonList("F1"));
     addPropertiesQueryToSearchObject(test15, false, properties15_1);
