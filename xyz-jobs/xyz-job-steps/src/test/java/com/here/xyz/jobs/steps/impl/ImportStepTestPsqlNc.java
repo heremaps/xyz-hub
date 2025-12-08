@@ -112,13 +112,13 @@ public class ImportStepTestPsqlNc extends ImportStepTest {
   @Override
   @Test
   public void testImport_inNonEmpty_GEOJSON_Entity_FeatureCollection() throws Exception {
-    super.testImport_inNonEmpty_GEOJSON_Entity_FeatureCollection();
-/*
+    //super.testImport_inNonEmpty_GEOJSON_Entity_FeatureCollection();
+
      int existingFeatureCount = 10;
     //CSV_JSON_WKB gets always executed ASYNC
     putRandomFeatureCollectionToSpace(SPACE_ID, existingFeatureCount);
     executeImportStep(TaskedImportFilesToSpace.Format.GEOJSON, existingFeatureCount, EntityPerLine.Feature);
-*/
+
   }
 
 

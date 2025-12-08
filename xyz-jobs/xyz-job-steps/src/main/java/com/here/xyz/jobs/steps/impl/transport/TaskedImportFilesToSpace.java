@@ -38,10 +38,12 @@ import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.jobs.util.S3Client;
 import com.here.xyz.models.hub.Space;
+import com.here.xyz.psql.query.WriteFeatures;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.service.Core;
+import com.here.xyz.util.web.XyzWebClient.WebClientException;
 
 import java.io.IOException;
 import java.sql.SQLException;
@@ -167,8 +169,13 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
 
     if(useFeatureWriter()) {
       String superRootTable = space().getExtension() != null ? getRootTableName(superSpace()) : null;
+
+      String writeHook = space().getSearchableProperties() != null && getTableLayout().hasSearchableColumn() == true
+                         ? WriteFeatures.writeHook( Space.toExtractableSearchProperties(space()) )
+                         : null;
+
       runBatchWriteQuerySync(getQueryBuilder().buildTemporaryTriggerTableBlockForImportWithFW(space().getOwner(),
-             newVersion, superRootTable, updateStrategy), db(), 0);
+             newVersion, superRootTable, updateStrategy, writeHook), db(), 0);
     }else{
       if(format.equals(FAST_IMPORT_INTO_EMPTY))
         return;
@@ -274,7 +281,7 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
 
     return !isUserInputsExpected() || isUserInputsPresent(UploadUrl.class);
   }
-  
+
   @Override
   protected SQLQuery buildTaskQuery(Integer taskId, ImportInput taskInput, String failureCallback)
           throws WebClientException {
