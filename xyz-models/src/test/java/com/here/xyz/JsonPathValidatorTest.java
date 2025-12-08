@@ -283,5 +283,22 @@ public class JsonPathValidatorTest {
         assertInvalid("$.a[?( foo(@.x) )]");
         assertInvalid("$.a[?( bar() )]");
     }
+
+    @Test
+    @DisplayName("Namespace-like member names with @ after dot")
+    void namespaceLikeMembers() {
+        assertValid("$.properties.@ns:com:here:xyz.created");
+        assertValid("$.@ns:com");
+        assertValid("$.a.@ns:com:here:xyz");
+    }
+
+    @Test
+    @DisplayName("Malformed @-member segments after dot should still be rejected")
+    void malformedNamespaceLikeMembers() {
+        assertInvalid("$.properties.@");
+        assertInvalid("$.properties.@ns:");
+        assertInvalid("$.properties.@1foo");
+        assertInvalid("$.@");
+    }
 }
 

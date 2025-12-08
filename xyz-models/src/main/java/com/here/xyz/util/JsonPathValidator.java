@@ -398,6 +398,12 @@ public final class JsonPathValidator {
                     } else if (peek(TokenType.STRING)) {
                         // $."quoted"
                         next();
+                    } else if (accept(TokenType.AT)) {
+                        // $.@ns:com:here:xyz style member names
+                        expect(TokenType.IDENT, "expected identifier after '@' in member name");
+                        while (accept(TokenType.COLON)) {
+                            expect(TokenType.IDENT, "expected identifier after ':' in member name");
+                        }
                     } else {
                         // $.name(unquoted identifier)
                         expect(TokenType.IDENT, "expected member name after '.'");
