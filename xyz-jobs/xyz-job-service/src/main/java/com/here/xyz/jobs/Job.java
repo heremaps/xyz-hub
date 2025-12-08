@@ -348,12 +348,18 @@ public class Job implements XyzSerializable {
     return updateStep(step, existingStep.getStatus().getState(), true);
   }
 
+  //NOTE: This method is currently only used to update a step by its ID from incoming events (e.g., from EMR) rather than using an incoming step payload
   public Future<Void> updateStepStatus(String stepId, RuntimeInfo status, boolean cancelOnFailure) {
     final Step step = getStepById(stepId);
     if (step == null)
       throw new IllegalArgumentException("The provided step with ID " + stepId + " was not found.");
 
     State existingStepState = step.getStatus().getState();
+
+    //NOTE: This is a workaround for incoming events which try to set a step directly to CANCELLED without going through CANCELLING
+    if (status.getState() == CANCELLED && !existingStepState.isValidSuccessor(status.getState())
+        && existingStepState.isValidSuccessor(CANCELLING))
+      step.getStatus().setState(CANCELLING);
 
     step.getStatus()
         .withState(status.getState())
@@ -365,6 +371,7 @@ public class Job implements XyzSerializable {
   }
 
   private Future<Void> updateStep(Step step, State previousStepState, boolean cancelOnFailure) {
+    State previousJobState = getStatus().getState();
     //TODO: Once the state was SUCCEEDED it should not be mutable at all anymore
     if (previousStepState != null && !step.getStatus().getState().isFinal() && previousStepState.isFinal())
       //In case the step was already marked to have a final state, ignore any subsequent non-final updates to it
@@ -398,7 +405,7 @@ public class Job implements XyzSerializable {
     }
 
     return storeUpdatedStep(step)
-        .compose(v -> storeStatus(null))
+        .compose(v -> storeStatus(previousJobState)) //TODO: Retry on IllegalStateTransitions after re-loading the status?
         .compose(v -> getStatus().getState() == FAILED && cancelOnFailure ?
             JobExecutor.getInstance().cancel(getExecutionId(), "Cancelled due to failed step \"" + step.getId() + "\"")
                 .recover(t -> {
