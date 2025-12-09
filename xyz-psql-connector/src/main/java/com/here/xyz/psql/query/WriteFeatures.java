@@ -68,7 +68,7 @@ public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureColl
       tables.addAll(branchPathToTableChain(rootTableName, event.getBranchPath(), event.getNodeId()));
       tableBaseVersions = new ArrayList<>();
       tableBaseVersions.add(0l);
-      tableBaseVersions.addAll(event.getBranchPath().stream().map(baseRef -> baseRef.getVersion()).toList());
+      tableBaseVersions.addAll(event.getBranchPath().stream().map(baseRef -> baseRef.getVersion()).collect(java.util.stream.Collectors.toList()));
     }
     else {
       if (isExtendedSpace(event)) {
@@ -119,13 +119,30 @@ public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureColl
       String details = message.contains("\n") && sqlError != FEATURE_EXISTS && sqlError != FEATURE_NOT_EXISTS
           ? message.substring(message.indexOf("\n") + 1)
           : null;
-      throw switch (sqlError) {
-        case FEATURE_EXISTS, VERSION_CONFLICT_ERROR, MERGE_CONFLICT_ERROR, RETRYABLE_VERSION_CONFLICT -> new ErrorResponseException(CONFLICT, cleanMessage, e).withInternalDetails(details);
-        case DUPLICATE_KEY -> new ErrorResponseException(CONFLICT, "Conflict while writing features.", e).withInternalDetails(details); //TODO: Handle all conflicts in FeatureWriter properly
-        case FEATURE_NOT_EXISTS -> new ErrorResponseException(NOT_FOUND, cleanMessage, e).withInternalDetails(details);
-        case ILLEGAL_ARGUMENT -> new ErrorResponseException(XyzError.ILLEGAL_ARGUMENT, cleanMessage, e).withInternalDetails(details);
-        case XYZ_EXCEPTION, UNKNOWN -> new ErrorResponseException(EXCEPTION, e.getMessage(), e).withInternalDetails(details);
-      };
+      ErrorResponseException exception;
+      switch (sqlError) {
+        case FEATURE_EXISTS:
+        case VERSION_CONFLICT_ERROR:
+        case MERGE_CONFLICT_ERROR:
+        case RETRYABLE_VERSION_CONFLICT:
+          exception = new ErrorResponseException(CONFLICT, cleanMessage, e).withInternalDetails(details);
+          break;
+        case DUPLICATE_KEY:
+          exception = new ErrorResponseException(CONFLICT, "Conflict while writing features.", e).withInternalDetails(details); //TODO: Handle all conflicts in FeatureWriter properly
+          break;
+        case FEATURE_NOT_EXISTS:
+          exception = new ErrorResponseException(NOT_FOUND, cleanMessage, e).withInternalDetails(details);
+          break;
+        case ILLEGAL_ARGUMENT:
+          exception = new ErrorResponseException(XyzError.ILLEGAL_ARGUMENT, cleanMessage, e).withInternalDetails(details);
+          break;
+        case XYZ_EXCEPTION:
+        case UNKNOWN:
+        default:
+          exception = new ErrorResponseException(EXCEPTION, e.getMessage(), e).withInternalDetails(details);
+          break;
+      }
+      throw exception;
     }
   }
 

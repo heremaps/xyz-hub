@@ -98,7 +98,7 @@
     <jts-version>1.19.0</jts-version>
     <jackson-version>2.15.2</jackson-version>
     <lambda-core-version>1.2.1</lambda-core-version>
-    <log4j-version>2.20.0</log4j-version>
+    <log4j-version>2.23.1</log4j-version>
     <aws-log4j-version>1.5.1</aws-log4j-version>
   </properties>
 
@@ -577,7 +577,7 @@
       <dependency>
         <groupId>org.apache.commons</groupId>
         <artifactId>commons-lang3</artifactId>
-        <version>3.13.0</version>
+        <version>3.14.0</version>
       </dependency>
 
       <!-- Cache -->
@@ -627,7 +627,7 @@
       <!-- Logging -->
       <dependency>
         <groupId>org.apache.logging.log4j</groupId>
-        <artifactId>log4j-slf4j-impl</artifactId>
+        <artifactId>log4j-slf4j2-impl</artifactId>
         <version>${log4j-version}</version>
       </dependency>
       <dependency>

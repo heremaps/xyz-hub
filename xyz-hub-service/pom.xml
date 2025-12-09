@@ -192,7 +192,7 @@
 
     <!-- Logging libraries -->
     <dependency>
-      <artifactId>log4j-slf4j-impl</artifactId>
+      <artifactId>log4j-slf4j2-impl</artifactId>
       <groupId>org.apache.logging.log4j</groupId>
     </dependency>
     <dependency>

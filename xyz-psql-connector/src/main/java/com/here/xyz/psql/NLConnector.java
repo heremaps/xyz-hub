@@ -264,16 +264,25 @@ public class NLConnector extends PSQLXyzConnector {
         else if (key.equalsIgnoreCase("properties." + GLOBAL_VERSION_SEARCH_KEY)
                 && operation.equals(PropertyQuery.QueryOperation.EQUALS)) {
           for(Object v : values){
-            if(v instanceof Integer globalVersion)
+            if(v instanceof Integer) {
+              Integer globalVersion = (Integer) v;
               globalVersions.add(globalVersion);
-            else if(v instanceof Long globalVersion)
+            }
+            else if(v instanceof Long) {
+              Long globalVersion = (Long) v;
               globalVersions.add(globalVersion.intValue());
-            else if(v instanceof List<?> globalVersionList){
+            }
+            else if(v instanceof List<?>) {
+              List<?> globalVersionList = (List<?>) v;
               for(Object vv : globalVersionList){
-                if(vv instanceof Integer globalVersion)
+                if(vv instanceof Integer) {
+                  Integer globalVersion = (Integer) vv;
                   globalVersions.add(globalVersion);
-                else if(vv instanceof Long globalVersion)
+                }
+                else if(vv instanceof Long) {
+                  Long globalVersion = (Long) vv;
                   globalVersions.add(globalVersion.intValue());
+                }
                 else
                   throw new IllegalArgumentException("Value for 'p." + GLOBAL_VERSION_SEARCH_KEY + "' must be an Integer or a List<Integer>!");
               }
@@ -285,12 +294,17 @@ public class NLConnector extends PSQLXyzConnector {
         else if (key.equalsIgnoreCase("properties." + REFERENCES_PROPERTY_KEY)
                 && operation.equals(PropertyQuery.QueryOperation.EQUALS)) {
           for(Object v : values){
-            if(v instanceof String reference)
+            if(v instanceof String) {
+              String reference = (String) v;
               references.add(reference);
-            else if(v instanceof List<?> referenceList){
+            }
+            else if(v instanceof List<?>) {
+              List<?> referenceList = (List<?>) v;
               for(Object vv : referenceList){
-                if(vv instanceof String reference)
+                if(vv instanceof String) {
+                  String reference = (String) vv;
                   references.add(reference);
+                }
                 else
                   throw new IllegalArgumentException("Value for 'p." + REFERENCES_PROPERTY_KEY + "' must be an String or a List<String>!");
               }
@@ -323,7 +337,19 @@ public class NLConnector extends PSQLXyzConnector {
     return run( new EraseSpace(event).withTableLayout(NEW_LAYOUT));
   }
 
-  public record PropertiesQueryInput(String refQuad, List<Integer> globalVersions, String status, List<String> references) {
+  public static class PropertiesQueryInput {
+    public final String refQuad;
+    public final List<Integer> globalVersions;
+    public final String status;
+    public final List<String> references;
+
+    public PropertiesQueryInput(String refQuad, List<Integer> globalVersions, String status, List<String> references) {
+      this.refQuad = refQuad;
+      this.globalVersions = globalVersions;
+      this.status = status;
+      this.references = references;
+    }
+
     public Character[] getOperations(){
       if (status == null || status.isEmpty()) return new Character[0];
       String[] ops = status.split(",");
@@ -529,17 +555,16 @@ public class NLConnector extends PSQLXyzConnector {
     }
 
     if (baseTable == null) {
-      return """
-               WITH params AS (
-                   SELECT '$refQuad$'::text AS parent, $quadKeyLevel$ AS relative_level
-               )
-               SELECT LEFT(searchable->>'refQuad', LENGTH(parent) + relative_level) AS child_quad,
-                      COUNT(*) AS cnt
-               FROM "$schema$"."$table$", params
-               WHERE searchable->>'refQuad' LIKE parent || '%'
-                 $globalVersionFilter$
-               GROUP BY child_quad;
-              """
+      return ("               WITH params AS (\n" +
+              "                   SELECT '$refQuad$'::text AS parent, $quadKeyLevel$ AS relative_level\n" +
+              "               )\n" +
+              "               SELECT LEFT(searchable->>'refQuad', LENGTH(parent) + relative_level) AS child_quad,\n" +
+              "                      COUNT(*) AS cnt\n" +
+              "               FROM \"$schema$\".\"$table$\", params\n" +
+              "               WHERE searchable->>'refQuad' LIKE parent || '%'\n" +
+              "                 $globalVersionFilter$\n" +
+              "               GROUP BY child_quad;\n" +
+              "              ")
               .replace("$refQuad$", input.refQuad)
               .replace("$quadKeyLevel$", Integer.toString(quadKeyLevel))
               .replace("$schema$", schema)
@@ -547,54 +572,53 @@ public class NLConnector extends PSQLXyzConnector {
               .replace("$globalVersionFilter$", globalVersionFilter);
     }
 
-    return """
-          WITH params AS (
-              SELECT '$refQuad$'::text AS parent, $quadKeyLevel$ AS relative_level
-          ),
-          combined AS (
-            SELECT *
-            FROM (
-                SELECT
-                    id,
-                    searchable->>'refQuad' AS refquad,
-                    operation,
-                    next_version
-                FROM "$schema$"."$extensionTable$"
-                WHERE operation NOT IN ('D', 'H', 'J')
-                  $globalVersionFilter$
-            )
-            UNION ALL
-            (
-                SELECT *
-                FROM (
-                    SELECT
-                        id,
-                        searchable->>'refQuad' AS refquad,
-                        operation,
-                        next_version
-                    FROM "$schema$"."$baseTable$"
-                    WHERE 1=1
-                      $globalVersionFilter$
-                ) base
-                WHERE NOT EXISTS (
-                    SELECT 1
-                    FROM "$schema$"."$extensionTable$"
-                    WHERE id = base.id
-                      AND next_version = 9223372036854775807::BIGINT
-                      AND operation != 'D'
-                )
-              )
-            ),
-            filtered AS (
-                SELECT c.*
-                  FROM combined c
-                 WHERE c.refquad LIKE (SELECT parent FROM params) || '%'
-            )
-            SELECT LEFT(f.refquad, LENGTH(p.parent) + p.relative_level) AS child_quad,
-                   COUNT(f.refquad) AS cnt
-              FROM filtered f, params p
-             GROUP BY child_quad;
-          """
+    return ("          WITH params AS (\n" +
+            "              SELECT '$refQuad$'::text AS parent, $quadKeyLevel$ AS relative_level\n" +
+            "          ),\n" +
+            "          combined AS (\n" +
+            "            SELECT *\n" +
+            "            FROM (\n" +
+            "                SELECT\n" +
+            "                    id,\n" +
+            "                    searchable->>'refQuad' AS refquad,\n" +
+            "                    operation,\n" +
+            "                    next_version\n" +
+            "                FROM \"$schema$\".\"$extensionTable$\"\n" +
+            "                WHERE operation NOT IN ('D', 'H', 'J')\n" +
+            "                  $globalVersionFilter$\n" +
+            "            )\n" +
+            "            UNION ALL\n" +
+            "            (\n" +
+            "                SELECT *\n" +
+            "                FROM (\n" +
+            "                    SELECT\n" +
+            "                        id,\n" +
+            "                        searchable->>'refQuad' AS refquad,\n" +
+            "                        operation,\n" +
+            "                        next_version\n" +
+            "                    FROM \"$schema$\".\"$baseTable$\"\n" +
+            "                    WHERE 1=1\n" +
+            "                      $globalVersionFilter$\n" +
+            "                ) base\n" +
+            "                WHERE NOT EXISTS (\n" +
+            "                    SELECT 1\n" +
+            "                    FROM \"$schema$\".\"$extensionTable$\"\n" +
+            "                    WHERE id = base.id\n" +
+            "                      AND next_version = 9223372036854775807::BIGINT\n" +
+            "                      AND operation != 'D'\n" +
+            "                )\n" +
+            "              )\n" +
+            "            ),\n" +
+            "            filtered AS (\n" +
+            "                SELECT c.*\n" +
+            "                  FROM combined c\n" +
+            "                 WHERE c.refquad LIKE (SELECT parent FROM params) || '%'\n" +
+            "            )\n" +
+            "            SELECT LEFT(f.refquad, LENGTH(p.parent) + p.relative_level) AS child_quad,\n" +
+            "                   COUNT(f.refquad) AS cnt\n" +
+            "              FROM filtered f, params p\n" +
+            "             GROUP BY child_quad;\n" +
+            "          ")
             .replace("$refQuad$", input.refQuad)
             .replace("$quadKeyLevel$", Integer.toString(quadKeyLevel))
             .replace("$schema$", schema)
@@ -618,26 +642,24 @@ public class NLConnector extends PSQLXyzConnector {
     }
 
     if(baseTable == null)
-      return """
-               SELECT operation, COUNT(*) AS cnt
-                FROM "$schema$"."$table$"
-               WHERE operation IN($operations$)
-               GROUP BY operation;
-              """
+      return ("               SELECT operation, COUNT(*) AS cnt\n" +
+              "                FROM \"$schema$\".\"$table$\"\n" +
+              "               WHERE operation IN($operations$)\n" +
+              "               GROUP BY operation;\n" +
+              "              ")
              .replace("$operations$", opsString)
              .replace("$schema$", schema)
              .replace("$table$", extensionTable + "_head");
-    return """
-            SELECT operation, COUNT(*) AS cnt
-            FROM (
-              SELECT operation FROM "$schema$"."$baseTable$"
-                WHERE operation IN($operations$)
-              UNION ALL
-              SELECT operation FROM "$schema$"."$extensionTable$"
-                WHERE operation IN($operations$)
-            ) AS combined
-            GROUP BY operation
-            """
+    return ("            SELECT operation, COUNT(*) AS cnt\n" +
+            "            FROM (\n" +
+            "              SELECT operation FROM \"$schema$\".\"$baseTable$\"\n" +
+            "                WHERE operation IN($operations$)\n" +
+            "              UNION ALL\n" +
+            "              SELECT operation FROM \"$schema$\".\"$extensionTable$\"\n" +
+            "                WHERE operation IN($operations$)\n" +
+            "            ) AS combined\n" +
+            "            GROUP BY operation\n" +
+            "            ")
             .replace("$operations$", opsString)
             .replace("$schema$", schema)
             .replace("$baseTable$", baseTable + "_head")
@@ -660,32 +682,30 @@ public class NLConnector extends PSQLXyzConnector {
               .map(v -> "('" + v + "')")
               .collect(java.util.stream.Collectors.joining(","));
 
-    String selection = """
-            jsonb_build_object(
-                          'type', 'FeatureCollection',
-                          'features', jsonb_build_array(
-                               jsonb_build_object(
-                                   'type', 'Feature',
-                                   'properties',jsonb_build_object('references', jsonb_object_agg(ref, ids))
-                               )
-                           )
-            ) AS featureCollection
-            """;
+    String selection = ("            jsonb_build_object(\n" +
+            "                          'type', 'FeatureCollection',\n" +
+            "                          'features', jsonb_build_array(\n" +
+            "                               jsonb_build_object(\n" +
+            "                                   'type', 'Feature',\n" +
+            "                                   'properties',jsonb_build_object('references', jsonb_object_agg(ref, ids))\n" +
+            "                               )\n" +
+            "                           )\n" +
+            "            ) AS featureCollection\n" +
+            "            ");
 
-    String query = """
-            SELECT
-                id,
-                ref
-            FROM "$schema$"."$table$" t
-            CROSS JOIN (
-                VALUES $joinedReferences$
-            ) AS v(ref)
-            WHERE
-                t.searchable->'references' @> jsonb_build_array(v.ref)
-                AND t.operation NOT IN ('D','H','J')
-                AND t.next_version = 9223372036854775807::BIGINT
-                $limit$
-            """.replace("$joinedReferences$", joinedReferences)
+    String query = ("            SELECT\n" +
+            "                id,\n" +
+            "                ref\n" +
+            "            FROM \"$schema$\".\"$table$\" t\n" +
+            "            CROSS JOIN (\n" +
+            "                VALUES $joinedReferences$\n" +
+            "            ) AS v(ref)\n" +
+            "            WHERE\n" +
+            "                t.searchable->'references' @> jsonb_build_array(v.ref)\n" +
+            "                AND t.operation NOT IN ('D','H','J')\n" +
+            "                AND t.next_version = 9223372036854775807::BIGINT\n" +
+            "                $limit$\n" +
+            "            ").replace("$joinedReferences$", joinedReferences)
                .replace("$limit$", limit > 0 ? " LIMIT " + limit : "");
 
     String inner1 = query.replace("$schema$", schema).replace("$table$", extensionTable + "_head");;
@@ -698,15 +718,14 @@ public class NLConnector extends PSQLXyzConnector {
     }
     //unified case
     String inner2 = query.replace("$schema$", schema).replace("$table$", baseTable + "_head");;
-    String whereNotExistsCondition = """
-            WHERE NOT EXISTS (
-                  SELECT 1
-                    FROM "$schema$"."$table$"
-                  WHERE id = a.id
-                    AND next_version = 9223372036854775807::BIGINT
-                    AND operation != 'D'
-                )
-            """
+    String whereNotExistsCondition = ("            WHERE NOT EXISTS (\n" +
+            "                  SELECT 1\n" +
+            "                    FROM \"$schema$\".\"$table$\"\n" +
+            "                  WHERE id = a.id\n" +
+            "                    AND next_version = 9223372036854775807::BIGINT\n" +
+            "                    AND operation != 'D'\n" +
+            "                )\n" +
+            "            ")
             .replace("$schema$", schema)
             .replace("$table$", extensionTable);
 
@@ -737,12 +756,11 @@ public class NLConnector extends PSQLXyzConnector {
     String baseTable = tables.size() == 2 ? tables.get(1) : null;
 
     // Build the WHERE filter fragment (shared)
-    StringBuilder filter = new StringBuilder("""
-            WHERE  operation NOT IN (
-              SELECT unnest(ARRAY['D','H','J']::CHAR[])
-            )
-            AND next_version = 9223372036854775807::BIGINT
-            """);
+    StringBuilder filter = new StringBuilder("            WHERE  operation NOT IN (\n" +
+            "              SELECT unnest(ARRAY['D','H','J']::CHAR[])\n" +
+            "            )\n" +
+            "            AND next_version = 9223372036854775807::BIGINT\n" +
+            "            ");
     if (refQuad != null) {
       filter.append(" AND searchable->'refQuad' >= to_jsonb('")
               .append(refQuad)
@@ -775,15 +793,14 @@ public class NLConnector extends PSQLXyzConnector {
       finalQuery = inner1;
     }else {
       String inner2 = "SELECT * FROM \"" + schema + "\".\"" + baseTable + "_head\" " + filter;
-      String whereNotExistsCondition = """
-            WHERE NOT EXISTS (
-                  SELECT 1
-                  	FROM "$schema$"."$table$"
-                  WHERE id = a.id
-                    AND next_version = 9223372036854775807::BIGINT
-                    AND operation != 'D'
-                )
-            """
+      String whereNotExistsCondition = ("            WHERE NOT EXISTS (\n" +
+              "                  SELECT 1\n" +
+              "                  \tFROM \"$schema$\".\"$table$\"\n" +
+              "                  WHERE id = a.id\n" +
+              "                    AND next_version = 9223372036854775807::BIGINT\n" +
+              "                    AND operation != 'D'\n" +
+              "                )\n" +
+              "            ")
               .replace("$schema$", schema)
               .replace("$table$", extensionTable);
       // UNION ALL combined set
@@ -796,41 +813,39 @@ public class NLConnector extends PSQLXyzConnector {
     }
 
     // FeatureCollection aggregation across unioned rows
-    String selection = """
-        '{ "type": "FeatureCollection", "features": [' ||
-         COALESCE(
-           string_agg(
-             regexp_replace(
-               regexp_replace(
-                 jsondata,
-                 '("(@ns:com:here:xyz)"\\s*:\\s*\\{)',
-                 '\\1"version":' || version || ',"author":"' || coalesce(author, 'ANONYMOUS') || '",',
-                 'g'
-               ),
-               '^{',
-               '{' || '"geometry":' || coalesce(ST_AsGeoJSON(geo, 8), 'null') || ',',
-               'g'
-             ),
-             ','
-           ),
-           ''
-         )
-         || '] }' AS featureCollection
-        """;
+    String selection = ("        '{ \"type\": \"FeatureCollection\", \"features\": [' ||\n" +
+            "         COALESCE(\n" +
+            "           string_agg(\n" +
+            "             regexp_replace(\n" +
+            "               regexp_replace(\n" +
+            "                 jsondata,\n" +
+            "                 '(\"(@ns:com:here:xyz)\"\\\\s*:\\\\s*\\\\{)',\n" +
+            "                 '\\\\1\"version\":' || version || ',\"author\":\"' || coalesce(author, 'ANONYMOUS') || '\",',\n" +
+            "                 'g'\n" +
+            "               ),\n" +
+            "               '^{',\n" +
+            "               '{' || '\"geometry\":' || coalesce(ST_AsGeoJSON(geo, 8), 'null') || ',',\n" +
+            "               'g'\n" +
+            "             ),\n" +
+            "             ','\n" +
+            "           ),\n" +
+            "           ''\n" +
+            "         )\n" +
+            "         || '] }' AS featureCollection\n" +
+            "        ");
 
     // This is used for a references search
-    String referencesSelection = """
-        '{ "type": "FeatureCollection", "features": ['
-           || '{"type":"Feature","references" : ['
-           || COALESCE(
-             string_agg(
-                '"'||id||'"',
-               ','
-             ),
-             ''
-           )
-           || ']}] }' AS featureCollection
-        """;
+    String referencesSelection = ("        '{ \"type\": \"FeatureCollection\", \"features\": ['\n" +
+            "           || '{\"type\":\"Feature\",\"references\" : ['\n" +
+            "           || COALESCE(\n" +
+            "             string_agg(\n" +
+            "                '\"'||id||'\"',\n" +
+            "               ','\n" +
+            "             ),\n" +
+            "             ''\n" +
+            "           )\n" +
+            "           || ']}] }' AS featureCollection\n" +
+            "        ");
 
     return "SELECT " + (references.isEmpty() ? selection : referencesSelection) + " FROM (" + finalQuery + ") t";
   }
@@ -844,11 +859,10 @@ public class NLConnector extends PSQLXyzConnector {
           List<ModificationFailure> fails
   ) throws SQLException, JsonProcessingException {
 
-    String insertSql = """
-        INSERT INTO %s.%s
-          (id, geo, operation, author, version, jsondata, searchable)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-        """.formatted(schema, table);
+    String insertSql = String.format("        INSERT INTO %s.%s\n" +
+            "          (id, geo, operation, author, version, jsondata, searchable)\n" +
+            "        VALUES (?, ?, ?, ?, ?, ?, ?)\n" +
+            "        ", schema, table);
 
     try (Connection connection = dataSourceProvider.getWriter().getConnection()) {
       connection.setAutoCommit(false);
@@ -948,25 +962,24 @@ public class NLConnector extends PSQLXyzConnector {
           List<ModificationFailure> fails
   ) throws SQLException, JsonProcessingException {
 
-    String mergeSql = """
-        MERGE INTO %s.%s AS t
-        USING (
-          VALUES (?, ?, ?, ?, ?, ?, ?)
-        ) AS s(id, geo, operation, author, version, jsondata, searchable)
-        --ON (t.id = s.id AND t.next_version = 9223372036854775807 AND t.global_version = s.global_version)
-        ON (t.id = s.id AND t.version = s.version AND t.next_version = 9223372036854775807)
-        WHEN MATCHED THEN
-          UPDATE SET
-            jsondata  = s.jsondata,
-            geo       = s.geo,
-            version   = s.version,
-            author    = s.author,
-            operation = 'U',
-            searchable = s.searchable
-        WHEN NOT MATCHED THEN
-          INSERT (id, geo, operation, author, version, jsondata, searchable)
-          VALUES (s.id, s.geo, s.operation, s.author, s.version, s.jsondata, s.searchable);
-        """.formatted(schema, table);
+    String mergeSql = String.format("        MERGE INTO %s.%s AS t\n" +
+            "        USING (\n" +
+            "          VALUES (?, ?, ?, ?, ?, ?, ?)\n" +
+            "        ) AS s(id, geo, operation, author, version, jsondata, searchable)\n" +
+            "        --ON (t.id = s.id AND t.next_version = 9223372036854775807 AND t.global_version = s.global_version)\n" +
+            "        ON (t.id = s.id AND t.version = s.version AND t.next_version = 9223372036854775807)\n" +
+            "        WHEN MATCHED THEN\n" +
+            "          UPDATE SET\n" +
+            "            jsondata  = s.jsondata,\n" +
+            "            geo       = s.geo,\n" +
+            "            version   = s.version,\n" +
+            "            author    = s.author,\n" +
+            "            operation = 'U',\n" +
+            "            searchable = s.searchable\n" +
+            "        WHEN NOT MATCHED THEN\n" +
+            "          INSERT (id, geo, operation, author, version, jsondata, searchable)\n" +
+            "          VALUES (s.id, s.geo, s.operation, s.author, s.version, s.jsondata, s.searchable);\n" +
+            "        ", schema, table);
 
     try (Connection connection = dataSourceProvider.getWriter().getConnection()) {
       connection.setAutoCommit(false);

@@ -121,7 +121,9 @@ public abstract class EntryConnectorHandler extends AbstractConnectorHandler imp
           case BAD_GATEWAY:
           case TIMEOUT:
             logger.error("[{}] Unexpected exception in connector:", streamId, e);
-          default -> logger.warn("[{}] Exception in connector:", streamId, e);
+            break;
+          default:
+            logger.warn("[{}] Exception in connector:", streamId, e);
             break;
         }
         if (e.getInternalDetails() != null)
