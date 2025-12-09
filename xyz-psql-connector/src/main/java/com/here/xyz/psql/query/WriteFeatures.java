@@ -168,9 +168,20 @@ public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureColl
           let searchables = {};
 
           for (const alias in searchableProperties) {
-            const jsonPath = searchableProperties[alias];
+            const sp = searchableProperties[alias];
+            const idx = sp.lastIndexOf("::");
+            let jsonPath = sp;
+            let bScalar = true;
+            if (idx !== -1) {
+             jsonPath = sp.slice(0, idx);
+             bScalar = ( sp.slice(idx + 2) === "scalar" );
+            }
+
             try {
-              searchables[alias] = jsonpath_rfc9535.query(feature, jsonPath)[0];
+              if( bScalar )
+               searchables[alias] = jsonpath_rfc9535.query(feature, jsonPath)[0];
+              else
+               searchables[alias] = jsonpath_rfc9535.query(feature, jsonPath);
             }
             catch (err) {
               throw new Error(`Error evaluating JSONPath for alias ${alias} and expression ${jsonPath} message: ${err.message}`);
