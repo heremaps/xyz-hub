@@ -1042,6 +1042,10 @@ public class Space {
 
   public static Map<String, String> toExtractableSearchProperties(Space space) {
     Map<String, String> extractableSearchProperties = new HashMap<>();
+
+    if(space.getSearchableProperties() == null)
+      return extractableSearchProperties;
+
     for (Entry<String, Boolean> sp : space.getSearchableProperties().entrySet()) {
 
       String searchableExpression = sp.getKey().contains("::") ? sp.getKey().substring(0, sp.getKey().indexOf("::")) : sp.getKey();
