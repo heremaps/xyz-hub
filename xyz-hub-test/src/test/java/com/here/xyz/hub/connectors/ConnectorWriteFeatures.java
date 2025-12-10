@@ -52,11 +52,11 @@ public class ConnectorWriteFeatures {
     );
 
   private static Map<String, String> eventSearchableProperties = Map.of(
-        "foo1", "$.properties.foo1",
+        "foo1", "$.properties.foo1::scalar",
         "foo2.nested","$.properties.foo2.nested",
         "foo3.nested.arr", "$.properties.foo3.nested.arr",
         "alias1", "$.properties.street.fc",
-        "alias2", "$.properties.names[*].lang"
+        "alias2", "$.properties.names[*].lang::array"
     );
 
 
@@ -168,8 +168,14 @@ public class ConnectorWriteFeatures {
                  searchable.containsKey("foo1") && searchable.get("foo1").equals("foo1-value"));
       assertTrue("searchable alias1 failed" ,
                  searchable.containsKey("alias1") && (int) searchable.get("alias1") == 5);
+
       assertTrue("searchable alias2 failed" ,
-                 searchable.containsKey("alias2") && searchable.get("alias2").equals("en"));
+                    searchable.containsKey("alias2")
+                 && ((List<?>) searchable.get("alias2")).size() == 3
+                 && "en".equals( ((List<?>) searchable.get("alias2")).get(0) )
+                 && "de".equals( ((List<?>) searchable.get("alias2")).get(1) )
+                 && "fr".equals( ((List<?>) searchable.get("alias2")).get(2) )
+                );
       assertTrue("searchable foo2.nested failed" ,
                  searchable.containsKey("foo2.nested") && searchable.get("foo2.nested").equals("foo2-nested-value"));
       assertTrue("searchable foo3.nested.arr failed" ,
