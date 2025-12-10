@@ -205,7 +205,7 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
   @Override
   protected List<ImportInput> createTaskItems() {
     List<?> inputs = loadInputs(UploadUrl.class);
-    if (inputs.isEmpty()) {
+    if (isUserInputsExpected() && inputs.isEmpty()) {
       throw new StepException("No valid inputs of type 'UploadUrl' found.");
     }
     List<ImportInput> taskItems = new ArrayList<>();
