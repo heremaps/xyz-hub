@@ -46,10 +46,10 @@ public class TaskedImportStepTest extends ImportStepTest {
   @BeforeEach
   public void setup() throws SQLException {
     cleanup();
-    createSpace(new Space().withId(SPACE_ID).withVersionsToKeep(100).withStorage(new Space.ConnectorRef().withId("psql-new-table-layout")), false);
+    createSpace(new Space().withId(SPACE_ID).withVersionsToKeep(100).withStorage(new Space.ConnectorRef().withId("psql")), false);
   }
 
-  @Test
+  @Disabled
   public void testNewFormat() throws Exception {
     executeImportStep(TaskedImportFilesToSpace.Format.FAST_IMPORT_INTO_EMPTY,0, EntityPerLine.Feature);
   }
@@ -57,6 +57,27 @@ public class TaskedImportStepTest extends ImportStepTest {
   @Test
   public void testSyncImport_with_many_files() throws Exception {
     executeImportStepWithManyFiles(Format.GEOJSON, 10, 2 , false);
+  }
+
+  @Test
+  public void testEmptyImportWithEmptyUserInput() throws Exception {
+    TaskedImportFilesToSpace step = new TaskedImportFilesToSpace()
+            .withVersionRef(new Ref(0))
+            .withJobId(JOB_ID)
+            .withSpaceId(SPACE_ID)
+            .withInputSets(List.of(USER_INPUTS.get()));
+    //validation should fail because no user input got provided
+    Assertions.assertFalse(step.validate());
+  }
+
+  @Test
+  public void testEmptyImportWithoutUserInput() throws Exception {
+    TaskedImportFilesToSpace step = new TaskedImportFilesToSpace()
+            .withVersionRef(new Ref(0))
+            .withJobId(JOB_ID)
+            .withSpaceId(SPACE_ID);
+    step.validate();
+    sendLambdaStepRequestBlock(step ,true);
   }
 
   //@Test

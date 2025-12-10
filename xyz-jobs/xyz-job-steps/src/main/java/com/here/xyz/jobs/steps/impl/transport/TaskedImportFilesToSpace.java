@@ -57,6 +57,7 @@ import static com.here.xyz.events.UpdateStrategy.DEFAULT_UPDATE_STRATEGY;
 import static com.here.xyz.jobs.steps.Step.Visibility.USER;
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.JOB_EXECUTOR;
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.JOB_VALIDATE;
+import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_EXECUTE;
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_ON_ASYNC_SUCCESS;
 import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 import static com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace.Format.GEOJSON;
@@ -145,6 +146,20 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
     return this;
   }
 
+  public void setFileCount(int fileCount) {
+    this.fileCount = fileCount;
+  }
+
+  public int getFileCount() {
+    return fileCount;
+  }
+
+  //TODO: Adjust resource calculation to not rely on user provided file count
+  public TaskedImportFilesToSpace withFileCount(int fileCount) {
+    setFileCount(fileCount);
+    return this;
+  }
+
   public long getMaxInputBytesForNonEmptyImport() {
     return maxInputBytesForNonEmptyImport;
   }
@@ -168,6 +183,8 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
     long newVersion = getOrIncreaseVersionSequence();
 
     if(useFeatureWriter()) {
+      infoLog(STEP_EXECUTE,  "initialSetup - Using FeatureWriter for import!");
+
       String superRootTable = space().getExtension() != null ? getRootTableName(superSpace()) : null;
 
       String writeHook = space().getSearchableProperties() != null && getTableLayout().hasSearchableColumn() == true
@@ -177,6 +194,8 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
       runBatchWriteQuerySync(getQueryBuilder().buildTemporaryTriggerTableBlockForImportWithFW(space().getOwner(),
              newVersion, superRootTable, updateStrategy, writeHook), db(), 0);
     }else{
+      infoLog(STEP_EXECUTE,  "initialSetup - Import into empty layer detected!");
+
       if(format.equals(FAST_IMPORT_INTO_EMPTY))
         return;
       //import into an empty, non-composite, layer
@@ -193,7 +212,7 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
   @Override
   protected List<ImportInput> createTaskItems() {
     List<?> inputs = loadInputs(UploadUrl.class);
-    if (inputs.isEmpty()) {
+    if (isUserInputsExpected() && inputs.isEmpty()) {
       throw new StepException("No valid inputs of type 'UploadUrl' found.");
     }
     List<ImportInput> taskItems = new ArrayList<>();
