@@ -59,6 +59,27 @@ public class TaskedImportStepTest extends ImportStepTest {
     executeImportStepWithManyFiles(Format.GEOJSON, 10, 2 , false);
   }
 
+  @Test
+  public void testEmptyImportWithEmptyUserInput() throws Exception {
+    TaskedImportFilesToSpace step = new TaskedImportFilesToSpace()
+            .withVersionRef(new Ref(0))
+            .withJobId(JOB_ID)
+            .withSpaceId(SPACE_ID)
+            .withInputSets(List.of(USER_INPUTS.get()));
+    //validation should fail because no user input got provided
+    Assertions.assertFalse(step.validate());
+  }
+
+  @Test
+  public void testEmptyImportWithoutUserInput() throws Exception {
+    TaskedImportFilesToSpace step = new TaskedImportFilesToSpace()
+            .withVersionRef(new Ref(Ref.HEAD))
+            .withJobId(JOB_ID)
+            .withSpaceId(SPACE_ID);
+    step.validate();
+    sendLambdaStepRequestBlock(step ,true);
+  }
+
   //@Test
   @Disabled("Takes extra 6 minutes of execution time, disabled by default")
   public void testSyncImport_with_more_than_default_pagination_size_files() throws Exception {
