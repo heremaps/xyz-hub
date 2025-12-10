@@ -40,6 +40,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static com.here.xyz.psql.query.helpers.GetIndexList.IndexList;
+import static com.here.xyz.psql.query.helpers.GetIndexList.BIG_SPACE_THRESHOLD;
+
 /*
 NOTE: All subclasses of QueryEvent are deprecated except SearchForFeaturesEvent.
 Once refactoring is complete, all members of SearchForFeaturesEvent can be pulled up to QueryEvent and QueryEvent
@@ -62,12 +65,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
   }
 
   protected void checkCanSearchFor(SearchForFeaturesEvent event) throws ErrorResponseException {
-    Boolean searchIsPossible = canSearchFor(event);
-    //TODO: throw exception inside canSearchFor
-    if (searchIsPossible != null && !searchIsPossible)
-      throw new ErrorResponseException(ILLEGAL_ARGUMENT,
-          "Invalid request parameters. Search for the provided properties is not supported for this space.");
-    this.canSearch = searchIsPossible;
+    this.canSearch = canSearchFor(event);
   }
 
   @Override
@@ -102,7 +100,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
    * @param event The search event containing query parameters.
    * @return Boolean indicating if search is possible, or null if undetermined.
    */
-  private Boolean canSearchFor(SearchForFeaturesEvent event) {
+  private Boolean canSearchFor(SearchForFeaturesEvent event) throws ErrorResponseException {
     DataSourceProvider dataSourceProvider = getDataSourceProvider();
     String tableName = XyzEventBasedQueryRunner.readTableFromEvent(event);
     PropertiesQuery query = event.getPropertiesQuery();
@@ -114,16 +112,21 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
       List<String> keys = query.stream().flatMap(List::stream)
           .filter(k -> k.getKey() != null && k.getKey().length() > 0).map(PropertyQuery::getKey).collect(Collectors.toList());
 
+      boolean hasAliasKey = keys.stream().anyMatch(k -> k.startsWith("alias."));
+
       int idx_check = 0;
 
-      for (String key : keys) {
-        //Check if custom Indices are available. E.g., properties.foo1
-        List<String> indices = new GetIndexList(tableName).run(dataSourceProvider);
+      //Check if custom Indices are available. E.g., properties.foo1
+      IndexList indexList = new GetIndexList(tableName).run(dataSourceProvider);
+      List<String> indices = indexList.getIndices();
 
-        //The table does not have too many records - Indices are not required
-        if (indices == null)
+      //The table does not have too many records - Indices are not required. Not allowed for alias searches.
+      if (indexList.getCount() <= BIG_SPACE_THRESHOLD && !hasAliasKey) {
+        //The table does not have too many records - Indices are not required.
           return null;
+      }
 
+      for (String key : keys) {
         //If the property query hits a default existing system index - allow the search
         //We moved it below the index check, to be able to allow global searches on small tables without indices
         if (key.equals("f.id") || key.equals("f.geometry.type"))
@@ -143,11 +146,19 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
            3 = "properties.foo1.nested"
          */
         //Check if all properties are indexed
-        if (indices.contains(key))
+        if (indices.contains(key)
+             //skip properties checks for small spaces - only alias searches need indices
+             || (key.startsWith("properties.") && indexList.getCount() <= BIG_SPACE_THRESHOLD))
           idx_check++;
       }
-
-      return idx_check == keys.size();
+      if(idx_check != keys.size()){
+        throw new ErrorResponseException(ILLEGAL_ARGUMENT,
+                "Invalid request parameters. Search for the provided properties is not supported for this space.");
+      }
+      return true;
+    }
+    catch (ErrorResponseException e) {
+      throw e;
     }
     catch (Exception e) {
       // In all cases, when something with the check went wrong, allow the search

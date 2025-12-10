@@ -18,6 +18,7 @@
  */
 package com.here.xyz.jobs;
 
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.datasets.DatasetDescription;
 import com.here.xyz.jobs.datasets.Files;
 import com.here.xyz.jobs.datasets.files.Csv;
@@ -27,6 +28,8 @@ import com.here.xyz.jobs.steps.JobCompiler;
 import com.here.xyz.jobs.steps.compiler.ImportFromFiles;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
 import com.here.xyz.jobs.util.test.ContentCreator;
+import com.here.xyz.models.geojson.implementation.Feature;
+import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.hub.Space;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -46,7 +49,9 @@ import static com.here.xyz.jobs.datasets.files.FileFormat.EntityPerLine.FeatureC
 public class ImportJobTestIT extends JobTest {
   @BeforeEach
   public void setUp() {
-    createSpace(new Space().withId(SPACE_ID).withSearchableProperties(Map.of(
+    createSpace(new Space().withId(SPACE_ID)
+            .withVersionsToKeep(1000)
+            .withSearchableProperties(Map.of(
                     "foo1", true,
                     "foo2.nested", true,
                     "foo3.nested.array::array", true
@@ -58,7 +63,116 @@ public class ImportJobTestIT extends JobTest {
   public void testSimpleImport() throws Exception {
     Job importJob = buildImportJob(new Files<>().withInputSettings(
             new FileInputSettings()
-                    .withFormat(new GeoJson().withEntityPerLine(Feature)))
+                    .withFormat(new GeoJson().withEntityPerLine(Feature))), SPACE_ID
+    );
+    createAndStartJob(importJob, ContentCreator.generateImportFileContent(ImportFilesToSpace.Format.GEOJSON, 50));
+  }
+
+  @Test
+  public void testSimpleImportInComposite() throws Exception {
+    String extensionSpaceId = SPACE_ID + "_ext";
+    createSpace(new Space()
+            .withId(extensionSpaceId)
+            .withExtension(new Space.Extension().withSpaceId(SPACE_ID))
+            .withVersionsToKeep(1000)
+    , false);
+
+    Job importJob = buildImportJob(new Files<>().withInputSettings(
+            new FileInputSettings()
+                    .withFormat(new GeoJson().withEntityPerLine(Feature))), SPACE_ID
+    );
+
+    Feature feature = XyzSerializable.deserialize("""
+            {
+                      "type": "Feature",
+                      "id": "test",
+                      "properties": {
+                        "value" : "Germany"
+                      },
+                      "geometry": {
+                        "coordinates": [
+                          [
+                            6.353809489694754,
+                            51.08958733812065
+                          ],
+                          [
+                            8.231999783047115,
+                            51.359089906708846
+                          ],
+                          [
+                            7.937709200611209,
+                            50.5346535571293
+                          ],
+                          [
+                            9.337868867777473,
+                            50.26303968016663
+                          ],
+                          [
+                            9.34797694869323,
+                            49.3892593362186
+                          ]
+                        ],
+                        "type": "LineString"
+                      }
+                    }
+            """);
+    createAndStartJob(importJob, feature.toByteArray());
+
+    importJob = new Job()
+            .withId(JOB_ID+"_ext")
+            .withDescription("Import Job Test")
+            .withSource(new Files<>().withInputSettings(
+                            new FileInputSettings()
+                                    .withFormat(new GeoJson().withEntityPerLine(Feature))))
+            .withTarget(new DatasetDescription.Space<>().withId(extensionSpaceId));
+    createAndStartJob(importJob, feature.toByteArray());
+  }
+
+  @Test
+  public void testSimpleImportInNonEmpty() throws Exception {
+    FeatureCollection fc = XyzSerializable.deserialize("""
+                {
+                  "type": "FeatureCollection",
+                  "features": [
+                    {
+                      "type": "Feature",
+                      "id": "line4_delta",
+                      "properties": {
+                        "value" : "Germany"
+                      },
+                      "geometry": {
+                        "coordinates": [
+                          [
+                            6.353809489694754,
+                            51.08958733812065
+                          ],
+                          [
+                            8.231999783047115,
+                            51.359089906708846
+                          ],
+                          [
+                            7.937709200611209,
+                            50.5346535571293
+                          ],
+                          [
+                            9.337868867777473,
+                            50.26303968016663
+                          ],
+                          [
+                            9.34797694869323,
+                            49.3892593362186
+                          ]
+                        ],
+                        "type": "LineString"
+                      }
+                    }
+                  ]
+                }
+                """, FeatureCollection.class);
+    putFeatureCollectionToSpace(SPACE_ID, fc);
+    Job importJob = buildImportJob(new Files<>().withInputSettings(
+            new FileInputSettings()
+                    .withFormat(new GeoJson().withEntityPerLine(Feature))), SPACE_ID
     );
     createAndStartJob(importJob, ContentCreator.generateImportFileContent(ImportFilesToSpace.Format.GEOJSON, 50));
   }
@@ -67,7 +181,7 @@ public class ImportJobTestIT extends JobTest {
   public void testInvalidEntity() throws Exception {
     Job importJob = buildImportJob(new Files<>().withInputSettings(
             new FileInputSettings()
-                    .withFormat(new GeoJson().withEntityPerLine(FeatureCollection)))
+                    .withFormat(new GeoJson().withEntityPerLine(FeatureCollection))), SPACE_ID
     );
     Assertions.assertThrows(JobCompiler.CompilationError.class, () ->
             new ImportFromFiles()
@@ -79,18 +193,18 @@ public class ImportJobTestIT extends JobTest {
   public void testInvalidFormat() throws Exception {
     Job importJob = buildImportJob(new Files<>().withInputSettings(
                     new FileInputSettings()
-                            .withFormat(new Csv().withEntityPerLine(Feature))));
+                            .withFormat(new Csv().withEntityPerLine(Feature))), SPACE_ID);
     Assertions.assertThrows(JobCompiler.CompilationError.class, () ->
             new ImportFromFiles()
                     .withUseNewTaskedImportStep(true)
                     .compile(importJob));
   }
 
-  private Job buildImportJob(DatasetDescription source) {
+  private Job buildImportJob(DatasetDescription source, String targetSpaceId) {
     return new Job()
             .withId(JOB_ID)
             .withDescription("Import Job Test")
             .withSource(source)
-            .withTarget(new DatasetDescription.Space<>().withId(SPACE_ID));
+            .withTarget(new DatasetDescription.Space<>().withId(targetSpaceId));
   }
 }

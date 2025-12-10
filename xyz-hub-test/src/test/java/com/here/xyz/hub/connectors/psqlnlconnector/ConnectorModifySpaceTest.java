@@ -22,7 +22,7 @@ public class ConnectorModifySpaceTest extends EventBasedConnectorTest {
   public void testCreateSpaceWithSearchableProperties() throws Exception {
     StorageConnector connector = loadConnector(TARGET_CONNECTOR.PSQL_NL_CONNECTOR);
 
-    String spaceName =  this.getClass().getSimpleName() +"."+Random.randomAlpha(6);
+    String spaceName =  this.getClass().getSimpleName() +"."+ Random.randomAlpha(6);
 
     Map<String, Boolean> searchableProperties = Map.of(
             "f.root", true,
@@ -49,7 +49,7 @@ public class ConnectorModifySpaceTest extends EventBasedConnectorTest {
     connector.handleEvent(modifySpaceEvent);
 
     /* write features */
-    FeatureCollection fc = PerformanceTestHelper.generateRandomFeatureCollection(10, xmin, ymin, xmax, ymax, 100, false);
+    FeatureCollection fc = PerformanceTestHelper.generateRandomFeatureCollection(10001, xmin, ymin, xmax, ymax, 100, false);
 
     WriteFeaturesEvent writeFeaturesEvent = new WriteFeaturesEvent()
             .withModifications(Set.of(
@@ -57,9 +57,13 @@ public class ConnectorModifySpaceTest extends EventBasedConnectorTest {
                             .withFeatureData(fc)
                             .withUpdateStrategy(UpdateStrategy.DEFAULT_UPDATE_STRATEGY)
             ))
+            .withSearchableProperties(Space.toExtractableSearchProperties(
+                    new com.here.xyz.hub.connectors.models.Space().withSearchableProperties(searchableProperties)))
             .withSpace(spaceName)
-            .withResponseDataExpected(false);
-    connector.handleEvent(writeFeaturesEvent);
+            .withResponseDataExpected(true);
+    FeatureCollection f2 = (FeatureCollection) connector.handleEvent(writeFeaturesEvent);
+    System.out.println(f2.getFeatures().size());
+
 
     /* clean test resources */
     PerformanceTestHelper.deleteSpace(connector, spaceName);

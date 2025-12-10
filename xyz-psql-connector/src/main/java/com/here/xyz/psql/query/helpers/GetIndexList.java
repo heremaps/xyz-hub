@@ -21,15 +21,14 @@ package com.here.xyz.psql.query.helpers;
 
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SCHEMA;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.TABLE;
+import static com.here.xyz.psql.query.helpers.GetIndexList.IndexList;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.psql.QueryRunner;
-import com.here.xyz.psql.query.ModifySpace;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -38,8 +37,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-public class GetIndexList extends QueryRunner<String, List<String>> {
-  private static final Integer BIG_SPACE_THRESHOLD = 10000;
+public class GetIndexList extends QueryRunner<String, IndexList> {
+  public static final Integer BIG_SPACE_THRESHOLD = 10000;
   private static final Map<String, IndexList> cachedIndices = new HashMap<>();
   private String tableName;
 
@@ -49,7 +48,7 @@ public class GetIndexList extends QueryRunner<String, List<String>> {
   }
 
   @Override
-  public List<String> run(DataSourceProvider dataSourceProvider) throws SQLException, ErrorResponseException {
+  public IndexList run(DataSourceProvider dataSourceProvider) throws SQLException, ErrorResponseException {
 
     try { getDataSourceProvider(); }
     catch (NullPointerException e)
@@ -57,56 +56,57 @@ public class GetIndexList extends QueryRunner<String, List<String>> {
 
     IndexList indexList = cachedIndices.get(tableName);
     if (indexList != null && indexList.expiry >= System.currentTimeMillis())
-      return indexList.indices;
+      return indexList;
     return super.run(dataSourceProvider);
   }
 
+  //TODO: take context into account!
   @Override
   protected SQLQuery buildQuery(String tableName) throws SQLException, ErrorResponseException {
     return new SQLQuery(
       """
-        with indata as
-        ( select idx_available from
-         (
-          select jsonb_build_object ( 'src',src,'property', idx_property ) as idx_available
-          from xyz_index_list_all_available( #{schema},#{table} )
-          where true and
-          #{threshold} <=
-          ( select sum( coalesce( reltuples::bigint, 0 ) ) from pg_class 
-            where true
-            and relkind = 'r'
-            and relname in 
-            ( select unnest( array_remove( array[m.h_id || '_head', m.meta#>>'{extends,intermediateTable}' || '_head', m.meta#>>'{extends,extendedTable}' || '_head'], null ) ) as tbl 
-              from xyz_config.space_meta m 
-              where m.schem = #{schema} and m.h_id = #{table}
-            )
-          )
-         ) o
+        WITH cnt AS (
+            SELECT
+                SUM(COALESCE(reltuples::bigint, 0)) AS count
+            FROM pg_class
+            WHERE relkind = 'r'
+              AND relname IN (
+                SELECT unnest(
+                           array_remove(
+                               array[
+                                   m.h_id || '_head',
+                                   m.meta#>>'{extends,intermediateTable}' || '_head',
+                                   m.meta#>>'{extends,extendedTable}'   || '_head'
+                               ],
+                               NULL
+                           )
+                       )
+                FROM xyz_config.space_meta m
+                WHERE m.schem = #{schema}
+                  AND m.h_id  = #{table}
+              )
         ),
-        iindata as ( select json_agg( idx_available )::jsonb as idx_available from indata )
-        select idx_available from iindata where 0 < ( select count(*) from indata )
-      """
-/*      
-          "SELECT coalesce(idx_available,'[]'::jsonb) as idx_available FROM " + ModifySpace.IDX_STATUS_TABLE_FQN
-        + " WHERE spaceid = #{table} "
-        + "  AND (select coalesce( (count->'value')::bigint, 0 ) from xyz_statistic_space(#{schema},#{table}, false)) >= #{threshold} "
-*/        
+        idxs AS (
+            SELECT jsonb_build_object('src', src, 'property', idx_property) AS idx_available
+            FROM xyz_index_list_all_available( #{schema},#{table})
         )
+        SELECT (SELECT count FROM cnt),
+               COALESCE((SELECT jsonb_agg(idx_available) FROM idxs),'[]'::jsonb) as idx_available;
+      """)
         .withNamedParameter(TABLE, tableName)
-        .withNamedParameter(SCHEMA, getSchema())
-        .withNamedParameter("threshold", BIG_SPACE_THRESHOLD);
+        .withNamedParameter(SCHEMA, getSchema());
   }
 
   @Override
-  public List<String> handle(ResultSet rs) throws SQLException {
+  public IndexList handle(ResultSet rs) throws SQLException {
     IndexList indexList;
     try {
       if (!rs.next()) {
-        indexList =  new IndexList(null);
+        indexList =  new IndexList(null,0);
       }
       else {
         List<String> indices = new ArrayList<>();
-
+        long count = rs.getLong("count");
         String result = rs.getString("idx_available");
         List<Map<String, Object>> raw = XyzSerializable.deserialize(result, new TypeReference<List<Map<String, Object>>>() {
         });
@@ -115,37 +115,48 @@ public class GetIndexList extends QueryRunner<String, List<String>> {
            * Indices are marked as:
            * a = automatically created (auto-indexing)
            * m = manually created (on-demand)
-           * o = sortable - manually created (on-demand) --> first single sortable propertie is always ascending
+           * o = sortable - manually created (on-demand) --> first single sortable properties is always ascending
            * s = basic system indices
            */
-          if (one.get("src").equals("a") || one.get("src").equals("m"))
+          if (one.get("src").equals("a") || one.get("src").equals("m") )
             indices.add((String) one.get("property"));
+          //TODO: check if this can be removed
           else if (one.get("src").equals("o"))
             indices.add("o:" + (String) one.get("property"));
         }
 
-        indexList = new IndexList(indices);
+        indexList = new IndexList(indices, count);
       }
     }
     catch (Exception e) {
-      indexList = new IndexList(null);
+      indexList = new IndexList(null,0);
     }
     cachedIndices.put(tableName, indexList);
 
-    return indexList.indices;
+    return indexList;
   }
 
-  private static class IndexList {
+  public static class IndexList {
 
     /** Cache indexList for 3 Minutes  */
     static long CACHE_INTERVAL_MS = TimeUnit.MINUTES.toMillis(3);
 
-    IndexList(List<String> indices) {
+    IndexList(List<String> indices, long count) {
       this.indices = indices;
+      this.count = count;
       expiry = System.currentTimeMillis() + CACHE_INTERVAL_MS;
     }
 
     List<String> indices;
+    long count;
     long expiry;
+
+    public List<String> getIndices() {
+      return indices;
+    }
+
+    public long getCount() {
+      return count;
+    }
   }
 }
