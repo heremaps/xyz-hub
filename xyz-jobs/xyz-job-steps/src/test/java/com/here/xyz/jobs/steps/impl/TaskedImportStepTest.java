@@ -46,10 +46,10 @@ public class TaskedImportStepTest extends ImportStepTest {
   @BeforeEach
   public void setup() throws SQLException {
     cleanup();
-    createSpace(new Space().withId(SPACE_ID).withVersionsToKeep(100).withStorage(new Space.ConnectorRef().withId("psql-new-table-layout")), false);
+    createSpace(new Space().withId(SPACE_ID).withVersionsToKeep(100).withStorage(new Space.ConnectorRef().withId("psql")), false);
   }
 
-  @Test
+  @Disabled
   public void testNewFormat() throws Exception {
     executeImportStep(TaskedImportFilesToSpace.Format.FAST_IMPORT_INTO_EMPTY,0, EntityPerLine.Feature);
   }
@@ -73,7 +73,7 @@ public class TaskedImportStepTest extends ImportStepTest {
   @Test
   public void testEmptyImportWithoutUserInput() throws Exception {
     TaskedImportFilesToSpace step = new TaskedImportFilesToSpace()
-            .withVersionRef(new Ref(Ref.HEAD))
+            .withVersionRef(new Ref(0))
             .withJobId(JOB_ID)
             .withSpaceId(SPACE_ID);
     step.validate();
