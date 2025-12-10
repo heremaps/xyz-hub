@@ -459,25 +459,25 @@ public class NLConnector extends PSQLXyzConnector {
     List<Feature> features = new ArrayList<>();
     while(rs.next()){
       String childQuad = rs.getString("child_quad");
-      PolygonCoordinates polygonCoordinates = new PolygonCoordinates();
-
-      if(childQuad != null){
-        BBox bBox = WebMercatorTile.forQuadkey(childQuad).getBBox(false);
-        LinearRingCoordinates lrc = new LinearRingCoordinates();
-        lrc.add(new Position(bBox.minLon(), bBox.minLat()));
-        lrc.add(new Position(bBox.maxLon(), bBox.minLat()));
-        lrc.add(new Position(bBox.maxLon(), bBox.maxLat()));
-        lrc.add(new Position(bBox.minLon(), bBox.maxLat()));
-        lrc.add(new Position(bBox.minLon(), bBox.minLat()));
-        polygonCoordinates.add(lrc);
-      }
+//      PolygonCoordinates polygonCoordinates = new PolygonCoordinates();
+//
+//      if(childQuad != null){
+//        BBox bBox = WebMercatorTile.forQuadkey(childQuad).getBBox(false);
+//        LinearRingCoordinates lrc = new LinearRingCoordinates();
+//        lrc.add(new Position(bBox.minLon(), bBox.minLat()));
+//        lrc.add(new Position(bBox.maxLon(), bBox.minLat()));
+//        lrc.add(new Position(bBox.maxLon(), bBox.maxLat()));
+//        lrc.add(new Position(bBox.minLon(), bBox.maxLat()));
+//        lrc.add(new Position(bBox.minLon(), bBox.minLat()));
+//        polygonCoordinates.add(lrc);
+//      }
 
       features.add(
               new Feature()
                       .withId(childQuad)
-                      .withGeometry(
-                              refQuad == null ? null : new Polygon().withCoordinates(polygonCoordinates)
-                      )
+//                      .withGeometry(
+//                              refQuad == null ? null : new Polygon().withCoordinates(polygonCoordinates)
+//                      )
                       .withProperties(new Properties().with("count", rs.getLong("cnt")))
       );
     }
