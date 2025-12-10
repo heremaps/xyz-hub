@@ -73,6 +73,10 @@ public class PerformanceTestHelper {
                             .withFeatureData(fc.copy())
                             .withUpdateStrategy(updateStrategy)
             ))
+            .withSearchableProperties(Map.of(
+                    "f.refQuad", "$.properties.refQuad",
+                    "f.globalVersions", "$.properties.globalVersions"
+            ))
             .withResponseDataExpected(false);
 
     return handleRequest(connector, writeFeaturesEvent, spaceNames);
@@ -240,7 +244,12 @@ public class PerformanceTestHelper {
     ModifySpaceEvent modifySpaceEvent = new ModifySpaceEvent()
             .withSpaceDefinition(new Space()
                     .withId(spaceName)
-                    .withVersionsToKeep(10_000_000)) //needed for PSQLConnector
+                    .withVersionsToKeep(10_000_000)
+                    .withSearchableProperties( Map.of(
+                            "p.refQuad", true,
+                            "p.globalVersion", true
+                    ))
+            ) //needed for PSQLConnector
             .withSpace(spaceName)
             .withOperation(operation);
 
@@ -318,9 +327,13 @@ public class PerformanceTestHelper {
               .with("globalVersion", 1);
 
       Feature feature = new Feature()
+              .with("root", ThreadLocalRandom.current().nextInt(1, 101))
               .withId(createIds ? "id_" + i : null)
               .withProperties(properties)
               .withGeometry(new Point().withCoordinates(new PointCoordinates(x, y)));
+
+      if(i % 10 == 0)
+        feature.getProperties().put("foo1", Map.of("nested", ThreadLocalRandom.current().nextInt(1, 3)));
 
       fc.getFeatures().add(feature);
     }
