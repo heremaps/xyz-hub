@@ -287,6 +287,8 @@ public class IndexHelper {
   public static SQLQuery buildOnDemandIndexCreationQuery(String schema, String table, OnDemandIndex index, TableLayout layout, boolean async){
     if(layout.hasSearchableColumn())
       return buildOnDemandIndexCreationQueryForSearchable(schema, table, index, async);
+    if(index.propertyPath.startsWith("$alias") && !index.definitionGotTransformed())
+      throw new IllegalArgumentException("Alias definitions are only allowed on new spaces!");
     return buildOnDemandIndexCreationQuery(schema, table, index.extractLogicalPropertyPath(), OLD_LAYOUT_INDEX_COULMN, async);
   }
 
