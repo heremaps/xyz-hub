@@ -33,11 +33,13 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.geojson.implementation.Properties;
+import io.netty.handler.codec.http.HttpResponseStatus;
 import io.restassured.response.ValidatableResponse;
 import io.vertx.core.json.JsonObject;
 import java.util.ArrayList;
@@ -473,15 +475,32 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
   }
 
   public static void postFeature(String spaceId, Feature feature, AuthProfile authProfile, boolean versionConflictDetection) {
-    given()
+    postFeature(spaceId, feature, authProfile, versionConflictDetection, null, OK);
+  }
+
+  public static void postFeature(String spaceId, Feature feature, AuthProfile authProfile, boolean versionConflictDetection
+      , HttpResponseStatus expectedResponseStatus) {
+    postFeature(spaceId, feature, authProfile, versionConflictDetection, null, expectedResponseStatus);
+  }
+
+  public static void postFeature(String spaceId, Feature feature, AuthProfile authProfile, boolean versionConflictDetection,
+      SpaceContext context) {
+    postFeature(spaceId, feature, authProfile, versionConflictDetection, context, OK);
+  }
+
+  public static void postFeature(String spaceId, Feature feature, AuthProfile authProfile, boolean versionConflictDetection,
+      SpaceContext context, HttpResponseStatus expectedResponseStatus) {
+    ValidatableResponse resp = given()
         .contentType(APPLICATION_GEO_JSON)
         .headers(getAuthHeaders(authProfile))
         .body(feature.serialize())
         .when()
-        .post("/spaces/" + spaceId + "/features?conflictDetection=" + versionConflictDetection)
+        .post("/spaces/" + spaceId + "/features?conflictDetection=" + versionConflictDetection
+            + (context != null ? "&context=" + context.name() : ""))
         .then()
-        .statusCode(OK.code())
-        .body("features[0].id", equalTo(feature.getId()));
+        .statusCode(expectedResponseStatus.code());
+    if (expectedResponseStatus == OK)
+      resp.body("features[0].id", equalTo(feature.getId()));
   }
 
   public static Feature newFeature() {

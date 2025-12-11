@@ -561,8 +561,7 @@ class FeatureWriter {
     if (id == null)
       return null;
 
-    let tables = context == "EXTENSION" ? this.tables.slice(-1) : context == "SUPER" ? this.tables.slice(0, -1) : this.tables;
-    let res = this._loadFeature(id, version, tables);
+    let res = this._loadFeature(id, version, context);
 
     if (!res.length)
       return null;
@@ -826,7 +825,8 @@ class FeatureWriter {
     return queryContext().tables.length > 1 && this._tableBaseVersions().at(-1) == 0
   }
 
-  _loadFeature(id, version, tables) {
+  _loadFeature(id, version, context) {
+    let tables = context == "EXTENSION" ? this.tables.slice(-1) : context == "SUPER" ? this.tables.slice(0, -1) : this.tables;
     let tableAliases = tables.map((table, i) => "t" + (tables.length - i - 1));
     let branchTableMaxVersion = i => i == tables.length - 1 || FeatureWriter._isComposite() ? "" : `AND version <= ${this.tableBaseVersions[i + 1] - this.tableBaseVersions[i]}`;
     let whereConditions = tables.map((table, i) => `WHERE id = $1 AND ${version == "HEAD" ? `next_version = ${MAX_BIG_INT}` : `version = ${version - this.tableBaseVersions[i]}`} ${branchTableMaxVersion(i)} AND operation != $2`).reverse();
@@ -840,7 +840,7 @@ class FeatureWriter {
             jsondata_array[index] AS jsondata,
             ST_AsGeojson(geo_array[index])::JSONB AS geo,
             operation_array[index] AS operation,
-            ${tables.length} - index AS dataset,
+            ${this.tables.length} - index AS dataset,
             (SELECT array_agg(idx - 1) FROM unnest(array_positions(array_reverse(id_array), id_array[index])) AS idx) AS containing_datasets
         FROM (
             SELECT
