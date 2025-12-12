@@ -1040,13 +1040,13 @@ public class Space {
     }
   }
 
-  public static Map<String, String> toExtractableSearchProperties(Space space) {
+  public static Map<String, String> toExtractableSearchProperties(Map<String, Boolean> spaceSearchableProperties) {
     Map<String, String> extractableSearchProperties = new HashMap<>();
 
-    if(space.getSearchableProperties() == null)
+    if(spaceSearchableProperties == null)
       return extractableSearchProperties;
 
-    for (Entry<String, Boolean> sp : space.getSearchableProperties().entrySet()) {
+    for (Entry<String, Boolean> sp : spaceSearchableProperties.entrySet()) {
 
       String searchableExpression = sp.getKey().contains("::") ? sp.getKey().substring(0, sp.getKey().indexOf("::")) : sp.getKey();
       String typePostFix = sp.getKey().contains("::") ? sp.getKey().substring(sp.getKey().indexOf("::")) : "::scalar";
@@ -1069,6 +1069,11 @@ public class Space {
     }
     return extractableSearchProperties;
   }
+
+  public static Map<String, String> toExtractableSearchProperties(Space space) {
+    return toExtractableSearchProperties(space.getSearchableProperties());
+  }
+
 
   /**
    * Translates a dot-notation path to a JSONPath expression.

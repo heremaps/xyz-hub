@@ -42,12 +42,16 @@ import com.here.xyz.models.hub.Space;
 import com.here.xyz.psql.query.GetFeaturesByGeometryBuilder;
 import com.here.xyz.psql.query.GetFeaturesByGeometryBuilder.GetFeaturesByGeometryInput;
 import com.here.xyz.psql.query.QueryBuilder.QueryBuildingException;
+import com.here.xyz.psql.query.WriteFeatures;
 import com.here.xyz.util.db.SQLQuery;
+import com.here.xyz.util.db.ConnectorParameters.TableLayout;
 import com.here.xyz.util.db.pg.FeatureWriterQueryBuilder.FeatureWriterQueryContextBuilder;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
 
+import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.apache.logging.log4j.LogManager;
@@ -364,17 +368,26 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
   private boolean useTableCopy() { return loadTargetFeatureCount() == 0; }
 
   private SQLQuery buildCopySpaceQuery(int threadCount, int threadId) throws WebClientException, QueryBuildingException,
-      TooManyResourcesClaimed {
+      TooManyResourcesClaimed, SQLException {
     String targetStorageId = targetSpace().getStorage().getId(),
         targetSchema = getSchema(loadDatabase(targetStorageId, WRITER)),
         targetTable = getRootTableName(targetSpace());
 
-    final Map<String, Object> queryContext = new FeatureWriterQueryContextBuilder()
-        .withSchema(targetSchema)
-        .withTables(List.of(targetTable))
-        .withHistoryEnabled(targetSpace().getVersionsToKeep() > 1)
-        .withBatchMode(true)
-        .build();
+
+    FeatureWriterQueryContextBuilder fwqcb =new FeatureWriterQueryContextBuilder()
+                                            .withSchema(targetSchema)
+                                            .withTables(List.of(targetTable))
+                                            .withHistoryEnabled(targetSpace().getVersionsToKeep() > 1)
+                                            .withBatchMode(true);
+
+    if( targetSpace().getSearchableProperties() != null && getTableLayout().hasSearchableColumn() == true )
+    { String writeHook = WriteFeatures.writeHook( Space.toExtractableSearchProperties(targetSpace()) );
+      //TODO: investigate - following replacemens are needed to assure a valid json setting context -> SELECT context($a$...$a$::JSONB)
+      writeHook = writeHook.replaceAll("\n", "\\\\n").replaceAll("\"","\\\\\"");
+      fwqcb.with("writeHooks", List.of( writeHook ));
+    }
+
+    final Map<String, Object> queryContext = fwqcb.build();
 
     SQLQuery contentQuery = buildCopyContentQuery(threadCount, threadId);
 
@@ -399,8 +412,8 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
               ) as wfresult
             from
             (
-             select ((row_number() over ())-1)/${{maxBatchSize}} as rn, 
-                    idata.jsondata#>>'{properties,@ns:com:here:xyz,author}' as author, 
+             select ((row_number() over ())-1)/${{maxBatchSize}} as rn,
+                    idata.jsondata#>>'{properties,@ns:com:here:xyz,author}' as author,
                     idata.jsondata || jsonb_build_object('geometry', (idata.geo)::json) as feature
              from
              ( ${{contentQuery}} ) idata
@@ -421,12 +434,12 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
         INSERT INTO ${schema}.${table} (jsondata, operation, author, geo, id, version, next_version )
           SELECT idata.jsondata, case when idata.operation = 'U' then 'I' else idata.operation end AS operation, idata.author, idata.geo, idata.id, ${{versionToBeUsed}} as version, max_bigint() as next_version
           FROM
-          ( 
-            ${{contentQuery}} 
+          (
+            ${{contentQuery}}
           ) idata
         RETURNING id
       ),
-      count_data as 
+      count_data as
       ( SELECT count(1) AS rows FROM ins_data )
       select rows into dummy_output from count_data
     """)
