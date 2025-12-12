@@ -140,7 +140,10 @@ class DatabaseWriter {
           jsondata = jsonb_set(EXCLUDED.jsondata, '{properties, ${XYZ_NS}, createdAt}',
                  tbl.jsondata->'properties'->'${XYZ_NS}'->'createdAt'),
           geo = EXCLUDED.geo
-          WHERE EXCLUDED.jsondata #- ARRAY['properties', '${XYZ_NS}'] IS DISTINCT FROM tbl.jsondata #- ARRAY['properties', '${XYZ_NS}']`
+          WHERE
+            EXCLUDED.jsondata #- ARRAY['properties', '${XYZ_NS}'] IS DISTINCT FROM tbl.jsondata #- ARRAY['properties', '${XYZ_NS}']
+            OR
+            EXCLUDED.geo IS DISTINCT FROM tbl.geo`
         : onExists == "RETAIN" ? " ON CONFLICT(id, next_version) DO NOTHING" : "";
 
     let sql = `INSERT INTO "${this.schema}"."${this.table}" AS tbl
@@ -199,7 +202,7 @@ class DatabaseWriter {
                              geo       = CASE WHEN $5::JSONB IS NULL THEN NULL ELSE xyz_reduce_precision(ST_Force3D(ST_GeomFromGeoJSON($5::JSONB)), false) END
                          WHERE id = $6
                            AND version = $7
-                         RETURNING (jsondata -> 'properties' -> '${XYZ_NS}' -> 'createdAt') as created_at, operation`;
+                         RETURNING 1`;
 
     let method = "updateRow";
     if (!this.plans[method]) {

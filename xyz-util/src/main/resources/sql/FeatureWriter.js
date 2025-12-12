@@ -287,8 +287,7 @@ class FeatureWriter {
           case "RETAIN":
             return null;
           case "CREATE":
-            headFeature = this.newEmptyFeature();
-            break;
+            return this.inputFeature;
           case "ERROR":
             this._throwFeatureNotExistsError();
         }
@@ -351,12 +350,20 @@ class FeatureWriter {
       }
     }
 
-    if (this.onVersionConflict != null) {
+    //NOTE: If onVersionConflict == REPLACE it has the same effect as if conflict detection is not active at all
+    if (this.onVersionConflict != null && this.onVersionConflict != "REPLACE") {
       this.debugBox("Version conflict handling! Base version: " + this.baseVersion);
 
-      let execution = this._updateRow();
-      if (execution == null)
-        return this.handleVersionConflict();
+      if (this.onVersionConflict == "MERGE")
+        //NOTE: If history is not enabled for the space no merge can be performed, throwing a conflict error on conflict instead
+        this.onVersionConflict = "ERROR";
+
+      let execution = this._updateRow(execution => {
+        if (execution == null)
+          return this.handleVersionConflict(); //TODO: Also handle onVersionConflict == "DELETE"?
+        return execution;
+      });
+
       return execution;
     }
     else {
@@ -494,7 +501,7 @@ class FeatureWriter {
     if (this.attributeConflicts.length > 0)
       return this.handleMergeConflict();
 
-    this.inputFeature = this.patch(this.cloneFeature(headFeature), inputDiff);
+    this.inputFeature = this.patch(this.cloneFeature(headFeature), inputDiff, [], true);
     this.operation = this._transformToUpdate(this.operation);
     this.onVersionConflict = null;
     return this.writeRow();
@@ -546,10 +553,6 @@ class FeatureWriter {
   featureExistsInHead(id, context = this.context) {
     //TODO: Check existence without actually loading feature data
     return !!this.loadFeature(id, "HEAD", context);
-  }
-
-  newEmptyFeature() {
-    return {type: "Feature"};
   }
 
   loadFeature(id, version = "HEAD", context = this.context) {
@@ -721,7 +724,7 @@ class FeatureWriter {
   /**
    * NOTE: target is mandatory to be a valid (existing) feature
    */
-  patch(target, inputDiff) {
+  patch(target, inputDiff, keyPath = [], partialGeometry = false) {
     target = target || {};
     for (let key in inputDiff) {
       if (inputDiff.hasOwnProperty(key)) {
@@ -731,13 +734,15 @@ class FeatureWriter {
           if (!Array.isArray(inputDiff[key])) {
             if (!target[key])
               target[key] = {};
-            target[key] = this.patch(target[key], inputDiff[key]);
+            target[key] = this.patch(target[key], inputDiff[key], [...keyPath, key], partialGeometry);
           }
           else {
             if (!target[key] || !Array.isArray(target[key]))
               target[key] = inputDiff[key];
+            else if (!partialGeometry && keyPath[0] == "geometry" && key == "coordinates")
+              target[key] = inputDiff[key];
             else
-              target[key] = this.patch(target[key], inputDiff[key]);
+              target[key] = this.patch(target[key], inputDiff[key], [...keyPath, key], partialGeometry);
           }
         }
         else

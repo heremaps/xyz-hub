@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -261,7 +261,7 @@ public class VersioningIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void testMerge() {
+  public void testPatch() {
     Feature f1 = new Feature().withId(FEATURE_ID_1).withProperties(new Properties().with("quantity", 123).withXyzNamespace(new XyzNamespace().withVersion(1)));
     FeatureCollection fc = new FeatureCollection().withFeatures(Collections.singletonList(f1));
 

@@ -39,6 +39,7 @@ import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.geojson.implementation.Properties;
+import com.here.xyz.models.hub.FeatureModificationList.IfExists;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.restassured.response.ValidatableResponse;
 import io.vertx.core.json.JsonObject;
@@ -57,13 +58,15 @@ import java.util.stream.Stream;
 import org.apache.commons.lang3.RandomStringUtils;
 
 public class TestSpaceWithFeature extends TestWithSpaceCleanup {
+
+  protected static final String DEFAULT_SPACE_ID = "x-psql-test";
   protected static String embeddedStorageId = "psql";
   protected static String httpStorageId = "psql-http";
 
   protected static String usedStorageId = embeddedStorageId;
 
   protected static void remove() {
-    remove("x-psql-test");
+    remove(DEFAULT_SPACE_ID);
   }
 
   protected static void remove(String spaceId) {
@@ -177,7 +180,7 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
         .path("id");
   }
 
-  public void createSpaceWithVersionsToKeep(String spaceId, int versionsToKeep) {
+  public void createSpaceWithVersionsToKeep(String spaceId, long versionsToKeep) {
     given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
@@ -186,6 +189,10 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
         .post(getCreateSpacePath())
         .then()
         .statusCode(OK.code());
+  }
+
+  protected void createSpace(String spaceId, boolean historyActive) {
+    createSpaceWithVersionsToKeep(spaceId, historyActive ? 1000 : 1);
   }
 
   protected static void addFeature(String spaceId, Feature f) {
@@ -202,7 +209,7 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
   }
 
   protected static void addFeatures() {
-    addFeatures("x-psql-test");
+    addFeatures(DEFAULT_SPACE_ID);
   }
 
   protected static void addFeatures(String toSpace) {
@@ -330,7 +337,7 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
   }
 
   protected void countFeatures(int expected) {
-    countFeatures("x-psql-test",expected);
+    countFeatures(DEFAULT_SPACE_ID,expected);
   }
 
   @SuppressWarnings("SameParameterValue")
@@ -475,28 +482,44 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
   }
 
   public static void postFeature(String spaceId, Feature feature, AuthProfile authProfile, boolean versionConflictDetection) {
-    postFeature(spaceId, feature, authProfile, versionConflictDetection, null, OK);
+    postFeature(spaceId, feature, authProfile, versionConflictDetection, null, null, OK);
   }
 
-  public static void postFeature(String spaceId, Feature feature, AuthProfile authProfile, boolean versionConflictDetection
-      , HttpResponseStatus expectedResponseStatus) {
-    postFeature(spaceId, feature, authProfile, versionConflictDetection, null, expectedResponseStatus);
+  public static void postFeature(String spaceId, Feature feature, AuthProfile authProfile, boolean versionConflictDetection,
+      HttpResponseStatus expectedResponseStatus) {
+    postFeature(spaceId, feature, authProfile, versionConflictDetection, null, null, expectedResponseStatus);
   }
 
   public static void postFeature(String spaceId, Feature feature, AuthProfile authProfile, boolean versionConflictDetection,
       SpaceContext context) {
-    postFeature(spaceId, feature, authProfile, versionConflictDetection, context, OK);
+    postFeature(spaceId, feature, authProfile, versionConflictDetection, context, null, OK);
+  }
+
+  public static void postFeature(String spaceId, Feature feature, AuthProfile authProfile, boolean versionConflictDetection,
+      IfExists ifExists) {
+    postFeature(spaceId, feature, authProfile, versionConflictDetection, null, ifExists, OK);
+  }
+
+  public static void postFeature(String spaceId, Feature feature, AuthProfile authProfile, boolean versionConflictDetection,
+      IfExists ifExists, HttpResponseStatus expectedResponseStatus) {
+    postFeature(spaceId, feature, authProfile, versionConflictDetection, null, ifExists, expectedResponseStatus);
   }
 
   public static void postFeature(String spaceId, Feature feature, AuthProfile authProfile, boolean versionConflictDetection,
       SpaceContext context, HttpResponseStatus expectedResponseStatus) {
+    postFeature(spaceId, feature, authProfile, versionConflictDetection, context, null, expectedResponseStatus);
+  }
+
+  public static void postFeature(String spaceId, Feature feature, AuthProfile authProfile, boolean versionConflictDetection,
+      SpaceContext context, IfExists ifExists, HttpResponseStatus expectedResponseStatus) {
     ValidatableResponse resp = given()
         .contentType(APPLICATION_GEO_JSON)
         .headers(getAuthHeaders(authProfile))
         .body(feature.serialize())
         .when()
         .post("/spaces/" + spaceId + "/features?conflictDetection=" + versionConflictDetection
-            + (context != null ? "&context=" + context.name() : ""))
+            + (context != null ? "&context=" + context.name() : "")
+            + (ifExists != null ? "&e=" + ifExists.name() : ""))
         .then()
         .statusCode(expectedResponseStatus.code());
     if (expectedResponseStatus == OK)

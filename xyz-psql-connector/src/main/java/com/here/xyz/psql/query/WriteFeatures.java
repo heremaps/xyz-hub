@@ -44,6 +44,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -120,7 +121,13 @@ public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureColl
           ? message.substring(message.indexOf("\n") + 1)
           : null;
       throw switch (sqlError) {
-        case FEATURE_EXISTS, VERSION_CONFLICT_ERROR, MERGE_CONFLICT_ERROR, RETRYABLE_VERSION_CONFLICT -> new ErrorResponseException(CONFLICT, cleanMessage, e).withInternalDetails(details);
+        case VERSION_CONFLICT_ERROR -> {
+          String[] detailLines = details.split("\n");
+          yield new ErrorResponseException(CONFLICT, cleanMessage, e)
+            .withInternalDetails(details)
+            .withErrorResponseDetails(Map.of("hint", detailLines[1].trim()));
+        }
+        case FEATURE_EXISTS, MERGE_CONFLICT_ERROR, RETRYABLE_VERSION_CONFLICT -> new ErrorResponseException(CONFLICT, cleanMessage, e).withInternalDetails(details);
         case DUPLICATE_KEY -> new ErrorResponseException(CONFLICT, "Conflict while writing features.", e).withInternalDetails(details); //TODO: Handle all conflicts in FeatureWriter properly
         case FEATURE_NOT_EXISTS -> new ErrorResponseException(NOT_FOUND, cleanMessage, e).withInternalDetails(details);
         case ILLEGAL_ARGUMENT -> new ErrorResponseException(XyzError.ILLEGAL_ARGUMENT, cleanMessage, e).withInternalDetails(details);
