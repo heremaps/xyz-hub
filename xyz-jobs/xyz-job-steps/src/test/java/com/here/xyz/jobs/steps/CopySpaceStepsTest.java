@@ -64,7 +64,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 public class CopySpaceStepsTest extends StepTest {
 
-  static private String sourceSpaceId = "testCopy-Source-07",
+  static protected String sourceSpaceId = "testCopy-Source-07",
                         sourceSpaceBaseId = "testCopy-Source-base-07",
                         targetSpaceId = "testCopy-Target-07",
                         emptyTargetSpaceId = "testCopy-Target-07e",
@@ -74,7 +74,7 @@ public class CopySpaceStepsTest extends StepTest {
                         propertyFilter = "p.all=common",
                         versionRange = "1..6";
 
-  static private Polygon spatialSearchGeom;
+  static protected Polygon spatialSearchGeom;
   static private float xmin = 7.0f, ymin = 50.0f, xmax = 7.1f, ymax = 50.1f;
   private static final Feature DELETED_FEATURE, DELETED_FEATURE_IN_TARGET;
   static private long NrFeaturesAtStartInTargetSpace = 3;
@@ -103,9 +103,8 @@ public class CopySpaceStepsTest extends StepTest {
             .withCoordinates(new PointCoordinates(7.05, 50.05)));
   }
 
-  @BeforeEach
-  public void setup() throws SQLException {
-    cleanup();
+  protected void createSpaces()
+  {
     createSpace(new Space().withId(sourceSpaceBaseId).withVersionsToKeep(100), false);
 
     createSpace(new Space().withId(sourceSpaceId).withVersionsToKeep(100)
@@ -116,7 +115,12 @@ public class CopySpaceStepsTest extends StepTest {
 
     createSpace(new Space().withId(emptyTargetSpaceId).withVersionsToKeep(100), false);
     createSpace(new Space().withId(emptyTargetRemoteSpace).withVersionsToKeep(100).withStorage(new ConnectorRef().withId(otherConnectorId)),false);
+  }
 
+  @BeforeEach
+  public void setup() throws SQLException {
+    cleanup();
+    createSpaces();
     //FIXME: Do not use random feature sets but specific ones that are fitting the actual use-case to be tested (prevents flickering and improves testing time)
     //write features source
     putRandomFeatureCollectionToSpace(sourceSpaceBaseId, 7, xmin, ymin, xmax, ymax); // base will not be copied
@@ -146,12 +150,17 @@ public class CopySpaceStepsTest extends StepTest {
     putFeatureToSpace(targetRemoteSpace, DELETED_FEATURE_IN_TARGET);
   }
 
-  @AfterEach
-  public void cleanup() throws SQLException {
+  protected void deleteSpaces()
+  {
     deleteSpace(sourceSpaceId);
     deleteSpace(sourceSpaceBaseId);
     deleteSpace(targetSpaceId);
     deleteSpace(targetRemoteSpace);
+  }
+
+  @AfterEach
+  public void cleanup() throws SQLException {
+    deleteSpaces();
   }
 
   private static Stream<Arguments> provideParameters() {
@@ -180,6 +189,7 @@ public class CopySpaceStepsTest extends StepTest {
         Arguments.of(true, spatialSearchGeom, true, null,null,true),
         Arguments.of(true, spatialSearchGeom, false, propertyFilter,null,false),
         Arguments.of(true, spatialSearchGeom, true, propertyFilter,null,false)
+
     );
   }
 
@@ -261,7 +271,7 @@ public class CopySpaceStepsTest extends StepTest {
     assertEquals(0, featureStatistics.getByteSize());
   }
 
-  private static Stream<Arguments> provideCountParameters() {
+  protected static Stream<Arguments> provideCountParameters() {
     return Stream.of(
         Arguments.of( DEFAULT, null, null, null),
         Arguments.of( DEFAULT, null, null, null),
