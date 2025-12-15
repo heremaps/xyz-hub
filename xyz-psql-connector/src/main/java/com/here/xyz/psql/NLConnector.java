@@ -675,6 +675,7 @@ public class NLConnector extends PSQLXyzConnector {
     String query = """
             SELECT
                 id,
+                id || '##' || operation as pid,
                 ref
             FROM "$schema$"."$table$" t
             CROSS JOIN (
@@ -693,7 +694,7 @@ public class NLConnector extends PSQLXyzConnector {
     if(baseTable == null) {
       return "SELECT " + selection + " FROM ( SELECT " +
               "  ref," +
-              "  jsonb_agg(id ORDER BY id) AS ids " +
+              "  jsonb_agg(pid ORDER BY pid) AS ids " +
               "FROM (" + inner1 + ") t GROUP BY ref )";
     }
     //unified case
@@ -714,7 +715,7 @@ public class NLConnector extends PSQLXyzConnector {
             "( " +
             "  SELECT " +
             "    ref, " +
-            "    jsonb_agg(id ORDER BY id) AS ids "+
+            "    jsonb_agg(pid ORDER BY pid) AS ids "+
             "  FROM ( "+
             "    (" + inner1 + ") " +
             "    UNION ALL " +
