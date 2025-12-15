@@ -216,7 +216,7 @@ public abstract class JobExecutor implements Initializable {
 
   @Override
   public Future<Void> init() {
-    checkCancellations();
+    exec.scheduleWithFixedDelay(JobExecutor::checkCancellations, 10, 60, SECONDS);
     return Initializable.super.init();
   }
 
