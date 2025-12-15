@@ -485,25 +485,25 @@ public class NLConnector extends PSQLXyzConnector {
     List<Feature> features = new ArrayList<>();
     while(rs.next()){
       String childQuad = rs.getString("child_quad");
-      PolygonCoordinates polygonCoordinates = new PolygonCoordinates();
-
-      if(childQuad != null){
-        BBox bBox = WebMercatorTile.forQuadkey(childQuad).getBBox(false);
-        LinearRingCoordinates lrc = new LinearRingCoordinates();
-        lrc.add(new Position(bBox.minLon(), bBox.minLat()));
-        lrc.add(new Position(bBox.maxLon(), bBox.minLat()));
-        lrc.add(new Position(bBox.maxLon(), bBox.maxLat()));
-        lrc.add(new Position(bBox.minLon(), bBox.maxLat()));
-        lrc.add(new Position(bBox.minLon(), bBox.minLat()));
-        polygonCoordinates.add(lrc);
-      }
+//      PolygonCoordinates polygonCoordinates = new PolygonCoordinates();
+//
+//      if(childQuad != null){
+//        BBox bBox = WebMercatorTile.forQuadkey(childQuad).getBBox(false);
+//        LinearRingCoordinates lrc = new LinearRingCoordinates();
+//        lrc.add(new Position(bBox.minLon(), bBox.minLat()));
+//        lrc.add(new Position(bBox.maxLon(), bBox.minLat()));
+//        lrc.add(new Position(bBox.maxLon(), bBox.maxLat()));
+//        lrc.add(new Position(bBox.minLon(), bBox.maxLat()));
+//        lrc.add(new Position(bBox.minLon(), bBox.minLat()));
+//        polygonCoordinates.add(lrc);
+//      }
 
       features.add(
               new Feature()
                       .withId(childQuad)
-                      .withGeometry(
-                              refQuad == null ? null : new Polygon().withCoordinates(polygonCoordinates)
-                      )
+//                      .withGeometry(
+//                              refQuad == null ? null : new Polygon().withCoordinates(polygonCoordinates)
+//                      )
                       .withProperties(new Properties().with("count", rs.getLong("cnt")))
       );
     }
@@ -695,6 +695,7 @@ public class NLConnector extends PSQLXyzConnector {
 
     String query = ("            SELECT\n" +
             "                id,\n" +
+            "                id || '##' || operation as pid,\n" +
             "                ref\n" +
             "            FROM \"$schema$\".\"$table$\" t\n" +
             "            CROSS JOIN (\n" +
@@ -713,7 +714,7 @@ public class NLConnector extends PSQLXyzConnector {
     if(baseTable == null) {
       return "SELECT " + selection + " FROM ( SELECT " +
               "  ref," +
-              "  jsonb_agg(id ORDER BY id) AS ids " +
+              "  jsonb_agg(pid ORDER BY pid) AS ids " +
               "FROM (" + inner1 + ") t GROUP BY ref )";
     }
     //unified case
@@ -733,7 +734,7 @@ public class NLConnector extends PSQLXyzConnector {
             "( " +
             "  SELECT " +
             "    ref, " +
-            "    jsonb_agg(id ORDER BY id) AS ids "+
+            "    jsonb_agg(pid ORDER BY pid) AS ids "+
             "  FROM ( "+
             "    (" + inner1 + ") " +
             "    UNION ALL " +
