@@ -298,7 +298,8 @@ class DatabaseWriter {
     if (this.tableLayout === 'NEW_LAYOUT') {
       const searchable = {
         refQuad: inputFeature.properties.refQuad,
-        globalVersion: inputFeature.properties.globalVersion
+        globalVersion: inputFeature.properties.globalVersion,
+        references: inputFeature.properties.references
       };
       params.push(searchable);
     }

@@ -186,6 +186,28 @@ public class PerformanceTestHelper {
     return handleRequest(connector, (ContextAwareEvent<?>) searchForFeaturesEvent, spaceNames);
   }
 
+  public static Typed readFeaturesByRefReferences(StorageConnector connector, List<String> spaceNames,
+                                                             List<String> references, int limit)
+          throws Exception {
+    Event searchForFeaturesEvent;
+
+    PropertiesQuery propertiesQuery = new PropertiesQuery();
+    PropertyQueryList queries = new PropertyQueryList();
+
+    if (references != null)
+      queries.add(new PropertyQuery()
+              .withKey("properties.references")
+              .withOperation(EQUALS)
+              .withValues(Collections.singletonList(references)));
+
+    propertiesQuery.add(queries);
+    searchForFeaturesEvent = new SearchForFeaturesEvent()
+            .withLimit(limit)
+            .withPropertiesQuery(propertiesQuery);
+
+    return handleRequest(connector, (ContextAwareEvent<?>) searchForFeaturesEvent, spaceNames);
+  }
+
   public static Typed readStatus(StorageConnector connector, List<String> spaceNames, String operations)
           throws Exception {
     Event searchForFeaturesEvent;
@@ -317,6 +339,10 @@ public class PerformanceTestHelper {
               .with("version", 1)
               .with("globalVersion", 1);
 
+      if(i % 10 == 0){
+        properties.put("references", getRandomReferences());
+      }
+
       Feature feature = new Feature()
               .withId(createIds ? "id_" + i : null)
               .withProperties(properties)
@@ -326,6 +352,17 @@ public class PerformanceTestHelper {
     }
 
     return fc;
+  }
+
+  public static List<String> getRandomReferences() {
+    int count = 1 + RANDOM.nextInt(4); // 1 to 4
+    List<String> refs = new java.util.ArrayList<>(count);
+    List<String> pool = java.util.Arrays.asList("ref1", "ref2", "ref3","ref4");
+    java.util.Collections.shuffle(pool, RANDOM);
+    for (int i = 0; i < count; i++) {
+      refs.add(pool.get(i));
+    }
+    return refs;
   }
 
   private static final Random RANDOM = new Random();
