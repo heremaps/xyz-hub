@@ -557,8 +557,8 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
      queryBuilder.withAdditionalFilterFragment(threadIdFilter);
 
     if(! useTableCopy() )  // if searchable col exists always populate to caller
-     return queryBuilder
-            .withSelectClauseOverride(new SQLQuery("id, jsondata, operation, author, geo ${{SearchableCol}}")
+     return queryBuilder  //TODO: rm workaround --> REGEXP_REPLACE(ST_AsGeojson(ST_Force3D(geo), 8), 'nan', '0', 'gi') AS geo
+            .withSelectClauseOverride(new SQLQuery("id, jsondata, operation, author, REGEXP_REPLACE(ST_AsGeojson(ST_Force3D(geo), 8), 'nan', '0', 'gi') AS geo ${{SearchableCol}}")
                                       .withQueryFragment("SearchableCol", hasSourceSearchableColumn ? ",searchable" : "")
                                      )
             .buildQuery(input); //TODO: with author, operation provided in selection the parsing of those values in buildCopySpaceQuery would be obsolete
