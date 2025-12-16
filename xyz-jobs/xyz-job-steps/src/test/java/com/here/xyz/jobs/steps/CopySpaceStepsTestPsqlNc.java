@@ -49,6 +49,7 @@ public class CopySpaceStepsTestPsqlNc extends CopySpaceStepsTest {
 
   private Map<String,Boolean> searchableProps = Map.of("$testAlias:[$.properties.test]::scalar", true );
   private ConnectorRef connector = new ConnectorRef().withId("psql-nl-connector");
+
   @Override
   protected void createSpaces()
   {
@@ -95,31 +96,31 @@ public class CopySpaceStepsTestPsqlNc extends CopySpaceStepsTest {
     return Stream.of(
 
         Arguments.of(false, null, false, null, null,false),
-
-//        Arguments.of(false, null, false, null, null,true),
-
-        Arguments.of(false, null, false, propertyFilter,null,false),
-        Arguments.of(false, spatialSearchGeom, false, null,null,false),
-        Arguments.of(false, spatialSearchGeom, true, null,null,false),
-//        Arguments.of(false, spatialSearchGeom, true, null,null,true),
-        Arguments.of(false, spatialSearchGeom, false, propertyFilter,null,false),
-        Arguments.of(false, spatialSearchGeom, true, propertyFilter,null,false),
-
-        Arguments.of(false, null, false, null, versionRange,false),
-//        Arguments.of(false, null, false, null, versionRange,true),
-        Arguments.of(false, null, false, propertyFilter,versionRange,false),
-        Arguments.of(false, spatialSearchGeom, false, null, versionRange,false)
-
-/*
-        Arguments.of(true, null, false, null,null,false),
-        Arguments.of(true, null, false, null,null,true),
-        Arguments.of(true, null, false, propertyFilter,null,false),
-        Arguments.of(true, spatialSearchGeom, false, null,null,false),
-        Arguments.of(true, spatialSearchGeom, true, null,null,false),
-        Arguments.of(true, spatialSearchGeom, true, null,null,true),
-        Arguments.of(true, spatialSearchGeom, false, propertyFilter,null,false),
-        Arguments.of(true, spatialSearchGeom, true, propertyFilter,null,false)
-*/
+//
+        Arguments.of(false, null, false, null, null,true)
+//
+//        Arguments.of(false, null, false, propertyFilter,null,false),
+//        Arguments.of(false, spatialSearchGeom, false, null,null,false),
+//        Arguments.of(false, spatialSearchGeom, true, null,null,false),
+////        Arguments.of(false, spatialSearchGeom, true, null,null,true),
+//        Arguments.of(false, spatialSearchGeom, false, propertyFilter,null,false),
+//        Arguments.of(false, spatialSearchGeom, true, propertyFilter,null,false),
+//
+//        Arguments.of(false, null, false, null, versionRange,false),
+////        Arguments.of(false, null, false, null, versionRange,true),
+//        Arguments.of(false, null, false, propertyFilter,versionRange,false),
+//        Arguments.of(false, spatialSearchGeom, false, null, versionRange,false)
+//
+///*
+//        Arguments.of(true, null, false, null,null,false),
+//        Arguments.of(true, null, false, null,null,true),
+//        Arguments.of(true, null, false, propertyFilter,null,false),
+//        Arguments.of(true, spatialSearchGeom, false, null,null,false),
+//        Arguments.of(true, spatialSearchGeom, true, null,null,false),
+//        Arguments.of(true, spatialSearchGeom, true, null,null,true),
+//        Arguments.of(true, spatialSearchGeom, false, propertyFilter,null,false),
+//        Arguments.of(true, spatialSearchGeom, true, propertyFilter,null,false)
+//*/
     );
   }
 

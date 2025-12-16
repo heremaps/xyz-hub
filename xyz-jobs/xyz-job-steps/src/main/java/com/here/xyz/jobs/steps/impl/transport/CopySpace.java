@@ -402,10 +402,10 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
 
     final Map<String, Object> queryContext = fwqcb.build();
 
-    SQLQuery contentQuery = buildCopyContentQuery(threadCount, threadId, bCopySeachableColIntoEmpty);
+    SQLQuery contentQuery = buildCopyContentQuery(threadCount, threadId, hasSourceSearchableColumn());
 
     if (isRemoteCopy())
-      contentQuery = buildCopyQueryRemoteSpace(dbReader(), contentQuery, useTableCopy());
+      contentQuery = buildCopyQueryRemoteSpace(dbReader(), contentQuery, useTableCopy(), hasSourceSearchableColumn());
 
     if (!useTableCopy() || ( bTargetWithSearchableCol == true && bSourceWithSearchableCol == false ) )
     {  // case 1. copy into non empty target
@@ -528,7 +528,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
       return new SQLQuery("geo");
   }
 
-  private SQLQuery buildCopyContentQuery(int threadCount, int threadId, boolean bCopySeachableColIntoEmpty) throws WebClientException, QueryBuildingException,
+  private SQLQuery buildCopyContentQuery(int threadCount, int threadId, boolean hasSourceSearchableColumn ) throws WebClientException, QueryBuildingException,
       TooManyResourcesClaimed {
 
     Database db = !isRemoteCopy()
@@ -556,13 +556,17 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     if( threadIdFilter != null )
      queryBuilder.withAdditionalFilterFragment(threadIdFilter);
 
-    if(! useTableCopy() )
-     return queryBuilder.buildQuery(input); //TODO: with author, operation provided in selection the parsing of those values in buildCopySpaceQuery would be obsolete
+    if(! useTableCopy() )  // if searchable col exists always populate to caller
+     return queryBuilder
+            .withSelectClauseOverride(new SQLQuery("id, jsondata, operation, author, geo ${{SearchableCol}}")
+                                      .withQueryFragment("SearchableCol", hasSourceSearchableColumn ? ",searchable" : "")
+                                     )
+            .buildQuery(input); //TODO: with author, operation provided in selection the parsing of those values in buildCopySpaceQuery would be obsolete
     else
      return queryBuilder
             .withSelectClauseOverride(new SQLQuery("id, jsondata, operation, author, ${{PlainGeom}} ${{SearchableCol}}")
                                             .withQueryFragment("PlainGeom",buildGeoFragment())
-                                            .withQueryFragment("SearchableCol", bCopySeachableColIntoEmpty ? ",searchable" : "")
+                                            .withQueryFragment("SearchableCol", hasSourceSearchableColumn ? ",searchable" : "")
                                      )
             .buildQuery(input);
 
