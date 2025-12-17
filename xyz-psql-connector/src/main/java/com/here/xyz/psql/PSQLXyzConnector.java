@@ -19,6 +19,7 @@
 
 package com.here.xyz.psql;
 
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.psql.query.branching.BranchManager.getNodeId;
 import static com.here.xyz.responses.XyzError.EXCEPTION;
 import static com.here.xyz.responses.XyzError.ILLEGAL_ARGUMENT;
@@ -47,6 +48,7 @@ import com.here.xyz.events.ModifySubscriptionEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.events.WriteFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.models.hub.Ref;
 import com.here.xyz.psql.query.DeleteChangesets;
 import com.here.xyz.psql.query.EraseSpace;
 import com.here.xyz.psql.query.GetChangesetStatistics;
@@ -80,6 +82,7 @@ import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.responses.changesets.ChangesetCollection;
 import com.here.xyz.util.db.SQLQuery;
 import java.sql.SQLException;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.logging.log4j.LogManager;
@@ -104,8 +107,32 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
   @Override
   protected StatisticsResponse processGetStatistics(GetStatisticsEvent event) throws Exception {
-    if(event.isFastMode())
-      return run(new GetFastStatistics(event));
+
+    //For branches, always use fastMode with DEFAULT context
+    if (event.getBranchPath().size() > 0)
+      event.withFastMode(true).withContext(DEFAULT);
+
+    if(event.isFastMode()) {
+      List<Ref> providedBranchPath = event.getBranchPath();
+      int providedNodeId = event.getNodeId();
+
+      //Statistics for main table
+      StatisticsResponse statisticsResponse = run(new GetFastStatistics(event.withBranchPath(List.of()).withNodeId(0)));
+
+      //Statistics for branches
+      for (int i = 0; i < providedBranchPath.size(); i++) {
+        Ref baseRef = providedBranchPath.get(i);
+        int nodeId = i == providedBranchPath.size() - 1 ? providedNodeId : BranchManager.getNodeId(providedBranchPath.get(i + 1));
+
+        StatisticsResponse branchStats = run(new GetFastStatistics(event.withBranchPath(List.of(baseRef)).withNodeId(nodeId)));
+        statisticsResponse.getCount().withValue(statisticsResponse.getCount().getValue() + branchStats.getCount().getValue()).withEstimated(true);
+        statisticsResponse.getDataSize().withValue(statisticsResponse.getDataSize().getValue() + branchStats.getDataSize().getValue()).withEstimated(true);
+        statisticsResponse.withMaxVersion(branchStats.getMaxVersion());
+        statisticsResponse.withByteSize(statisticsResponse.getDataSize());
+      }
+      return statisticsResponse;
+    }
+
     return run(new GetStatistics(event));
   }
 
