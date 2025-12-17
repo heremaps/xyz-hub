@@ -517,11 +517,11 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
 
     if (geometry != null && clipOnFilterGeometry) {
      if( radius > 0 )
-       return new SQLQuery("ST_Intersection(ST_MakeValid(geo), ST_Buffer(ST_GeomFromText(#{wktGeometryImlCopy})::geography, #{radiusImlCopy})::geometry) as geo")
+       return new SQLQuery("ST_Intersection(ST_MakeValid(geo), ST_Buffer(ST_GeomFromText(#{wktGeometryImlCopy})::geography, #{radiusImlCopy})::geometry)")
                .withNamedParameter("wktGeometryImlCopy", WKTHelper.geometryToWKB(geometry))
                .withNamedParameter("radiusImlCopy", radius);
      else
-       return new SQLQuery("ST_Intersection(ST_MakeValid(geo), st_setsrid( ST_GeomFromText( #{wktGeometryImlCopy} ),4326 )) as geo")
+       return new SQLQuery("ST_Intersection(ST_MakeValid(geo), st_setsrid( ST_GeomFromText( #{wktGeometryImlCopy} ),4326 ))")
                .withNamedParameter("wktGeometryImlCopy", WKTHelper.geometryToWKB(geometry));
     }
     else
@@ -558,13 +558,14 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
 
     if(! useTableCopy() )  // if searchable col exists always populate to caller
      return queryBuilder  //TODO: rm workaround --> REGEXP_REPLACE(ST_AsGeojson(ST_Force3D(geo), 8), 'nan', '0', 'gi') AS geo
-            .withSelectClauseOverride(new SQLQuery("id, jsondata, operation, author, REGEXP_REPLACE(ST_AsGeojson(ST_Force3D(geo), 8), 'nan', '0', 'gi') AS geo ${{SearchableCol}}")
+            .withSelectClauseOverride(new SQLQuery("id, jsondata, operation, author, REGEXP_REPLACE(ST_AsGeojson(ST_Force3D( ${{PlainGeom}} ), 8), 'nan', '0', 'gi') AS geo ${{SearchableCol}}")
+                                      .withQueryFragment("PlainGeom",buildGeoFragment())
                                       .withQueryFragment("SearchableCol", hasSourceSearchableColumn ? ",searchable" : "")
                                      )
             .buildQuery(input); //TODO: with author, operation provided in selection the parsing of those values in buildCopySpaceQuery would be obsolete
     else
      return queryBuilder
-            .withSelectClauseOverride(new SQLQuery("id, jsondata, operation, author, ${{PlainGeom}} ${{SearchableCol}}")
+            .withSelectClauseOverride(new SQLQuery("id, jsondata, operation, author, ${{PlainGeom}} as geo ${{SearchableCol}}")
                                             .withQueryFragment("PlainGeom",buildGeoFragment())
                                             .withQueryFragment("SearchableCol", hasSourceSearchableColumn ? ",searchable" : "")
                                      )
