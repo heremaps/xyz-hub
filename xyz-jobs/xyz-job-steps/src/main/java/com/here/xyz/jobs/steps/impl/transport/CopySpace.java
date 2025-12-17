@@ -370,12 +370,12 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
       return false;
 
 
-    ConnectorParameters srcCnt = ConnectorParameters.fromMap(loadConnector(space()).params),
-                        trgCnt = ConnectorParameters.fromMap(loadConnector(targetSpace()).params);
+//    ConnectorParameters srcCnt = ConnectorParameters.fromMap(loadConnector(space()).params),
+//                        trgCnt = ConnectorParameters.fromMap(loadConnector(targetSpace()).params);
+//
+//    return srcCnt.getEcps().equals(trgCnt.getEcps()); //todo: decrypt and compare hosts
 
-    return srcCnt.getEcps().equals(trgCnt.getEcps()); //todo: decrypt and compare hosts
-
-//    return false;
+    return true;
   }
 
   private boolean useTableCopy() { return loadTargetFeatureCount() == 0; }
