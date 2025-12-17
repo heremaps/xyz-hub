@@ -39,12 +39,17 @@ import com.here.xyz.models.geojson.coordinates.WKTHelper;
 import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
+import com.here.xyz.models.hub.Space.ConnectorRef;
+import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.query.GetFeaturesByGeometryBuilder;
 import com.here.xyz.psql.query.GetFeaturesByGeometryBuilder.GetFeaturesByGeometryInput;
 import com.here.xyz.psql.query.QueryBuilder.QueryBuildingException;
 import com.here.xyz.psql.query.WriteFeatures;
+import com.here.xyz.util.db.ConnectorParameters;
+import com.here.xyz.util.db.ECPSTool;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.pg.FeatureWriterQueryBuilder.FeatureWriterQueryContextBuilder;
+import com.here.xyz.util.runtime.FunctionRuntime;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
 
@@ -360,7 +365,17 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
   }
 
   private boolean isRemoteCopy() throws WebClientException {
-    return !space().getStorage().getId().equals(targetSpace().getStorage().getId());
+
+    if( space().getStorage().getId().equals(targetSpace().getStorage().getId()) )
+      return false;
+
+//    return true;
+
+    ConnectorParameters srcCnt = ConnectorParameters.fromMap(loadConnector(space()).params),
+                        trgCnt = ConnectorParameters.fromMap(loadConnector(targetSpace()).params);
+
+    boolean ret = !srcCnt.getEcps().equals(trgCnt.getEcps()); //todo: decrypt and compare hosts
+    return ret;
   }
 
   private boolean useTableCopy() { return loadTargetFeatureCount() == 0; }
