@@ -40,6 +40,7 @@ import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Space.ConnectorRef;
+import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.query.GetFeaturesByGeometryBuilder;
 import com.here.xyz.psql.query.GetFeaturesByGeometryBuilder.GetFeaturesByGeometryInput;
 import com.here.xyz.psql.query.QueryBuilder.QueryBuildingException;
@@ -368,10 +369,13 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     if( space().getStorage().getId().equals(targetSpace().getStorage().getId()) )
       return true;
 
+/*
     ConnectorParameters srcCnt = ConnectorParameters.fromMap(loadConnector(space()).params),
                         trgCnt = ConnectorParameters.fromMap(loadConnector(targetSpace()).params);
 
     return srcCnt.getEcps().equals(trgCnt.getEcps()); //todo: decrypt and compare hosts
+*/
+    return false;
   }
 
   private boolean useTableCopy() { return loadTargetFeatureCount() == 0; }
