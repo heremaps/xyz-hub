@@ -369,13 +369,13 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     if( space().getStorage().getId().equals(targetSpace().getStorage().getId()) )
       return false;
 
+//    return true;
 
-//    ConnectorParameters srcCnt = ConnectorParameters.fromMap(loadConnector(space()).params),
-//                        trgCnt = ConnectorParameters.fromMap(loadConnector(targetSpace()).params);
-//
-//    return srcCnt.getEcps().equals(trgCnt.getEcps()); //todo: decrypt and compare hosts
+    ConnectorParameters srcCnt = ConnectorParameters.fromMap(loadConnector(space()).params),
+                        trgCnt = ConnectorParameters.fromMap(loadConnector(targetSpace()).params);
 
-    return true;
+    boolean ret = !srcCnt.getEcps().equals(trgCnt.getEcps()); //todo: decrypt and compare hosts
+    return ret;
   }
 
   private boolean useTableCopy() { return loadTargetFeatureCount() == 0; }
