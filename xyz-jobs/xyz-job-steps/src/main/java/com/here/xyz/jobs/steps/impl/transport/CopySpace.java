@@ -42,11 +42,13 @@ import com.here.xyz.models.hub.Space;
 import com.here.xyz.psql.query.GetFeaturesByGeometryBuilder;
 import com.here.xyz.psql.query.GetFeaturesByGeometryBuilder.GetFeaturesByGeometryInput;
 import com.here.xyz.psql.query.QueryBuilder.QueryBuildingException;
+import com.here.xyz.psql.query.WriteFeatures;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.pg.FeatureWriterQueryBuilder.FeatureWriterQueryContextBuilder;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
 
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -363,26 +365,51 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
 
   private boolean useTableCopy() { return loadTargetFeatureCount() == 0; }
 
+  private boolean hasSourceSearchableColumn() throws WebClientException, SQLException, TooManyResourcesClaimed
+  {
+    return getTableLayout().hasSearchableColumn() == true;
+  }
+
+  private boolean hasTargetSearchableColumn() throws WebClientException, SQLException, TooManyResourcesClaimed
+  {
+    return getTableLayout(loadDatabase(targetSpace().getStorage().getId(), WRITER),targetSpace()).hasSearchableColumn() == true;
+  }
+
   private SQLQuery buildCopySpaceQuery(int threadCount, int threadId) throws WebClientException, QueryBuildingException,
-      TooManyResourcesClaimed {
+      TooManyResourcesClaimed, SQLException {
     String targetStorageId = targetSpace().getStorage().getId(),
         targetSchema = getSchema(loadDatabase(targetStorageId, WRITER)),
         targetTable = getRootTableName(targetSpace());
 
-    final Map<String, Object> queryContext = new FeatureWriterQueryContextBuilder()
-        .withSchema(targetSchema)
-        .withTables(List.of(targetTable))
-        .withHistoryEnabled(targetSpace().getVersionsToKeep() > 1)
-        .withBatchMode(true)
-        .build();
 
-    SQLQuery contentQuery = buildCopyContentQuery(threadCount, threadId);
+    FeatureWriterQueryContextBuilder fwqcb =new FeatureWriterQueryContextBuilder()
+                                            .withSchema(targetSchema)
+                                            .withTables(List.of(targetTable))
+                                            .withHistoryEnabled(targetSpace().getVersionsToKeep() > 1)
+                                            .withBatchMode(true);
+
+    boolean bCopySeachableColIntoEmpty = false, // true -> same layout on src & trg
+            bSourceWithSearchableCol = hasSourceSearchableColumn(),
+            bTargetWithSearchableCol = hasTargetSearchableColumn();
+
+    if( targetSpace().getSearchableProperties() != null && bTargetWithSearchableCol )
+    { String writeHook = WriteFeatures.writeHook( Space.toExtractableSearchProperties(targetSpace()) );
+      //TODO: investigate - following replacemens are needed to assure a valid json setting context -> SELECT context($a$...$a$::JSONB)
+      writeHook = writeHook.replaceAll("\n", "\\\\n").replaceAll("\"","\\\\\"");
+      fwqcb.with("writeHooks", List.of( writeHook ));
+      bCopySeachableColIntoEmpty = targetSpace().equalSearchableProperties(space().getSearchableProperties()) && bSourceWithSearchableCol;
+    }
+
+    final Map<String, Object> queryContext = fwqcb.build();
+
+    SQLQuery contentQuery = buildCopyContentQuery(threadCount, threadId, hasSourceSearchableColumn());
 
     if (isRemoteCopy())
-      contentQuery = buildCopyQueryRemoteSpace(dbReader(), contentQuery, useTableCopy());
+      contentQuery = buildCopyQueryRemoteSpace(dbReader(), contentQuery, useTableCopy(), hasSourceSearchableColumn());
 
-    if (! useTableCopy() )
-    {
+    if (!useTableCopy() || ( bTargetWithSearchableCol == true && bSourceWithSearchableCol == false ) )
+    {  // case 1. copy into non empty target
+       // case 2. empty target, but target has new layout but source has old layout
     int maxBatchSize = 1000;
     //TODO: Do not use slow JSONB functions in the following query!
     //TODO: Simplify / deduplicate the following query
@@ -399,8 +426,8 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
               ) as wfresult
             from
             (
-             select ((row_number() over ())-1)/${{maxBatchSize}} as rn, 
-                    idata.jsondata#>>'{properties,@ns:com:here:xyz,author}' as author, 
+             select ((row_number() over ())-1)/${{maxBatchSize}} as rn,
+                    idata.jsondata#>>'{properties,@ns:com:here:xyz,author}' as author,
                     idata.jsondata || jsonb_build_object('geometry', (idata.geo)::json) as feature
              from
              ( ${{contentQuery}} ) idata
@@ -415,24 +442,31 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     }
     else
     {
+      // empty target
+      // case 1. source and target are both old layout
+      // case 2. source and target with new layout and share excact same searchables
+      // case 3. source with new layout, target with old layout
       return new SQLQuery("""
       WITH ins_data as
       (
-        INSERT INTO ${schema}.${table} (jsondata, operation, author, geo, id, version, next_version )
-          SELECT idata.jsondata, case when idata.operation = 'U' then 'I' else idata.operation end AS operation, idata.author, idata.geo, idata.id, ${{versionToBeUsed}} as version, max_bigint() as next_version
+        INSERT INTO ${schema}.${table} (jsondata, operation, author, geo, id, version, next_version ${{SearchableColIn}} )
+          SELECT idata.jsondata, case when idata.operation = 'U' then 'I' else idata.operation end AS operation, idata.author, idata.geo,
+                 idata.id, ${{versionToBeUsed}} as version, max_bigint() as next_version ${{SearchableColOut}}
           FROM
-          ( 
-            ${{contentQuery}} 
+          (
+            ${{contentQuery}}
           ) idata
         RETURNING id
       ),
-      count_data as 
+      count_data as
       ( SELECT count(1) AS rows FROM ins_data )
       select rows into dummy_output from count_data
     """)
     .withVariable("schema", targetSchema)
     .withVariable("table", targetTable)
     .withQueryFragment("versionToBeUsed", "" + getTargetVersion())
+    .withQueryFragment("SearchableColIn", bCopySeachableColIntoEmpty ? ",searchable" : "")
+    .withQueryFragment("SearchableColOut", bCopySeachableColIntoEmpty ? ", idata.searchable" : "")
     .withQueryFragment("contentQuery", contentQuery);
     }
   }
@@ -494,7 +528,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
       return new SQLQuery("geo");
   }
 
-  private SQLQuery buildCopyContentQuery(int threadCount, int threadId) throws WebClientException, QueryBuildingException,
+  private SQLQuery buildCopyContentQuery(int threadCount, int threadId, boolean hasSourceSearchableColumn ) throws WebClientException, QueryBuildingException,
       TooManyResourcesClaimed {
 
     Database db = !isRemoteCopy()
@@ -522,11 +556,18 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     if( threadIdFilter != null )
      queryBuilder.withAdditionalFilterFragment(threadIdFilter);
 
-    if(! useTableCopy() )
-     return queryBuilder.buildQuery(input); //TODO: with author, operation provided in selection the parsing of those values in buildCopySpaceQuery would be obsolete
+    if(! useTableCopy() )  // if searchable col exists always populate to caller
+     return queryBuilder  //TODO: rm workaround --> REGEXP_REPLACE(ST_AsGeojson(ST_Force3D(geo), 8), 'nan', '0', 'gi') AS geo
+            .withSelectClauseOverride(new SQLQuery("id, jsondata, operation, author, REGEXP_REPLACE(ST_AsGeojson(ST_Force3D(geo), 8), 'nan', '0', 'gi') AS geo ${{SearchableCol}}")
+                                      .withQueryFragment("SearchableCol", hasSourceSearchableColumn ? ",searchable" : "")
+                                     )
+            .buildQuery(input); //TODO: with author, operation provided in selection the parsing of those values in buildCopySpaceQuery would be obsolete
     else
      return queryBuilder
-            .withSelectClauseOverride(new SQLQuery("id, jsondata, operation, author, ${{PlainGeom}} ").withQueryFragment("PlainGeom",buildGeoFragment()))
+            .withSelectClauseOverride(new SQLQuery("id, jsondata, operation, author, ${{PlainGeom}} ${{SearchableCol}}")
+                                            .withQueryFragment("PlainGeom",buildGeoFragment())
+                                            .withQueryFragment("SearchableCol", hasSourceSearchableColumn ? ",searchable" : "")
+                                     )
             .buildQuery(input);
 
   }

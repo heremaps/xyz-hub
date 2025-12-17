@@ -304,18 +304,16 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
     throw e;
   }
 
-  protected TableLayout getTableLayout()
-          throws WebClientException, SQLException, TooManyResourcesClaimed {
-    TableComment comment = getComment();
+  protected TableLayout getTableLayout(Database db, Space space) throws WebClientException, SQLException, TooManyResourcesClaimed {
+    TableComment comment = getComment(db,space);
     return comment == null ? OLD_LAYOUT : comment.tableLayout();
   }
 
-  protected TableComment getComment()
-          throws WebClientException, SQLException, TooManyResourcesClaimed {
+  protected TableComment getComment(Database db, Space space) throws WebClientException, SQLException, TooManyResourcesClaimed  {
 
-    SQLQuery readTableComment = buildReadTableCommentQuery(getSchema(db()), getRootTableName(space()));
+    SQLQuery readTableComment = buildReadTableCommentQuery(getSchema(db), getRootTableName(space));
 
-    return runReadQuerySync(readTableComment, db(), 0, rs -> {
+    return runReadQuerySync(readTableComment, db, 0, rs -> {
       TableComment comment = null;
       if (rs.next()) {
         try {
@@ -326,6 +324,15 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
       }
       return comment;
     });
+  }
+
+  protected TableLayout getTableLayout() throws WebClientException, SQLException, TooManyResourcesClaimed {
+   return getTableLayout(db(), space());
+  }
+
+  protected TableComment getComment()
+          throws WebClientException, SQLException, TooManyResourcesClaimed {
+   return getComment( db(), space() );
   }
 
   protected void infoLog(LogPhase phase, String... messages) {

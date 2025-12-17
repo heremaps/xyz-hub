@@ -187,7 +187,7 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
     //TODO: Handle ErrorCause
     SQLQuery lambdaFailureInvoke = isSimulation
         ? new SQLQuery("PERFORM 'Failure callback will be simulated';")
-        : new SQLQuery("""             
+        : new SQLQuery("""
              PERFORM aws_lambda.invoke(aws_commons.create_lambda_function_arn('${{lambdaArn}}', '${{lambdaRegion}}'),
                   jsonb_set(
                     '${{failureRequestBody}}'::JSONB,
@@ -214,7 +214,7 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
     return db.getDatabaseSettings().getSchema();
   }
 
-  protected SQLQuery buildCopyQueryRemoteSpace( Database remoteDb, SQLQuery contentQuery, boolean emptyTargetTable) {
+  protected SQLQuery buildCopyQueryRemoteSpace( Database remoteDb, SQLQuery contentQuery, boolean emptyTargetTable, boolean hasSourceSearchableColumn) {
 
       DatabaseSettings dbSettings = remoteDb.getDatabaseSettings();
 
@@ -222,23 +222,25 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
        new SQLQuery(
         !emptyTargetTable
         ? """
-            select t.* 
-            from 
-            dblink( $icnt$ host=${{rmtHost}} dbname=${{rmtDb}} user=${{rmtUsr}} password=${{rmtPwd}} $icnt$, 
-                    $iqry$ select jsondata, jsondata#>>'{properties,@ns:com:here:xyz,author}' as author, geo from ( ${{innerContentQuery}} ) rcopy $iqry$
-                  ) 
-            as t( jsondata jsonb, author text, geo text )
+            select t.*
+            from
+            dblink( $icnt$ host=${{rmtHost}} dbname=${{rmtDb}} user=${{rmtUsr}} password=${{rmtPwd}} $icnt$,
+                    $iqry$ select id, operation, author, jsondata, geo ${{searchableCol}} from ( ${{innerContentQuery}} ) rcopy $iqry$
+                  )
+            as t( id text, operation character(1), author text, jsondata jsonb, geo text ${{searchableColType}} )
            """
          : """
-            select t.* 
-            from 
-            dblink( $icnt$ host=${{rmtHost}} dbname=${{rmtDb}} user=${{rmtUsr}} password=${{rmtPwd}} $icnt$, 
-                    $iqry$ select id, operation, author, jsondata, geo from ( ${{innerContentQuery}} ) rcopy $iqry$
-                  ) 
-            as t( id text, operation character(1), author text, jsondata jsonb, geo geometry )
+            select t.*
+            from
+            dblink( $icnt$ host=${{rmtHost}} dbname=${{rmtDb}} user=${{rmtUsr}} password=${{rmtPwd}} $icnt$,
+                    $iqry$ select id, operation, author, jsondata, geo ${{searchableCol}} from ( ${{innerContentQuery}} ) rcopy $iqry$
+                  )
+            as t( id text, operation character(1), author text, jsondata jsonb, geo geometry ${{searchableColType}} )
            """
        )
        .withQueryFragment("innerContentQuery", contentQuery)
+       .withQueryFragment("searchableCol", hasSourceSearchableColumn ? ", searchable" : "")
+       .withQueryFragment("searchableColType", hasSourceSearchableColumn ? ", searchable jsonb" : "")
        .withQueryFragment("rmtHost", dbSettings.getHost())
        .withQueryFragment("rmtDb", dbSettings.getDb())
        .withQueryFragment("rmtUsr", dbSettings.getUser())
