@@ -367,15 +367,15 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
   private boolean isRemoteCopy() throws WebClientException {
 
     if( space().getStorage().getId().equals(targetSpace().getStorage().getId()) )
-      return true;
+      return false;
 
-/*
+
     ConnectorParameters srcCnt = ConnectorParameters.fromMap(loadConnector(space()).params),
                         trgCnt = ConnectorParameters.fromMap(loadConnector(targetSpace()).params);
 
     return srcCnt.getEcps().equals(trgCnt.getEcps()); //todo: decrypt and compare hosts
-*/
-    return false;
+
+//    return false;
   }
 
   private boolean useTableCopy() { return loadTargetFeatureCount() == 0; }
