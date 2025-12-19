@@ -61,6 +61,10 @@ public class Connector {
    */
   public ConnectionSettings connectionSettings = new ConnectionSettings();
   /**
+   * The connection and throttling settings.
+   */
+  public RemoteFunction remoteFunction = new RemoteFunction();
+  /**
    * The default event types to register the connector for. Can be overridden in the space definition by the space creator.
    */
   public List<String> defaultEventTypes;
@@ -79,6 +83,12 @@ public class Connector {
    * A regular expression that matches all mimetypes for which no compression should be applied in the response phase.
    */
   public Pattern blockMimetypeCompression = null;
+
+  @JsonIgnoreProperties(ignoreUnknown = true)
+  public static class RemoteFunction {
+    public String id;
+    public String className;
+  }
 
   @JsonIgnoreProperties(ignoreUnknown = true)
   public static class StorageCapabilities {

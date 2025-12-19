@@ -56,6 +56,7 @@ import com.here.xyz.models.hub.Connector;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Tag;
+import com.here.xyz.psql.PSQLXyzConnector;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.ConnectorParameters;
 import com.here.xyz.util.db.SQLQuery;
@@ -308,9 +309,12 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
     throw e;
   }
 
-  protected TableLayout getTableLayout(Database db, Space space) throws WebClientException, SQLException, TooManyResourcesClaimed {
-    TableComment comment = getComment(db,space);
-    return comment == null ? OLD_LAYOUT : comment.tableLayout();
+  protected TableLayout getTableLayout() throws WebClientException {
+    return getTableLayout(space());
+  }
+
+  protected TableLayout getTableLayout(Space space) throws WebClientException {
+    return getTableLayoutFromConnectorClass(loadConnector(space).remoteFunction.className);
   }
 
   protected TableComment getComment(Database db, Space space) throws WebClientException, SQLException, TooManyResourcesClaimed  {
@@ -330,13 +334,17 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
     });
   }
 
-  protected TableLayout getTableLayout() throws WebClientException, SQLException, TooManyResourcesClaimed {
-   return getTableLayout(db(), space());
-  }
-
-  protected TableComment getComment()
-          throws WebClientException, SQLException, TooManyResourcesClaimed {
-   return getComment( db(), space() );
+  public static TableLayout getTableLayoutFromConnectorClass(String className) throws WebClientException {
+    String errorMsg = "Error while determining the table layout for classname " + className;
+    if(className == null)
+      throw new StepException(errorMsg).withRetryable(false);
+    try{
+      Class<?> mainClass = Class.forName(className);
+      PSQLXyzConnector connectorInstance = (PSQLXyzConnector) mainClass.getDeclaredConstructor().newInstance();
+      return connectorInstance.getTableLayout();
+    }catch (Exception e){
+      throw new StepException(errorMsg, e).withRetryable(false);
+    }
   }
 
   protected void infoLog(LogPhase phase, String... messages) {

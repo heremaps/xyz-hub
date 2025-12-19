@@ -372,7 +372,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
 
   private boolean hasTargetSearchableColumn() throws WebClientException, SQLException, TooManyResourcesClaimed
   {
-    return getTableLayout(loadDatabase(targetSpace().getStorage().getId(), WRITER),targetSpace()).hasSearchableColumn() == true;
+    return getTableLayout(targetSpace()).hasSearchableColumn();
   }
 
   private SQLQuery buildCopySpaceQuery(int threadCount, int threadId) throws WebClientException, QueryBuildingException,

@@ -638,13 +638,11 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     String superTable = space().getExtension() != null ? getRootTableName(superSpace()) : null;
 
     String writeHook = null;
-	  try {
-		  writeHook = space().getSearchableProperties() != null && getTableLayout().hasSearchableColumn() == true
-		                    ? WriteFeatures.writeHook( Space.toExtractableSearchProperties(space()) )
-		                    : null;
-	  } catch ( SQLException | TooManyResourcesClaimed e) {
-		 throw new WebClientException("Error build writeHook",e);
-	  }
+
+    writeHook = space().getSearchableProperties() != null && getTableLayout().hasSearchableColumn()
+                      ? WriteFeatures.writeHook( Space.toExtractableSearchProperties(space()) )
+                      : null;
+
 
     List<String> tables = superTable == null ? List.of(getRootTableName(space())) : List.of(superTable, getRootTableName(space()));
 
