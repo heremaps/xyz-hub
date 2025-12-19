@@ -546,7 +546,7 @@ $BODY$
 
 		EXECUTE format('COMMENT ON INDEX %s."%s" '
 				||'IS ''p.name=%s''',
-			schema, idx_name, xyz_index_get_plain_propkey(propkey));
+			schema, idx_name, propkey);
 
 		RETURN idx_name;
 	END
@@ -557,14 +557,15 @@ $BODY$
 CREATE OR REPLACE FUNCTION xyz_index_creation_for_searchable(
 	schema text,
 	tbl text,
-	searchable text,
+    alias text,
+	prop_path text,
+    comment text,
 	datatype text)
 RETURNS text AS
 $BODY$
 	DECLARE
-        prop_path text := regexp_replace( searchable,'^f\.','');
 		idx_type text := 'btree';
-		idx_name text := xyz_index_name_for_property(tbl, searchable, 'm');
+		idx_name text := xyz_index_name_for_property(tbl, comment, 'm');
     BEGIN
         /** In all other cases we are using btree */
         IF LOWER(datatype) = 'array' THEN
@@ -577,13 +578,9 @@ $BODY$
                    ||'((%s->''%s''))'
             , idx_name, schema, tbl, idx_type, 'searchable', prop_path);
 
-        IF NOT (searchable LIKE 'f.%' OR searchable LIKE 'properties.%') THEN
-            searchable := 'alias.' || searchable;
-        END IF;
-
         EXECUTE format('COMMENT ON INDEX %s."%s" '
                            ||'IS ''p.name=%s''',
-            schema, idx_name, searchable);
+            schema, idx_name, comment);
         RETURN idx_name;
     END
 $BODY$

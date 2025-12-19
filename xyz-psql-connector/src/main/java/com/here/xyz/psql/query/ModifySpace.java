@@ -23,6 +23,7 @@ import static com.here.xyz.XyzSerializable.Mappers.DEFAULT_MAPPER;
 import static com.here.xyz.events.ModifySpaceEvent.Operation.CREATE;
 import static com.here.xyz.events.ModifySpaceEvent.Operation.DELETE;
 import static com.here.xyz.events.ModifySpaceEvent.Operation.UPDATE;
+import static com.here.xyz.events.PropertiesQuery.ALIAS_PREFIX;
 import static com.here.xyz.psql.query.helpers.versioning.GetNextVersion.VERSION_SEQUENCE_SUFFIX;
 import static com.here.xyz.responses.XyzError.ILLEGAL_ARGUMENT;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SCHEMA;
@@ -132,11 +133,15 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
                 List<SQLQuery> queries = new ArrayList<>();
                 final String table = getDefaultTable(event);
 
+                List<OnDemandIndex> activatedSearchableProperties
+                      = getActivatedSearchableProperties(event.getSpaceDefinition().getSearchableProperties());
+
+                boolean requiresAlias = activatedSearchableProperties.stream().anyMatch(k -> k.getPropertyPath().startsWith(ALIAS_PREFIX));
+                if(!tableLayout.hasSearchableColumn() && requiresAlias)
+                  throw new IllegalArgumentException( "Connector does not support Alias in searchableProperty configuration!");
+
                 if (event.getSpaceDefinition() != null && event.getOperation() == CREATE) {
                     //Add space table creation queries
-                    List<OnDemandIndex> activatedSearchableProperties
-                            = getActivatedSearchableProperties(event.getSpaceDefinition().getSearchableProperties());
-
                     queries.addAll(buildCreateSpaceTableQueries(getSchema(), table, activatedSearchableProperties,
                             event.getSpace(), tableLayout));
                 }

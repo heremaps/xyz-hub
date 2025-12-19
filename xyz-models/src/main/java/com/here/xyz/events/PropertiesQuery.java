@@ -31,16 +31,17 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 public class PropertiesQuery extends ArrayList<PropertyQueryList> {
-  private static final String FEATURE_PREFIX = "f.";
-  private static final String PROPERTIES_PREFIX = "p.";
-  private static final String ALAIAS_PREFIX = "a.";
+  public static final String FEATURE_PREFIX = "f.";
+  public static final String PROPERTIES_PREFIX = "p.";
+  public static final String ALIAS_PREFIX = "$";
 
   private static final String PROPERTIES_EVENT_PREFIX = "properties.";
-  private static final String ALAIAS_EVENT_PREFIX = "alias.";
 
-  //Special search keys - in the past those were indexed by default without needing
-  //to define them as searchable properties - we kept them to be BWC
-  private static final Map<String, String> SEARCH_KEY_REPLACEMENTS = Map.of(
+  //Special search keys
+  public static final Map<String, String> SEARCH_KEY_REPLACEMENTS = Map.of(
+          //default indices are getting used
+          FEATURE_PREFIX + "id", "id",
+          FEATURE_PREFIX + "geometry.type", "geometry.type",
           //those are only available if space < 10k and has OLD_LAYOUT - otherwise an index is needed
           FEATURE_PREFIX + "createdAt", "properties.@ns:com:here:xyz.createdAt",
           FEATURE_PREFIX + "updatedAt", "properties.@ns:com:here:xyz.updatedAt",
@@ -88,7 +89,7 @@ public class PropertiesQuery extends ArrayList<PropertyQueryList> {
       Stream.of(query.split("&"))
               .map(queryParam -> queryParam.startsWith("tags=") ? transformLegacyTags(queryParam) : queryParam)
               .filter(queryParam -> queryParam.startsWith(PROPERTIES_PREFIX) || queryParam.startsWith(FEATURE_PREFIX)
-                      || queryParam.startsWith(ALAIAS_PREFIX) || spaceProperties)
+                      || queryParam.startsWith(ALIAS_PREFIX) || spaceProperties)
               .forEach(keyValuePair -> {
                 PropertyQuery propertyQuery = new PropertyQuery();
 
@@ -153,19 +154,20 @@ public class PropertiesQuery extends ArrayList<PropertyQueryList> {
   public static String getConvertedKey(String rawKey) {
     if (rawKey.startsWith(PROPERTIES_PREFIX))
       return rawKey.replaceFirst(PROPERTIES_PREFIX, PROPERTIES_EVENT_PREFIX);
-    else if (rawKey.startsWith(ALAIAS_PREFIX))
-      return rawKey.replaceFirst(ALAIAS_PREFIX, ALAIAS_EVENT_PREFIX);
 
-    //replace spacial searches with f.shortcut
+    //replace special searches
     String replacement = SEARCH_KEY_REPLACEMENTS.get(rawKey);
-
-    //all other f. searches stay the same and will be handled as root level property searches
-    return replacement == null ? rawKey : replacement;
+    if(replacement != null)
+      return  replacement;
+    //cut "f." for all searches on root-properties which are not special searches
+    if (rawKey.startsWith(FEATURE_PREFIX))
+      return rawKey.substring(2);
+    return rawKey;
   }
 
   public static Object getConvertedValue(String rawValue) {
     // JSONPath
-    if (rawValue != null && rawValue.startsWith("$")) {
+    if (rawValue != null && rawValue.startsWith(ALIAS_PREFIX)) {
       return rawValue;
     }
 
@@ -219,7 +221,7 @@ public class PropertiesQuery extends ArrayList<PropertyQueryList> {
         for (Object value : query.getValues()) {
           if (value instanceof String) {
             String s = (String) value;
-            if (s.startsWith("$")) {
+            if (s.startsWith(ALIAS_PREFIX)) {
               jsonPaths.add(s);
             }
           }

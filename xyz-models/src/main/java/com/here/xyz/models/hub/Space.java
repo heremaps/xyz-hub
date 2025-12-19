@@ -37,6 +37,8 @@ import com.here.xyz.util.JsonPathValidator;
 import java.util.*;
 import java.util.Map.Entry;
 
+import static com.here.xyz.events.PropertiesQuery.ALIAS_PREFIX;
+
 /**
  * The space configuration.
  */
@@ -541,7 +543,6 @@ public class Space {
       this.searchableProperties = searchableProperties;
       return;
     }
-
     this.searchableProperties = normalizeSearchableProperties(searchableProperties);
   }
 
@@ -633,17 +634,20 @@ public class Space {
         throw new IllegalArgumentException("Searchable property key must not be null or empty");
       }
 
-      NormalizedProperty np = parseAndNormalizeKey(rawKey.trim());
+      if(rawKey.startsWith(ALIAS_PREFIX)){
+        NormalizedProperty np = parseAndNormalizeKey(rawKey.trim());
 
-      //TODO: check how to solve if searchableProperties are defined in old way via PATCH
+        // Enforce alias uniqueness
+        if (!aliases.add(np.alias)) {
+          throw new IllegalArgumentException("Duplicate alias detected: " + np.alias);
+        }
 
-      // Enforce alias uniqueness
-//      if (!aliases.add(np.alias)) {
-//        throw new IllegalArgumentException("Duplicate alias detected: " + np.alias);
-//      }
-
-      String canonicalKey = buildCanonicalKey(np);
-      normalized.put(canonicalKey, value);
+        String canonicalKey = buildCanonicalKey(np);
+        normalized.put(canonicalKey, value);
+      }else {
+        //legacy key, keep as is
+        normalized.put(rawKey, value);
+      }
     }
 
     return normalized;
@@ -662,18 +666,13 @@ public class Space {
   /**
    * Parse a raw key and normalize it to (alias, jsonPathExpression, resultType).
    *  - New-style keys: "$alias:[$.path]::scalar" (or without [])
-   *  - Legacy keys: "path", "path::scalar", "path::array"
    */
   private NormalizedProperty parseAndNormalizeKey(String key) {
-    if (key.startsWith("$") && key.contains("::")) {
-      NormalizedProperty np = tryParseNewStyleKey(key);
-      if (np != null) {
-        return np;
-      }
+    NormalizedProperty np = tryParseNewStyleKey(key);
+    if (np != null) {
+      return np;
     }
-
-    // Fallback
-    return parseLegacyKey(key);
+    throw new IllegalArgumentException("Invalid alias definition: " + key);
   }
 
   /**
@@ -717,59 +716,6 @@ public class Space {
     np.alias = aliasPart;
     np.jsonPathExpression = expression;
     np.resultType = typePart;
-    return np;
-  }
-
-  /**
-   * Parses legacy keys like:
-   *  - "foo"
-   *  - "foo::array"
-   */
-  private NormalizedProperty parseLegacyKey(String key) {
-    String base = key.startsWith("f.") ? key.substring("f.".length()) : "properties." + key;
-    String resultType = "scalar"; //default
-
-    int sepIdx = base.lastIndexOf("::");
-    if (sepIdx > -1 && sepIdx + 2 < base.length()) {
-      String maybeType = base.substring(sepIdx + 2).trim();
-      if ("scalar".equals(maybeType) || "array".equals(maybeType)) {
-        base = base.substring(0, sepIdx).trim();
-        resultType = maybeType;
-      }
-    }
-
-    if (base.isEmpty()) {
-      throw new IllegalArgumentException("Malformed searchable property key: '" + key + "'");
-    }
-
-    String expression;
-    if (base.startsWith("$")) {
-      expression = base;
-    }
-    else {
-      expression = "$." + base;
-    }
-
-    // Derive alias from the path (without the leading '$' or '$.')
-    String alias;
-    if (expression.startsWith("$.") && expression.length() > 2) {
-      alias = expression.substring(2);
-      if(!alias.startsWith("properties."))
-        alias = "f." + alias;
-    }
-    else if (expression.startsWith("$") && expression.length() > 1) {
-      alias = expression.substring(1);
-    }
-    else {
-      alias = base;
-    }
-
-    validateJsonPath(expression);
-
-    NormalizedProperty np = new NormalizedProperty();
-    np.alias = alias;
-    np.jsonPathExpression = expression;
-    np.resultType = resultType;
     return np;
   }
 
@@ -1082,6 +1028,10 @@ public class Space {
             : toJsonPath(searchableExpression.substring(searchableExpression.indexOf(":") + 1)); //expression is an "old" dot-notation
       }
       else {
+        if(searchableExpression.startsWith("f."))
+          searchableExpression = searchableExpression.substring("f.".length());
+        else
+          searchableExpression = "properties." + searchableExpression;
         alias = searchableExpression;
         jsonPathExpression = toJsonPath(searchableExpression);
       }
@@ -1105,6 +1055,4 @@ public class Space {
     //TODO: Translate the path pointer like "prop1.prop2[0].prop3" to JSONPath "$.prop1.prop2[0].prop3" for all cases correctly
     return "$." + dotNotation;
   }
-
-
 }

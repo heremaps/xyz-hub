@@ -785,8 +785,8 @@ public class AuthTestsIT extends RestAssuredTest {
 
     response
         .statusCode(OK.code())
-        .body("searchableProperties['$properties.name:[$.properties.name]::scalar']", equalTo(true))
-        .body("searchableProperties['$properties.other:[$.properties.other]::scalar']", equalTo(false));
+        .body("searchableProperties.name", equalTo(true))
+        .body("searchableProperties.other", equalTo(false));
   }
 
   @Test

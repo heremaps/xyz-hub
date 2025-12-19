@@ -71,6 +71,7 @@ import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.changesets.ChangesetCollection;
 import com.here.xyz.util.Random;
+import com.here.xyz.util.db.ConnectorParameters;
 import io.vertx.core.json.JsonObject;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -89,7 +90,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
-import static com.here.xyz.util.db.ConnectorParameters.TableLayout.NEW_LAYOUT;
 import static com.here.xyz.events.UpdateStrategy.OnExists;
 import static com.here.xyz.events.UpdateStrategy.OnNotExists;
 
@@ -105,20 +105,24 @@ public class NLConnector extends PSQLXyzConnector {
   //If seedingMode is active, we do not use the FeatureWriter, but a simple batch upsert and delete
   private boolean seedingMode = false;
 
+  public NLConnector() {
+    this.tableLayout = ConnectorParameters.TableLayout.NEW_LAYOUT;
+  }
+
   @Override
   protected StatisticsResponse processGetStatistics(GetStatisticsEvent event) throws Exception {
     //Only support fast statistics
-    return run(new GetFastStatistics(event).withTableLayout(NEW_LAYOUT));
+    return run(new GetFastStatistics(event).withTableLayout(tableLayout));
   }
 
   @Override
   protected FeatureCollection processGetFeaturesByIdEvent(GetFeaturesByIdEvent event) throws Exception {
-    return run(new GetFeaturesById(event).withTableLayout(NEW_LAYOUT));
+    return run(new GetFeaturesById(event).withTableLayout(tableLayout));
   }
 
   @Override
   protected FeatureCollection processGetFeaturesByGeometryEvent(GetFeaturesByGeometryEvent event) throws Exception {
-    return run(new GetFeaturesByGeometry(event).withTableLayout(NEW_LAYOUT));
+    return run(new GetFeaturesByGeometry(event).withTableLayout(tableLayout));
   }
 
   @Override
@@ -131,7 +135,7 @@ public class NLConnector extends PSQLXyzConnector {
     if (event.getClusteringType() != null || event.getTweakType() != null)
       throw new ErrorResponseException(NOT_IMPLEMENTED, "Method not implemented in NLConnector!");
     //TODO: Check Cast
-    return (FeatureCollection) run(new GetFeaturesByBBox<>(event).withTableLayout(NEW_LAYOUT));
+    return (FeatureCollection) run(new GetFeaturesByBBox<>(event).withTableLayout(tableLayout));
   }
 
   @Override
@@ -141,12 +145,12 @@ public class NLConnector extends PSQLXyzConnector {
 
   @Override
   protected SuccessResponse processModifySpaceEvent(ModifySpaceEvent event) throws Exception {
-    return write(new ModifySpace(event).withTableLayout(NEW_LAYOUT));
+    return write(new ModifySpace(event).withTableLayout(tableLayout));
   }
 
   @Override
   protected FeatureCollection processIterateFeaturesEvent(IterateFeaturesEvent event) throws Exception {
-    return (FeatureCollection) run(new IterateFeatures<>(event).withTableLayout(NEW_LAYOUT));
+    return (FeatureCollection) run(new IterateFeatures<>(event).withTableLayout(tableLayout));
   }
 
   @Override
@@ -296,7 +300,7 @@ public class NLConnector extends PSQLXyzConnector {
   protected FeatureCollection processModifyFeaturesEvent(ModifyFeaturesEvent event) throws Exception {
     if(!event.isEraseContent())
       throw new ErrorResponseException(NOT_IMPLEMENTED, "Method not implemented in NLConnector!");
-    return run( new EraseSpace(event).withTableLayout(NEW_LAYOUT));
+    return run( new EraseSpace(event).withTableLayout(tableLayout));
   }
 
   public record PropertiesQueryInput(String refQuad, List<Integer> globalVersions, String status) {
@@ -347,7 +351,7 @@ public class NLConnector extends PSQLXyzConnector {
   private FeatureCollection writeFeatures(WriteFeaturesEvent event) throws Exception {
     if(!seedingMode /* TBD: && event.getVersionsToKeep() > 1*/){
       //Use FeatureWriter
-      return run(new WriteFeatures(event).withTableLayout(NEW_LAYOUT));
+      return run(new WriteFeatures(event).withTableLayout(tableLayout));
     }
 
     Set<WriteFeaturesEvent.Modification> modifications = event.getModifications();

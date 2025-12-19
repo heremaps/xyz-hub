@@ -138,8 +138,8 @@ public class MaintainJobTestIT extends JobTest {
   }
 
   private void checkSearchableProperties(String spaceId, int maxAttempts) throws InterruptedException {
-    Set<String> expectedSearchableProperties = new HashSet<>(Set.of("root",
-            "properties.foo1", "properties.new", "properties.foo3.nested.array"));
+    Set<String> expectedSearchableProperties = new HashSet<>(Set.of("f.root",
+            "foo1", "new", "foo3.nested.array::array"));
     Set<String> foundSearchableProperties = new HashSet<>();
 
     while (!expectedSearchableProperties.equals(foundSearchableProperties)) {

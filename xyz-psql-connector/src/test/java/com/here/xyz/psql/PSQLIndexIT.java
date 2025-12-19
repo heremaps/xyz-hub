@@ -195,7 +195,7 @@ public class PSQLIndexIT extends PSQLAbstractIT {
                     assertEquals("s",resultSet.getString("src"));
                 }
                 else {
-                    searchableProperties.remove(idxProperty.substring("properties.".length()));
+                    searchableProperties.remove(idxProperty);
                     assertEquals("m",resultSet.getString("src"));
                 }
 
@@ -215,8 +215,7 @@ public class PSQLIndexIT extends PSQLAbstractIT {
 
         List<StatisticsResponse.PropertyStatistics> propStatistics = resp.getProperties().getValue();
         for (StatisticsResponse.PropertyStatistics propStat: propStatistics ) {
-          //TODO: Discuss BWC !
-           assertEquals("foo",propStat.getKey().replace("properties.","").substring(0,3));
+           assertEquals("foo", propStat.getKey().substring(0,"foo".length()));
         }
     }
 

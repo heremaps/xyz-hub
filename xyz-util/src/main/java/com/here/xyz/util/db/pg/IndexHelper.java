@@ -36,6 +36,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_DEFAULT;
+import static com.here.xyz.events.PropertiesQuery.ALIAS_PREFIX;
 
 public class IndexHelper {
   private final static String OLD_LAYOUT_INDEX_COULMN = "jsondata";
@@ -134,7 +135,6 @@ public class IndexHelper {
 
     public void setPropertyPath(String propertyPath) {
       this.propertyPath = propertyPath;
-      transformIntoNewDefinition();
     }
 
     public String getPropertyPath() {
@@ -149,8 +149,8 @@ public class IndexHelper {
     public String extractAlias(){
       if (propertyPath == null)
         return null;
-      if (propertyPath.startsWith("$"))
-        return propertyPath.substring(1, propertyPath.indexOf(':'));
+      if (propertyPath.startsWith(ALIAS_PREFIX))
+        return propertyPath.substring(0, propertyPath.indexOf(':') != -1 ? propertyPath.indexOf(':') : propertyPath.length());
       throw new IllegalArgumentException("Cannot extract alias from property path: " + propertyPath);
     }
 
@@ -169,7 +169,7 @@ public class IndexHelper {
       propertyPath = propertyPath.trim();
 
       // New-style: $alias:[$.jsonPath]::scalar|array
-      if (propertyPath.startsWith("$") && propertyPath.contains("::")) {
+      if (propertyPath.startsWith(ALIAS_PREFIX) && propertyPath.contains("::")) {
         String[] typeSplit = propertyPath.split("::", 2);
         String leftPart = typeSplit[0].trim();
 
@@ -183,10 +183,10 @@ public class IndexHelper {
           exprPart = exprPart.substring(1, exprPart.length() - 1).trim();
         }
 
-        if (exprPart.startsWith("$.") && exprPart.length() > 2) {
+        if (exprPart.startsWith( ALIAS_PREFIX + ".") && exprPart.length() > 2) {
           return exprPart.substring(2);
         }
-        if (exprPart.startsWith("$") && exprPart.length() > 1) {
+        if (exprPart.startsWith(ALIAS_PREFIX) && exprPart.length() > 1) {
           return exprPart.substring(1); // fallback
         }
         return exprPart;
@@ -201,47 +201,10 @@ public class IndexHelper {
       return propertyPath;
     }
 
-    public void transformIntoNewDefinition() {
-      //if already in new format, return as is
-      if(propertyPath.startsWith("$"))
-        return;
-
-      // Trim whitespace
-      propertyPath = propertyPath.trim();
-
-      String path = propertyPath;
-      String datatype = "scalar"; // default
-
-      // Check if datatype explicitly provided
-      int idx = propertyPath.indexOf("::");
-      if (idx >= 0) {
-        path = propertyPath.substring(0, idx);
-        String dt = propertyPath.substring(idx + 2).trim();
-        if ("array".equalsIgnoreCase(dt)) {
-          datatype = "array";
-        }
-      }
-
-      String alias = path;
-      if(!path.startsWith("f."))
-        alias = path = "properties."+path;
-      else
-        path = path.substring("f.".length());
-
-      propertyPath = "$" + alias + ":[$." + path + "]::" + datatype;
-    }
-
-    public boolean definitionGotTransformed() {
-      String alias = extractAlias();
-      return alias.startsWith("f.") || alias.startsWith("properties.");
-    }
-
     @Override
     public String getIndexName(String tableName) {
       // Take the first 8 characters of md5 hash of the property path
-      String shortMd5 = DigestUtils.md5Hex(
-              definitionGotTransformed() ?  extractLogicalPropertyPath() : propertyPath
-      ).substring(0, 7);
+      String shortMd5 = DigestUtils.md5Hex(propertyPath).substring(0, 7);
 
       return idxPrefix + tableName + "_" + shortMd5 + "_m";
     }
@@ -287,12 +250,12 @@ public class IndexHelper {
   public static SQLQuery buildOnDemandIndexCreationQuery(String schema, String table, OnDemandIndex index, TableLayout layout, boolean async){
     if(layout.hasSearchableColumn())
       return buildOnDemandIndexCreationQueryForSearchable(schema, table, index, async);
-    if(index.propertyPath.startsWith("$alias") && !index.definitionGotTransformed())
+    if(index.propertyPath.startsWith(ALIAS_PREFIX))
       throw new IllegalArgumentException("Alias definitions are only allowed on new spaces!");
-    return buildOnDemandIndexCreationQuery(schema, table, index.extractLogicalPropertyPath(), OLD_LAYOUT_INDEX_COULMN, async);
+    return buildOnDemandIndexCreationQuery(schema, table, index, OLD_LAYOUT_INDEX_COULMN, async);
   }
 
-  private static SQLQuery buildOnDemandIndexCreationQuery(String schema, String table, String propertyPath, String targetColumn, boolean async){
+  private static SQLQuery buildOnDemandIndexCreationQuery(String schema, String table, OnDemandIndex index, String targetColumn, boolean async){
     return new SQLQuery((async ? "PERFORM " : "SELECT ") +
             """
             xyz_index_creation_on_property_object(
@@ -307,26 +270,41 @@ public class IndexHelper {
             """)
             .withNamedParameter("schema_name", schema)
             .withNamedParameter("table_name", table)
-            .withNamedParameter("property_name", propertyPath)
+            .withNamedParameter("property_name", index.propertyPath)
             .withNamedParameter("table_sample_cnt", 5000)
             .withNamedParameter("idx_type", "m")
             .withNamedParameter("target_column", targetColumn);
   }
 
   private static SQLQuery buildOnDemandIndexCreationQueryForSearchable(String schema, String table, OnDemandIndex index, boolean async){
+    String alias, propertyPath, dataType, comment;
+    try {
+      alias = index.extractAlias();
+      propertyPath = index.extractLogicalPropertyPath();
+      dataType = index.extractDataType();
+      comment = index.propertyPath;
+    }catch (IllegalArgumentException e){
+      alias = propertyPath = comment = index.propertyPath;
+      dataType = propertyPath.endsWith("::array") ? "array" : "scalar";
+    }
+
     return new SQLQuery((async ? "PERFORM " : "SELECT ") +
             """
             xyz_index_creation_for_searchable(
                 #{schema_name},
                 #{table_name},
-                #{property_name},
+                #{alias},
+                #{property_path},
+                #{comment},
                 #{data_type}
               )
             """)
             .withNamedParameter("schema_name", schema)
             .withNamedParameter("table_name", table)
-            .withNamedParameter("property_name", index.extractAlias())
-            .withNamedParameter("data_type", index.extractDataType());
+            .withNamedParameter("alias", alias)
+            .withNamedParameter("property_path", propertyPath)
+            .withNamedParameter("comment", comment)
+            .withNamedParameter("data_type", dataType);
   }
 
   public static SQLQuery checkIndexType(String schema, String table, String propertyName, int tableSampleCnt) {

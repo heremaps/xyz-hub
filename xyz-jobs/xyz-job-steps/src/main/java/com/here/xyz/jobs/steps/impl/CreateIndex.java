@@ -24,7 +24,6 @@ import com.here.xyz.jobs.steps.execution.StepException;
 import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
-import com.here.xyz.util.db.ConnectorParameters;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.pg.IndexHelper;
 import com.here.xyz.util.db.pg.IndexHelper.Index;
@@ -41,8 +40,6 @@ import org.apache.logging.log4j.Logger;
 
 import static com.here.xyz.util.db.pg.IndexHelper.buildSpaceTableIndexQuery;
 import static com.here.xyz.util.db.ConnectorParameters.TableLayout;
-import static com.here.xyz.util.db.ConnectorParameters.TableLayout.OLD_LAYOUT;
-import static com.here.xyz.util.db.ConnectorParameters.TableLayout.OLD_LAYOUT_WITH_SEARCHABLE;
 
 public class CreateIndex extends SpaceBasedStep<CreateIndex> {
   private static final Logger logger = LogManager.getLogger();

@@ -25,6 +25,7 @@ import static com.here.xyz.responses.XyzError.ILLEGAL_ARGUMENT;
 import static com.here.xyz.responses.XyzError.NOT_FOUND;
 import static com.here.xyz.responses.XyzError.PAYLOAD_TO_LARGE;
 import static com.here.xyz.responses.XyzError.TIMEOUT;
+import static com.here.xyz.util.db.ConnectorParameters.TableLayout.OLD_LAYOUT;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.DeleteChangesetsEvent;
@@ -78,6 +79,7 @@ import com.here.xyz.responses.StorageStatistics;
 import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.responses.changesets.ChangesetCollection;
+import com.here.xyz.util.db.ConnectorParameters;
 import com.here.xyz.util.db.SQLQuery;
 import java.sql.SQLException;
 import java.util.regex.Matcher;
@@ -86,6 +88,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public class PSQLXyzConnector extends DatabaseHandler {
+  protected ConnectorParameters.TableLayout tableLayout = OLD_LAYOUT;
+
   private static final Logger logger = LogManager.getLogger();
   protected static final Pattern ERRVALUE_22P02 = Pattern.compile("invalid input syntax for type numeric:\\s+\"([^\"]*)\"\\s+Query:"),
       ERRVALUE_22P05 = Pattern.compile("ERROR:\\s+(.*)\\s+Detail:\\s+(.*)\\s+Where:");
@@ -257,6 +261,10 @@ public class PSQLXyzConnector extends DatabaseHandler {
       throw exception;
 
     checkSQLException(sqlException, XyzEventBasedQueryRunner.readTableFromEvent(event));
+  }
+
+  public ConnectorParameters.TableLayout getTableLayout() {
+    return tableLayout;
   }
 
   //TODO: Move error handling into according QueryRunners

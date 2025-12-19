@@ -432,10 +432,6 @@ public class SpaceTaskHandler {
           });
     }
     else {
-      if(areSearchablePropertiesMixed(task,entry)) {
-        callback.exception(new HttpException(BAD_REQUEST, "SearchableProperties cannot be mixed (alias vs old)."));
-        return;
-      }
       if (areSearchablePropertiesChanged(task, entry))
         createMaintenanceJob(task.getMarker(), entry.result.getId());
 
@@ -448,27 +444,6 @@ public class SpaceTaskHandler {
             callback.call(task);
           });
     }
-  }
-
-  private static boolean areSearchablePropertiesMixed(ConditionalOperation task, Entry<Space> entry) {
-    // Only take care about space updates where properties were modified
-    if(!task.isUpdate() || !entry.isModified){
-      return false;
-    }
-    Map<String, Boolean> resultProperties = entry.result.getSearchableProperties();
-    if(resultProperties == null)
-      return false;
-    if (resultProperties != null) {
-      boolean allMatch = resultProperties.keySet().stream().allMatch(
-              key -> key.startsWith("$properties.") || key.startsWith("$f."));
-      boolean noneMatch = resultProperties.keySet().stream().noneMatch(
-              key -> key.startsWith("$properties.") || key.startsWith("$f."));
-      if (allMatch || noneMatch) {
-        return false;
-      }
-    }
-
-    return true;
   }
 
   private static boolean areSearchablePropertiesChanged(ConditionalOperation task, Entry<Space> entry) {

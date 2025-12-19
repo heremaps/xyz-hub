@@ -22,6 +22,7 @@ package com.here.xyz.psql.query.helpers;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SCHEMA;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.TABLE;
 import static com.here.xyz.psql.query.helpers.GetIndexList.IndexList;
+import static  com.here.xyz.util.db.pg.IndexHelper.OnDemandIndex;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
@@ -87,8 +88,8 @@ public class GetIndexList extends QueryRunner<String, IndexList> {
               )
         ),
         idxs AS (
-            SELECT jsonb_build_object('src', src, 'property', idx_property) AS idx_available
-            FROM xyz_index_list_all_available( #{schema},#{table})
+            SELECT jsonb_build_object('property', idx_property, 'idx_name', idx_name) AS idx_available
+            FROM xyz_index_list_all_available( #{schema},#{table}) WHERE src='m'
         )
         SELECT (SELECT count FROM cnt),
                COALESCE((SELECT jsonb_agg(idx_available) FROM idxs),'[]'::jsonb) as idx_available;
@@ -105,26 +106,14 @@ public class GetIndexList extends QueryRunner<String, IndexList> {
         indexList =  new IndexList(null,0);
       }
       else {
-        List<String> indices = new ArrayList<>();
+        List<OnDemandIndex> indices = new ArrayList<>();
         long count = rs.getLong("count");
         String result = rs.getString("idx_available");
-        List<Map<String, Object>> raw = XyzSerializable.deserialize(result, new TypeReference<List<Map<String, Object>>>() {
-        });
-        for (Map<String, Object> one : raw) {
-          /*
-           * Indices are marked as:
-           * a = automatically created (auto-indexing)
-           * m = manually created (on-demand)
-           * o = sortable - manually created (on-demand) --> first single sortable properties is always ascending
-           * s = basic system indices
-           */
-          if (one.get("src").equals("a") || one.get("src").equals("m") )
-            indices.add((String) one.get("property"));
-          //TODO: check if this can be removed
-          else if (one.get("src").equals("o"))
-            indices.add("o:" + (String) one.get("property"));
-        }
 
+        List<Map<String, Object>> raw = XyzSerializable.deserialize(result, new TypeReference<List<Map<String, Object>>>() { });
+        for (Map<String, Object> idx : raw) {
+          indices.add(new OnDemandIndex().withPropertyPath((String) idx.get("property")).withIndexName((String)idx.get("idx_name")));
+        }
         indexList = new IndexList(indices, count);
       }
     }
@@ -141,17 +130,17 @@ public class GetIndexList extends QueryRunner<String, IndexList> {
     /** Cache indexList for 3 Minutes  */
     static long CACHE_INTERVAL_MS = TimeUnit.MINUTES.toMillis(3);
 
-    IndexList(List<String> indices, long count) {
+    IndexList(List<OnDemandIndex> indices, long count) {
       this.indices = indices;
       this.count = count;
       expiry = System.currentTimeMillis() + CACHE_INTERVAL_MS;
     }
 
-    List<String> indices;
+    List<OnDemandIndex> indices;
     long count;
     long expiry;
 
-    public List<String> getIndices() {
+    public List<OnDemandIndex> getIndices() {
       return indices;
     }
 

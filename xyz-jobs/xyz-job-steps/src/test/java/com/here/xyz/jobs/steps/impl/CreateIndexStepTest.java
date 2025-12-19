@@ -50,7 +50,7 @@ public class CreateIndexStepTest extends StepTest {
 
   @Test
   public void testCreateOnDemandIndexPsqlConnector() throws Exception {
-    testOnDemandIndices();
+    testOnDemandIndices("foo1");
   }
 
   @Test
@@ -61,19 +61,19 @@ public class CreateIndexStepTest extends StepTest {
                     .withId("psql-nl-connector"))
             .withId(SPACE_ID)
             .withVersionsToKeep(100), false);
-    testOnDemandIndices();
+    testOnDemandIndices("$properties.foo1:[$.properties.foo1]::scalar");
   }
 
-  private void testOnDemandIndices() throws SQLException, IOException, InterruptedException {
+  private void testOnDemandIndices(String propPath) throws SQLException, IOException, InterruptedException {
     deleteAllExistingIndices(SPACE_ID);
     Assertions.assertTrue(getAllExistingIndices(SPACE_ID).isEmpty());
 
-    OnDemandIndex onDemandIndex = new OnDemandIndex().withPropertyPath("foo");
+    OnDemandIndex onDemandIndex = new OnDemandIndex()
+            .withPropertyPath(propPath);
 
     LambdaBasedStep step = new CreateIndex().withSpaceId(SPACE_ID).withIndex(onDemandIndex);
 
     sendLambdaStepRequestBlock(step, true);
-
     List<Index> indexes = getOnDemandIndices(SPACE_ID);
     Assertions.assertEquals(1, indexes.size());
     Assertions.assertEquals(onDemandIndex.getIndexName(SPACE_ID), indexes.get(0).getIndexName());

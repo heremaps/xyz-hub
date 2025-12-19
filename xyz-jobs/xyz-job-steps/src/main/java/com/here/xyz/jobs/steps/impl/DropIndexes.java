@@ -58,13 +58,7 @@ public class DropIndexes extends SpaceBasedStep<DropIndexes> {
     this.indexWhiteList = indexWhiteList;
   }
 
-  public DropIndexes withIndexWhiteList(List<Index> indexWhiteList) {
-    for (Index index : indexWhiteList) {
-      //ensure BWC for spaces created with old index definitions
-      if(index instanceof OnDemandIndex onDemandIndex && onDemandIndex.definitionGotTransformed()) {
-        onDemandIndex.setPropertyPath(onDemandIndex.extractLogicalPropertyPath());
-      }
-    }
+  public DropIndexes withIndexWhiteList(List<Index> indexWhiteList){
     setIndexWhiteList(indexWhiteList);
     return this;
   }

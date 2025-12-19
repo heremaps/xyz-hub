@@ -31,10 +31,25 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class DropIndexStepTest extends StepTest {
+  private static final Map<String,Boolean> OLD_SEARCHABLE_PROPERTIES =  Map.of(
+          "foo1", true,
+          "foo2.nested", true,
+          "foo3::array", true,
+          "f.root", true
+  );
+
+  private static final Map<String,Boolean> NEW_SEARCHABLE_PROPERTIES =  Map.of(
+          "foo1", true,
+          "foo2.nested", true,
+          "foo3", true,
+          "f.root", true,
+          "$alias1:[$.properties.test]::scalar", true,
+          "$alias2:[$.properties.test]::array", true
+  );
 
   @Test
   public void testDropIndexesStepWithoutWhitelist() throws Exception {
-    createTestSpace(true);
+    createTestSpace(OLD_SEARCHABLE_PROPERTIES);
     Assertions.assertFalse(getAllExistingIndices(SPACE_ID).isEmpty());
 
     LambdaBasedStep step = new DropIndexes().withSpaceId(SPACE_ID);
@@ -45,11 +60,23 @@ public class DropIndexStepTest extends StepTest {
   }
 
   @Test
+  public void testDropIndexesStepWithoutWhitelistNL() throws Exception {
+    createTestSpace("psql-nl-connector", NEW_SEARCHABLE_PROPERTIES);
+    Assertions.assertFalse(getAllExistingIndices(SPACE_ID).isEmpty());
+
+    LambdaBasedStep step = new DropIndexes().withSpaceId(SPACE_ID);
+    sendLambdaStepRequestBlock(step, true);
+    //no indexes should remain
+    Assertions.assertEquals(0, getAllExistingIndices(SPACE_ID).size());
+  }
+
+
+  @Test
   public void testDropIndexesStepWithWhitelist() throws Exception {
-    createTestSpace(true);
+    createTestSpace(OLD_SEARCHABLE_PROPERTIES);
     Assertions.assertFalse(getSystemIndices(SPACE_ID).isEmpty());
     //three on-demand indices should be created with the space creation
-    Assertions.assertEquals(3, getOnDemandIndices(SPACE_ID).size());
+    Assertions.assertEquals(4, getOnDemandIndices(SPACE_ID).size());
 
     LambdaBasedStep step = new DropIndexes()
       .withSpaceId(SPACE_ID)
@@ -57,7 +84,7 @@ public class DropIndexStepTest extends StepTest {
       .withIndexWhiteList(
                 List.of(
                     new OnDemandIndex().withPropertyPath("foo1"),
-                    new OnDemandIndex().withPropertyPath("foo3")
+                    new OnDemandIndex().withPropertyPath("foo3::array")
                 )
       );
 
@@ -66,8 +93,29 @@ public class DropIndexStepTest extends StepTest {
   }
 
   @Test
+  public void testDropIndexesStepWithWhitelistNL() throws Exception {
+    createTestSpace("psql-nl-connector", NEW_SEARCHABLE_PROPERTIES);
+    Assertions.assertFalse(getSystemIndices(SPACE_ID).isEmpty());
+    //three on-demand indices should be created with the space creation
+    Assertions.assertEquals(6, getOnDemandIndices(SPACE_ID).size());
+
+    LambdaBasedStep step = new DropIndexes()
+            .withSpaceId(SPACE_ID)
+            .withSpaceDeactivation(false)
+            .withIndexWhiteList(
+                    List.of(
+                            new OnDemandIndex().withPropertyPath("foo1"),
+                            new OnDemandIndex().withPropertyPath("$alias1:[$.properties.test]::scalar")
+                    )
+            );
+
+    sendLambdaStepRequestBlock(step, true);
+    Assertions.assertEquals(2,getOnDemandIndices(SPACE_ID).size(), "whitelisted indexes should remain");
+  }
+
+  @Test
   public void testDropIndexesStepWithEmptyWhitelist() throws Exception {
-    createTestSpace(true);
+    createTestSpace(OLD_SEARCHABLE_PROPERTIES);
     Assertions.assertFalse(getSystemIndices(SPACE_ID).isEmpty());
 
     LambdaBasedStep step = new DropIndexes()
@@ -82,7 +130,7 @@ public class DropIndexStepTest extends StepTest {
 
   @Test
   public void testDropIndexesStepWithWhitelistedSystemIndexes() throws Exception {
-    createTestSpace(true);
+    createTestSpace(OLD_SEARCHABLE_PROPERTIES);
     Assertions.assertFalse(getSystemIndices(SPACE_ID).isEmpty());
 
     LambdaBasedStep step = new DropIndexes()
@@ -98,7 +146,7 @@ public class DropIndexStepTest extends StepTest {
   @Test
   public void testDropIndexesStepWithWhitelistOnSpaceWithoutOnDemandIndices() throws Exception {
     //recreate space without on-demandindices
-    createTestSpace(false);
+    createTestSpace(Map.of());
 
     List<Index> whiteListIndexes = new ArrayList<>(List.of(SystemIndex.values()));
     whiteListIndexes.add(new OnDemandIndex().withPropertyPath("foo1"));
@@ -112,17 +160,15 @@ public class DropIndexStepTest extends StepTest {
     Assertions.assertFalse(getSystemIndices(SPACE_ID).isEmpty(),"system indices should remain");
   }
 
-  private void createTestSpace(boolean withOnDemandIndices) {
-    Space space = new Space().withId(SPACE_ID);
-    if (withOnDemandIndices) {
-      space.setSearchableProperties(
-        Map.of(
-                "foo1", true,
-                "foo2.nested", true,
-                "foo3", true
-        )
-      );
-    }
+  private void createTestSpace(Map<String, Boolean> searchableProperties){
+    createTestSpace("psql", searchableProperties);
+  }
+
+  private void createTestSpace(String connectorId, Map<String, Boolean> searchableProperties){
+    Space space = new Space()
+            .withId(SPACE_ID)
+            .withStorage(new Space.ConnectorRef().withId(connectorId))
+            .withSearchableProperties(searchableProperties);
     createSpace(space, false);
   }
 }

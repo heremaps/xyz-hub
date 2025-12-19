@@ -27,11 +27,13 @@ import com.here.xyz.psql.query.ModifySpace;
 import com.here.xyz.psql.query.SearchForFeatures;
 import com.here.xyz.psql.query.WriteFeatures;
 import com.here.xyz.responses.SuccessResponse;
-import com.here.xyz.responses.XyzResponse;
 
 import static com.here.xyz.util.db.ConnectorParameters.TableLayout.OLD_LAYOUT_WITH_SEARCHABLE;
 
 public class PSQLXyzNLConnector extends PSQLXyzConnector {
+  public PSQLXyzNLConnector() {
+    this.tableLayout = OLD_LAYOUT_WITH_SEARCHABLE;
+  }
 
   @Override
   protected SuccessResponse processModifySpaceEvent(ModifySpaceEvent event) throws Exception {
@@ -40,11 +42,11 @@ public class PSQLXyzNLConnector extends PSQLXyzConnector {
 
   @Override
   protected FeatureCollection processWriteFeaturesEvent(WriteFeaturesEvent event) throws Exception {
-    return run(new WriteFeatures(event).withTableLayout(OLD_LAYOUT_WITH_SEARCHABLE) );
+    return run(new WriteFeatures(event).withTableLayout(tableLayout) );
   }
 
   @Override
   protected FeatureCollection processSearchForFeaturesEvent(SearchForFeaturesEvent event) throws Exception {
-    return (FeatureCollection) run(new SearchForFeatures<>(event).withTableLayout(OLD_LAYOUT_WITH_SEARCHABLE));
+    return (FeatureCollection) run(new SearchForFeatures<>(event).withTableLayout(tableLayout));
   }
 }
