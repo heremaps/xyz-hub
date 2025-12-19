@@ -167,7 +167,10 @@ class DatabaseWriter {
                  tbl.jsondata${castjsonb}->'properties'->'${XYZ_NS}'->'createdAt'),
           geo = EXCLUDED.geo
           ${ updateStmtSetValues.length > 0 ? ',' + updateStmtSetValues.join(",") : '' }
-          WHERE EXCLUDED.jsondata${castjsonb} #- ARRAY['properties', '${XYZ_NS}'] IS DISTINCT FROM tbl.jsondata${castjsonb} #- ARRAY['properties', '${XYZ_NS}']`
+          WHERE
+            EXCLUDED.jsondata${castjsonb} #- ARRAY['properties', '${XYZ_NS}'] IS DISTINCT FROM tbl.jsondata${castjsonb} #- ARRAY['properties', '${XYZ_NS}']
+            OR
+            EXCLUDED.geo IS DISTINCT FROM tbl.geo`
         : onExists == "RETAIN" ? " ON CONFLICT(id, next_version) DO NOTHING" : "";
 
     let sql = `INSERT INTO "${this.schema}"."${this.table}" AS tbl
@@ -267,7 +270,7 @@ class DatabaseWriter {
                              ${  updateStmtSetValues.length > 0 ? ',' + updateStmtSetValues.join(",") : '' }
                          WHERE id = $6
                            AND version = $7
-                         RETURNING ( jsondata${castjsonb} -> 'properties' -> '${XYZ_NS}' -> 'createdAt') as created_at, operation`;
+                         RETURNING 1`;
 
     let method = "updateRow";
     if (!this.plans[method]) {

@@ -610,13 +610,11 @@ public class FeatureApi extends SpaceBasedApi {
   }
 
   private OnVersionConflict toOnVersionConflict(Space space, IfExists ifExists, ConflictResolution conflictResolution) {
-    //TODO: Enable version-conflict detection if the user explicitly asked for it using the query parameter
     boolean historyEnabled = space.getVersionsToKeep() > 1;
-    if (!historyEnabled) //For now, deactivate version-conflict detection, if the history is not enabled
-      return null;
 
     if (ifExists == IfExists.MERGE)
-      return historyEnabled ? OnVersionConflict.MERGE : OnVersionConflict.REPLACE;
+      //NOTE: If history is not enabled for the space no merge can be performed, throwing a conflict error instead
+      return historyEnabled ? OnVersionConflict.MERGE : OnVersionConflict.ERROR;
 
     return switch (conflictResolution) {
       case RETAIN -> OnVersionConflict.RETAIN;

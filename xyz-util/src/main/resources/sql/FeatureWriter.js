@@ -287,8 +287,7 @@ class FeatureWriter {
           case "RETAIN":
             return null;
           case "CREATE":
-            headFeature = this.newEmptyFeature();
-            break;
+            return this.inputFeature;
           case "ERROR":
             this._throwFeatureNotExistsError();
         }
@@ -351,12 +350,20 @@ class FeatureWriter {
       }
     }
 
-    if (this.onVersionConflict != null) {
+    //NOTE: If onVersionConflict == REPLACE it has the same effect as if conflict detection is not active at all
+    if (this.onVersionConflict != null && this.onVersionConflict != "REPLACE") {
       this.debugBox("Version conflict handling! Base version: " + this.baseVersion);
 
-      let execution = this._updateRow();
-      if (execution == null)
-        return this.handleVersionConflict();
+      if (this.onVersionConflict == "MERGE")
+        //NOTE: If history is not enabled for the space no merge can be performed, throwing a conflict error on conflict instead
+        this.onVersionConflict = "ERROR";
+
+      let execution = this._updateRow(execution => {
+        if (execution == null)
+          return this.handleVersionConflict(); //TODO: Also handle onVersionConflict == "DELETE"?
+        return execution;
+      });
+
       return execution;
     }
     else {
@@ -494,7 +501,7 @@ class FeatureWriter {
     if (this.attributeConflicts.length > 0)
       return this.handleMergeConflict();
 
-    this.inputFeature = this.patch(this.cloneFeature(headFeature), inputDiff);
+    this.inputFeature = this.patch(this.cloneFeature(headFeature), inputDiff, [], true);
     this.operation = this._transformToUpdate(this.operation);
     this.onVersionConflict = null;
     return this.writeRow();
@@ -548,10 +555,6 @@ class FeatureWriter {
     return !!this.loadFeature(id, "HEAD", context);
   }
 
-  newEmptyFeature() {
-    return {type: "Feature"};
-  }
-
   loadFeature(id, version = "HEAD", context = this.context) {
     //TODO: Also cache headFeatures for other contexts / queries to other table combinations
     if (version == "HEAD" && context == this.context && this.headFeature) //NOTE: Only cache for the defaults
@@ -561,8 +564,7 @@ class FeatureWriter {
     if (id == null)
       return null;
 
-    let tables = context == "EXTENSION" ? this.tables.slice(-1) : context == "SUPER" ? this.tables.slice(0, -1) : this.tables;
-    let res = this._loadFeature(id, version, tables);
+    let res = this._loadFeature(id, version, context);
 
     if (!res.length)
       return null;
@@ -720,7 +722,7 @@ class FeatureWriter {
   /**
    * NOTE: target is mandatory to be a valid (existing) feature
    */
-  patch(target, inputDiff) {
+  patch(target, inputDiff, keyPath = [], partialGeometry = false) {
     target = target || {};
     for (let key in inputDiff) {
       if (inputDiff.hasOwnProperty(key)) {
@@ -730,13 +732,15 @@ class FeatureWriter {
           if (!Array.isArray(inputDiff[key])) {
             if (!target[key])
               target[key] = {};
-            target[key] = this.patch(target[key], inputDiff[key]);
+            target[key] = this.patch(target[key], inputDiff[key], [...keyPath, key], partialGeometry);
           }
           else {
             if (!target[key] || !Array.isArray(target[key]))
               target[key] = inputDiff[key];
+            else if (!partialGeometry && keyPath[0] == "geometry" && key == "coordinates")
+              target[key] = inputDiff[key];
             else
-              target[key] = this.patch(target[key], inputDiff[key]);
+              target[key] = this.patch(target[key], inputDiff[key], [...keyPath, key], partialGeometry);
           }
         }
         else
@@ -824,7 +828,8 @@ class FeatureWriter {
     return queryContext().tables.length > 1 && this._tableBaseVersions().at(-1) == 0
   }
 
-  _loadFeature(id, version, tables) {
+  _loadFeature(id, version, context) {
+    let tables = context == "EXTENSION" ? this.tables.slice(-1) : context == "SUPER" ? this.tables.slice(0, -1) : this.tables;
     let tableAliases = tables.map((table, i) => "t" + (tables.length - i - 1));
     let branchTableMaxVersion = i => i == tables.length - 1 || FeatureWriter._isComposite() ? "" : `AND version <= ${this.tableBaseVersions[i + 1] - this.tableBaseVersions[i]}`;
     let whereConditions = tables.map((table, i) => `WHERE id = $1 AND ${version == "HEAD" ? `next_version = ${MAX_BIG_INT}` : `version = ${version - this.tableBaseVersions[i]}`} ${branchTableMaxVersion(i)} AND operation != $2`).reverse();
@@ -838,7 +843,7 @@ class FeatureWriter {
             jsondata_array[index] AS jsondata,
             ST_AsGeojson(geo_array[index])::JSONB AS geo,
             operation_array[index] AS operation,
-            ${tables.length} - index AS dataset,
+            ${this.tables.length} - index AS dataset,
             (SELECT array_agg(idx - 1) FROM unnest(array_positions(array_reverse(id_array), id_array[index])) AS idx) AS containing_datasets
         FROM (
             SELECT

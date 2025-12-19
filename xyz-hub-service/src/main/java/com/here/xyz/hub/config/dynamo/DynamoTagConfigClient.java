@@ -224,6 +224,11 @@ public class DynamoTagConfigClient extends TagConfigClient {
 
     return items.stream().map(tagData -> {
               long version = Long.parseLong(tagData.get("version").getN());
+
+              //BWC: There are data in Dynamo with version=-1. This is to avoid an exception when trying to create Ref instance.
+              if (version == -1)
+                version = 0;
+
               String branchId = tagData.get("branchId") != null ? tagData.get("branchId").getS() : Ref.MAIN;
               return new Tag()
                       .withId(tagData.get("id").getS())

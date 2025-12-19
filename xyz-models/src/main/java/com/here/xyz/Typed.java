@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.Geometry;
+import com.here.xyz.models.hub.Branch.DeletedBranch;
 import com.here.xyz.models.hub.FeatureModificationList.FeatureModification;
 
 @JsonTypeInfo(use = Id.NAME, property = "type")
@@ -31,7 +32,8 @@ import com.here.xyz.models.hub.FeatureModificationList.FeatureModification;
     @JsonSubTypes.Type(value = Payload.class),
     @JsonSubTypes.Type(value = Feature.class, name = "Feature"),
     @JsonSubTypes.Type(value = Geometry.class),
-    @JsonSubTypes.Type(value = FeatureModification.class, name = "FeatureModification")
+    @JsonSubTypes.Type(value = FeatureModification.class, name = "FeatureModification"),
+    @JsonSubTypes.Type(value = DeletedBranch.class, name = "DeletedBranch")
 })
 public interface Typed extends XyzSerializable {
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,7 +24,8 @@ import com.here.xyz.jobs.steps.compiler.ExportToFiles;
 import com.here.xyz.jobs.steps.compiler.ImportFromFiles;
 import com.here.xyz.jobs.steps.compiler.JobCompilationInterceptor;
 import com.here.xyz.jobs.steps.compiler.SpaceCopy;
-import com.here.xyz.jobs.steps.compiler.SpaceMaintain;
+import com.here.xyz.jobs.steps.compiler.maintenance.PruneDeletedBranches;
+import com.here.xyz.jobs.steps.compiler.maintenance.RunSpaceMaintenance;
 import com.here.xyz.util.Async;
 import io.vertx.core.Future;
 import io.vertx.core.impl.ConcurrentHashSet;
@@ -43,7 +44,8 @@ public class JobCompiler {
     registerCompilationInterceptor(ImportFromFiles.class);
     registerCompilationInterceptor(ExportToFiles.class);
     registerCompilationInterceptor(SpaceCopy.class);
-    registerCompilationInterceptor(SpaceMaintain.class);
+    registerCompilationInterceptor(RunSpaceMaintenance.class);
+    registerCompilationInterceptor(PruneDeletedBranches.class);
   }
 
   public Future<StepGraph> compile(Job job) {

@@ -23,6 +23,7 @@ import static com.here.xyz.responses.XyzError.EXCEPTION;
 
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzError;
+import java.util.Map;
 
 /**
  * An exception, which will cause the connector to respond with an ErrorResponse object.
@@ -75,7 +76,7 @@ public class ErrorResponseException extends Exception {
   }
 
   private void createErrorResponse(XyzError xyzError, String errorMessage) {
-    this.errorResponse = new ErrorResponse()
+    errorResponse = new ErrorResponse()
         .withError(xyzError)
         .withErrorMessage(errorMessage);
   }
@@ -94,6 +95,19 @@ public class ErrorResponseException extends Exception {
 
   public ErrorResponseException withInternalDetails(String internalDetails) {
     setInternalDetails(internalDetails);
+    return this;
+  }
+
+  public Map<String, Object> getErrorResponseDetails() {
+    return errorResponse.getErrorDetails();
+  }
+
+  public void setErrorResponseDetails(Map<String, Object> responseDetails) {
+    errorResponse.setErrorDetails(responseDetails);
+  }
+
+  public ErrorResponseException withErrorResponseDetails(Map<String, Object> responseDetails) {
+    setErrorResponseDetails(responseDetails);
     return this;
   }
 }

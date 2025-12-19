@@ -19,28 +19,39 @@
 
 package com.here.xyz.hub.util;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder;
-import com.amazonaws.services.dynamodbv2.model.*;
+import com.amazonaws.services.dynamodbv2.model.GlobalSecondaryIndexDescription;
+import com.amazonaws.services.dynamodbv2.model.KeySchemaElement;
+import com.amazonaws.services.dynamodbv2.model.ResourceNotFoundException;
+import com.amazonaws.services.dynamodbv2.model.TableDescription;
+import com.here.xyz.hub.Config;
+import com.here.xyz.hub.Service;
 import com.here.xyz.hub.config.dynamo.DynamoBranchConfigClient;
 import com.here.xyz.models.hub.Branch;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.aws.dynamo.DynamoClient;
 import io.vertx.core.Vertx;
-import org.junit.jupiter.api.*;
+import java.lang.reflect.Field;
+import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.api.TestMethodOrder;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
-
-import java.lang.reflect.Field;
-import java.util.List;
-import java.util.concurrent.ThreadLocalRandom;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @TestMethodOrder(MethodOrderer.DisplayName.class)
@@ -68,6 +79,9 @@ public class DynamoBranchConfigClientIT {
     void beforeAll() {
         vertx = Vertx.vertx();
         Core.vertx = vertx;
+        Service.configuration = new Config();
+        Service.configuration.BRANCHES_DYNAMODB_TABLE_ARN = TABLE_ARN;
+        Service.configuration.ENTITIES_DYNAMODB_TABLE_ARN = "arn:aws:dynamodb:localhost:000000008000:table/xyz-hub-local-entities";
     }
 
     @AfterAll
@@ -139,9 +153,9 @@ public class DynamoBranchConfigClientIT {
     }
 
     private static Branch newBranch(String id) {
-        Branch b = new Branch();
-        b.setId(id);
-        return b;
+        return new Branch()
+            .withId(id)
+            .withBranchPath(List.of());
     }
 
     @Test
@@ -173,18 +187,19 @@ public class DynamoBranchConfigClientIT {
     @DisplayName("2. store/load/delete roundtrip")
     void storeLoadDeleteRoundTrip() {
         String spaceId = "space-" + ThreadLocalRandom.current().nextInt(1_000_000);
+        String branchName = "b1";
 
-        client.store(spaceId, newBranch("main"), "main").toCompletionStage().toCompletableFuture().join();
+        client.store(spaceId, newBranch(branchName), branchName).toCompletionStage().toCompletableFuture().join();
 
         var all = client.load(spaceId).toCompletionStage().toCompletableFuture().join();
-        assertThat(all).extracting(Branch::getId).contains("main");
+        assertThat(all).extracting(Branch::getId).contains(branchName);
 
-        Branch loaded = client.load(spaceId, "main").toCompletionStage().toCompletableFuture().join();
+        Branch loaded = client.load(spaceId, branchName).toCompletionStage().toCompletableFuture().join();
         assertThat(loaded).isNotNull();
-        assertThat(loaded.getId()).isEqualTo("main");
+        assertThat(loaded.getId()).isEqualTo(branchName);
 
-        client.delete(spaceId, "main").toCompletionStage().toCompletableFuture().join();
-        Branch afterDelete = client.load(spaceId, "main").toCompletionStage().toCompletableFuture().join();
+        client.delete(spaceId, branchName, false).toCompletionStage().toCompletableFuture().join();
+        Branch afterDelete = client.load(spaceId, branchName).toCompletionStage().toCompletableFuture().join();
         assertThat(afterDelete).isNull();
     }
 

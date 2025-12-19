@@ -25,7 +25,9 @@ import static com.here.xyz.models.hub.Ref.MAIN;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.annotation.JsonView;
+import com.here.xyz.Typed;
 import com.here.xyz.XyzSerializable;
 import java.util.HashMap;
 import java.util.List;
@@ -45,7 +47,7 @@ public class Branch implements XyzSerializable {
   private List<Ref> branchPath;
   @JsonView({Public.class, Static.class})
   private String description;
-  @JsonView({Static.class})
+  @JsonView({Internal.class, Static.class})
   private int nodeId = -1;
   @JsonView({Public.class, Static.class})
   private State state;
@@ -228,5 +230,41 @@ public class Branch implements XyzSerializable {
 
   public enum State {
     IN_CONFLICT
+  }
+
+  @JsonTypeName("DeletedBranch")
+  public static class DeletedBranch extends Branch implements Typed {
+    @JsonView({Internal.class, Static.class})
+    private String uuid;
+
+    private DeletedBranch() {}
+
+    public DeletedBranch(Branch branch) {
+      withId(branch.getId());
+      withSpaceId(branch.getSpaceId());
+      withBaseRef(branch.getBaseRef());
+      withBranchPath(branch.getBranchPath());
+      withDescription(branch.getDescription());
+      withNodeId(branch.getNodeId());
+      withState(branch.getState());
+      withMerges(branch.getMerges());
+      withConflictSolvingBranch(branch.getConflictSolvingBranch());
+      withCreatedAt(branch.getCreatedAt());
+      withUpdatedAt(branch.getUpdatedAt());
+      withContentUpdatedAt(branch.getContentUpdatedAt());
+    }
+
+    public String getUuid() {
+      return uuid;
+    }
+
+    public void setUuid(String uuid) {
+      this.uuid = uuid;
+    }
+
+    public DeletedBranch withUuid(String uuid) {
+      setUuid(uuid);
+      return this;
+    }
   }
 }
