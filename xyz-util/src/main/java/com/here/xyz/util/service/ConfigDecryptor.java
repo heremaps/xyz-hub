@@ -19,21 +19,22 @@
 
 package com.here.xyz.util.service;
 
-import com.amazonaws.services.kms.AWSKMS;
-import com.amazonaws.services.kms.AWSKMSClientBuilder;
-import com.amazonaws.services.kms.model.DecryptRequest;
 import io.vertx.core.json.JsonObject;
+import software.amazon.awssdk.core.SdkBytes;
+import software.amazon.awssdk.services.kms.KmsClient;
+import software.amazon.awssdk.services.kms.model.DecryptRequest;
+
+import javax.crypto.Cipher;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
-import javax.crypto.Cipher;
-import javax.crypto.spec.IvParameterSpec;
-import javax.crypto.spec.SecretKeySpec;
 
 public class ConfigDecryptor {
 
-  private static AWSKMS kmsClient;
+  private static KmsClient kmsClient;
   private static final String encPrefix = "{{";
   private static final String encPostfix = "}}";
   private static final String SYMMETRIC_ALGORITHM = "AES/CTR/NoPadding";
@@ -76,9 +77,11 @@ public class ConfigDecryptor {
 
   private static String decryptSymmetricKey(String encryptedKey) throws CryptoException {
     ByteBuffer cipherTextBlob = ByteBuffer.wrap(Base64.getDecoder().decode(encryptedKey));
-    DecryptRequest req = new DecryptRequest().withCiphertextBlob(cipherTextBlob);
+    DecryptRequest req = DecryptRequest.builder()
+        .ciphertextBlob(SdkBytes.fromByteBuffer(cipherTextBlob))
+        .build();
     try {
-      ByteBuffer plainTextBytes = getKmsClient().decrypt(req).getPlaintext();
+      ByteBuffer plainTextBytes = getKmsClient().decrypt(req).plaintext().asByteBuffer();
       return new String(Base64.getEncoder().encode(plainTextBytes.array()));
     } catch (RuntimeException e) {
       throw new CryptoException("Error when trying to decrypt symmetric key. Please check the following:\n"
@@ -121,9 +124,9 @@ public class ConfigDecryptor {
 
   }
 
-  private static AWSKMS getKmsClient() {
+  private static KmsClient getKmsClient() {
     if (kmsClient == null) {
-       kmsClient = AWSKMSClientBuilder.defaultClient();
+       kmsClient = KmsClient.create();
     }
     return kmsClient;
   }

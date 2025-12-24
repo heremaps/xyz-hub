@@ -19,11 +19,13 @@
 
 package com.here.xyz.connectors.decryptors;
 
-import com.amazonaws.services.kms.AWSKMS;
-import com.amazonaws.services.kms.AWSKMSClientBuilder;
-import com.amazonaws.services.kms.model.DecryptRequest;
-import com.amazonaws.services.kms.model.EncryptRequest;
-import com.amazonaws.services.kms.model.EncryptionAlgorithmSpec;
+import software.amazon.awssdk.core.SdkBytes;
+import software.amazon.awssdk.services.kms.KmsClient;
+import software.amazon.awssdk.services.kms.model.DecryptRequest;
+import software.amazon.awssdk.services.kms.model.DecryptResponse;
+import software.amazon.awssdk.services.kms.model.EncryptRequest;
+import software.amazon.awssdk.services.kms.model.EncryptResponse;
+import software.amazon.awssdk.services.kms.model.EncryptionAlgorithmSpec;
 import java.nio.ByteBuffer;
 import java.util.Base64;
 import java.util.regex.Pattern;
@@ -62,7 +64,7 @@ public class KmsEventDecryptor extends EventDecryptor {
   /**
    * AWS KMS client for getting the private key to decryptPrivateKey space secrets.
    */
-  private final AWSKMS kmsClient;
+  private final KmsClient kmsClient;
 
   /**
    * Default constructor to create a new EventDecryptor that uses
@@ -91,7 +93,7 @@ public class KmsEventDecryptor extends EventDecryptor {
    * - {@link #ENV_KMS_KEY_ARN}
    */
   KmsEventDecryptor() {
-    kmsClient = AWSKMSClientBuilder.defaultClient();
+    kmsClient = KmsClient.create();
     // validate KMS Key ARN
     String keyArn = System.getenv(ENV_KMS_KEY_ARN);
     if (keyArn != null && kmsKeyArnPattern.matcher(keyArn).matches()) {
@@ -126,11 +128,13 @@ public class KmsEventDecryptor extends EventDecryptor {
     }
 
     try {
-      EncryptRequest req = new EncryptRequest()
-          .withKeyId(kmsKeyArn)
-          .withEncryptionAlgorithm(ASYMMETRIC_ALGORITHM)
-          .withPlaintext(ByteBuffer.wrap(tmp.getBytes()));
-      ByteBuffer plainText = kmsClient.encrypt(req).getCiphertextBlob();
+      EncryptRequest req = EncryptRequest.builder()
+          .keyId(kmsKeyArn)
+          .encryptionAlgorithm(ASYMMETRIC_ALGORITHM)
+          .plaintext(SdkBytes.fromByteArray(tmp.getBytes()))
+          .build();
+      EncryptResponse response = kmsClient.encrypt(req);
+      ByteBuffer plainText = response.ciphertextBlob().asByteBuffer();
       return TO_DECRYPT_PREFIX + Base64.getEncoder().encodeToString(plainText.array()) + TO_DECRYPT_POSTFIX;
     } catch (RuntimeException e) {
       logger.error("Error when trying to encrypt using asymmetric key. Please check the following:\n"
@@ -159,11 +163,13 @@ public class KmsEventDecryptor extends EventDecryptor {
 
     try {
       ByteBuffer cipherText = ByteBuffer.wrap(Base64.getDecoder().decode(tmp.getBytes()));
-      DecryptRequest req = new DecryptRequest()
-          .withKeyId(kmsKeyArn)
-          .withEncryptionAlgorithm(ASYMMETRIC_ALGORITHM)
-          .withCiphertextBlob(cipherText);
-      ByteBuffer plainText = kmsClient.decrypt(req).getPlaintext();
+      DecryptRequest req = DecryptRequest.builder()
+          .keyId(kmsKeyArn)
+          .encryptionAlgorithm(ASYMMETRIC_ALGORITHM)
+          .ciphertextBlob(SdkBytes.fromByteBuffer(cipherText))
+          .build();
+      DecryptResponse response = kmsClient.decrypt(req);
+      ByteBuffer plainText = response.plaintext().asByteBuffer();
       return new String(plainText.array());
     } catch (IllegalArgumentException e) {
       logger.warn("Could not Base64 decode value", e);

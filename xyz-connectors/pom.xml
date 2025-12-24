@@ -63,6 +63,12 @@
       <groupId>com.amazonaws</groupId>
     </dependency>
 
+    <!-- AWS SDK V2 -->
+    <dependency>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>kms</artifactId>
+    </dependency>
+
     <!-- PSQL JDBC driver -->
     <dependency>
       <artifactId>postgresql</artifactId>
