@@ -72,7 +72,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 
 public class FeatureHandler {
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(FeatureHandler.class);
   private static final ExpiringMap<String, Long> countCache = ExpiringMap.builder()
       .maxSize(1024)
       .variableExpiration()

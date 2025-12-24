@@ -36,7 +36,7 @@ import org.apache.logging.log4j.Logger;
 
 public abstract class AbstractHttpServerVerticle extends BaseHttpServerVerticle {
 
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(AbstractHttpServerVerticle.class);
   private static List<Consumer<RoutingContext>> responseEndObservers = new ArrayList<>();
 
   /**

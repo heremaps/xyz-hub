@@ -55,7 +55,7 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 
 public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
   public static final String EMR_JOB_NAME_PREFIX = "step:";
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(RunEmrJob.class);
   private static final String INPUT_SET_REF_PREFIX = "${inputSet:";
   private static final String INPUT_SET_REF_SUFFIX = "}";
   private static final Pattern INPUT_SET_REF_PATTERN = Pattern.compile(

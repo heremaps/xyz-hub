@@ -34,7 +34,7 @@ import org.apache.logging.log4j.Logger;
 
 public class JobRESTVerticle extends BaseHttpServerVerticle {
 
-    private static final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger(JobRESTVerticle.class);
 
     @Override
     public void start(Promise<Void> startPromise) throws Exception {

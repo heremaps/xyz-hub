@@ -67,7 +67,7 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
     @JsonSubTypes.Type(value = InputsFromS3.class, name = "InputsFromS3")
 })
 public abstract class Input <T extends Input> extends StepPayload<T> {
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(Input.class);
   protected long byteSize;
   protected boolean compressed;
   @JsonIgnore

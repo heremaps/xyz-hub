@@ -47,7 +47,7 @@ import com.here.xyz.XyzSerializable.Static;
 
 public class DynamoTagConfigClient extends TagConfigClient {
 
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(DynamoTagConfigClient.class);
   private final DynamoClient dynamoClient;
   private final Table tagTable;
 

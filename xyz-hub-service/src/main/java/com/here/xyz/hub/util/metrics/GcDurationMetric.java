@@ -37,7 +37,7 @@ import org.apache.logging.log4j.Logger;
 //TODO: Refactor this metric into an AggregatingMetric!
 public class GcDurationMetric extends BareValuesMetric {
 
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(GcDurationMetric.class);
   private static AtomicReference<Collection<Double>> durations = new AtomicReference(new ArrayList<>());
 
   public GcDurationMetric(String metricName) {

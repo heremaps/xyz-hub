@@ -38,7 +38,7 @@ import org.apache.logging.log4j.Marker;
  * A client for reading and editing subscription definitions.
  */
 public class JDBCSubscriptionConfigClient extends SubscriptionConfigClient {
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(JDBCSubscriptionConfigClient.class);
   private static JDBCSubscriptionConfigClient instance;
   private static final String SUBSCRIPTION_TABLE = "xyz_subscription";
   private final JDBCConfigClient client = new JDBCConfigClient(SCHEMA, SUBSCRIPTION_TABLE, Service.configuration);

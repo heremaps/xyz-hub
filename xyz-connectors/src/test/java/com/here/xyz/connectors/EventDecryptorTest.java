@@ -39,7 +39,7 @@ import org.junit.Test;
 
 public class EventDecryptorTest {
 
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(EventDecryptorTest.class);
 
   @SuppressWarnings("unchecked")
   @Test

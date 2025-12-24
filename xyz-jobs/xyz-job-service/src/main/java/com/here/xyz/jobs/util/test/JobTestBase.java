@@ -31,7 +31,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public class JobTestBase extends StepTestBase {
-    private static final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger(JobTestBase.class);
     private static final String LOCALSTACK_HOST = System.getProperty("localstack.host", "localhost");
     protected static int DEFAULT_JOB_POLL_TIMEOUT_SEC = 120;
     protected Set<String> createdJobs = new HashSet<>();

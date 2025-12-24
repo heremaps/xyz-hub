@@ -56,7 +56,7 @@ import org.apache.logging.log4j.Marker;
 
 public class HTTPFunctionClient extends RemoteFunctionClient {
 
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(HTTPFunctionClient.class);
   private volatile String url;
   private int requestTimeout;
 

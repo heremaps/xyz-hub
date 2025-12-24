@@ -26,7 +26,7 @@ import org.apache.logging.log4j.Logger;
 
 public class CWBareValueMetricPublisher extends CloudWatchMetricPublisher<Collection<Double>> {
 
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(CWBareValueMetricPublisher.class);
 
   public CWBareValueMetricPublisher(Metric metric) {
     super(metric);

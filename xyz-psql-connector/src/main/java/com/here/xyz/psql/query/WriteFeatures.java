@@ -49,7 +49,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureCollection> {
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(WriteFeatures.class);
   boolean responseDataExpected;
 
   public WriteFeatures(WriteFeaturesEvent event) throws SQLException, ErrorResponseException {

@@ -61,7 +61,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public abstract class StorageConnector extends EntryConnectorHandler {
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(StorageConnector.class);
 
   @Override
   public XyzResponse processEvent(Event event) throws Exception {

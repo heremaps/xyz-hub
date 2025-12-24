@@ -35,7 +35,7 @@ import org.apache.logging.log4j.Logger;
 
 public class MajorGcCountMetric extends BareValuesMetric {
 
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(MajorGcCountMetric.class);
   private static int majorGcCount = 0;
   private static final int timeLimit = 200; //ms
 

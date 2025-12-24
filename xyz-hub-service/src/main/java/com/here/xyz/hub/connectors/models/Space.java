@@ -57,7 +57,7 @@ import org.apache.logging.log4j.Marker;
 @JsonInclude(Include.NON_DEFAULT)
 public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
 
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(Space.class);
   private static final long DEFAULT_CONTENT_UPDATED_AT_INTERVAL_MILLIS = TimeUnit.MINUTES.toMillis(1);
   private static final long NO_CACHE_INTERVAL_MILLIS = DEFAULT_CONTENT_UPDATED_AT_INTERVAL_MILLIS * 2;
   private static final long MIN_SERVICE_CACHE_INTERVAL_MILLIS = TimeUnit.DAYS.toMillis(1);

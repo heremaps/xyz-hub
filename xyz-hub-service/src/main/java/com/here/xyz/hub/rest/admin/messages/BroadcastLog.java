@@ -28,7 +28,7 @@ import org.apache.logging.log4j.Logger;
  */
 public class BroadcastLog extends AdminMessage {
 
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(BroadcastLog.class);
 
   public final Node destination = null;
   public String logMessage;

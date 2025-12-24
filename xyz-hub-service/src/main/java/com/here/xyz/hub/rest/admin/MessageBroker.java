@@ -44,7 +44,7 @@ import org.apache.logging.log4j.Logger;
  */
 public interface MessageBroker {
 
-  Logger logger = LogManager.getLogger();
+  Logger logger = LogManager.getLogger(MessageBroker.class);
   ThreadLocal<ObjectMapper> mapper = ThreadLocal.withInitial(ObjectMapper::new);
 
   void sendRawMessage(String jsonMessage);

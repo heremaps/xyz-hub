@@ -36,7 +36,7 @@ import org.apache.logging.log4j.Logger;
 public class MarkForMaintenance extends SpaceBasedStep<MarkForMaintenance> {
   private static final String XYZ_CONFIG_SCHEMA = "xyz_config";
   private static final String IDX_STATUS_TABLE = "xyz_idxs_status";
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(MarkForMaintenance.class);
   @JsonView({Internal.class, Static.class})
   private boolean idxCreationCompleted;
 

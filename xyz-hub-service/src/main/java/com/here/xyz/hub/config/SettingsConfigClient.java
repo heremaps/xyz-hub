@@ -44,7 +44,7 @@ import org.apache.logging.log4j.MarkerManager.Log4jMarker;
 
 public abstract class SettingsConfigClient implements Initializable {
 
-  protected static final Logger logger = LogManager.getLogger();
+  protected static final Logger logger = LogManager.getLogger(SettingsConfigClient.class);
 
   private static final ExpiringMap<String, Setting> cache = ExpiringMap.builder()
       .expirationPolicy(ExpirationPolicy.CREATED)

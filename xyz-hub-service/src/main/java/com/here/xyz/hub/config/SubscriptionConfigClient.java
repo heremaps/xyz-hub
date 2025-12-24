@@ -38,7 +38,7 @@ import org.apache.logging.log4j.Marker;
 
 public abstract class SubscriptionConfigClient implements Initializable {
 
-    private static final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger(SubscriptionConfigClient.class);
 
     public static final ExpiringMap<String, Subscription> cache = ExpiringMap.builder()
             .expirationPolicy(ExpirationPolicy.CREATED)

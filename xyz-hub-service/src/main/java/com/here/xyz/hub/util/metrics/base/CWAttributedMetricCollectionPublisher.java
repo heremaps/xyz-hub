@@ -32,7 +32,7 @@ import org.apache.logging.log4j.Logger;
 
 public class CWAttributedMetricCollectionPublisher<V> extends CloudWatchMetricPublisher<Map<Collection<Attribute>, V>> {
 
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(CWAttributedMetricCollectionPublisher.class);
 
   public CWAttributedMetricCollectionPublisher(Metric metric) {
     super(metric);

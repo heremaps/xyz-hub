@@ -45,7 +45,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 
 public class SpaceConnectorBasedHandler {
-    private static final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger(SpaceConnectorBasedHandler.class);
 
     public static <T extends Event<T>, R extends XyzResponse<R>> Future<R> execute(
             Marker marker,

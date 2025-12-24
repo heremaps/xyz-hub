@@ -38,7 +38,7 @@ import org.apache.logging.log4j.Logger;
 
 public class RedisMessageBroker implements MessageBroker {
 
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(RedisMessageBroker.class);
 
   private Redis client;
   private Redis messageReceiverClient;

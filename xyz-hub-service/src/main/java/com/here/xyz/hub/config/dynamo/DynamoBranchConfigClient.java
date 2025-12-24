@@ -39,7 +39,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public class DynamoBranchConfigClient extends BranchConfigClient {
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(DynamoBranchConfigClient.class);
   public static final IndexDefinition ID_GSI = new IndexDefinition("id");
   private DynamoClient dynamoClient;
   private Table branchTable;

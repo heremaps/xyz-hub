@@ -31,7 +31,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 
 public abstract class TagConfigClient implements Initializable {
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(TagConfigClient.class);
 
   public static TagConfigClient getInstance() {
     if (Service.configuration.TAGS_DYNAMODB_TABLE_ARN != null) {

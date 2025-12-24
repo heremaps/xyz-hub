@@ -41,7 +41,7 @@ import org.apache.logging.log4j.Marker;
  */
 public class JDBCConnectorConfigClient extends ConnectorConfigClient {
 
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(JDBCConnectorConfigClient.class);
 
   private static JDBCConnectorConfigClient instance;
   private static final String CONNECTOR_TABLE = "xyz_storage";

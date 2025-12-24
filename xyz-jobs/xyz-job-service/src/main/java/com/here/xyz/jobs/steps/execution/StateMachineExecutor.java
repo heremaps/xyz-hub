@@ -42,7 +42,7 @@ import software.amazon.awssdk.services.sfn.model.StartExecutionResponse;
 import software.amazon.awssdk.services.sfn.model.StopExecutionRequest;
 
 class StateMachineExecutor extends JobExecutor {
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(StateMachineExecutor.class);
   private static final String STATE_MACHINE_NAME_PREFIX = "job-";
   private static final Async ASYNC = new Async(5, Job.class);
 

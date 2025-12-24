@@ -32,7 +32,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 public final class AuroraAcuMonitor {
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(AuroraAcuMonitor.class);
   private static final long PERIOD_SEC = 60;
 
   private final String clusterId;

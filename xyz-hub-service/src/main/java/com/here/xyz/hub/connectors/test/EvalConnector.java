@@ -22,7 +22,7 @@ import org.apache.logging.log4j.Logger;
 
 public class EvalConnector extends AbstractConnectorHandler {
 
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(EvalConnector.class);
   ScriptEngine engine;
 
   @Override

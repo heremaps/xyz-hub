@@ -43,7 +43,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public class OpenApiGenerator {
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(OpenApiGenerator.class);
 
   private static final String EXCLUDE = "exclude";
   private static final String INCLUDE = "include";

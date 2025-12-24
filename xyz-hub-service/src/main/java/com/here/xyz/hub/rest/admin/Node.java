@@ -49,7 +49,7 @@ import org.apache.logging.log4j.Logger;
 public class Node {
 
   private static final int HEALTH_TIMEOUT = 25;
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(Node.class);
 
   private static int nodeCount = Service.configuration.INSTANCE_COUNT;
   private static final int NODE_COUNT_FETCH_PERIOD = 30_000; //ms

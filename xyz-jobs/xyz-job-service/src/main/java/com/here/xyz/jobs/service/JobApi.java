@@ -58,7 +58,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public class JobApi extends JobApiBase {
-  protected static final Logger logger = LogManager.getLogger();
+  protected static final Logger logger = LogManager.getLogger(JobApi.class);
 
   protected JobApi() {}
 

@@ -75,7 +75,7 @@ import org.apache.logging.log4j.Logger;
     @JsonSubTypes.Type(value = SpawnMaintenanceJobs.class)
 })
 public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseBasedStep<T> {
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(SpaceBasedStep.class);
 
   @JsonView({Internal.class, Static.class})
   private String spaceId;

@@ -44,7 +44,7 @@ import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Assertions;
 
 public class ExportTestBase extends StepTest {
-    private static final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger(ExportTestBase.class);
 
     protected void executeExportStepAndCheckResults(String spaceId, ContextAwareEvent.SpaceContext context,
                                                     SpatialFilter spatialFilter, PropertiesQuery propertiesQuery,

@@ -70,7 +70,7 @@ import org.apache.logging.log4j.Marker;
 
 public class LambdaFunctionClient extends RemoteFunctionClient {
 
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(LambdaFunctionClient.class);
   private static final int CONNECTION_ESTABLISH_TIMEOUT = 5_000;
   //  private static final int CLIENT_REQUEST_TIMEOUT = REQUEST_TIMEOUT + 3_000;
   private static final int CONNECTION_TTL = 60_000; //ms

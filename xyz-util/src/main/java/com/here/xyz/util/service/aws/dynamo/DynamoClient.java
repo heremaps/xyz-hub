@@ -58,7 +58,7 @@ import software.amazon.awssdk.regions.Region;
 
 public class DynamoClient {
 
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(DynamoClient.class);
   private static final Long READ_CAPACITY_UNITS = 5L;
   private static final Long WRITE_CAPACITY_UNITS = 5L;
 

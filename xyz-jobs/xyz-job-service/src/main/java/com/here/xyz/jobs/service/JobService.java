@@ -46,7 +46,7 @@ import org.apache.logging.log4j.Logger;
 
 public class JobService extends Core {
 
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(JobService.class);
   private static final String ERROR_DEFINITIONS_FILE = "job-errors.json";
   protected static Class<? extends Config> serviceConfigurationClass = Config.class;
 

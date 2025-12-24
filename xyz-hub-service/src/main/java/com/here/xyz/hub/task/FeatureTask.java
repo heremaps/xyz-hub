@@ -88,7 +88,7 @@ import org.apache.logging.log4j.Logger;
 
 public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?>> extends Task<T, X> {
 
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(FeatureTask.class);
 
   /**
    * The space for this operation.

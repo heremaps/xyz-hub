@@ -49,7 +49,7 @@ import org.apache.logging.log4j.Logger;
 import static com.here.xyz.util.db.ConnectorParameters.TableLayout.OLD_LAYOUT;
 
 public class SQLSpaceWriter extends SpaceWriter {
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(SQLSpaceWriter.class);
   protected static String VERSION_SEQUENCE_SUFFIX = "_version_seq";
   private boolean batchMode;
 

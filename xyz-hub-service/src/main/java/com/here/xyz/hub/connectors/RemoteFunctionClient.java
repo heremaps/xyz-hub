@@ -68,7 +68,7 @@ public abstract class RemoteFunctionClient {
   public static final long GLOBAL_MAX_QUEUE_BYTE_SIZE = (long) Service.configuration.GLOBAL_MAX_QUEUE_SIZE * 1024 * 1024;
   public static final int MAX_REQUEST_TIMEOUT = (int) TimeUnit.SECONDS.toMillis(Service.configuration.getRemoteFunctionMaxRequestTimeout());
 
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(RemoteFunctionClient.class);
   private static int MEASUREMENT_INTERVAL = 1000; //1s
   private static final int MIN_CONNECTIONS_PER_NODE = 4;
 

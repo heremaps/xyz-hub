@@ -38,7 +38,7 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 @SuppressWarnings("WeakerAccess")
 public class RelocationClient {
 
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(RelocationClient.class);
 
   private final static String S3_PATH = "tmp/";
   private S3Client defaultS3Client;

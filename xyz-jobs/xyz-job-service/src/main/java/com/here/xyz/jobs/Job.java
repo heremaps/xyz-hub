@@ -129,7 +129,7 @@ public class Job implements XyzSerializable {
   private List<StaticLoad> calculatedResourceLoads;
 
   private static final Async ASYNC = new Async(100, Job.class);
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(Job.class);
   private static final long DEFAULT_JOB_TTL = TimeUnit.DAYS.toMillis(2 * 7); //4 weeks
 
   /**

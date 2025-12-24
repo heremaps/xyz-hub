@@ -77,7 +77,7 @@ import org.apache.logging.log4j.Marker;
 
 public class DynamoSpaceConfigClient extends SpaceConfigClient {
 
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(DynamoSpaceConfigClient.class);
 
   private final DynamoClient dynamoClient;
   private Table spaces;

@@ -42,7 +42,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 
 public class SubscriptionApi extends SpaceBasedApi {
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(SubscriptionApi.class);
   private static final String JOB_TARGET_PREFIX = "job:";
 
   public SubscriptionApi(RouterBuilder rb) {

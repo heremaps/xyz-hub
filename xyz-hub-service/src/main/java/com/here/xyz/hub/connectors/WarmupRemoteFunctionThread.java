@@ -38,7 +38,7 @@ import org.apache.logging.log4j.MarkerManager.Log4jMarker;
 public class WarmupRemoteFunctionThread extends Thread {
 
   private static final String name = WarmupRemoteFunctionThread.class.getSimpleName();
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(WarmupRemoteFunctionThread.class);
   private static final String RFC_WARMUP_CACHE_KEY = "RFC_WARMUP_CACHE_KEY";
 
   // minimum amount of milliseconds to wait between each run, also used as lock expiration period

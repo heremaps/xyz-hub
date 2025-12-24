@@ -41,7 +41,7 @@ import org.apache.logging.log4j.Logger;
 
 public class JobRouter implements AbstractRouterBuilder {
 
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(JobRouter.class);
   private static String CONTRACT_API;
 
   static {

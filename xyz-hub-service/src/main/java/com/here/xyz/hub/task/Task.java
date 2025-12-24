@@ -50,7 +50,7 @@ import org.apache.logging.log4j.Marker;
 public abstract class Task<T extends Event, X extends Task<T, ?>> {
 
   public static final String TASK = "task";
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(Task.class);
 
   /**
    * The corresponding routing context.

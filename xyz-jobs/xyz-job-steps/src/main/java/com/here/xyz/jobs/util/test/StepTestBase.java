@@ -101,7 +101,7 @@ public class StepTestBase {
 
   public static final Config config = new Config();
   protected static final String LAMBDA_ARN = "arn:aws:lambda:us-east-1:000000000000:function:job-step";
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(StepTestBase.class);
   private static final S3Client s3Client;
   private static final String PG_HOST = System.getProperty("pg.host", "localhost");
   private static final String PG_DB = "postgres";

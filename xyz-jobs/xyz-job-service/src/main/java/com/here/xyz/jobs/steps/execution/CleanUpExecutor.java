@@ -39,7 +39,7 @@ import software.amazon.awssdk.services.cloudwatchevents.model.Rule;
 import software.amazon.awssdk.services.cloudwatchevents.model.Target;
 
 public class CleanUpExecutor {
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(CleanUpExecutor.class);
   private static final long CHECK_PERIOD_IN_MIN = 30;
   private static final ScheduledExecutorService exec = Executors.newSingleThreadScheduledExecutor();
   private static final CleanUpExecutor instance = new CleanUpExecutor();

@@ -47,7 +47,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 
 public class AdminApi extends Api {
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(AdminApi.class);
 
   public static final String MAIN_ADMIN_ENDPOINT = "/hub/admin/";
   public static final String ADMIN_MESSAGES_ENDPOINT = MAIN_ADMIN_ENDPOINT + "messages";

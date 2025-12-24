@@ -43,7 +43,7 @@ import org.apache.logging.log4j.Marker;
 
 public abstract class Authorization {
 
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(Authorization.class);
   private static final CompositeAuthorizationHandler compositeAuthorizationHandler = Modules.getCompositeAuthorizationHandler();
 
   public static <X extends Task> void authorizeComposite(X task, Callback<X> callback) {

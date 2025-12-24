@@ -110,7 +110,7 @@ import software.amazon.awssdk.services.lambda.model.InvokeResponse;
 
 //TODO: Delete or extend JopTestBase and cleanUp.
 public class JobPlayground {
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(JobPlayground.class);
   private static HubWebClient hubWebClient;
   private static LambdaClient lambdaClient;
   private static Space sampleSpace;

@@ -52,7 +52,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 
 public class BranchHandler {
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(BranchHandler.class);
   public static final String NODE_ID_PREFIX = "~";
   public static final char CONFLICTING_BRANCH_ID_PREFIX = '!';
 

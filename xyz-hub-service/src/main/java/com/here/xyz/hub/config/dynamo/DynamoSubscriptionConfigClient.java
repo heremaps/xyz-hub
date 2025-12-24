@@ -41,7 +41,7 @@ import org.apache.logging.log4j.Marker;
 
 public class DynamoSubscriptionConfigClient extends SubscriptionConfigClient {
 
-    private static final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger(DynamoSubscriptionConfigClient.class);
 
     private final Table subscriptions;
     private final DynamoClient dynamoClient;

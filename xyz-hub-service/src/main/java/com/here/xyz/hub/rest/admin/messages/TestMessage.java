@@ -45,7 +45,7 @@ import org.apache.logging.log4j.Logger;
  */
 public class TestMessage extends RelayedMessage {
 
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(TestMessage.class);
 
   private static final ObjectMapper mapper = new ObjectMapper();
   public String temporaryFileName;

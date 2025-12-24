@@ -60,7 +60,7 @@ import org.apache.logging.log4j.Logger;
  */
 //TODO: Merge version creation step into this step again (basically both: pre- & post-step)
 public class CopySpace extends SpaceBasedStep<CopySpace> {
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(CopySpace.class);
 
   //Input settings for the compiler:
   @JsonView({Internal.class, Static.class})

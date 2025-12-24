@@ -80,7 +80,7 @@ import org.apache.logging.log4j.Logger;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(Include.NON_DEFAULT)
 public abstract class Step<T extends Step> implements Typed, StepExecution {
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(Step.class);
 
   //TODO: Apply views properly to all properties
 

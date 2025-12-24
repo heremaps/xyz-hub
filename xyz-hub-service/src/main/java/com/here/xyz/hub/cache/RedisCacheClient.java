@@ -36,7 +36,7 @@ import org.apache.logging.log4j.Logger;
 public class RedisCacheClient implements CacheClient {
 
   private static CacheClient instance;
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(RedisCacheClient.class);
   private ThreadLocal<Redis> redis;
   private String connectionString = Service.configuration.getRedisUri();
   RedisOptions config = new RedisOptions()

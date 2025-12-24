@@ -97,7 +97,7 @@ import org.apache.logging.log4j.Marker;
 
 public class SpaceTaskHandler {
   private static final Async ASYNC = new Async(10, SpaceTaskHandler.class);
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(SpaceTaskHandler.class);
   private static final int CLIENT_VALUE_MAX_SIZE = 1024;
   private static final String DRY_RUN_SUPPORT_VERSION = "0.7.0";
 

@@ -34,7 +34,7 @@ import org.apache.logging.log4j.Logger;
 
 public abstract class CloudWatchMetricPublisher<V> extends MetricPublisher<V> {
 
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(CloudWatchMetricPublisher.class);
   private static final int MAX_DATA_BATCH_SIZE = 20;
 
   private static AmazonCloudWatch _client;

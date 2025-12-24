@@ -35,7 +35,7 @@ import org.apache.logging.log4j.Logger;
 
 public class JDBCConfigClient extends JdbcClient {
   static final String SCHEMA = "xyz_config";
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(JDBCConfigClient.class);
   private String schema;
   private String table;
 

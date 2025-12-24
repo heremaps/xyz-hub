@@ -49,7 +49,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public class ConnectorApi extends Api {
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(ConnectorApi.class);
 
   public ConnectorApi(RouterBuilder rb) {
     rb.getRoute("getConnectors").setDoValidation(false).addHandler(this::getConnectors);

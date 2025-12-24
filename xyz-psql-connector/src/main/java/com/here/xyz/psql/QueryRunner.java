@@ -44,7 +44,7 @@ import org.apache.logging.log4j.Logger;
  */
 public abstract class QueryRunner<E extends Object, R extends Object> implements ResultSetHandler<R> {
 
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(QueryRunner.class);
   private static final int MIN_REMAINING_TIME_FOR_RESULT_HANDLING = 2;
   private SQLQuery query;
   private boolean useReadReplica;

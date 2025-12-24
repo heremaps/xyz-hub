@@ -65,7 +65,7 @@ import org.apache.logging.log4j.Logger;
 
 public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
 
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(XYZHubRESTVerticle.class);
 
   private static String FULL_API;
   private static String STABLE_API;

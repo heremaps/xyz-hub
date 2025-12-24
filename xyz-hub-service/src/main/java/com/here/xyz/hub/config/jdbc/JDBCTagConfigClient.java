@@ -35,7 +35,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 
 public class JDBCTagConfigClient extends TagConfigClient {
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(JDBCTagConfigClient.class);
 
   private static JDBCTagConfigClient instance;
   private static final String TAG_TABLE = "xyz_tags";

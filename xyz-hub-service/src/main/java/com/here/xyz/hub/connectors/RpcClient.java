@@ -77,7 +77,7 @@ import org.apache.logging.log4j.Marker;
 
 public class RpcClient {
 
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(RpcClient.class);
 
   private static final ConcurrentHashMap<String, RpcClient> connectorIdToClient = new ConcurrentHashMap<>();
   private static final RelocationClient relocationClient = new RelocationClient(Service.configuration.XYZ_HUB_S3_BUCKET);

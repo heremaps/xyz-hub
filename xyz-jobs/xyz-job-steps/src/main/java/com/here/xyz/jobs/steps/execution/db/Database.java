@@ -56,7 +56,7 @@ import software.amazon.awssdk.services.rds.model.DBCluster;
 
 public class Database extends ExecutionResource {
   private static final List<ScriptResourcePath> SCRIPT_RESOURCE_PATHS = List.of(new ScriptResourcePath("/sql", "jobs", "common"), new ScriptResourcePath("/jobs", "jobs"));
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(Database.class);
   private static final float DB_MAX_JOB_UTILIZATION_PERCENTAGE = 0.6f;
   private static Cache<String, List<Database>> cache = CacheBuilder
       .newBuilder()

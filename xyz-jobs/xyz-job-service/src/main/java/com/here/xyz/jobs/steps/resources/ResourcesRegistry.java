@@ -37,7 +37,7 @@ import org.apache.logging.log4j.Logger;
 
 public class ResourcesRegistry {
 
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(ResourcesRegistry.class);
   /**
    * Provides the overall number of virtual units being currently reserved for all resources in the system.
    *

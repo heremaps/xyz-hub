@@ -33,7 +33,7 @@ import org.apache.logging.log4j.Logger;
 
 public class MockedRemoteFunctionClient extends RemoteFunctionClient {
 
-    private static final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger(MockedRemoteFunctionClient.class);
     ScheduledThreadPoolExecutor threadPool;
     private long minExecutionTime = 0; //ms
     private long maxExecutionTime = 30_000; //ms

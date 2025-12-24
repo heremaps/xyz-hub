@@ -43,7 +43,7 @@ import org.apache.logging.log4j.MarkerManager.Log4jMarker;
 public class ConfigUpdateThread extends Thread {
 
   private static final String name = ConfigUpdateThread.class.getSimpleName();
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(ConfigUpdateThread.class);
   private static final long CONFIG_UPDATE_INTERVAL = TimeUnit.MINUTES.toMillis(2);
   private static final long CONNECTOR_UNHEALTHY_THRESHOLD = 3;
 

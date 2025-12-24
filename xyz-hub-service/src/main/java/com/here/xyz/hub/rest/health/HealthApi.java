@@ -51,7 +51,7 @@ import org.apache.logging.log4j.Logger;
 
 public class HealthApi extends Api {
 
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(HealthApi.class);
 
   public static final String MAIN_HEALTCHECK_ENDPOINT = "/hub/";
   private static final URI NODE_HEALTHCHECK_ENDPOINT = getNodeHealthCheckEndpoint();

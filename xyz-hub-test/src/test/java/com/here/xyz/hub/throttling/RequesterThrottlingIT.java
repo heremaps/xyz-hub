@@ -42,7 +42,7 @@ public class RequesterThrottlingIT extends TestSpaceWithFeature {
     private static final String SPACE_ID = "space1";
     private static final String HUB_ENDPOINT = "http://localhost:8080/hub";
     private static final HttpClient client = HttpClient.newHttpClient();
-    private static final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger(RequesterThrottlingIT.class);
 
 
     @BeforeClass

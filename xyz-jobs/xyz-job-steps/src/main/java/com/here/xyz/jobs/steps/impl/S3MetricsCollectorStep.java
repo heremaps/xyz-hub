@@ -35,7 +35,7 @@ import org.apache.logging.log4j.Logger;
 
 public class S3MetricsCollectorStep extends SyncLambdaStep<S3MetricsCollectorStep> {
     public static final String S3_METRICS = "metrics";
-    private static final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger(S3MetricsCollectorStep.class);
 
     @JsonView({XyzSerializable.Internal.class, XyzSerializable.Static.class})
     private Ref version;

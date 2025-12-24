@@ -38,7 +38,7 @@ import org.apache.logging.log4j.Logger;
  */
 @SuppressWarnings("unused")
 public class SimulatedContext implements Context, LambdaLogger {
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(SimulatedContext.class);
   private final Map<String, String> environmentVariableOverrides;
   private String getLogStreamName;
   private String logGroupName;

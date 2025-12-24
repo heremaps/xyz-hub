@@ -33,7 +33,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public class PooledDataSources extends DataSourceProvider {
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(PooledDataSources.class);
   private static final String EXTENDED_CONNECTION_SETTINGS = "extendedConnectionSettings";
   private volatile ComboPooledDataSource reader;
   private volatile ComboPooledDataSource writer;

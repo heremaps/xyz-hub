@@ -34,7 +34,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public class SpaceMaintain implements JobCompilationInterceptor {
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(SpaceMaintain.class);
 
   @Override
   public boolean chooseMe(Job job) {

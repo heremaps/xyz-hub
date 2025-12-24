@@ -37,7 +37,7 @@ import java.util.List;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
 
 public class SpawnMaintenanceJobs extends SpaceBasedStep<SpawnMaintenanceJobs> {
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(SpawnMaintenanceJobs.class);
 
   @Override
   public ExecutionMode getExecutionMode() {

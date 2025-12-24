@@ -44,7 +44,7 @@ import org.apache.logging.log4j.Marker;
  * A client for reading and editing xyz space and connector definitions.
  */
 public class JDBCSpaceConfigClient extends SpaceConfigClient {
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(JDBCSpaceConfigClient.class);
   private static JDBCSpaceConfigClient instance;
   private static final String SPACE_TABLE = "xyz_space";
   private final JDBCConfigClient client = new JDBCConfigClient(SCHEMA, SPACE_TABLE, Service.configuration);

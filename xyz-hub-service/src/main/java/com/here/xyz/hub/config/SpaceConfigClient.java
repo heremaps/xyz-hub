@@ -50,7 +50,7 @@ import org.apache.logging.log4j.Marker;
 
 public abstract class SpaceConfigClient implements Initializable {
 
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(SpaceConfigClient.class);
 
   public static final ExpiringMap<String, Space> cache = ExpiringMap.builder()
       .expirationPolicy(ExpirationPolicy.CREATED)

@@ -41,7 +41,7 @@ import org.apache.logging.log4j.Marker;
 
 public class EmbeddedFunctionClient extends RemoteFunctionClient {
 
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(EmbeddedFunctionClient.class);
   /**
    * The thread pool being used for running calls to embedded connectors asynchronously.
    */
@@ -125,7 +125,7 @@ public class EmbeddedFunctionClient extends RemoteFunctionClient {
    */
   public static class EmbeddedContext extends SimulatedContext {
 
-    private static final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger(EmbeddedFunctionClient.class);
     private final Marker marker;
 
     public EmbeddedContext(Marker marker, String functionName, Map<String, String> environmentVariableOverrides) {

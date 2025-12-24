@@ -50,7 +50,7 @@ import org.apache.logging.log4j.Logger;
  */
 public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
   public static final String STATISTICS = "statistics";
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(CopySpacePost.class);
 
   @JsonView({Internal.class, Static.class})
   private long copiedByteSize = 0;

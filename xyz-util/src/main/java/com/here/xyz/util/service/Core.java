@@ -49,7 +49,7 @@ import org.apache.logging.log4j.core.util.NetUtils;
 
 public class Core {
 
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(Core.class);
 
   /**
    * The entry point to the Vert.x core API.

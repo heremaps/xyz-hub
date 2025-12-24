@@ -63,7 +63,7 @@ import org.apache.logging.log4j.Logger;
  */
 @JsonInclude(NON_DEFAULT)
 public class SQLQuery {
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(SQLQuery.class);
   private static final Level QUERY_LEVEL = Level.forName("QUERY", 60);
   private static final String VAR_PREFIX = "\\$\\{";
   private static final String VAR_SUFFIX = "\\}";

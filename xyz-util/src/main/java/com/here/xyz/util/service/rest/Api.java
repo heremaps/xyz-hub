@@ -69,7 +69,7 @@ public class Api {
     public static final HttpResponseStatus RESPONSE_PAYLOAD_TOO_LARGE = new HttpResponseStatus(513, "Response payload too large");
     public static final String RESPONSE_PAYLOAD_TOO_LARGE_MESSAGE =
             "The response payload was too large. Please try to reduce the expected amount of data.";
-    protected static final Logger logger = LogManager.getLogger();
+    protected static final Logger logger = LogManager.getLogger(Api.class);
 
     /**
      * Converts the given response into a {@link HttpException}.

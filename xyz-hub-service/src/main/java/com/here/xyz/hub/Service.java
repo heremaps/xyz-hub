@@ -76,7 +76,7 @@ import org.apache.logging.log4j.core.config.Configurator;
 
 public class Service extends Core {
 
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(Service.class);
 
 
   public static final String XYZ_HUB_USER_AGENT = "XYZ-Hub/" + buildVersion();

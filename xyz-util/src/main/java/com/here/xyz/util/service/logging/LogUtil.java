@@ -53,7 +53,7 @@ import org.apache.logging.log4j.MarkerManager;
 import org.apache.logging.log4j.MarkerManager.Log4jMarker;
 
 public class LogUtil {
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(LogUtil.class);
   private static final Level STREAM_LEVEL = Level.forName("STREAM", 50);
   private static final Marker ACCESS_LOG_MARKER = MarkerManager.getMarker("ACCESS");
   private static final String REALM = "rlm";

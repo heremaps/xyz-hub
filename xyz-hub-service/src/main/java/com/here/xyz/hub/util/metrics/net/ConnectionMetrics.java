@@ -63,7 +63,7 @@ public class ConnectionMetrics {
   static final String TARGET = "target";
   public static final String REMOTE_HUB = "REMOTE_HUB";
   public static final String REDIS = "REDIS";
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(ConnectionMetrics.class);
 
   public static AggregatingMetric httpClientQueueingTime;
   public static AttributedMetricCollection<AggregatedValues> tcpReadBytes;

@@ -47,7 +47,7 @@ import org.apache.logging.log4j.Marker;
 
 public class SubscriptionHandler {
 
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(SubscriptionHandler.class);
 
   public static Future<Subscription> getSubscription(RoutingContext context, String spaceId, String subscriptionId) {
     final Marker marker = LogUtil.getMarker(context);

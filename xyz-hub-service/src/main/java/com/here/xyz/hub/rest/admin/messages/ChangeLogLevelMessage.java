@@ -35,7 +35,7 @@ import org.apache.logging.log4j.core.config.Configurator;
 @SuppressWarnings("unused")
 class ChangeLogLevelMessage extends RelayedMessage {
 
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(ChangeLogLevelMessage.class);
 
   private String level;
 

@@ -8,7 +8,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public final class Modules {
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(Modules.class);
   private static final CompositeAuthorizationHandler authorizationHandlerInstance = load(CompositeAuthorizationHandler.class);
 
 

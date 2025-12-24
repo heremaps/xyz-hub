@@ -43,7 +43,7 @@ import org.apache.logging.log4j.Marker;
 
 public class DynamoConnectorConfigClient extends ConnectorConfigClient {
 
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(DynamoConnectorConfigClient.class);
 
   private final Table connectors;
   private final DynamoClient dynamoClient;

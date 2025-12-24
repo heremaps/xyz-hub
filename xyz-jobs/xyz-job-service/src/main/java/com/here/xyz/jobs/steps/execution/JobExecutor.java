@@ -51,7 +51,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public abstract class JobExecutor implements Initializable {
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(JobExecutor.class);
   private static final ScheduledExecutorService exec = Executors.newSingleThreadScheduledExecutor();
   private static final JobExecutor instance = new StateMachineExecutor();
   private static volatile boolean running;

@@ -68,7 +68,7 @@ import org.apache.logging.log4j.Marker;
 
 @SuppressWarnings("rawtypes")
 public class SpaceAuthorization extends Authorization {
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(SpaceAuthorization.class);
 
   public static List<String> basicEdit = Arrays
       .asList("id", "title", "description", "client", "copyright", "license", "shared", "cacheTTL", "readOnly", "extends",

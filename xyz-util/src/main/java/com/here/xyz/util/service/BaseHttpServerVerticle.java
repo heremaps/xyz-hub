@@ -88,7 +88,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 
 public class BaseHttpServerVerticle extends AbstractVerticle {
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(BaseHttpServerVerticle.class);
   public static final HttpServerOptions SERVER_OPTIONS = new HttpServerOptions()
       .setCompressionSupported(true)
       .setDecompressionSupported(true)

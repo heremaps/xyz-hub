@@ -82,7 +82,7 @@ import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I extends TaskPayload, O extends TaskPayload>
         extends SpaceBasedStep<T> {
   private static final String JOB_DATA_PREFIX = "job_data_";
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(TaskedSpaceBasedStep.class);
 
   @JsonView({Internal.class, Static.class})
   protected int threadCount = 8;

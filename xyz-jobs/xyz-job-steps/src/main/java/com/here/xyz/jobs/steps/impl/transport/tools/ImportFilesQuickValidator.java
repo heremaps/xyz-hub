@@ -46,7 +46,7 @@ import org.locationtech.jts.io.WKBReader;
 import software.amazon.awssdk.core.ResponseInputStream;
 
 public class ImportFilesQuickValidator {
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(ImportFilesQuickValidator.class);
   private static final int VALIDATE_LINE_MAX_LINE_SIZE_BYTES = 4 * 1024 * 1024;
   private static final String RE_UPLOAD_HINT = "\nPlease re-upload the input files in the correct format using the already provided upload-urls!";
 

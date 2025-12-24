@@ -8,7 +8,7 @@ import org.apache.logging.log4j.Logger;
 
 public abstract class MetricPublisher<V> {
 
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(MetricPublisher.class);
   public static final long DEFAULT_REFRESH_PERIOD = 60; //s
 
   private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();

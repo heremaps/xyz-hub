@@ -58,7 +58,7 @@ public class ConnectorHandler {
 
   private static final int ID_MIN_LENGTH = 4;
   private static final int ID_MAX_LENGTH = 64;
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(ConnectorHandler.class);
 
   public static void getConnector(RoutingContext context, String connectorId, Handler<AsyncResult<Connector>> handler) {
     Marker marker = LogUtil.getMarker(context);

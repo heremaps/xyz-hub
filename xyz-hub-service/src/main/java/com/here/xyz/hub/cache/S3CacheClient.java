@@ -46,7 +46,7 @@ public class S3CacheClient implements CacheClient {
     private static final String EXPIRES_AT = "expiresAt";
     private static final String LAST_ACCESSED_AT = "lastAccessedAt";
     private static final long ACCESS_UPDATE_TIME_THRESHOLD = TimeUnit.DAYS.toMillis(1);
-    private static final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger(S3CacheClient.class);
     private static final String prefix = "xyz-hub-cache/";
     private static CacheClient instance;
     private volatile S3Client s3client;

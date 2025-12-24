@@ -50,7 +50,7 @@ import org.apache.logging.log4j.Logger;
  */
 
 public class CountSpace extends TaskedSpaceBasedStep<CountSpace, CountInput, ExportOutput> {
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(CountSpace.class);
 
   public static final String FEATURECOUNT = "featurecount";
   {

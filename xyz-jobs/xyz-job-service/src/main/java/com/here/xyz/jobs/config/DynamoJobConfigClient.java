@@ -62,7 +62,7 @@ import org.apache.logging.log4j.Logger;
 
 public class DynamoJobConfigClient extends JobConfigClient {
 
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(DynamoJobConfigClient.class);
   public static final int MAX_RESOURCE_KEYS = 256;
   public static final IndexDefinition JOB_ID_GSI = new IndexDefinition("jobId");
   public static final IndexDefinition STATE_GSI = new IndexDefinition("state");

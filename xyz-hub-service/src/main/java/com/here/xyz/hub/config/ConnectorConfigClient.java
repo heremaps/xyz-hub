@@ -61,7 +61,7 @@ import org.apache.logging.log4j.Marker;
 
 public abstract class ConnectorConfigClient implements Initializable {
 
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(ConnectorConfigClient.class);
 
   private static final String ANONYMOUS_OWNER = "ANONYMOUS";
 

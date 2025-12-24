@@ -62,7 +62,7 @@ import org.apache.logging.log4j.Logger;
  */
 public class SnsMessageBroker extends DefaultSnsMessageHandler implements MessageBroker {
 
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(SnsMessageBroker.class);
 
   private static SnsMessageBroker instance;
   private static final ThreadLocal<ObjectMapper> mapper = ThreadLocal.withInitial(ObjectMapper::new);

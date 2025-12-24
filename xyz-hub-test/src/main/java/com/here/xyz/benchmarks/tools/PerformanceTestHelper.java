@@ -53,7 +53,7 @@ public class PerformanceTestHelper {
   public final static UpdateStrategy SEEDING_STRATEGY
           = new UpdateStrategy(ERROR, UpdateStrategy.OnNotExists.CREATE, null, null);
 
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(PerformanceTestHelper.class);
 
   public static Typed createSpace(StorageConnector connector, String spaceName) throws Exception {
     return modifySpace(connector, spaceName, CREATE);

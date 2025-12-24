@@ -41,7 +41,7 @@ import org.apache.logging.log4j.Logger;
 import static com.here.xyz.util.db.pg.IndexHelper.buildSpaceTableIndexQuery;
 
 public class CreateIndex extends SpaceBasedStep<CreateIndex> {
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(CreateIndex.class);
   private Index index;
 
   @JsonView({Internal.class, Static.class})

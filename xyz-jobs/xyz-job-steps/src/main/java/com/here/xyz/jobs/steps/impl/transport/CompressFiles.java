@@ -50,7 +50,7 @@ public class CompressFiles extends SyncLambdaStep<CompressFiles> {
   private static final int DEFAULT_BUFFER_SIZE = 8192;
   private static final String ZIP_CONTENT_TYPE = "application/zip";
   private static final String ARCHIVE_FILE_SUFFIX = ".zip";
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(CompressFiles.class);
   private final Set<String> createdFolders = new HashSet<>();
   // this value is overridden in the tests
   private int MIN_DESIRED_CONTAINED_FILESIZE = 1024 * 1024;

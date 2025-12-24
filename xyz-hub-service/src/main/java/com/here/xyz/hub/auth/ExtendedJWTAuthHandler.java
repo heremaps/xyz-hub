@@ -43,7 +43,7 @@ import org.apache.logging.log4j.Logger;
 
 public class ExtendedJWTAuthHandler extends JWTAuthHandlerImpl {
 
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(ExtendedJWTAuthHandler.class);
 
   final String RAW_TOKEN = "RAW_TOKEN";
 

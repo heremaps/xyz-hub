@@ -94,7 +94,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   //TODO: Check if there are other possibilities
   @JsonView(Internal.class)
   protected boolean isSimulation = false; //TODO: Remove testing code
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(LambdaBasedStep.class);
 
   @JsonView(Internal.class)
   private String taskToken = TASK_TOKEN_TEMPLATE; //Will be defined by the Step Function

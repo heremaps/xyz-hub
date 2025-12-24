@@ -36,7 +36,7 @@ import java.util.Map;
 import java.util.Set;
 
 public class MaintainJobTestIT extends JobTest {
-    private static final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger(MaintainJobTestIT.class);
 
     static {
         XyzSerializable.registerSubtypes(Maintain.class);

@@ -46,7 +46,7 @@ import software.amazon.awssdk.utils.StringUtils;
  */
 public class SpaceStorageMatchingMap extends SingletonSetting<Map<String, Map<String, String>>> {
 
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(SpaceStorageMatchingMap.class);
 
   private static final List<PatternConnectorId> compiledPatterns = Collections.synchronizedList(new ArrayList<>());
 

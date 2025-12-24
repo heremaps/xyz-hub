@@ -147,7 +147,7 @@ import software.amazon.awssdk.services.sns.model.PublishRequest;
 
 public class FeatureTaskHandler {
 
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(FeatureTaskHandler.class);
 
   private static final ExpiringMap<String, Long> countCache = ExpiringMap.builder()
       .maxSize(1024)

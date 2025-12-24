@@ -99,7 +99,7 @@ import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.REFERENCES_PROPERTY_KE
 import static com.here.xyz.responses.XyzError.NOT_IMPLEMENTED;
 
 public class NLConnector extends PSQLXyzConnector {
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(NLConnector.class);
   private static final String STATUS_PROPERTY_KEY = "status";
 
   private static final String GLOBAL_VERSION_SEARCH_KEY = "globalVersions";

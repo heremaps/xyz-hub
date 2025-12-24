@@ -62,7 +62,7 @@ import org.apache.logging.log4j.Logger;
 public class MockDelayStorageConnector extends StorageConnector {
 
   private static Map<String, Feature> storage = new ConcurrentHashMap<>();
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(MockDelayStorageConnector.class);
 
   @Override
   protected SuccessResponse processModifySpaceEvent(ModifySpaceEvent event) throws Exception {
