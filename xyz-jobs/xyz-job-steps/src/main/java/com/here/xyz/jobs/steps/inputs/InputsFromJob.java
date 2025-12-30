@@ -19,7 +19,7 @@
 
 package com.here.xyz.jobs.steps.inputs;
 
-import com.amazonaws.services.s3.model.AmazonS3Exception;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 import java.io.IOException;
 import java.util.List;
 
@@ -62,7 +62,7 @@ public class InputsFromJob extends Input<InputsFromJob> {
         //Store the metadata of the job that references the other job's metadata
         storeMetadata(referencingJobId, inputs, getJobId(), setName);
       }
-      catch (IOException | AmazonS3Exception e) {
+      catch (IOException | S3Exception e) {
         throw new RuntimeException("Error dereferencing inputs of job " + referencedJobId, e);
       }
     });

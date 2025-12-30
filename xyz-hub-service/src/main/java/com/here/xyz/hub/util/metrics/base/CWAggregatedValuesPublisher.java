@@ -19,8 +19,8 @@
 
 package com.here.xyz.hub.util.metrics.base;
 
-import com.amazonaws.services.cloudwatch.model.MetricDatum;
-import com.amazonaws.services.cloudwatch.model.StatisticSet;
+import software.amazon.awssdk.services.cloudwatch.model.MetricDatum;
+import software.amazon.awssdk.services.cloudwatch.model.StatisticSet;
 import com.here.xyz.hub.util.metrics.base.AggregatingMetric.AggregatedValues;
 
 public class CWAggregatedValuesPublisher extends CloudWatchMetricPublisher<AggregatedValues> {
@@ -31,14 +31,17 @@ public class CWAggregatedValuesPublisher extends CloudWatchMetricPublisher<Aggre
 
   @Override
   protected void publishValues(AggregatedValues values) {
-    publishValues(new MetricDatum().withStatisticValues(toStatisticSet(values)));
+    publishValues(MetricDatum.builder()
+        .statisticValues(toStatisticSet(values))
+        .build());
   }
 
   public static StatisticSet toStatisticSet(AggregatedValues values) {
-    return new StatisticSet()
-        .withMinimum(values.minimum)
-        .withMaximum(values.maximum)
-        .withSum(values.sum)
-        .withSampleCount(values.sampleCount);
+    return StatisticSet.builder()
+        .minimum(values.minimum)
+        .maximum(values.maximum)
+        .sum(values.sum)
+        .sampleCount(values.sampleCount)
+        .build();
   }
 }

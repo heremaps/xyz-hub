@@ -19,8 +19,8 @@
 
 package com.here.xyz.hub.util.metrics.base;
 
-import com.amazonaws.services.cloudwatch.model.Dimension;
-import com.amazonaws.services.cloudwatch.model.MetricDatum;
+import software.amazon.awssdk.services.cloudwatch.model.Dimension;
+import software.amazon.awssdk.services.cloudwatch.model.MetricDatum;
 import com.here.xyz.hub.util.metrics.base.AggregatingMetric.AggregatedValues;
 import com.here.xyz.hub.util.metrics.base.AttributedMetricCollection.Attribute;
 import java.util.Collection;
@@ -54,25 +54,31 @@ public class CWAttributedMetricCollectionPublisher<V> extends CloudWatchMetricPu
 
   private MetricDatum convertToMetricDatum(Collection<Attribute> attributes, V value) {
     //Set all dimensions using the attributes
-    MetricDatum datum = new MetricDatum()
-        .withDimensions(attributes
-            .stream()
-            .map(attr -> new Dimension().withName(attr.key.toString()).withValue(attr.value.toString()))
-            .collect(Collectors.toList()));
+    List<Dimension> dimensions = attributes
+        .stream()
+        .map(attr -> Dimension.builder()
+            .name(attr.key.toString())
+            .value(attr.value.toString())
+            .build())
+        .collect(Collectors.toList());
 
     //Convert the metric value
     if (value instanceof AggregatedValues) {
       AggregatedValues aggregatedValues = (AggregatedValues) value;
       if (aggregatedValues.sampleCount == 0)
         return null;
-      return datum
-          .withStatisticValues(CWAggregatedValuesPublisher.toStatisticSet(aggregatedValues));
+      return MetricDatum.builder()
+          .dimensions(dimensions)
+          .statisticValues(CWAggregatedValuesPublisher.toStatisticSet(aggregatedValues))
+          .build();
     }
     else if (value instanceof Collection) {
       if (((Collection<?>) value).size() == 0)
         return null;
-      return datum
-          .withValues((Collection<Double>) value);
+      return MetricDatum.builder()
+          .dimensions(dimensions)
+          .values((Collection<Double>) value)
+          .build();
     }
     else
       throw new IllegalArgumentException("Can not publish metric value of type " + value.getClass().getSimpleName());

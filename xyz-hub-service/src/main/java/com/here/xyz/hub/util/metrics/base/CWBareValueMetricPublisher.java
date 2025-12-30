@@ -19,7 +19,7 @@
 
 package com.here.xyz.hub.util.metrics.base;
 
-import com.amazonaws.services.cloudwatch.model.MetricDatum;
+import software.amazon.awssdk.services.cloudwatch.model.MetricDatum;
 import java.util.Collection;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -38,6 +38,6 @@ public class CWBareValueMetricPublisher extends CloudWatchMetricPublisher<Collec
       logger.debug("Nothing to publish for metric {}", getMetricName());
       return;
     }
-    publishValues(new MetricDatum().withValues(values));
+    publishValues(MetricDatum.builder().values(values).build());
   }
 }

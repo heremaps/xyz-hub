@@ -19,12 +19,11 @@
 
 package com.here.xyz.hub.util.metrics.base;
 
-import com.amazonaws.services.cloudwatch.AmazonCloudWatch;
-import com.amazonaws.services.cloudwatch.AmazonCloudWatchAsyncClientBuilder;
-import com.amazonaws.services.cloudwatch.model.Dimension;
-import com.amazonaws.services.cloudwatch.model.MetricDatum;
-import com.amazonaws.services.cloudwatch.model.PutMetricDataRequest;
-import com.amazonaws.services.cloudwatch.model.StandardUnit;
+import software.amazon.awssdk.services.cloudwatch.CloudWatchClient;
+import software.amazon.awssdk.services.cloudwatch.model.Dimension;
+import software.amazon.awssdk.services.cloudwatch.model.MetricDatum;
+import software.amazon.awssdk.services.cloudwatch.model.PutMetricDataRequest;
+import software.amazon.awssdk.services.cloudwatch.model.StandardUnit;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.util.metrics.base.Metric.MetricUnit;
 import java.util.Collections;
@@ -37,7 +36,7 @@ public abstract class CloudWatchMetricPublisher<V> extends MetricPublisher<V> {
   private static final Logger logger = LogManager.getLogger();
   private static final int MAX_DATA_BATCH_SIZE = 20;
 
-  private static AmazonCloudWatch _client;
+  private static CloudWatchClient _client;
 
   protected static final String namespace = "XYZ/Hub";
   private static final String mainDimensionName = "ServiceName";
@@ -47,9 +46,10 @@ public abstract class CloudWatchMetricPublisher<V> extends MetricPublisher<V> {
 
   public CloudWatchMetricPublisher(Metric metric) {
     super(metric, 30);
-    mainDimension = new Dimension()
-        .withName(mainDimensionName)
-        .withValue("XYZ-Hub-" + Service.configuration.ENVIRONMENT_NAME);
+    mainDimension = Dimension.builder()
+        .name(mainDimensionName)
+        .value("XYZ-Hub-" + Service.configuration.ENVIRONMENT_NAME)
+        .build();
     this.unit = mapUnit(metric.getUnit());
   }
 
@@ -65,14 +65,18 @@ public abstract class CloudWatchMetricPublisher<V> extends MetricPublisher<V> {
       //TODO: Implement once GcDurationMetric was refactored to be an AggregatingMetric
     }
 
-    data.forEach(datum -> datum
-        .withMetricName(getMetricName())
-        .withUnit(unit)
-        .withDimensions(mainDimension));
+    List<MetricDatum> updatedData = data.stream()
+        .map(datum -> datum.toBuilder()
+            .metricName(getMetricName())
+            .unit(unit)
+            .dimensions(mainDimension)
+            .build())
+        .collect(java.util.stream.Collectors.toList());
 
-    PutMetricDataRequest request = new PutMetricDataRequest()
-        .withNamespace(namespace)
-        .withMetricData(data);
+    PutMetricDataRequest request = PutMetricDataRequest.builder()
+        .namespace(namespace)
+        .metricData(updatedData)
+        .build();
 
     try {
       getClient().putMetricData(request);
@@ -84,17 +88,17 @@ public abstract class CloudWatchMetricPublisher<V> extends MetricPublisher<V> {
 
   private static StandardUnit mapUnit(MetricUnit unit) {
     switch (unit) {
-      case COUNT: return StandardUnit.Count;
-      case PERCENT: return StandardUnit.Percent;
-      case BYTES: return StandardUnit.Bytes;
-      case MILLISECONDS: return StandardUnit.Milliseconds;
-      default: return StandardUnit.None;
+      case COUNT: return StandardUnit.COUNT;
+      case PERCENT: return StandardUnit.PERCENT;
+      case BYTES: return StandardUnit.BYTES;
+      case MILLISECONDS: return StandardUnit.MILLISECONDS;
+      default: return StandardUnit.NONE;
     }
   }
 
-  private static AmazonCloudWatch getClient() {
+  private static CloudWatchClient getClient() {
     if (_client == null)
-      _client = AmazonCloudWatchAsyncClientBuilder.defaultClient();
+      _client = CloudWatchClient.create();
     return _client;
   }
 }
