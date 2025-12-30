@@ -126,10 +126,6 @@
 
     <!-- AWS SDKs -->
     <dependency>
-      <groupId>com.amazonaws</groupId>
-      <artifactId>aws-java-sdk-secretsmanager</artifactId>
-    </dependency>
-    <dependency>
       <artifactId>aws-java-sdk-dynamodb</artifactId>
       <groupId>com.amazonaws</groupId>
     </dependency>

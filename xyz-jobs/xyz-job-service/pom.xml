@@ -67,14 +67,8 @@
 
     <!-- AWS SDK -->
     <dependency>
-      <artifactId>aws-java-sdk-secretsmanager</artifactId>
-      <groupId>com.amazonaws</groupId>
-      <exclusions>
-        <exclusion>
-          <artifactId>jackson-annotations</artifactId>
-          <groupId>com.fasterxml.jackson.core</groupId>
-        </exclusion>
-      </exclusions>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>secretsmanager</artifactId>
     </dependency>
     <!--
       NOTE: The order of the following two dependencies matters

@@ -287,10 +287,6 @@
       <groupId>software.amazon.awssdk</groupId>
       <artifactId>cloudwatch</artifactId>
     </dependency>
-    <dependency>
-      <groupId>com.amazonaws</groupId>
-      <artifactId>aws-java-sdk-secretsmanager</artifactId>
-    </dependency>
 
     <!-- AWS SDK V2 -->
     <dependency>
