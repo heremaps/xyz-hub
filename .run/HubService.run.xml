@@ -1,5 +1,5 @@
 <!--
-  ~ Copyright (C) 2017-2025 HERE Europe B.V.
+  ~ Copyright (C) 2017-2026 HERE Europe B.V.
   ~
   ~ Licensed under the Apache License, Version 2.0 (the "License");
   ~ you may not use this file except in compliance with the License.
@@ -22,14 +22,15 @@
     <option name="ALTERNATIVE_JRE_PATH" value="/usr/lib/jvm/java-8-openjdk-amd64/jre" />
     <envs>
       <env name="AWS_REGION" value="" />
+      <env name="BRANCHES_DYNAMODB_TABLE_ARN" value="arn:aws:dynamodb:localhost:000000008000:table/xyz-hub-local-branches" />
       <env name="CONNECTORS_DYNAMODB_TABLE_ARN" value="arn:aws:dynamodb:localhost:000000008000:table/xyz-hub-local-connectors" />
+      <env name="ENTITIES_DYNAMODB_TABLE_ARN" value="arn:aws:dynamodb:localhost:000000008000:table/xyz-hub-local-entities" />
       <env name="PACKAGES_DYNAMODB_TABLE_ARN" value="arn:aws:dynamodb:localhost:000000008000:table/xyz-hub-local-packages" />
       <env name="SETTINGS_DYNAMODB_TABLE_ARN" value="arn:aws:dynamodb:localhost:000000008000:table/xyz-hub-local-settings" />
       <env name="SPACES_DYNAMODB_TABLE_ARN" value="arn:aws:dynamodb:localhost:000000008000:table/xyz-hub-local-spaces" />
       <env name="SUBSCRIPTIONS_DYNAMODB_TABLE_ARN" value="arn:aws:dynamodb:localhost:000000008000:table/xyz-hub-local-subscriptions" />
       <env name="TAGS_DYNAMODB_TABLE_ARN" value="arn:aws:dynamodb:localhost:000000008000:table/xyz-hub-local-tags" />
-      <env name="BRANCHES_DYNAMODB_TABLE_ARN" value="arn:aws:dynamodb:localhost:000000008000:table/xyz-hub-local-branches" />
-      <env name="ENTITIES_DYNAMODB_TABLE_ARN" value="arn:aws:dynamodb:localhost:000000008000:table/xyz-hub-local-entities" />
+      <env name="_DEBUG_FW" value="true" />
     </envs>
     <option name="MAIN_CLASS_NAME" value="com.here.xyz.hub.Service" />
     <module name="xyz-hub-service" />
