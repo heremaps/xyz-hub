@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -720,11 +720,9 @@ public class Space {
   }
 
   private void validateJsonPath(String expression) {
-    JsonPathValidator.ValidationResult result = JsonPathValidator.validate(expression);
-    if (!result.isValid()) {
-      int pos = result.errorPosition().orElse(-1);
+    if (!JsonPathValidator.isValid(expression)) {
       throw new IllegalArgumentException(
-              String.format("Invalid JSONPath expression '%s'. Error at position %d.", expression, pos));
+              String.format("Invalid JSONPath expression '%s'.", expression));
     }
   }
 

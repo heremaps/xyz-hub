@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,10 +27,12 @@ import com.here.xyz.jobs.steps.compiler.JobCompilationInterceptor;
 import com.here.xyz.jobs.steps.compiler.tools.IndexCompilerHelper;
 import com.here.xyz.jobs.steps.impl.DropIndexes;
 import com.here.xyz.jobs.steps.impl.maintenance.SpawnMaintenanceJobs;
+import com.here.xyz.jobs.steps.impl.transport.ExtractJsonPathValues;
 import com.here.xyz.util.db.pg.IndexHelper.Index;
 import com.here.xyz.util.db.pg.IndexHelper.SystemIndex;
 import java.util.List;
 import java.util.stream.Stream;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -61,10 +63,16 @@ public class RunSpaceMaintenance implements JobCompilationInterceptor {
             .withSpaceId(source.getId())
             .withIndexWhiteList(whiteList);
 
+    // Extract JSONPath values into "searchable" column
+    ExtractJsonPathValues extractJsonPathValues = new ExtractJsonPathValues()
+            .withSpaceId(source.getId());
+
     //Create all indices that are defined - existing ones are getting skipped
     CompilationStepGraph onDemandIndexSteps = IndexCompilerHelper.compileOnDemandIndexSteps(source.getId());
 
     stepGraph.addExecution(dropIndexes);
+    stepGraph.addExecution(extractJsonPathValues);
+
     if (!onDemandIndexSteps.isEmpty())
       stepGraph.addExecution(onDemandIndexSteps);
 

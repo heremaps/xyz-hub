@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,6 +37,7 @@ import java.util.Set;
 
 public class MaintainJobTestIT extends JobTest {
   private static final Logger logger = LogManager.getLogger();
+  private final String SPACE_ID_2 = createSpaceId();
 
   static {
     XyzSerializable.registerSubtypes(Maintain.class);
@@ -64,6 +65,29 @@ public class MaintainJobTestIT extends JobTest {
     int maxAttempts = 10;
     findJobWaitAndDelete(SPACE_ID, maxAttempts);
     checkSearchableProperties(SPACE_ID, maxAttempts);
+  }
+
+  @Test
+  public void testMaintainSimpleSpaceWithJsonPaths() throws Exception {
+    //Indexes are created during the space creation
+    createSpace(new Space().withId(SPACE_ID_2).withSearchableProperties(Map.of(
+                    "f.root", true,
+                    "foo1", true,
+                    "foo2.nested", true
+            )
+    ), false);
+
+    //Modify the searchable properties
+    patchSpace(SPACE_ID_2, Map.of("searchableProperties", Map.of(
+                    "foo1", true,
+                    "foo2.nested", false,
+                    "new::scalar", true
+            ))
+    );
+
+    int maxAttempts = 10;
+    findJobWaitAndDelete(SPACE_ID_2, maxAttempts);
+    checkSearchableProperties(SPACE_ID_2, maxAttempts);
   }
 
   @Disabled //TODO: fix flickering test (can not be deleted as it is in state RUNNING)
@@ -138,8 +162,17 @@ public class MaintainJobTestIT extends JobTest {
   }
 
   private void checkSearchableProperties(String spaceId, int maxAttempts) throws InterruptedException {
-    Set<String> expectedSearchableProperties = new HashSet<>(Set.of("f.root",
-            "foo1", "new", "foo3.nested.array::array"));
+    Set<String> expectedSearchableProperties;
+
+    if (spaceId.equals(SPACE_ID)) {
+      expectedSearchableProperties = new HashSet<>(Set.of("f.root",
+              "foo1", "new", "foo3.nested.array::array"));
+    }
+    else {
+      expectedSearchableProperties = new HashSet<>(Set.of("f.root",
+              "foo1", "new::scalar"));
+    }
+
     Set<String> foundSearchableProperties = new HashSet<>();
 
     while (!expectedSearchableProperties.equals(foundSearchableProperties)) {
@@ -148,6 +181,7 @@ public class MaintainJobTestIT extends JobTest {
 
       logger.info("{}: requesting statistics...", spaceId);
       StatisticsResponse statistics = getStatistics(spaceId, false);
+
       if (statistics == null)
         continue;
 

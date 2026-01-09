@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,15 +42,7 @@ import com.here.xyz.jobs.steps.execution.db.DatabaseBasedStep;
 import com.here.xyz.jobs.steps.impl.maintenance.DeleteBranchTable;
 import com.here.xyz.jobs.steps.impl.maintenance.MarkForMaintenance;
 import com.here.xyz.jobs.steps.impl.maintenance.SpawnMaintenanceJobs;
-import com.here.xyz.jobs.steps.impl.transport.CopySpace;
-import com.here.xyz.jobs.steps.impl.transport.CopySpacePost;
-import com.here.xyz.jobs.steps.impl.transport.CopySpacePre;
-import com.here.xyz.jobs.steps.impl.transport.CountSpace;
-import com.here.xyz.jobs.steps.impl.transport.ExportChangedTiles;
-import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
-import com.here.xyz.jobs.steps.impl.transport.GetNextSpaceVersion;
-import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
-import com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace;
+import com.here.xyz.jobs.steps.impl.transport.*;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.models.hub.Connector;
 import com.here.xyz.models.hub.Ref;
@@ -73,21 +65,22 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 @JsonSubTypes({
-    @JsonSubTypes.Type(value = CreateIndex.class),
-    @JsonSubTypes.Type(value = ExportSpaceToFiles.class),
-    @JsonSubTypes.Type(value = ExportChangedTiles.class),
-    @JsonSubTypes.Type(value = ImportFilesToSpace.class),
-    @JsonSubTypes.Type(value = TaskedImportFilesToSpace.class),
-    @JsonSubTypes.Type(value = DropIndexes.class),
-    @JsonSubTypes.Type(value = AnalyzeSpaceTable.class),
-    @JsonSubTypes.Type(value = MarkForMaintenance.class),
-    @JsonSubTypes.Type(value = GetNextSpaceVersion.class),
-    @JsonSubTypes.Type(value = CopySpace.class),
-    @JsonSubTypes.Type(value = CopySpacePre.class),
-    @JsonSubTypes.Type(value = CopySpacePost.class),
-    @JsonSubTypes.Type(value = CountSpace.class),
-    @JsonSubTypes.Type(value = SpawnMaintenanceJobs.class),
-    @JsonSubTypes.Type(value = DeleteBranchTable.class)
+        @JsonSubTypes.Type(value = ExportSpaceToFiles.class),
+        @JsonSubTypes.Type(value = CreateIndex.class),
+        @JsonSubTypes.Type(value = ExportChangedTiles.class),
+        @JsonSubTypes.Type(value = ImportFilesToSpace.class),
+        @JsonSubTypes.Type(value = TaskedImportFilesToSpace.class),
+        @JsonSubTypes.Type(value = DropIndexes.class),
+        @JsonSubTypes.Type(value = AnalyzeSpaceTable.class),
+        @JsonSubTypes.Type(value = MarkForMaintenance.class),
+        @JsonSubTypes.Type(value = GetNextSpaceVersion.class),
+        @JsonSubTypes.Type(value = CopySpace.class),
+        @JsonSubTypes.Type(value = CopySpacePre.class),
+        @JsonSubTypes.Type(value = CopySpacePost.class),
+        @JsonSubTypes.Type(value = CountSpace.class),
+        @JsonSubTypes.Type(value = SpawnMaintenanceJobs.class),
+        @JsonSubTypes.Type(value = DeleteBranchTable.class),
+        @JsonSubTypes.Type(value = ExtractJsonPathValues.class)
 })
 public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseBasedStep<T> {
   private static final Logger logger = LogManager.getLogger();

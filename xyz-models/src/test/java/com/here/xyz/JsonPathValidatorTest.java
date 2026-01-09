@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,284 +21,135 @@ package com.here.xyz;
 
 import com.here.xyz.util.JsonPathValidator;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.util.stream.Stream;
 
-public class JsonPathValidatorTest {
+import static org.junit.jupiter.api.Assertions.*;
 
-    private void assertValid(String expr) {
-        var res = JsonPathValidator.validate(expr);
-        assertTrue(res.isValid(), () -> "Expected valid, got error: " + res.errorMessage().orElse("") +
-                " at " + res.errorPosition().orElse(-1) + " for expr: " + expr);
-    }
+class JsonPathValidatorTest {
 
-    private void assertInvalid(String expr) {
-        var res = JsonPathValidator.validate(expr);
-        assertFalse(res.isValid(), () -> "Expected invalid but was valid: " + expr);
+    @Test
+    void nullAndBlankAreInvalid() {
+        assertFalse(JsonPathValidator.isValid(null));
+        assertFalse(JsonPathValidator.isValid(""));
+        assertFalse(JsonPathValidator.isValid("   "));
+        assertFalse(JsonPathValidator.isValid("\n\t\r"));
     }
 
     @Test
-    @DisplayName("Must start with $")
-    void mustStartWithDollar() {
-        assertInvalid("a.b");
-        assertValid("$.a");
+    void trimsInput() {
+        assertTrue(JsonPathValidator.isValid("   $   "));
+        assertTrue(JsonPathValidator.isValid(" \n $.o['j j'] \t "));
     }
 
-    @Test
-    @DisplayName("Only root($)")
-    void rootOnly() {
-        assertValid("$");
+    @ParameterizedTest(name = "valid: {0}")
+    @MethodSource("validExamples")
+    void validExamples(String p) {
+        assertTrue(JsonPathValidator.isValid(p), p);
     }
 
-    @Test
-    @DisplayName("Simple dot and quoted members")
-    void dotAndQuotedMembers() {
-        assertValid("$.a");
-        assertValid("$.a.b");
-        assertValid("$.\"spaced name\"");
-        assertValid("$['spaced name']");
-        assertValid("$['member\\'quote']");
+    @ParameterizedTest(name = "invalid: {0}")
+    @MethodSource("invalidExamples")
+    void invalidExamples(String p) {
+        assertFalse(JsonPathValidator.isValid(p), p);
     }
 
-    @Test
-    @DisplayName("Wildcards and bracket members")
-    void wildcardsAndBracketMembers() {
-        assertValid("$.*");
-        assertValid("$['*']");
-        assertValid("$[*]");
-        assertValid("$.a[*]");
+    static Stream<String> validExamples() {
+        return Stream.of(
+                "$",
+                // name selectors (RFC examples)
+                "$.o['j j']",
+                "$.o['j j']['k.k']",
+                "$.o[\"j j\"][\"k.k\"]",
+                "$[\"'\"][\"@\"]",
+
+                // wildcard selectors
+                "$[*]",
+                "$.o[*]",
+                "$..*",
+                "$..o[*]",
+
+                // index + unions
+                "$[0]",
+                "$[0,1,2]",
+                "$.a[0, 2, 4]",
+
+                // slice
+                "$[:]",
+                "$[1:]",
+                "$[:2]",
+                "$[0:2]",
+                "$[0:10:2]",
+                "$[::2]",
+                "$[-2:]",
+
+                // descendant segments
+                "$..o",
+                "$..o['j j']",
+                "$..o[0]",
+
+                // filters (RFC examples)
+                "$.a[?@.b == 'kilo']",
+                "$.a[?(@.b == 'kilo')]",
+                "$.a[?@>3.5]",
+                "$.a[?@.b]",
+
+                // functions inside filters (supported by snack4-jsonpath)
+                "$.a[?length(@.b) > 0]"
+        );
     }
 
-    @Test
-    @DisplayName("Array indices, slices, and unions")
-    void indicesSlicesUnions() {
-        assertValid("$.a[0]");
-        assertValid("$.a[-1]");
-        assertValid("$.a[0:10]");
-        assertValid("$.a[:10]");
-        assertValid("$.a[1:10:2]");
-        assertValid("$.a[0,1,2]");
-        assertValid("$.a[0,'x',\"y\",*]");
-        assertValid("$.a[:]");
-        assertValid("$.a[::2]");
-        assertValid("$.a[0:]");
-        assertValid("$.a[:10:2]");
-        assertInvalid("$.a[0::]"); // step missing
+    static Stream<String> invalidExamples() {
+        return Stream.of(
+                // must start with $ or @
+                "a",
+                ".a",
+                "[]",
+                " $a",
+                "$a",
 
-        var r = JsonPathValidator.validate("$.a[1:4:0]"); // step cannot be 0
-        assertFalse(r.isValid());
-        assertTrue(r.errorMessage().orElse("").toLowerCase().contains("step"));
-    }
+                // malformed dot segments, short-hands
+                "$.",
+                "$..",
+                "$.  a",
+                "$..  a",
+                "$.123",
+                "$.a-b",
+                "$.[0]",
 
-    @Test
-    @DisplayName("Reject recursive descent operator")
-    void rejectRecursiveDescent() {
-        assertInvalid("$.a..b");
-    }
+                // unterminated bracket or quote
+                "$[",
+                "$[]",
+                "$[ ]",
+                "$['a]",
+                "$[\"a]",
 
-    @Test
-    @DisplayName("Filters: literals, comparisons, existence, grouping")
-    void filters() {
-        // comparisons and literals
-        assertValid("$.store.book[?(@.price >= 0)]");
-        assertValid("$.store.book[?(@.author == 'John')]");
-        assertValid("$.store.book[?(@.author != 'John')]");
-        assertValid("$.store.book[?(!(@.soldOut))]");
-        // existence
-        assertValid("$.items[?(@.name)]");
-        // regex
-        assertValid("$.items[?(@.name =~ '^[A-Z].*')]");
-        // invalid single '='
-        assertInvalid("$.a[?(@.x = 1)]");
-    }
+                // comma/union
+                "$[0,]",
+                "$[,0]",
+                "$[0,,1]",
+                "$['a',]",
+                "$[*,]",
 
-    @Test
-    @DisplayName("Comparison right-hand side missing")
-    void comparisonRhsMissing() {
-        assertInvalid("$.a[?(@.x == )]");
-        assertInvalid("$.a[?(@.x >= )]");
-    }
+                // int
+                "$[01]",
+                "$[-0]",
 
-    @Test
-    @DisplayName("Unterminated braces and parans")
-    void unterminated() {
-        assertInvalid("$.a[");
-        assertInvalid("$.a[?( @.x == 1 )");
-        assertInvalid("$.a[?(@.x == (1)]");
-    }
+                // slice malformed
+                "$[0:1:2:3]",
+                "$[a:b]",
 
-    @Test
-    @DisplayName("Relative wildcards are allowed")
-    void relativeWildcard() {
-        assertValid("$.a[?(@.*)]");
-        assertValid("$.a[?(@[*])]");
-    }
+                // filter malformed
+                "$[?]",
+                "$.a[?@.b == ]",
+                "$.a[?(@.b == 'kilo']",
 
-    @Test
-    @DisplayName("Regex must be string")
-    void regexRightMustBeString() {
-        assertInvalid("$.items[?(@.name =~ 123)]");
-    }
-
-    @Test
-    @DisplayName("Unicode strings in bracket notation")
-    void unicodeStrings() {
-        assertValid("$['café']");
-        assertValid("$['\u00E9']");
-        assertInvalid("$['\\u00GZ']");
-    }
-
-    @Test
-    @DisplayName("Empty or malformed bracket selectors")
-    void emptyMalformedBrackets() {
-        assertInvalid("$[]");
-        assertInvalid("$.a[,,]");
-    }
-
-    @Test
-    @DisplayName("Logical operators")
-    void logicalOperators() {
-        assertValid("$.a[?(@.x && @.y)]");
-        assertValid("$.a[?(!@.x || @.y)]");
-        assertInvalid("$.a[?(@.x & @.y)]");
-        assertInvalid("$.a[?(@.x | @.y)]");
-    }
-
-    @Nested
-    @DisplayName("Relative @-paths inside filters")
-    class RelativePaths {
-
-        @Test
-        void simple() {
-            assertValid("$.a[?(@.b)]");
-        }
-        @Test void withIndex() {
-            assertValid("$.a[?(@[0])]");
-        }
-        @Test void withBracketMembers() {
-            assertValid("$.a[?(@['x'])]");
-        }
-        @Test void withSlice() {
-            assertValid("$.a[?(@[1:3])]");
-        }
-    }
-
-    @Test
-    @DisplayName("Null, true, false keywords allowed in filters")
-    void primitives() {
-        assertValid("$.a[?(true)]");
-        assertValid("$.a[?(false)]");
-        assertValid("$.a[?(null)]");
-        assertValid("$.a[?(@.a == null)]");
-    }
-
-    @Test
-    @DisplayName("Unexpected trailing input should fail")
-    void trailingInput() {
-        assertInvalid("$.a]extra");
-        assertInvalid("$.a)extra");
-    }
-
-    @Test
-    @DisplayName("Empty input is not allowed")
-    void emptyInput() {
-        assertInvalid("");
-    }
-
-    @Test
-    @DisplayName("Trailing Whitespace is allowed")
-    void trailingWhitespace() {
-        assertValid("$.a  ");
-    }
-
-    @Test
-    @DisplayName("length(): one value-like argument, used in comparisons")
-    void lengthBasics() {
-        assertValid("$.a[?( length(@.tags) > 0 )]");
-        assertValid("$.a[?( length(@) >= 1 )]");
-        assertValid("$.a[?( length('abc') == 3 )]");
-        assertInvalid("$.a[?( length() > 0 )]");
-        assertInvalid("$.a[?( length(@.x, @.y) > 0 )]");
-    }
-
-    @Test
-    @DisplayName("count(): one value-like argument, can compare with other function")
-    void countBasics() {
-        assertValid("$.a[?( count(@[*]) == 0 )]");
-        assertValid("$.a[?( count(@.items) == length(@.items) )]");
-        assertInvalid("$.a[?( count() == 1 )]");
-        assertInvalid("$.a[?( count(@.x, 1) == 2 )]");
-    }
-
-    @Test
-    @DisplayName("value(): one value-like argument, compare numerically")
-    void valueBasics() {
-        assertValid("$.a[?( value(@.price) >= 10 )]");
-        assertValid("$.a[?( value( ( @.price ) ) < 100 )]");
-        assertInvalid("$.a[?( value() >= 0 )]");
-        assertInvalid("$.a[?( value(@.x, @.y) >= 0 )]");
-    }
-
-    @Test
-    @DisplayName("match(): boolean regex, 2nd arg must be string")
-    void matchBasics() {
-        assertValid("$.a[?( match(@.name, \"^[A-Z].*\") )]");
-        assertValid("$.a[?( match(@.name, \"^[A-Z].*\", \"i\") )]");
-        assertInvalid("$.a[?( match(@.name, 123) )]");
-        assertInvalid("$.a[?( match(@.name) )]");
-        assertInvalid("$.a[?( match(@.name, \"re\", 1) )]");
-        assertInvalid("$.a[?( match() )]");
-        assertInvalid("$.a[?( match(@.a, \"re\", \"i\", \"x\") )]");
-    }
-
-    @Test
-    @DisplayName("search(): boolean regex, 2nd arg must be string")
-    void searchBasics() {
-        assertValid("$.a[?( search(@.text, \"foo\") )]");
-        assertValid("$.a[?( search(@.text, \"foo\", \"i\") )]");
-        assertInvalid("$.a[?( search(@.text, @.pattern) )]");
-        assertInvalid("$.a[?( search(@.text) )]");
-        assertInvalid("$.a[?( search(@.text, \"foo\", 1) )]");
-    }
-
-    @Test
-    @DisplayName("Functions can appear on either side of comparisons")
-    void functionsBothSides() {
-        assertValid("$.a[?( length(@.tags) == count(@.tags) )]");
-        assertValid("$.a[?( value(@.price) < length(\"12345\") )]");
-    }
-
-    @Test
-    @DisplayName("Nested function calls")
-    void nestedFunctions() {
-        assertValid("$.a[?( length( value(@.nested) ) > 0 )]");
-    }
-
-    @Test
-    @DisplayName("Unknown function names should be rejected")
-    void unknownFunction() {
-        assertInvalid("$.a[?( foo(@.x) )]");
-        assertInvalid("$.a[?( bar() )]");
-    }
-
-    @Test
-    @DisplayName("Namespace-like member names with @ after dot")
-    void namespaceLikeMembers() {
-        assertValid("$.properties.@ns:com:here:xyz.created");
-        assertValid("$.@ns:com");
-        assertValid("$.a.@ns:com:here:xyz");
-    }
-
-    @Test
-    @DisplayName("Malformed @-member segments after dot should still be rejected")
-    void malformedNamespaceLikeMembers() {
-        assertInvalid("$.properties.@");
-        assertInvalid("$.properties.@ns:");
-        assertInvalid("$.properties.@1foo");
-        assertInvalid("$.@");
+                // invalid string escapes
+                "$['\\u00G0']",
+                "$[\"\\u12\"]"
+        );
     }
 }
 
