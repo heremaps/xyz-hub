@@ -92,15 +92,17 @@ import java.util.UUID;
 
 import static com.here.xyz.events.UpdateStrategy.OnExists;
 import static com.here.xyz.events.UpdateStrategy.OnNotExists;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.REF_QUAD_PROPERTY_KEY;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.GLOBAL_VERSION_PROPERTY_KEY;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.REFERENCES_PROPERTY_KEY;
 
 import static com.here.xyz.responses.XyzError.NOT_IMPLEMENTED;
 
 public class NLConnector extends PSQLXyzConnector {
   private static final Logger logger = LogManager.getLogger();
   private static final String STATUS_PROPERTY_KEY = "status";
-  private static final String GLOBAL_VERSION_PROPERTY_KEY = "globalVersion";
+
   private static final String GLOBAL_VERSION_SEARCH_KEY = "globalVersions";
-  private static final String REF_QUAD_PROPERTY_KEY = "refQuad";
   private static final String REF_QUAD_COUNT_SELECTION_KEY = "f.refQuadCount";
   //If seedingMode is active, we do not use the FeatureWriter, but a simple batch upsert and delete
   private boolean seedingMode = false;
@@ -187,7 +189,7 @@ public class NLConnector extends PSQLXyzConnector {
         //Get FeatureCount by refQuad and quadLevel
         int refQuadLevel = extractRefQuadLevelValue(selectionValue);
         return getFeatureCountByRefQuadAndLevel(dbSettings.getSchema(),
-                tables, propertiesQueryInput.refQuad, refQuadLevel);
+                tables, propertiesQueryInput, refQuadLevel);
       }
     }
 
@@ -240,11 +242,16 @@ public class NLConnector extends PSQLXyzConnector {
   }
 
   private PropertiesQueryInput getPropertiesQueryInput(PropertiesQuery propertiesQuery) {
-    String errorMessageProperties = "Property based search supports only p." + REF_QUAD_PROPERTY_KEY
-            + "^=string || globalversions=int|List<int> || status=string searches in NLConnector!";
+    String errorMessageProperties = "Property based search supports only p." + REF_QUAD_PROPERTY_KEY +" ^=string || "
+            + "p." + GLOBAL_VERSION_PROPERTY_KEY + "=int|List<int> || "
+            + "p." + STATUS_PROPERTY_KEY+"=String "
+            + "p." + REFERENCES_PROPERTY_KEY+"=string|List<String> "
+            + "searches in NLConnector!";
+
     String status = null;
     String refQuad = null;
     List<Integer> globalVersions = new ArrayList<>();
+    List<String> references = new ArrayList<>();
 
     for (PropertyQueryList propertyQueries : propertiesQuery) {
       for (PropertyQuery pq : propertyQueries) {
@@ -279,6 +286,23 @@ public class NLConnector extends PSQLXyzConnector {
               throw new IllegalArgumentException("Value for 'p." + GLOBAL_VERSION_SEARCH_KEY + "' must be an Integer or a List<Integer>!");
           }
         }
+        else if (key.equalsIgnoreCase("properties." + REFERENCES_PROPERTY_KEY)
+                && operation.equals(PropertyQuery.QueryOperation.EQUALS)) {
+          for(Object v : values){
+            if(v instanceof String reference)
+              references.add(reference);
+            else if(v instanceof List<?> referenceList){
+              for(Object vv : referenceList){
+                if(vv instanceof String reference)
+                  references.add(reference);
+                else
+                  throw new IllegalArgumentException("Value for 'p." + REFERENCES_PROPERTY_KEY + "' must be an String or a List<String>!");
+              }
+            }
+            else
+              throw new IllegalArgumentException("Value for 'p." + REFERENCES_PROPERTY_KEY + "' must be an String or a List<String>!");
+          }
+        }
         else if (key.equalsIgnoreCase("properties." + STATUS_PROPERTY_KEY)
                 && operation.equals(QueryOperation.EQUALS)) {
           if (!(values.get(0) instanceof String))
@@ -293,7 +317,7 @@ public class NLConnector extends PSQLXyzConnector {
         }
       }
     }
-    return new PropertiesQueryInput(refQuad, globalVersions, status);
+    return new PropertiesQueryInput(refQuad, globalVersions, status, references);
   }
 
   @Override
@@ -303,7 +327,7 @@ public class NLConnector extends PSQLXyzConnector {
     return run( new EraseSpace(event).withTableLayout(tableLayout));
   }
 
-  public record PropertiesQueryInput(String refQuad, List<Integer> globalVersions, String status) {
+  public record PropertiesQueryInput(String refQuad, List<Integer> globalVersions, String status, List<String> references) {
     public Character[] getOperations(){
       if (status == null || status.isEmpty()) return new Character[0];
       String[] ops = status.split(",");
@@ -395,8 +419,14 @@ public class NLConnector extends PSQLXyzConnector {
   private FeatureCollection getFeaturesByRefOrGlobalVersionsQuad(String schema, List<String> tables,
               PropertiesQueryInput propertiesQueryInput, long limit)  throws SQLException, JsonProcessingException {
     try (final Connection connection = dataSourceProvider.getWriter().getConnection()) {
-      String query = createReadByRefQuadOrGlobalVersionsQuery(schema, tables, propertiesQueryInput.refQuad,
-              propertiesQueryInput.globalVersions, limit);
+      String query;
+      if(!propertiesQueryInput.references.isEmpty())
+        query = createReadByReferencesQuery(dbSettings.getSchema(),
+              tables, propertiesQueryInput.references, limit);
+      else
+        query = createReadByRefQuadOrGlobalVersionsQuery(schema, tables, propertiesQueryInput.refQuad,
+                propertiesQueryInput.globalVersions, propertiesQueryInput.references, limit);
+
       try (PreparedStatement ps = connection.prepareStatement(query)) {
         try (ResultSet rs = ps.executeQuery()) {
           if(rs.next()){
@@ -412,14 +442,15 @@ public class NLConnector extends PSQLXyzConnector {
     return null;
   }
 
-  private FeatureCollection getFeatureCountByRefQuadAndLevel(String schema, List<String> tables, String refQuad, Integer refQuadLevel)
+  private FeatureCollection getFeatureCountByRefQuadAndLevel(String schema, List<String> tables, PropertiesQueryInput propertiesQueryInput,
+                                                             Integer refQuadLevel)
           throws SQLException {
     try (final Connection connection = dataSourceProvider.getWriter().getConnection()) {
-      String query = createCountByRefQuadQuery(schema, tables, refQuad, refQuadLevel);
+      String query = createCountByRefQuadQuery(schema, tables, propertiesQueryInput, refQuadLevel);
 
       try (PreparedStatement ps = connection.prepareStatement(query)) {
         try (ResultSet rs = ps.executeQuery()) {
-          return getRefQuadCountFc(refQuad, rs);
+          return getRefQuadCountFc(propertiesQueryInput.refQuad, rs);
         }
       }catch (SQLException e){
         logger.error(e);
@@ -432,25 +463,25 @@ public class NLConnector extends PSQLXyzConnector {
     List<Feature> features = new ArrayList<>();
     while(rs.next()){
       String childQuad = rs.getString("child_quad");
-      PolygonCoordinates polygonCoordinates = new PolygonCoordinates();
-
-      if(childQuad != null){
-        BBox bBox = WebMercatorTile.forQuadkey(childQuad).getBBox(false);
-        LinearRingCoordinates lrc = new LinearRingCoordinates();
-        lrc.add(new Position(bBox.minLon(), bBox.minLat()));
-        lrc.add(new Position(bBox.maxLon(), bBox.minLat()));
-        lrc.add(new Position(bBox.maxLon(), bBox.maxLat()));
-        lrc.add(new Position(bBox.minLon(), bBox.maxLat()));
-        lrc.add(new Position(bBox.minLon(), bBox.minLat()));
-        polygonCoordinates.add(lrc);
-      }
+//      PolygonCoordinates polygonCoordinates = new PolygonCoordinates();
+//
+//      if(childQuad != null){
+//        BBox bBox = WebMercatorTile.forQuadkey(childQuad).getBBox(false);
+//        LinearRingCoordinates lrc = new LinearRingCoordinates();
+//        lrc.add(new Position(bBox.minLon(), bBox.minLat()));
+//        lrc.add(new Position(bBox.maxLon(), bBox.minLat()));
+//        lrc.add(new Position(bBox.maxLon(), bBox.maxLat()));
+//        lrc.add(new Position(bBox.minLon(), bBox.maxLat()));
+//        lrc.add(new Position(bBox.minLon(), bBox.minLat()));
+//        polygonCoordinates.add(lrc);
+//      }
 
       features.add(
               new Feature()
                       .withId(childQuad)
-                      .withGeometry(
-                              refQuad == null ? null : new Polygon().withCoordinates(polygonCoordinates)
-                      )
+//                      .withGeometry(
+//                              refQuad == null ? null : new Polygon().withCoordinates(polygonCoordinates)
+//                      )
                       .withProperties(new Properties().with("count", rs.getLong("cnt")))
       );
     }
@@ -488,11 +519,20 @@ public class NLConnector extends PSQLXyzConnector {
     }
   }
 
-  private String createCountByRefQuadQuery(String schema, List<String> tables, String refQuad, int quadKeyLevel){
+  private String createCountByRefQuadQuery(String schema, List<String> tables, PropertiesQueryInput input, int quadKeyLevel){
     String extensionTable = tables.get(0);
     String baseTable = tables.size() == 2 ? tables.get(1) : null;
 
-    if(baseTable == null) {
+    // Build optional globalVersion filter
+    String globalVersionFilter = "";
+    if (input.globalVersions != null && !input.globalVersions.isEmpty()) {
+      String joinedVersions = input.globalVersions.stream()
+              .map(v -> "to_jsonb(" + v + ")")
+              .collect(java.util.stream.Collectors.joining(","));
+      globalVersionFilter = " AND searchable->'globalVersion' IN (" + joinedVersions + ") ";
+    }
+
+    if (baseTable == null) {
       return """
                WITH params AS (
                    SELECT '$refQuad$'::text AS parent, $quadKeyLevel$ AS relative_level
@@ -500,14 +540,17 @@ public class NLConnector extends PSQLXyzConnector {
                SELECT LEFT(searchable->>'refQuad', LENGTH(parent) + relative_level) AS child_quad,
                       COUNT(*) AS cnt
                FROM "$schema$"."$table$", params
-               	  WHERE searchable->>'refQuad' LIKE parent || '%'
+               WHERE searchable->>'refQuad' LIKE parent || '%'
+                 $globalVersionFilter$
                GROUP BY child_quad;
               """
-              .replace("$refQuad$", refQuad)
+              .replace("$refQuad$", input.refQuad)
               .replace("$quadKeyLevel$", Integer.toString(quadKeyLevel))
               .replace("$schema$", schema)
-              .replace("$table$", extensionTable + "_head");
+              .replace("$table$", extensionTable + "_head")
+              .replace("$globalVersionFilter$", globalVersionFilter);
     }
+
     return """
           WITH params AS (
               SELECT '$refQuad$'::text AS parent, $quadKeyLevel$ AS relative_level
@@ -522,6 +565,7 @@ public class NLConnector extends PSQLXyzConnector {
                     next_version
                 FROM "$schema$"."$extensionTable$"
                 WHERE operation NOT IN ('D', 'H', 'J')
+                  $globalVersionFilter$
             )
             UNION ALL
             (
@@ -533,6 +577,8 @@ public class NLConnector extends PSQLXyzConnector {
                         operation,
                         next_version
                     FROM "$schema$"."$baseTable$"
+                    WHERE 1=1
+                      $globalVersionFilter$
                 ) base
                 WHERE NOT EXISTS (
                     SELECT 1
@@ -552,11 +598,13 @@ public class NLConnector extends PSQLXyzConnector {
                    COUNT(f.refquad) AS cnt
               FROM filtered f, params p
              GROUP BY child_quad;
-          """.replace("$refQuad$", refQuad)
+          """
+            .replace("$refQuad$", input.refQuad)
             .replace("$quadKeyLevel$", Integer.toString(quadKeyLevel))
             .replace("$schema$", schema)
+            .replace("$extensionTable$", extensionTable + "_head")
             .replace("$baseTable$", baseTable + "_head")
-            .replace("$extensionTable$", extensionTable + "_head");
+            .replace("$globalVersionFilter$", globalVersionFilter);
   }
 
   private String createStausQuery(String schema, List<String> tables, Character[] operations){
@@ -600,11 +648,94 @@ public class NLConnector extends PSQLXyzConnector {
             .replace("$extensionTable$", extensionTable + "_head");
   }
 
+  private String createReadByReferencesQuery(
+          String schema,
+          List<String> tables,
+          List<String> references,
+          long limit
+  ) {
+    if(references == null || references.isEmpty())
+      throw new IllegalArgumentException("At least one reference must be provided!");
+
+    String extensionTable = tables.get(0);
+    String baseTable = tables.size() == 2 ? tables.get(1) : null;
+    //('ref1'), ('ref2'), ('ref3'), ('ref4')
+    String joinedReferences =  references.stream()
+              .map(v -> "('" + v + "')")
+              .collect(java.util.stream.Collectors.joining(","));
+
+    String selection = """
+            jsonb_build_object(
+                          'type', 'FeatureCollection',
+                          'features', jsonb_build_array(
+                               jsonb_build_object(
+                                   'type', 'Feature',
+                                   'properties',jsonb_build_object('references', jsonb_object_agg(ref, ids))
+                               )
+                           )
+            ) AS featureCollection
+            """;
+
+    String query = """
+            SELECT
+                id,
+                id || '##' || operation as pid,
+                ref
+            FROM "$schema$"."$table$" t
+            CROSS JOIN (
+                VALUES $joinedReferences$
+            ) AS v(ref)
+            WHERE
+                t.searchable->'references' @> jsonb_build_array(v.ref)
+                AND t.operation NOT IN ('D','H','J')
+                AND t.next_version = 9223372036854775807::BIGINT
+                $limit$
+            """.replace("$joinedReferences$", joinedReferences)
+               .replace("$limit$", limit > 0 ? " LIMIT " + limit : "");
+
+    String inner1 = query.replace("$schema$", schema).replace("$table$", extensionTable + "_head");;
+
+    if(baseTable == null) {
+      return "SELECT " + selection + " FROM ( SELECT " +
+              "  ref," +
+              "  jsonb_agg(pid ORDER BY pid) AS ids " +
+              "FROM (" + inner1 + ") t GROUP BY ref )";
+    }
+    //unified case
+    String inner2 = query.replace("$schema$", schema).replace("$table$", baseTable + "_head");;
+    String whereNotExistsCondition = """
+            WHERE NOT EXISTS (
+                  SELECT 1
+                    FROM "$schema$"."$table$"
+                  WHERE id = a.id
+                    AND next_version = 9223372036854775807::BIGINT
+                    AND operation != 'D'
+                )
+            """
+            .replace("$schema$", schema)
+            .replace("$table$", extensionTable);
+
+    return  "SELECT " + selection + " FROM " +
+            "( " +
+            "  SELECT " +
+            "    ref, " +
+            "    jsonb_agg(pid ORDER BY pid) AS ids "+
+            "  FROM ( "+
+            "    (" + inner1 + ") " +
+            "    UNION ALL " +
+            "    (SELECT * FROM(" + inner2 + ") a " + whereNotExistsCondition + ") "+
+            "  ) AS all_data " +
+            "  GROUP BY ref" +
+            ") t";
+  }
+
   private String createReadByRefQuadOrGlobalVersionsQuery(
           String schema,
           List<String> tables,
           String refQuad,
           List<Integer> globalVersions,
+          //references are not getting used anymore in this method
+          List<String> references,
           long limit
   ) {
     String extensionTable = tables.get(0);
@@ -631,6 +762,14 @@ public class NLConnector extends PSQLXyzConnector {
       filter.append(" AND (searchable->'globalVersion') IN (")
               .append(joinedVersions)
               .append(") ");
+    }
+    if (references != null && !references.isEmpty()) {
+      String joinedReferences = references.stream()
+              .map(v -> "'" + v + "'")
+              .collect(java.util.stream.Collectors.joining(","));
+      filter.append(" AND searchable->'references' @> to_jsonb(ARRAY[")
+              .append(joinedReferences)
+              .append("]) ");
     }
 
     // Inner selects (no LIMIT yet, apply after UNION to keep global limit semantics)
@@ -684,7 +823,21 @@ public class NLConnector extends PSQLXyzConnector {
          || '] }' AS featureCollection
         """;
 
-    return "SELECT " + selection + " FROM (" + finalQuery + ") t";
+    // This is used for a references search
+    String referencesSelection = """
+        '{ "type": "FeatureCollection", "features": ['
+           || '{"type":"Feature","references" : ['
+           || COALESCE(
+             string_agg(
+                '"'||id||'"',
+               ','
+             ),
+             ''
+           )
+           || ']}] }' AS featureCollection
+        """;
+
+    return "SELECT " + (references.isEmpty() ? selection : referencesSelection) + " FROM (" + finalQuery + ") t";
   }
 
   private void batchInsertFeatures(
@@ -754,6 +907,8 @@ public class NLConnector extends PSQLXyzConnector {
       searchable.put(REF_QUAD_PROPERTY_KEY, feature.getProperties().get(REF_QUAD_PROPERTY_KEY));
     if(feature.getProperties().get(GLOBAL_VERSION_PROPERTY_KEY) != null)
       searchable.put(GLOBAL_VERSION_PROPERTY_KEY, feature.getProperties().get(GLOBAL_VERSION_PROPERTY_KEY));
+    if(feature.getProperties().get(REFERENCES_PROPERTY_KEY) != null)
+      searchable.put(REFERENCES_PROPERTY_KEY, feature.getProperties().get(REFERENCES_PROPERTY_KEY));
     jsonObject.setValue(searchable.toString());
     return jsonObject;
   }

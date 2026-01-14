@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -53,7 +53,8 @@ class FeatureWriter {
   static dbWriter;
 
   //Process generated / tmp fields
-  headFeature;
+  headFeature = null;
+  headFeatureLoaded = false;
   baseFeature;
   operation = "I";
   isDelete = false;
@@ -350,8 +351,11 @@ class FeatureWriter {
       }
     }
 
+    let featureExists = this.featureExistsInHead(this.inputFeature.id);
+
     //NOTE: If onVersionConflict == REPLACE it has the same effect as if conflict detection is not active at all
-    if (this.onVersionConflict != null && this.onVersionConflict != "REPLACE") {
+    if (featureExists && this.onVersionConflict != null && this.onVersionConflict != "REPLACE") {
+      //TODO: Improve performance by not relying on "featureExists", instead use _upsertRow but with a base version check in the UPDATE part
       this.debugBox("Version conflict handling! Base version: " + this.baseVersion);
 
       if (this.onVersionConflict == "MERGE")
@@ -368,7 +372,7 @@ class FeatureWriter {
     }
     else {
       try {
-        if (this.onNotExists == "RETAIN" && !this.featureExistsInHead(this.inputFeature.id))
+        if (this.onNotExists == "RETAIN" && !featureExists)
           return null;
 
         let execution = this._upsertRow(execution => {
@@ -557,7 +561,7 @@ class FeatureWriter {
 
   loadFeature(id, version = "HEAD", context = this.context) {
     //TODO: Also cache headFeatures for other contexts / queries to other table combinations
-    if (version == "HEAD" && context == this.context && this.headFeature) //NOTE: Only cache for the defaults
+    if (version == "HEAD" && context == this.context && this.headFeatureLoaded) //NOTE: Only cache for the defaults
       return this.headFeature;
 
     //TODO: Check if we need a check on operation.
@@ -565,6 +569,7 @@ class FeatureWriter {
       return null;
 
     let res = this._loadFeature(id, version, context);
+    this.headFeatureLoaded = true;
 
     if (!res.length)
       return null;
