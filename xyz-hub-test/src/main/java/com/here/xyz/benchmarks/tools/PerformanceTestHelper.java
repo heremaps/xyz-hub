@@ -255,10 +255,10 @@ public class PerformanceTestHelper {
   public static Typed readFeaturesByIds(StorageConnector connector, List<String> spaceNames, List<String> ids)
           throws Exception {
 
-    Event getFeaturesByTileEvent = new GetFeaturesByIdEvent()
+    Event GetFeaturesByIdEvent = new GetFeaturesByIdEvent()
             .withIds(ids);
 
-    return handleRequest(connector, (ContextAwareEvent<?>) getFeaturesByTileEvent, spaceNames);
+    return handleRequest(connector, (ContextAwareEvent<?>) GetFeaturesByIdEvent, spaceNames);
   }
 
   public static Typed modifySpace(StorageConnector connector, String spaceName, Operation operation) throws Exception {
@@ -268,8 +268,12 @@ public class PerformanceTestHelper {
                     .withId(spaceName)
                     .withVersionsToKeep(10_000_000)
                     .withSearchableProperties( Map.of(
-                            "p.refQuad", true,
-                            "p.globalVersion", true
+                            "$refQuad:[$.refQuad]::scalar" , true,
+                            "$globalVersion:[$.globalVersion]::scalar" , true,
+                            "$references:[$.references]::array" , true
+//                            "p.refQuad", true,
+//                            "p.globalVersion", true,
+//                            "p.references", true
                     ))
             ) //needed for PSQLConnector
             .withSpace(spaceName)

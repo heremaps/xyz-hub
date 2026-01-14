@@ -92,15 +92,15 @@ import java.util.UUID;
 
 import static com.here.xyz.events.UpdateStrategy.OnExists;
 import static com.here.xyz.events.UpdateStrategy.OnNotExists;
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.REF_QUAD_PROPERTY_KEY;
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.GLOBAL_VERSION_PROPERTY_KEY;
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.REFERENCES_PROPERTY_KEY;
-
 import static com.here.xyz.responses.XyzError.NOT_IMPLEMENTED;
 
 public class NLConnector extends PSQLXyzConnector {
   private static final Logger logger = LogManager.getLogger();
   private static final String STATUS_PROPERTY_KEY = "status";
+
+  public static final String REF_QUAD_PROPERTY_KEY = "refQuad";
+  public static final String GLOBAL_VERSION_PROPERTY_KEY = "globalVersion";
+  public static final String REFERENCES_PROPERTY_KEY = "references";
 
   private static final String GLOBAL_VERSION_SEARCH_KEY = "globalVersions";
   private static final String REF_QUAD_COUNT_SELECTION_KEY = "f.refQuadCount";

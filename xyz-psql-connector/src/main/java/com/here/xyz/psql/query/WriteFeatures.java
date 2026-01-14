@@ -116,6 +116,7 @@ public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureColl
 
       if(getTableLayout() == NEW_LAYOUT && !searchableProperties.isEmpty()) {
         //Temporary workaround for NL connector
+        searchableProperties.put("references", "$.properties.references");
         searchableProperties.put("refQuad", "$.properties.refQuad");
         searchableProperties.put("globalVersion", "$.properties.globalVersion");
         //End of workaround

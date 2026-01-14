@@ -156,10 +156,11 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
             }
         }else if(tableLayout.equals(NEW_LAYOUT)){
             if (event.getOperation() == CREATE) {
+                List<OnDemandIndex> activatedSearchableProperties
+                      = getActivatedSearchableProperties(event.getSpaceDefinition().getSearchableProperties());
                 final String table = getDefaultTable(event);
                 List<SQLQuery> queries = new ArrayList<>(buildCreateSpaceTableQueries(getSchema(), table,
-                        //No OnDemandIndices are supported in V2
-                        null, event.getSpace(), tableLayout));
+                        activatedSearchableProperties, event.getSpace(), tableLayout));
                 return SQLQuery.batchOf(queries).withLock(table);
             }
             else if (event.getOperation() == DELETE)
