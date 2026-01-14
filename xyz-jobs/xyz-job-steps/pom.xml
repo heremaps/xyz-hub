@@ -280,6 +280,15 @@
                 <include>**</include>
               </includes>
             </filter>
+            <filter>
+              <!-- Keep the complete xyz-psql-connector artifact.
+                   Required because its classes are loaded via reflection / SPI and would
+                   otherwise be removed when minimizeJar=true is enabled. -->
+              <artifact>com.here.xyz:xyz-psql-connector</artifact>
+              <includes>
+                <include>**</include>
+              </includes>
+            </filter>
           </filters>
           <minimizeJar>true</minimizeJar>
         </configuration>

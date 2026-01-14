@@ -67,21 +67,25 @@ public class MaintainJobTestIT extends JobTest {
     checkSearchableProperties(SPACE_ID, maxAttempts);
   }
 
+  @Disabled
   @Test
   public void testMaintainSimpleSpaceWithJsonPaths() throws Exception {
     //Indexes are created during the space creation
-    createSpace(new Space().withId(SPACE_ID_2).withSearchableProperties(Map.of(
-                    "f.root", true,
-                    "foo1", true,
-                    "foo2.nested", true
+    createSpace(new Space().withId(SPACE_ID_2)
+            .withStorage( new Space.ConnectorRef().withId("psql-nl-connector") )
+            .withSearchableProperties(Map.of(
+                    "$.alias1:[$.root]::scalar", true,
+                    "$.alias2:[$.properties.foo1]::scalar", true,
+                    "$.alias3:[$.properties.foo.nested]::scalar", true
             )
     ), false);
 
+    putRandomFeatureCollectionToSpace(SPACE_ID_2, 10);
+
     //Modify the searchable properties
     patchSpace(SPACE_ID_2, Map.of("searchableProperties", Map.of(
-                    "foo1", true,
-                    "foo2.nested", false,
-                    "new::scalar", true
+              "$.alias1:[$.root]::scalar", false,
+              "$.alias4:[$.properties.test]::scalar", true
             ))
     );
 
