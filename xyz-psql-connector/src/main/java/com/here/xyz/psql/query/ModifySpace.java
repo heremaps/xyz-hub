@@ -158,6 +158,12 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
             if (event.getOperation() == CREATE) {
                 List<OnDemandIndex> activatedSearchableProperties
                       = getActivatedSearchableProperties(event.getSpaceDefinition().getSearchableProperties());
+
+                boolean noAlias = activatedSearchableProperties != null
+                        && activatedSearchableProperties.stream().noneMatch(k -> k.getPropertyPath().startsWith(ALIAS_PREFIX));
+                if(noAlias)
+                  throw new IllegalArgumentException( "Connector does not support legacy searchableProperties configuration!");
+
                 final String table = getDefaultTable(event);
                 List<SQLQuery> queries = new ArrayList<>(buildCreateSpaceTableQueries(getSchema(), table,
                         activatedSearchableProperties, event.getSpace(), tableLayout));
