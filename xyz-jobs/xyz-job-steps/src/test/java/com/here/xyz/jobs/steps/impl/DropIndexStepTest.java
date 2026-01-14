@@ -39,10 +39,6 @@ public class DropIndexStepTest extends StepTest {
   );
 
   private static final Map<String,Boolean> NEW_SEARCHABLE_PROPERTIES =  Map.of(
-          "foo1", true,
-          "foo2.nested", true,
-          "foo3", true,
-          "f.root", true,
           "$alias1:[$.properties.test]::scalar", true,
           "$alias2:[$.properties.test]::array", true
   );
@@ -97,20 +93,19 @@ public class DropIndexStepTest extends StepTest {
     createTestSpace("psql-nl-connector", NEW_SEARCHABLE_PROPERTIES);
     Assertions.assertFalse(getSystemIndices(SPACE_ID).isEmpty());
     //three on-demand indices should be created with the space creation
-    Assertions.assertEquals(6, getOnDemandIndices(SPACE_ID).size());
+    Assertions.assertEquals(2, getOnDemandIndices(SPACE_ID).size());
 
     LambdaBasedStep step = new DropIndexes()
             .withSpaceId(SPACE_ID)
             .withSpaceDeactivation(false)
             .withIndexWhiteList(
                     List.of(
-                            new OnDemandIndex().withPropertyPath("foo1"),
                             new OnDemandIndex().withPropertyPath("$alias1:[$.properties.test]::scalar")
                     )
             );
 
     sendLambdaStepRequestBlock(step, true);
-    Assertions.assertEquals(2,getOnDemandIndices(SPACE_ID).size(), "whitelisted indexes should remain");
+    Assertions.assertEquals(1,getOnDemandIndices(SPACE_ID).size(), "whitelisted indexes should remain");
   }
 
   @Test

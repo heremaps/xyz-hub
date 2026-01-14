@@ -546,6 +546,22 @@ public class Space {
     this.searchableProperties = normalizeSearchableProperties(searchableProperties);
   }
 
+  @JsonIgnore
+  public boolean hasActivatedSearchableProperty() {
+    if (searchableProperties == null || searchableProperties.isEmpty()) {
+      return false;
+    }
+
+    for (Map.Entry<String, Boolean> entry : searchableProperties.entrySet()) {
+      Boolean active = entry.getValue();
+      if (active != null && active && entry.getKey() != null && entry.getKey().startsWith(ALIAS_PREFIX)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   public Space withSearchableProperties(final Map<String, Boolean> searchableProperties) {
     setSearchableProperties(searchableProperties);
     return this;
@@ -625,6 +641,8 @@ public class Space {
   private Map<String, Boolean> normalizeSearchableProperties(Map<String, Boolean> rawProps) {
     Map<String, Boolean> normalized = new LinkedHashMap<>();
     Set<String> aliases = new HashSet<>();
+    boolean hasAlias = false;
+    boolean hasLegacy = false;
 
     for (Map.Entry<String, Boolean> entry : rawProps.entrySet()) {
       String rawKey = entry.getKey();
@@ -635,6 +653,7 @@ public class Space {
       }
 
       if(rawKey.startsWith(ALIAS_PREFIX)){
+        hasAlias = true;
         NormalizedProperty np = parseAndNormalizeKey(rawKey.trim());
 
         // Enforce alias uniqueness
@@ -645,10 +664,14 @@ public class Space {
         String canonicalKey = buildCanonicalKey(np);
         normalized.put(canonicalKey, value);
       }else {
+        hasLegacy = true;
         //legacy key, keep as is
         normalized.put(rawKey, value);
       }
     }
+
+    if(hasAlias && hasLegacy)
+      throw new IllegalArgumentException("It is not allowed to mix searchableProperties (aliased and non-aliased) definitions.");
 
     return normalized;
   }

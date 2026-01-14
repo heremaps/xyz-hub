@@ -174,7 +174,7 @@ public class SpaceCopy implements JobCompilationInterceptor {
                                          && targetFeatureCount <= 0
                                          && filters == null;
 
-      return !useDropIndexOptimization ? startGraph : ImportFromFiles.compileWrapWithDropRecreateIndices(targetSpaceId, startGraph);
+      return !useDropIndexOptimization ? startGraph : ImportFromFiles.compileWrapWithDropRecreateIndices(targetSpaceId, startGraph, null);
 
     }
     catch (WebClientException e) {

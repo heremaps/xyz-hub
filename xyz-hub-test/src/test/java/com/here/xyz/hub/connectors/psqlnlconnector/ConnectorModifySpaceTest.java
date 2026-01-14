@@ -24,17 +24,13 @@ public class ConnectorModifySpaceTest extends EventBasedConnectorTest {
 
     String spaceName =  this.getClass().getSimpleName() +"."+ Random.randomAlpha(6);
 
+    //TODO: Test also legacy searchable properties
     Map<String, Boolean> searchableProperties = Map.of(
-            "f.root", true,
-            "foo1.nested", true,
+//            "f.root", true,
+//            "foo1.nested", true,
             "$alias1:[$.properties.refQuad]::scalar", true,
             "$alias2:[$.properties.globalVersion]::scalar", true,
             "$alias3:[$.properties.names[*].lang]::array", true
-            //"$foo1.nested:[$.foo1.nested]::scalar", true
-//            "$alias1:[$.properties.street.fc]::scalar", true,
-//            "$alias2:[$.properties.names[*].lang]::array", true,
-//            "$alias3:[$.properties.refQuad like_regex \"^0123\"]::scalar", true,
-
     );
 
     /* create space */
@@ -46,6 +42,7 @@ public class ConnectorModifySpaceTest extends EventBasedConnectorTest {
             )
             .withSpace(spaceName)
             .withOperation(CREATE);
+
     connector.handleEvent(modifySpaceEvent);
 
     /* write features */
@@ -64,7 +61,7 @@ public class ConnectorModifySpaceTest extends EventBasedConnectorTest {
     FeatureCollection f2 = (FeatureCollection) connector.handleEvent(writeFeaturesEvent);
     System.out.println(f2.getFeatures().size());
 
-
+    //TODO: add tests
     /* clean test resources */
     PerformanceTestHelper.deleteSpace(connector, spaceName);
   }

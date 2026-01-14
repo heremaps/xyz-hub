@@ -185,7 +185,6 @@ public class ImportJobTestIT extends JobTest {
     );
     Assertions.assertThrows(JobCompiler.CompilationError.class, () ->
             new ImportFromFiles()
-              .withUseNewTaskedImportStep(true)
               .compile(importJob));
   }
 
@@ -196,7 +195,6 @@ public class ImportJobTestIT extends JobTest {
                             .withFormat(new Csv().withEntityPerLine(Feature))), SPACE_ID);
     Assertions.assertThrows(JobCompiler.CompilationError.class, () ->
             new ImportFromFiles()
-                    .withUseNewTaskedImportStep(true)
                     .compile(importJob));
   }
 
