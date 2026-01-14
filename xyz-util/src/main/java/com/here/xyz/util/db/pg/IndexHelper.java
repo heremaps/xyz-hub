@@ -248,10 +248,11 @@ public class IndexHelper {
   }
 
   public static SQLQuery buildOnDemandIndexCreationQuery(String schema, String table, OnDemandIndex index, TableLayout layout, boolean async){
-    if(layout.hasSearchableColumn())
+    if(layout.hasSearchableColumn() && index.propertyPath.startsWith(ALIAS_PREFIX))
       return buildOnDemandIndexCreationQueryForSearchable(schema, table, index, async);
     if(index.propertyPath.startsWith(ALIAS_PREFIX))
       throw new IllegalArgumentException("Alias definitions are only allowed on new spaces!");
+    //If we have new layout but no alias searchable column, we fall back to legacy index creation
     return buildOnDemandIndexCreationQuery(schema, table, index, OLD_LAYOUT_INDEX_COULMN, async);
   }
 
@@ -278,15 +279,12 @@ public class IndexHelper {
 
   private static SQLQuery buildOnDemandIndexCreationQueryForSearchable(String schema, String table, OnDemandIndex index, boolean async){
     String alias, propertyPath, dataType, comment;
-    try {
-      alias = index.extractAlias();
-      propertyPath = index.extractLogicalPropertyPath();
-      dataType = index.extractDataType();
-      comment = index.propertyPath;
-    }catch (IllegalArgumentException e){
-      alias = propertyPath = comment = index.propertyPath;
-      dataType = propertyPath.endsWith("::array") ? "array" : "scalar";
-    }
+
+    alias = index.extractAlias();
+    alias = alias.substring(1); //remove leading $
+    propertyPath = alias;
+    dataType = index.extractDataType();
+    comment = index.propertyPath;
 
     return new SQLQuery((async ? "PERFORM " : "SELECT ") +
             """

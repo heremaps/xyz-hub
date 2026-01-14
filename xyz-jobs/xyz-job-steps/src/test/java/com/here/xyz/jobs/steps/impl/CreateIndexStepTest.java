@@ -62,6 +62,7 @@ public class CreateIndexStepTest extends StepTest {
             .withId(SPACE_ID)
             .withVersionsToKeep(100), false);
     testOnDemandIndices("$properties.foo1:[$.properties.foo1]::scalar");
+    testOnDemandIndices("$alias1:[$.properties.foo2]::scalar");
   }
 
   private void testOnDemandIndices(String propPath) throws SQLException, IOException, InterruptedException {
