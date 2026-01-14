@@ -28,6 +28,7 @@ import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_RESUME;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.jobs.datasets.filters.SpatialFilter;
+import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.execution.StepException;
 import com.here.xyz.jobs.steps.execution.db.Database;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
@@ -369,12 +370,24 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     if( space().getStorage().getId().equals(targetSpace().getStorage().getId()) )
       return false;
 
-//    return true;
-
     ConnectorParameters srcCnt = ConnectorParameters.fromMap(loadConnector(space()).params),
                         trgCnt = ConnectorParameters.fromMap(loadConnector(targetSpace()).params);
 
-    boolean ret = !srcCnt.getEcps().equals(trgCnt.getEcps()); //todo: decrypt and compare hosts
+    String srcEcps = srcCnt.getEcps(),
+           trgEcps = trgCnt.getEcps();
+
+    String ecpsPhrase = Config.instance.ECPS_PHRASE; //"local";
+
+    Map<String, Object> srcMap = ECPSTool.decryptToMap(ecpsPhrase, srcEcps),
+                        trgMap = ECPSTool.decryptToMap(ecpsPhrase, trgEcps);
+
+    String srcHost = srcMap.get("PSQL_HOST") != null ? srcMap.get("PSQL_HOST").toString() : "srcHost",
+           trgHost = trgMap.get("PSQL_HOST") != null ? trgMap.get("PSQL_HOST").toString() : "trgHost",
+           srcDb = srcMap.get("PSQL_DB") != null ? srcMap.get("PSQL_DB").toString() : "srcDb",
+           trgDb = trgMap.get("PSQL_DB") != null ? trgMap.get("PSQL_DB").toString() : "trgDb";
+
+    boolean ret = srcHost.equals(trgHost) ? !srcDb.equals(trgDb) : true; // remote -> ( different hosts || different dbs on same host )
+
     return ret;
   }
 
