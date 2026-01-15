@@ -28,6 +28,7 @@ import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_RESUME;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.jobs.datasets.filters.SpatialFilter;
+import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.execution.StepException;
 import com.here.xyz.jobs.steps.execution.db.Database;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
@@ -39,12 +40,17 @@ import com.here.xyz.models.geojson.coordinates.WKTHelper;
 import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
+import com.here.xyz.models.hub.Space.ConnectorRef;
+import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.query.GetFeaturesByGeometryBuilder;
 import com.here.xyz.psql.query.GetFeaturesByGeometryBuilder.GetFeaturesByGeometryInput;
 import com.here.xyz.psql.query.QueryBuilder.QueryBuildingException;
 import com.here.xyz.psql.query.WriteFeatures;
+import com.here.xyz.util.db.ConnectorParameters;
+import com.here.xyz.util.db.ECPSTool;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.pg.FeatureWriterQueryBuilder.FeatureWriterQueryContextBuilder;
+import com.here.xyz.util.runtime.FunctionRuntime;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
 
@@ -360,7 +366,29 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
   }
 
   private boolean isRemoteCopy() throws WebClientException {
-    return !space().getStorage().getId().equals(targetSpace().getStorage().getId());
+
+    if( space().getStorage().getId().equals(targetSpace().getStorage().getId()) )
+      return false;
+
+    ConnectorParameters srcCnt = ConnectorParameters.fromMap(loadConnector(space()).params),
+                        trgCnt = ConnectorParameters.fromMap(loadConnector(targetSpace()).params);
+
+    String srcEcps = srcCnt.getEcps(),
+           trgEcps = trgCnt.getEcps();
+
+    String ecpsPhrase = Config.instance.ECPS_PHRASE; //"local";
+
+    Map<String, Object> srcMap = ECPSTool.decryptToMap(ecpsPhrase, srcEcps),
+                        trgMap = ECPSTool.decryptToMap(ecpsPhrase, trgEcps);
+
+    String srcHost = srcMap.get("PSQL_HOST") != null ? srcMap.get("PSQL_HOST").toString() : "srcHost",
+           trgHost = trgMap.get("PSQL_HOST") != null ? trgMap.get("PSQL_HOST").toString() : "trgHost",
+           srcDb = srcMap.get("PSQL_DB") != null ? srcMap.get("PSQL_DB").toString() : "srcDb",
+           trgDb = trgMap.get("PSQL_DB") != null ? trgMap.get("PSQL_DB").toString() : "trgDb";
+
+    boolean ret = srcHost.equals(trgHost) ? !srcDb.equals(trgDb) : true; // remote -> ( different hosts || different dbs on same host )
+
+    return ret;
   }
 
   private boolean useTableCopy() { return loadTargetFeatureCount() == 0; }
