@@ -198,7 +198,7 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
   }
 
   @Override
-  protected void finalCleanUp() throws WebClientException, SQLException, TooManyResourcesClaimed {
+  protected void finalCleanUp(boolean noTasksCreated) throws WebClientException, SQLException, TooManyResourcesClaimed {
     runBatchWriteQuerySync(getQueryBuilder().buildCleanUpStatement(), db(), 0);
   }
 
