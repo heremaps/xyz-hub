@@ -249,11 +249,13 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
    * temporary data removal, or any other necessary cleanup logic at the end of the job step.
    * </p>
    *
+   * @param noTasksCreated Information if tasks got created.
+   *
    * @throws WebClientException If an error occurs while interacting with the web client.
    * @throws SQLException If a database access error occurs.
    * @throws TooManyResourcesClaimed If too many resources are claimed during cleanup.
    */
-  protected void finalCleanUp() throws WebClientException, SQLException, TooManyResourcesClaimed {};
+  protected void finalCleanUp(boolean noTasksCreated) throws WebClientException, SQLException, TooManyResourcesClaimed, IOException {};
 
   /**
    * Prepares the process by resolving the version reference to an actual version.
@@ -476,10 +478,10 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
     }
   }
 
-  private void cleanUpDbResources() throws WebClientException, SQLException, TooManyResourcesClaimed {
+  private void cleanUpDbResources() throws WebClientException, SQLException, TooManyResourcesClaimed, IOException {
     try {
       infoLog(STEP_ON_ASYNC_SUCCESS, "Executing cleanUp Hook");
-      finalCleanUp();
+      finalCleanUp(noTasksCreated);
 
       infoLog(STEP_ON_ASYNC_SUCCESS, "Cleanup temporary table");
       runWriteQuerySync(buildTemporaryJobTableDropStatement(getSchema(db()), getTemporaryJobTableName(getId())), db(WRITER), 0);
@@ -533,8 +535,14 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
 
   @Override
   public AsyncExecutionState getExecutionState() throws UnknownStateException {
-    if(noTasksCreated)
+    if(noTasksCreated) {
+      try {
+        cleanUpDbResources();
+      }catch (Exception e) {
+        throw new RuntimeException(e);
+      }
       return AsyncExecutionState.SUCCEEDED;
+    }
     return super.getExecutionState();
   }
 
