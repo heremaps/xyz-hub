@@ -269,20 +269,20 @@ PARALLEL UNSAFE;
 /**
  * Below functions are wrapper for jsonpath_rfc9535 to query json_paths from SQL only statements
  */
-CREATE OR REPLACE FUNCTION public.jsonpath_scalar(document text, path text)
+CREATE OR REPLACE FUNCTION jsonpath_scalar(document text, path text)
 RETURNS jsonb AS
 $BODY$
-  plv8.execute("SELECT \"hub.common\".require('jsonpath_rfc9535')");
+  plv8.execute("SELECT require('jsonpath_rfc9535')");
   const doc = JSON.parse(document);
   const res = jsonpath_rfc9535.query(doc, path);
   return res.length ? res[0] : null;
 $BODY$
 LANGUAGE plv8 IMMUTABLE PARALLEL UNSAFE;
 
-CREATE OR REPLACE FUNCTION public.jsonpath_array(document text, path text)
+CREATE OR REPLACE FUNCTION jsonpath_array(document text, path text)
 RETURNS jsonb AS
 $BODY$
-  plv8.execute("SELECT \"hub.common\".require('jsonpath_rfc9535')");
+  plv8.execute("SELECT require('jsonpath_rfc9535')");
   const doc = JSON.parse(document);
   const res = jsonpath_rfc9535.query(doc, path);
   return JSON.parse(JSON.stringify(res.length ? res : []));

@@ -250,7 +250,7 @@ public class ExtractJsonPathValues extends TaskedSpaceBasedStep<
             String safeKey = aliasKey.replace("'", "''");
             String paramName = "jsonPath_" + idx++;
 
-            String fn = scalar ? "public.jsonpath_scalar" : "public.jsonpath_array";
+            String fn = scalar ? "jsonpath_scalar" : "jsonpath_array";
 
             sql.append(" || jsonb_build_object('")
                     .append(safeKey)
