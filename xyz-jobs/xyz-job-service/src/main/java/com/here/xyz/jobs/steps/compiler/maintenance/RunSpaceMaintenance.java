@@ -23,16 +23,22 @@ import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.datasets.DatasetDescription.Space;
 import com.here.xyz.jobs.processes.Maintain;
 import com.here.xyz.jobs.steps.CompilationStepGraph;
+import com.here.xyz.jobs.steps.Config;
+import com.here.xyz.jobs.steps.JobCompiler;
 import com.here.xyz.jobs.steps.compiler.JobCompilationInterceptor;
 import com.here.xyz.jobs.steps.compiler.tools.IndexCompilerHelper;
 import com.here.xyz.jobs.steps.impl.DropIndexes;
+import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.impl.maintenance.SpawnMaintenanceJobs;
 import com.here.xyz.jobs.steps.impl.transport.ExtractJsonPathValues;
+import com.here.xyz.util.db.ConnectorParameters;
 import com.here.xyz.util.db.pg.IndexHelper.Index;
 import com.here.xyz.util.db.pg.IndexHelper.SystemIndex;
 import java.util.List;
 import java.util.stream.Stream;
 
+import com.here.xyz.util.web.HubWebClient;
+import com.here.xyz.util.web.XyzWebClient;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -63,15 +69,18 @@ public class RunSpaceMaintenance implements JobCompilationInterceptor {
             .withSpaceId(source.getId())
             .withIndexWhiteList(whiteList);
 
+    stepGraph.addExecution(dropIndexes);
+
     // Extract JSONPath values into "searchable" column
-    ExtractJsonPathValues extractJsonPathValues = new ExtractJsonPathValues()
-            .withSpaceId(source.getId());
+    if (getTableLayout(source.getId()) != ConnectorParameters.TableLayout.OLD_LAYOUT) {
+      ExtractJsonPathValues extractJsonPathValues = new ExtractJsonPathValues()
+              .withSpaceId(source.getId());
+
+      stepGraph.addExecution(extractJsonPathValues);
+    }
 
     //Create all indices that are defined - existing ones are getting skipped
     CompilationStepGraph onDemandIndexSteps = IndexCompilerHelper.compileOnDemandIndexSteps(source.getId());
-
-    stepGraph.addExecution(dropIndexes);
-    stepGraph.addExecution(extractJsonPathValues);
 
     if (!onDemandIndexSteps.isEmpty())
       stepGraph.addExecution(onDemandIndexSteps);
@@ -79,5 +88,23 @@ public class RunSpaceMaintenance implements JobCompilationInterceptor {
     stepGraph.addExecution(new SpawnMaintenanceJobs().withSpaceId(source.getId()));
 
     return stepGraph;
+  }
+
+  private static ConnectorParameters.TableLayout getTableLayout(String spaceId){
+    try{
+      String connectorClass = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadConnector(loadSpace(spaceId).getStorage().getId()).remoteFunction.className;
+      return SpaceBasedStep.getTableLayoutFromConnectorClass(connectorClass);
+    } catch (XyzWebClient.WebClientException e) {
+      throw new JobCompiler.CompilationError("Unable to resolve Table-Layout for: " + spaceId, e);
+    }
+  }
+
+  private static com.here.xyz.models.hub.Space loadSpace(String spaceId) throws JobCompiler.CompilationError {
+    try {
+      return HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadSpace(spaceId);
+    }
+    catch (XyzWebClient.WebClientException e) {
+      throw new JobCompiler.CompilationError("Unable to resolve target: " + spaceId, e);
+    }
   }
 }

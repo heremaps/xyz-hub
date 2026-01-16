@@ -743,7 +743,8 @@ public class Space {
   }
 
   private void validateJsonPath(String expression) {
-    if (!JsonPathValidator.isValid(expression)) {
+    JsonPathValidator.ValidationResult result = JsonPathValidator.validate(expression);
+    if (!result.isValid()) {
       throw new IllegalArgumentException(
               String.format("Invalid JSONPath expression '%s'.", expression));
     }

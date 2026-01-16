@@ -19,11 +19,11 @@
 
 package com.here.xyz.jobs.steps.impl.transport;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.jobs.JobClientInfo;
+import com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType;
 import com.here.xyz.jobs.steps.execution.StepException;
 import com.here.xyz.jobs.steps.impl.transport.tasks.TaskPayload;
 import com.here.xyz.jobs.steps.resources.Load;
@@ -55,9 +55,6 @@ public class ExtractJsonPathValues extends TaskedSpaceBasedStep<
 
     @JsonView({XyzSerializable.Internal.class, XyzSerializable.Static.class})
     private long maxI = Long.MIN_VALUE;
-
-    @JsonIgnore
-    private Boolean searchableColumnExists;
 
     public Map<String, String> getAliasToJsonPath() {
         return aliasToJsonPath;
@@ -101,12 +98,8 @@ public class ExtractJsonPathValues extends TaskedSpaceBasedStep<
     protected List<ExtractTaskInput> createTaskItems() throws WebClientException {
         // Resolve effective paths
         Map<String, String> effective = loadAliasToJsonPath();
-        if (effective.isEmpty()) {
-            return List.of();
-        }
 
-        // no searchable column, no task
-        if (!hasSearchableColumn()) {
+        if (effective.isEmpty()) {
             return List.of();
         }
 
@@ -119,7 +112,8 @@ public class ExtractJsonPathValues extends TaskedSpaceBasedStep<
                 continue;
             }
 
-            int typeIdx = jsonPath.indexOf("::");
+            int typeIdx = jsonPath.lastIndexOf("::");
+
             if (typeIdx > -1) {
                 jsonPath = jsonPath.substring(0, typeIdx).trim();
             }
@@ -133,93 +127,97 @@ public class ExtractJsonPathValues extends TaskedSpaceBasedStep<
             return List.of();
         }
 
-        // empty table
         long min = loadMinI();
         long max = loadMaxI();
+
         if (max < min) {
             return List.of();
         }
 
-        final int effectiveTaskCount = threadCount > 0 ? threadCount : DEFAULT_THREAD_COUNT;
+        long totalRows = max - min + 1;
+        int effectiveTaskCount = threadCount > 0 ? threadCount : DEFAULT_THREAD_COUNT;
+        effectiveTaskCount = (int) Math.max(1, Math.min(effectiveTaskCount, totalRows));
+
         List<ExtractTaskInput> items = new ArrayList<>(effectiveTaskCount);
+
         for (int t = 0; t < effectiveTaskCount; t++) {
             items.add(new ExtractTaskInput(t));
         }
+
         return items;
     }
 
-    private boolean hasSearchableColumn() {
-        if (searchableColumnExists != null) {
-            return searchableColumnExists;
-        }
-
-        try {
-            final String schema = getSchema(dbWriter());
-            final String table = getRootTableName(space());
-
-            Boolean exists = runReadQuerySync(
-                    new SQLQuery("""
-                      SELECT 1
-                      FROM information_schema.columns
-                      WHERE table_schema = #{schema}
-                        AND table_name = #{table}
-                        AND column_name = 'searchable'
-                      LIMIT 1
-                      """)
-                            .withNamedParameter("schema", schema)
-                            .withNamedParameter("table", table),
-                    dbWriter(),
-                    0d,
-                    rs -> rs.next()
-            );
-
-            searchableColumnExists = (exists != null && exists);
-            return searchableColumnExists;
-        }
-        catch (Exception e) {
-            throw new StepException("Failed to verify existence of 'searchable' column.", e).withRetryable(true);
-        }
-    }
-
     private Map<String, String> loadAliasToJsonPath() throws WebClientException {
-        // If job didn’t provide it, derive from the space config at runtime
         if (aliasToJsonPath == null || aliasToJsonPath.isEmpty()) {
-            Map<String, String> derived = Space.toExtractableSearchProperties(space());
-            this.aliasToJsonPath = derived;
+            this.aliasToJsonPath = Space.toExtractableSearchProperties(space());
         }
+
         return aliasToJsonPath == null ? Map.of() : aliasToJsonPath;
     }
 
     @Override
-    protected SQLQuery buildTaskQuery(Integer taskId, ExtractTaskInput taskInput, String failureCallback) throws WebClientException {
-        Map<String, String> effective = loadAliasToJsonPath();
-        if (effective.isEmpty()) {
-            return new SQLQuery("SELECT 1;");
-        }
+    protected SQLQuery buildTaskQuery(Integer taskId, ExtractTaskInput taskInput, String failureCallbackIgnored) throws WebClientException {
+        // Build the actual task query
+        SQLQuery workQuery = buildWorkQuery(taskInput);
 
-        // OLD_LAYOUT, no-op
-        if (!hasSearchableColumn()) {
-            return new SQLQuery("SELECT 1;");
+        // Schedule update/failure callbacks
+        String updateCallbackSql = buildUpdateCallbackSql(taskId);
+        String failureCallbackSql = buildFailureCallbackSql();
+
+        return new SQLQuery("""
+            DO
+            $extract$
+            BEGIN
+              ${{workQuery}}
+              -- Must be false, otherwise value is lost at COMMIT and the follow-up asyncify won't run
+              PERFORM set_config('xyz.next_thread', $a$${{updateCallbackSql}}$a$, false);
+            EXCEPTION WHEN OTHERS THEN
+              ${{failureCallbackSql}}
+            END
+            $extract$;
+            """)
+                .withQueryFragment("workQuery", workQuery)
+                .withQueryFragment("updateCallbackSql", updateCallbackSql)
+                .withQueryFragment("failureCallbackSql", failureCallbackSql);
+    }
+
+    private SQLQuery buildWorkQuery(ExtractTaskInput taskInput) throws WebClientException {
+        Map<String, String> effective = loadAliasToJsonPath();
+
+        if (effective.isEmpty()) {
+            return new SQLQuery("PERFORM 1;");
         }
 
         final String schema = getSchema(dbWriter());
-        final Space space = space();
-        final String tableName = getRootTableName(space);
+        final String tableName = getRootTableName(space());
 
         long minI = loadMinI();
         long maxI = loadMaxI();
+
         if (maxI < minI) {
-            return new SQLQuery("SELECT 1;");
+            return new SQLQuery("PERFORM 1;");
         }
 
-        final int effectiveTaskCount = threadCount > 0 ? threadCount : DEFAULT_THREAD_COUNT;
         long totalRows = maxI - minI + 1;
+
+        int effectiveTaskCount = threadCount > 0 ? threadCount : DEFAULT_THREAD_COUNT;
+        effectiveTaskCount = (int) Math.max(1, Math.min((long) effectiveTaskCount, totalRows));
+
         long iRangeSize = (long) Math.ceil((double) totalRows / (double) effectiveTaskCount);
         if (iRangeSize <= 0) {
-            return new SQLQuery("SELECT 1;");
+            return new SQLQuery("PERFORM 1;");
         }
 
         int threadNumber = taskInput.getThreadId();
+
+        long fromI = minI + (threadNumber * iRangeSize);
+        long toIExclusive = minI + ((threadNumber + 1L) * iRangeSize);
+
+        if (fromI > maxI) {
+            return new SQLQuery("PERFORM 1;");
+        }
+
+        toIExclusive = Math.min(toIExclusive, maxI + 1);
 
         StringBuilder sql = new StringBuilder();
         sql.append("UPDATE ${schema}.${table} ")
@@ -228,15 +226,21 @@ public class ExtractJsonPathValues extends TaskedSpaceBasedStep<
         int idx = 0;
         for (Map.Entry<String, String> e : effective.entrySet()) {
             String aliasKey = e.getKey();
-            String jsonPath = e.getValue();
+            String jsonPathWithType = e.getValue();
 
-            if (aliasKey == null || aliasKey.isBlank() || jsonPath == null || jsonPath.isBlank()) {
+            if (aliasKey == null || aliasKey.isBlank() || jsonPathWithType == null || jsonPathWithType.isBlank()) {
                 continue;
             }
 
-            int typeIdx = jsonPath.indexOf("::");
+            String jsonPath = jsonPathWithType.trim();
+            boolean scalar = true;
+
+            int typeIdx = jsonPath.lastIndexOf("::");
+
             if (typeIdx > -1) {
+                String type = jsonPath.substring(typeIdx + 2).trim();
                 jsonPath = jsonPath.substring(0, typeIdx).trim();
+                scalar = !"array".equalsIgnoreCase(type);
             }
 
             if (jsonPath.isBlank()) {
@@ -246,37 +250,41 @@ public class ExtractJsonPathValues extends TaskedSpaceBasedStep<
             String safeKey = aliasKey.replace("'", "''");
             String paramName = "jsonPath_" + idx++;
 
+            String fn = scalar ? "public.jsonpath_scalar" : "public.jsonpath_array";
+
             sql.append(" || jsonb_build_object('")
                     .append(safeKey)
-                    .append("', jsonpath_rfc9535(jsondata::jsonb, #{")
+                    .append("', ")
+                    .append(fn)
+                    .append("(jsondata::text, #{")
                     .append(paramName)
-                    .append("}::jsonpath))");
+                    .append("}::text))");
         }
 
         if (idx == 0) {
-            return new SQLQuery("SELECT 1;");
+            return new SQLQuery("PERFORM 1;");
         }
 
-        sql.append(" WHERE i >= (#{minI} + (#{threadNumber} * #{iRangeSize}))")
-                .append(" AND i < (#{minI} + ((#{threadNumber} + 1) * #{iRangeSize}))");
+        sql.append(" WHERE i >= #{fromI} AND i < #{toI};");
 
         SQLQuery query = new SQLQuery(sql.toString())
                 .withVariable("schema", schema)
                 .withVariable("table", tableName)
-                .withNamedParameter("minI", minI)
-                .withNamedParameter("threadNumber", threadNumber)
-                .withNamedParameter("iRangeSize", iRangeSize);
+                .withNamedParameter("fromI", fromI)
+                .withNamedParameter("toI", toIExclusive);
 
         idx = 0;
         for (Map.Entry<String, String> e : effective.entrySet()) {
             String aliasKey = e.getKey();
-            String jsonPath = e.getValue();
+            String jsonPathWithType = e.getValue();
 
-            if (aliasKey == null || aliasKey.isBlank() || jsonPath == null || jsonPath.isBlank()) {
+            if (aliasKey == null || aliasKey.isBlank() || jsonPathWithType == null || jsonPathWithType.isBlank()) {
                 continue;
             }
 
-            int typeIdx = jsonPath.indexOf("::");
+            String jsonPath = jsonPathWithType.trim();
+            int typeIdx = jsonPath.lastIndexOf("::");
+
             if (typeIdx > -1) {
                 jsonPath = jsonPath.substring(0, typeIdx).trim();
             }
@@ -289,6 +297,70 @@ public class ExtractJsonPathValues extends TaskedSpaceBasedStep<
         }
 
         return query;
+    }
+
+    private String buildUpdateCallbackSql(int taskId) {
+        if (isSimulation) {
+            return "SELECT 'Update callback will be simulated';";
+        }
+
+        SpaceBasedTaskUpdate<ExtractTaskOutput> update = new SpaceBasedTaskUpdate<>();
+        update.taskId = taskId;
+        update.taskOutput = new ExtractTaskOutput();
+
+        LambdaStepRequest req = new LambdaStepRequest()
+                .withType(RequestType.UPDATE_CALLBACK)
+                .withStep(this)
+                .withProcessUpdate(update);
+
+        String body = req.serialize();
+        String tag = "cbreq" + taskId;
+
+        return """
+            SELECT aws_lambda.invoke(
+              aws_commons.create_lambda_function_arn('%s', '%s'),
+              $%s$%s$%s$::JSON,
+              'Event'
+            );
+            """.formatted(
+                getwOwnLambdaArn().toString(),
+                getwOwnLambdaArn().getRegion(),
+                tag, body, tag
+        ).trim();
+    }
+
+    private String buildFailureCallbackSql() {
+        if (isSimulation) {
+            return "PERFORM 'Failure callback will be simulated';";
+        }
+
+        LambdaStepRequest req = new LambdaStepRequest()
+                .withType(RequestType.FAILURE_CALLBACK)
+                .withStep(this);
+
+        String body = req.serialize();
+        String tag = "fcreq" + getId().replaceAll("[^A-Za-z0-9]", "");
+
+        return """
+            PERFORM aws_lambda.invoke(
+              aws_commons.create_lambda_function_arn('%s', '%s'),
+              jsonb_set(
+                $%s$%s$%s$::JSONB,
+                '{step,status}',
+                (
+                  ($%s$%s$%s$::JSONB->'step'->'status')
+                  || jsonb_build_object('errorCode', SQLSTATE::text, 'errorMessage', SQLERRM::text)
+                ),
+                true
+              )::JSON,
+              'Event'
+            );
+            """.formatted(
+                getwOwnLambdaArn().toString(),
+                getwOwnLambdaArn().getRegion(),
+                tag, body, tag,
+                tag, body, tag
+        ).trim();
     }
 
     @Override
@@ -344,6 +416,7 @@ public class ExtractJsonPathValues extends TaskedSpaceBasedStep<
     public int getEstimatedExecutionSeconds() {
         double overallAcus = calculateOverallNeededACUs();
         int estimated = (int) Math.ceil(overallAcus * 60d);
+
         return Math.max(60, estimated);
     }
 

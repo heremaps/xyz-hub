@@ -19,569 +19,689 @@
 
 package com.here.xyz.util;
 
-import org.noear.snack4.jsonpath.*;
-
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 public final class JsonPathValidator {
+    private static final boolean REQUIRE_STRING_FOR_REGEX = true;
 
-    private JsonPathValidator() {
-    }
+    public static ValidationResult validate(String input) {
+        if (input == null)
+            return ValidationResult.error(0, "Input is null");
 
-    public static boolean isValid(String jsonPath) {
-        if (jsonPath == null)
-            return false;
-
-        final String p = jsonPath.trim();
-        if (p.isEmpty())
-            return false;
-
-        final char first = p.charAt(0);
-        if (first != '$' && first != '@')
-            return false;
-
-        // Structural checks (fixes snack4json open parsing such as "$[" or "$['a]")
-        if (!validateTopLevelQueryStructure(p))
-            return false;
-
-        // Runtime compatibility with snack4json
         try {
-            JsonPath.parse(p);
-            return true;
-        } catch (Throwable t) {
-            return false;
+            Lexer lexer = new Lexer(input);
+            List<Token> tokens = lexer.lex();
+            Parser parser = new Parser(tokens);
+            parser.parsePath();
+            parser.expect(TokenType.EOF, "Unexpected trailing");
+            return ValidationResult.ok();
+        } catch (ParseException pe) {
+            return ValidationResult.error(pe.position, pe.getMessage());
         }
     }
 
-    private static boolean validateTopLevelQueryStructure(String p) {
-        int i = 1;
-        final int n = p.length();
+    public static final class ValidationResult {
+        private final boolean valid;
+        private final int position;
+        private final String message;
 
-        while (true) {
-            i = skipBlanks(p, i);
-            if (i >= n)
-                return true;
+        private ValidationResult(boolean valid, int position, String message) {
+            this.valid = valid;
+            this.position = position;
+            this.message = message;
+        }
 
-            final char ch = p.charAt(i);
+        public static ValidationResult ok() {
+            return new ValidationResult(true, -1, null);
+        }
 
-            if (ch == '[') {
-                i = parseBracketSegmentAndValidate(p, i);
-                if (i < 0)
-                    return false;
-                continue;
-            }
+        public static ValidationResult error(int pos, String msg) {
+            return new ValidationResult(false, pos, msg);
+        }
 
-            if (ch == '.') {
-                if (i + 1 >= n)
-                    return false;
+        public boolean isValid() {
+            return valid;
+        }
 
-                // descendant ".."
-                if (p.charAt(i + 1) == '.') {
-                    i += 2;
-                    if (i >= n)
-                        return false;
-                    // No blanks allowed immediately after ".." for shorthand forms
-                    if (isBlank(p.charAt(i)))
-                        return false;
+        public OptionalInt errorPosition() {
+            return valid ? OptionalInt.empty() : OptionalInt.of(position);
+        }
 
-                    final char next = p.charAt(i);
-                    if (next == '*') {
-                        i++;
-                        continue;
-                    }
-                    if (next == '[') {
-                        i = parseBracketSegmentAndValidate(p, i);
-                        if (i < 0)
-                            return false;
-                        continue;
-                    }
+        public Optional<String> errorMessage() {
+            return Optional.ofNullable(message);
+        }
 
-                    final int j = parseMemberNameShorthand(p, i);
-                    if (j < 0)
-                        return false;
+    }
 
-                    i = j;
-                    continue;
-                }
+    private enum TokenType {
+        // structural characters
+        DOLLAR, DOT, STAR, LBRACKET, RBRACKET, LPAREN, RPAREN, COMMA, COLON, QUESTION, AT,
+        // operators
+        EQ, NE, LT, LE, GT, GE, AND, OR, NOT, REGEXMATCH,
+        // literals
+        NUMBER, STRING, TRUE, FALSE, NULL,
+        // identifiers(unquoted names after dot)
+        IDENT,
+        EOF
+    }
 
-                // child "."
-                i += 1;
-                if (i >= n)
-                    return false;
-                if (isBlank(p.charAt(i)))
-                    return false;
+    private static final class Token {
+        final TokenType type;
+        final String text;
+        final int position;
 
-                final char next = p.charAt(i);
-                if (next == '*') {
-                    i++;
-                    continue;
-                }
+        Token(TokenType t, String text, int pos) {
+            this.type = t;
+            this.text = text;
+            this.position = pos;
+        }
 
-                if (next == '[')
-                    return false;
-
-                final int j = parseMemberNameShorthand(p, i);
-                if (j < 0)
-                    return false;
-
-                i = j;
-                continue;
-            }
-
-            return false;
+        public String toString() {
+            return type + (text != null ? ("(" + text + ")") : "") + "@" + position;
         }
     }
 
-    private static int skipBlanks(String s, int i) {
-        final int n = s.length();
-        while (i < n && isBlank(s.charAt(i)))
-            i++;
+    private static final class Lexer {
+        private final String str;
+        private final int length;
+        private int idx;
 
-        return i;
-    }
-
-    private static boolean isBlank(char c) {
-        return Character.isWhitespace(c);
-    }
-
-    private static int parseMemberNameShorthand(String s, int i) {
-        final int n = s.length();
-        if (i >= n)
-            return -1;
-
-        final int cp0 = s.codePointAt(i);
-        if (!isNameFirst(cp0))
-            return -1;
-
-        i += Character.charCount(cp0);
-
-        while (i < n) {
-            final int cp = s.codePointAt(i);
-            if (!isNameChar(cp))
-                break;
-
-            i += Character.charCount(cp);
+        Lexer(String s) {
+            this.str = s;
+            this.length = s.length();
         }
 
-        return i;
-    }
+        List<Token> lex() {
+            List<Token> out = new ArrayList<>();
+            while (true) {
+                skipWhitespace();
 
-    private static boolean isNameFirst(int cp) {
-        if (cp == '_')
-            return true;
-        if (cp >= 'A' && cp <= 'Z')
-            return true;
-        if (cp >= 'a' && cp <= 'z')
-            return true;
-
-        return (cp >= 0x80 && cp <= 0xD7FF) || (cp >= 0xE000 && cp <= 0x10FFFF);
-    }
-
-    private static boolean isNameChar(int cp) {
-        return isNameFirst(cp) || (cp >= '0' && cp <= '9');
-    }
-
-    private static int parseBracketSegmentAndValidate(String p, int openIdx) {
-        final int closeIdx = findMatchingBracket(p, openIdx);
-        if (closeIdx < 0)
-            return -1;
-
-        final String inside = p.substring(openIdx + 1, closeIdx);
-        if (!validateBracketedSelection(inside))
-            return -1;
-
-        return closeIdx + 1;
-    }
-
-    private static int findMatchingBracket(String s, int openIdx) {
-        final int n = s.length();
-        if (openIdx >= n || s.charAt(openIdx) != '[')
-            return -1;
-
-        boolean inSingle = false, inDouble = false, inRegex = false;
-        int depth = 0;
-
-        for (int i = openIdx; i < n; i++) {
-            final char c = s.charAt(i);
-
-            if (inSingle) {
-                if (c == '\\') {
-                    if (++i >= n)
-                        return -1;
-                    continue;
+                if (idx >= length) {
+                    out.add(new Token(TokenType.EOF, "", idx));
+                    break;
                 }
 
-                if (c == '\'')
-                    inSingle = false;
-                continue;
-            }
-            if (inDouble) {
-                if (c == '\\') {
-                    if (++i >= n)
-                        return -1;
-                    continue;
-                }
-
-                if (c == '"')
-                    inDouble = false;
-                continue;
-            }
-            if (inRegex) {
-                if (c == '\\') {
-                    if (++i >= n)
-                        return -1;
-                    continue;
-                }
-
-                if (c == '/')
-                    inRegex = false;
-                continue;
-            }
-
-            if (c == '\'') {
-                inSingle = true;
-                continue;
-            }
-
-            if (c == '"') {
-                inDouble = true;
-                continue;
-            }
-
-            if (c == '/') {
-                inRegex = true;
-                continue;
-            }
-
-            if (c == '[') {
-                depth++;
-                continue;
-            }
-
-            if (c == ']') {
-                depth--;
-                if (depth == 0)
-                    return i;
-                if (depth < 0)
-                    return -1;
-            }
-        }
-
-        return -1;
-    }
-
-    // Bracketed-selection = "[" S selector *(S "," S selector) S "]"
-    private static boolean validateBracketedSelection(String inside) {
-        if (inside == null)
-            return false;
-
-        final String trimmed = inside.trim();
-        if (trimmed.isEmpty())
-            return false; // "$[]" or "$[ ]" invalid
-
-        final List<String> selectors = splitSelectorsStrict(trimmed);
-        if (selectors == null || selectors.isEmpty())
-            return false;
-
-        for (String sel : selectors) {
-            if (!validateSelector(sel))
-                return false;
-        }
-
-        return true;
-    }
-
-    private static List<String> splitSelectorsStrict(String s) {
-        boolean inSingle = false, inDouble = false, inRegex = false;
-        int bracket = 0, paren = 0, brace = 0;
-
-        final List<String> out = new ArrayList<>();
-        final StringBuilder sb = new StringBuilder();
-
-        for (int i = 0, n = s.length(); i < n; i++) {
-            final char c = s.charAt(i);
-
-            if (inSingle) {
-                sb.append(c);
-                if (c == '\\') {
-                    if (++i >= n)
-                        return null;
-
-                    sb.append(s.charAt(i));
-                    continue;
-                }
-                if (c == '\'')
-                    inSingle = false;
-                continue;
-            }
-            if (inDouble) {
-                sb.append(c);
-                if (c == '\\') {
-                    if (++i >= n)
-                        return null;
-
-                    sb.append(s.charAt(i));
-                    continue;
-                }
-                if (c == '"')
-                    inDouble = false;
-                continue;
-            }
-            if (inRegex) {
-                sb.append(c);
-                if (c == '\\') {
-                    if (++i >= n)
-                        return null;
-
-                    sb.append(s.charAt(i));
-                    continue;
-                }
-                if (c == '/')
-                    inRegex = false;
-                continue;
-            }
-
-            switch (c) {
-                case '\'' -> {
-                    inSingle = true;
-                    sb.append(c);
-                }
-                case '"' -> {
-                    inDouble = true;
-                    sb.append(c);
-                }
-                case '/' -> {
-                    inRegex = true;
-                    sb.append(c);
-                }
-                case '[' -> {
-                    bracket++;
-                    sb.append(c);
-                }
-                case ']' -> {
-                    bracket--;
-                    if (bracket < 0)
-                        return null;
-                    sb.append(c);
-                }
-                case '(' -> {
-                    paren++;
-                    sb.append(c);
-                }
-                case ')' -> {
-                    paren--;
-                    if (paren < 0)
-                        return null;
-                    sb.append(c);
-                }
-                case '{' -> {
-                    brace++;
-                    sb.append(c);
-                }
-                case '}' -> {
-                    brace--;
-                    if (brace < 0)
-                        return null;
-                    sb.append(c);
-                }
-                case ',' -> {
-                    if (bracket == 0 && paren == 0 && brace == 0) {
-                        final String chunk = sb.toString().trim();
-                        if (chunk.isEmpty())
-                            return null;
-                        out.add(chunk);
-                        sb.setLength(0);
-                    } else {
-                        sb.append(c);
-                    }
-                }
-                default -> sb.append(c);
-            }
-        }
-
-        if (inSingle || inDouble || inRegex)
-            return null;
-
-        if (bracket != 0 || paren != 0 || brace != 0)
-            return null;
-
-        final String last = sb.toString().trim();
-        if (last.isEmpty())
-            return null;
-
-        out.add(last);
-        return out;
-    }
-
-    private static boolean validateSelector(String sel) {
-        final String s = sel.trim();
-        if (s.isEmpty())
-            return false;
-
-        if (s.equals("*"))
-            return true;
-
-        if (s.startsWith("'") || s.startsWith("\"")) {
-            return isValidStringLiteral(s);
-        }
-
-        if (s.startsWith("?")) {
-            String expr = s.substring(1).trim();
-            return isFilterExpressionPlausiblyComplete(expr);
-        }
-
-        if (s.indexOf(':') >= 0) {
-            return isValidSliceSelector(s);
-        }
-
-        return isValidIntToken(s) && !s.equals("-0");
-    }
-
-    private static boolean isFilterExpressionPlausiblyComplete(String expr) {
-        if (expr == null)
-            return false;
-
-        String e = expr.trim();
-        if (e.isEmpty())
-            return false;
-
-        while (true) {
-            int end = e.length() - 1;
-            while (end >= 0 && Character.isWhitespace(e.charAt(end)))
-                end--;
-
-            if (end < 0)
-                return false;
-
-            if (e.charAt(end) == ')') {
-                e = e.substring(0, end).trim();
-                if (e.isEmpty())
-                    return false;
-
-                continue;
-            }
-            break;
-        }
-
-        String[] trailingOps = {
-                "==", "!=", "<=", ">=", "&&", "||", "<", ">", "=~"
-        };
-
-        for (String op : trailingOps) {
-            if (e.endsWith(op))
-                return false;
-        }
-
-        char last = e.charAt(e.length() - 1);
-        if (last == '=' || last == '&' || last == '|' || last == '!' || last == ',' || last == '(') {
-            return false;
-        }
-
-        return true;
-    }
-
-    private static boolean isValidSliceSelector(String s) {
-        final String[] parts = s.split(":", -1);
-        if (parts.length < 2 || parts.length > 3)
-            return false;
-
-        for (int i = 0; i < parts.length; i++) {
-            final String p = parts[i].trim();
-            if (p.isEmpty())
-                continue;
-
-            if (!isValidIntToken(p))
-                return false;
-
-            if (p.equals("-0"))
-                return false;
-        }
-
-        return true;
-    }
-
-    private static boolean isValidIntToken(String s) {
-        if (s.equals("0"))
-            return true;
-
-        if (s.startsWith("-")) {
-            final String rest = s.substring(1);
-            return isValidNonZeroUnsignedInt(rest);
-        }
-
-        return isValidNonZeroUnsignedInt(s);
-    }
-
-    private static boolean isValidNonZeroUnsignedInt(String s) {
-        if (s.isEmpty())
-            return false;
-
-        if (s.charAt(0) < '1' || s.charAt(0) > '9')
-            return false;
-
-        for (int i = 1; i < s.length(); i++) {
-            final char c = s.charAt(i);
-            if (c < '0' || c > '9')
-                return false;
-        }
-
-        return true;
-    }
-
-    private static boolean isValidStringLiteral(String s) {
-        if (s.length() < 2)
-            return false;
-
-        final char quote = s.charAt(0);
-        if (quote != '\'' && quote != '"')
-            return false;
-
-        if (s.charAt(s.length() - 1) != quote)
-            return false;
-
-        for (int i = 1; i < s.length() - 1; i++) {
-            final char c = s.charAt(i);
-
-            // No unescaped control characters
-            if (c <= 0x1F)
-                return false;
-
-            if (c == quote)
-                return false;
-
-            if (c == '\\') {
-                if (i + 1 >= s.length() - 1)
-                    return false;
-
-                final char e = s.charAt(++i);
-                switch (e) {
-                    case 'b', 't', 'n', 'f', 'r', '"', '\'', '/', '\\' -> {
-                    }
-                    case 'u' -> {
-                        if (i + 4 >= s.length() - 1)
-                            return false;
-
-                        for (int k = 0; k < 4; k++) {
-                            final char h = s.charAt(i + 1 + k);
-                            final boolean hex =
-                                    (h >= '0' && h <= '9') ||
-                                            (h >= 'a' && h <= 'f') ||
-                                            (h >= 'A' && h <= 'F');
-
-                            if (!hex)
-                                return false;
+                char c = str.charAt(idx);
+                int pos = idx;
+                switch (c) {
+                    case '$':
+                        idx++;
+                        out.add(new Token(TokenType.DOLLAR, "$", pos));
+                        break;
+                    case '.':
+                        idx++;
+                        out.add(new Token(TokenType.DOT, ".", pos));
+                        break;
+                    case '*':
+                        idx++;
+                        out.add(new Token(TokenType.STAR, "*", pos));
+                        break;
+                    case '[':
+                        idx++;
+                        out.add(new Token(TokenType.LBRACKET, "[", pos));
+                        break;
+                    case ']':
+                        idx++;
+                        out.add(new Token(TokenType.RBRACKET, "]", pos));
+                        break;
+                    case '(':
+                        idx++;
+                        out.add(new Token(TokenType.LPAREN, "(", pos));
+                        break;
+                    case ')':
+                        idx++;
+                        out.add(new Token(TokenType.RPAREN, ")", pos));
+                        break;
+                    case ',':
+                        idx++;
+                        out.add(new Token(TokenType.COMMA, ",", pos));
+                        break;
+                    case ':':
+                        idx++;
+                        out.add(new Token(TokenType.COLON, ":", pos));
+                        break;
+                    case '?':
+                        idx++;
+                        out.add(new Token(TokenType.QUESTION, "?", pos));
+                        break;
+                    case '@':
+                        idx++;
+                        out.add(new Token(TokenType.AT, "@", pos));
+                        break;
+                    case '!':
+                        idx++;
+                        if (match('='))
+                            out.add(new Token(TokenType.NE, "!=", pos));
+                        else
+                            out.add(new Token(TokenType.NOT, "!", pos));
+                        break;
+                    case '=':
+                        idx++;
+                        if (match('='))
+                            out.add(new Token(TokenType.EQ, "==", pos));
+                        else if (match('~'))
+                            out.add(new Token(TokenType.REGEXMATCH, "=~", pos));
+                        else
+                            throw err(pos, "expected '=' or '~' after '='");
+                        break;
+                    case '<':
+                        idx++;
+                        if (match('='))
+                            out.add(new Token(TokenType.LE, "<=", pos));
+                        else
+                            out.add(new Token(TokenType.LT, "<", pos));
+                        break;
+                    case '>':
+                        idx++;
+                        if (match('='))
+                            out.add(new Token(TokenType.GE, ">=", pos));
+                        else
+                            out.add(new Token(TokenType.GT, ">", pos));
+                        break;
+                    case '\'':
+                        out.add(readString('\'', pos));
+                        break;
+                    case '"':
+                        out.add(readString('"', pos));
+                        break;
+                    case '&':
+                        idx++;
+                        if (match('&'))
+                            out.add(new Token(TokenType.AND, "&&", pos));
+                        else
+                            throw err(pos, "single '&' not allowed");
+                        break;
+                    case '|':
+                        idx++;
+                        if (match('|'))
+                            out.add(new Token(TokenType.OR, "||", pos));
+                        else
+                            throw err(pos, "single '|' not allowed");
+                        break;
+                    default:
+                        if (isDigit(c) || (c == '-' && (idx + 1 < length) && isDigit(str.charAt(idx + 1)))) {
+                            out.add(readNumber(pos));
+                        } else if (isIdentStart(c)) {
+                            String ident = readIdent();
+                            TokenType kw = keyword(ident);
+                            out.add(new Token(kw == null ? TokenType.IDENT : kw, ident, pos));
+                        } else {
+                            throw err(pos, "unexpected character '" + c + "'");
                         }
+                }
+            }
+            return out;
+        }
 
-                        i += 4;
+        private void skipWhitespace() {
+            while (idx < length) {
+                char c = str.charAt(idx);
+                if (c == ' ' || c == '\t' || c == '\n' || c == '\r')
+                    idx++;
+                else
+                    break;
+            }
+        }
+
+        private boolean match(char ch) {
+            if (idx < length && str.charAt(idx) == ch) {
+                idx++;
+                return true;
+            }
+            return false;
+        }
+
+        private Token readString(char quote, int startPos) {
+            StringBuilder sb = new StringBuilder();
+            idx++; // consume opening quote
+            boolean escaped = false;
+            while (idx < length) {
+                char c = str.charAt(idx++);
+                if (escaped) {
+                    switch (c) {
+                        case '"':
+                        case '\'':
+                        case '\\':
+                        case '/':
+                            sb.append(c);
+                            break;
+                        case 'b':
+                            sb.append('\b');
+                            break;
+                        case 'f':
+                            sb.append('\f');
+                            break;
+                        case 'n':
+                            sb.append('\n');
+                            break;
+                        case 'r':
+                            sb.append('\r');
+                            break;
+                        case 't':
+                            sb.append('\t');
+                            break;
+                        case 'u':
+                            if (idx + 4 > length)
+                                throw err(startPos, "unterminated unicode escape");
+                            String hex = str.substring(idx, idx + 4);
+                            if (!hex.matches("[0-9A-Fa-f]{4}"))
+                                throw err(startPos, "invalid unicode escape");
+                            sb.append((char) Integer.parseInt(hex, 16));
+                            idx += 4;
+                            break;
+                        default:
+                            throw err(startPos, "invalid escape \\" + c);
                     }
-                    default -> {
-                        return false;
+                    escaped = false;
+                } else if (c == '\\') {
+                    escaped = true;
+                } else if (c == quote) {
+                    return new Token(TokenType.STRING, sb.toString(), startPos);
+                } else {
+                    sb.append(c);
+                }
+            }
+            throw err(startPos, "unterminated string literal");
+        }
+
+        private Token readNumber(int startPos) {
+            int j = idx;
+            if (str.charAt(j) == '-')
+                j++;
+
+            if (j >= length || !isDigit(str.charAt(j)))
+                throw err(startPos, "invalid number");
+
+            if (str.charAt(j) == '0') {
+                j++;
+            } else {
+                while (j < length && isDigit(str.charAt(j)))
+                    j++;
+            }
+
+            if (j < length && str.charAt(j) == '.') {
+                j++;
+                if (j >= length || !isDigit(str.charAt(j)))
+                    throw err(startPos, "invalid fraction");
+                while (j < length && isDigit(str.charAt(j)))
+                    j++;
+            }
+
+            if (j < length && (str.charAt(j) == 'e' || str.charAt(j) == 'E')) {
+                j++;
+                if (j < length && (str.charAt(j) == '+' || str.charAt(j) == '-'))
+                    j++;
+                if (j >= length || !isDigit(str.charAt(j)))
+                    throw err(startPos, "invalid exponent");
+                while (j < length && isDigit(str.charAt(j)))
+                    j++;
+            }
+
+            String num = str.substring(idx, j);
+            idx = j;
+            return new Token(TokenType.NUMBER, num, startPos);
+        }
+
+        private String readIdent() {
+            int j = idx;
+            j++;
+            while (j < length && isIdentPart(str.charAt(j)))
+                j++;
+
+            String id = str.substring(idx, j);
+            idx = j;
+            return id;
+        }
+
+        private static boolean isDigit(char c) {
+            return c >= '0' && c <= '9';
+        }
+
+        private static boolean isIdentStart(char c) {
+            return (c == '_' || Character.isLetter(c));
+        }
+
+        private static boolean isIdentPart(char c) {
+            return (c == '_' || Character.isLetterOrDigit(c));
+        }
+
+        private static TokenType keyword(String ident) {
+            if ("true".equals(ident))
+                return TokenType.TRUE;
+            if ("false".equals(ident))
+                return TokenType.FALSE;
+            if ("null".equals(ident))
+                return TokenType.NULL;
+
+            return null;
+        }
+
+        private static ParseException err(int pos, String msg) {
+            return new ParseException(pos, msg);
+        }
+    }
+
+    private static final class Parser {
+        private final List<Token> tokens;
+        private int idx = 0;
+
+        Parser(List<Token> tokens) {
+            this.tokens = tokens;
+        }
+
+        void parsePath() {
+            expect(TokenType.DOLLAR, "path must start with '$'");
+            while (!peek(TokenType.EOF)) {
+                if (accept(TokenType.DOT)) {
+                    if (accept(TokenType.STAR)) {
+                        // $.* (wildcard member)
+                    } else if (peek(TokenType.STRING)) {
+                        // $."quoted"
+                        next();
+                    } else if (accept(TokenType.AT)) {
+                        // $.@ns:com:here:xyz style member names
+                        expect(TokenType.IDENT, "expected identifier after '@' in member name");
+                        while (accept(TokenType.COLON)) {
+                            expect(TokenType.IDENT, "expected identifier after ':' in member name");
+                        }
+                    } else {
+                        // $.name (unquoted identifier)
+                        expect(TokenType.IDENT, "expected member name after '.'");
                     }
+                } else if (accept(TokenType.LBRACKET)) {
+                    if (accept(TokenType.QUESTION)) { // filter
+                        expect(TokenType.LPAREN, "expected '(' after '?'");
+                        parseBooleanExpr();
+                        expect(TokenType.RPAREN, "expected ')' to close filter expression");
+                        expect(TokenType.RBRACKET, "expected ']' to close filter");
+                    } else if (accept(TokenType.STAR)) { // [*]
+                        expect(TokenType.RBRACKET, "expected ']' after '*'");
+                    } else if (peek(TokenType.STRING)) { // ['name'] or ["name"] or unions
+                        parseUnionOrMember();
+                        expect(TokenType.RBRACKET, "expected ']' after bracket member/union");
+                    } else if (peek(TokenType.NUMBER) || peek(TokenType.COLON)) { // index/slice/union starting with number (negatives included)
+                        parseIndexSliceOrUnion();
+                        expect(TokenType.RBRACKET, "expected ']' after array selector");
+                    } else if (accept(TokenType.RBRACKET)) {
+                        throw err(prev().position, "empty bracket selector '[]' is not allowed");
+                    } else {
+                        throw err(curr().position, "unexpected token in bracket selector: " + curr().type);
+                    }
+                } else {
+                    break;
                 }
             }
         }
 
-        return true;
+        // Parses ['name'] or ["name"] or union of strings/numbers/* separated by commas
+        private void parseUnionOrMember() {
+            next();
+            while (accept(TokenType.COMMA)) {
+                if (accept(TokenType.STAR))
+                    continue;
+                if (peek(TokenType.STRING) || peek(TokenType.NUMBER)) {
+                    next();
+                } else
+                    throw err(curr().position, "expected string/number/* in union");
+            }
+        }
+
+        // Parses [index], [start:end[:step]], or unions like [0,1,2]
+        private void parseIndexSliceOrUnion() {
+            if (accept(TokenType.COLON)) {
+                if (peek(TokenType.NUMBER))
+                    next();
+                if (accept(TokenType.COLON)) {
+                    Token step = expect(TokenType.NUMBER, "expected slice step after second ':'");
+                    if ("0".equals(step.text))
+                        throw err(step.position, "slice step cannot be 0");
+                }
+
+                return;
+            }
+
+            parseNumericOrWildcard();
+            if (accept(TokenType.COLON)) { // slice
+                if (peek(TokenType.NUMBER))
+                    next();
+                if (accept(TokenType.COLON)) {
+                    Token step = expect(TokenType.NUMBER, "expected slice step after second ':'");
+                    if ("0".equals(step.text))
+                        throw err(step.position, "slice step cannot be 0");
+                }
+
+                return;
+            }
+
+            // possible union continuation
+            while (accept(TokenType.COMMA)) {
+                parseNumericOrWildcardOrString();
+            }
+        }
+
+        private void parseNumericOrWildcard() {
+            if (accept(TokenType.STAR))
+                return;
+            expect(TokenType.NUMBER, "expected number");
+        }
+
+        private void parseNumericOrWildcardOrString() {
+            if (accept(TokenType.STAR))
+                return;
+            if (accept(TokenType.STRING))
+                return;
+            expect(TokenType.NUMBER, "expected number");
+        }
+
+        // Boolean expression for filters (precedence: ! > && > ||)
+        private void parseBooleanExpr() {
+            parseOr();
+        }
+
+        private void parseOr() {
+            parseAnd();
+            while (accept(TokenType.OR)) {
+                parseAnd();
+            }
+        }
+
+        private void parseAnd() {
+            parseNot();
+            while (accept(TokenType.AND)) {
+                parseNot();
+            }
+        }
+
+        private void parseNot() {
+            while (accept(TokenType.NOT)) {
+            }
+            parsePrimaryBool();
+        }
+
+        private void parsePrimaryBool() {
+            if (accept(TokenType.LPAREN)) {
+                parseBooleanExpr();
+                expect(TokenType.RPAREN, "expected ')' in expression");
+                return;
+            }
+
+            // Try to consume a left value
+            boolean leftConsumed = false;
+
+            if (peek(TokenType.IDENT) && lookaheadIs(TokenType.LPAREN)) {
+                parseFunctionCall();
+                leftConsumed = true;
+            } else if (peek(TokenType.AT)) { // @-path
+                parseRelativePath();
+                leftConsumed = true;
+            } else if (peek(TokenType.STRING) || peek(TokenType.NUMBER) ||
+                    peek(TokenType.TRUE)  || peek(TokenType.FALSE) || peek(TokenType.NULL)) {
+                next(); // literal
+                leftConsumed = true;
+            }
+
+            if (leftConsumed) {
+                // Optional operator (enables comparisons)
+                boolean isRegex = false;
+                if (accept(TokenType.EQ) || accept(TokenType.NE) || accept(TokenType.LT) || accept(TokenType.LE) ||
+                        accept(TokenType.GT) || accept(TokenType.GE) || (isRegex = accept(TokenType.REGEXMATCH))) {
+                    // Right operand: function() | @-path | literal
+                    if (peek(TokenType.IDENT) && lookaheadIs(TokenType.LPAREN)) {
+                        if (isRegex && REQUIRE_STRING_FOR_REGEX)
+                            throw err(curr().position, "right operand of '=~' must be a string");
+                        parseFunctionCall();
+                    } else if (peek(TokenType.AT)) {
+                        if (isRegex && REQUIRE_STRING_FOR_REGEX)
+                            throw err(curr().position, "right operand of '=~' must be a string");
+                        parseRelativePath();
+                    } else if (peek(TokenType.STRING) || peek(TokenType.NUMBER) ||
+                            peek(TokenType.TRUE)  || peek(TokenType.FALSE) || peek(TokenType.NULL)) {
+                        if (isRegex && REQUIRE_STRING_FOR_REGEX && !peek(TokenType.STRING))
+                            throw err(curr().position, "right operand of '=~' must be a string");
+                        next(); // consume rhs literal
+                    } else {
+                        throw err(curr().position, "expected value, @-path, or function call after operator");
+                    }
+                }
+
+                return;
+            }
+
+            throw err(curr().position, "expected boolean expression");
+        }
+
+        private void parseRelativePath() {
+            expect(TokenType.AT, "expected '@' for relative path");
+
+            while (true) {
+                if (accept(TokenType.DOT)) {
+                    if (accept(TokenType.STAR)) {
+                        // @.* (wildcard)
+                    } else if (accept(TokenType.STRING)) {
+                        // @."quoted"
+                    } else {
+                        expect(TokenType.IDENT, "expected member name after '.'");
+                    }
+                } else if (accept(TokenType.LBRACKET)) {
+                    if (accept(TokenType.STAR)) {
+                        expect(TokenType.RBRACKET, "expected ']' after '*'");
+                    } else if (peek(TokenType.STRING)) {
+                        parseUnionOrMember();
+                        expect(TokenType.RBRACKET, "expected ']' after bracket member");
+                    } else if (peek(TokenType.NUMBER) || peek(TokenType.COLON)) {
+                        parseIndexSliceOrUnion();
+                        expect(TokenType.RBRACKET, "expected ']' after array selector");
+                    } else {
+                        throw err(curr().position, "unexpected token in relative bracket selector");
+                    }
+                } else {
+                    break;
+                }
+            }
+        }
+
+        private void parseFunctionCall() {
+            Token name = expect(TokenType.IDENT, "expected function name");
+            String fn = name.text;
+            expect(TokenType.LPAREN, "expected '(' after function name");
+
+            switch (fn) {
+                case "length":
+                case "count":
+                case "value":
+                    parseValue();
+                    expect(TokenType.RPAREN, "expected ')' to close " + fn + "()");
+                    return;
+
+                case "match":
+                case "search":
+                    parseValue();
+                    expect(TokenType.COMMA, "expected ',' after first argument of " + fn + "()");
+                    if (!peek(TokenType.STRING))
+                        throw err(curr().position, "expected string regex as second argument of " + fn + "()");
+                    next(); // consume regex string
+                    if (accept(TokenType.COMMA)) {
+                        if (!peek(TokenType.STRING))
+                            throw err(curr().position, "expected string flags as third argument of " + fn + "()");
+                        next(); // consume flags string
+                    }
+                    expect(TokenType.RPAREN, "expected ')' to close " + fn + "()");
+                    return;
+
+                default:
+                    throw err(name.position, "unknown function '" + fn + "'");
+            }
+        }
+
+        // Value-like expression: literals, @-paths, function calls, or parenthesized value
+        private void parseValue() {
+            if (accept(TokenType.LPAREN)) {
+                parseValue();
+                expect(TokenType.RPAREN, "expected ')' in value");
+                return;
+            }
+            if (peek(TokenType.AT)) {
+                parseRelativePath();
+                return;
+            }
+            if (peek(TokenType.STRING) || peek(TokenType.NUMBER) ||
+                    peek(TokenType.TRUE)  || peek(TokenType.FALSE) || peek(TokenType.NULL)) {
+                next();
+                return;
+            }
+            if (peek(TokenType.IDENT) && lookaheadIs(TokenType.LPAREN)) {
+                parseFunctionCall();
+                return;
+            }
+
+            throw err(curr().position, "expected value");
+        }
+
+        private boolean accept(TokenType t) {
+            if (peek(t)) {
+                idx++;
+                return true;
+            }
+            return false;
+        }
+
+        private Token expect(TokenType t, String msg) {
+            if (!peek(t))
+                throw err(curr().position, msg);
+            return next();
+        }
+
+        private boolean lookaheadIs(TokenType t) {
+            return (idx + 1 < tokens.size()) && (tokens.get(idx + 1).type == t);
+        }
+
+        private boolean peek(TokenType t) {
+            return tokens.get(idx).type == t;
+        }
+
+        private Token next() {
+            return tokens.get(idx++);
+        }
+
+        private Token curr() {
+            return tokens.get(idx);
+        }
+
+        private Token prev() {
+            return tokens.get(idx - 1);
+        }
+
+        private static ParseException err(int pos, String msg) {
+            return new ParseException(pos, msg);
+        }
+    }
+
+    private static final class ParseException extends RuntimeException {
+        final int position;
+
+        ParseException(int position, String message) {
+            super(message);
+            this.position = position;
+        }
     }
 }
