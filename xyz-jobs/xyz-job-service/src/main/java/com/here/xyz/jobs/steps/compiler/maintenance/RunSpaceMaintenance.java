@@ -17,23 +17,24 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.jobs.steps.compiler;
+package com.here.xyz.jobs.steps.compiler.maintenance;
 
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.datasets.DatasetDescription.Space;
 import com.here.xyz.jobs.processes.Maintain;
 import com.here.xyz.jobs.steps.CompilationStepGraph;
+import com.here.xyz.jobs.steps.compiler.JobCompilationInterceptor;
 import com.here.xyz.jobs.steps.compiler.tools.IndexCompilerHelper;
 import com.here.xyz.jobs.steps.impl.DropIndexes;
-import com.here.xyz.jobs.steps.impl.SpawnMaintenanceJobs;
-import com.here.xyz.util.db.pg.IndexHelper.SystemIndex;
+import com.here.xyz.jobs.steps.impl.maintenance.SpawnMaintenanceJobs;
 import com.here.xyz.util.db.pg.IndexHelper.Index;
+import com.here.xyz.util.db.pg.IndexHelper.SystemIndex;
 import java.util.List;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-public class SpaceMaintain implements JobCompilationInterceptor {
+public class RunSpaceMaintenance implements JobCompilationInterceptor {
   private static final Logger logger = LogManager.getLogger(SpaceMaintain.class);
 
   @Override

@@ -198,14 +198,14 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
   }
 
   @Override
-  protected void finalCleanUp() throws WebClientException, SQLException, TooManyResourcesClaimed {
+  protected void finalCleanUp(boolean noTasksCreated) throws WebClientException, SQLException, TooManyResourcesClaimed {
     runBatchWriteQuerySync(getQueryBuilder().buildCleanUpStatement(), db(), 0);
   }
 
   @Override
   protected List<ImportInput> createTaskItems() {
     List<?> inputs = loadInputs(UploadUrl.class);
-    if (inputs.isEmpty()) {
+    if (isUserInputsExpected() && inputs.isEmpty()) {
       throw new StepException("No valid inputs of type 'UploadUrl' found.");
     }
     List<ImportInput> taskItems = new ArrayList<>();

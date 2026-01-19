@@ -21,13 +21,19 @@ package com.here.xyz.test.featurewriter.sql.functional;
 
 import static com.here.xyz.test.featurewriter.SpaceWriter.DEFAULT_AUTHOR;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.here.xyz.events.UpdateStrategy.OnExists;
 import com.here.xyz.events.UpdateStrategy.OnMergeConflict;
 import com.here.xyz.events.UpdateStrategy.OnNotExists;
 import com.here.xyz.events.UpdateStrategy.OnVersionConflict;
+import com.here.xyz.models.geojson.coordinates.LineStringCoordinates;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
+import com.here.xyz.models.geojson.coordinates.Position;
 import com.here.xyz.models.geojson.implementation.Feature;
+import com.here.xyz.models.geojson.implementation.Geometry;
+import com.here.xyz.models.geojson.implementation.GeometryItem;
+import com.here.xyz.models.geojson.implementation.LineString;
 import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
@@ -41,21 +47,66 @@ public class FWMerge extends SQLTestSuite {
 
   private static List<Arguments> mergeGeometryChangeArgs() {
     return List.of(
-        Arguments.of(new PointCoordinates(0, 0), new PointCoordinates(10, 0)),
-        Arguments.of(new PointCoordinates(0, 0), new PointCoordinates(0, 10)),
-        Arguments.of(new PointCoordinates(0, 0, 0), new PointCoordinates(10, 0, 0))
+        Arguments.of(new Point().withCoordinates(new PointCoordinates(0, 0)), new Point().withCoordinates(new PointCoordinates(10, 0))),
+        Arguments.of(new Point().withCoordinates(new PointCoordinates(0, 0)), new Point().withCoordinates(new PointCoordinates(0, 10))),
+        Arguments.of(new Point().withCoordinates(new PointCoordinates(0, 0, 0)), new Point().withCoordinates(new PointCoordinates(10, 0, 0))),
+
+        //Remove a point from the end
+        Arguments.of(
+            new LineString().withCoordinates(new LineStringCoordinates(List.of(
+                new Position(0, 0),
+                new Position(1,1),
+                new Position(2,2),
+                new Position(3,3)
+            ))),
+            new LineString().withCoordinates(new LineStringCoordinates(List.of(
+                new Position(0, 0),
+                new Position(1,1),
+                new Position(2,2)
+            )))
+        ),
+
+        //Remove a point from the start
+        Arguments.of(
+            new LineString().withCoordinates(new LineStringCoordinates(List.of(
+                new Position(0, 0),
+                new Position(1,1),
+                new Position(2,2),
+                new Position(3,3)
+            ))),
+            new LineString().withCoordinates(new LineStringCoordinates(List.of(
+                new Position(1,1),
+                new Position(2,2),
+                new Position(3,3)
+            )))
+        ),
+
+        //Remove a point in the middle
+        Arguments.of(
+            new LineString().withCoordinates(new LineStringCoordinates(List.of(
+                new Position(0, 0),
+                new Position(1,1),
+                new Position(2,2),
+                new Position(3,3)
+            ))),
+            new LineString().withCoordinates(new LineStringCoordinates(List.of(
+                new Position(0, 0),
+                new Position(1,1),
+                new Position(3,3)
+            )))
+        )
     );
   }
 
   @ParameterizedTest
   @MethodSource("mergeGeometryChangeArgs")
-  public void mergeGeometryChange(PointCoordinates coordsBefore, PointCoordinates coordsAfter) throws Exception {
+  public void mergeGeometryChange(GeometryItem geoBefore, GeometryItem geoAfter) throws Exception {
     //Create f1 (v1)
     spaceWriter().writeFeature(
         new Feature()
             .withId(TEST_FEATURE_ID)
             .withProperties(new Properties().with("prop1", "value1"))
-            .withGeometry(new Point().withCoordinates(coordsBefore)),
+            .withGeometry(geoBefore),
         DEFAULT_AUTHOR,
         OnExists.ERROR,
         OnNotExists.CREATE,
@@ -70,7 +121,7 @@ public class FWMerge extends SQLTestSuite {
         new Feature()
             .withId(TEST_FEATURE_ID)
             .withProperties(new Properties().with("prop1", "value2"))
-            .withGeometry(new Point().withCoordinates(coordsBefore)),
+            .withGeometry(geoBefore),
         DEFAULT_AUTHOR,
         OnExists.REPLACE,
         OnNotExists.ERROR,
@@ -88,7 +139,7 @@ public class FWMerge extends SQLTestSuite {
                 .with("prop1", "value1")
                 .withXyzNamespace(new XyzNamespace()
                     .withVersion(1)))
-            .withGeometry(new Point().withCoordinates(coordsAfter)),
+            .withGeometry(geoAfter),
         DEFAULT_AUTHOR,
         OnExists.REPLACE,
         OnNotExists.ERROR,
@@ -101,7 +152,8 @@ public class FWMerge extends SQLTestSuite {
     Feature writtenFeature = spaceWriter().getFeature(null);
 
     assertEquals(3, writtenFeature.getProperties().getXyzNamespace().getVersion());
-    assertEquals(coordsAfter.get(0), ((Point) writtenFeature.getGeometry()).getCoordinates().get(0));
-    assertEquals(coordsAfter.get(1), ((Point) writtenFeature.getGeometry()).getCoordinates().get(1));
+    assertEquals("value2", writtenFeature.getProperties().get("prop1"));
+    Geometry geo2 = writtenFeature.getGeometry();
+    assertTrue(geoAfter.getJTSGeometry().equals(geo2.getJTSGeometry()));
   }
 }

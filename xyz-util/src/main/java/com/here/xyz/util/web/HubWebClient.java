@@ -32,6 +32,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.models.hub.Branch.DeletedBranch;
 import com.here.xyz.models.hub.Connector;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
@@ -39,6 +40,8 @@ import com.here.xyz.models.hub.Tag;
 import com.here.xyz.responses.ChangesetsStatisticsResponse;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.responses.changesets.Changeset;
+import com.here.xyz.responses.changesets.ChangesetCollection;
 import java.net.URLEncoder;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
@@ -46,12 +49,10 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-
-import com.here.xyz.responses.changesets.Changeset;
-import com.here.xyz.responses.changesets.ChangesetCollection;
 import net.jodah.expiringmap.ExpirationPolicy;
 import net.jodah.expiringmap.ExpiringMap;
 
@@ -125,6 +126,22 @@ public class HubWebClient extends XyzWebClient {
     catch (JsonProcessingException e) {
       throw new WebClientException("Error deserializing response", e);
     }
+  }
+
+  public Set<DeletedBranch> loadAllDeletedBranches() throws WebClientException {
+    try {
+      return deserialize(request(HttpRequest.newBuilder()
+          .uri(uri("/admin/branches?deleted=true"))).body(), new TypeReference<Set<DeletedBranch>>() {});
+    }
+    catch (JsonProcessingException e) {
+      throw new WebClientException("Error deserializing response", e);
+    }
+  }
+
+  public void eraseDeletedBranch(String uuid) throws WebClientException {
+    request(HttpRequest.newBuilder()
+        .DELETE()
+        .uri(uri("/admin/branches?deleted=true&uuid=" + uuid)));
   }
 
   public String loadExtendedSpace(String spaceId) throws WebClientException {

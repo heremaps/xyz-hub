@@ -56,7 +56,8 @@ import java.util.Set;
     @JsonSubTypes.Type(value = Spaces.class, name = "Spaces"),
     @JsonSubTypes.Type(value = Files.class, name = "Files"),
     @JsonSubTypes.Type(value = Notifications.class, name = "Notifications"),
-    @JsonSubTypes.Type(value = Datasets.class, name = "Datasets")
+    @JsonSubTypes.Type(value = Datasets.class, name = "Datasets"),
+    @JsonSubTypes.Type(value = System.class, name = "System")
 })
 @JsonInclude(NON_DEFAULT)
 public abstract class DatasetDescription implements Typed {

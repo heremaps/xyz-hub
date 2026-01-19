@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -263,6 +263,11 @@ public class Config extends BaseConfig {
   public String BRANCHES_DYNAMODB_TABLE_ARN;
 
   /**
+   * The ARN of the entities table in DynamoDB.
+   */
+  public String ENTITIES_DYNAMODB_TABLE_ARN;
+
+  /**
    * The ARN of the admin message topic.
    */
   public ARN ADMIN_MESSAGE_TOPIC_ARN;
@@ -473,5 +478,5 @@ public class Config extends BaseConfig {
    */
   public ConnectorMapping DEFAULT_CONNECTOR_MAPPING_STRATEGY = RANDOM;
 
-  public boolean USE_WRITE_FEATURES_EVENT = true;
+  public boolean USE_WRITE_FEATURES_EVENT = false;
 }

@@ -29,6 +29,7 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.XyzSerializable.Static;
 import com.here.xyz.hub.config.BranchConfigClient;
 import com.here.xyz.models.hub.Branch;
+import com.here.xyz.models.hub.Branch.DeletedBranch;
 import com.here.xyz.util.service.aws.dynamo.DynamoClient;
 import com.here.xyz.util.service.aws.dynamo.IndexDefinition;
 import io.vertx.core.Future;
@@ -88,11 +89,17 @@ public class DynamoBranchConfigClient extends BranchConfigClient {
   }
 
   @Override
-  protected Future<Void> deleteBranch(String spaceId, String branchId) {
-    return dynamoClient.executeQueryAsync(() -> {
-      branchTable.deleteItem(new DeleteItemSpec().withPrimaryKey("spaceId", spaceId, "id", branchId));
-      return null;
-    });
+  protected Future<Void> deleteBranch(String spaceId, String branchId, boolean erase) {
+    if (erase)
+      return dynamoClient.executeQueryAsync(() -> {
+        branchTable.deleteItem(new DeleteItemSpec().withPrimaryKey("spaceId", spaceId, "id", branchId));
+        return null;
+      });
+
+    //First copy the branch to the entities table before deleting it
+    return loadBranch(spaceId, branchId)
+        .compose(branch -> entityConfigClient.store(new DeletedBranch(branch)))
+        .compose(uuid -> deleteBranch(spaceId, branchId, true));
   }
 
   @Override

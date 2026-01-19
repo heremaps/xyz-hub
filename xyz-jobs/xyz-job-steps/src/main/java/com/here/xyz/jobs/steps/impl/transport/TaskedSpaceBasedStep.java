@@ -249,11 +249,13 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
    * temporary data removal, or any other necessary cleanup logic at the end of the job step.
    * </p>
    *
+   * @param noTasksCreated Information if tasks got created.
+   *
    * @throws WebClientException If an error occurs while interacting with the web client.
    * @throws SQLException If a database access error occurs.
    * @throws TooManyResourcesClaimed If too many resources are claimed during cleanup.
    */
-  protected void finalCleanUp() throws WebClientException, SQLException, TooManyResourcesClaimed {};
+  protected void finalCleanUp(boolean noTasksCreated) throws WebClientException, SQLException, TooManyResourcesClaimed, IOException {};
 
   /**
    * Prepares the process by resolving the version reference to an actual version.
@@ -476,22 +478,30 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
     }
   }
 
-  private void cleanUpDbResources() throws WebClientException, SQLException, TooManyResourcesClaimed {
+  private void cleanUpDbResources() throws WebClientException, SQLException, TooManyResourcesClaimed, IOException {
     try {
       infoLog(STEP_ON_ASYNC_SUCCESS, "Executing cleanUp Hook");
-      finalCleanUp();
+      finalCleanUp(noTasksCreated);
 
       infoLog(STEP_ON_ASYNC_SUCCESS, "Cleanup temporary table");
       runWriteQuerySync(buildTemporaryJobTableDropStatement(getSchema(db()), getTemporaryJobTableName(getId())), db(WRITER), 0);
     }catch (SQLException e){
-      if(e.getSQLState().equalsIgnoreCase("42P01")) {
-        //relation does not exists
-        warnLog(UNKNOWN,  "Resource does not exist anymore. Ignore ");
-      }else if(e.getSQLState().equalsIgnoreCase("40P01")) {
-        //deadlock detected
-        warnLog(UNKNOWN,  "Deadlock detected! Ignore ");
-      }
-      else{
+      if (e.getSQLState() != null) {
+        switch (e.getSQLState().toUpperCase()) {
+          case "42P01":
+            // relation does not exist
+            warnLog(UNKNOWN, "Resource does not exist anymore. Ignore ");
+            break;
+          case "40P01":
+            // deadlock detected
+            warnLog(UNKNOWN, "Deadlock detected! Ignore ");
+            break;
+          default:
+            errorLog(UNKNOWN, e);
+            throw e;
+        }
+      } else {
+        errorLog(UNKNOWN, e);
         throw e;
       }
     }
@@ -525,8 +535,14 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
 
   @Override
   public AsyncExecutionState getExecutionState() throws UnknownStateException {
-    if(noTasksCreated)
+    if(noTasksCreated) {
+      try {
+        cleanUpDbResources();
+      }catch (Exception e) {
+        throw new RuntimeException(e);
+      }
       return AsyncExecutionState.SUCCEEDED;
+    }
     return super.getExecutionState();
   }
 
@@ -554,12 +570,13 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
                 }
               });
     }catch (SQLException e){
-      if(e.getSQLState().equalsIgnoreCase("42P01")) {
+      if(e.getSQLState() != null && e.getSQLState().equalsIgnoreCase("42P01")) {
         //If we are here a failure already happened and the task table does not exist anymore
         //To avoid overriding the original failure we just log this and return a completed TaskProgress
         infoLog(UNKNOWN,  "Task table does not exist anymore. Ignore.");
         return new TaskProgress<>(-1);
       }
+      errorLog(UNKNOWN, e);
       throw e;
     }
     return taskProgress;

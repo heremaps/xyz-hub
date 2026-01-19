@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,6 +40,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -51,7 +52,7 @@ public class Node {
   private static final int HEALTH_TIMEOUT = 25;
   private static final Logger logger = LogManager.getLogger(Node.class);
 
-  private static int nodeCount = Service.configuration.INSTANCE_COUNT;
+  private static Supplier<Integer> nodeCount = () -> Service.configuration.INSTANCE_COUNT;
   private static final int NODE_COUNT_FETCH_PERIOD = 30_000; //ms
   private static final int CLUSTER_NODES_CHECKER_PERIOD = 120_000; //ms
   private static final int CLUSTER_NODES_PING_PERIOD = 600_000; //ms
@@ -90,8 +91,9 @@ public class Node {
     if (Core.vertx != null) {
       Core.vertx.setPeriodic(NODE_COUNT_FETCH_PERIOD, timerId -> RedisMessageBroker.getInstance().onComplete(ar -> ar.result().fetchSubscriberCount(r -> {
         if (r.succeeded()) {
-          nodeCount = r.result();
-          logger.debug("Service node-count: " + nodeCount);
+          int resultNodeCount = r.result();
+          nodeCount = () -> resultNodeCount;
+          logger.debug("Service node-count: {}", nodeCount.get());
         }
         else
           logger.warn("Checking service node-count failed.", r.cause());
@@ -188,7 +190,7 @@ public class Node {
   }
 
   public static int count() {
-    return Math.max(nodeCount, 1);
+    return Math.max(nodeCount.get(), 1);
   }
 
   public static Set<Node> getClusterNodes() {

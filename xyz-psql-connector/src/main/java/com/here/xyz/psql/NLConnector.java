@@ -294,17 +294,12 @@ public class NLConnector extends PSQLXyzConnector {
         else if (key.equalsIgnoreCase("properties." + REFERENCES_PROPERTY_KEY)
                 && operation.equals(PropertyQuery.QueryOperation.EQUALS)) {
           for(Object v : values){
-            if(v instanceof String) {
-              String reference = (String) v;
+            if(v instanceof String reference)
               references.add(reference);
-            }
-            else if(v instanceof List<?>) {
-              List<?> referenceList = (List<?>) v;
+            else if(v instanceof List<?> referenceList){
               for(Object vv : referenceList){
-                if(vv instanceof String) {
-                  String reference = (String) vv;
+                if(vv instanceof String reference)
                   references.add(reference);
-                }
                 else
                   throw new IllegalArgumentException("Value for 'p." + REFERENCES_PROPERTY_KEY + "' must be an String or a List<String>!");
               }
@@ -555,16 +550,17 @@ public class NLConnector extends PSQLXyzConnector {
     }
 
     if (baseTable == null) {
-      return ("               WITH params AS (\n" +
-              "                   SELECT '$refQuad$'::text AS parent, $quadKeyLevel$ AS relative_level\n" +
-              "               )\n" +
-              "               SELECT LEFT(searchable->>'refQuad', LENGTH(parent) + relative_level) AS child_quad,\n" +
-              "                      COUNT(*) AS cnt\n" +
-              "               FROM \"$schema$\".\"$table$\", params\n" +
-              "               WHERE searchable->>'refQuad' LIKE parent || '%'\n" +
-              "                 $globalVersionFilter$\n" +
-              "               GROUP BY child_quad;\n" +
-              "              ")
+      return """
+               WITH params AS (
+                   SELECT '$refQuad$'::text AS parent, $quadKeyLevel$ AS relative_level
+               )
+               SELECT LEFT(searchable->>'refQuad', LENGTH(parent) + relative_level) AS child_quad,
+                      COUNT(*) AS cnt
+               FROM "$schema$"."$table$", params
+               WHERE searchable->>'refQuad' LIKE parent || '%'
+                 $globalVersionFilter$
+               GROUP BY child_quad;
+              """
               .replace("$refQuad$", input.refQuad)
               .replace("$quadKeyLevel$", Integer.toString(quadKeyLevel))
               .replace("$schema$", schema)
@@ -572,53 +568,54 @@ public class NLConnector extends PSQLXyzConnector {
               .replace("$globalVersionFilter$", globalVersionFilter);
     }
 
-    return ("          WITH params AS (\n" +
-            "              SELECT '$refQuad$'::text AS parent, $quadKeyLevel$ AS relative_level\n" +
-            "          ),\n" +
-            "          combined AS (\n" +
-            "            SELECT *\n" +
-            "            FROM (\n" +
-            "                SELECT\n" +
-            "                    id,\n" +
-            "                    searchable->>'refQuad' AS refquad,\n" +
-            "                    operation,\n" +
-            "                    next_version\n" +
-            "                FROM \"$schema$\".\"$extensionTable$\"\n" +
-            "                WHERE operation NOT IN ('D', 'H', 'J')\n" +
-            "                  $globalVersionFilter$\n" +
-            "            )\n" +
-            "            UNION ALL\n" +
-            "            (\n" +
-            "                SELECT *\n" +
-            "                FROM (\n" +
-            "                    SELECT\n" +
-            "                        id,\n" +
-            "                        searchable->>'refQuad' AS refquad,\n" +
-            "                        operation,\n" +
-            "                        next_version\n" +
-            "                    FROM \"$schema$\".\"$baseTable$\"\n" +
-            "                    WHERE 1=1\n" +
-            "                      $globalVersionFilter$\n" +
-            "                ) base\n" +
-            "                WHERE NOT EXISTS (\n" +
-            "                    SELECT 1\n" +
-            "                    FROM \"$schema$\".\"$extensionTable$\"\n" +
-            "                    WHERE id = base.id\n" +
-            "                      AND next_version = 9223372036854775807::BIGINT\n" +
-            "                      AND operation != 'D'\n" +
-            "                )\n" +
-            "              )\n" +
-            "            ),\n" +
-            "            filtered AS (\n" +
-            "                SELECT c.*\n" +
-            "                  FROM combined c\n" +
-            "                 WHERE c.refquad LIKE (SELECT parent FROM params) || '%'\n" +
-            "            )\n" +
-            "            SELECT LEFT(f.refquad, LENGTH(p.parent) + p.relative_level) AS child_quad,\n" +
-            "                   COUNT(f.refquad) AS cnt\n" +
-            "              FROM filtered f, params p\n" +
-            "             GROUP BY child_quad;\n" +
-            "          ")
+    return """
+          WITH params AS (
+              SELECT '$refQuad$'::text AS parent, $quadKeyLevel$ AS relative_level
+          ),
+          combined AS (
+            SELECT *
+            FROM (
+                SELECT
+                    id,
+                    searchable->>'refQuad' AS refquad,
+                    operation,
+                    next_version
+                FROM "$schema$"."$extensionTable$"
+                WHERE operation NOT IN ('D', 'H', 'J')
+                  $globalVersionFilter$
+            )
+            UNION ALL
+            (
+                SELECT *
+                FROM (
+                    SELECT
+                        id,
+                        searchable->>'refQuad' AS refquad,
+                        operation,
+                        next_version
+                    FROM "$schema$"."$baseTable$"
+                    WHERE 1=1
+                      $globalVersionFilter$
+                ) base
+                WHERE NOT EXISTS (
+                    SELECT 1
+                    FROM "$schema$"."$extensionTable$"
+                    WHERE id = base.id
+                      AND next_version = 9223372036854775807::BIGINT
+                      AND operation != 'D'
+                )
+              )
+            ),
+            filtered AS (
+                SELECT c.*
+                  FROM combined c
+                 WHERE c.refquad LIKE (SELECT parent FROM params) || '%'
+            )
+            SELECT LEFT(f.refquad, LENGTH(p.parent) + p.relative_level) AS child_quad,
+                   COUNT(f.refquad) AS cnt
+              FROM filtered f, params p
+             GROUP BY child_quad;
+          """
             .replace("$refQuad$", input.refQuad)
             .replace("$quadKeyLevel$", Integer.toString(quadKeyLevel))
             .replace("$schema$", schema)
@@ -682,31 +679,33 @@ public class NLConnector extends PSQLXyzConnector {
               .map(v -> "('" + v + "')")
               .collect(java.util.stream.Collectors.joining(","));
 
-    String selection = ("            jsonb_build_object(\n" +
-            "                          'type', 'FeatureCollection',\n" +
-            "                          'features', jsonb_build_array(\n" +
-            "                               jsonb_build_object(\n" +
-            "                                   'type', 'Feature',\n" +
-            "                                   'properties',jsonb_build_object('references', jsonb_object_agg(ref, ids))\n" +
-            "                               )\n" +
-            "                           )\n" +
-            "            ) AS featureCollection\n" +
-            "            ");
+    String selection = """
+            jsonb_build_object(
+                          'type', 'FeatureCollection',
+                          'features', jsonb_build_array(
+                               jsonb_build_object(
+                                   'type', 'Feature',
+                                   'properties',jsonb_build_object('references', jsonb_object_agg(ref, ids))
+                               )
+                           )
+            ) AS featureCollection
+            """;
 
-    String query = ("            SELECT\n" +
-            "                id,\n" +
-            "                id || '##' || operation as pid,\n" +
-            "                ref\n" +
-            "            FROM \"$schema$\".\"$table$\" t\n" +
-            "            CROSS JOIN (\n" +
-            "                VALUES $joinedReferences$\n" +
-            "            ) AS v(ref)\n" +
-            "            WHERE\n" +
-            "                t.searchable->'references' @> jsonb_build_array(v.ref)\n" +
-            "                AND t.operation NOT IN ('D','H','J')\n" +
-            "                AND t.next_version = 9223372036854775807::BIGINT\n" +
-            "                $limit$\n" +
-            "            ").replace("$joinedReferences$", joinedReferences)
+    String query = """
+            SELECT
+                id,
+                id || '##' || operation as pid,
+                ref
+            FROM "$schema$"."$table$" t
+            CROSS JOIN (
+                VALUES $joinedReferences$
+            ) AS v(ref)
+            WHERE
+                t.searchable->'references' @> jsonb_build_array(v.ref)
+                AND t.operation NOT IN ('D','H','J')
+                AND t.next_version = 9223372036854775807::BIGINT
+                $limit$
+            """.replace("$joinedReferences$", joinedReferences)
                .replace("$limit$", limit > 0 ? " LIMIT " + limit : "");
 
     String inner1 = query.replace("$schema$", schema).replace("$table$", extensionTable + "_head");;
@@ -719,14 +718,15 @@ public class NLConnector extends PSQLXyzConnector {
     }
     //unified case
     String inner2 = query.replace("$schema$", schema).replace("$table$", baseTable + "_head");;
-    String whereNotExistsCondition = ("            WHERE NOT EXISTS (\n" +
-            "                  SELECT 1\n" +
-            "                    FROM \"$schema$\".\"$table$\"\n" +
-            "                  WHERE id = a.id\n" +
-            "                    AND next_version = 9223372036854775807::BIGINT\n" +
-            "                    AND operation != 'D'\n" +
-            "                )\n" +
-            "            ")
+    String whereNotExistsCondition = """
+            WHERE NOT EXISTS (
+                  SELECT 1
+                    FROM "$schema$"."$table$"
+                  WHERE id = a.id
+                    AND next_version = 9223372036854775807::BIGINT
+                    AND operation != 'D'
+                )
+            """
             .replace("$schema$", schema)
             .replace("$table$", extensionTable);
 
@@ -836,17 +836,18 @@ public class NLConnector extends PSQLXyzConnector {
             "        ");
 
     // This is used for a references search
-    String referencesSelection = ("        '{ \"type\": \"FeatureCollection\", \"features\": ['\n" +
-            "           || '{\"type\":\"Feature\",\"references\" : ['\n" +
-            "           || COALESCE(\n" +
-            "             string_agg(\n" +
-            "                '\"'||id||'\"',\n" +
-            "               ','\n" +
-            "             ),\n" +
-            "             ''\n" +
-            "           )\n" +
-            "           || ']}] }' AS featureCollection\n" +
-            "        ");
+    String referencesSelection = """
+        '{ "type": "FeatureCollection", "features": ['
+           || '{"type":"Feature","references" : ['
+           || COALESCE(
+             string_agg(
+                '"'||id||'"',
+               ','
+             ),
+             ''
+           )
+           || ']}] }' AS featureCollection
+        """;
 
     return "SELECT " + (references.isEmpty() ? selection : referencesSelection) + " FROM (" + finalQuery + ") t";
   }

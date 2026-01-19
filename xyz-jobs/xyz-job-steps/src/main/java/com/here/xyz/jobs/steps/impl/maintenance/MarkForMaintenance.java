@@ -17,9 +17,10 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.jobs.steps.impl;
+package com.here.xyz.jobs.steps.impl.maintenance;
 
 import com.fasterxml.jackson.annotation.JsonView;
+import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.util.db.SQLQuery;

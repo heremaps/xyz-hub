@@ -48,7 +48,7 @@ import com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.Reque
 import com.here.xyz.jobs.steps.impl.AnalyzeSpaceTable;
 import com.here.xyz.jobs.steps.impl.CreateIndex;
 import com.here.xyz.jobs.steps.impl.DropIndexes;
-import com.here.xyz.jobs.steps.impl.MarkForMaintenance;
+import com.here.xyz.jobs.steps.impl.maintenance.MarkForMaintenance;
 import com.here.xyz.jobs.steps.impl.transport.CopySpace;
 import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;

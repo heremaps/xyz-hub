@@ -19,7 +19,7 @@
 
 package com.here.xyz.hub.task;
 
-import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.events.ModifyBranchEvent.Operation.CREATE;
 import static com.here.xyz.events.ModifyBranchEvent.Operation.DELETE;
 import static com.here.xyz.events.ModifyBranchEvent.Operation.MERGE;
@@ -185,7 +185,7 @@ public class BranchHandler {
 
   public static Future<Ref> resolveRefHeadVersion(Marker marker, String spaceId, Ref ref) {
     if (ref.isHead())
-      return FeatureQueryApi.getStatistics(marker, spaceId, EXTENSION, ref, true, false)
+      return FeatureQueryApi.getStatistics(marker, spaceId, DEFAULT, ref, true, false)
               .map(statistics -> new Ref(ref.getBranch() + ":" + statistics.getMaxVersion().getValue()));
     else
       return Future.succeededFuture(ref);
@@ -233,7 +233,7 @@ public class BranchHandler {
             //Nothing to delete as the branch does not exist
             return Future.succeededFuture();
 
-          return Service.branchConfigClient.delete(spaceId, branchId)
+          return Service.branchConfigClient.delete(spaceId, branchId, false)
               .onSuccess(v -> {
                 //Invalidate the space to ensure the deleted branch will not be listed inside anymore
                 Service.spaceConfigClient.invalidateCache(spaceId);

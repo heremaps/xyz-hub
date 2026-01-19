@@ -19,9 +19,14 @@
 
 package com.here.xyz.hub;
 
-import com.here.xyz.hub.cache.*;
+import com.here.xyz.hub.cache.CacheClient;
+import com.here.xyz.hub.cache.InMemoryCacheClient;
+import com.here.xyz.hub.cache.MultiLevelCacheClient;
+import com.here.xyz.hub.cache.RedisCacheClient;
+import com.here.xyz.hub.cache.S3CacheClient;
 import com.here.xyz.hub.config.BranchConfigClient;
 import com.here.xyz.hub.config.ConnectorConfigClient;
+import com.here.xyz.hub.config.EntityConfigClient;
 import com.here.xyz.hub.config.SettingsConfigClient;
 import com.here.xyz.hub.config.SpaceConfigClient;
 import com.here.xyz.hub.config.SubscriptionConfigClient;
@@ -233,6 +238,7 @@ public class Service extends Core {
         .compose(v -> Future.fromCompletionStage(connectorConfigClient.insertLocalConnectors()))
         .compose(v -> subscriptionConfigClient.init())
         .compose(v -> tagConfigClient.init())
+        .compose(v -> EntityConfigClient.getInstance().init())
         .map(config)
         .onFailure(t -> logger.error("initializeClients failed", t))
         .onSuccess(v -> logger.info("initializeClients succeeded"));

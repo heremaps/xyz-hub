@@ -33,6 +33,9 @@ import com.here.xyz.jobs.steps.execution.StepException;
 import com.here.xyz.jobs.steps.execution.db.Database;
 import com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole;
 import com.here.xyz.jobs.steps.execution.db.DatabaseBasedStep;
+import com.here.xyz.jobs.steps.impl.maintenance.DeleteBranchTable;
+import com.here.xyz.jobs.steps.impl.maintenance.MarkForMaintenance;
+import com.here.xyz.jobs.steps.impl.maintenance.SpawnMaintenanceJobs;
 import com.here.xyz.jobs.steps.impl.transport.CopySpace;
 import com.here.xyz.jobs.steps.impl.transport.CopySpacePost;
 import com.here.xyz.jobs.steps.impl.transport.CopySpacePre;
@@ -72,7 +75,8 @@ import org.apache.logging.log4j.Logger;
     @JsonSubTypes.Type(value = CopySpacePre.class),
     @JsonSubTypes.Type(value = CopySpacePost.class),
     @JsonSubTypes.Type(value = CountSpace.class),
-    @JsonSubTypes.Type(value = SpawnMaintenanceJobs.class)
+    @JsonSubTypes.Type(value = SpawnMaintenanceJobs.class),
+    @JsonSubTypes.Type(value = DeleteBranchTable.class)
 })
 public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseBasedStep<T> {
   private static final Logger logger = LogManager.getLogger(SpaceBasedStep.class);
