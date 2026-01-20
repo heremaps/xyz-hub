@@ -114,9 +114,11 @@ public class CommitManager {
     return tableChain;
   }
 
-  public static class SimpleCommitResult {
-    private final int count;
-    private final int conflicting;
+  public static class SimpleCommitResult{
+    private int count;
+    private int conflicting;
+
+    public SimpleCommitResult() {}
 
     public SimpleCommitResult(int count, int conflicting) {
       this.count = count;
@@ -125,5 +127,8 @@ public class CommitManager {
 
     public int count() { return count; }
     public int conflicting() { return conflicting; }
+
+    public void setCount(int count) { this.count = count; }
+    public void setConflicting(int conflicting) { this.conflicting = conflicting; }
   }
 }

@@ -314,20 +314,29 @@ public class XyzSpaceTableHelper {
   }
 
   public static class TableComment implements XyzSerializable {
-    private final String spaceId;
-    private final TableLayout tableLayout;
+      private String spaceId;
+      private TableLayout tableLayout;
 
-    public TableComment(String spaceId, TableLayout tableLayout) {
-      this.spaceId = spaceId;
-      this.tableLayout = tableLayout;
-    }
+      public TableComment(){}
 
-    public String getSpaceId() {
-      return spaceId;
-    }
+      public TableComment(String spaceId, TableLayout tableLayout) {
+          this.spaceId = spaceId;
+          this.tableLayout = tableLayout;
+      }
 
-    public TableLayout getTableLayout() {
-      return tableLayout;
-    }
+      public String getSpaceId() {
+          return spaceId;
+      }
+
+      public TableLayout getTableLayout() {
+          return tableLayout;
+      }
+
+      public void setSpaceId(String spaceId) {
+          this.spaceId = spaceId;
+      }
+
+      public void setTableLayout(TableLayout tableLayout) { this.tableLayout = tableLayout; }
   }
+
 }

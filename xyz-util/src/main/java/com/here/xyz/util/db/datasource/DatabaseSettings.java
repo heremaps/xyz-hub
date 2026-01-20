@@ -521,10 +521,11 @@ public class DatabaseSettings extends Payload {
     }
 
     public static class ScriptResourcePath {
-        private final String path;
-        private final String schemaPrefix;
-        private final String initScript;
+        private String path;
+        private String schemaPrefix;
+        private String initScript;
 
+        public ScriptResourcePath(){};
         public ScriptResourcePath(String path) {
             this(path, null);
         }
@@ -549,6 +550,18 @@ public class DatabaseSettings extends Payload {
 
         public String getInitScript() {
             return initScript;
+        }
+
+        public void setPath(String path) {
+            this.path = path;
+        }
+
+        public void setSchemaPrefix(String schemaPrefix) {
+            this.schemaPrefix = schemaPrefix;
+        }
+
+        public void setInitScript(String initScript) {
+            this.initScript = initScript;
         }
     }
 }
