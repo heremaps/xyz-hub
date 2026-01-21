@@ -330,7 +330,7 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
   public static TableLayout getTableLayoutFromConnectorClass(String className) throws WebClientException {
     String errorMsg = "Error while determining the table layout for classname " + className;
     if(className == null)
-      throw new StepException(errorMsg).withRetryable(false);
+      return OLD_LAYOUT;
     try{
       Class<?> mainClass = Class.forName(className);
       PSQLXyzConnector connectorInstance = (PSQLXyzConnector) mainClass.getDeclaredConstructor().newInstance();
