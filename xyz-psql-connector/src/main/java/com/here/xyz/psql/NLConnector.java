@@ -844,11 +844,13 @@ public class NLConnector extends PSQLXyzConnector {
           String author,
           List<ModificationFailure> fails
   ) throws SQLException, JsonProcessingException {
-
+    //If there are duplicate IDs in the insert batch, only the first one will be inserted. We expect that the payloads
+    //of duplicates are identical.
     String insertSql = """
         INSERT INTO %s.%s
           (id, geo, operation, author, version, jsondata, searchable)
         VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT (id, version, next_version) DO NOTHING
         """.formatted(schema, table);
 
     try (Connection connection = dataSourceProvider.getWriter().getConnection()) {
