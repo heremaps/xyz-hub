@@ -71,8 +71,8 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
   public static final String STATISTICS = "statistics";
 
   {
-    //Use 18 Threads as default for import tasks
-    threadCount = 18;
+    //Use 15 Threads as default for import tasks
+    threadCount = 15;
     setOutputSets(List.of(new OutputSet(STATISTICS, USER, true)));
   }
 
