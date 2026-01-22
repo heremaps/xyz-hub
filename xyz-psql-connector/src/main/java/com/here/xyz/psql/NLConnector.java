@@ -860,7 +860,7 @@ public class NLConnector extends PSQLXyzConnector {
             "          (id, geo, operation, author, version, jsondata, searchable)\n" +
             "        VALUES (?, ?, ?, ?, ?, ?, ?)\n" +
             "            ON CONFLICT (id, version, next_version) DO NOTHING\n",
-            "", schema, table);
+            schema, table);
 
     try (Connection connection = dataSourceProvider.getWriter().getConnection()) {
       connection.setAutoCommit(false);
