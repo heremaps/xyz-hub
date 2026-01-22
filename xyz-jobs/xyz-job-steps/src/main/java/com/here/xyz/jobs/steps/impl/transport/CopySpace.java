@@ -391,7 +391,23 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     return ret;
   }
 
-  private boolean useTableCopy() { return loadTargetFeatureCount() == 0; }
+  private boolean useTableCopy() throws WebClientException, SQLException, TooManyResourcesClaimed
+  { if( loadTargetFeatureCount() != 0 )
+     return false;
+
+    if( !hasTargetSearchableColumn() )  // target is empty space with old layout
+     return true;
+
+    // target is empty space with new layout
+
+    if( targetSpace().getSearchableProperties() == null )  // no on-demand-idx
+     return true;
+
+    // only if source and target share the same on-demand-idx
+    boolean ret = hasSourceSearchableColumn() && targetSpace().equalSearchableProperties(space().getSearchableProperties());
+
+    return ret;
+  }
 
   private boolean hasSourceSearchableColumn() throws WebClientException, SQLException, TooManyResourcesClaimed
   {
@@ -416,16 +432,13 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
                                             .withHistoryEnabled(targetSpace().getVersionsToKeep() > 1)
                                             .withBatchMode(true);
 
-    boolean bCopySeachableColIntoEmpty = false, // true -> same layout on src & trg
-            bSourceWithSearchableCol = hasSourceSearchableColumn(),
-            bTargetWithSearchableCol = hasTargetSearchableColumn();
 
-    if( targetSpace().getSearchableProperties() != null && bTargetWithSearchableCol )
+
+    if( targetSpace().getSearchableProperties() != null && hasTargetSearchableColumn() )
     { String writeHook = WriteFeatures.writeHook( Space.toExtractableSearchProperties(targetSpace()) );
       //TODO: investigate - following replacemens are needed to assure a valid json setting context -> SELECT context($a$...$a$::JSONB)
       writeHook = writeHook.replaceAll("\n", "\\\\n").replaceAll("\"","\\\\\"");
       fwqcb.with("writeHooks", List.of( writeHook ));
-      bCopySeachableColIntoEmpty = targetSpace().equalSearchableProperties(space().getSearchableProperties()) && bSourceWithSearchableCol;
     }
 
     final Map<String, Object> queryContext = fwqcb.build();
@@ -435,7 +448,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     if (isRemoteCopy())
       contentQuery = buildCopyQueryRemoteSpace(dbReader(), contentQuery, useTableCopy(), hasSourceSearchableColumn());
 
-    if (!useTableCopy() || ( bTargetWithSearchableCol == true && bSourceWithSearchableCol == false ) )
+    if (!useTableCopy() )
     {  // case 1. copy into non empty target
        // case 2. empty target, but target has new layout but source has old layout
     int maxBatchSize = 1000;
@@ -474,6 +487,8 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
       // case 1. source and target are both old layout
       // case 2. source and target with new layout and share excact same searchables
       // case 3. source with new layout, target with old layout
+      boolean bCopySearchableColIntoEmpty = hasSourceSearchableColumn() && hasTargetSearchableColumn();
+
       return new SQLQuery("""
       WITH ins_data as
       (
@@ -493,8 +508,8 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     .withVariable("schema", targetSchema)
     .withVariable("table", targetTable)
     .withQueryFragment("versionToBeUsed", "" + getTargetVersion())
-    .withQueryFragment("SearchableColIn", bCopySeachableColIntoEmpty ? ",searchable" : "")
-    .withQueryFragment("SearchableColOut", bCopySeachableColIntoEmpty ? ", idata.searchable" : "")
+    .withQueryFragment("SearchableColIn", bCopySearchableColIntoEmpty ? ",searchable" : "")
+    .withQueryFragment("SearchableColOut", bCopySearchableColIntoEmpty ? ", idata.searchable" : "")
     .withQueryFragment("contentQuery", contentQuery);
     }
   }
@@ -557,7 +572,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
   }
 
   private SQLQuery buildCopyContentQuery(int threadCount, int threadId, boolean hasSourceSearchableColumn ) throws WebClientException, QueryBuildingException,
-      TooManyResourcesClaimed {
+      TooManyResourcesClaimed, SQLException {
 
     Database db = !isRemoteCopy()
         ? loadDatabase(space().getStorage().getId(), WRITER)
@@ -584,18 +599,18 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     if( threadIdFilter != null )
      queryBuilder.withAdditionalFilterFragment(threadIdFilter);
 
-    if(! useTableCopy() )  // if searchable col exists always populate to caller
+    if(! useTableCopy() )
      return queryBuilder  //TODO: rm workaround --> REGEXP_REPLACE(ST_AsGeojson(ST_Force3D(geo), 8), 'nan', '0', 'gi') AS geo
             .withSelectClauseOverride(new SQLQuery("id, jsondata, operation, author, REGEXP_REPLACE(ST_AsGeojson(ST_Force3D( ${{PlainGeom}} ), 8), 'nan', '0', 'gi') AS geo ${{SearchableCol}}")
                                       .withQueryFragment("PlainGeom",buildGeoFragment())
-                                      .withQueryFragment("SearchableCol", hasSourceSearchableColumn ? ",searchable" : "")
+                                      .withQueryFragment("SearchableCol", hasSourceSearchableColumn ? ",searchable" : "") // if searchable col exists always populate to caller
                                      )
             .buildQuery(input); //TODO: with author, operation provided in selection the parsing of those values in buildCopySpaceQuery would be obsolete
     else
      return queryBuilder
             .withSelectClauseOverride(new SQLQuery("id, jsondata, operation, author, ${{PlainGeom}} as geo ${{SearchableCol}}")
                                             .withQueryFragment("PlainGeom",buildGeoFragment())
-                                            .withQueryFragment("SearchableCol", hasSourceSearchableColumn ? ",searchable" : "")
+                                            .withQueryFragment("SearchableCol", hasSourceSearchableColumn ? ",searchable" : "") // if searchable col exists always populate to caller
                                      )
             .buildQuery(input);
 
