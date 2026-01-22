@@ -59,6 +59,7 @@ import java.util.Map;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_EXECUTE;
+import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_ON_ASYNC_FAILURE;
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_ON_ASYNC_SUCCESS;
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_ON_ASYNC_UPDATE;
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.UNKNOWN;
@@ -445,7 +446,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
         processFinalizedTasks(collectOutputs());
 
         //Clean up temporary resources
-        cleanUpDbResources();
+        cleanUpDbResources(STEP_ON_ASYNC_UPDATE);
 
         return true;
       }else {
@@ -469,7 +470,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
       boolean isRetryable = false;
 
       if (!isRetryable)
-        cleanUpDbResources();
+        cleanUpDbResources(STEP_ON_ASYNC_FAILURE);
 
       return isRetryable;
     }
@@ -478,12 +479,12 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
     }
   }
 
-  private void cleanUpDbResources() throws WebClientException, SQLException, TooManyResourcesClaimed, IOException {
+  private void cleanUpDbResources(LogPhase logPhase) throws WebClientException, SQLException, TooManyResourcesClaimed, IOException {
     try {
-      infoLog(STEP_ON_ASYNC_SUCCESS, "Executing cleanUp Hook");
+      infoLog(logPhase, "Executing cleanUp Hook");
       finalCleanUp(noTasksCreated);
 
-      infoLog(STEP_ON_ASYNC_SUCCESS, "Cleanup temporary table");
+      infoLog(logPhase, "Cleanup temporary table");
       runWriteQuerySync(buildTemporaryJobTableDropStatement(getSchema(db()), getTemporaryJobTableName(getId())), db(WRITER), 0);
     }catch (SQLException e){
       if (e.getSQLState() != null) {
@@ -537,10 +538,11 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   public AsyncExecutionState getExecutionState() throws UnknownStateException {
     if(noTasksCreated) {
       try {
-        cleanUpDbResources();
+        cleanUpDbResources(STEP_ON_ASYNC_SUCCESS);
       }catch (Exception e) {
         throw new RuntimeException(e);
       }
+      //report success
       return AsyncExecutionState.SUCCEEDED;
     }
     return super.getExecutionState();
