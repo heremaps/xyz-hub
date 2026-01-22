@@ -843,7 +843,7 @@ public class NLConnector extends PSQLXyzConnector {
         INSERT INTO %s.%s
           (id, geo, operation, author, version, jsondata, searchable)
         VALUES (?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT (id, version, next_version) DO NOTHING
+            ON CONFLICT (id, next_version) DO NOTHING
         """.formatted(schema, table);
 
     try (Connection connection = dataSourceProvider.getWriter().getConnection()) {
