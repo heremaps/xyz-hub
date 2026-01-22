@@ -43,16 +43,10 @@ import com.here.xyz.events.PropertyQueryList;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.events.UpdateStrategy;
 import com.here.xyz.events.WriteFeaturesEvent;
-import com.here.xyz.models.geojson.WebMercatorTile;
-import com.here.xyz.models.geojson.coordinates.BBox;
-import com.here.xyz.models.geojson.coordinates.LinearRingCoordinates;
-import com.here.xyz.models.geojson.coordinates.PolygonCoordinates;
-import com.here.xyz.models.geojson.coordinates.Position;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.FeatureCollection.ModificationFailure;
 import com.here.xyz.models.geojson.implementation.Geometry;
-import com.here.xyz.models.geojson.implementation.Polygon;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.psql.query.EraseSpace;
@@ -71,7 +65,6 @@ import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.changesets.ChangesetCollection;
 import com.here.xyz.util.Random;
-import io.vertx.core.json.JsonObject;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.locationtech.jts.geom.Coordinate;
@@ -900,15 +893,62 @@ public class NLConnector extends PSQLXyzConnector {
     PGobject jsonObject = new PGobject();
     jsonObject.setType("jsonb");
 
-    JsonObject searchable = new JsonObject();
-    if(feature.getProperties().get(REF_QUAD_PROPERTY_KEY) != null)
-      searchable.put(REF_QUAD_PROPERTY_KEY, feature.getProperties().get(REF_QUAD_PROPERTY_KEY));
-    if(feature.getProperties().get(GLOBAL_VERSION_PROPERTY_KEY) != null)
-      searchable.put(GLOBAL_VERSION_PROPERTY_KEY, feature.getProperties().get(GLOBAL_VERSION_PROPERTY_KEY));
-    if(feature.getProperties().get(REFERENCES_PROPERTY_KEY) != null)
-      searchable.put(REFERENCES_PROPERTY_KEY, feature.getProperties().get(REFERENCES_PROPERTY_KEY));
-    jsonObject.setValue(searchable.toString());
+    StringBuilder searchables = new StringBuilder("{");
+    boolean first = true;
+
+    Object refQuad = feature.getProperties().get(REF_QUAD_PROPERTY_KEY);
+    if (refQuad != null) {
+      first = appendJsonField(searchables, REF_QUAD_PROPERTY_KEY, refQuad, first);
+    }
+
+    Object globalVersion = feature.getProperties().get(GLOBAL_VERSION_PROPERTY_KEY);
+    if (globalVersion != null) {
+      first = appendJsonField(searchables, GLOBAL_VERSION_PROPERTY_KEY, globalVersion, first);
+    }
+
+    Object references = feature.getProperties().get(REFERENCES_PROPERTY_KEY);
+    if (references != null) {
+      appendJsonField(searchables, REFERENCES_PROPERTY_KEY, references, first);
+    }
+
+    searchables.append("}");
+    jsonObject.setValue(searchables.toString());
     return jsonObject;
+  }
+
+  private String escapeJson(String s) {
+    return s.replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+            .replace("\n", "\\n")
+            .replace("\r", "\\r")
+            .replace("\t", "\\t");
+  }
+
+  private boolean appendJsonField(
+          StringBuilder sb, String key, Object value, boolean first) {
+
+    if (!first) sb.append(",");
+
+    sb.append("\"").append(escapeJson(key)).append("\":");
+
+    if (value instanceof Number || value instanceof Boolean) {
+      sb.append(value);
+    }
+    else if (value instanceof List) {
+      sb.append("[");
+      boolean firstElem = true;
+      for (Object v : (List<?>) value) {
+        if (v == null) continue; // or write null explicitly
+        if (!firstElem) sb.append(",");
+        sb.append("\"").append(escapeJson(String.valueOf(v))).append("\"");
+        firstElem = false;
+      }
+      sb.append("]");
+    }
+    else {
+      sb.append("\"").append(escapeJson(String.valueOf(value))).append("\"");
+    }
+    return false;
   }
 
   private String enrichFeaturePayload(Feature feature) {
