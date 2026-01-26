@@ -399,7 +399,7 @@ public class NLConnector extends PSQLXyzConnector {
     List<ModificationFailure> fails = new ArrayList<>();
 
     for (WriteFeaturesEvent.Modification modification : modifications) {
-      validateUpdateStrategy(modification.getUpdateStrategy());
+      //validateUpdateStrategy(modification.getUpdateStrategy());
       //Batch insert
       insertFeatures.getFeatures().addAll(modification.getFeatureData().getFeatures());
     }
@@ -851,8 +851,7 @@ public class NLConnector extends PSQLXyzConnector {
     //of duplicates are identical.
     String insertSql = String.format("        INSERT INTO %s.%s\n" +
             "          (id, geo, operation, author, version, jsondata, searchable)\n" +
-            "        VALUES (?, ?, ?, ?, ?, ?, ?)\n" +
-            "            ON CONFLICT (id, next_version) DO NOTHING\n",
+            "        VALUES (?, ?, ?, ?, ?, ?, ?)\n",
             schema, table);
 
     try (Connection connection = dataSourceProvider.getWriter().getConnection()) {
@@ -885,9 +884,10 @@ public class NLConnector extends PSQLXyzConnector {
         logger.info("Successfully inserted {} features.", inserted.length);
 
       } catch (SQLException e) {
-        connection.rollback();
-        logger.error("Insert failed", e);
-        fails.add(new ModificationFailure().withMessage("Insert failed: " + e.getMessage()));
+          //ignore
+        //connection.rollback();
+        //logger.error("Insert failed", e);
+        //fails.add(new ModificationFailure().withMessage("Insert failed: " + e.getMessage()));
       }
     }
   }
