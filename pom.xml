@@ -710,7 +710,7 @@
         <artifactId>assertj-core</artifactId>
         <groupId>org.assertj</groupId>
         <scope>test</scope>
-        <version>3.21.0</version>
+        <version>3.27.7</version>
       </dependency>
       <dependency>
         <artifactId>awaitility</artifactId>
