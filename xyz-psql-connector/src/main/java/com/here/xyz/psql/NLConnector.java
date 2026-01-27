@@ -851,7 +851,7 @@ public class NLConnector extends PSQLXyzConnector {
     //of duplicates are identical.
     String insertSql = String.format("        INSERT INTO %s.%s\n" +
             "          (id, geo, operation, author, version, jsondata, searchable)\n" +
-            "        VALUES (?, ?, ?, ?, ?, ?, ?)\n",
+            "        VALUES (?, ?, ?, ?, ?, ?, ?)",
             schema, table);
 
     try (Connection connection = dataSourceProvider.getWriter().getConnection()) {
@@ -884,10 +884,9 @@ public class NLConnector extends PSQLXyzConnector {
         logger.info("Successfully inserted {} features.", inserted.length);
 
       } catch (SQLException e) {
-          //ignore
-        //connection.rollback();
-        //logger.error("Insert failed", e);
-        //fails.add(new ModificationFailure().withMessage("Insert failed: " + e.getMessage()));
+        connection.rollback();
+        logger.error("Insert failed", e);
+        fails.add(new ModificationFailure().withMessage("Insert failed: " + e.getMessage()));
       }
     }
   }
