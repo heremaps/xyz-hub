@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.here.xyz.XyzSerializable;
 import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
+import org.apache.commons.lang3.builder.ToStringBuilder;
 
 import java.util.UUID;
 
@@ -203,6 +204,22 @@ public final class DataReference implements XyzSerializable {
       .append(getSourceSystem())
       .append(getTargetSystem())
       .toHashCode();
+  }
+
+  @Override
+  public String toString() {
+    return new ToStringBuilder(this)
+      .append("id", id)
+      .append("entityId", entityId)
+      .append("isPatch", isPatch)
+      .append("startVersion", startVersion)
+      .append("endVersion", endVersion)
+      .append("objectType", objectType)
+      .append("contentType", contentType)
+      .append("location", location)
+      .append("sourceSystem", sourceSystem)
+      .append("targetSystem", targetSystem)
+      .toString();
   }
 
 }
