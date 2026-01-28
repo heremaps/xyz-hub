@@ -22,11 +22,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.here.xyz.models.geojson.coordinates.LinearRingCoordinates;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
+import com.here.xyz.models.geojson.coordinates.PolygonCoordinates;
+import com.here.xyz.models.geojson.coordinates.Position;
 import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.models.geojson.implementation.Point;
+import com.here.xyz.models.geojson.implementation.Polygon;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
@@ -40,28 +44,28 @@ import org.junit.jupiter.api.Test;
 class FilterFeatureUtilsTest {
 
   private static final ObjectMapper MAPPER = new ObjectMapper();
-  private static final List<String> JSON_PATHS = List.of("$[?(@.id == 'Q45671')]");
+  private static final List<String> JSON_PATHS_FOR_UNCHANGED_ID = List.of("$[?(@.id == 'Q45671')]");
 
   private String featureJsonString;
-  private Feature feature;
+  private Feature featureWithRightId;
 
   @BeforeEach
   void setUp() throws IOException, URISyntaxException {
     featureJsonString = Files.readString(Paths.get(
         FilterFeatureUtilsTest.class.getResource("/test/feature_example.json").toURI()));
-    feature = MAPPER.readValue(featureJsonString, Feature.class);
+    featureWithRightId = MAPPER.readValue(featureJsonString, Feature.class);
   }
 
   @Test
   void filterFeatureValidJsonPath() {
-    boolean passes = FilterFeatureUtils.filterFeature(feature, JSON_PATHS);
+    boolean passes = FilterFeatureUtils.filterFeature(featureWithRightId, JSON_PATHS_FOR_UNCHANGED_ID);
     assertTrue(passes);
   }
 
   @Test
   void filterFeatureInvalidJsonPath() {
     List<String> jsonPaths = List.of("$[?(@.id == 'empty')]");
-    boolean passes = FilterFeatureUtils.filterFeature(feature, jsonPaths);
+    boolean passes = FilterFeatureUtils.filterFeature(featureWithRightId, jsonPaths);
     assertFalse(passes);
   }
 
@@ -69,23 +73,23 @@ class FilterFeatureUtilsTest {
   void filterFeaturesNullSpatialFilter() throws JsonProcessingException {
     Feature featureWithChangedId = MAPPER.readValue(featureJsonString, Feature.class);
     featureWithChangedId.setId("TEST_ID");
-    List<Pair<Feature, Geometry>> featuresWithGeometries = List.of
-        (Pair.of(feature, new Point()), Pair.of(featureWithChangedId, new Point()));
-    Collection<Feature> filteredFeatures = FilterFeatureUtils.filterFeatures(featuresWithGeometries, JSON_PATHS, null);
+    List<Pair<Feature, Geometry>> featuresWithGeometries = List.of(
+        Pair.of(featureWithRightId, new Point()),
+        Pair.of(featureWithChangedId, new Point()));
+    Collection<Feature> filteredFeatures = FilterFeatureUtils.filterFeatures(featuresWithGeometries, JSON_PATHS_FOR_UNCHANGED_ID, null);
     assertEquals(1, filteredFeatures.size());
-    assertSame(feature, filteredFeatures.iterator().next());
+    assertSame(featureWithRightId, filteredFeatures.iterator().next());
   }
 
   @Test
   void filterFeaturesIntersecting() throws InvalidGeometryException {
-    Point point = new Point().withCoordinates(new PointCoordinates(0.0, 0.0));
-    SpatialFilter spatialFilter = new SpatialFilter().withGeometry(point);
+    Point intersectingGeometryPoint = new Point().withCoordinates(new PointCoordinates(1.0, 1.0)); // inside the square from (0,0) to (2,2)
+    SpatialFilter spatialFilter = new SpatialFilter().withGeometry(getSpatialFilterGeometry());
 
-    List<Pair<Feature, Geometry>> featuresWithGeometries = List.of
-        (Pair.of(feature, point));
-    Collection<Feature> filteredFeatures = FilterFeatureUtils.filterFeatures(featuresWithGeometries, JSON_PATHS, spatialFilter);
+    List<Pair<Feature, Geometry>> featuresWithGeometries = List.of(Pair.of(featureWithRightId, intersectingGeometryPoint));
+    Collection<Feature> filteredFeatures = FilterFeatureUtils.filterFeatures(featuresWithGeometries, JSON_PATHS_FOR_UNCHANGED_ID, spatialFilter);
     assertEquals(1, filteredFeatures.size());
-    assertSame(feature, filteredFeatures.iterator().next());
+    assertSame(featureWithRightId, filteredFeatures.iterator().next());
   }
 
   @Test
@@ -93,13 +97,31 @@ class FilterFeatureUtilsTest {
     Feature featureWithChangedId = MAPPER.readValue(featureJsonString, Feature.class);
     featureWithChangedId.setId("TEST_ID");
 
-    Point point = new Point().withCoordinates(new PointCoordinates(0.0, 0.0));
-    SpatialFilter spatialFilter = new SpatialFilter().withGeometry(point);
+    Point intersectingGeometryPoint = new Point().withCoordinates(new PointCoordinates(1.0, 1.0));
+    Point notIntersectingGeometryPoint = new Point().withCoordinates(
+        new PointCoordinates(3.0, 3.0)); // outside the square from (0,0) to (2,2)
+    SpatialFilter spatialFilter = new SpatialFilter().withGeometry(getSpatialFilterGeometry());
 
-    List<Pair<Feature, Geometry>> featuresWithGeometries = List.of
-        (Pair.of(feature, point), Pair.of(featureWithChangedId, point),
-            Pair.of(feature, new Point().withCoordinates(new PointCoordinates(10.0, 10.0))));
-    Collection<Feature> filteredFeatures = FilterFeatureUtils.filterFeatures(featuresWithGeometries, JSON_PATHS, spatialFilter);
+    List<Pair<Feature, Geometry>> featuresWithGeometries = List.of(
+        Pair.of(featureWithChangedId, intersectingGeometryPoint),
+        Pair.of(featureWithRightId, intersectingGeometryPoint),
+        Pair.of(featureWithRightId, notIntersectingGeometryPoint));
+    Collection<Feature> filteredFeatures = FilterFeatureUtils.filterFeatures(featuresWithGeometries, JSON_PATHS_FOR_UNCHANGED_ID, spatialFilter);
     assertEquals(1, filteredFeatures.size());
+    assertSame(featureWithRightId, filteredFeatures.iterator().next());
+  }
+
+  // Returns a square polygon from (0,0) to (2,2)
+  private Geometry getSpatialFilterGeometry() {
+    PolygonCoordinates polygonCoordinates = new PolygonCoordinates();
+    LinearRingCoordinates lrc = new LinearRingCoordinates();
+    lrc.addAll(List.of(
+        new Position(0.0, 0.0),
+        new Position(0.0, 2.0),
+        new Position(2.0, 2.0),
+        new Position(2.0, 0.0),
+        new Position(0.0, 0.0)));
+    polygonCoordinates.add(lrc);
+    return new Polygon().withCoordinates(polygonCoordinates);
   }
 }

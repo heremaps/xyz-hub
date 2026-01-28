@@ -40,15 +40,20 @@ public class JsonPathFilterUtils {
   private JsonPathFilterUtils() {
   }
 
-  public static boolean filterByJsonPaths(Feature feature, Collection<String> jsonPaths) {
-    if (feature == null || jsonPaths == null || jsonPaths.isEmpty()) {
+  public static boolean filterByJsonPaths(Feature feature, Collection<JsonPath> jsonPaths) {
+    if (feature == null) {
+      logger.warn("Provided null feature when filtering by json paths");
       return false;
+    }
+    if (jsonPaths == null || jsonPaths.isEmpty()) {
+      return true;
     }
     JsonNode featureNode = MAPPER.valueToTree(feature);
     return jsonPaths.stream().allMatch(jsonPath -> {
       try {
-        Object object = JsonPath.compile(jsonPath).read(featureNode, JACKSON_CONFIG);
+        Object object = jsonPath.read(featureNode, JACKSON_CONFIG);
         if (object == null ||
+            // An empty array is considered as not matching the filter
             (object instanceof ArrayNode && ((ArrayNode) object).isEmpty())) {
           return false;
         }
