@@ -89,7 +89,7 @@ public class MarkForMaintenance extends SpaceBasedStep<MarkForMaintenance> {
       ));
     }
     logger.info("[{}] Set idxCreationCompleted to {} for space {}!", getGlobalStepId(), idxCreationCompleted, getSpaceId());
-    runReadQueryAsync(buildMarkForMaintenanceQuery(getSchema(db()), getRootTableName(space())), db(), 0);
+    runReadQueryAsync(buildMarkForMaintenanceQuery(getSchema(db()), getTableName(space(), getVersionRef())), db(), 0);
   }
 
   public SQLQuery buildMarkForMaintenanceQuery(String schema, String table) {
