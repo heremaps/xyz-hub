@@ -403,7 +403,7 @@ public class ExtractJsonPathValues extends TaskedSpaceBasedStep<
     }
 
     @Override
-    protected void finalCleanUp() {
+    protected void finalCleanUp(boolean noTasksCreated) {
         // No-op
     }
 
