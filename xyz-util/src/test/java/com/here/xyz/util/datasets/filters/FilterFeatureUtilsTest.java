@@ -57,16 +57,11 @@ class FilterFeatureUtilsTest {
   }
 
   @Test
-  void filterFeatureValidJsonPath() {
-    boolean passes = FilterFeatureUtils.filterFeature(featureWithRightId, JSON_PATHS_FOR_UNCHANGED_ID);
-    assertTrue(passes);
-  }
-
-  @Test
-  void filterFeatureInvalidJsonPath() {
+  void filterFeaturesInvalidJsonPath() {
     List<String> jsonPaths = List.of("$[?(@.id == 'empty')]");
-    boolean passes = FilterFeatureUtils.filterFeature(featureWithRightId, jsonPaths);
-    assertFalse(passes);
+    Collection<Feature> filteredFeatures = FilterFeatureUtils.filterFeatures(List.of(Pair.of(featureWithRightId, new Point())),
+        jsonPaths, null);
+    assertEquals(0, filteredFeatures.size());
   }
 
   @Test
@@ -84,10 +79,11 @@ class FilterFeatureUtilsTest {
   @Test
   void filterFeaturesIntersecting() throws InvalidGeometryException {
     Point intersectingGeometryPoint = new Point().withCoordinates(new PointCoordinates(1.0, 1.0)); // inside the square from (0,0) to (2,2)
-    SpatialFilter spatialFilter = new SpatialFilter().withGeometry(getSpatialFilterGeometry());
+    SpatialFilter spatialFilter = getTestSpatialFilter();
 
     List<Pair<Feature, Geometry>> featuresWithGeometries = List.of(Pair.of(featureWithRightId, intersectingGeometryPoint));
-    Collection<Feature> filteredFeatures = FilterFeatureUtils.filterFeatures(featuresWithGeometries, JSON_PATHS_FOR_UNCHANGED_ID, spatialFilter);
+    Collection<Feature> filteredFeatures = FilterFeatureUtils.filterFeatures(featuresWithGeometries, JSON_PATHS_FOR_UNCHANGED_ID,
+        spatialFilter);
     assertEquals(1, filteredFeatures.size());
     assertSame(featureWithRightId, filteredFeatures.iterator().next());
   }
@@ -100,19 +96,55 @@ class FilterFeatureUtilsTest {
     Point intersectingGeometryPoint = new Point().withCoordinates(new PointCoordinates(1.0, 1.0));
     Point notIntersectingGeometryPoint = new Point().withCoordinates(
         new PointCoordinates(3.0, 3.0)); // outside the square from (0,0) to (2,2)
-    SpatialFilter spatialFilter = new SpatialFilter().withGeometry(getSpatialFilterGeometry());
+    SpatialFilter spatialFilter = getTestSpatialFilter();
 
     List<Pair<Feature, Geometry>> featuresWithGeometries = List.of(
         Pair.of(featureWithChangedId, intersectingGeometryPoint),
         Pair.of(featureWithRightId, intersectingGeometryPoint),
         Pair.of(featureWithRightId, notIntersectingGeometryPoint));
-    Collection<Feature> filteredFeatures = FilterFeatureUtils.filterFeatures(featuresWithGeometries, JSON_PATHS_FOR_UNCHANGED_ID, spatialFilter);
+    Collection<Feature> filteredFeatures = FilterFeatureUtils.filterFeatures(featuresWithGeometries, JSON_PATHS_FOR_UNCHANGED_ID,
+        spatialFilter);
     assertEquals(1, filteredFeatures.size());
     assertSame(featureWithRightId, filteredFeatures.iterator().next());
   }
 
-  // Returns a square polygon from (0,0) to (2,2)
-  private Geometry getSpatialFilterGeometry() {
+  @Test
+  void filterFeaturesOneRadiusIntersectingAndOneRadiusWrong() throws InvalidGeometryException {
+    Point insideBufferPoint = new Point().withCoordinates(new PointCoordinates(2.01, 2.01));
+    Point outsideBufferPoint = new Point().withCoordinates(new PointCoordinates(3.0, 3.0));
+    SpatialFilter spatialFilter = getTestSpatialFilter().withRadius(5500);
+
+    List<Pair<Feature, Geometry>> featuresWithGeometries = List.of(Pair.of(featureWithRightId, insideBufferPoint),
+        Pair.of(featureWithRightId, outsideBufferPoint));
+    Collection<Feature> filteredFeatures = FilterFeatureUtils.filterFeatures(featuresWithGeometries, JSON_PATHS_FOR_UNCHANGED_ID,
+        spatialFilter);
+    assertEquals(1, filteredFeatures.size());
+  }
+
+  @Test
+  public void anyFeatureMatchesFiltersIntersecting() throws InvalidGeometryException {
+    Point intersectingGeometryPoint = new Point().withCoordinates(new PointCoordinates(1.0, 1.0)); // inside the square from (0,0) to (2,2)
+    SpatialFilter spatialFilter = getTestSpatialFilter();
+
+    List<Pair<Feature, Geometry>> featuresWithGeometries = List.of(Pair.of(featureWithRightId, intersectingGeometryPoint));
+    boolean containsFeature = FilterFeatureUtils.anyFeatureMatchesFilters(featuresWithGeometries, JSON_PATHS_FOR_UNCHANGED_ID,
+        spatialFilter);
+    assertTrue(containsFeature);
+  }
+
+  @Test
+  public void anyFeatureMatchesFiltersNotIntersecting() throws InvalidGeometryException {
+    Point intersectingGeometryPoint = new Point().withCoordinates(new PointCoordinates(3.0, 3.0)); // outside the square from (0,0) to (2,2)
+    SpatialFilter spatialFilter = getTestSpatialFilter();
+
+    List<Pair<Feature, Geometry>> featuresWithGeometries = List.of(Pair.of(featureWithRightId, intersectingGeometryPoint));
+    boolean containsFeature = FilterFeatureUtils.anyFeatureMatchesFilters(featuresWithGeometries, JSON_PATHS_FOR_UNCHANGED_ID,
+        spatialFilter);
+    assertFalse(containsFeature);
+  }
+
+  // Returns a spatial filter of a square polygon from (0,0) to (2,2)
+  private SpatialFilter getTestSpatialFilter() throws InvalidGeometryException {
     PolygonCoordinates polygonCoordinates = new PolygonCoordinates();
     LinearRingCoordinates lrc = new LinearRingCoordinates();
     lrc.addAll(List.of(
@@ -122,6 +154,6 @@ class FilterFeatureUtilsTest {
         new Position(2.0, 0.0),
         new Position(0.0, 0.0)));
     polygonCoordinates.add(lrc);
-    return new Polygon().withCoordinates(polygonCoordinates);
+    return new SpatialFilter().withGeometry(new Polygon().withCoordinates(polygonCoordinates));
   }
 }

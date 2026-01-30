@@ -17,14 +17,18 @@ package com.here.xyz.util.datasets.filters;
 
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.Geometry;
+import com.here.xyz.util.geo.GeoTools;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.jayway.jsonpath.JsonPath;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Objects;
+import java.util.function.Predicate;
+import javax.xml.crypto.dsig.TransformException;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.geotools.api.referencing.FactoryException;
 import org.locationtech.jts.geom.prep.PreparedGeometry;
 import org.locationtech.jts.geom.prep.PreparedGeometryFactory;
 
@@ -39,84 +43,81 @@ public class FilterFeatureUtils {
   public static Collection<Feature> filterFeatures(Collection<Pair<Feature, Geometry>> featuresWithGeometries, Collection<String> jsonPaths,
       SpatialFilter spatialFilter) {
     if (featuresWithGeometries == null) {
-      logger.debug("Provided null features and geometries collection when filtering features");
       return Collections.emptyList();
     }
-    if (spatialFilter == null) {
-      logger.debug("Provided null spatial filter when filtering features");
-      return filterFeatures(featuresWithGeometries.stream().filter(Objects::nonNull).map(Pair::getLeft).toList(), jsonPaths);
+    try {
+      Predicate<Pair<Feature, Geometry>> filteringPredicate = getFilteringPredicate(jsonPaths, spatialFilter);
+      return featuresWithGeometries.stream()
+          .filter(filteringPredicate)
+          .map(Pair::getLeft)
+          .toList();
+    } catch (ValidationException e) {
+      logger.warn("Spatial filter validation failed when filtering features: {}", e.getMessage());
+      return Collections.emptyList();
     }
+  }
+
+  public static boolean anyFeatureMatchesFilters(Collection<Pair<Feature, Geometry>> featuresWithGeometries, Collection<String> jsonPaths,
+      SpatialFilter spatialFilter) {
+    if (featuresWithGeometries == null) {
+      return false;
+    }
+    try {
+      Predicate<Pair<Feature, Geometry>> filteringPredicate = getFilteringPredicate(jsonPaths, spatialFilter);
+      return featuresWithGeometries.stream()
+          .anyMatch(filteringPredicate);
+    } catch (ValidationException e) {
+      logger.warn("Spatial filter validation failed when verifying feature: {}", e.getMessage());
+      return false;
+    }
+  }
+
+  // Creates a features filtering predicate based on the provided JSON paths and spatial filter.
+  private static Predicate<Pair<Feature, Geometry>> getFilteringPredicate(Collection<String> jsonPaths, SpatialFilter spatialFilter)
+      throws ValidationException {
     Collection<JsonPath> compiledJsonPaths = jsonPaths == null ? Collections.emptyList() : jsonPaths.stream()
         .filter(Objects::nonNull)
         .map(JsonPath::compile)
         .toList();
-    try {
-      spatialFilter.validateSpatialFilter();
-      PreparedGeometry preparedGeometry = GEOMETRY_FACTORY.create(spatialFilter.getGeometry().getJTSGeometry());
-      return featuresWithGeometries.stream()
-          .filter(Objects::nonNull)
-          .filter(featureGeometryPair -> filterFeatureWithJsonPathsAndGeometries(featureGeometryPair, compiledJsonPaths, preparedGeometry))
-          .map(Pair::getLeft)
-          .toList();
-    } catch (ValidationException e) {
-      logger.warn("Spatial filter validation failed: {}", e.getMessage());
-      return Collections.emptyList();
+    // If no spatial filter is provided, only filter by JSON paths.
+    if (spatialFilter == null || spatialFilter.getGeometry() == null || spatialFilter.getGeometry().getJTSGeometry() == null) {
+      logger.warn("Provided null spatial filter when filtering features");
+      return featureGeometryPair -> featureGeometryPair != null && JsonPathFilterUtils.filterByJsonPaths(featureGeometryPair.getLeft(),
+          compiledJsonPaths);
     }
+    // Else, create prepared geometry from spatial filter and filter by both JSON paths and spatial filter geometry.
+    PreparedGeometry preparedGeometry = getPreparedGeometryFromSpatialFilter(spatialFilter);
+    return featureGeometryPair -> filterFeatureWithJsonPathsAndGeometry(featureGeometryPair, compiledJsonPaths, preparedGeometry);
   }
 
-  public static Collection<Feature> filterFeatures(Collection<Feature> features, Collection<String> jsonPaths) {
-    if (features == null) {
-      logger.debug("Provided null feature collection when filtering features");
-      return Collections.emptyList();
-    }
-    if (jsonPaths == null || jsonPaths.isEmpty()) {
-      return features;
-    }
-    Collection<JsonPath> compiledJsonPaths = jsonPaths.stream()
-        .filter(Objects::nonNull)
-        .map(JsonPath::compile)
-        .toList();
-    return features.stream()
-        .filter(Objects::nonNull)
-        .filter(feature -> filterFeatureByJsonPath(feature, compiledJsonPaths))
-        .toList();
-  }
-
-  public static boolean filterFeature(Feature feature, Collection<String> jsonPathStrings) {
-    if (feature == null) {
-      logger.debug("Provided null feature when filtering feature");
-      return false;
-    }
-    if (jsonPathStrings == null || jsonPathStrings.isEmpty()) {
-      return true;
-    }
-    Collection<JsonPath> jsonPaths = jsonPathStrings.stream()
-        .filter(Objects::nonNull)
-        .map(JsonPath::compile)
-        .toList();
-    return JsonPathFilterUtils.filterByJsonPaths(feature, jsonPaths);
-  }
-
-  private static boolean filterFeatureByJsonPath(Feature feature, Collection<JsonPath> jsonPaths) {
-    return JsonPathFilterUtils.filterByJsonPaths(feature, jsonPaths);
-  }
-
-  private static boolean filterFeatureWithJsonPathsAndGeometries(Pair<Feature, Geometry> featureWithGeometry,
+  private static boolean filterFeatureWithJsonPathsAndGeometry(Pair<Feature, Geometry> featureWithGeometry,
       Collection<JsonPath> jsonPaths,
       PreparedGeometry preparedGeometry) {
     if (featureWithGeometry == null) {
-      logger.debug("Provided null feature and geometry pair when filtering feature");
+      logger.warn("Provided null feature and geometry pair when filtering feature");
       return false;
     }
-    return filterFeatureByJsonPath(featureWithGeometry.getLeft(), jsonPaths)
-        && isGeometryIntersectingSpatialFilterGeometry(featureWithGeometry.getRight(), preparedGeometry);
+    return JsonPathFilterUtils.filterByJsonPaths(featureWithGeometry.getLeft(), jsonPaths)
+        && isGeometryIntersectingFilterPreparedGeometry(featureWithGeometry.getRight(), preparedGeometry);
   }
 
-  private static boolean isGeometryIntersectingSpatialFilterGeometry(Geometry featureGeometry, PreparedGeometry preparedGeometry) {
+  private static boolean isGeometryIntersectingFilterPreparedGeometry(Geometry featureGeometry, PreparedGeometry preparedGeometry) {
     if (featureGeometry == null || featureGeometry.getJTSGeometry() == null || preparedGeometry == null) {
       return false;
     }
     org.locationtech.jts.geom.Geometry jtsGeometry = featureGeometry.getJTSGeometry();
     return jtsGeometry.isValid() && preparedGeometry.intersects(jtsGeometry);
+  }
+
+  private static PreparedGeometry getPreparedGeometryFromSpatialFilter(SpatialFilter spatialFilter) throws ValidationException {
+    spatialFilter.validateSpatialFilter();
+    try {
+      org.locationtech.jts.geom.Geometry bufferedGeometry = GeoTools.applyBufferInMetersToGeometry(
+          spatialFilter.getGeometry().getJTSGeometry(), spatialFilter.getRadius());
+      return GEOMETRY_FACTORY.create(bufferedGeometry);
+    } catch (FactoryException | TransformException | org.geotools.api.referencing.operation.TransformException e) {
+      logger.error("Encountered error when applying buffering in spatial filter: {}", e.getMessage());
+      throw new ValidationException("Error applying buffer to spatial filter geometry", e);
+    }
   }
 }
