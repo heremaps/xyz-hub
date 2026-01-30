@@ -32,6 +32,7 @@ import static com.here.xyz.models.hub.Ref.HEAD;
 import com.here.xyz.events.ModifyBranchEvent;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.config.BranchConfigClient;
+import com.here.xyz.hub.config.TagConfigClient;
 import com.here.xyz.hub.connectors.RpcClient;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Space;
@@ -174,11 +175,17 @@ public class BranchHandler {
 
   private static Future<Ref> resolveRef(Marker marker, String spaceId, Ref ref) {
     if (ref.isTag()) {
-      //TODO: Also support tags
-      //The ref was parsed as a tag, but it still could be depicting a branch ID, trying to resolve it ...
-      Ref branchRef = Ref.fromBranchId(ref.getTag());
-      return getReferencedBranch(spaceId, branchRef)
-              .compose(branch -> resolveRefHeadVersion(marker, spaceId, branchRef));
+      return TagConfigClient.getInstance().getTag(marker, ref.getTag(), spaceId)
+          .compose(tag -> {
+            Ref branchRef = tag != null ? tag.getVersionRef() : Ref.fromBranchId(ref.getTag());
+
+            Future<Void> future = Future.succeededFuture();
+            if (tag == null)
+              // If tag is not found, check if branch exists
+              future = getReferencedBranch(spaceId, branchRef).mapEmpty();
+
+            return future.compose(branch -> resolveRefHeadVersion(marker, spaceId, branchRef));
+          });
     }
     return resolveRefHeadVersion(marker, spaceId, ref);
   }

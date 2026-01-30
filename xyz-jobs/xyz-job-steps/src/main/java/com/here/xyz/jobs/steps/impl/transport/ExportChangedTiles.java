@@ -300,17 +300,19 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
   }
 
   @Override
-  protected void onStateCheck() {
-      try {
-          //@TODO: Remove this if EMR is capable of handling not existing files
-          registerOutputs(List.of(new DownloadUrl()
-                 .withContent(new byte[]{})
-                .withFileName("empty")
-          ), EXPORTED_DATA);
-      } catch (IOException e) {
-          throw new RuntimeException(e);
-      }
-      super.onStateCheck();
+  protected void finalCleanUp(boolean noTasksCreated) throws WebClientException, SQLException, TooManyResourcesClaimed, IOException {
+    if(noTasksCreated){
+      //@TODO: Remove this if EMR is capable of handling not existing files
+      registerOutputs(List.of(new DownloadUrl()
+              .withContent(new byte[]{})
+              .withFileName("empty")
+      ), EXPORTED_DATA);
+      registerOutputs(List.of(new TileInvalidations()
+              .withTileLevel(targetLevel)
+              .withQuadType(quadType)
+              .withTileIds(new ArrayList<>())
+      ), TILE_INVALIDATIONS);
+    }
   }
 
   @Override

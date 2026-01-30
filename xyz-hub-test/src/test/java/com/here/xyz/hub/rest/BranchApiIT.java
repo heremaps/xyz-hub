@@ -29,6 +29,7 @@ import static org.junit.Assert.assertTrue;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Tag;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.restassured.http.ContentType;
@@ -100,6 +101,41 @@ public class BranchApiIT extends TestSpaceBranch {
 
     createBranch(SPACE_ID, B3_B2, B2_B1)
             .body("id", equalTo(B3_B2));
+  }
+
+  @Test
+  public void createBranchOnMainTag() throws Exception {
+    Tag tag1 = createTag(SPACE_ID, "tag1", Ref.HEAD).extract().body().as(Tag.class);
+    addFeatureToBranch(SPACE_ID, null, createSampleFeature("main1"));
+    Tag tag2 = createTag(SPACE_ID, "tag2", Ref.HEAD).extract().body().as(Tag.class);
+    addFeatureToBranch(SPACE_ID, null, createSampleFeature("main2"));
+
+    createBranch(SPACE_ID, "branch1", tag1.getId())
+            .body("id", equalTo("branch1"))
+            .body("baseRef", equalTo(tag1.getVersionRef().toString()));
+
+    createBranch(SPACE_ID, "branch2", tag2.getId())
+            .body("id", equalTo("branch2"))
+            .body("baseRef", equalTo(tag2.getVersionRef().toString()));
+  }
+
+  @Test
+  public void createBranchOnBranchTag() throws Exception {
+    //Tag on main HEAD
+    Tag tag1 = createTag(SPACE_ID, "tag1", Ref.HEAD).extract().body().as(Tag.class);
+    assertEquals(Ref.MAIN, tag1.getBranchId());
+    createBranch(SPACE_ID, B1_MAIN, tag1.getId())
+            .body("id", equalTo(B1_MAIN))
+            .body("baseRef", equalTo(tag1.getVersionRef().toString()));
+
+    addFeatureToBranch(SPACE_ID, B1_MAIN, createSampleFeature("b1_1"));
+
+    //Tag on branch HEAD
+    Tag tag2 = createTag(SPACE_ID, "tag2", B1_MAIN + ":" + Ref.HEAD).extract().body().as(Tag.class);
+    assertEquals(B1_MAIN, tag2.getBranchId());
+    createBranch(SPACE_ID, B2_B1, tag2.getId())
+            .body("id", equalTo(B2_B1))
+            .body("baseRef", equalTo(tag2.getVersionRef().toString()));
   }
 
   @Test

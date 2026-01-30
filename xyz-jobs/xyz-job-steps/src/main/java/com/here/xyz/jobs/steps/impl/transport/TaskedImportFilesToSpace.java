@@ -72,8 +72,8 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
   public static final String STATISTICS = "statistics";
 
   {
-    //Use 18 Threads as default for import tasks
-    threadCount = 18;
+    //Use 15 Threads as default for import tasks
+    threadCount = 15;
     setOutputSets(List.of(new OutputSet(STATISTICS, USER, true)));
   }
 
@@ -204,7 +204,7 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
   }
 
   @Override
-  protected void finalCleanUp() throws WebClientException, SQLException, TooManyResourcesClaimed {
+  protected void finalCleanUp(boolean noTasksCreated) throws WebClientException, SQLException, TooManyResourcesClaimed {
     runBatchWriteQuerySync(getQueryBuilder().buildCleanUpStatement(), db(), 0);
   }
 
