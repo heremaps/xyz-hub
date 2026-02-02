@@ -132,6 +132,28 @@ public class SubscriptionApiIT extends TestSpaceWithFeature {
   }
 
   @Test
+  public void createSubscriptionWithFilter() {
+    addSubscription(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES, "/xyz/hub/createSubscriptionWithFilter.json")
+        .statusCode(CREATED.code())
+        .body("id", equalTo("test-subscription-1"))
+        .body("filter.jsonPaths[0]", equalTo("$.properties.name"))
+        .body("filter.radius", equalTo(100))
+        .body("filter.clip", equalTo(true));
+  }
+
+  @Test
+  public void createSubscriptionWithInvalidJsonPath() {
+    addSubscription(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES, "/xyz/hub/createSubscriptionWithInvalidJsonPath.json")
+        .statusCode(BAD_REQUEST.code());
+  }
+
+  @Test
+  public void createSubscriptionWithInvalidGeometry() {
+    addSubscription(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES, "/xyz/hub/createSubscriptionWithInvalidGeometry.json")
+        .statusCode(BAD_REQUEST.code());
+  }
+
+  @Test
   public void createSubscriptionWithSameId() {
     addSubscription(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES, "/xyz/hub/createSubscription.json")
         .statusCode(CREATED.code());

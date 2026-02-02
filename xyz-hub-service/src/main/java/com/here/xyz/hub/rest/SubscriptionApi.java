@@ -35,6 +35,8 @@ import com.here.xyz.util.service.HttpException;
 import io.vertx.core.Future;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.json.jackson.DatabindCodec;
+import com.jayway.jsonpath.InvalidPathException;
+import com.jayway.jsonpath.JsonPath;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.router.RouterBuilder;
 import org.apache.logging.log4j.LogManager;
@@ -170,6 +172,36 @@ public class SubscriptionApi extends SpaceBasedApi {
 
     if (subscription.getConfig() == null || subscription.getConfig().getType() == null)
       throw new HttpException(BAD_REQUEST, "Validation failed. The property config 'type' cannot be empty.");
+
+    validateFilter(subscription.getFilter());
+  }
+
+  private void validateFilter(Subscription.SubscriptionFilter filter) throws HttpException {
+    if (filter == null)
+      return;
+
+    if (filter.getJsonPaths() != null) {
+      for (String jsonPath : filter.getJsonPaths()) {
+        if (jsonPath == null || jsonPath.isEmpty())
+          throw new HttpException(BAD_REQUEST, "Validation failed. JSON path cannot be null or empty.");
+        try {
+          JsonPath.compile(jsonPath);
+        } catch (InvalidPathException e) {
+          throw new HttpException(BAD_REQUEST, "Validation failed. Invalid JSON path '" + jsonPath + "': " + e.getMessage());
+        }
+      }
+    }
+
+    if (filter.getGeometry() != null) {
+      try {
+        filter.getGeometry().validate();
+      } catch (Exception e) {
+        throw new HttpException(BAD_REQUEST, "Validation failed. Invalid geometry in filter: " + e.getMessage());
+      }
+    }
+
+    if (filter.getRadius() < 0)
+      throw new HttpException(BAD_REQUEST, "Validation failed. The filter 'radius' cannot be negative.");
   }
 
   private Future<Void> validateSubscriptionDestination(Subscription subscription) {

@@ -20,7 +20,9 @@
 package com.here.xyz.models.hub;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.here.xyz.models.geojson.implementation.Geometry;
 
+import java.util.List;
 import java.util.Map;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -47,6 +49,8 @@ public class Subscription {
     private SubscriptionConfig config;
 
     private SubscriptionStatus status;
+
+    private SubscriptionFilter filter;
 
     public String getId() {
         return id;
@@ -111,6 +115,83 @@ public class Subscription {
     public Subscription withStatus(SubscriptionStatus status) {
         this.status = status;
         return this;
+    }
+
+    public SubscriptionFilter getFilter() {
+        return filter;
+    }
+
+    public void setFilter(SubscriptionFilter filter) {
+        this.filter = filter;
+    }
+
+    public Subscription withFilter(SubscriptionFilter filter) {
+        this.filter = filter;
+        return this;
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class SubscriptionFilter {
+
+        private List<String> jsonPaths;
+
+        private Geometry geometry;
+
+        private int radius;
+
+        private boolean clip;
+
+        public List<String> getJsonPaths() {
+            return jsonPaths;
+        }
+
+        public void setJsonPaths(List<String> jsonPaths) {
+            this.jsonPaths = jsonPaths;
+        }
+
+        public SubscriptionFilter withJsonPaths(List<String> jsonPaths) {
+            this.jsonPaths = jsonPaths;
+            return this;
+        }
+
+        public Geometry getGeometry() {
+            return geometry;
+        }
+
+        public void setGeometry(Geometry geometry) {
+            this.geometry = geometry;
+        }
+
+        public SubscriptionFilter withGeometry(Geometry geometry) {
+            this.geometry = geometry;
+            return this;
+        }
+
+        public int getRadius() {
+            return radius;
+        }
+
+        public void setRadius(int radius) {
+            this.radius = radius;
+        }
+
+        public SubscriptionFilter withRadius(int radius) {
+            this.radius = radius;
+            return this;
+        }
+
+        public boolean isClip() {
+            return clip;
+        }
+
+        public void setClip(boolean clip) {
+            this.clip = clip;
+        }
+
+        public SubscriptionFilter withClip(boolean clip) {
+            this.clip = clip;
+            return this;
+        }
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
