@@ -1,0 +1,13 @@
+[
+  {
+    "id": "308a8ebd-de83-42ac-a5ce-e83bf5c60ccc",
+    "entityId": "entity-id-1",
+    "isPatch": false,
+    "endVersion": 137,
+    "objectType": "object-type-F",
+    "contentType": "content-type-F",
+    "location": "location-F",
+    "sourceSystem": "source-system-F",
+    "targetSystem": "target-system-F"
+  }
+]

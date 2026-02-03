@@ -19,11 +19,6 @@
 
 package com.here.xyz.hub;
 
-import static com.here.xyz.hub.task.Task.TASK;
-import static com.here.xyz.util.openapi.OpenApiGenerator.generate;
-import static io.vertx.core.http.HttpHeaders.CONTENT_LENGTH;
-import static io.vertx.core.http.HttpHeaders.LOCATION;
-
 import com.google.common.io.ByteStreams;
 import com.google.common.io.Files;
 import com.here.xyz.hub.auth.ExtendedJWTAuthHandler;
@@ -32,6 +27,7 @@ import com.here.xyz.hub.rest.AdminApi;
 import com.here.xyz.hub.rest.BranchApi;
 import com.here.xyz.hub.rest.ChangesetApi;
 import com.here.xyz.hub.rest.ConnectorApi;
+import com.here.xyz.hub.rest.DataReferenceApi;
 import com.here.xyz.hub.rest.FeatureApi;
 import com.here.xyz.hub.rest.FeatureQueryApi;
 import com.here.xyz.hub.rest.SpaceApi;
@@ -55,13 +51,19 @@ import io.vertx.ext.web.handler.StaticHandler;
 import io.vertx.ext.web.openapi.router.OpenAPIRoute;
 import io.vertx.ext.web.openapi.router.RouterBuilder;
 import io.vertx.openapi.contract.OpenAPIContract;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import java.io.File;
 import java.util.HashMap;
 import java.util.Hashtable;
 import java.util.Map;
 import java.util.Objects;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+
+import static com.here.xyz.hub.task.Task.TASK;
+import static com.here.xyz.util.openapi.OpenApiGenerator.generate;
+import static io.vertx.core.http.HttpHeaders.CONTENT_LENGTH;
+import static io.vertx.core.http.HttpHeaders.LOCATION;
 
 public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
 
@@ -139,6 +141,7 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
       new SubscriptionApi(rb);
       new ChangesetApi(rb);
       new TagApi(rb);
+      new DataReferenceApi(rb);
 
       final Router router = rb.createRouter();
 

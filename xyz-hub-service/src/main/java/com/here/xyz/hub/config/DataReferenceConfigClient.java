@@ -19,6 +19,8 @@
 
 package com.here.xyz.hub.config;
 
+import com.here.xyz.hub.Service;
+import com.here.xyz.hub.config.dynamo.DynamoDataReferenceConfigClient;
 import com.here.xyz.models.hub.DataReference;
 import com.here.xyz.util.service.Initializable;
 import io.vertx.core.Future;
@@ -32,6 +34,16 @@ import java.util.UUID;
 import static com.google.common.base.Preconditions.checkNotNull;
 
 public abstract class DataReferenceConfigClient implements Initializable {
+
+  private static final class InstanceHolder {
+    private static final DataReferenceConfigClient instance = new DynamoDataReferenceConfigClient(
+      Service.configuration.REFERENCES_DYNAMODB_TABLE_ARN
+    );
+  }
+
+  public static DataReferenceConfigClient getInstance() {
+    return InstanceHolder.instance;
+  }
 
   protected abstract Future<UUID> doStore(DataReference dataReference);
 

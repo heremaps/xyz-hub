@@ -1365,6 +1365,110 @@ paths:
           $ref: '#/components/responses/ErrorResponse404'
         '409':
           $ref: '#/components/responses/ErrorResponse409'
+  '/references':
+    post:
+      tags:
+        - Manage Data References
+      summary: Create a Data Reference
+      description: Creates a Data Reference
+      operationId: createDataReference
+      requestBody:
+        $ref: '#/components/requestBodies/CreateDataReferenceRequest'
+      responses:
+        '201':
+          $ref: "#/components/responses/DataReferenceResponse"
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+    get:
+      tags:
+        - Manage Data References
+      summary: Query Data References
+      description: Queries for Data References
+      operationId: queryDataReferences
+      parameters:
+        - name: entityId
+          in: query
+          required: true
+          schema:
+            type: string
+            example: 'hrn:here:data::olp-here:CATALOG_ID:LAYER_ID'
+        - name: startVersion
+          in: query
+          required: false
+          schema:
+            type: integer
+            example: 123
+        - name: endVersion
+          in: query
+          required: false
+          schema:
+            type: integer
+            example: 456
+        - name: sourceSystem
+          in: query
+          required: false
+          schema:
+            type: string
+            example: IML
+        - name: targetSystem
+          in: query
+          required: false
+          schema:
+            type: string
+            example: S3
+        - name: contentType
+          in: query
+          required: false
+          schema:
+            type: string
+            example: 'application/geo+json-seq'
+        - name: objectType
+          in: query
+          required: false
+          schema:
+            type: string
+            example: features
+      responses:
+        '200':
+          $ref: "#/components/responses/DataReferenceListResponse"
+  '/references/{referenceId}':
+    get:
+      tags:
+        - Manage Data References
+      summary: Get a Data Reference
+      description: Gets a single Data Reference
+      operationId: getDataReference
+      parameters:
+        - name: referenceId
+          in: path
+          description: The unique identifier of the Data Reference.
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          $ref: "#/components/responses/DataReferenceResponse"
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+    delete:
+      tags:
+        - Manage Data References
+      summary: Delete a Data Reference
+      description: Deletes a single Data Reference
+      operationId: deleteDataReference
+      parameters:
+        - name: referenceId
+          in: path
+          description: The unique identifier of the Data Reference.
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          $ref: '#/components/responses/EmptyResponse'
+
 components:
   securitySchemes:
     AccessToken:
@@ -2501,6 +2605,20 @@ components:
             type: array
             items:
               $ref: '#/components/schemas/Job'
+    DataReferenceResponse:
+      description: A Data Reference
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DataReference'
+    DataReferenceListResponse:
+      description: Data Reference list
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/DataReference'
   requestBodies:
     ConnectorConfig:
       required: true
@@ -2585,6 +2703,12 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Job'
+    CreateDataReferenceRequest:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DataReference'
   schemas:
     # TODO add Typed and Iterable schemas
     AWSLambda:
@@ -4107,3 +4231,64 @@ components:
             - Space
             - Spaces
             - Files
+    DataReference:
+      type: object
+      description: Reference to a dataset stored in an external system
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique identifier. If not provided, it will be generated automatically.
+          example: '308a8ebd-de83-42ac-a5ce-e83bf5c60def'
+        entityId:
+          type: string
+          description: HERE entity identifier (HRN format)
+          example: 'hrn:here:data::olp-here:CATALOG_ID:LAYER_ID'
+        isPatch:
+          type: boolean
+          description: Indicates whether this reference represents a patch dataset
+          example: true
+        startVersion:
+          type: integer
+          format: int64
+          description: Starting version of data (optional)
+          example: 123
+        endVersion:
+          type: integer
+          format: int64
+          description: Ending version of data
+          example: 134
+        objectType:
+          type: string
+          description: Type of stored objects
+          example: features
+        contentType:
+          type: string
+          description: MIME type of stored content
+          example: 'application/geo+json-seq'
+        location:
+          type: string
+          description: Storage location URI
+          example: 's3://bucket/prefix/to/files'
+        sourceSystem:
+          type: string
+          description: Source system name
+          example: IML
+        targetSystem:
+          type: string
+          description: Target system name
+          example: S3
+      required:
+        - entityId
+        - isPatch
+        - endVersion
+        - objectType
+        - contentType
+        - location
+        - sourceSystem
+        - targetSystem
+    DataReferenceList:
+      type: array
+      description: List of DataReference objects
+      items:
+        $ref: '#/components/schemas/DataReference'

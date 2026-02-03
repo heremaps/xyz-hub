@@ -22,6 +22,7 @@ services:
             - TAGS_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-tags
             - SETTINGS_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-settings
             - ENTITIES_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-entities
+            - REFERENCES_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-references
             - JOB_API_ENDPOINT=http://xyz-job-service:7070/
     xyz-job-service:
         image: "xyz-job"
