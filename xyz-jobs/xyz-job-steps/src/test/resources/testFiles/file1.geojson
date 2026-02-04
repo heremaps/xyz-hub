@@ -16,5 +16,5 @@
 {"type":"Feature","geometry":{"type":"Point","coordinates":[8.69,50.62]},"properties":{"test":15}}
 {"type":"Feature","geometry":{"type":"Point","coordinates":[8.17,50.67]},"properties":{"test":16}}
 {"type":"Feature","geometry":{"type":"Point","coordinates":[8.92,50.0]},"properties":{"test":17}}
-{"type":"Feature","geometry":{"type":"Point","coordinates":[8.8,50.30]},"properties":{"test":18}}
+{"type":"Feature","properties":{"test":18}}
 {"type":"Feature","geometry":null,"properties":{"test":19}}
