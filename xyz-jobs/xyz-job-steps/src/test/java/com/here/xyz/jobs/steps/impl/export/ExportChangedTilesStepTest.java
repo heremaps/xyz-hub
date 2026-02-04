@@ -1,6 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
- *
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -21,7 +20,7 @@ package com.here.xyz.jobs.steps.impl.export;
 
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.PropertiesQuery;
-import com.here.xyz.jobs.datasets.filters.SpatialFilter;
+import com.here.xyz.util.datasets.filters.SpatialFilter;
 import com.here.xyz.jobs.steps.impl.transport.ExportChangedTiles.QuadType;
 import com.here.xyz.models.geojson.coordinates.LinearRingCoordinates;
 import com.here.xyz.models.geojson.coordinates.PolygonCoordinates;
@@ -34,7 +33,6 @@ import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
