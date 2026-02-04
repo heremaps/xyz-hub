@@ -360,7 +360,7 @@ BEGIN
         -- GeoJson Feature Import
         new_geo := ST_Force3D(ST_GeomFromGeoJSON(
             CASE WHEN (jsondata->'geometry') = 'null'::jsonb THEN NULL ELSE (jsondata->'geometry') END
-        );
+        ));
         jsondata := jsondata - 'geometry';
     ELSE
         new_geo := ST_Force3D(geo);
