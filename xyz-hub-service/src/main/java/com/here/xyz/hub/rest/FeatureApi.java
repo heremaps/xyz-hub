@@ -70,6 +70,7 @@ import com.here.xyz.hub.Service;
 import com.here.xyz.hub.XYZHubRESTVerticle;
 import com.here.xyz.hub.auth.FeatureAuthorization;
 import com.here.xyz.hub.connectors.RpcClient.RpcContext;
+import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.ApiParam.Path;
 import com.here.xyz.hub.rest.ApiParam.Query;
@@ -86,8 +87,10 @@ import com.here.xyz.models.hub.FeatureModificationList.FeatureModification;
 import com.here.xyz.models.hub.FeatureModificationList.IfExists;
 import com.here.xyz.models.hub.FeatureModificationList.IfNotExists;
 import com.here.xyz.models.hub.Ref;
+import com.here.xyz.psql.PSQLXyzConnector;
 import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.util.Async;
+import com.here.xyz.util.db.ConnectorParameters;
 import com.here.xyz.util.service.BaseHttpServerVerticle;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.HttpException;
@@ -189,14 +192,15 @@ public class FeatureApi extends SpaceBasedApi {
    * Creates or replaces a feature.
    */
   private void putFeature(final RoutingContext context) throws HttpException {
-    if (Config.instance.USE_WRITE_FEATURES_EVENT)
-      executeWriteFeatures(context, FEATURE,
-          toFeatureModificationList(readFeature(context).withId(getFeatureId(context)), IfNotExists.CREATE, IfExists.REPLACE,
-              ConflictResolution.ERROR), getSpaceContext(context));
-    else
-      executeConditionalOperationChain(false, context, FEATURE, IfExists.REPLACE, IfNotExists.CREATE, true,
-          ConflictResolution.ERROR);
-  }
+    executeWriteFeaturesEvent(context, FEATURE, toFeatureModificationList(readFeature(context).withId(getFeatureId(context)),
+            IfNotExists.CREATE, IfExists.REPLACE, ConflictResolution.ERROR), getSpaceContext(context))
+          .compose(wrote -> {
+            if(!wrote)
+              executeConditionalOperationChain(false, context, FEATURE, IfExists.REPLACE, IfNotExists.CREATE, true,
+                    ConflictResolution.ERROR);
+            return Future.succeededFuture();
+          });
+  };
 
   private FeatureModificationList toFeatureModificationList(Feature feature, IfNotExists ifNotExists, IfExists ifExists,
       ConflictResolution conflictResolution) {
@@ -230,13 +234,16 @@ public class FeatureApi extends SpaceBasedApi {
    */
   private void putFeatures(final RoutingContext context) throws HttpException {
     ApiResponseType responseType = getEmptyResponseTypeOr(context, FEATURE_COLLECTION);
-    if (Config.instance.USE_WRITE_FEATURES_EVENT)
-      executeWriteFeatures(context, responseType,
-          toFeatureModificationList(readFeatureOrFeatureCollection(context), IfNotExists.CREATE, IfExists.REPLACE, ConflictResolution.ERROR),
-          getSpaceContext(context));
-    else
-      executeConditionalOperationChain(false, context, responseType,
-          IfExists.REPLACE, IfNotExists.CREATE, true, ConflictResolution.ERROR);
+
+    executeWriteFeaturesEvent(context, responseType,
+            toFeatureModificationList(readFeatureOrFeatureCollection(context), IfNotExists.CREATE, IfExists.REPLACE, ConflictResolution.ERROR),
+            getSpaceContext(context))
+            .compose(wrote -> {
+              if(!wrote)
+                executeConditionalOperationChain(false, context, responseType,
+                        IfExists.REPLACE, IfNotExists.CREATE, true, ConflictResolution.ERROR);
+              return Future.succeededFuture();
+            });
   }
 
   private void putBinaryTile(final RoutingContext context) throws HttpException {
@@ -366,12 +373,15 @@ public class FeatureApi extends SpaceBasedApi {
    * Patches a feature
    */
   private void patchFeature(final RoutingContext context) throws HttpException {
-    if (Config.instance.USE_WRITE_FEATURES_EVENT)
-      executeWriteFeatures(context, FEATURE,
-          toFeatureModificationList(readFeature(context).withId(getFeatureId(context)), IfNotExists.RETAIN, PATCH, ConflictResolution.ERROR),
-          getSpaceContext(context));
-    else
-      executeConditionalOperationChain(true, context, FEATURE, PATCH, IfNotExists.RETAIN, true, ConflictResolution.ERROR);
+
+    executeWriteFeaturesEvent(context, FEATURE,
+            toFeatureModificationList(readFeature(context).withId(getFeatureId(context)), IfNotExists.RETAIN, PATCH, ConflictResolution.ERROR),
+            getSpaceContext(context))
+            .compose(wrote -> {
+              if(!wrote)
+                executeConditionalOperationChain(true, context, FEATURE, PATCH, IfNotExists.RETAIN, true, ConflictResolution.ERROR);
+              return Future.succeededFuture();
+            });
   }
 
   /**
@@ -385,16 +395,19 @@ public class FeatureApi extends SpaceBasedApi {
     ApiResponseType responseType = getEmptyResponseTypeOr(context, FEATURE_COLLECTION);
     String contentType = context.parsedHeaders().contentType().value();
 
-    if (Config.instance.USE_WRITE_FEATURES_EVENT) {
-      FeatureModificationList featureModificationList = APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST.equals(contentType)
-          ? readFeatureModificationList(context, ifExists, ifNotExists, conflictResolution)
-          : toFeatureModificationList(readFeatureOrFeatureCollection(context), ifNotExists, ifExists, conflictResolution);
+    FeatureModificationList featureModificationList =
+            Config.instance.USE_WRITE_FEATURES_EVENT ? APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST.equals(contentType)
+            ? readFeatureModificationList(context, ifExists, ifNotExists, conflictResolution)
+            : toFeatureModificationList(readFeatureOrFeatureCollection(context), ifNotExists, ifExists, conflictResolution)
+            : null;
 
-      executeWriteFeatures(context, responseType, featureModificationList, getSpaceContext(context));
-    }
-    else
-      executeConditionalOperationChain(false, context, responseType, ifExists, ifNotExists, transactional,
-          conflictResolution, true);
+    executeWriteFeaturesEvent(context, responseType, featureModificationList, getSpaceContext(context))
+            .compose(wrote -> {
+              if(!wrote)
+                executeConditionalOperationChain(false, context, responseType, ifExists, ifNotExists, transactional,
+                        conflictResolution, true);
+              return Future.succeededFuture();
+            });
   }
 
   /**
@@ -404,11 +417,13 @@ public class FeatureApi extends SpaceBasedApi {
     String featureId = context.pathParam(Path.FEATURE_ID);
     final SpaceContext spaceContext = getSpaceContext(context);
 
-    if (Config.instance.USE_WRITE_FEATURES_EVENT)
-      executeDeleteFeatures(context, EMPTY, List.of(featureId), spaceContext, true);
-    else
-      executeConditionalOperationChain(true, context, ApiResponseType.EMPTY, IfExists.DELETE, IfNotExists.RETAIN,
-          true, ConflictResolution.ERROR, List.of(Map.of("featureIds", List.of(featureId))), spaceContext);
+    executeWriteFeaturesEventForDeletions(context, EMPTY, List.of(featureId), spaceContext, true)
+            .compose(wrote -> {
+              if(!wrote)
+                executeConditionalOperationChain(true, context, ApiResponseType.EMPTY, IfExists.DELETE, IfNotExists.RETAIN,
+                        true, ConflictResolution.ERROR, List.of(Map.of("featureIds", List.of(featureId))), spaceContext);
+              return Future.succeededFuture();
+            });
   }
 
   /**
@@ -426,19 +441,14 @@ public class FeatureApi extends SpaceBasedApi {
       sendErrorResponse(context, new DetailedHttpException("E318406"));
     else {
       //Delete features by IDs
-      if (Config.instance.USE_WRITE_FEATURES_EVENT && !eraseContent)
-        executeDeleteFeatures(context, responseType, featureIds, spaceContext, false);
-      else
-        executeConditionalOperationChain(false, context, responseType, IfExists.DELETE, IfNotExists.RETAIN, true,
-            ConflictResolution.ERROR, List.of(Map.of("featureIds", featureIds)), spaceContext);
+      executeWriteFeaturesEventForDeletions(context, responseType, featureIds, spaceContext, false)
+              .compose(wrote -> {
+                if(!wrote)
+                  executeConditionalOperationChain(false, context, responseType, IfExists.DELETE, IfNotExists.RETAIN, true,
+                          ConflictResolution.ERROR, List.of(Map.of("featureIds", featureIds)), spaceContext);
+                return Future.succeededFuture();
+              });
     }
-  }
-
-  private void executeWriteFeatures(RoutingContext context, ApiResponseType responseType, FeatureModificationList modificationList,
-      SpaceContext spaceContext) throws HttpException {
-    writeFeatures(context, modificationList, spaceContext, getAuthor(context), responseType != EMPTY)
-        .onFailure(e -> this.sendErrorResponse(context, e))
-        .onSuccess(featureCollection -> sendWriteFeaturesResponse(context, responseType, featureCollection));
   }
 
   private void sendWriteFeaturesResponse(RoutingContext context, ApiResponseType responseType, FeatureCollection featureCollection) {
@@ -456,22 +466,6 @@ public class FeatureApi extends SpaceBasedApi {
     }
   }
 
-  private void executeDeleteFeatures(RoutingContext context, ApiResponseType responseType, List<String> featureIds,
-      SpaceContext spaceContext, boolean requireResourceExists) throws HttpException {
-    deleteFeatures(context, featureIds, spaceContext, getAuthor(context), responseType != EMPTY, requireResourceExists)
-        .onFailure(e -> this.sendErrorResponse(context, e))
-        .onSuccess(featureCollection -> sendWriteFeaturesResponse(context, responseType, featureCollection));
-  }
-
-  private Future<FeatureCollection> deleteFeatures(RoutingContext context, List<String> featureIds, SpaceContext spaceContext,
-      String author, boolean responseDataExpected, boolean requireResourceExists) throws HttpException {
-    UpdateStrategy updateStrategy = requireResourceExists
-        ? new UpdateStrategy(OnExists.DELETE, OnNotExists.ERROR, null, null)
-        : DEFAULT_DELETE_STRATEGY;
-    return writeFeatures(context, Set.of(new Modification()
-            .withFeatureIds(featureIds)
-            .withUpdateStrategy(updateStrategy)), spaceContext, author, responseDataExpected);
-  }
 
   /**
    * Performs all the API-level checks (e.g., authorization, parameter validation, ...) before actually calling the {@link FeatureHandler}
@@ -483,53 +477,46 @@ public class FeatureApi extends SpaceBasedApi {
    * @return
    */
   private Future<FeatureCollection> writeFeatures(RoutingContext context, Object inputModifications, SpaceContext spaceContext,
-      String author, boolean responseDataExpected) throws HttpException {
+      String author, Space space, Connector connector, boolean responseDataExpected) throws HttpException {
     checkModificationOnSuper(spaceContext);
-    String spaceId = getSpaceId(context);
     Ref baseRef = getBaseRef(context);
-    return Space.resolveSpace(getMarker(context), spaceId)
-        .compose(space -> {
-          if (space == null)
-            return Future.failedFuture(new DetailedHttpException("E318441", Map.of("resourceId", spaceId)));
 
-          Set<Modification> modifications = inputModifications instanceof FeatureModificationList featureModificationList
-              ? toModifications(context, space, featureModificationList, isConflictDetectionEnabled(context, baseRef))
-              : (Set<Modification>) inputModifications;
-          boolean isDelete = hasDeletion(modifications);
-          boolean isWrite = hasWrite(modifications);
+    Set<Modification> modifications = inputModifications instanceof FeatureModificationList featureModificationList
+        ? toModifications(context, space, featureModificationList, isConflictDetectionEnabled(context, baseRef))
+        : (Set<Modification>) inputModifications;
+    boolean isDelete = hasDeletion(modifications);
+    boolean isWrite = hasWrite(modifications);
 
-          try {
-            //Authorize the request and check some preconditions
-            if (isDelete)
-              FeatureAuthorization.authorizeWrite(context, space, true);
-            if (isWrite)
-              FeatureAuthorization.authorizeWrite(context, space, false);
-            //TODO: authorizeComposite?
-            checkIsActive(space);
-            checkReadOnly(space);
+    try {
+      //Authorize the request and check some preconditions
+      if (isDelete)
+        FeatureAuthorization.authorizeWrite(context, space, true);
+      if (isWrite)
+        FeatureAuthorization.authorizeWrite(context, space, false);
+      //TODO: authorizeComposite?
+      checkIsActive(space);
+      checkReadOnly(space);
 
-            XYZHubRESTVerticle.addStreamInfo(context, "SID", space.getStorage().getId());
+      XYZHubRESTVerticle.addStreamInfo(context, "SID", space.getStorage().getId());
 
-            return space.resolveStorage(getMarker(context))
-                .compose(connector -> resolveListenersAndProcessors(getMarker(context), space))
-                .compose(v -> resolveExtendedSpaces(getMarker(context), space))
-                .compose(v -> enforceUsageQuotas(context, space, spaceContext, isDelete && !isWrite))
-                //Perform the actual feature writing
-                .compose(v -> FeatureHandler.writeFeatures(getMarker(context), space, modifications, spaceContext, author, responseDataExpected, baseRef))
-                .recover(t -> {
-                  if (t instanceof TooManyRequestsException throttleException)
-                    XYZHubRESTVerticle.addStreamInfo(context, "THR", throttleException.reason); //Set the throttling reason at the stream-info header
-                  return Future.failedFuture(t);
-                });
-          }
-          catch (TooManyRequestsException e) {
-            XYZHubRESTVerticle.addStreamInfo(context, "THR", e.reason); //Set the throttling reason at the stream-info header
-            return Future.failedFuture(e);
-          }
-          catch (Exception e) {
-            return Future.failedFuture(e);
-          }
-        });
+      return resolveListenersAndProcessors(getMarker(context), space)
+          .compose(v -> resolveExtendedSpaces(getMarker(context), space))
+          .compose(v -> enforceUsageQuotas(context, space, spaceContext, isDelete && !isWrite))
+          //Perform the actual feature writing
+          .compose(v -> FeatureHandler.writeFeatures(getMarker(context), space, modifications, spaceContext, author, responseDataExpected, baseRef))
+          .recover(t -> {
+            if (t instanceof TooManyRequestsException throttleException)
+              XYZHubRESTVerticle.addStreamInfo(context, "THR", throttleException.reason); //Set the throttling reason at the stream-info header
+            return Future.failedFuture(t);
+          });
+    }
+    catch (TooManyRequestsException e) {
+      XYZHubRESTVerticle.addStreamInfo(context, "THR", e.reason); //Set the throttling reason at the stream-info header
+      return Future.failedFuture(e);
+    }
+    catch (Exception e) {
+      return Future.failedFuture(e);
+    }
   }
 
   private boolean hasDeletion(Set<Modification> modifications) {
@@ -820,5 +807,73 @@ public class FeatureApi extends SpaceBasedApi {
     final List<FeatureEntry> featureEntries = ModifyFeatureOp.convertToFeatureEntries(featureModifications, ifNotExists, ifExists, cr, event.getRef());
     final ModifyFeatureOp modifyFeatureOp = new ModifyFeatureOp(featureEntries, transactional);
     return new ConditionalOperation(event, context, apiResponseTypeType, modifyFeatureOp, requireResourceExists, bodySize);
+  }
+
+  private Future<Boolean> executeWriteFeaturesEventForDeletions(RoutingContext context, ApiResponseType responseType, List<String> featureIds, SpaceContext spaceContext,
+                                                                boolean requireResourceExists){
+    UpdateStrategy updateStrategy = requireResourceExists
+            ? new UpdateStrategy(OnExists.DELETE, OnNotExists.ERROR, null, null)
+            : DEFAULT_DELETE_STRATEGY;
+
+    return executeWriteFeaturesEvent(context, responseType, Set.of(new Modification()
+            .withFeatureIds(featureIds)
+            .withUpdateStrategy(updateStrategy)), spaceContext);
+  }
+
+  private Future<Boolean> executeWriteFeaturesEvent(RoutingContext context, ApiResponseType responseType, Object inputModifications,
+                                                    SpaceContext spaceContext) {
+    if (Config.instance.USE_WRITE_FEATURES_EVENT)
+      return Future.succeededFuture(false);
+    else {
+      String spaceId = getSpaceId(context);
+      return Space.resolveSpace(getMarker(context), spaceId)
+              .compose(space -> {
+                if (space == null) {
+                  return Future.failedFuture(
+                          new DetailedHttpException("E318441", Map.of("resourceId", spaceId))
+                  );
+                }
+
+                try {
+                  return space.resolveStorage(getMarker(context))
+                          .compose(connector -> {
+                            ConnectorParameters.TableLayout tableLayout = ConnectorParameters.TableLayout.OLD_LAYOUT;
+                            if (connector.getRemoteFunction() != null) {
+                              try {
+                                String className = "NA";
+                                if (connector.getRemoteFunction() instanceof Connector.RemoteFunctionConfig.AWSLambda lambda)
+                                  className = lambda.className;
+                                else if (connector.getRemoteFunction() instanceof Connector.RemoteFunctionConfig.Embedded embedded)
+                                  className = embedded.className;
+
+                                //Retrieve table layout via reflection
+                                tableLayout = PSQLXyzConnector.resolveTableLayout(className);
+                              } catch (Exception e) {
+                                //fallback to old layout
+                                logger.warn(getMarker(context), "Could not resolve table layout via reflection for connector-class: {}", connector.remoteFunction.className, e);
+                              }
+                            }
+
+                            if (!tableLayout.hasSearchableColumn()) {
+                              return Future.succeededFuture(false);
+                            } else {
+                              //Use new path - writing features with WriteFeaturesEvent
+                              try {
+                                return writeFeatures(context, inputModifications, spaceContext, getAuthor(context), space, connector, responseType != EMPTY)
+                                        .onSuccess(featureCollection -> sendWriteFeaturesResponse(context, responseType, featureCollection))
+                                        .compose(f -> Future.succeededFuture(true));
+                              } catch (TooManyRequestsException e) {
+                                XYZHubRESTVerticle.addStreamInfo(context, "THR", e.reason); //Set the throttling reason at the stream-info header
+                                return Future.failedFuture(e);
+                              } catch (Exception e) {
+                                return Future.failedFuture(e);
+                              }
+                            }
+                          });
+                } catch (Exception e) {
+                  return Future.failedFuture(e);
+                }
+              });
+    }
   }
 }

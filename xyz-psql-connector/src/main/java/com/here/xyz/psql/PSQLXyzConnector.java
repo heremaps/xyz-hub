@@ -26,6 +26,7 @@ import static com.here.xyz.responses.XyzError.ILLEGAL_ARGUMENT;
 import static com.here.xyz.responses.XyzError.NOT_FOUND;
 import static com.here.xyz.responses.XyzError.PAYLOAD_TO_LARGE;
 import static com.here.xyz.responses.XyzError.TIMEOUT;
+import static com.here.xyz.util.db.ConnectorParameters.TableLayout;
 import static com.here.xyz.util.db.ConnectorParameters.TableLayout.OLD_LAYOUT;
 
 import com.here.xyz.connectors.ErrorResponseException;
@@ -83,6 +84,8 @@ import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.responses.changesets.ChangesetCollection;
 import com.here.xyz.util.db.ConnectorParameters;
 import com.here.xyz.util.db.SQLQuery;
+
+import java.lang.reflect.InvocationTargetException;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -91,7 +94,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public class PSQLXyzConnector extends DatabaseHandler {
-  protected ConnectorParameters.TableLayout tableLayout = OLD_LAYOUT;
+  protected TableLayout tableLayout = OLD_LAYOUT;
 
   private static final Logger logger = LogManager.getLogger();
   protected static final Pattern ERRVALUE_22P02 = Pattern.compile("invalid input syntax for type numeric:\\s+\"([^\"]*)\"\\s+Query:"),
@@ -377,5 +380,18 @@ public class PSQLXyzConnector extends DatabaseHandler {
     }
 
     throw new ErrorResponseException(EXCEPTION, e.getMessage());
+  }
+
+  public static TableLayout resolveTableLayout(String className)
+          throws ClassNotFoundException, NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException {
+    if (className == null) {
+      return TableLayout.OLD_LAYOUT;
+    }
+
+    Class<?> mainClass = Class.forName(className);
+    PSQLXyzConnector connectorInstance = (PSQLXyzConnector) mainClass
+            .getDeclaredConstructor()
+            .newInstance();
+    return connectorInstance.getTableLayout();
   }
 }
