@@ -33,9 +33,8 @@ import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.service.BaseHttpServerVerticle;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
 public class ExtractJsonPathValues extends TaskedSpaceBasedStep<
         ExtractJsonPathValues,
@@ -148,11 +147,19 @@ public class ExtractJsonPathValues extends TaskedSpaceBasedStep<
     }
 
     private Map<String, String> loadAliasToJsonPath() throws WebClientException {
-        if (aliasToJsonPath == null || aliasToJsonPath.isEmpty()) {
-            this.aliasToJsonPath = Space.toExtractableSearchProperties(space());
-        }
+        Map<String, Boolean> activeOnly = Optional.ofNullable(space().getSearchableProperties())
+                .orElseGet(Collections::emptyMap)
+                .entrySet()
+                .stream()
+                .filter(e -> Boolean.TRUE.equals(e.getValue()))
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        Map.Entry::getValue,
+                        (a, b) -> a,
+                        LinkedHashMap::new
+                ));
 
-        return aliasToJsonPath == null ? Map.of() : aliasToJsonPath;
+        return Space.toExtractableSearchProperties(activeOnly);
     }
 
     @Override
@@ -221,7 +228,7 @@ public class ExtractJsonPathValues extends TaskedSpaceBasedStep<
 
         StringBuilder sql = new StringBuilder();
         sql.append("UPDATE ${schema}.${table} ")
-                .append("SET searchable = COALESCE(searchable, '{}'::jsonb)");
+                .append("SET searchable = ");
 
         int idx = 0;
         for (Map.Entry<String, String> e : effective.entrySet()) {
@@ -252,7 +259,11 @@ public class ExtractJsonPathValues extends TaskedSpaceBasedStep<
 
             String fn = scalar ? "jsonpath_scalar" : "jsonpath_array";
 
-            sql.append(" || jsonb_build_object('")
+            if (idx > 1) {
+                sql.append(" || ");
+            }
+
+            sql.append("jsonb_build_object('")
                     .append(safeKey)
                     .append("', ")
                     .append(fn)
