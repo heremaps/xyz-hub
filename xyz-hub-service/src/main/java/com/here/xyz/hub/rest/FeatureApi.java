@@ -822,7 +822,7 @@ public class FeatureApi extends SpaceBasedApi {
 
   private Future<Boolean> executeWriteFeaturesEvent(RoutingContext context, ApiResponseType responseType, Object inputModifications,
                                                     SpaceContext spaceContext) {
-    if (Config.instance.USE_WRITE_FEATURES_EVENT)
+    if (!Config.instance.USE_WRITE_FEATURES_EVENT)
       return Future.succeededFuture(false);
     else {
       String spaceId = getSpaceId(context);
