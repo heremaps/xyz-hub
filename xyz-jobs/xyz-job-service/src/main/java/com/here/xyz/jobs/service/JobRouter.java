@@ -70,9 +70,6 @@ public class JobRouter implements AbstractRouterBuilder {
         initializeJobApi(rb);
 
         final Router router = rb.createRouter();
-        router.route(HttpMethod.GET, "/health").handler(ctx -> ctx.response().send("OK"));
-
-        new JobAdminApi(router);
 
         return Future.succeededFuture(router);
       });
@@ -82,7 +79,7 @@ public class JobRouter implements AbstractRouterBuilder {
     }
   }
 
-  private void initializeJobApi(RouterBuilder rb) {
+  protected void initializeJobApi(RouterBuilder rb) {
     new JobApi(rb);
   }
 }
