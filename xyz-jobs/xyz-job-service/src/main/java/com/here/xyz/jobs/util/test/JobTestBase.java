@@ -33,6 +33,7 @@ import org.apache.logging.log4j.Logger;
 public class JobTestBase extends StepTestBase {
     private static final Logger logger = LogManager.getLogger();
     private static final String LOCALSTACK_HOST = System.getProperty("localstack.host", "localhost");
+    protected static String[] DEFAULT_AUTH_HEADERS = {"Authorization", "Bearer ANONYMOUS"};
     protected static int DEFAULT_JOB_POLL_TIMEOUT_SEC = 120;
     protected Set<String> createdJobs = new HashSet<>();
     protected Set<String> createdSpaces = new HashSet<>();
@@ -219,6 +220,7 @@ public class JobTestBase extends StepTestBase {
 
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(config.JOB_API_ENDPOINT + path))
+                .headers(DEFAULT_AUTH_HEADERS)
                 .header(CONTENT_TYPE, JSON_UTF_8.toString())
                 .method(method, bodyPublisher)
                 .version(HttpClient.Version.HTTP_1_1)
