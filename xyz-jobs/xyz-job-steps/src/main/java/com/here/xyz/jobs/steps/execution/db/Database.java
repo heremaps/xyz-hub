@@ -55,6 +55,7 @@ import org.apache.logging.log4j.Logger;
 import software.amazon.awssdk.services.rds.model.DBCluster;
 
 public class Database extends ExecutionResource {
+  private static final int STATEMENT_TIMEOUT= 895;
   private static final List<ScriptResourcePath> SCRIPT_RESOURCE_PATHS = List.of(new ScriptResourcePath("/sql", "jobs", "common"), new ScriptResourcePath("/jobs", "jobs"));
   private static final Logger logger = LogManager.getLogger();
   private static final float DB_MAX_JOB_UTILIZATION_PERCENTAGE = 0.6f;
@@ -109,7 +110,7 @@ public class Database extends ExecutionResource {
       dbSettings = new RestrictedDatabaseSettings(getName(), connectorDbSettingsMap)
           .withApplicationName("JobFramework")
           .withScriptResourcePaths(SCRIPT_RESOURCE_PATHS);
-    dbSettings.setStatementTimeoutSeconds(600);
+    dbSettings.setStatementTimeoutSeconds(STATEMENT_TIMEOUT);
     return dbSettings;
   }
 
