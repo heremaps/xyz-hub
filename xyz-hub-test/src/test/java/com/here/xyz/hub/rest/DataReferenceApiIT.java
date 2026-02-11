@@ -129,9 +129,11 @@ final class DataReferenceApiIT extends RestAssuredTest {
   @Order(3)
   @Test
   void shouldReturnNotFoundWhenNoDataReferenceExists() {
-    getReferenceById("00000000-0000-0000-0000-000000000000")
+    String noSuchReferenceId = "00000000-0000-0000-0000-000000000000";
+    getReferenceById(noSuchReferenceId)
       .then()
-      .statusCode(NOT_FOUND.code());
+      .statusCode(NOT_FOUND.code())
+      .body("errorMessage", equalTo("Data Reference id=%s not found".formatted(noSuchReferenceId)));
   }
 
   @Order(4)

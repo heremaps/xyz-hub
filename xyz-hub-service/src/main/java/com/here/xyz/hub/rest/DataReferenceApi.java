@@ -99,10 +99,11 @@ public final class DataReferenceApi extends Api {
   }
 
   private Future<DataReference> getDataReference(RoutingContext routingContext) {
-    return dataReferences.load(referenceIdFromRequestPath(routingContext))
+    UUID referenceId = referenceIdFromRequestPath(routingContext);
+    return dataReferences.load(referenceId)
       .compose(maybeReference ->
         maybeReference.map(Future::succeededFuture)
-          .orElse(Future.failedFuture(new HttpException(NOT_FOUND, "Data Reference id=%s not found".formatted(dataReferences.load(referenceIdFromRequestPath(routingContext))))))
+          .orElse(Future.failedFuture(new HttpException(NOT_FOUND, "Data Reference id=%s not found".formatted(referenceId))))
       );
   }
 
