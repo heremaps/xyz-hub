@@ -340,7 +340,8 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
         """)
             .withNamedParameter("targetLevel", targetLevel)
             .withNamedParameter("quadType", quadType.name())
-            .withQueryFragment("squashedDeltaChangesQuery", getBaseFeaturesByIdQuery);
+            .withQueryFragment("squashedDeltaChangesQuery", getBaseFeaturesByIdQuery)
+            .withLoggingEnabled(false);;
 
     return getChangedTilesQuery;
   }
@@ -366,7 +367,8 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
      """)
             .withNamedParameter("targetLevel", targetLevel)
             .withNamedParameter("quadType", quadType.name())
-            .withQueryFragment("squashedDeltaChangesQuery", getDeltaFeaturesQuery);
+            .withQueryFragment("squashedDeltaChangesQuery", getDeltaFeaturesQuery)
+            .withLoggingEnabled(false);
   }
 
   private SQLQuery getFeaturesByGeometryQuery(
@@ -437,6 +439,6 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
         space().getVersionsToKeep(),
         versionRef,
         ids
-    ));
+    )).withLoggingEnabled(false);
   }
 }
