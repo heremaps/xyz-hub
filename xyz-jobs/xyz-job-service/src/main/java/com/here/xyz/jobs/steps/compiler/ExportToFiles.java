@@ -44,6 +44,8 @@ import org.locationtech.jts.geom.Geometry;
 
 public class ExportToFiles implements JobCompilationInterceptor {
 
+  private static final long MAX_ALLOWED_SPATIAL_FILTER_AREA_IN_SQUARE_KM = 1000L; //tbd: 1000km2
+
   @Override
   public boolean chooseMe(Job job) {
     return job.getProcess() == null && Space.class.equals(job.getSource().getClass()) && job.getTarget() instanceof Files targetFiles
@@ -85,7 +87,7 @@ public class ExportToFiles implements JobCompilationInterceptor {
     boolean hasFilters = source.getFilters() != null
         && (source.getFilters().getPropertyFilter() != null || source.getFilters().getSpatialFilter() != null);
 
-    long maxAllowedFeatureCount = 100_000l;
+    long maxAllowedFeatureCount = 100_000L;
 
     if (!hasFilters)  // less then 100k features ok to export from DB
       return sourceStatistics.getCount().getValue() <= maxAllowedFeatureCount;
@@ -100,11 +102,10 @@ public class ExportToFiles implements JobCompilationInterceptor {
         throw new ValidationException("Invalid geometry in spatialFilter!");
 
       try {
-        long MAX_ALLOWED_SPATALFILTER_AREA_IN_SQUARE_KM = 1000l; //tbd: 1000km2
         Geometry bufferedGeo = GeoTools.applyBufferInMetersToGeometry(jtsGeometry, spatialFilter.getRadius());
         int areaInSquareKilometersFromGeometry = (int) GeoTools.getAreaInSquareKilometersFromGeometry(bufferedGeo);
 
-        if (areaInSquareKilometersFromGeometry <= MAX_ALLOWED_SPATALFILTER_AREA_IN_SQUARE_KM)
+        if (areaInSquareKilometersFromGeometry <= MAX_ALLOWED_SPATIAL_FILTER_AREA_IN_SQUARE_KM)
           return true;
       }
       catch (FactoryException | TransformException | org.geotools.api.referencing.operation.TransformException e) {

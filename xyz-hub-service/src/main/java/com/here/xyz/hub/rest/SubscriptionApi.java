@@ -30,6 +30,7 @@ import com.here.xyz.hub.Service;
 import com.here.xyz.hub.auth.Authorization;
 import com.here.xyz.hub.task.SubscriptionHandler;
 import com.here.xyz.models.hub.Subscription;
+import com.here.xyz.models.hub.Subscription.Filter;
 import com.here.xyz.util.geo.GeometryValidator;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.service.HttpException;
@@ -177,7 +178,7 @@ public class SubscriptionApi extends SpaceBasedApi {
     validateFilter(subscription.getFilter());
   }
 
-  private void validateFilter(Subscription.SubscriptionFilter filter) throws HttpException {
+  private void validateFilter(Filter filter) throws HttpException {
     if (filter == null)
       return;
 

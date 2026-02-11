@@ -87,13 +87,13 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
   public static final String EXPORTED_DATA = "exportedData";
 
   //Defines how many features a source layer need to have to start parallelization.
-  public static final int PARALLELIZTATION_MIN_THRESHOLD = 200_000;
+  public static final int PARALLELIZATION_MIN_THRESHOLD = 200_000;
   //Defines how many threads are getting used
-  public static final int PARALLELIZTATION_THREAD_COUNT = 8;
+  public static final int PARALLELIZATION_THREAD_COUNT = 8;
 
   //Defines how large the area of a defined spatialFilter can be
   //If a point is defined - the maximum radius can be 17898 meters
-  private static final int MAX_ALLOWED_SPATALFILTER_AREA_IN_SQUARE_KM = 1_000;
+  private static final int MAX_ALLOWED_SPATIAL_FILTER_AREA_IN_SQUARE_KM = 1_000;
   //Currently only used if there is no filter set
   private static final long MAX_TASK_COUNT = 1_000;
   private static final long MAX_BYTES_PER_TASK = 200L * 1024 * 1024; // 200MB in bytes
@@ -293,7 +293,7 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
   public void execute(boolean resume) throws Exception {
     //Set threadCount based on feature count
     StatisticsResponse statistics = loadSpaceStatistics(getSpaceId(), context, true);
-    threadCount = statistics.getCount().getValue() > PARALLELIZTATION_MIN_THRESHOLD ? PARALLELIZTATION_THREAD_COUNT : 1;
+    threadCount = statistics.getCount().getValue() > PARALLELIZATION_MIN_THRESHOLD ? PARALLELIZATION_THREAD_COUNT : 1;
 
     super.execute(resume);
   }
@@ -340,8 +340,9 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
         try {
           Geometry bufferedGeo = GeoTools.applyBufferInMetersToGeometry(jtsGeometry, spatialFilter.getRadius());
           double areaInSquareKilometersFromGeometry = GeoTools.getAreaInSquareKilometersFromGeometry(bufferedGeo);
-          if ( areaInSquareKilometersFromGeometry > MAX_ALLOWED_SPATALFILTER_AREA_IN_SQUARE_KM) {
-            throw new ValidationException( String.format("Invalid SpatialFilter! Provided area of filter geometry is to large! [%.2f km² > %d km²]",areaInSquareKilometersFromGeometry,MAX_ALLOWED_SPATALFILTER_AREA_IN_SQUARE_KM));
+          if ( areaInSquareKilometersFromGeometry > MAX_ALLOWED_SPATIAL_FILTER_AREA_IN_SQUARE_KM) {
+            throw new ValidationException( String.format("Invalid SpatialFilter! Provided area of filter geometry is to large! [%.2f km² > %d km²]",areaInSquareKilometersFromGeometry,
+                MAX_ALLOWED_SPATIAL_FILTER_AREA_IN_SQUARE_KM));
           }
         } catch (FactoryException | org.geotools.api.referencing.operation.TransformException | TransformException |
                  NullPointerException e) {

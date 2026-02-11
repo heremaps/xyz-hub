@@ -50,7 +50,7 @@ public class Subscription {
 
     private SubscriptionStatus status;
 
-    private SubscriptionFilter filter;
+    private Filter filter;
 
     public String getId() {
         return id;
@@ -117,21 +117,21 @@ public class Subscription {
         return this;
     }
 
-    public SubscriptionFilter getFilter() {
+    public Filter getFilter() {
         return filter;
     }
 
-    public void setFilter(SubscriptionFilter filter) {
+    public void setFilter(Filter filter) {
         this.filter = filter;
     }
 
-    public Subscription withFilter(SubscriptionFilter filter) {
+    public Subscription withFilter(Filter filter) {
         this.filter = filter;
         return this;
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class SubscriptionFilter {
+    public static class Filter {
 
         private List<String> jsonPaths;
         private SpatialFilter spatialFilter;
@@ -144,7 +144,7 @@ public class Subscription {
             this.jsonPaths = jsonPaths;
         }
 
-        public SubscriptionFilter withJsonPaths(List<String> jsonPaths) {
+        public Filter withJsonPaths(List<String> jsonPaths) {
             this.jsonPaths = jsonPaths;
             return this;
         }
@@ -157,7 +157,7 @@ public class Subscription {
             this.spatialFilter = spatialFilter;
         }
 
-        public SubscriptionFilter withSpatialFilter(SpatialFilter spatialFilter) {
+        public Filter withSpatialFilter(SpatialFilter spatialFilter) {
             this.spatialFilter = spatialFilter;
             return this;
         }

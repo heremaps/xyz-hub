@@ -137,8 +137,8 @@ public class SubscriptionApiIT extends TestSpaceWithFeature {
         .statusCode(CREATED.code())
         .body("id", equalTo("test-subscription-1"))
         .body("filter.jsonPaths[0]", equalTo("$.properties.name"))
-        .body("filter.radius", equalTo(100))
-        .body("filter.clip", equalTo(true));
+        .body("filter.spatialFilter.radius", equalTo(100))
+        .body("filter.spatialFilter.clip", equalTo(true));
   }
 
   @Test
