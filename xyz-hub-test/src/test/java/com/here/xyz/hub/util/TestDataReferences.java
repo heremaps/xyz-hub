@@ -58,6 +58,7 @@ final class TestDataReferences {
     dataReference.put("location", "location-A");
     dataReference.put("sourceSystem", "source-system-A");
     dataReference.put("targetSystem", "target-system-A");
+    dataReference.put("customSortKey", "endVersion#000005#id#" + referenceId);
 
     return dataReference;
   }

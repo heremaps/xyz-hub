@@ -19,8 +19,6 @@
 
 package com.here.xyz.hub;
 
-import static com.here.xyz.hub.task.SpaceTask.ConnectorMapping.RANDOM;
-
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.here.xyz.hub.auth.AuthorizationType;
@@ -28,10 +26,13 @@ import com.here.xyz.hub.task.SpaceTask.ConnectorMapping;
 import com.here.xyz.util.ARN;
 import com.here.xyz.util.Hasher;
 import com.here.xyz.util.service.BaseConfig;
+
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static com.here.xyz.hub.task.SpaceTask.ConnectorMapping.RANDOM;
 
 /**
  * The service configuration.
@@ -266,6 +267,11 @@ public class Config extends BaseConfig {
    * The ARN of the entities table in DynamoDB.
    */
   public String ENTITIES_DYNAMODB_TABLE_ARN;
+
+  /**
+   * The ARN of the Data References table in DynamoDB.
+   */
+  public String REFERENCES_DYNAMODB_TABLE_ARN;
 
   /**
    * The ARN of the admin message topic.

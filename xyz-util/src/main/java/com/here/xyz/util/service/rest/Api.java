@@ -19,18 +19,6 @@
 
 package com.here.xyz.util.service.rest;
 
-import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
-import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
-import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
-import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
-import static io.netty.handler.codec.http.HttpResponseStatus.GATEWAY_TIMEOUT;
-import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
-import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
-import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
-import static io.netty.handler.codec.http.HttpResponseStatus.OK;
-import static io.vertx.core.http.HttpHeaders.ACCEPT_ENCODING;
-import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
-
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.XyzSerializable.Internal;
@@ -56,12 +44,25 @@ import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.json.EncodeException;
 import io.vertx.core.json.Json;
 import io.vertx.ext.web.RoutingContext;
-import java.io.ByteArrayOutputStream;
-import java.util.List;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
+
+import java.io.ByteArrayOutputStream;
+import java.util.List;
+
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
+import static io.netty.handler.codec.http.HttpResponseStatus.GATEWAY_TIMEOUT;
+import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
+import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
+import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
+import static io.netty.handler.codec.http.HttpResponseStatus.OK;
+import static io.vertx.core.http.HttpHeaders.ACCEPT_ENCODING;
+import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
 
 public class Api {
     public static final int MAX_SERVICE_RESPONSE_SIZE = (BaseConfig.instance == null ? 0 : BaseConfig.instance.MAX_SERVICE_RESPONSE_SIZE);
@@ -99,12 +100,16 @@ public class Api {
       };
     }
 
-  protected <R> Handler<RoutingContext> handle(ThrowingTask<R, RoutingContext> taskHandler) {
-    return handleErrors(context -> {
+  protected <R> Handler<RoutingContext> handle(ThrowingTask<R, RoutingContext> taskHandler, HttpResponseStatus successfulStatus) {
+    return handleErrors(context ->
       taskHandler.execute(context)
-          .onSuccess(response -> sendResponse(context, OK.code(), response))
-          .onFailure(t -> sendErrorResponse(context, t));
-    });
+        .onSuccess(response -> sendResponse(context, successfulStatus.code(), response))
+        .onFailure(t -> sendErrorResponse(context, t))
+    );
+  }
+
+  protected <R> Handler<RoutingContext> handle(ThrowingTask<R, RoutingContext> taskHandler) {
+    return handle(taskHandler, OK);
   }
 
   /**

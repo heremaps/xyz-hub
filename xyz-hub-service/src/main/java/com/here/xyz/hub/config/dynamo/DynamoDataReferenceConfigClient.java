@@ -27,7 +27,6 @@ import com.amazonaws.services.dynamodbv2.document.RangeKeyCondition;
 import com.amazonaws.services.dynamodbv2.document.Table;
 import com.amazonaws.services.dynamodbv2.document.spec.QuerySpec;
 import com.amazonaws.services.dynamodbv2.model.AmazonDynamoDBException;
-import com.here.xyz.XyzSerializable;
 import com.here.xyz.hub.config.DataReferenceConfigClient;
 import com.here.xyz.models.hub.DataReference;
 import com.here.xyz.util.service.aws.dynamo.DynamoClient;
@@ -40,6 +39,7 @@ import org.apache.logging.log4j.Logger;
 
 import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.StringJoiner;
@@ -57,7 +57,11 @@ public final class DynamoDataReferenceConfigClient extends DataReferenceConfigCl
 
   private static final String PARTITION_KEY_NAME = "entityId";
 
-  private static final String SORT_KEY_NAME = "endVersion";
+  private static final String SORT_KEY_NAME = "customSortKey";
+
+  private static final String END_VERSION_SORT_KEY_PART = "endVersion#%06d";
+
+  private static final String SORT_KEY_PATTERN = END_VERSION_SORT_KEY_PART + "#id#%s";
 
   private static final String ID_INDEX_ATTRIBUTE_NAME = "id";
 
@@ -84,10 +88,21 @@ public final class DynamoDataReferenceConfigClient extends DataReferenceConfigCl
         dataReference.setId(UUID.randomUUID());
       }
 
-      dataReferenceTable.putItem(Item.fromMap(dataReference.toMap()));
+      dataReferenceTable.putItem(Item.fromMap(dynamoItemAsMap(dataReference)));
 
       return dataReference.getId();
     });
+  }
+
+  private static Map<String, Object> dynamoItemAsMap(DataReference dataReference) {
+    Map<String, Object> dataReferenceAsMap = dataReference.toMap();
+    dataReferenceAsMap.put(SORT_KEY_NAME, sortKeyValue(dataReference));
+
+    return dataReferenceAsMap;
+  }
+
+  private static String sortKeyValue(DataReference dataReference) {
+    return SORT_KEY_PATTERN.formatted(dataReference.getEndVersion(), dataReference.getId());
   }
 
   @Override
@@ -115,7 +130,7 @@ public final class DynamoDataReferenceConfigClient extends DataReferenceConfigCl
         .withHashKey(PARTITION_KEY_NAME, entityId);
 
       if (endVersion != null) {
-        query.withRangeKeyCondition(new RangeKeyCondition(SORT_KEY_NAME).eq(endVersion));
+        query.withRangeKeyCondition(new RangeKeyCondition(SORT_KEY_NAME).beginsWith((END_VERSION_SORT_KEY_PART + "#").formatted(endVersion)));
       }
 
       QueryFilter[] filters = remainingFilters(
@@ -161,7 +176,7 @@ public final class DynamoDataReferenceConfigClient extends DataReferenceConfigCl
   private static <T> List<T> itemCollectionToList(ItemCollection<QueryOutcome> itemCollection, Class<T> resultItemClass) {
     return StreamSupport.stream(itemCollection.spliterator(), false)
       .map(Item::asMap)
-      .map(itemAsMap -> XyzSerializable.fromMap(itemAsMap, resultItemClass))
+      .map(itemAsMap -> fromMap(itemAsMap, resultItemClass))
       .toList();
   }
 
@@ -175,7 +190,7 @@ public final class DynamoDataReferenceConfigClient extends DataReferenceConfigCl
               PARTITION_KEY_NAME,
               item.getEntityId(),
               SORT_KEY_NAME,
-              item.getEndVersion()
+              sortKeyValue(item)
             )
           );
           return null;
@@ -189,7 +204,7 @@ public final class DynamoDataReferenceConfigClient extends DataReferenceConfigCl
       try {
         String attributes = new StringJoiner(",")
           .add("%s:S".formatted(PARTITION_KEY_NAME))
-          .add("%s:N".formatted(SORT_KEY_NAME))
+          .add("%s:S".formatted(SORT_KEY_NAME))
           .add("%s:S".formatted(ID_INDEX_ATTRIBUTE_NAME))
           .toString();
 

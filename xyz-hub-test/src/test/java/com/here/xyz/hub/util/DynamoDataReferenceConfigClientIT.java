@@ -117,6 +117,7 @@ class DynamoDataReferenceConfigClientIT extends DynamoDbIT {
     List<Map<String, Object>> referencesFromDb = fetchFromDb(dataReference.getId());
     Map<String, Object> expectedInDb = dataReferenceAsMap(referenceId);
     expectedInDb.put("id", newReferenceId.toString());
+    expectedInDb.put("customSortKey", "endVersion#000005#id#" + newReferenceId);
     assertThat(referencesFromDb)
       .containsExactly(expectedInDb);
   }
@@ -379,39 +380,46 @@ class DynamoDataReferenceConfigClientIT extends DynamoDbIT {
     dataReference1.put("startVersion", 2);
     dataReference1.put("endVersion", 3);
     dataReference1.put("sourceSystem", "source-system-B");
+    dataReference1.put("customSortKey", "endVersion#000003#id#" + referenceId);
     storeInDb(dataReference1);
 
     Map<String, Object> dataReference2 = dataReferenceAsMap(referenceId);
     dataReference2.put("entityId", entityId1);
     dataReference2.put("endVersion", 1);
     dataReference2.put("contentType", "content-type-B");
+    dataReference2.put("customSortKey", "endVersion#000001#id#" + referenceId);
     storeInDb(dataReference2);
 
     Map<String, Object> dataReference3 = dataReferenceAsMap(referenceId);
     dataReference3.put("entityId", entityId1);
     dataReference3.put("endVersion", 2);
     dataReference3.put("objectType", "object-type-B");
+    dataReference3.put("customSortKey", "endVersion#000002#id#" + referenceId);
     storeInDb(dataReference3);
 
     Map<String, Object> dataReference4 = dataReferenceAsMap(referenceId);
     dataReference4.put("entityId", entityId2);
     dataReference4.put("endVersion", 10);
     dataReference4.put("targetSystem", "target-system-B");
+    dataReference4.put("customSortKey", "endVersion#000010#id#" + referenceId);
     storeInDb(dataReference4);
 
     Map<String, Object> dataReference5 = dataReferenceAsMap(referenceId);
     dataReference5.put("entityId", entityId2);
     dataReference5.put("endVersion", 11);
+    dataReference5.put("customSortKey", "endVersion#000011#id#" + referenceId);
     storeInDb(dataReference5);
 
     Map<String, Object> dataReference6 = dataReferenceAsMap(referenceId);
     dataReference6.put("entityId", entityId2);
     dataReference6.put("endVersion", 12);
+    dataReference6.put("customSortKey", "endVersion#000012#id#" + referenceId);
     storeInDb(dataReference6);
 
     Map<String, Object> dataReference7 = dataReferenceAsMap(referenceId);
     dataReference7.put("entityId", entityId2);
     dataReference7.put("endVersion", 13);
+    dataReference7.put("customSortKey", "endVersion#000013#id#" + referenceId);
     storeInDb(dataReference7);
 
     // when
