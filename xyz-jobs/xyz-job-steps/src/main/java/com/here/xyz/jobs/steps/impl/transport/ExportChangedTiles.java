@@ -81,6 +81,8 @@ import java.util.Set;
  * and {@link TileInvalidations}.</p>
  */
 public class ExportChangedTiles extends ExportSpaceToFiles {
+  //GetFeaturesById queries are getting chunked  in MAX_ID_BLOCKSIZE blocks
+  private static final int MAX_ID_BLOCKSIZE = 400_000;
   public static final String TILE_INVALIDATIONS = "tileInvalidations";
 
   @JsonView({Internal.class, Static.class})
@@ -210,14 +212,26 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
             + versionRef +". Intermediate result size: "+ affectedTiles.size());
 
     if(!changedFeatureIds.isEmpty()){
+      final int totalIdSize = changedFeatureIds.size();
+
       //Get affected Tiles from list of Feature in version [versionRef.getStartVersion()]
-      runReadQuerySync(getAffectedTilesFromBase(changedFeatureIds, new Ref(versionRef.getStart().getVersion())),
-              db(), 0, rs -> {
-                while (rs.next()){
-                  affectedTiles.add(rs.getString("tile"));
-                }
-                return null;
-              });
+      for (int from = 0; from < totalIdSize; from += MAX_ID_BLOCKSIZE) {
+        int to = Math.min(from + MAX_ID_BLOCKSIZE, totalIdSize);
+        List<String> idBlock = changedFeatureIds.subList(from, to);
+
+        runReadQuerySync(getAffectedTilesFromVersion(idBlock, new Ref(versionRef.getStart().getVersion())),
+                db(), 0, rs -> {
+                  while (rs.next()){
+                    affectedTiles.add(rs.getString("tile"));
+                  }
+                  return null;
+                });
+
+        infoLog(STEP_EXECUTE,
+                "Processed ID block [" + from + " - " + (to - 1) + "] Block size: " + idBlock.size()
+                        + ", Current affectedTiles size: " + affectedTiles.size());
+      }
+
       infoLog(STEP_EXECUTE,  "Added affected tiles from base version "
               + versionRef.getStart().getVersion() +". Final Result size: "+ affectedTiles.size());
     }
@@ -327,7 +341,7 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
     };
   }
 
-  private SQLQuery getAffectedTilesFromBase(List<String> ids, Ref versionRef) throws TooManyResourcesClaimed, QueryBuildingException, WebClientException {
+  private SQLQuery getAffectedTilesFromVersion(List<String> ids, Ref versionRef) throws TooManyResourcesClaimed, QueryBuildingException, WebClientException {
     SQLQuery getBaseFeaturesByIdQuery = generateGetFeaturesByIdsQuery(ids, DEFAULT, versionRef);
 
     SQLQuery getChangedTilesQuery =  new SQLQuery("SELECT "+getQuadFunctionName()+
