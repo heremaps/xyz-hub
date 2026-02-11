@@ -15,9 +15,11 @@
 
 package com.here.xyz.util.datasets.filters;
 
+import com.here.xyz.models.filters.SpatialFilter;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.util.geo.GeoTools;
+import com.here.xyz.util.geo.GeometryValidator;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.jayway.jsonpath.JsonPath;
 import java.util.Collection;
@@ -110,7 +112,7 @@ public class FilterFeatureUtils {
   }
 
   private static PreparedGeometry getPreparedGeometryFromSpatialFilter(SpatialFilter spatialFilter) throws ValidationException {
-    spatialFilter.validateSpatialFilter();
+    GeometryValidator.validateSpatialFilter(spatialFilter);
     try {
       org.locationtech.jts.geom.Geometry bufferedGeometry = GeoTools.applyBufferInMetersToGeometry(
           spatialFilter.getGeometry().getJTSGeometry(), spatialFilter.getRadius());

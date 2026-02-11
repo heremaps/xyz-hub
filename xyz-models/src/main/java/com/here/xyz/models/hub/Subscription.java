@@ -20,7 +20,7 @@
 package com.here.xyz.models.hub;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.here.xyz.models.geojson.implementation.Geometry;
+import com.here.xyz.models.filters.SpatialFilter;
 
 import java.util.List;
 import java.util.Map;
@@ -134,12 +134,7 @@ public class Subscription {
     public static class SubscriptionFilter {
 
         private List<String> jsonPaths;
-
-        private Geometry geometry;
-
-        private int radius;
-
-        private boolean clip;
+        private SpatialFilter spatialFilter;
 
         public List<String> getJsonPaths() {
             return jsonPaths;
@@ -154,42 +149,16 @@ public class Subscription {
             return this;
         }
 
-        public Geometry getGeometry() {
-            return geometry;
+        public SpatialFilter getSpatialFilter() {
+            return spatialFilter;
         }
 
-        public void setGeometry(Geometry geometry) {
-            this.geometry = geometry;
+        public void setSpatialFilter(SpatialFilter spatialFilter) {
+            this.spatialFilter = spatialFilter;
         }
 
-        public SubscriptionFilter withGeometry(Geometry geometry) {
-            this.geometry = geometry;
-            return this;
-        }
-
-        public int getRadius() {
-            return radius;
-        }
-
-        public void setRadius(int radius) {
-            this.radius = radius;
-        }
-
-        public SubscriptionFilter withRadius(int radius) {
-            this.radius = radius;
-            return this;
-        }
-
-        public boolean isClip() {
-            return clip;
-        }
-
-        public void setClip(boolean clip) {
-            this.clip = clip;
-        }
-
-        public SubscriptionFilter withClip(boolean clip) {
-            this.clip = clip;
+        public SubscriptionFilter withSpatialFilter(SpatialFilter spatialFilter) {
+            this.spatialFilter = spatialFilter;
             return this;
         }
     }

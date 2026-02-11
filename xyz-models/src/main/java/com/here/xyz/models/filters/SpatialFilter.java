@@ -13,7 +13,7 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.util.datasets.filters;
+package com.here.xyz.models.filters;
 
 import java.util.List;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -21,10 +21,7 @@ import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.XyzSerializable.Public;
 import com.here.xyz.XyzSerializable.Static;
 import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
-import com.here.xyz.util.geo.GeometryValidator.GeometryException;
 import com.here.xyz.models.geojson.implementation.Geometry;
-import com.here.xyz.util.geo.GeometryValidator;
-import com.here.xyz.util.service.BaseHttpServerVerticle;
 
 @JsonInclude(JsonInclude.Include.NON_DEFAULT)
 public class SpatialFilter {
@@ -114,17 +111,8 @@ public class SpatialFilter {
   }
 
   public SpatialFilter withClip(final boolean clipped) {
-    setClipped(clipped);
+    setClip(clipped);
     return this;
-  }
-
-  public void validateSpatialFilter() throws BaseHttpServerVerticle.ValidationException {
-    try {
-      GeometryValidator.validateGeometry(this.geometry, this.radius);
-    }
-    catch (GeometryException e){
-      throw new BaseHttpServerVerticle.ValidationException(e.getMessage());
-    }
   }
 
   @Override

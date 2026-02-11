@@ -39,10 +39,10 @@ import org.junit.Test;
 
 public class SubscriptionApiIT extends TestSpaceWithFeature {
 
-  private static String cleanUpSpaceId = "space1";
-  private static String cleanUpSpaceId2 = "space2";
-  private static String cleanUpSpaceId3 = cleanUpSpaceId + "-ext";
-  private static String subscriptionId = "test-subscription-1";
+  private static final String cleanUpSpaceId = "space1";
+  private static final String cleanUpSpaceId2 = "space2";
+  private static final String cleanUpSpaceId3 = cleanUpSpaceId + "-ext";
+  private static final String subscriptionId = "test-subscription-1";
 
   @BeforeClass
   public static void setupClass() {

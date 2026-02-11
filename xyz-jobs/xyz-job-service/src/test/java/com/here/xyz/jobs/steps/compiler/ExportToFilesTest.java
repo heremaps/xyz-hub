@@ -24,7 +24,7 @@ import com.here.xyz.jobs.datasets.FileOutputSettings;
 import com.here.xyz.jobs.datasets.Files;
 import com.here.xyz.jobs.datasets.files.GeoJson;
 import com.here.xyz.jobs.datasets.filters.Filters;
-import com.here.xyz.util.datasets.filters.SpatialFilter;
+import com.here.xyz.models.filters.SpatialFilter;
 import com.here.xyz.jobs.steps.CompilationStepGraph;
 import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
 import com.here.xyz.models.geojson.coordinates.LinearRingCoordinates;
@@ -35,7 +35,6 @@ import com.here.xyz.models.geojson.implementation.Polygon;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Tag;
-import com.here.xyz.psql.query.Spatial;
 import com.here.xyz.util.service.BaseHttpServerVerticle;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 

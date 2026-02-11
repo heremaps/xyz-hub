@@ -26,13 +26,14 @@ import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.datasets.DatasetDescription.Space;
 import com.here.xyz.jobs.datasets.Files;
 import com.here.xyz.jobs.datasets.files.GeoJson;
-import com.here.xyz.util.datasets.filters.SpatialFilter;
+import com.here.xyz.models.filters.SpatialFilter;
 import com.here.xyz.jobs.steps.CompilationStepGraph;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.JobCompiler.CompilationError;
 import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.geo.GeoTools;
+import com.here.xyz.util.geo.GeometryValidator;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
@@ -91,14 +92,8 @@ public class ExportToFiles implements JobCompilationInterceptor {
 
     SpatialFilter spatialFilter = source.getFilters().getSpatialFilter();
 
-    if (spatialFilter != null && spatialFilter != null) {
-      try {
-        spatialFilter.validateSpatialFilter();
-      }
-      catch (ValidationException e) {
-        throw e;
-      }
-
+    if (spatialFilter != null) {
+      GeometryValidator.validateSpatialFilter(spatialFilter);
       Geometry jtsGeometry = spatialFilter.getGeometry().getJTSGeometry();
 
       if (jtsGeometry != null && !jtsGeometry.isValid())

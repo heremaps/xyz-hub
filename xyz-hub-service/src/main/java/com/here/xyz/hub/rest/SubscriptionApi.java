@@ -30,6 +30,7 @@ import com.here.xyz.hub.Service;
 import com.here.xyz.hub.auth.Authorization;
 import com.here.xyz.hub.task.SubscriptionHandler;
 import com.here.xyz.models.hub.Subscription;
+import com.here.xyz.util.geo.GeometryValidator;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.service.HttpException;
 import io.vertx.core.Future;
@@ -77,7 +78,7 @@ public class SubscriptionApi extends SpaceBasedApi {
       final Subscription subscription = getSubscriptionInput(context);
       subscription.setSource(spaceId);
 
-      logger.info(marker, "Registering subscription for space " + spaceId + ": " + JsonObject.mapFrom(subscription));
+      logger.info(marker, "Registering subscription for space {}: {}", spaceId, JsonObject.mapFrom(subscription));
       validateRequestBody(subscription);
 
       getAndValidateSpace(marker, spaceId)
@@ -192,16 +193,13 @@ public class SubscriptionApi extends SpaceBasedApi {
       }
     }
 
-    if (filter.getGeometry() != null) {
+    if (filter.getSpatialFilter() != null) {
       try {
-        filter.getGeometry().validate();
-      } catch (Exception e) {
-        throw new HttpException(BAD_REQUEST, "Validation failed. Invalid geometry in filter: " + e.getMessage());
+        GeometryValidator.validateSpatialFilter(filter.getSpatialFilter());
+      } catch (ValidationException e) {
+        throw new HttpException(BAD_REQUEST, "Validation failed. Invalid spatial filter: " + e.getMessage());
       }
     }
-
-    if (filter.getRadius() < 0)
-      throw new HttpException(BAD_REQUEST, "Validation failed. The filter 'radius' cannot be negative.");
   }
 
   private Future<Void> validateSubscriptionDestination(Subscription subscription) {

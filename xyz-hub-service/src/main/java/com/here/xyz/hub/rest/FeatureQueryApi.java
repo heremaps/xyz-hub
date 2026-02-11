@@ -244,7 +244,7 @@ public class FeatureQueryApi extends SpaceBasedApi {
       final boolean force2D = Query.getBoolean(context, FORCE_2D, false);
       final SpaceContext spaceContext = getSpaceContext(context);
 
-      GetFeaturesByGeometryEvent event = new GetFeaturesByGeometryEvent()
+      GetFeaturesByGeometryEvent  event = new GetFeaturesByGeometryEvent()
           .withGeometry(geometry)
           .withRadius(Query.getRadius(context))
           .withH3Index(Query.getH3Index(context))

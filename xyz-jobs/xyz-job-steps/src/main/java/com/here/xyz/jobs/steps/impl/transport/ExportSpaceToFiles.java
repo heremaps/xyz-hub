@@ -29,7 +29,7 @@ import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_ON_ASYNC
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.PropertiesQuery;
-import com.here.xyz.util.datasets.filters.SpatialFilter;
+import com.here.xyz.models.filters.SpatialFilter;
 import com.here.xyz.jobs.steps.StepExecution;
 import com.here.xyz.jobs.steps.execution.StepException;
 import com.here.xyz.jobs.steps.execution.db.Database;
@@ -50,6 +50,7 @@ import com.here.xyz.psql.query.QueryBuilder.QueryBuildingException;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.geo.GeoTools;
+import com.here.xyz.util.geo.GeometryValidator;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
 
@@ -329,7 +330,7 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
         throw new ValidationException("Invalid arguments! Geometry cant be null!");
 
       Geometry jtsGeometry = spatialFilter.getGeometry().getJTSGeometry();
-      spatialFilter.validateSpatialFilter();
+      GeometryValidator.validateSpatialFilter(spatialFilter);
 
       //Enhanced Check validation check of Geometry with JTS
       if(jtsGeometry != null && !jtsGeometry.isValid())
@@ -495,7 +496,7 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
     });
   }
 
-  private record IRange(long minI, long maxI) {};
+  private record IRange(long minI, long maxI) {}
 
   private long loadMinI() {
     if (minI == -1)

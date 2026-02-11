@@ -4059,6 +4059,13 @@ components:
           items:
             type: string
           example: ["$.properties.name", "$.properties.type"]
+        spatialFilter:
+          $ref: '#/components/schemas/SpatialFilter'
+    SpatialFilter:
+      type: object
+      description: >-
+        A spatial filter to filter features based on their geometric properties.
+      properties:
         geometry:
           $ref: '#/components/schemas/Geometry'
         radius:

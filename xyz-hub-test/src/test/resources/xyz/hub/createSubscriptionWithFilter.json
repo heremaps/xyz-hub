@@ -9,11 +9,13 @@
   },
   "filter": {
     "jsonPaths": ["$.properties.name", "$[?(@.properties.type == 'building')]"],
-    "geometry": {
-      "type": "Polygon",
-      "coordinates": [[[0, 0], [0, 1], [1, 1], [1, 0], [0, 0]]]
-    },
-    "radius": 100,
-    "clip": true
+    "spatialFilter": {
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[0, 0], [0, 1], [1, 1], [1, 0], [0, 0]]]
+      },
+      "radius": 100,
+      "clip": true
+    }
   }
 }
