@@ -18,7 +18,7 @@
 
 package com.here.xyz.jobs.steps.impl.export;
 
-import com.here.xyz.util.datasets.filters.SpatialFilter;
+import com.here.xyz.models.filters.SpatialFilter;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
 import com.here.xyz.jobs.steps.impl.StepTest;
 import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;

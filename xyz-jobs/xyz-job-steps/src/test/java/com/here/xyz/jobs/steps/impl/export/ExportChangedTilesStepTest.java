@@ -20,7 +20,7 @@ package com.here.xyz.jobs.steps.impl.export;
 
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.PropertiesQuery;
-import com.here.xyz.util.datasets.filters.SpatialFilter;
+import com.here.xyz.models.filters.SpatialFilter;
 import com.here.xyz.jobs.steps.impl.transport.ExportChangedTiles.QuadType;
 import com.here.xyz.models.geojson.coordinates.LinearRingCoordinates;
 import com.here.xyz.models.geojson.coordinates.PolygonCoordinates;

@@ -1,0 +1,21 @@
+{
+  "id": "test-subscription-1",
+  "destination": "some-destination",
+  "config": {
+    "type": "PER_FEATURE",
+    "params": {
+      "destinationType": "stream"
+    }
+  },
+  "filter": {
+    "jsonPaths": ["$.properties.name", "$[?(@.properties.type == 'building')]"],
+    "spatialFilter": {
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[0, 0], [0, 1], [1, 1], [1, 0], [0, 0]]]
+      },
+      "radius": 100,
+      "clip": true
+    }
+  }
+}

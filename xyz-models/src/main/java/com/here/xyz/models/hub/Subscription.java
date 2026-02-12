@@ -48,6 +48,8 @@ public class Subscription {
 
     private SubscriptionStatus status;
 
+    private SubscriptionFilter filter;
+
     public String getId() {
         return id;
     }
@@ -110,6 +112,19 @@ public class Subscription {
 
     public Subscription withStatus(SubscriptionStatus status) {
         this.status = status;
+        return this;
+    }
+
+    public SubscriptionFilter getFilter() {
+        return filter;
+    }
+
+    public void setFilter(SubscriptionFilter filter) {
+        this.filter = filter;
+    }
+
+    public Subscription withFilter(SubscriptionFilter filter) {
+        this.filter = filter;
         return this;
     }
 

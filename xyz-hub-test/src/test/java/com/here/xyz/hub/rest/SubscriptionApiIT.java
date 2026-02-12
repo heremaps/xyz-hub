@@ -39,10 +39,10 @@ import org.junit.Test;
 
 public class SubscriptionApiIT extends TestSpaceWithFeature {
 
-  private static String cleanUpSpaceId = "space1";
-  private static String cleanUpSpaceId2 = "space2";
-  private static String cleanUpSpaceId3 = cleanUpSpaceId + "-ext";
-  private static String subscriptionId = "test-subscription-1";
+  private static final String cleanUpSpaceId = "space1";
+  private static final String cleanUpSpaceId2 = "space2";
+  private static final String cleanUpSpaceId3 = cleanUpSpaceId + "-ext";
+  private static final String subscriptionId = "test-subscription-1";
 
   @BeforeClass
   public static void setupClass() {
@@ -128,6 +128,28 @@ public class SubscriptionApiIT extends TestSpaceWithFeature {
   @Test
   public void createSubscriptionWithoutId() {
     addSubscription(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES, "/xyz/hub/createSubscriptionWithoutId.json")
+        .statusCode(BAD_REQUEST.code());
+  }
+
+  @Test
+  public void createSubscriptionWithFilter() {
+    addSubscription(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES, "/xyz/hub/createSubscriptionWithFilter.json")
+        .statusCode(CREATED.code())
+        .body("id", equalTo("test-subscription-1"))
+        .body("filter.jsonPaths[0]", equalTo("$.properties.name"))
+        .body("filter.spatialFilter.radius", equalTo(100))
+        .body("filter.spatialFilter.clip", equalTo(true));
+  }
+
+  @Test
+  public void createSubscriptionWithInvalidJsonPath() {
+    addSubscription(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES, "/xyz/hub/createSubscriptionWithInvalidJsonPath.json")
+        .statusCode(BAD_REQUEST.code());
+  }
+
+  @Test
+  public void createSubscriptionWithInvalidGeometry() {
+    addSubscription(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES, "/xyz/hub/createSubscriptionWithInvalidGeometry.json")
         .statusCode(BAD_REQUEST.code());
   }
 

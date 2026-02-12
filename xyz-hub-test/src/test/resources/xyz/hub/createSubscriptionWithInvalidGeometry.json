@@ -1,0 +1,15 @@
+{
+  "id": "test-subscription-1",
+  "destination": "some-destination",
+  "config": {
+    "type": "PER_FEATURE"
+  },
+  "filter": {
+    "spatialFilter": {
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[0, 0], [0, 1], [1, 1]]]
+      }
+    }
+  }
+}

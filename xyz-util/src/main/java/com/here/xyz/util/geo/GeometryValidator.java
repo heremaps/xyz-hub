@@ -19,6 +19,7 @@
 
 package com.here.xyz.util.geo;
 
+import com.here.xyz.models.filters.SpatialFilter;
 import com.here.xyz.models.geojson.coordinates.LinearRingCoordinates;
 import com.here.xyz.models.geojson.coordinates.PolygonCoordinates;
 import com.here.xyz.models.geojson.coordinates.Position;
@@ -26,6 +27,7 @@ import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.geojson.implementation.Polygon;
 
+import com.here.xyz.util.service.BaseHttpServerVerticle;
 import java.util.List;
 
 public class GeometryValidator {
@@ -55,6 +57,15 @@ public class GeometryValidator {
     }
     catch (Exception e){
       throw new GeometryException("Invalid filter geometry!");
+    }
+  }
+
+  public static void validateSpatialFilter(SpatialFilter spatialFilter) throws BaseHttpServerVerticle.ValidationException {
+    try {
+      GeometryValidator.validateGeometry(spatialFilter.getGeometry(), spatialFilter.getRadius());
+    }
+    catch (GeometryException e){
+      throw new BaseHttpServerVerticle.ValidationException(e.getMessage());
     }
   }
 

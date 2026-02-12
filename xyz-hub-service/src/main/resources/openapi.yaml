@@ -4170,6 +4170,39 @@ components:
               description: "The reason for the current state."
               type: string
               example: ""
+        filter:
+          $ref: '#/components/schemas/SubscriptionFilter'
+    SubscriptionFilter:
+      type: object
+      description: Filter criteria for subscription notifications.
+      properties:
+        jsonPaths:
+          description: >-
+            List of JSON path expressions to filter features.
+          type: array
+          items:
+            type: string
+          example: ["$.properties.name", "$.properties.type"]
+        spatialFilter:
+          $ref: '#/components/schemas/SpatialFilter'
+    SpatialFilter:
+      type: object
+      description: >-
+        A spatial filter to filter features based on their geometric properties.
+      properties:
+        geometry:
+          $ref: '#/components/schemas/Geometry'
+        radius:
+          description: >-
+            Radius in meters which defines the diameter of the search request.
+          type: integer
+          default: 0
+        clip:
+          description: >-
+            If set to true the features' geometries are clipped to the geometry of
+            the tile, bounding box or input geometry. Default is false.
+          type: boolean
+          default: false
     SubscriptionConfig:
       type: object
       description: The subscription configuration.

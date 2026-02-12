@@ -22,7 +22,7 @@ import static com.here.xyz.models.hub.Ref.HEAD;
 
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.PropertiesQuery;
-import com.here.xyz.util.datasets.filters.SpatialFilter;
+import com.here.xyz.models.filters.SpatialFilter;
 import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Point;

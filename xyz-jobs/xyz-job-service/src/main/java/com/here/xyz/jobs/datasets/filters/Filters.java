@@ -32,7 +32,7 @@ import com.here.xyz.XyzSerializable.Static;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.util.Hasher;
-import com.here.xyz.util.datasets.filters.SpatialFilter;
+import com.here.xyz.models.filters.SpatialFilter;
 import java.util.ArrayList;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
