@@ -194,8 +194,31 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
   @Override
   protected List<ExportInput> createTaskItems() throws TooManyResourcesClaimed,
           QueryBuildingException, WebClientException, SQLException {
+
     Set<String> affectedTiles = new HashSet<>();
     List<String> changedFeatureIds = new ArrayList<>();
+
+    //Temporary evil hack!
+    if(getSpaceId().contains(":")) {
+      String c = getSpaceId().substring(0, getSpaceId().lastIndexOf(":"));
+      String l = getSpaceId().substring(getSpaceId().lastIndexOf(":") + 1);
+
+      if (c.equalsIgnoreCase("hrn:here:data::olp-here:mm-1138910520110-livemap-1765440871131")) {
+        List<ExportInput> taskList = new ArrayList<>();
+
+        return runReadQuerySync(new SQLQuery("SELECT tile FROM ${schema}.${table};")
+                        .withVariable("schema", "tmp")
+                        .withVariable("table", l + "_tileids"),
+                db(), 0, rs -> {
+                  while (rs.next()) {
+                    String tileId = rs.getString("tile");
+                    if (tileIsRelevant(tileId))
+                      taskList.add(new ExportInput(tileId));
+                  }
+                  return taskList;
+                });
+      }
+    }
 
     //Get affected Tiles from Delta in range [version.getStartVersion() + 1 : version.getEndVersion()]
     runReadQuerySync(getAffectedTilesFromDelta(new Ref(versionRef.getStart().getVersion(),
@@ -370,7 +393,7 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
     );
     //We are getting a list tileId,id
     //If feature is deleted we do not have geometry anymore so we
-    //in this case a row only have the id. E.g. null,id123
+    //in this case a row only have the id. cE.g. null,id123
     return new SQLQuery("SELECT "+getQuadFunctionName()+
             """
             (f.colX, f.rowY, f.level) as tile, id
