@@ -20,9 +20,7 @@
 package com.here.xyz.models.hub;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.here.xyz.models.filters.SpatialFilter;
 
-import java.util.List;
 import java.util.Map;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -50,7 +48,7 @@ public class Subscription {
 
     private SubscriptionStatus status;
 
-    private Filter filter;
+    private SubscriptionFilter filter;
 
     public String getId() {
         return id;
@@ -117,50 +115,17 @@ public class Subscription {
         return this;
     }
 
-    public Filter getFilter() {
+    public SubscriptionFilter getFilter() {
         return filter;
     }
 
-    public void setFilter(Filter filter) {
+    public void setFilter(SubscriptionFilter filter) {
         this.filter = filter;
     }
 
-    public Subscription withFilter(Filter filter) {
+    public Subscription withFilter(SubscriptionFilter filter) {
         this.filter = filter;
         return this;
-    }
-
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class Filter {
-
-        private List<String> jsonPaths;
-        private SpatialFilter spatialFilter;
-
-        public List<String> getJsonPaths() {
-            return jsonPaths;
-        }
-
-        public void setJsonPaths(List<String> jsonPaths) {
-            this.jsonPaths = jsonPaths;
-        }
-
-        public Filter withJsonPaths(List<String> jsonPaths) {
-            this.jsonPaths = jsonPaths;
-            return this;
-        }
-
-        public SpatialFilter getSpatialFilter() {
-            return spatialFilter;
-        }
-
-        public void setSpatialFilter(SpatialFilter spatialFilter) {
-            this.spatialFilter = spatialFilter;
-        }
-
-        public Filter withSpatialFilter(SpatialFilter spatialFilter) {
-            this.spatialFilter = spatialFilter;
-            return this;
-        }
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
