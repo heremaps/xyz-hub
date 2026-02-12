@@ -393,7 +393,7 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
     );
     //We are getting a list tileId,id
     //If feature is deleted we do not have geometry anymore so we
-    //in this case a row only have the id. cE.g. null,id123
+    //in this case a row only have the id. e.g. null,id123
     return new SQLQuery("SELECT "+getQuadFunctionName()+
             """
             (f.colX, f.rowY, f.level) as tile, id

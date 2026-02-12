@@ -644,17 +644,19 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
     //Create process table
     runWriteQuerySync(buildTaskTableStatement(schema, this), db(WRITER), 0);
 
+    infoLog(STEP_EXECUTE, "Add initial entries in process_table for " + taskInputs.size() + " tasks.");
     for (I taskInput : taskInputs) {
       String taskItem = taskInput.serialize();
 
-      infoLog(STEP_EXECUTE, "Add initial entry in process_table: " + taskItem );
       insertQueries.add(new SQLQuery("""             
             INSERT INTO  ${schema}.${table} AS t (task_input)
                 VALUES (#{taskItem}::JSONB);
         """)
               .withVariable("schema", schema)
               .withVariable("table", getTemporaryJobTableName(step.getId()))
-              .withNamedParameter("taskItem", taskItem));
+              .withNamedParameter("taskItem", taskItem)
+              .withLoggingEnabled(false)
+      );
     }
     if(!insertQueries.isEmpty()) {
       //Insert TaskItem into process table
