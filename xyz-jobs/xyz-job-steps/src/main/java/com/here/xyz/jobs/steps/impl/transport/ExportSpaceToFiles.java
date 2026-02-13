@@ -87,7 +87,7 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
   public static final String EXPORTED_DATA = "exportedData";
 
   //Defines how many features a source layer need to have to start parallelization.
-  public static final int PARALLELIZATION_MIN_THRESHOLD = 200_000;
+  public static final int PARALLELIZATION_MIN_THRESHOLD = 100_000;
   //Defines how many threads are getting used
   public static final int PARALLELIZATION_THREAD_COUNT = 8;
 
@@ -292,11 +292,11 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
   @Override
   public void execute(boolean resume) throws Exception {
     //TODO: review if we still want the automatic thread calculation.
-    if(!(this instanceof ExportChangedTiles)) {
+    //if(!(this instanceof ExportChangedTiles)) {
       //Set threadCount based on feature count
       StatisticsResponse statistics = loadSpaceStatistics(getSpaceId(), context, true);
       threadCount = statistics.getCount().getValue() > PARALLELIZATION_MIN_THRESHOLD ? PARALLELIZATION_THREAD_COUNT : 1;
-    }
+    //}
     super.execute(resume);
   }
 
