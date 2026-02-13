@@ -199,26 +199,23 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
     List<String> changedFeatureIds = new ArrayList<>();
 
     //Temporary evil hack!
-//    if(getSpaceId().contains(":")) {
-//      String c = getSpaceId().substring(0, getSpaceId().lastIndexOf(":"));
-//      String l = getSpaceId().substring(getSpaceId().lastIndexOf(":") + 1);
-//
-//      if (c.equalsIgnoreCase("hrn:here:data::olp-here:mm-1138910520110-livemap-1765440871131")) {
-//        List<ExportInput> taskList = new ArrayList<>();
-//
-//        return runReadQuerySync(new SQLQuery("SELECT tile FROM ${schema}.${table};")
-//                        .withVariable("schema", "tmp")
-//                        .withVariable("table", l + "_tileids"),
-//                db(), 0, rs -> {
-//                  while (rs.next()) {
-//                    String tileId = rs.getString("tile");
-//                    if (tileIsRelevant(tileId))
-//                      taskList.add(new ExportInput(tileId));
-//                  }
-//                  return taskList;
-//                });
-//      }
-//    }
+    if(getJobId().equalsIgnoreCase("sabiistyhq")) {
+      String l = getSpaceId().substring(getSpaceId().lastIndexOf(":") + 1);
+
+      List<ExportInput> taskList = new ArrayList<>();
+
+      return runReadQuerySync(new SQLQuery("SELECT tile FROM ${schema}.${table};")
+                      .withVariable("schema", "tmp")
+                      .withVariable("table", l + "_tileids"),
+              db(), 0, rs -> {
+                while (rs.next()) {
+                  String tileId = rs.getString("tile");
+                  if (tileIsRelevant(tileId))
+                    taskList.add(new ExportInput(tileId));
+                }
+                return taskList;
+              });
+    }
 
     //Get affected Tiles from Delta in range [version.getStartVersion() + 1 : version.getEndVersion()]
     runReadQuerySync(getAffectedTilesFromDelta(new Ref(versionRef.getStart().getVersion(),
