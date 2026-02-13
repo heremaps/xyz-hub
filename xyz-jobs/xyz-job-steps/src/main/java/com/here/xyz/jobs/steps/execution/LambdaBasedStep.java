@@ -48,6 +48,7 @@ import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.ProcessUpdate;
 import com.here.xyz.jobs.steps.execution.db.DatabaseBasedStep;
+import com.here.xyz.jobs.steps.impl.transport.ExportChangedTiles;
 import com.here.xyz.jobs.steps.impl.transport.TaskedSpaceBasedStep;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.util.StepWebClient;
@@ -275,10 +276,29 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     }
   }
 
-  private void handleAsyncUpdate(ProcessUpdate processUpdate) {
-    boolean isCompleted = onAsyncUpdate(processUpdate);
+  private void handleAsyncUpdate(LambdaStepRequest request) {
+    boolean isCompleted = onAsyncUpdate(request.getProcessUpdate());
+
+    //Special handling for ExportChangedTiles step to avoid too many updates of the job.
+    //Can happen if there are many tasks with very short execution times.
+    if(!isCompleted && request.getStep() instanceof ExportChangedTiles){
+      float progress = request.getStep().getStatus().getEstimatedProgress();
+
+      //ignore very small progress
+      if (progress < 0.05f) {
+        return;
+      }
+
+      //check if near a 5% boundary
+      float scaled = progress * 20f; // 20 buckets = 5%
+      if (Math.abs(scaled - Math.round(scaled)) > 0.01f) {
+        //only update state every 10s to avoid too many updates of the job config
+        return;
+      }
+    }
+
     if (isSimulation)
-      //In simulations we are handling success callbacks by our own
+      //In simulations, we are handling success callbacks by our own
       return;
     if (isCompleted)
       reportAsyncSuccess();
@@ -623,7 +643,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
             }
             case UPDATE_CALLBACK -> {
               logger.info("Handling async process update for step {} ...", request.getStep().getGlobalStepId());
-              request.getStep().handleAsyncUpdate(request.getProcessUpdate());
+              request.getStep().handleAsyncUpdate(request);
               logger.info("Handled async process update for step {} successfully.", request.getStep().getGlobalStepId());
             }
             case SUCCESS_CALLBACK -> {

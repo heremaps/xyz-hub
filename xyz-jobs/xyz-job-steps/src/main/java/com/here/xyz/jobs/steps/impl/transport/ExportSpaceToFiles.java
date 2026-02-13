@@ -291,10 +291,12 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
 
   @Override
   public void execute(boolean resume) throws Exception {
-    //Set threadCount based on feature count
-    StatisticsResponse statistics = loadSpaceStatistics(getSpaceId(), context, true);
-    threadCount = statistics.getCount().getValue() > PARALLELIZATION_MIN_THRESHOLD ? PARALLELIZATION_THREAD_COUNT : 1;
-
+    //TODO: review if we still want the automatic thread calculation.
+    if(!(this instanceof ExportChangedTiles)) {
+      //Set threadCount based on feature count
+      StatisticsResponse statistics = loadSpaceStatistics(getSpaceId(), context, true);
+      threadCount = statistics.getCount().getValue() > PARALLELIZATION_MIN_THRESHOLD ? PARALLELIZATION_THREAD_COUNT : 1;
+    }
     super.execute(resume);
   }
 
