@@ -24,6 +24,7 @@ import com.here.xyz.util.service.BaseHttpServerVerticle;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
+import io.vertx.core.http.HttpMethod;
 import io.vertx.ext.web.Router;
 import java.util.Arrays;
 import java.util.List;
@@ -54,6 +55,11 @@ public class JobRESTVerticle extends BaseHttpServerVerticle {
                     .compose(router -> {
                         super.addDefaultHandlers(router); //TODO: Why calling the super method and not the one below?
                         mainRouter.mountSubRouter("/", router);
+
+                        //Add health and admin endpoints to the main router
+                        router.route(HttpMethod.GET, "/health").handler(ctx -> ctx.response().send("OK"));
+                        new JobAdminApi(router);
+
                         return Future.succeededFuture();
                     });
             } catch (Exception e) {
