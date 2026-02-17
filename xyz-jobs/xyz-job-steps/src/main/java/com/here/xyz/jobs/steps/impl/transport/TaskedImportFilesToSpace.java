@@ -72,7 +72,7 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
 
   {
     //Use 15 Threads as default for import tasks
-    threadCount = 15;
+    threadCount = 11;
     setOutputSets(List.of(new OutputSet(STATISTICS, USER, true)));
   }
 
@@ -293,7 +293,7 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
 
     return !isUserInputsExpected() || isUserInputsPresent(UploadUrl.class);
   }
-  
+
   @Override
   protected SQLQuery buildTaskQuery(Integer taskId, ImportInput taskInput, String failureCallback)
           throws WebClientException {
