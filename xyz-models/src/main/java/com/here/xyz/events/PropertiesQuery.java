@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -155,6 +155,11 @@ public class PropertiesQuery extends ArrayList<PropertyQueryList> {
   }
 
   public static Object getConvertedValue(String rawValue) {
+    // JSONPath
+    if (rawValue != null && rawValue.startsWith("$")) {
+      return rawValue;
+    }
+
     // Boolean
     if (rawValue.equals("true")) {
       return true;
@@ -195,5 +200,24 @@ public class PropertiesQuery extends ArrayList<PropertyQueryList> {
     String tags = tagQueryParts[1];
 
     return F_PREFIX + "tags" + "=cs=" + tags;
+  }
+
+  public List<String> getJsonPathValues() {
+    List<String> jsonPaths = new ArrayList<>();
+
+    for (PropertyQueryList queries : this) {
+      for (PropertyQuery query : queries) {
+        for (Object value : query.getValues()) {
+          if (value instanceof String) {
+            String s = (String) value;
+            if (s.startsWith("$")) {
+              jsonPaths.add(s);
+            }
+          }
+        }
+      }
+    }
+
+    return jsonPaths;
   }
 }

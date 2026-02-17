@@ -205,10 +205,55 @@ public class IndexHelper {
   }
 
   public static List<OnDemandIndex> getActivatedSearchableProperties(Map<String, Boolean> searchableProperties) {
-    return searchableProperties == null ? List.of() : searchableProperties.entrySet().stream()
+    return searchableProperties == null
+            ? List.of()
+            : searchableProperties.entrySet().stream()
             .filter(Map.Entry::getValue)
-            .map(entry -> new OnDemandIndex().withPropertyPath(entry.getKey()))
+            .map(entry -> new OnDemandIndex()
+                    .withPropertyPath(extractLogicalPropertyPath(entry.getKey())))
             .collect(Collectors.toList());
+  }
+
+  private static String extractLogicalPropertyPath(String key) {
+    if (key == null)
+      return null;
+
+    key = key.trim();
+
+    // New-style: $alias:[$.jsonPath]::scalar|array
+    if (key.startsWith("$") && key.contains("::")) {
+      String[] typeSplit = key.split("::", 2);
+      String leftPart = typeSplit[0].trim();
+
+      int colonIdx = leftPart.indexOf(':');
+      String exprPart = colonIdx > -1
+              ? leftPart.substring(colonIdx + 1).trim()
+              : leftPart.substring(1).trim();
+
+      // Strip [] if present
+      if (exprPart.startsWith("[") && exprPart.endsWith("]") && exprPart.length() > 2) {
+        exprPart = exprPart.substring(1, exprPart.length() - 1).trim();
+      }
+
+      if (exprPart.startsWith("$.properties.") && exprPart.length() > "$.properties.".length()) {
+        return exprPart.substring("$.properties.".length());
+      }
+      if (exprPart.startsWith("$.") && exprPart.length() > 2) {
+        return exprPart.substring(2);
+      }
+      if (exprPart.startsWith("$") && exprPart.length() > 1) {
+        return exprPart.substring(1); // fallback
+      }
+      return exprPart;
+    }
+
+    // Legacy keys
+    int sepIdx = key.lastIndexOf("::");
+    if (sepIdx > -1) {
+      return key.substring(0, sepIdx).trim();
+    }
+
+    return key;
   }
 
   public static SQLQuery buildOnDemandIndexCreationQuery(String schema, String table, String propertyPath, boolean async){
