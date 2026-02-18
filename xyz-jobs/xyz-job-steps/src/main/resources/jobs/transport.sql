@@ -409,7 +409,7 @@ CREATE OR REPLACE FUNCTION perform_import_from_s3(
         target_tbl REGCLASS,
         format TEXT,
         s3_bucket TEXT, s3_key TEXT, s3_region TEXT,
-        max_attempts INT DEFAULT 2,
+        max_attempts INT DEFAULT 3,
         attempts INT DEFAULT 0
 	)
 RETURNS TEXT
@@ -419,7 +419,7 @@ AS $BODY$
 DECLARE
     config RECORD;
     import_statistics TEXT;
-    base_delay_ms INT := 500;
+    base_delay_ms INT := 1000;
     delay_ms INT;
 BEGIN
     -- Calculate exponential backoff delay: base * 2^attempts, capped at 10 seconds
@@ -443,9 +443,10 @@ BEGIN
     RETURN import_statistics;
 
     EXCEPTION
-        WHEN SQLSTATE '55P03' OR  SQLSTATE '23505' OR  SQLSTATE '22P02' OR  SQLSTATE '22P04' THEN
+        -- SQLSTATE 'XX000' got added temporarily
+        WHEN SQLSTATE '55P03' OR  SQLSTATE '23505' OR  SQLSTATE '22P02' OR  SQLSTATE '22P04' OR  SQLSTATE 'XX000' THEN
             IF attempts < max_attempts THEN
-                --0.5 s, 1 s, 2 s, 4 s, 8 s, 10 s .. max
+                --1 s, 2 s, 4 s, 8 s, 10 s .. max
                 PERFORM pg_sleep(delay_ms / 1000.0);
 
                 RETURN perform_import_from_s3(
