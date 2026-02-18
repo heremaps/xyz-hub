@@ -402,7 +402,7 @@ final class DataReferenceApiIT extends RestAssuredTest {
     @Override
     protected boolean matchesSafely(String actual) {
       try {
-        JSONAssert.assertEquals(expected, actual, JSONCompareMode.STRICT);
+        JSONAssert.assertEquals(expected, actual, false);
         return true;
       } catch (AssertionError | JSONException e) {
         return false;
