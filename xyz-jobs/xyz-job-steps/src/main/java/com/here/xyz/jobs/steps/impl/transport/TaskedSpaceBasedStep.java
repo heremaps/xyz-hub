@@ -412,10 +412,12 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
     //The following code is running synchronously till the first task is getting started.
     String schema = getSchema(db());
     if (!resume) {
-      initialSetup();
       List<I> taskDataList = createTaskItems();
       taskItemCount = taskDataList.size();
-      insertTaskItemsInTaskTable(schema, this, taskDataList);
+      boolean isResume = insertTaskItemsInTaskTable(schema, this, taskDataList);
+      //TODO: Remove is DS-936 is fixed. With the lines below we detect a resume based on the existence of the job_data table.
+      if(!isResume)
+        initialSetup();
     }else{
       //TODO: DS-936 needs to be fixed before this will work
       //Reset all items which are not finalized to be able to restart them
@@ -652,7 +654,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
             .withVariable("tmpTable", getTemporaryJobTableName(getId()));
   }
 
-  private void insertTaskItemsInTaskTable(String schema, Step step, List<I> taskInputs)
+  private boolean insertTaskItemsInTaskTable(String schema, Step step, List<I> taskInputs)
           throws WebClientException, SQLException, TooManyResourcesClaimed {
     List<SQLQuery> insertQueries = new ArrayList<>();
 
@@ -693,6 +695,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
         runBatchWriteQuerySync(SQLQuery.batchOf(insertQueries), db(WRITER), 0);
       }
     }
+    return tableAlreadyExists;
   }
 
   public static String getTemporaryJobTableName(String stepId) {
