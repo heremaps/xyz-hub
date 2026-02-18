@@ -416,6 +416,10 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
       List<I> taskDataList = createTaskItems();
       taskItemCount = taskDataList.size();
       insertTaskItemsInTaskTable(schema, this, taskDataList);
+    }else{
+      //TODO: DS-936 needs to be fixed before this will work
+      //Reset all items which are not finalized to be able to restart them
+      runWriteQuerySync(resetTaskItemWhichAreNotFinalized(schema, this), db(WRITER), 0);
     }
     startInitialTasks();
     noTasksCreated = taskItemCount == 0;
@@ -467,7 +471,8 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   protected boolean onAsyncFailure() {
     try {
       //TODO: Inspect the error provided in the status and decide whether it is retryable (return-value)
-      boolean isRetryable = false;
+      //For now we set all failures to be retryable
+      boolean isRetryable = true;
 
       if (!isRetryable)
         cleanUpDbResources(STEP_ON_ASYNC_FAILURE);
@@ -586,7 +591,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
 
   private static SQLQuery buildTaskTableStatement(String schema, Step step) {
     return new SQLQuery("""          
-            CREATE TABLE IF NOT EXISTS ${schema}.${table}
+            CREATE TABLE ${schema}.${table}
             (
             	task_id SERIAL,
             	task_input JSONB,
@@ -626,6 +631,16 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
             .withNamedParameter("finalized", finalized); //future prove
   }
 
+  private static SQLQuery resetTaskItemWhichAreNotFinalized(String schema, Step step) {
+    return new SQLQuery("""             
+            UPDATE ${schema}.${table} t
+                SET started = false
+                WHERE started = true AND finalized = false;
+        """)
+            .withVariable("schema", schema)
+            .withVariable("table", getTemporaryJobTableName(step.getId()));
+  }
+
   private SQLQuery retrieveTaskItemAndStatisticsQuery(String schema) throws WebClientException {
     return new SQLQuery("SELECT total, started, finalized, task_id, task_input from get_task_item_and_statistics();")
             .withContext(getQueryContext(schema));
@@ -641,26 +656,42 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
           throws WebClientException, SQLException, TooManyResourcesClaimed {
     List<SQLQuery> insertQueries = new ArrayList<>();
 
-    //Create process table
-    runWriteQuerySync(buildTaskTableStatement(schema, this), db(WRITER), 0);
+    //TODO: this check can be removed after DS-936 is fixed.
+    boolean tableAlreadyExists = false;
+    try{
+      //Create process table
+      runWriteQuerySync(buildTaskTableStatement(schema, this), db(WRITER), 0);
+    }catch (SQLException e){
+      if(e.getSQLState() != null && e.getSQLState().equalsIgnoreCase("42P07")) {
+        infoLog(UNKNOWN,  "Task table already exists. Assume it was created in a failed attempt and continue.");
+        tableAlreadyExists = true;
+      }else {
+        throw e;
+      }
+    }
 
-    infoLog(STEP_EXECUTE, "Add initial entries in process_table for " + taskInputs.size() + " tasks.");
-    for (I taskInput : taskInputs) {
-      String taskItem = taskInput.serialize();
+    if(tableAlreadyExists) {
+      //Reset all items which are not finalized to be able to restart them
+      runWriteQuerySync(resetTaskItemWhichAreNotFinalized(schema, this), db(WRITER), 0);
+    }else{
+      infoLog(STEP_EXECUTE, "Add initial entries in process_table for " + taskInputs.size() + " tasks.");
+      for (I taskInput : taskInputs) {
+        String taskItem = taskInput.serialize();
 
-      insertQueries.add(new SQLQuery("""             
+        insertQueries.add(new SQLQuery("""             
             INSERT INTO  ${schema}.${table} AS t (task_input)
                 VALUES (#{taskItem}::JSONB);
         """)
-              .withVariable("schema", schema)
-              .withVariable("table", getTemporaryJobTableName(step.getId()))
-              .withNamedParameter("taskItem", taskItem)
-              .withLoggingEnabled(false)
-      );
-    }
-    if(!insertQueries.isEmpty()) {
-      //Insert TaskItem into process table
-      runBatchWriteQuerySync(SQLQuery.batchOf(insertQueries), db(WRITER), 0);
+                .withVariable("schema", schema)
+                .withVariable("table", getTemporaryJobTableName(step.getId()))
+                .withNamedParameter("taskItem", taskItem)
+                .withLoggingEnabled(false)
+        );
+      }
+      if(!insertQueries.isEmpty()) {
+        //Insert TaskItem into process table
+        runBatchWriteQuerySync(SQLQuery.batchOf(insertQueries), db(WRITER), 0);
+      }
     }
   }
 
