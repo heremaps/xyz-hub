@@ -35,6 +35,7 @@ import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.hub.Branch;
 import com.here.xyz.models.hub.Branch.DeletedBranch;
 import com.here.xyz.models.hub.Connector;
+import com.here.xyz.models.hub.DataReference;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Tag;
@@ -49,6 +50,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -354,6 +356,66 @@ public class HubWebClient extends XyzWebClient {
     catch (JsonProcessingException e) {
       throw new WebClientException("Error deserializing response", e);
     }
+  }
+
+  public void postDataReference(DataReference dataReference) throws WebClientException {
+    request(HttpRequest.newBuilder()
+            .uri(uri("/references"))
+            .header(CONTENT_TYPE, JSON_UTF_8.toString())
+            .method("POST", BodyPublishers.ofByteArray(dataReference.serialize().getBytes()))).body();
+  }
+
+  public List<DataReference> loadDataReferences(DataReferenceQuery dataReferenceQuery) throws WebClientException {
+    try {
+      return deserialize(request(HttpRequest.newBuilder()
+              .GET()
+              .uri(uri("/references" + dataReferenceQuery.toQueryParamString()))).body(), new TypeReference<>() {});
+    }
+    catch (JsonProcessingException e) {
+      throw new WebClientException("Error deserializing response", e);
+    }
+  }
+
+  public record DataReferenceQuery(String entityId, Long startVersion, Long endVersion, String sourceSystem,
+                                   String targetSystem, String objectType, String contentType) {
+    public static class Builder {
+      private String entityId;
+      private Long startVersion;
+      private Long endVersion;
+      private String sourceSystem;
+      private String targetSystem;
+      private String objectType;
+      private String contentType;
+
+      public Builder entityId(String entityId) { this.entityId = entityId; return this;}
+      public Builder startVersion(Long startVersion) { this.startVersion = startVersion; return this;}
+      public Builder endVersion(Long endVersion) { this.endVersion = endVersion; return this;}
+      public Builder sourceSystem(String sourceSystem) { this.sourceSystem = sourceSystem; return this;}
+      public Builder targetSystem(String targetSystem) { this.targetSystem = targetSystem; return this;}
+      public Builder objectType(String objectType) { this.objectType = objectType; return this;}
+      public Builder contentType(String contentType) { this.contentType = contentType; return this;}
+      public DataReferenceQuery build() {
+        return new DataReferenceQuery(entityId, startVersion, endVersion, sourceSystem, targetSystem, objectType, contentType);
+      }
+    }
+
+    public static Builder builder() {
+      return new Builder();
+    }
+
+    public String toQueryParamString() {
+      return "?" + Arrays.stream(this.getClass().getRecordComponents())
+              .map(component -> {
+                try {
+                  Object value = component.getAccessor().invoke(this);
+                  return value != null ? component.getName() + "=" + value : null;
+                } catch (Exception e) {
+                  throw new RuntimeException(e);
+                }
+              }).filter(param -> param != null)
+              .collect(Collectors.joining("&"));
+    }
+
   }
 
   public Tag postTag(String spaceId, Tag tag) throws WebClientException {

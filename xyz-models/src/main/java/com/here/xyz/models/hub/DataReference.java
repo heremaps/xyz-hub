@@ -52,6 +52,10 @@ public final class DataReference implements XyzSerializable {
 
   private String targetSystem;
 
+  private Long keepUntil;
+
+  private Long createdAt;
+
   public UUID getId() {
     return id;
   }
@@ -180,6 +184,32 @@ public final class DataReference implements XyzSerializable {
 
   public DataReference withTargetSystem(String targetSystem) {
     setTargetSystem(targetSystem);
+    return this;
+  }
+
+  public Long getKeepUntil() {
+    return keepUntil;
+  }
+
+  public void setKeepUntil(Long keepUntil) {
+    this.keepUntil = keepUntil;
+  }
+
+  public DataReference withKeepUntil(Long keepUntil) {
+    setKeepUntil(keepUntil);
+    return this;
+  }
+
+  public Long getCreatedAt() {
+    return createdAt;
+  }
+
+  public void setCreatedAt(Long createdAt) {
+    this.createdAt = createdAt;
+  }
+
+  public DataReference withCreatedAt(Long createdAt) {
+    setCreatedAt(createdAt);
     return this;
   }
 
