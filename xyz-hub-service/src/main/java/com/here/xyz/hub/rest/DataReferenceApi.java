@@ -21,6 +21,7 @@ package com.here.xyz.hub.rest;
 
 import com.here.xyz.hub.config.DataReferenceConfigClient;
 import com.here.xyz.models.hub.DataReference;
+import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.HttpException;
 import io.vertx.core.Future;
 import io.vertx.core.json.jackson.DatabindCodec;
@@ -52,7 +53,8 @@ public final class DataReferenceApi extends Api {
   }
 
   private Future<DataReference> createDataReference(RoutingContext routingContext) {
-    DataReference dataReference = dataReference(routingContext);
+    DataReference dataReference = dataReference(routingContext)
+            .withCreatedAt(Core.currentTimeMillis());
 
     return failIfDataReferenceIsInvalid(dataReference)
       .compose(this::failIfReferenceAlreadyExists)

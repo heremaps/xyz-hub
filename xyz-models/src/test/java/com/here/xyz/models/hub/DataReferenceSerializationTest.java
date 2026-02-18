@@ -35,7 +35,7 @@ class DataReferenceSerializationTest {
   @Test
   void shouldSerializeToJson() throws Exception {
     // when
-    String serialized = mapper.writeValueAsString(dataReference);
+    String serialized = dataReference.serialize();
 
     // then
     JSONAssert.assertEquals(dataReferenceJson, serialized, STRICT);
