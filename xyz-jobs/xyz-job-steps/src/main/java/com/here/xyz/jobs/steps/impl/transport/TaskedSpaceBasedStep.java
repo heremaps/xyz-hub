@@ -618,7 +618,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
             ), db(WRITER), 0);
   }
 
-  private static SQLQuery buildUpdateTaskItemStatement(String schema, Step step, int taskId,
+  private SQLQuery buildUpdateTaskItemStatement(String schema, Step step, int taskId,
                                                        SpaceBasedTaskUpdate update, boolean finalized) {
     return new SQLQuery("""             
             UPDATE ${schema}.${table} t
@@ -633,7 +633,8 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
             .withNamedParameter("finalized", finalized); //future prove
   }
 
-  private static SQLQuery resetTaskItemWhichAreNotFinalized(String schema, Step step) {
+  private SQLQuery resetTaskItemWhichAreNotFinalized(String schema, Step step) {
+    infoLog(STEP_EXECUTE, "Reset task items for restart.");
     return new SQLQuery("""             
             UPDATE ${schema}.${table} t
                 SET started = false
