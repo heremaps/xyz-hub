@@ -20,14 +20,17 @@
 package com.here.xyz.hub.rest;
 
 import com.here.xyz.hub.config.DataReferenceConfigClient;
+import com.here.xyz.hub.util.DataReferenceResolver;
 import com.here.xyz.models.hub.DataReference;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.HttpException;
+import com.here.xyz.util.service.logging.LogUtil;
 import io.vertx.core.Future;
 import io.vertx.core.json.jackson.DatabindCodec;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.router.RouterBuilder;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.Marker;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.util.Collection;
@@ -44,6 +47,7 @@ import static org.apache.commons.lang3.StringUtils.isNotBlank;
 public final class DataReferenceApi extends Api {
 
   private final DataReferenceConfigClient dataReferences = DataReferenceConfigClient.getInstance();
+  private final DataReferenceResolver resolver = new DataReferenceResolver(dataReferences);
 
   public DataReferenceApi(RouterBuilder rb) {
     rb.getRoute("createDataReference").setDoValidation(false).addHandler(handle(this::createDataReference, CREATED));
@@ -102,14 +106,23 @@ public final class DataReferenceApi extends Api {
 
   private Future<DataReference> getDataReference(RoutingContext routingContext) {
     UUID referenceId = referenceIdFromRequestPath(routingContext);
-    return dataReferences.load(referenceId)
-      .compose(maybeReference ->
-        maybeReference.map(Future::succeededFuture)
-          .orElse(Future.failedFuture(new HttpException(NOT_FOUND, "Data Reference id=%s not found".formatted(referenceId))))
-      );
+    Marker marker = LogUtil.getMarker(routingContext);
+
+    boolean includeStale = firstQueryParamAsBooleanOrDefault(routingContext, "includeStale", false);
+
+    return resolver.loadById(marker, referenceId, includeStale)
+            .compose(maybeReference ->
+                    maybeReference
+                            .map(Future::succeededFuture)
+                            .orElse(Future.failedFuture(
+                                    new HttpException(NOT_FOUND, "Data Reference id=%s not found".formatted(referenceId))
+                            ))
+            );
   }
 
   private Future<List<DataReference>> queryDataReferences(RoutingContext routingContext) {
+    Marker marker = LogUtil.getMarker(routingContext);
+
     String entityId = extractAndValidateEntityId(routingContext);
     Integer startVersion = extractAndValidatePositiveInteger(
       routingContext,
@@ -126,7 +139,10 @@ public final class DataReferenceApi extends Api {
     String sourceSystem = firstQueryParamAsStringOrNull(routingContext, "sourceSystem");
     String targetSystem = firstQueryParamAsStringOrNull(routingContext, "targetSystem");
 
-    return dataReferences.load(entityId, startVersion, endVersion, contentType, objectType, sourceSystem, targetSystem);
+    boolean includeStale = firstQueryParamAsBooleanOrDefault(routingContext, "includeStale", false);
+
+    return dataReferences.load(entityId, startVersion, endVersion, contentType, objectType, sourceSystem, targetSystem)
+            .compose(list -> resolver.filterForEntity(marker, entityId, list, includeStale));
   }
 
   private static @Nullable Integer extractAndValidatePositiveInteger(
@@ -157,8 +173,7 @@ public final class DataReferenceApi extends Api {
   }
 
   private static String firstQueryParamAsStringOrNull(RoutingContext routingContext, String parameterName) {
-    return firstQueryParamAsString(routingContext, parameterName)
-      .orElse(null);
+    return firstQueryParamAsString(routingContext, parameterName).orElse(null);
   }
 
   private static Optional<String> firstQueryParamAsString(RoutingContext routingContext, String parameterName) {
@@ -174,4 +189,20 @@ public final class DataReferenceApi extends Api {
       .orElse(null);
   }
 
+  private static boolean firstQueryParamAsBooleanOrDefault(RoutingContext routingContext, String parameterName, boolean defaultValue) {
+    Optional<String> raw = firstQueryParamAsString(routingContext, parameterName);
+    if (raw.isEmpty()) {
+      return defaultValue;
+    }
+
+    String v = raw.get().trim();
+    if ("true".equalsIgnoreCase(v)) {
+      return true;
+    }
+    if ("false".equalsIgnoreCase(v)) {
+      return false;
+    }
+
+    throw new IllegalArgumentException(parameterName + " must be either true or false");
+  }
 }
