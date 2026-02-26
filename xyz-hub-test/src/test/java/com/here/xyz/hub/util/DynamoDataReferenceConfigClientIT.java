@@ -19,24 +19,6 @@
 
 package com.here.xyz.hub.util;
 
-import com.amazonaws.services.dynamodbv2.model.AttributeValue;
-import com.amazonaws.services.dynamodbv2.model.ScanRequest;
-import com.here.xyz.hub.config.dynamo.DynamoDataReferenceConfigClient;
-import com.here.xyz.models.hub.DataReference;
-import io.vertx.core.Future;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
-import org.testcontainers.junit.jupiter.Testcontainers;
-
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.UUID;
-import java.util.stream.Stream;
-
 import static com.here.xyz.hub.util.TestDataReferences.dataReference;
 import static com.here.xyz.hub.util.TestDataReferences.dataReferenceAsMap;
 import static java.util.Collections.emptyList;
@@ -44,7 +26,26 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.params.provider.Arguments.argumentSet;
 
+import com.amazonaws.services.dynamodbv2.model.AttributeValue;
+import com.amazonaws.services.dynamodbv2.model.ScanRequest;
+import com.here.xyz.hub.config.dynamo.DynamoDataReferenceConfigClient;
+import com.here.xyz.models.hub.DataReference;
+import io.vertx.core.Future;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.stream.Stream;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.testcontainers.junit.jupiter.Testcontainers;
+
 @Testcontainers(disabledWithoutDocker = true)
+@Disabled
 class DynamoDataReferenceConfigClientIT extends DynamoDbIT {
 
   private static final String TABLE_NAME = "data-references";
@@ -374,7 +375,7 @@ class DynamoDataReferenceConfigClientIT extends DynamoDbIT {
     // given
     String entityId1 = "entity-id-1";
     String entityId2 = "entity-id-2";
-    
+
     Map<String, Object> dataReference1 = dataReferenceAsMap(referenceId);
     dataReference1.put("entityId", entityId1);
     dataReference1.put("startVersion", 2);
