@@ -31,12 +31,13 @@ import com.here.xyz.XyzSerializable.Public;
 import com.here.xyz.XyzSerializable.Static;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
+import java.io.Serializable;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "Feature")
 @JsonView({Public.class, Static.class})
 @SuppressWarnings({"unused", "WeakerAccess"})
-public class Feature extends Extensible<Feature> implements Typed {
+public class Feature extends Extensible<Feature> implements Typed, Serializable {
 
   private String id;
   private BBox bbox;
