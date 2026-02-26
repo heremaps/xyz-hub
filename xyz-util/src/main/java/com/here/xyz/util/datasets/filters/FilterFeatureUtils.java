@@ -92,7 +92,7 @@ public class FilterFeatureUtils {
     return featureGeometryPair -> filterFeatureWithJsonPathsAndGeometry(featureGeometryPair, compiledJsonPaths, preparedGeometry);
   }
 
-  private static boolean filterFeatureWithJsonPathsAndGeometry(Pair<Feature, Geometry> featureWithGeometry,
+  public static boolean filterFeatureWithJsonPathsAndGeometry(Pair<Feature, Geometry> featureWithGeometry,
       Collection<JsonPath> jsonPaths,
       PreparedGeometry preparedGeometry) {
     if (featureWithGeometry == null) {

@@ -15,6 +15,7 @@
 
 package com.here.xyz.models.filters;
 
+import java.io.Serializable;
 import java.util.List;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonView;
@@ -24,7 +25,7 @@ import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
 import com.here.xyz.models.geojson.implementation.Geometry;
 
 @JsonInclude(JsonInclude.Include.NON_DEFAULT)
-public class SpatialFilter {
+public class SpatialFilter implements Serializable {
   @JsonView({Public.class, Static.class})
   private List<String> tileIds;
 
