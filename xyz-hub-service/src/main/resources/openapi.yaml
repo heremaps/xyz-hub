@@ -1493,16 +1493,6 @@ paths:
           $ref: '#/components/responses/EmptyResponse'
 
 components:
-  IncludeStale:
-    name: includeStale
-    in: query
-    description: >-
-      If set to true, stale Data References are included in the response.
-      Default is false (stale references are filtered out).
-    required: false
-    schema:
-      type: boolean
-      default: false
   securitySchemes:
     AccessToken:
       type: apiKey
@@ -1513,6 +1503,16 @@ components:
       scheme: bearer
       bearerFormat: JWT
   parameters:
+    IncludeStale:
+      name: includeStale
+      in: query
+      description: >-
+        If set to true, stale Data References are included in the response.
+        Default is false (stale references are filtered out).
+      required: false
+      schema:
+        type: boolean
+        default: false
     Author:
       name: author
       in: query
