@@ -244,14 +244,14 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
    * @return The outputs that have been registered for the specified outputSet (so far).
    */
   private List<Output> loadStepOutputs(OutputSet outputSet) {
-    return loadOutputs(Set.of(toS3Path(outputSet)), outputSet.modelBased);
+    return loadOutputs(defaultBucket(), Set.of(toS3Path(outputSet)), outputSet.modelBased);
   }
 
-  private List<Output> loadOutputs(Set<String> s3Prefixes, boolean modelBased) {
+  private List<Output> loadOutputs(String bucketName, Set<String> s3Prefixes, boolean modelBased) {
     return s3Prefixes
         .stream()
         //TODO: Scan the different folders in parallel
-        .flatMap(s3Prefix -> S3Client.getInstance().scanFolder(s3Prefix)
+        .flatMap(s3Prefix -> S3Client.getInstance(bucketName).scanFolder(s3Prefix)
             .stream()
             .filter(s3ObjectSummary -> s3ObjectSummary.size() > 0)
             .map(s3ObjectSummary -> modelBased
@@ -347,7 +347,8 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
    * @return All outputs for the specified InputSet
    */
   private List<Output> loadOutputsFor(InputSet inputSet) {
-    return loadOutputs(Set.of(inputSet.toS3Path(jobId)), inputSet.modelBased());
+    S3Uri s3Uri = inputSet.toS3Uri(jobId);
+    return loadOutputs(s3Uri.bucket(), Set.of(s3Uri.key()), inputSet.modelBased());
   }
 
   private static List<Input> filterInputs(List<Input> inputs, Class<? extends Input>[] inputTypes) {
@@ -718,6 +719,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
     public static final String DEFAULT_SET_NAME = "inputs"; //Depicts the input set used if no set name is defined
     public static final String DEFAULT_SET_GROUP = "default"; //Depicts the output set group used if no set name is defined
     public static final String USER_PROVIDER = "USER";
+    public static final String GENERIC_PROVIDER = "GENERIC";
     public static final Supplier<InputSet> USER_INPUTS = () -> new InputSet();
 
     private String jobId;
@@ -725,6 +727,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
     private String name;
     private boolean modelBased;
     private Map<String, String> metadata;
+    private S3Uri s3Uri;
 
     /**
      * Use this constructor to reference the outputs of a step belonging to a different job than the one the consuming step belongs to.
@@ -770,12 +773,19 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
       this(null, USER_PROVIDER, DEFAULT_SET_NAME, false);
     }
 
+    public InputSet(S3Uri s3Uri, String name, Map<String, String> metadata) {
+      this(null, GENERIC_PROVIDER, name, false, metadata);
+      this.s3Uri = s3Uri;
+    }
+
     public String toS3Path(String consumerJobId) {
       return toS3Uri(consumerJobId).key();
     }
 
     public S3Uri toS3Uri(String consumerJobId) {
       String jobId = jobId() != null ? jobId() : consumerJobId;
+      if (GENERIC_PROVIDER.equals(providerId()))
+        return s3Uri;
       if (USER_PROVIDER.equals(providerId()))
         return Input.loadResolvedUserInputPrefixUri(jobId, name());
       return new S3Uri(defaultBucket(), Output.stepOutputS3Prefix(jobId, providerId(), name()));
@@ -799,28 +809,6 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
 
     public Map<String, String> metadata() {
       return metadata;
-    }
-  }
-
-  public static class GenericInputSet extends InputSet {
-    S3Uri s3Uri;
-
-    public GenericInputSet(S3Uri s3Uri, String name, Map<String, String> metadata) {
-      super(null, "GENERIC", name, false, metadata);
-      this.s3Uri = s3Uri;
-    }
-
-    public GenericInputSet(URI s3Uri, String name, Map<String, String> metadata) {
-      this(new S3Uri(s3Uri), name, metadata);
-    }
-
-    public GenericInputSet(String s3Uri, String name, Map<String, String> metadata) {
-      this(new S3Uri(s3Uri), name, metadata);
-    }
-
-    @Override
-    public S3Uri toS3Uri(String consumerJobId) {
-      return s3Uri;
     }
   }
 

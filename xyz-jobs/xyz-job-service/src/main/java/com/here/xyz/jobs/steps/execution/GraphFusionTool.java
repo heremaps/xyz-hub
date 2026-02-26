@@ -19,6 +19,7 @@
 
 package com.here.xyz.jobs.steps.execution;
 
+import static com.here.xyz.jobs.steps.Step.InputSet.GENERIC_PROVIDER;
 import static com.here.xyz.jobs.steps.execution.RunEmrJob.toInputSetReference;
 
 import com.here.xyz.jobs.Job;
@@ -296,7 +297,8 @@ public class GraphFusionTool {
   private static void resolveReusedInputs(Step step, StepGraph containingStepGraph) {
     List<InputSet> newInputSets = new ArrayList<>();
     for (InputSet compiledInputSet : (List<InputSet>) step.getInputSets()) {
-      if (compiledInputSet.providerId() == null || !(containingStepGraph.getStep(compiledInputSet.providerId()) instanceof DelegateStep replacementStep))
+      if (compiledInputSet.providerId() == null || GENERIC_PROVIDER.equals(compiledInputSet.providerId())
+              || !(containingStepGraph.getStep(compiledInputSet.providerId()) instanceof DelegateStep replacementStep))
         //NOTE: stepId == null on an InputSet refers to the USER-inputs
         newInputSets.add(compiledInputSet);
       else
