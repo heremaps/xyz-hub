@@ -26,7 +26,6 @@ import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.models.hub.Branch.DeletedBranch;
 import com.here.xyz.models.hub.FeatureModificationList.FeatureModification;
-import java.io.Serializable;
 
 @JsonTypeInfo(use = Id.NAME, property = "type")
 @JsonSubTypes({
@@ -36,6 +35,6 @@ import java.io.Serializable;
     @JsonSubTypes.Type(value = FeatureModification.class, name = "FeatureModification"),
     @JsonSubTypes.Type(value = DeletedBranch.class, name = "DeletedBranch")
 })
-public interface Typed extends Serializable, XyzSerializable {
+public interface Typed extends XyzSerializable {
 
 }

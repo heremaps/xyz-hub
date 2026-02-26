@@ -29,7 +29,7 @@ import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.coordinates.JTSHelper;
 import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
 
-import java.util.HashSet;
+import java.io.Serializable;
 import java.util.List;
 
 /**
@@ -39,7 +39,7 @@ import java.util.List;
     @JsonSubTypes.Type(value = GeometryCollection.class, name = "GeometryCollection"),
     @JsonSubTypes.Type(value = GeometryItem.class)
 })
-public abstract class Geometry implements Typed {
+public abstract class Geometry implements Typed, Serializable {
 
   @JsonInclude(NON_EMPTY)
   private BBox bbox;
