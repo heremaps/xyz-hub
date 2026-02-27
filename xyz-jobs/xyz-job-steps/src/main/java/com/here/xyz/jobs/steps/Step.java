@@ -458,7 +458,10 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
     logger.info("[{}] Start deleting outputs...", getGlobalStepId());
     S3Client.getInstance().deleteFolder(stepS3Prefix())
             .whenComplete((v, ex) -> {
-                 logger.info("[{}] End deleting outputs.", getGlobalStepId());
+              if(ex != null)
+                logger.error("[{}] Error while deleting outputs", getGlobalStepId(), ex);
+              else
+                logger.info("[{}] End deleting outputs.", getGlobalStepId());
             });
   }
 
