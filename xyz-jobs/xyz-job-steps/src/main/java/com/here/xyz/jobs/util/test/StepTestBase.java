@@ -385,7 +385,7 @@ public class StepTestBase {
   }
 
   protected void cleanS3Files(String s3Prefix) {
-    s3Client.deleteFolder(s3Prefix);
+    s3Client.deleteFolder(s3Prefix).join();
   }
 
   protected void sendLambdaStepRequestBlock(LambdaBasedStep step, boolean simulate)
