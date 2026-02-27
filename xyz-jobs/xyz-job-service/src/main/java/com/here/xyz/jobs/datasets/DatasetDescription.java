@@ -112,7 +112,7 @@ public abstract class DatasetDescription implements Typed {
     private Ref versionRef = new Ref(Ref.HEAD);
     @JsonIgnore
     private Optional<String> extendedSpaceId;
-    private static final Async ASYNC = new Async(5, Job.class);
+    private static final Async ASYNC = new Async(10, Job.class);
 
     @Override
     public Filters getFilters() {
