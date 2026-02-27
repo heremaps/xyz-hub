@@ -19,6 +19,7 @@
 
 package com.here.xyz.jobs.service;
 
+import static com.here.xyz.jobs.RuntimeInfo.State.CANCELLING;
 import static com.here.xyz.jobs.RuntimeInfo.State.FAILED;
 import static com.here.xyz.jobs.RuntimeInfo.State.NOT_READY;
 import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
@@ -47,12 +48,15 @@ import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.service.HttpException;
 import com.here.xyz.util.service.errors.DetailedHttpException;
+import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Future;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.router.RouterBuilder;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import org.apache.commons.lang3.NotImplementedException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -87,10 +91,27 @@ public class JobApi extends JobApiBase {
 
   protected Future<Job> createNewJob(RoutingContext context, Job job) {
     logger.info(getMarker(context), "Received job creation request: {}", job.serialize(true));
+    AtomicBoolean clientGone = new AtomicBoolean(false);
+
+    context.request().connection().closeHandler(v -> {
+      clientGone.set(true);
+    });
+
     return job.create().submit()
+        .compose(v -> abortIfClientGone(clientGone))
         .compose(v -> applyInputReferences(job))
+        .compose(v -> abortIfClientGone(clientGone))
         .map(res -> job)
         .recover(t -> {
+          if(t instanceof HttpException e && e.status == HttpResponseStatus.GONE) {
+            logger.warn(getMarker(context), e.getMessage());
+            job.getStatus()
+                    .withState(CANCELLING)
+                    .withErrorMessage("Client disconnected.")
+                    .withErrorCause(t.getMessage());
+            job.store();
+            return Future.failedFuture(e);
+          }
           if (t instanceof CompilationError)
             return Future.failedFuture(new DetailedHttpException("E319002", t));
           if (t instanceof ValidationException)
@@ -102,6 +123,13 @@ public class JobApi extends JobApiBase {
           logger.info(getMarker(context), "Job was created successfully: {}", job.serialize(true));
         })
         .onFailure(err -> sendErrorResponse(context, err));
+  }
+
+  private <T> Future<T> abortIfClientGone(AtomicBoolean clientGone) {
+    if (clientGone.get()) {
+      return Future.failedFuture(new HttpException(HttpResponseStatus.GONE,"Client disconnected during job creation. Aborting job."));
+    }
+    return Future.succeededFuture();
   }
 
   protected Future<Void> applyInputReferences(Job job) {
