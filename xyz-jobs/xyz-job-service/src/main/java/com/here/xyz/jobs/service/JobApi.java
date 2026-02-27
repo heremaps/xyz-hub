@@ -107,9 +107,9 @@ public class JobApi extends JobApiBase {
             logger.warn(getMarker(context), e.getMessage());
             job.getStatus()
                     .withState(CANCELLING)
-                    .withErrorMessage("Client disconnected.")
+                    .withErrorMessage("Client disconnected during job submission.")
                     .withErrorCause(t.getMessage());
-            job.store();
+            job.storeStatus(null);
             return Future.failedFuture(e);
           }
           if (t instanceof CompilationError)
