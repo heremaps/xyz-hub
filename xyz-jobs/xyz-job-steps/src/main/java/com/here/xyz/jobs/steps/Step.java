@@ -455,7 +455,11 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
     TODO: Respect re-usability of outputs. If other steps are re-using (some) outputs of this step, check the reference counter of
       the according steps and only delete the outputs if their reference counter drops to 0
      */
-    S3Client.getInstance().deleteFolder(stepS3Prefix());
+    logger.info("[{}] Start deleting outputs...", getGlobalStepId());
+    S3Client.getInstance().deleteFolder(stepS3Prefix())
+            .whenComplete((v, ex) -> {
+                 logger.info("[{}] End deleting outputs.", getGlobalStepId());
+            });
   }
 
   /**

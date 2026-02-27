@@ -30,12 +30,20 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.URL;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.zip.GZIPOutputStream;
 import org.apache.http.ConnectionClosedException;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.sync.RequestBody;
@@ -53,6 +61,15 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 
 public class S3Client {
+  private static final Logger logger = LogManager.getLogger();
+  private static final ExecutorService S3_DELETE_POOL =
+          new ThreadPoolExecutor(
+                  4,
+                  16,
+                  60L, TimeUnit.SECONDS,
+                  new LinkedBlockingQueue<>(),
+                  new ThreadPoolExecutor.CallerRunsPolicy()
+          );
   protected static final int PRESIGNED_URL_EXPIRATION_SECONDS = 7 * 24 * 60 * 60;
   private static Map<String, S3Client> instances = new ConcurrentHashMap<>();
   protected final software.amazon.awssdk.services.s3.S3Client client;
@@ -251,13 +268,32 @@ public class S3Client {
     return S3ClientHelper.loadMetadata(client, bucketName, key);
   }
 
-  public void deleteFolder(String folderPath) {
-    //TODO: Run partially in parallel in multiple threads (using an actual pool)
-    listObjects(folderPath)
-        .stream()
-        .parallel()
-        //TODO: Delete multiple objects (batches of 1000) with one request instead
-        .forEach((key) -> S3ClientHelper.deleteObject(client, bucketName, key));
+  private static <T> List<List<T>> partition(List<T> list, int size) {
+    List<List<T>> parts = new ArrayList<>();
+    for (int i = 0; i < list.size(); i += size) {
+      parts.add(list.subList(i, Math.min(i + size, list.size())));
+    }
+    return parts;
+  }
+
+  public CompletableFuture<Void> deleteFolder(String folderPath) {
+    List<String> keys = listObjects(folderPath);
+
+    if (keys.isEmpty())
+      return CompletableFuture.completedFuture(null);
+
+    // S3 limit = 1000 objects per request. https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteObjects.html
+    List<List<String>> batches = partition(keys, 1000);
+
+    List<CompletableFuture<Void>> futures = batches.stream()
+            .map(batch ->
+                    CompletableFuture.runAsync(
+                            () -> S3ClientHelper.deleteObjects(client, bucketName, batch),
+                            S3_DELETE_POOL))
+            .toList();
+
+    logger.info("Deleting {} objects in folder {} in {} batches...",  keys.size(), folderPath, batches.size());
+    return CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]));
   }
 
   /**
