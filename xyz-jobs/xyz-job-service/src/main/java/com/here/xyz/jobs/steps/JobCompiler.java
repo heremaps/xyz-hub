@@ -38,7 +38,7 @@ import java.util.stream.Collectors;
 public class JobCompiler {
 
   private static Set<Class<? extends JobCompilationInterceptor>> interceptors = new ConcurrentHashSet<>();
-  private static final Async ASYNC = new Async(5, JobCompiler.class);
+  private static final Async ASYNC = new Async(10, JobCompiler.class);
 
   static {
     registerCompilationInterceptor(ImportFromFiles.class);
