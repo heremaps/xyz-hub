@@ -25,12 +25,15 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.Delete;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
+import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Object;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
@@ -124,6 +127,29 @@ public class S3ClientHelper {
                 .build();
 
         client.deleteObject(deleteObjectRequest);
+    }
+
+    public static void deleteObjects(S3Client client,
+                                     String bucketName,
+                                     List<String> keys) {
+
+        if (keys == null || keys.isEmpty())
+            return;
+
+        List<ObjectIdentifier> objects = keys.stream()
+                .map(key -> ObjectIdentifier.builder().key(key).build())
+                .toList();
+
+        Delete delete = Delete.builder()
+                .objects(objects)
+                .build();
+
+        DeleteObjectsRequest request = DeleteObjectsRequest.builder()
+                .bucket(bucketName)
+                .delete(delete)
+                .build();
+
+        client.deleteObjects(request);
     }
 
     public static HeadObjectResponse loadMetadata(S3Client client, String bucketName, String key) {
