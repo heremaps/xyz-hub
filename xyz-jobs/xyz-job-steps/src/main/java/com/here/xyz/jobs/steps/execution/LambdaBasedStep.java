@@ -105,7 +105,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   private String taskToken = TASK_TOKEN_TEMPLATE; //Will be defined by the Step Function
 
   @JsonView(Internal.class)
-  private String executionId = EXECUTION_ID_TEMPLATE; //Will be defined by the Step Function
+  private String executionId = null; //Will be defined by the Step Function
 
   @JsonView(Internal.class)
   private int retryCount = -1; //Will be defined by the Step Function
