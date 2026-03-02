@@ -44,6 +44,7 @@ import com.here.xyz.jobs.RuntimeInfo;
 import com.here.xyz.jobs.RuntimeInfo.State;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.execution.JobExecutor;
+import com.here.xyz.jobs.steps.execution.SFNHistoryInspector;
 import com.here.xyz.util.service.HttpException;
 import io.vertx.core.Future;
 import io.vertx.core.json.JsonObject;
@@ -245,7 +246,7 @@ public class JobAdminApi extends JobApiBase {
 
   private static Future<Void> failCausingStep(Job job, String errCausePrefixText, Future<Void> future, String executionArn) {
     //Find the causing step within the SFN ...
-    future = future.compose(v -> loadCausingStepId(executionArn))
+    future = future.compose(v -> SFNHistoryInspector.loadCausingStepId(executionArn))
         .compose(causingStepId -> {
           //Patch the error cause on the *job* status
           patchErrorCause(job.getStatus(), errCausePrefixText == null ? null :  errCausePrefixText + " \"" + causingStepId + "\"");
@@ -258,35 +259,6 @@ public class JobAdminApi extends JobApiBase {
         //Set all RUNNING steps to CANCELLED, because the steps themselves might not have been informed
         .compose(v -> cancelSteps(job, RUNNING));
     return future;
-  }
-
-  /**
-   * Fetches the execution history for the provided executionArn and goes back in the event history
-   * until hitting "TaskStateEntered".
-   * Then extracts the causing step ID from stateEnteredEventDetails.name field.
-   *
-   * @param executionArn The execution ARN of the state machine
-   * @return The ID of the causing step if found, `null` otherwise
-   */
-  private static Future<String> loadCausingStepId(String executionArn) {
-    return Future.fromCompletionStage(asyncSfnClient().getExecutionHistory(GetExecutionHistoryRequest.builder()
-            .executionArn(executionArn)
-            .build()))
-        .compose(executionHistory -> {
-          List<HistoryEvent> events = executionHistory.events();
-          HistoryEvent failingEvent = events.get(events.size() - 1);
-          while (failingEvent != null && failingEvent.previousEventId() > 0 && !"TaskStateEntered".equals(failingEvent.type().toString())) {
-            long causingEventId = failingEvent.previousEventId();
-            failingEvent = events.stream().filter(event -> event.id().equals(causingEventId)).findAny().orElse(null);
-          }
-          String causingStepName = failingEvent != null && "TaskStateEntered".equals(failingEvent.type().toString())
-                  && failingEvent.stateEnteredEventDetails() != null && failingEvent.stateEnteredEventDetails().name().contains(".")
-                  ? failingEvent.stateEnteredEventDetails().name() : null;
-          if (causingStepName == null)
-            return Future.failedFuture(new RuntimeException("Causing stepId not found in SFN execution with ARN: " + executionArn));
-          String causingStepId = causingStepName.substring(causingStepName.indexOf(".") + 1);
-          return Future.succeededFuture(causingStepId);
-        });
   }
 
   private static Future<Void> cancelSteps(Job job, State currentState) {
