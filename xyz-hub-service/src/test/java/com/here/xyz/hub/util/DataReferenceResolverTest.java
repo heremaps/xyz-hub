@@ -84,19 +84,58 @@ class DataReferenceResolverTest {
     }
 
     @Test
-    void loadEffectiveById_shouldReturnEmpty_whenNoAnchorExists_andIncludeStaleDefaultFalse() {
+    void loadEffectiveById_shouldReturnSameReference_whenNoAnchorExists_andIncludeStaleDefaultFalse() {
         UUID id = UUID.randomUUID();
         DataReference ref = ref("entity-id-1", 100L).withId(id);
 
         when(references.load(id)).thenReturn(Future.succeededFuture(Optional.of(ref)));
         when(spaces.get(marker, "entity-id-1")).thenReturn(Future.succeededFuture(null));
 
-        Optional<DataReference> result = await(resolver.loadEffectiveById(marker, id)); // default includeStale=false
+        Optional<DataReference> result = await(resolver.loadEffectiveById(marker, id)); // includeStale=false
 
-        assertTrue(result.isEmpty(), "Without includeStale, references are filtered when no anchor exists");
+        assertTrue(result.isPresent());
+        assertSame(ref, result.get());
+
         verify(references).load(id);
         verify(spaces).get(marker, "entity-id-1");
         verifyNoMoreInteractions(references, spaces);
+    }
+
+    @Test
+    void loadEffectiveById_shouldReturnSameReference_whenEntityIdHasNoParentHrn_andDirectMissing() {
+        UUID id = UUID.randomUUID();
+        DataReference ref = ref("no-colon-parent", 200L).withId(id);
+
+        when(references.load(id)).thenReturn(Future.succeededFuture(Optional.of(ref)));
+        when(spaces.get(marker, "no-colon-parent")).thenReturn(Future.succeededFuture(null));
+
+        Optional<DataReference> result = await(resolver.loadEffectiveById(marker, id));
+
+        assertTrue(result.isPresent());
+        assertSame(ref, result.get());
+
+        verify(references).load(id);
+        verify(spaces).get(marker, "no-colon-parent");
+        verifyNoMoreInteractions(references, spaces);
+
+        verify(references, never()).load(eq("no-colon-parent"), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void filterStaleForEntity_shouldNotFilter_whenNoAnchorExists_andIncludeStaleDefaultFalse() {
+        String entityId = "entity-id-1";
+
+        DataReference r1 = ref(entityId, 100L);
+        DataReference r2 = ref(entityId, 200L);
+
+        when(spaces.get(marker, entityId)).thenReturn(Future.succeededFuture(null));
+
+        List<DataReference> result = await(resolver.filterStaleForEntity(marker, entityId, List.of(r1, r2)));
+
+        assertEquals(List.of(r1, r2), result);
+
+        verify(spaces).get(marker, entityId);
+        verifyNoMoreInteractions(spaces);
     }
 
     @Test
@@ -136,23 +175,6 @@ class DataReferenceResolverTest {
         verify(spaces).get(marker, "hrn:here:data::olp-here:someMap:layer");
         verify(spaces).get(marker, "hrn:here:data::olp-here:someMap");
         verifyNoMoreInteractions(references, spaces);
-    }
-
-    @Test
-    void loadEffectiveById_shouldReturnEmpty_whenEntityIdHasNoParentHrn_andDirectMissing() {
-        UUID id = UUID.randomUUID();
-        DataReference ref = ref("no-colon-parent", 200L).withId(id);
-
-        when(references.load(id)).thenReturn(Future.succeededFuture(Optional.of(ref)));
-        when(spaces.get(marker, "no-colon-parent")).thenReturn(Future.succeededFuture(null));
-
-        Optional<DataReference> result = await(resolver.loadEffectiveById(marker, id));
-
-        assertTrue(result.isEmpty());
-        verify(references).load(id);
-        verify(spaces).get(marker, "no-colon-parent");
-        verifyNoMoreInteractions(references, spaces);
-        verify(references, never()).load(eq("no-colon-parent"), any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -233,22 +255,6 @@ class DataReferenceResolverTest {
 
         assertEquals(List.of(r1, r2), result);
         verifyNoInteractions(spaces);
-    }
-
-    @Test
-    void filterStaleForEntity_shouldReturnEmpty_whenNoAnchorExists_andIncludeStaleDefaultFalse() {
-        String entityId = "entity-id-1";
-
-        DataReference r1 = ref(entityId, 100L);
-        DataReference r2 = ref(entityId, 200L);
-
-        when(spaces.get(marker, entityId)).thenReturn(Future.succeededFuture(null));
-
-        List<DataReference> result = await(resolver.filterStaleForEntity(marker, entityId, List.of(r1, r2)));
-
-        assertEquals(List.of(), result);
-        verify(spaces).get(marker, entityId);
-        verifyNoMoreInteractions(spaces);
     }
 
     @Test

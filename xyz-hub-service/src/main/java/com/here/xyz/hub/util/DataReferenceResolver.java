@@ -84,10 +84,10 @@ public final class DataReferenceResolver {
         return resolveAnchorSpace(marker, entityId)
                 .map(maybeAnchor -> {
                     if (maybeAnchor.isEmpty()) {
-                        return List.of();
+                        return refs;
                     }
 
-                    long minCreatedAt = maybeAnchor.get().createdAt;
+                    long minCreatedAt = maybeAnchor.get().createdAt();
                     return refs.stream()
                             .filter(r -> ts(r.getCreatedAt()) >= minCreatedAt)
                             .toList();
@@ -101,7 +101,7 @@ public final class DataReferenceResolver {
                 .compose(maybeAnchor -> {
                     if (maybeAnchor.isEmpty()) {
                         // No matching row
-                        return Future.succeededFuture(Optional.empty());
+                        return Future.succeededFuture(Optional.of(ref));
                     }
 
                     long spaceCreatedAt = maybeAnchor.get().createdAt;
