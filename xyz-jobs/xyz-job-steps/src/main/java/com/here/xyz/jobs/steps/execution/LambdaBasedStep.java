@@ -66,6 +66,8 @@ import java.net.http.HttpResponse;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+
+import io.vertx.core.Future;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import software.amazon.awssdk.services.cloudwatchevents.model.ConcurrentModificationException;
@@ -90,7 +92,9 @@ import software.amazon.awssdk.services.sfn.model.TaskTimedOutException;
 public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T> {
   private static final String TASK_TOKEN_TEMPLATE = "$$.Task.Token";
   private static final String RETRY_COUNT_TEMPLATE = "$$.State.RetryCount";
+  private static final String REDRIVE_COUNT_TEMPLATE = "$$.Execution.RedriveCount";
   private static final String PIPELINE_INPUT_TEMPLATE = "$$.Execution.Input";
+  private static final String EXECUTION_ID_TEMPLATE = "$$.Execution.Id";
   public static final String HEART_BEAT_PREFIX = "HeartBeat-";
   //TODO: Check if there are other possibilities
   @JsonView(Internal.class)
@@ -101,7 +105,14 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   private String taskToken = TASK_TOKEN_TEMPLATE; //Will be defined by the Step Function
 
   @JsonView(Internal.class)
+  private String executionId = EXECUTION_ID_TEMPLATE; //Will be defined by the Step Function
+
+  @JsonView(Internal.class)
   private int retryCount = -1; //Will be defined by the Step Function
+
+  //RedriveCount is not available in localstack!
+  @JsonView(Internal.class)
+  private int redriveCount = Config.instance.LOCALSTACK_ENDPOINT != null ? 0 : -1; //Will be defined by the Step Function
 
   @JsonView(Internal.class)
   private int stepExecutionHeartBeatTimeoutOverride;
@@ -379,7 +390,22 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
 
   @JsonIgnore
   protected boolean isResume() {
-    return retryCount > 0;
+    if(redriveCount == 0)
+      return false;
+
+    boolean isResume = SFNHistoryInspector.findStepFunctionExecutionInHistory(executionId, getGlobalStepId())
+        .recover(t -> {
+          //TODO: Check if we want to fail here instead
+          logger.warn("[{}] Error while checking for resume execution in SFN history.", getGlobalStepId(), t);
+          return Future.succeededFuture(false);
+        })
+        .toCompletionStage()
+        .toCompletableFuture()
+        .join();
+
+    if (isResume)
+      logger.info("[{}] Resume detected!", getGlobalStepId());
+    return isResume;
   }
 
   /**
@@ -540,6 +566,26 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   private String getTaskTokenTemplate() {
     //NOTE: The task token template may only be used for the ASYNC mode
     return getExecutionMode().equals(SYNC) ? null : TASK_TOKEN_TEMPLATE.equals(taskToken) ? taskToken : null;
+  }
+
+  @JsonProperty("executionId.$")
+  @JsonInclude(Include.NON_NULL)
+  private String getExecutionIdTemplate() {
+    return executionId == null ? EXECUTION_ID_TEMPLATE : null;
+  }
+
+  private void setExecutionIdTemplate(String executionId) {
+    this.executionId = executionId;
+  }
+
+  @JsonProperty("redriveCount.$")
+  @JsonInclude(Include.NON_NULL)
+  private String getRedriveCountTemplate() {
+    return (redriveCount == -1 && !isSimulation) ? REDRIVE_COUNT_TEMPLATE : null;
+  }
+
+  private void setRedriveCountCount(int redriveCount) {
+    this.redriveCount = redriveCount;
   }
 
   @JsonProperty("retryCount.$")
