@@ -99,8 +99,12 @@ public class FilterFeatureUtils {
       logger.warn("Provided null feature and geometry pair when filtering feature");
       return false;
     }
-    return JsonPathFilterUtils.filterByJsonPaths(featureWithGeometry.getLeft(), jsonPaths)
-        && isGeometryIntersectingFilterPreparedGeometry(featureWithGeometry.getRight(), preparedGeometry);
+
+    boolean jsonMatch = !jsonPaths.isEmpty() && JsonPathFilterUtils.filterByJsonPaths(featureWithGeometry.getLeft(),
+            jsonPaths);
+    boolean spatialMatch = isGeometryIntersectingFilterPreparedGeometry(featureWithGeometry.getRight(), preparedGeometry);
+
+    return jsonMatch || spatialMatch;
   }
 
   private static boolean isGeometryIntersectingFilterPreparedGeometry(Geometry featureGeometry, PreparedGeometry preparedGeometry) {
