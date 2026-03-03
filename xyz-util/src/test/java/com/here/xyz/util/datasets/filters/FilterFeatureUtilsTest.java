@@ -144,6 +144,43 @@ class FilterFeatureUtilsTest {
     assertFalse(containsFeature);
   }
 
+  @Test
+  void filterFeaturesJsonPathMatchSpatialFilterNotMatching() throws InvalidGeometryException {
+    Point notIntersectingGeometryPoint = new Point().withCoordinates(new PointCoordinates(3.0, 3.0)); // outside the square from (0,0) to (2,2)
+    SpatialFilter spatialFilter = getTestSpatialFilter();
+
+    List<Pair<Feature, Geometry>> featuresWithGeometries = List.of(Pair.of(featureWithRightId, notIntersectingGeometryPoint));
+    Collection<Feature> filteredFeatures = FilterFeatureUtils.filterFeatures(featuresWithGeometries, JSON_PATHS_FOR_UNCHANGED_ID,
+        spatialFilter);
+    assertEquals(1, filteredFeatures.size());
+  }
+
+  @Test
+  void filterFeaturesJsonPathNotMatchingSpatialFilterMatching() throws InvalidGeometryException, JsonProcessingException {
+    Feature featureWithChangedId = MAPPER.readValue(featureJsonString, Feature.class);
+    featureWithChangedId.setId("TEST_ID");
+    Point intersectingGeometryPoint = new Point().withCoordinates(new PointCoordinates(1.0, 1.0)); // inside the square from (0,0) to (2,2)
+    SpatialFilter spatialFilter = getTestSpatialFilter();
+
+    List<Pair<Feature, Geometry>> featuresWithGeometries = List.of(Pair.of(featureWithChangedId, intersectingGeometryPoint));
+    Collection<Feature> filteredFeatures = FilterFeatureUtils.filterFeatures(featuresWithGeometries, JSON_PATHS_FOR_UNCHANGED_ID,
+        spatialFilter);
+    assertEquals(1, filteredFeatures.size());
+  }
+
+  @Test
+  void filterFeaturesNeitherJsonPathNorSpatialFilterMatching() throws InvalidGeometryException, JsonProcessingException {
+    Feature featureWithChangedId = MAPPER.readValue(featureJsonString, Feature.class);
+    featureWithChangedId.setId("TEST_ID");
+    Point notIntersectingGeometryPoint = new Point().withCoordinates(new PointCoordinates(3.0, 3.0)); // outside the square from (0,0) to (2,2)
+    SpatialFilter spatialFilter = getTestSpatialFilter();
+
+    List<Pair<Feature, Geometry>> featuresWithGeometries = List.of(Pair.of(featureWithChangedId, notIntersectingGeometryPoint));
+    Collection<Feature> filteredFeatures = FilterFeatureUtils.filterFeatures(featuresWithGeometries, JSON_PATHS_FOR_UNCHANGED_ID,
+        spatialFilter);
+    assertEquals(0, filteredFeatures.size());
+  }
+
   // Returns a spatial filter of a square polygon from (0,0) to (2,2)
   private SpatialFilter getTestSpatialFilter() throws InvalidGeometryException {
     PolygonCoordinates polygonCoordinates = new PolygonCoordinates();
