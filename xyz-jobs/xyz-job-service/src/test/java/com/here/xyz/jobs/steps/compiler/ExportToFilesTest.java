@@ -23,7 +23,7 @@ import com.here.xyz.jobs.datasets.DatasetDescription;
 import com.here.xyz.jobs.datasets.FileOutputSettings;
 import com.here.xyz.jobs.datasets.Files;
 import com.here.xyz.jobs.datasets.files.GeoJson;
-import com.here.xyz.jobs.datasets.filters.Filters;
+import com.here.xyz.filters.Filters;
 import com.here.xyz.models.filters.SpatialFilter;
 import com.here.xyz.jobs.steps.CompilationStepGraph;
 import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;

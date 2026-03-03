@@ -5,6 +5,6 @@
     "type": "PER_FEATURE"
   },
   "filter": {
-    "jsonPaths": ["$[invalid json path syntax"]
+    "jsonPath": "$[invalid json path syntax]"
   }
 }

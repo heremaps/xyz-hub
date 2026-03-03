@@ -24,7 +24,7 @@ import com.jayway.jsonpath.JsonPath;
 import com.jayway.jsonpath.PathNotFoundException;
 import com.jayway.jsonpath.spi.json.JacksonJsonNodeJsonProvider;
 import com.jayway.jsonpath.spi.mapper.JacksonMappingProvider;
-import java.util.Collection;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -40,28 +40,26 @@ public class JsonPathFilterUtils {
   private JsonPathFilterUtils() {
   }
 
-  public static boolean filterByJsonPaths(Feature feature, Collection<JsonPath> jsonPaths) {
+  public static boolean filterByJsonPath(Feature feature, JsonPath jsonPath) {
     if (feature == null) {
-      logger.warn("Provided null feature when filtering by json paths");
+      logger.warn("Provided null feature when filtering by a json path");
       return false;
     }
-    if (jsonPaths == null || jsonPaths.isEmpty()) {
+    if (jsonPath == null || StringUtils.isEmpty(jsonPath.getPath())) {
       return true;
     }
     JsonNode featureNode = MAPPER.valueToTree(feature);
-    return jsonPaths.stream().allMatch(jsonPath -> {
-      try {
-        Object object = jsonPath.read(featureNode, JACKSON_CONFIG);
-        if (object == null ||
-            // An empty array is considered as not matching the filter
-            (object instanceof ArrayNode && ((ArrayNode) object).isEmpty())) {
-          return false;
-        }
-      } catch (PathNotFoundException pathNotFoundException) {
-        logger.debug("Json path not found: {}", jsonPath);
+    try {
+      Object object = jsonPath.read(featureNode, JACKSON_CONFIG);
+      if (object == null ||
+          // An empty array is considered as not matching the filter
+          (object instanceof ArrayNode && ((ArrayNode) object).isEmpty())) {
         return false;
       }
-      return true;
-    });
+    } catch (PathNotFoundException pathNotFoundException) {
+      logger.debug("Json path not found: {}", jsonPath);
+      return false;
+    }
+    return true;
   }
 }

@@ -21,6 +21,7 @@ package com.here.xyz.models.hub;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import com.here.xyz.filters.Filters;
 import java.util.Map;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -48,7 +49,7 @@ public class Subscription {
 
     private SubscriptionStatus status;
 
-    private SubscriptionFilter filter;
+    private Filters filters;
 
     public String getId() {
         return id;
@@ -115,16 +116,16 @@ public class Subscription {
         return this;
     }
 
-    public SubscriptionFilter getFilter() {
-        return filter;
+    public Filters getFilters() {
+        return filters;
     }
 
-    public void setFilter(SubscriptionFilter filter) {
-        this.filter = filter;
+    public void setFilters(Filters filters) {
+        this.filters = filters;
     }
 
-    public Subscription withFilter(SubscriptionFilter filter) {
-        this.filter = filter;
+    public Subscription withFilters(Filters filters) {
+        this.filters = filters;
         return this;
     }
 

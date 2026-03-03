@@ -21,7 +21,7 @@ import com.here.xyz.jobs.datasets.DatasetDescription;
 import com.here.xyz.jobs.datasets.FileOutputSettings;
 import com.here.xyz.jobs.datasets.Files;
 import com.here.xyz.jobs.datasets.files.GeoJson;
-import com.here.xyz.jobs.datasets.filters.Filters;
+import com.here.xyz.filters.Filters;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;

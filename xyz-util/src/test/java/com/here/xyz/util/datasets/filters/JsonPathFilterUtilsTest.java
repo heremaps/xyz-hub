@@ -25,7 +25,6 @@ import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -43,67 +42,60 @@ class JsonPathFilterUtilsTest {
 
   @Test
   void filterJsonPathSuccessfulSimple() {
-    List<JsonPath> jsonPaths = List.of(JsonPath.compile("$.properties.name"));
-    boolean isPresent = JsonPathFilterUtils.filterByJsonPaths(feature, jsonPaths);
+    JsonPath jsonPath = JsonPath.compile("$.properties.name");
+    boolean isPresent = JsonPathFilterUtils.filterByJsonPath(feature, jsonPath);
     assertTrue(isPresent);
   }
 
   @Test
   void filterJsonPathSuccessfulConjunction() {
-    List<JsonPath> jsonPaths = List.of(
-        JsonPath.compile("$[?(@.properties.occupant == 'Liverpool F.C.' && @.properties.sport == 'association football')]"));
-    boolean isPresent = JsonPathFilterUtils.filterByJsonPaths(feature, jsonPaths);
+    JsonPath jsonPath = JsonPath.compile("$[?(@.properties.occupant == 'Liverpool F.C.' && @.properties.sport == 'association football')]");
+    boolean isPresent = JsonPathFilterUtils.filterByJsonPath(feature, jsonPath);
     assertTrue(isPresent);
   }
 
   @Test
   void filterJsonPathFailed() {
-    List<JsonPath> jsonPaths = List.of(JsonPath.compile("$.properties.empty"));
-    boolean isPresent = JsonPathFilterUtils.filterByJsonPaths(feature, jsonPaths);
+    JsonPath jsonPath = JsonPath.compile("$.properties.empty");
+    boolean isPresent = JsonPathFilterUtils.filterByJsonPath(feature, jsonPath);
     assertFalse(isPresent);
   }
 
   @Test
   void filterJsonPathInvalid() {
-    List<JsonPath> jsonPaths = List.of(JsonPath.compile("INVALID_JSON_PATH"));
-    boolean isPresent = JsonPathFilterUtils.filterByJsonPaths(feature, jsonPaths);
+    JsonPath jsonPath = JsonPath.compile("INVALID_JSON_PATH");
+    boolean isPresent = JsonPathFilterUtils.filterByJsonPath(feature, jsonPath);
     assertFalse(isPresent);
   }
 
   @Test
   void filterJsonPathNullFeature() {
-    List<JsonPath> jsonPaths = List.of(JsonPath.compile("$.properties.name"));
-    assertFalse(JsonPathFilterUtils.filterByJsonPaths(null, jsonPaths));
+    JsonPath jsonPath = JsonPath.compile("$.properties.name");
+    assertFalse(JsonPathFilterUtils.filterByJsonPath(null, jsonPath));
   }
 
   @Test
-  void filterJsonPathNullJsonPaths() {
-    assertTrue(JsonPathFilterUtils.filterByJsonPaths(feature, null));
-  }
-
-  @Test
-  void filterJsonPathEmptyJsonPaths() {
-    boolean isPresent = JsonPathFilterUtils.filterByJsonPaths(feature, List.of());
-    assertTrue(isPresent);
+  void filterJsonPathNullJsonPath() {
+    assertTrue(JsonPathFilterUtils.filterByJsonPath(feature, null));
   }
 
   @Test
   void filterJsonPathInvalidJsonPath() {
-    boolean isPresent = JsonPathFilterUtils.filterByJsonPaths(feature, List.of(JsonPath.compile("$[?(@.id == 'empty')]")));
+    boolean isPresent = JsonPathFilterUtils.filterByJsonPath(feature, JsonPath.compile("$[?(@.id == 'empty')]"));
     assertFalse(isPresent);
   }
 
   @Test
   void filterJsonPathJsonPathTargetMap() {
-    List<JsonPath> jsonPaths = List.of(JsonPath.compile("$.properties['@ns:com:here:maphub']"));
-    boolean isPresent = JsonPathFilterUtils.filterByJsonPaths(feature, jsonPaths);
+    JsonPath jsonPath = JsonPath.compile("$.properties['@ns:com:here:maphub']");
+    boolean isPresent = JsonPathFilterUtils.filterByJsonPath(feature, jsonPath);
     assertTrue(isPresent);
   }
 
   @Test
   void filterJsonPathJsonPathTargetArray() {
-    List<JsonPath> jsonPaths = List.of(JsonPath.compile("$.properties['@ns:com:here:xyz'].tags"));
-    boolean isPresent = JsonPathFilterUtils.filterByJsonPaths(feature, jsonPaths);
+    JsonPath jsonPath = JsonPath.compile("$.properties['@ns:com:here:xyz'].tags");
+    boolean isPresent = JsonPathFilterUtils.filterByJsonPath(feature, jsonPath);
     assertTrue(isPresent);
   }
 }

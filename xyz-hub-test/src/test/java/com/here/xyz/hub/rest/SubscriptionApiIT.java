@@ -132,11 +132,11 @@ public class SubscriptionApiIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void createSubscriptionWithFilter() {
+  public void createSubscriptionWithFilters() {
     addSubscription(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES, "/xyz/hub/createSubscriptionWithFilter.json")
         .statusCode(CREATED.code())
         .body("id", equalTo("test-subscription-1"))
-        .body("filter.jsonPaths[0]", equalTo("$.properties.name"))
+        .body("filter.jsonPath", equalTo("$[?(@.properties.type == 'building')]"))
         .body("filter.spatialFilter.radius", equalTo(100))
         .body("filter.spatialFilter.clip", equalTo(true));
   }

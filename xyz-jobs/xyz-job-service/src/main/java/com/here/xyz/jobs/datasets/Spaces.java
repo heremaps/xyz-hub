@@ -22,7 +22,7 @@ package com.here.xyz.jobs.datasets;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.jobs.datasets.DatasetDescription.Space;
 import com.here.xyz.jobs.datasets.filters.FilteringSource;
-import com.here.xyz.jobs.datasets.filters.Filters;
+import com.here.xyz.filters.Filters;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;

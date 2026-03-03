@@ -4192,18 +4192,16 @@ components:
               type: string
               example: ""
         filter:
-          $ref: '#/components/schemas/SubscriptionFilter'
-    SubscriptionFilter:
+          $ref: '#/components/schemas/Filters'
+    Filters:
       type: object
       description: Filter criteria for subscription notifications.
       properties:
-        jsonPaths:
+        jsonPath:
           description: >-
-            List of JSON path expressions to filter features.
-          type: array
-          items:
-            type: string
-          example: ["$.properties.name", "$.properties.type"]
+            The JSON path expression to filter features on.
+          type: string
+          example: "$[?(@.properties.type == 'building')]"
         spatialFilter:
           $ref: '#/components/schemas/SpatialFilter'
     SpatialFilter:
