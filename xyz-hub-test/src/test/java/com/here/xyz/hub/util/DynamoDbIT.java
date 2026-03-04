@@ -75,7 +75,7 @@ abstract class DynamoDbIT {
 
   @AfterAll
   static void afterAll() {
-    Core.vertx.close();
+    Core.vertx.close().toCompletionStage().toCompletableFuture().join();
     Core.vertx = null;
   }
 

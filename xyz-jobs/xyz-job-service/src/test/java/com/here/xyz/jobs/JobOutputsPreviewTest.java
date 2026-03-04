@@ -1,19 +1,20 @@
 package com.here.xyz.jobs;
 
-import com.here.xyz.jobs.steps.StepGraph;
-import com.here.xyz.jobs.steps.execution.fusion.OutputSetsTestStep;
 import com.here.xyz.jobs.steps.GroupPayloads;
 import com.here.xyz.jobs.steps.JobPayloads;
 import com.here.xyz.jobs.steps.SetPayloads;
+import com.here.xyz.jobs.steps.StepGraph;
+import com.here.xyz.jobs.steps.execution.fusion.OutputSetsTestStep;
 import com.here.xyz.util.service.Core;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
-import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
+
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 public class JobOutputsPreviewTest {
 
@@ -25,7 +26,7 @@ public class JobOutputsPreviewTest {
   @AfterClass
   public static void closeVertx() {
     if (Core.vertx != null) {
-      Core.vertx.close();
+      Core.vertx.close().toCompletionStage().toCompletableFuture().join();
       Core.vertx = null;
     }
   }

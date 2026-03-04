@@ -19,8 +19,6 @@
 
 package com.here.xyz.hub.util;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.client.builder.AwsClientBuilder;
@@ -37,9 +35,6 @@ import com.here.xyz.models.hub.Branch;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.aws.dynamo.DynamoClient;
 import io.vertx.core.Vertx;
-import java.lang.reflect.Field;
-import java.util.List;
-import java.util.concurrent.ThreadLocalRandom;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -52,6 +47,12 @@ import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
+
+import java.lang.reflect.Field;
+import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @TestMethodOrder(MethodOrderer.DisplayName.class)
@@ -86,7 +87,7 @@ public class DynamoBranchConfigClientIT {
 
     @AfterAll
     void afterAll() {
-        if (vertx != null) vertx.close();
+        if (vertx != null) vertx.close().toCompletionStage().toCompletableFuture().join();
         Core.vertx = null;
     }
 
