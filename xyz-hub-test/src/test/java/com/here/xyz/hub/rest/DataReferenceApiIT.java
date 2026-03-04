@@ -33,7 +33,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.skyscreamer.jsonassert.JSONAssert;
-import org.skyscreamer.jsonassert.JSONCompareMode;
 
 import java.io.File;
 import java.io.IOException;
@@ -56,6 +55,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.not;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.junit.jupiter.params.provider.Arguments.argumentSet;
 
@@ -151,12 +151,14 @@ final class DataReferenceApiIT extends RestAssuredTest {
       argumentSet(
         "only entityId (non-existent)",
         Map.of("entityId", "no-such-entity-id"),
-        "empty-data-reference-list.json"
+        0,
+        null
       ),
       argumentSet(
         "only entityId (existing)",
         Map.of("entityId", "entity-id-1"),
-        "data-reference-list-1.json"
+        1,
+        "308a8ebd-de83-42ac-a5ce-e83bf5c60ccc"
       ),
       argumentSet(
         "entityId (existing) with endVersion (non-existing)",
@@ -164,7 +166,8 @@ final class DataReferenceApiIT extends RestAssuredTest {
           "entityId", "entity-id-1",
           "endVersion", "9999"
         ),
-        "empty-data-reference-list.json"
+        0,
+        null
       ),
       argumentSet(
         "entityId (existing) with endVersion (existing)",
@@ -172,7 +175,8 @@ final class DataReferenceApiIT extends RestAssuredTest {
           "entityId", "entity-id-1",
           "endVersion", "134"
         ),
-        "data-reference-list-2.json"
+        1,
+        "308a8ebd-de83-42ac-a5ce-e83bf5c60aaa"
       ),
       argumentSet(
         "entityId (existing) with startVersion (existing)",
@@ -180,7 +184,8 @@ final class DataReferenceApiIT extends RestAssuredTest {
           "entityId", "entity-id-1",
           "startVersion", "123"
         ),
-        "data-reference-list-3.json"
+        1,
+        "308a8ebd-de83-42ac-a5ce-e83bf5c60bbb"
       ),
       argumentSet(
         "entityId (existing) with objectType (existing)",
@@ -188,7 +193,8 @@ final class DataReferenceApiIT extends RestAssuredTest {
           "entityId", "entity-id-1",
           "objectType", "object-type-A"
         ),
-        "data-reference-list-7.json"
+        1,
+        "308a8ebd-de83-42ac-a5ce-e83bf5c60abc"
       ),
       argumentSet(
         "entityId (existing) with contentType (existing)",
@@ -196,7 +202,8 @@ final class DataReferenceApiIT extends RestAssuredTest {
           "entityId", "entity-id-1",
           "contentType", "content-type-C"
         ),
-        "data-reference-list-4.json"
+        1,
+        "308a8ebd-de83-42ac-a5ce-e83bf5c60def"
       ),
       argumentSet(
         "entityId (existing) with sourceSystem (existing)",
@@ -204,7 +211,8 @@ final class DataReferenceApiIT extends RestAssuredTest {
           "entityId", "entity-id-1",
           "sourceSystem", "source-system-E"
         ),
-        "data-reference-list-5.json"
+        1,
+        "308a8ebd-de83-42ac-a5ce-e83bf5c60bbb"
       ),
       argumentSet(
         "entityId (existing) with targetSystem (existing)",
@@ -212,7 +220,8 @@ final class DataReferenceApiIT extends RestAssuredTest {
           "entityId", "entity-id-1",
           "targetSystem", "target-system-F"
         ),
-        "data-reference-list-6.json"
+        1,
+        "308a8ebd-de83-42ac-a5ce-e83bf5c60ccc"
       )
     );
   }
@@ -220,12 +229,18 @@ final class DataReferenceApiIT extends RestAssuredTest {
   @Order(5)
   @ParameterizedTest
   @MethodSource("queriesAndExpectedResultsProvider")
-  void shouldQueryForReferencesByGivenCriteria(Map<String, String> queryParameters, String responseFilename) {
-    queryForReferences(queryParameters)
+  void shouldQueryForReferencesByGivenCriteria(Map<String, String> queryParameters, int expectedSize, String expectedId) {
+    Response response = queryForReferences(queryParameters);
+
+    response
       .then()
       .statusCode(OK.code())
       .contentType(APPLICATION_JSON)
-      .body(sameJsonAs(loadFile("xyz/hub/data-references/responses/%s".formatted(responseFilename))));
+      .body("size()", equalTo(expectedSize));
+
+    if (expectedId != null) {
+      response.then().body("[0].id", equalTo(expectedId));
+    }
   }
 
   @Order(6)
@@ -293,6 +308,13 @@ final class DataReferenceApiIT extends RestAssuredTest {
           "entityId", "some-entity-id",
           "startVersion", "-1"
         )
+      ),
+      argumentSet(
+        "onlyStale non-boolean",
+        Map.of(
+          "entityId", "some-entity-id",
+          "onlyStale", "abc"
+        )
       )
     );
   }
@@ -312,6 +334,148 @@ final class DataReferenceApiIT extends RestAssuredTest {
     createDataReference("incorrect-creation-request-1.json")
       .then()
       .statusCode(BAD_REQUEST.code());
+  }
+
+  @Order(11)
+  @Test
+  void shouldCreateAndReadReferenceWithOptionalFields() {
+    UUID referenceId = UUID.randomUUID();
+    String payload = """
+      {
+        "id": "%s",
+        "entityId": "entity-id-with-filter",
+        "isPatch": true,
+        "startVersion": 10,
+        "endVersion": 11,
+        "objectType": "features",
+        "contentType": "application/geo+json-seq",
+        "contentEncoding": "gzip",
+        "filter": {
+          "jsonPaths": ["properties.category"],
+          "spatialFilter": {"type": "bbox"}
+        },
+        "producer": "data-pipeline-v1",
+        "location": "s3://bucket/path",
+        "sourceSystem": "IML",
+        "targetSystem": "S3"
+      }
+      """.formatted(referenceId);
+
+    given()
+      .accept(APPLICATION_JSON)
+      .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+      .body(payload)
+      .post("/references")
+      .then()
+      .statusCode(CREATED.code())
+      .body("id", equalTo(referenceId.toString()))
+      .body("contentEncoding", equalTo("gzip"))
+      .body("producer", equalTo("data-pipeline-v1"))
+      .body("filter.jsonPaths[0]", equalTo("properties.category"))
+      .body("filter.spatialFilter.type", equalTo("bbox"));
+
+    registerCreatedObject(referenceId.toString());
+
+    getReferenceById(referenceId.toString())
+      .then()
+      .statusCode(OK.code())
+      .body("contentEncoding", equalTo("gzip"))
+      .body("producer", equalTo("data-pipeline-v1"))
+      .body("filter.jsonPaths[0]", equalTo("properties.category"))
+      .body("filter.spatialFilter.type", equalTo("bbox"));
+  }
+
+  @Order(12)
+  @Test
+  void shouldReuseEquivalentReferenceInsteadOfCreatingDuplicate() {
+    String payload = """
+      {
+        "entityId": "entity-id-dedup-test",
+        "isPatch": true,
+        "startVersion": 100,
+        "endVersion": 101,
+        "objectType": "features",
+        "contentType": "application/geo+json-seq",
+        "contentEncoding": "gzip",
+        "filter": {
+          "jsonPaths": ["properties.type"],
+          "spatialFilter": {"type": "bbox"}
+        },
+        "producer": "dedup-producer",
+        "location": "s3://bucket/dedup-path",
+        "sourceSystem": "IML",
+        "targetSystem": "S3"
+      }
+      """;
+
+    String firstId = given()
+      .accept(APPLICATION_JSON)
+      .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+      .body(payload)
+      .post("/references")
+      .then()
+      .statusCode(CREATED.code())
+      .extract()
+      .path("id");
+
+    String secondId = given()
+      .accept(APPLICATION_JSON)
+      .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+      .body(payload)
+      .post("/references")
+      .then()
+      .statusCode(CREATED.code())
+      .extract()
+      .path("id");
+
+    registerCreatedObject(firstId);
+    assertThat(secondId, equalTo(firstId));
+
+    queryForReferences(Map.of("entityId", "entity-id-dedup-test"))
+      .then()
+      .statusCode(OK.code())
+      .body("size()", equalTo(1));
+  }
+
+  @Order(13)
+  @Test
+  void shouldReturnOnlyStaleWhenRequested() {
+    String entityId = "entity-id-only-stale-" + UUID.randomUUID();
+    String payload = """
+      {
+        "entityId": "%s",
+        "isPatch": true,
+        "startVersion": 200,
+        "endVersion": 201,
+        "objectType": "features",
+        "contentType": "application/geo+json-seq",
+        "location": "s3://bucket/only-stale",
+        "sourceSystem": "IML",
+        "targetSystem": "S3"
+      }
+      """.formatted(entityId);
+
+    String id = given()
+      .accept(APPLICATION_JSON)
+      .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+      .body(payload)
+      .post("/references")
+      .then()
+      .statusCode(CREATED.code())
+      .extract()
+      .path("id");
+
+    registerCreatedObject(id);
+
+    queryForReferences(Map.of("entityId", entityId))
+      .then()
+      .statusCode(OK.code())
+      .body("size()", equalTo(1));
+
+    queryForReferences(Map.of("entityId", entityId, "onlyStale", "true"))
+      .then()
+      .statusCode(OK.code())
+      .body("size()", equalTo(0));
   }
 
   private static Response getReferenceById(String referenceId) {

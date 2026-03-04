@@ -52,10 +52,10 @@ public final class DataReferenceResolver {
 
     /**
      * Load by reference id and return:
-     *  - includeStale=true  -> the exact stored reference (if present), with stale references
-     *  - includeStale=false -> a non-stale effective reference or Optional.empty()
+     *  - onlyStale=true  -> the exact stored reference (if present), with stale references
+     *  - onlyStale=false -> a non-stale effective reference or Optional.empty()
      */
-    public Future<Optional<DataReference>> loadById(Marker marker, UUID referenceId, boolean includeStale) {
+    public Future<Optional<DataReference>> loadById(Marker marker, UUID referenceId, boolean onlyStale) {
         return references.load(referenceId)
                 .compose(maybeRef -> {
                     if (maybeRef.isEmpty()) {
@@ -64,7 +64,7 @@ public final class DataReferenceResolver {
 
                     DataReference ref = maybeRef.get();
 
-                    if (includeStale) {
+                    if (onlyStale) {
                         return Future.succeededFuture(Optional.of(ref));
                     }
 
@@ -73,24 +73,32 @@ public final class DataReferenceResolver {
     }
 
     public Future<List<DataReference>> filterStaleForEntity(Marker marker, String entityId, List<DataReference> refs) {
-        return filterForEntity(marker, entityId, refs, false);
+        return filterForEntity(marker, entityId, refs, true);
     }
 
-    public Future<List<DataReference>> filterForEntity(Marker marker, String entityId, List<DataReference> refs, boolean includeStale) {
-        if (includeStale) {
-            return Future.succeededFuture(refs);
-        }
-
+    public Future<List<DataReference>> filterForEntity(Marker marker, String entityId, List<DataReference> refs, boolean onlyStale) {
         return resolveAnchorSpace(marker, entityId)
                 .map(maybeAnchor -> {
                     if (maybeAnchor.isEmpty()) {
-                        return refs;
+                        if (onlyStale) {
+                            return List.of();
+                        }
+
+                        return newestReference(refs).map(List::of).orElseGet(List::of);
                     }
 
                     long minCreatedAt = maybeAnchor.get().createdAt();
+                    if (onlyStale) {
+                        return refs.stream()
+                                .filter(r -> ts(r.getCreatedAt()) < minCreatedAt)
+                                .toList();
+                    }
+
                     return refs.stream()
                             .filter(r -> ts(r.getCreatedAt()) >= minCreatedAt)
-                            .toList();
+                            .max(Comparator.comparingLong(r -> ts(r.getCreatedAt())))
+                            .map(List::of)
+                            .orElseGet(List::of);
                 });
     }
 
@@ -121,6 +129,10 @@ public final class DataReferenceResolver {
         return candidates.stream()
                 .filter(r -> ts(r.getCreatedAt()) >= minCreatedAt)
                 .max(Comparator.comparingLong(r -> ts(r.getCreatedAt())));
+    }
+
+    private static Optional<DataReference> newestReference(List<DataReference> refs) {
+        return refs.stream().max(Comparator.comparingLong(r -> ts(r.getCreatedAt())));
     }
 
     private Future<Optional<Anchor>> resolveAnchorSpace(Marker marker, String entityId) {

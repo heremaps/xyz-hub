@@ -26,6 +26,7 @@ import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 
+import java.util.Map;
 import java.util.UUID;
 
 // TODO: This really begs for Lombok. And to be an immutable class, with a builder.
@@ -45,6 +46,12 @@ public final class DataReference implements XyzSerializable {
   private String objectType;
 
   private String contentType;
+
+  private String contentEncoding;
+
+  private Map<String, Object> filter;
+
+  private String producer;
 
   private String location;
 
@@ -148,6 +155,45 @@ public final class DataReference implements XyzSerializable {
     return this;
   }
 
+  public String getContentEncoding() {
+    return contentEncoding;
+  }
+
+  public void setContentEncoding(String contentEncoding) {
+    this.contentEncoding = contentEncoding;
+  }
+
+  public DataReference withContentEncoding(String contentEncoding) {
+    setContentEncoding(contentEncoding);
+    return this;
+  }
+
+  public Map<String, Object> getFilter() {
+    return filter;
+  }
+
+  public void setFilter(Map<String, Object> filter) {
+    this.filter = filter;
+  }
+
+  public DataReference withFilter(Map<String, Object> filter) {
+    setFilter(filter);
+    return this;
+  }
+
+  public String getProducer() {
+    return producer;
+  }
+
+  public void setProducer(String producer) {
+    this.producer = producer;
+  }
+
+  public DataReference withProducer(String producer) {
+    setProducer(producer);
+    return this;
+  }
+
   public String getLocation() {
     return location;
   }
@@ -233,6 +279,9 @@ public final class DataReference implements XyzSerializable {
       .append(getEndVersion(), reference.getEndVersion())
       .append(getObjectType(), reference.getObjectType())
       .append(getContentType(), reference.getContentType())
+      .append(getContentEncoding(), reference.getContentEncoding())
+      .append(getFilter(), reference.getFilter())
+      .append(getProducer(), reference.getProducer())
       .append(getLocation(), reference.getLocation())
       .append(getSourceSystem(), reference.getSourceSystem())
       .append(getTargetSystem(), reference.getTargetSystem())
@@ -249,6 +298,9 @@ public final class DataReference implements XyzSerializable {
       .append(getEndVersion())
       .append(getObjectType())
       .append(getContentType())
+      .append(getContentEncoding())
+      .append(getFilter())
+      .append(getProducer())
       .append(getLocation())
       .append(getSourceSystem())
       .append(getTargetSystem())
@@ -265,6 +317,9 @@ public final class DataReference implements XyzSerializable {
       .append("endVersion", endVersion)
       .append("objectType", objectType)
       .append("contentType", contentType)
+      .append("contentEncoding", contentEncoding)
+      .append("filter", filter)
+      .append("producer", producer)
       .append("location", location)
       .append("sourceSystem", sourceSystem)
       .append("targetSystem", targetSystem)

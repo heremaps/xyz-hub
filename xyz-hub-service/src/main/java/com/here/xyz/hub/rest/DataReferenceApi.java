@@ -35,6 +35,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -62,8 +63,47 @@ public final class DataReferenceApi extends Api {
 
     return failIfDataReferenceIsInvalid(dataReference)
       .compose(this::failIfReferenceAlreadyExists)
-      .compose(dataReferences::store)
-      .map(dataReference::withId);
+      .compose(this::storeOrReuseEquivalentReference);
+  }
+
+  private Future<DataReference> storeOrReuseEquivalentReference(DataReference referenceToCreate) {
+    return findEquivalentReference(referenceToCreate)
+      .compose(maybeExisting ->
+        maybeExisting
+          .map(Future::succeededFuture)
+          .orElseGet(() -> dataReferences.store(referenceToCreate).map(referenceToCreate::withId))
+      );
+  }
+
+  private Future<Optional<DataReference>> findEquivalentReference(DataReference referenceToCreate) {
+    return dataReferences.load(
+      referenceToCreate.getEntityId(),
+      referenceToCreate.getStartVersion(),
+      referenceToCreate.getEndVersion(),
+      referenceToCreate.getContentType(),
+      referenceToCreate.getObjectType(),
+      referenceToCreate.getSourceSystem(),
+      referenceToCreate.getTargetSystem()
+    ).map(candidates ->
+      candidates.stream()
+        .filter(candidate -> isEquivalentReference(candidate, referenceToCreate))
+        .findFirst()
+    );
+  }
+
+  private static boolean isEquivalentReference(DataReference existing, DataReference candidate) {
+    return existing.isPatch() == candidate.isPatch()
+      && Objects.equals(existing.getEntityId(), candidate.getEntityId())
+      && Objects.equals(existing.getStartVersion(), candidate.getStartVersion())
+      && Objects.equals(existing.getEndVersion(), candidate.getEndVersion())
+      && Objects.equals(existing.getObjectType(), candidate.getObjectType())
+      && Objects.equals(existing.getContentType(), candidate.getContentType())
+      && Objects.equals(existing.getContentEncoding(), candidate.getContentEncoding())
+      && Objects.equals(existing.getFilter(), candidate.getFilter())
+      && Objects.equals(existing.getProducer(), candidate.getProducer())
+      && Objects.equals(existing.getLocation(), candidate.getLocation())
+      && Objects.equals(existing.getSourceSystem(), candidate.getSourceSystem())
+      && Objects.equals(existing.getTargetSystem(), candidate.getTargetSystem());
   }
 
   private static Future<DataReference> failIfDataReferenceIsInvalid(DataReference dataReference) {
@@ -108,9 +148,7 @@ public final class DataReferenceApi extends Api {
     UUID referenceId = referenceIdFromRequestPath(routingContext);
     Marker marker = LogUtil.getMarker(routingContext);
 
-    boolean includeStale = firstQueryParamAsBooleanOrDefault(routingContext, "includeStale", false);
-
-    return resolver.loadById(marker, referenceId, includeStale)
+    return resolver.loadEffectiveById(marker, referenceId)
             .compose(maybeReference ->
                     maybeReference
                             .map(Future::succeededFuture)
@@ -139,10 +177,10 @@ public final class DataReferenceApi extends Api {
     String sourceSystem = firstQueryParamAsStringOrNull(routingContext, "sourceSystem");
     String targetSystem = firstQueryParamAsStringOrNull(routingContext, "targetSystem");
 
-    boolean includeStale = firstQueryParamAsBooleanOrDefault(routingContext, "includeStale", false);
+    boolean onlyStale = queryOnlyStaleFlag(routingContext);
 
     return dataReferences.load(entityId, startVersion, endVersion, contentType, objectType, sourceSystem, targetSystem)
-            .compose(list -> resolver.filterForEntity(marker, entityId, list, includeStale));
+            .compose(list -> resolver.filterForEntity(marker, entityId, list, onlyStale));
   }
 
   private static @Nullable Integer extractAndValidatePositiveInteger(
@@ -189,10 +227,11 @@ public final class DataReferenceApi extends Api {
       .orElse(null);
   }
 
-  private static boolean firstQueryParamAsBooleanOrDefault(RoutingContext routingContext, String parameterName, boolean defaultValue) {
-    Optional<String> raw = firstQueryParamAsString(routingContext, parameterName);
+
+  private static boolean queryOnlyStaleFlag(RoutingContext routingContext) {
+    Optional<String> raw = firstQueryParamAsString(routingContext, "onlyStale");
     if (raw.isEmpty()) {
-      return defaultValue;
+      return false;
     }
 
     String v = raw.get().trim();
@@ -203,6 +242,6 @@ public final class DataReferenceApi extends Api {
       return false;
     }
 
-    throw new IllegalArgumentException(parameterName + " must be either true or false");
+    throw new IllegalArgumentException("onlyStale must be either true or false");
   }
 }

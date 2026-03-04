@@ -1413,7 +1413,7 @@ paths:
           schema:
             type: string
             example: 'hrn:here:data::olp-here:CATALOG_ID:LAYER_ID'
-        - $ref: '#/components/parameters/IncludeStale'
+        - $ref: '#/components/parameters/OnlyStale'
         - name: startVersion
           in: query
           required: false
@@ -1468,7 +1468,6 @@ paths:
           schema:
             type: string
             format: uuid
-        - $ref: '#/components/parameters/IncludeStale'
       responses:
         '200':
           $ref: "#/components/responses/DataReferenceResponse"
@@ -1503,12 +1502,12 @@ components:
       scheme: bearer
       bearerFormat: JWT
   parameters:
-    IncludeStale:
-      name: includeStale
+    OnlyStale:
+      name: onlyStale
       in: query
       description: >-
-        If set to true, stale Data References are included in the response.
-        Default is false (stale references are filtered out).
+        If set to true, only stale Data References are returned.
+        Default is false.
       required: false
       schema:
         type: boolean
