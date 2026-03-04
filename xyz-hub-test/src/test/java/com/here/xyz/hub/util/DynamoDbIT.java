@@ -31,6 +31,7 @@ import com.amazonaws.services.dynamodbv2.model.ScanRequest;
 import com.here.xyz.util.service.Core;
 import io.vertx.core.Vertx;
 import org.awaitility.Awaitility;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.testcontainers.containers.GenericContainer;
@@ -70,6 +71,12 @@ abstract class DynamoDbIT {
   @AfterEach
   void tearDown() {
     rawDynamoClient.deleteTable(tableName());
+  }
+
+  @AfterAll
+  static void afterAll() {
+    Core.vertx.close();
+    Core.vertx = null;
   }
 
   private static AmazonDynamoDB rawDynamo(String endpoint) {
