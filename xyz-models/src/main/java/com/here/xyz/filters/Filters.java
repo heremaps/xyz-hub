@@ -133,6 +133,7 @@ public class Filters {
     return new Filters()
         .withContext(getContext())
         .withSpatialFilter(getSpatialFilter())
-        .withPropertyFilter(getPropertyFilter());
+        .withPropertyFilter(getPropertyFilter())
+        .withJsonPath(getJsonPath());
   }
 }
