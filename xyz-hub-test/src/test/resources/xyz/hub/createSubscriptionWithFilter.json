@@ -7,8 +7,8 @@
       "destinationType": "stream"
     }
   },
-  "filter": {
-    "jsonPaths": ["$.properties.name", "$[?(@.properties.type == 'building')]"],
+  "filters": {
+    "jsonPath": "$[?(@.properties.type == 'building')]",
     "spatialFilter": {
       "geometry": {
         "type": "Polygon",

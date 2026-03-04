@@ -4,7 +4,7 @@
   "config": {
     "type": "PER_FEATURE"
   },
-  "filter": {
-    "jsonPaths": ["$[invalid json path syntax"]
+  "filters": {
+    "jsonPath": "$[invalid json path syntax]"
   }
 }

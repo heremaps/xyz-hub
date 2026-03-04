@@ -16,7 +16,7 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.jobs.datasets.filters;
+package com.here.xyz.filters;
 
 import static com.here.xyz.XyzSerializable.serialize;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
@@ -48,6 +48,9 @@ public class Filters {
 
   @JsonView({Public.class, Static.class})
   private SpaceContext context = DEFAULT;
+
+  @JsonView({Public.class, Static.class})
+  private String jsonPath;
 
   public PropertiesQuery getPropertyFilter() {
     return propertyFilter;
@@ -103,6 +106,19 @@ public class Filters {
     return this;
   }
 
+  public String getJsonPath() {
+    return jsonPath;
+  }
+
+  public void setJsonPath(String jsonPath) {
+    this.jsonPath = jsonPath;
+  }
+
+  public Filters withJsonPath(String jsonPath) {
+    setJsonPath(jsonPath);
+    return this;
+  }
+
   @JsonIgnore
   @Deprecated
   public String getHash() {
@@ -117,6 +133,7 @@ public class Filters {
     return new Filters()
         .withContext(getContext())
         .withSpatialFilter(getSpatialFilter())
-        .withPropertyFilter(getPropertyFilter());
+        .withPropertyFilter(getPropertyFilter())
+        .withJsonPath(getJsonPath());
   }
 }

@@ -33,7 +33,7 @@ import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.datasets.DatasetDescription.Map;
 import com.here.xyz.jobs.datasets.DatasetDescription.Space;
 import com.here.xyz.jobs.datasets.filters.FilteringSource;
-import com.here.xyz.jobs.datasets.filters.Filters;
+import com.here.xyz.filters.Filters;
 import com.here.xyz.jobs.datasets.streams.Notifications;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.models.hub.Ref;

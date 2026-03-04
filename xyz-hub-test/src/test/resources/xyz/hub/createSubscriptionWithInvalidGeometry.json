@@ -4,7 +4,7 @@
   "config": {
     "type": "PER_FEATURE"
   },
-  "filter": {
+  "filters": {
     "spatialFilter": {
       "geometry": {
         "type": "Polygon",

@@ -22,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.here.xyz.filters.Filters;
 import com.here.xyz.models.filters.SpatialFilter;
 import com.here.xyz.models.geojson.coordinates.LinearRingCoordinates;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
@@ -45,7 +46,7 @@ import org.junit.jupiter.api.Test;
 class FilterFeatureUtilsTest {
 
   private static final ObjectMapper MAPPER = new ObjectMapper();
-  private static final List<String> JSON_PATHS_FOR_UNCHANGED_ID = List.of("$[?(@.id == 'Q45671')]");
+  private static final String JSON_PATH_FOR_UNCHANGED_ID = "$[?(@.id == 'Q45671')]";
 
   private String featureJsonString;
   private Feature featureWithRightId;
@@ -58,10 +59,25 @@ class FilterFeatureUtilsTest {
   }
 
   @Test
-  void filterFeaturesInvalidJsonPath() {
-    List<String> jsonPaths = List.of("$[?(@.id == 'empty')]");
+  void filterFeaturesNullFilters() {
     Collection<Feature> filteredFeatures = FilterFeatureUtils.filterFeatures(List.of(Pair.of(featureWithRightId, new Point())),
-        jsonPaths, null);
+        null);
+    assertFalse(filteredFeatures.isEmpty());
+  }
+
+  @Test
+  void filterFeaturesEmptyFilters() {
+    Collection<Feature> filteredFeatures = FilterFeatureUtils.filterFeatures(List.of(Pair.of(featureWithRightId, new Point())),
+        new Filters());
+    assertFalse(filteredFeatures.isEmpty());
+  }
+
+
+  @Test
+  void filterFeaturesInvalidJsonPath() {
+    Filters filters = new Filters().withJsonPath("$[?(@.id == 'empty')]");
+    Collection<Feature> filteredFeatures = FilterFeatureUtils.filterFeatures(List.of(Pair.of(featureWithRightId, new Point())),
+        filters);
     assertEquals(0, filteredFeatures.size());
   }
 
@@ -72,7 +88,8 @@ class FilterFeatureUtilsTest {
     List<Pair<Feature, Geometry>> featuresWithGeometries = List.of(
         Pair.of(featureWithRightId, new Point()),
         Pair.of(featureWithChangedId, new Point()));
-    Collection<Feature> filteredFeatures = FilterFeatureUtils.filterFeatures(featuresWithGeometries, JSON_PATHS_FOR_UNCHANGED_ID, null);
+    Collection<Feature> filteredFeatures = FilterFeatureUtils.filterFeatures(featuresWithGeometries,
+        new Filters().withJsonPath(JSON_PATH_FOR_UNCHANGED_ID));
     assertEquals(1, filteredFeatures.size());
     assertSame(featureWithRightId, filteredFeatures.iterator().next());
   }
@@ -83,8 +100,8 @@ class FilterFeatureUtilsTest {
     SpatialFilter spatialFilter = getTestSpatialFilter();
 
     List<Pair<Feature, Geometry>> featuresWithGeometries = List.of(Pair.of(featureWithRightId, intersectingGeometryPoint));
-    Collection<Feature> filteredFeatures = FilterFeatureUtils.filterFeatures(featuresWithGeometries, JSON_PATHS_FOR_UNCHANGED_ID,
-        spatialFilter);
+    Collection<Feature> filteredFeatures = FilterFeatureUtils.filterFeatures(featuresWithGeometries,
+        new Filters().withJsonPath(JSON_PATH_FOR_UNCHANGED_ID).withSpatialFilter(spatialFilter));
     assertEquals(1, filteredFeatures.size());
     assertSame(featureWithRightId, filteredFeatures.iterator().next());
   }
@@ -103,8 +120,8 @@ class FilterFeatureUtilsTest {
         Pair.of(featureWithChangedId, intersectingGeometryPoint),
         Pair.of(featureWithRightId, intersectingGeometryPoint),
         Pair.of(featureWithRightId, notIntersectingGeometryPoint));
-    Collection<Feature> filteredFeatures = FilterFeatureUtils.filterFeatures(featuresWithGeometries, JSON_PATHS_FOR_UNCHANGED_ID,
-        spatialFilter);
+    Collection<Feature> filteredFeatures = FilterFeatureUtils.filterFeatures(featuresWithGeometries,
+        new Filters().withJsonPath(JSON_PATH_FOR_UNCHANGED_ID).withSpatialFilter(spatialFilter));
     assertEquals(1, filteredFeatures.size());
     assertSame(featureWithRightId, filteredFeatures.iterator().next());
   }
@@ -117,8 +134,8 @@ class FilterFeatureUtilsTest {
 
     List<Pair<Feature, Geometry>> featuresWithGeometries = List.of(Pair.of(featureWithRightId, insideBufferPoint),
         Pair.of(featureWithRightId, outsideBufferPoint));
-    Collection<Feature> filteredFeatures = FilterFeatureUtils.filterFeatures(featuresWithGeometries, JSON_PATHS_FOR_UNCHANGED_ID,
-        spatialFilter);
+    Collection<Feature> filteredFeatures = FilterFeatureUtils.filterFeatures(featuresWithGeometries,
+        new Filters().withJsonPath(JSON_PATH_FOR_UNCHANGED_ID).withSpatialFilter(spatialFilter));
     assertEquals(1, filteredFeatures.size());
   }
 
@@ -128,8 +145,8 @@ class FilterFeatureUtilsTest {
     SpatialFilter spatialFilter = getTestSpatialFilter();
 
     List<Pair<Feature, Geometry>> featuresWithGeometries = List.of(Pair.of(featureWithRightId, intersectingGeometryPoint));
-    boolean containsFeature = FilterFeatureUtils.anyFeatureMatchesFilters(featuresWithGeometries, JSON_PATHS_FOR_UNCHANGED_ID,
-        spatialFilter);
+    boolean containsFeature = FilterFeatureUtils.anyFeatureMatchesFilters(featuresWithGeometries,
+        new Filters().withJsonPath(JSON_PATH_FOR_UNCHANGED_ID).withSpatialFilter(spatialFilter));
     assertTrue(containsFeature);
   }
 
@@ -139,8 +156,8 @@ class FilterFeatureUtilsTest {
     SpatialFilter spatialFilter = getTestSpatialFilter();
 
     List<Pair<Feature, Geometry>> featuresWithGeometries = List.of(Pair.of(featureWithRightId, intersectingGeometryPoint));
-    boolean containsFeature = FilterFeatureUtils.anyFeatureMatchesFilters(featuresWithGeometries, JSON_PATHS_FOR_UNCHANGED_ID,
-        spatialFilter);
+    boolean containsFeature = FilterFeatureUtils.anyFeatureMatchesFilters(featuresWithGeometries,
+        new Filters().withJsonPath(JSON_PATH_FOR_UNCHANGED_ID).withSpatialFilter(spatialFilter));
     assertFalse(containsFeature);
   }
 

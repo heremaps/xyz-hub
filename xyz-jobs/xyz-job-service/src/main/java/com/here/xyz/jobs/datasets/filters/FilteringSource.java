@@ -21,9 +21,9 @@ package com.here.xyz.jobs.datasets.filters;
 
 public interface FilteringSource<T extends FilteringSource> {
 
-  Filters getFilters();
+  com.here.xyz.filters.Filters getFilters();
 
-  void setFilters(Filters filters);
+  void setFilters(com.here.xyz.filters.Filters filters);
 
-  T withFilters(Filters filters);
+  T withFilters(com.here.xyz.filters.Filters filters);
 }

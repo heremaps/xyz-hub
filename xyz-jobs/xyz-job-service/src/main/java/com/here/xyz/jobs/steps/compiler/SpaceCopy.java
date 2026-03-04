@@ -25,7 +25,7 @@ import static com.here.xyz.jobs.steps.impl.transport.GetNextSpaceVersion.VERSION
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.datasets.DatasetDescription;
-import com.here.xyz.jobs.datasets.filters.Filters;
+import com.here.xyz.filters.Filters;
 import com.here.xyz.jobs.steps.CompilationStepGraph;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.JobCompiler.CompilationError;
