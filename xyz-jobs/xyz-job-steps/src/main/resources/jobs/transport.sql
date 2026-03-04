@@ -16,7 +16,7 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
- 
+
 -- ####################################################################################################################
 -- Common helper functions ---
 
@@ -543,7 +543,7 @@ BEGIN
     ELSIF v_total > v_finalized + v_started THEN
         -- There are unstarted tasks, but all are locked -> Wait & retry
         PERFORM pg_sleep(500);
-        RETURN QUERY SELECT * FROM "jobs.transport".get_task_item_and_statistics();
+        RETURN QUERY SELECT * FROM get_task_item_and_statistics();
     ELSE
         -- No unstarted tasks exist -> return no work
         RETURN QUERY SELECT v_total, v_started, v_finalized, -1, '{"type" : "Empty"}'::JSONB;
@@ -870,7 +870,7 @@ BEGIN
 END;
 $BODY$;
 
--- ####################################################################################################################   
+-- ####################################################################################################################
 -- Delete Functions below when movement to new tasked import is done --
 
 /**
@@ -1230,7 +1230,7 @@ BEGIN
 END;
 $BODY$
     LANGUAGE plpgsql VOLATILE;
-    
+
 CREATE OR REPLACE FUNCTION import_from_s3_trigger_for_empty_layer_geojsonfc()
     RETURNS trigger
 AS $BODY$
