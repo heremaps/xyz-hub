@@ -49,6 +49,7 @@ public class Subscription {
 
     private SubscriptionStatus status;
 
+    @JsonIgnoreProperties({"context", "propertyFilter", "propertyFilterAsString"})
     private Filters filters;
 
     public String getId() {
