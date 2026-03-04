@@ -28,8 +28,7 @@ import com.amazonaws.services.dynamodbv2.document.ItemUtils;
 import com.amazonaws.services.dynamodbv2.model.DescribeTableResult;
 import com.amazonaws.services.dynamodbv2.model.ResourceNotFoundException;
 import com.amazonaws.services.dynamodbv2.model.ScanRequest;
-import com.here.xyz.util.service.Core;
-import io.vertx.core.Vertx;
+import com.here.xyz.hub.VertxSupport;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -44,7 +43,7 @@ import java.util.Map;
 
 // TODO: consider making DynamoBranchConfigClientIT extend this base class, too
 @Testcontainers(disabledWithoutDocker = true)
-abstract class DynamoDbIT {
+abstract class DynamoDbIT implements VertxSupport {
 
   protected static final DockerImageName dynamoImage = DockerImageName.parse("amazon/dynamodb-local:2.5.2");
 
@@ -62,7 +61,6 @@ abstract class DynamoDbIT {
 
   @BeforeAll
   static void beforeAll() {
-    Core.vertx = Vertx.vertx();
     endpoint = "http://%s:%s".formatted(dynamoContainer.getHost(), dynamoContainer.getFirstMappedPort());
     rawDynamoClient = rawDynamo(endpoint);
   }

@@ -19,30 +19,29 @@
 
 package com.here.xyz.hub.rest.caching;
 
-import static org.junit.Assert.assertEquals;
-
 import com.here.xyz.hub.Config;
 import com.here.xyz.hub.Service;
+import com.here.xyz.hub.VertxSupport;
 import com.here.xyz.hub.cache.CacheClient;
 import com.here.xyz.hub.cache.S3CacheClient;
 import com.here.xyz.hub.rest.RestAssuredTest;
-import com.here.xyz.util.service.Core;
-import io.vertx.core.Vertx;
-import java.io.IOException;
-import java.net.URI;
-import java.util.concurrent.atomic.AtomicReference;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-public class S3CacheIT extends RestAssuredTest {
+import java.io.IOException;
+import java.net.URI;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static org.junit.Assert.assertEquals;
+
+public class S3CacheIT extends RestAssuredTest implements VertxSupport {
 
   @BeforeClass
   public static void setupClass() throws IOException {
     Service.configuration = new Config();
     Service.configuration.XYZ_HUB_S3_BUCKET = "test-bucket";
     Service.configuration.LOCALSTACK_ENDPOINT = URI.create("http://localhost:4566");
-    Core.vertx = Vertx.vertx();
   }
 
   @AfterClass

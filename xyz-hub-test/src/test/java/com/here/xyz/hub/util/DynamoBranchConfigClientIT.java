@@ -19,8 +19,6 @@
 
 package com.here.xyz.hub.util;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.client.builder.AwsClientBuilder;
@@ -32,15 +30,10 @@ import com.amazonaws.services.dynamodbv2.model.ResourceNotFoundException;
 import com.amazonaws.services.dynamodbv2.model.TableDescription;
 import com.here.xyz.hub.Config;
 import com.here.xyz.hub.Service;
+import com.here.xyz.hub.VertxSupport;
 import com.here.xyz.hub.config.dynamo.DynamoBranchConfigClient;
 import com.here.xyz.models.hub.Branch;
-import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.aws.dynamo.DynamoClient;
-import io.vertx.core.Vertx;
-import java.lang.reflect.Field;
-import java.util.List;
-import java.util.concurrent.ThreadLocalRandom;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -53,10 +46,16 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
+import java.lang.reflect.Field;
+import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @TestMethodOrder(MethodOrderer.DisplayName.class)
 @Testcontainers(disabledWithoutDocker = true)
-public class DynamoBranchConfigClientIT {
+public class DynamoBranchConfigClientIT implements VertxSupport {
 
     private static final DockerImageName DDB_IMAGE =
             DockerImageName.parse("amazon/dynamodb-local:2.5.2");
@@ -67,7 +66,6 @@ public class DynamoBranchConfigClientIT {
                     .withExposedPorts(8000)
                     .withCommand("-jar", "DynamoDBLocal.jar", "-inMemory", "-sharedDb");
 
-    private Vertx vertx;
     private DynamoBranchConfigClient client;
     private AmazonDynamoDB rawDdb;
     private String endpoint;
@@ -77,17 +75,9 @@ public class DynamoBranchConfigClientIT {
 
     @BeforeAll
     void beforeAll() {
-        vertx = Vertx.vertx();
-        Core.vertx = vertx;
         Service.configuration = new Config();
         Service.configuration.BRANCHES_DYNAMODB_TABLE_ARN = TABLE_ARN;
         Service.configuration.ENTITIES_DYNAMODB_TABLE_ARN = "arn:aws:dynamodb:localhost:000000008000:table/xyz-hub-local-entities";
-    }
-
-    @AfterAll
-    void afterAll() {
-        if (vertx != null) vertx.close();
-        Core.vertx = null;
     }
 
     @BeforeEach

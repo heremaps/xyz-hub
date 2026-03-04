@@ -19,21 +19,22 @@
 
 package com.here.xyz.hub.connectors;
 
-import static org.junit.Assert.assertEquals;
-
 import com.here.xyz.hub.Config;
 import com.here.xyz.hub.Service;
+import com.here.xyz.hub.VertxSupport;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.util.service.Core;
-import io.vertx.core.Vertx;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+
+import static org.junit.Assert.assertEquals;
+
 @SuppressWarnings("unused")
-public class RFCMeasurement {
+public class RFCMeasurement implements VertxSupport {
 
     MockedRemoteFunctionClient rfc;
     ScheduledThreadPoolExecutor requesterPool;
@@ -45,7 +46,6 @@ public class RFCMeasurement {
     @Before
     public void setup() {
         //Mock necessary configuration values
-        Core.vertx = Vertx.vertx();
         Service.configuration = new Config();
         Service.configuration.REMOTE_FUNCTION_REQUEST_TIMEOUT = 26;
         Service.configuration.INSTANCE_COUNT = 1;
