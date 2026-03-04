@@ -134,6 +134,44 @@ class DataReferenceResolverTest {
     }
 
     @Test
+    void loadEffectiveById_shouldReturnReplacementWithSameUniquenessKey_whenReferenceIsStale() {
+        UUID id = UUID.randomUUID();
+        Space space = spaceWithCreatedAt(500L);
+
+        DataReference stale = ref("entity-id-1", 100L)
+                .withId(id)
+                .withEndVersion(10)
+                .withObjectType("features")
+                .withContentType("ct")
+                .withSourceSystem("src")
+                .withTargetSystem("tgt");
+
+        DataReference wrongKeyNewer = ref("entity-id-1", 900L)
+                .withEndVersion(11)
+                .withObjectType("features")
+                .withContentType("ct")
+                .withSourceSystem("src")
+                .withTargetSystem("tgt");
+
+        DataReference sameKeyReplacement = ref("entity-id-1", 800L)
+                .withEndVersion(10)
+                .withObjectType("features")
+                .withContentType("ct")
+                .withSourceSystem("src")
+                .withTargetSystem("tgt");
+
+        when(references.load(id)).thenReturn(Future.succeededFuture(Optional.of(stale)));
+        when(spaces.get(marker, "entity-id-1")).thenReturn(Future.succeededFuture(space));
+        when(references.load("entity-id-1", null, null, null, null, null, null))
+                .thenReturn(Future.succeededFuture(List.of(wrongKeyNewer, sameKeyReplacement)));
+
+        Optional<DataReference> result = await(resolver.loadEffectiveById(marker, id));
+
+        assertTrue(result.isPresent());
+        assertSame(sameKeyReplacement, result.get());
+    }
+
+    @Test
     void filterForEntity_shouldReturnNewestNonStale_whenOnlyStaleIsFalse() {
         String entityId = "entity-id-1";
         Space space = spaceWithCreatedAt(150L);
@@ -196,16 +234,45 @@ class DataReferenceResolverTest {
         String entityId = "entity-id-1";
         Space space = spaceWithCreatedAt(150L);
 
-        DataReference stale = ref(entityId, 100L);
-        DataReference atAnchor = ref(entityId, 150L);
-        DataReference fresh = ref(entityId, 151L);
-        DataReference nullCreatedAt = ref(entityId, null);
+        DataReference stale = ref(entityId, 100L)
+                .withStartVersion(0)
+                .withEndVersion(1)
+                .withObjectType("features")
+                .withContentType("ct-a")
+                .withSourceSystem("src")
+                .withTargetSystem("tgt");
+
+        DataReference atAnchor = ref(entityId, 150L)
+                .withStartVersion(1)
+                .withEndVersion(2)
+                .withObjectType("features")
+                .withContentType("ct-b")
+                .withSourceSystem("src")
+                .withTargetSystem("tgt");
+
+        DataReference fresh = ref(entityId, 151L)
+                .withStartVersion(2)
+                .withEndVersion(3)
+                .withObjectType("features")
+                .withContentType("ct-c")
+                .withSourceSystem("src")
+                .withTargetSystem("tgt");
+
+        DataReference nullCreatedAt = ref(entityId, null)
+                .withStartVersion(3)
+                .withEndVersion(4)
+                .withObjectType("features")
+                .withContentType("ct-d")
+                .withSourceSystem("src")
+                .withTargetSystem("tgt");
 
         when(spaces.get(marker, entityId)).thenReturn(Future.succeededFuture(space));
 
         List<DataReference> result = await(resolver.filterStaleForEntity(marker, entityId, List.of(stale, atAnchor, fresh, nullCreatedAt)));
 
-        assertEquals(List.of(stale, nullCreatedAt), result);
+        assertEquals(2, result.size());
+        assertTrue(result.contains(stale));
+        assertTrue(result.contains(nullCreatedAt));
     }
 
     @Test
@@ -225,6 +292,75 @@ class DataReferenceResolverTest {
         List<DataReference> result = await(resolver.filterStaleForEntity(marker, entityId, List.of(stale, atAnchor, fresh)));
 
         assertEquals(List.of(stale), result);
+    }
+
+    @Test
+    void filterForEntity_shouldReturnDistinctNewestPerUniquenessKey_whenOnlyStaleIsFalse() {
+        String entityId = "entity-id-1";
+        Space space = spaceWithCreatedAt(150L);
+
+        DataReference keyAOld = ref(entityId, 180L)
+                .withEndVersion(10)
+                .withObjectType("features")
+                .withContentType("ct-a")
+                .withSourceSystem("src")
+                .withTargetSystem("tgt");
+
+        DataReference keyANew = ref(entityId, 220L)
+                .withEndVersion(10)
+                .withObjectType("features")
+                .withContentType("ct-a")
+                .withSourceSystem("src")
+                .withTargetSystem("tgt");
+
+        DataReference keyB = ref(entityId, 200L)
+                .withEndVersion(11)
+                .withObjectType("features")
+                .withContentType("ct-b")
+                .withSourceSystem("src")
+                .withTargetSystem("tgt");
+
+        when(spaces.get(marker, entityId)).thenReturn(Future.succeededFuture(space));
+
+        List<DataReference> result = await(resolver.filterForEntity(marker, entityId, List.of(keyAOld, keyANew, keyB), false));
+
+        assertEquals(2, result.size());
+        assertTrue(result.contains(keyANew));
+        assertTrue(result.contains(keyB));
+    }
+
+    @Test
+    void filterForEntity_shouldReturnDistinctNewestPerUniquenessKey_whenAnchorIsMissing_andOnlyStaleIsFalse() {
+        String entityId = "entity-id-1";
+
+        DataReference keyAOld = ref(entityId, 100L)
+                .withEndVersion(10)
+                .withObjectType("features")
+                .withContentType("ct-a")
+                .withSourceSystem("src")
+                .withTargetSystem("tgt");
+
+        DataReference keyANew = ref(entityId, 200L)
+                .withEndVersion(10)
+                .withObjectType("features")
+                .withContentType("ct-a")
+                .withSourceSystem("src")
+                .withTargetSystem("tgt");
+
+        DataReference keyB = ref(entityId, 150L)
+                .withEndVersion(20)
+                .withObjectType("features")
+                .withContentType("ct-b")
+                .withSourceSystem("src")
+                .withTargetSystem("tgt");
+
+        when(spaces.get(marker, entityId)).thenReturn(Future.succeededFuture(null));
+
+        List<DataReference> result = await(resolver.filterForEntity(marker, entityId, List.of(keyAOld, keyANew, keyB), false));
+
+        assertEquals(2, result.size());
+        assertTrue(result.contains(keyANew));
+        assertTrue(result.contains(keyB));
     }
 
     private static DataReference ref(String entityId, Long createdAt) {

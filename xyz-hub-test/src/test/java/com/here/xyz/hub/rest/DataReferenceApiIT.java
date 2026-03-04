@@ -41,6 +41,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Stream;
@@ -57,6 +58,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.blankOrNullString;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.jupiter.params.provider.Arguments.argumentSet;
 
 @TestMethodOrder(OrderAnnotation.class)
@@ -151,14 +153,18 @@ final class DataReferenceApiIT extends RestAssuredTest {
       argumentSet(
         "only entityId (non-existent)",
         Map.of("entityId", "no-such-entity-id"),
-        0,
-        null
+        List.of()
       ),
       argumentSet(
         "only entityId (existing)",
         Map.of("entityId", "entity-id-1"),
-        1,
-        "308a8ebd-de83-42ac-a5ce-e83bf5c60ccc"
+        List.of(
+          "308a8ebd-de83-42ac-a5ce-e83bf5c60aaa",
+          "308a8ebd-de83-42ac-a5ce-e83bf5c60abc",
+          "308a8ebd-de83-42ac-a5ce-e83bf5c60def",
+          "308a8ebd-de83-42ac-a5ce-e83bf5c60bbb",
+          "308a8ebd-de83-42ac-a5ce-e83bf5c60ccc"
+        )
       ),
       argumentSet(
         "entityId (existing) with endVersion (non-existing)",
@@ -166,8 +172,7 @@ final class DataReferenceApiIT extends RestAssuredTest {
           "entityId", "entity-id-1",
           "endVersion", "9999"
         ),
-        0,
-        null
+        List.of()
       ),
       argumentSet(
         "entityId (existing) with endVersion (existing)",
@@ -175,8 +180,10 @@ final class DataReferenceApiIT extends RestAssuredTest {
           "entityId", "entity-id-1",
           "endVersion", "134"
         ),
-        1,
-        "308a8ebd-de83-42ac-a5ce-e83bf5c60aaa"
+        List.of(
+          "308a8ebd-de83-42ac-a5ce-e83bf5c60aaa",
+          "308a8ebd-de83-42ac-a5ce-e83bf5c60abc"
+        )
       ),
       argumentSet(
         "entityId (existing) with startVersion (existing)",
@@ -184,8 +191,10 @@ final class DataReferenceApiIT extends RestAssuredTest {
           "entityId", "entity-id-1",
           "startVersion", "123"
         ),
-        1,
-        "308a8ebd-de83-42ac-a5ce-e83bf5c60bbb"
+        List.of(
+          "308a8ebd-de83-42ac-a5ce-e83bf5c60def",
+          "308a8ebd-de83-42ac-a5ce-e83bf5c60bbb"
+        )
       ),
       argumentSet(
         "entityId (existing) with objectType (existing)",
@@ -193,8 +202,7 @@ final class DataReferenceApiIT extends RestAssuredTest {
           "entityId", "entity-id-1",
           "objectType", "object-type-A"
         ),
-        1,
-        "308a8ebd-de83-42ac-a5ce-e83bf5c60abc"
+        List.of("308a8ebd-de83-42ac-a5ce-e83bf5c60abc")
       ),
       argumentSet(
         "entityId (existing) with contentType (existing)",
@@ -202,8 +210,7 @@ final class DataReferenceApiIT extends RestAssuredTest {
           "entityId", "entity-id-1",
           "contentType", "content-type-C"
         ),
-        1,
-        "308a8ebd-de83-42ac-a5ce-e83bf5c60def"
+        List.of("308a8ebd-de83-42ac-a5ce-e83bf5c60def")
       ),
       argumentSet(
         "entityId (existing) with sourceSystem (existing)",
@@ -211,8 +218,7 @@ final class DataReferenceApiIT extends RestAssuredTest {
           "entityId", "entity-id-1",
           "sourceSystem", "source-system-E"
         ),
-        1,
-        "308a8ebd-de83-42ac-a5ce-e83bf5c60bbb"
+        List.of("308a8ebd-de83-42ac-a5ce-e83bf5c60bbb")
       ),
       argumentSet(
         "entityId (existing) with targetSystem (existing)",
@@ -220,8 +226,7 @@ final class DataReferenceApiIT extends RestAssuredTest {
           "entityId", "entity-id-1",
           "targetSystem", "target-system-F"
         ),
-        1,
-        "308a8ebd-de83-42ac-a5ce-e83bf5c60ccc"
+        List.of("308a8ebd-de83-42ac-a5ce-e83bf5c60ccc")
       )
     );
   }
@@ -229,17 +234,17 @@ final class DataReferenceApiIT extends RestAssuredTest {
   @Order(5)
   @ParameterizedTest
   @MethodSource("queriesAndExpectedResultsProvider")
-  void shouldQueryForReferencesByGivenCriteria(Map<String, String> queryParameters, int expectedSize, String expectedId) {
+  void shouldQueryForReferencesByGivenCriteria(Map<String, String> queryParameters, List<String> expectedIds) {
     Response response = queryForReferences(queryParameters);
 
     response
       .then()
       .statusCode(OK.code())
       .contentType(APPLICATION_JSON)
-      .body("size()", equalTo(expectedSize));
+      .body("size()", equalTo(expectedIds.size()));
 
-    if (expectedId != null) {
-      response.then().body("[0].id", equalTo(expectedId));
+    if (!expectedIds.isEmpty()) {
+      response.then().body("id", containsInAnyOrder(expectedIds.toArray(new String[0])));
     }
   }
 
@@ -387,10 +392,12 @@ final class DataReferenceApiIT extends RestAssuredTest {
 
   @Order(12)
   @Test
-  void shouldReuseEquivalentReferenceInsteadOfCreatingDuplicate() {
-    String payload = """
+  void shouldUpsertReferenceWhenUniquenessKeyMatches_andLocationChanges() {
+    String entityId = "entity-id-dedup-test";
+
+    String initialPayload = """
       {
-        "entityId": "entity-id-dedup-test",
+        "entityId": "%s",
         "isPatch": true,
         "startVersion": 100,
         "endVersion": 101,
@@ -402,16 +409,36 @@ final class DataReferenceApiIT extends RestAssuredTest {
           "spatialFilter": {"type": "bbox"}
         },
         "producer": "dedup-producer",
-        "location": "s3://bucket/dedup-path",
+        "location": "s3://bucket/dedup-path-a",
         "sourceSystem": "IML",
         "targetSystem": "S3"
       }
-      """;
+      """.formatted(entityId);
+
+    String updatedPayload = """
+      {
+        "entityId": "%s",
+        "isPatch": true,
+        "startVersion": 100,
+        "endVersion": 101,
+        "objectType": "features",
+        "contentType": "application/geo+json-seq",
+        "contentEncoding": "gzip",
+        "filter": {
+          "jsonPaths": ["properties.type"],
+          "spatialFilter": {"type": "bbox"}
+        },
+        "producer": "dedup-producer-updated",
+        "location": "s3://bucket/dedup-path-b",
+        "sourceSystem": "IML",
+        "targetSystem": "S3"
+      }
+      """.formatted(entityId);
 
     String firstId = given()
       .accept(APPLICATION_JSON)
       .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-      .body(payload)
+      .body(initialPayload)
       .post("/references")
       .then()
       .statusCode(CREATED.code())
@@ -421,17 +448,25 @@ final class DataReferenceApiIT extends RestAssuredTest {
     String secondId = given()
       .accept(APPLICATION_JSON)
       .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-      .body(payload)
+      .body(updatedPayload)
       .post("/references")
       .then()
       .statusCode(CREATED.code())
+      .body("location", equalTo("s3://bucket/dedup-path-b"))
+      .body("producer", equalTo("dedup-producer-updated"))
       .extract()
       .path("id");
 
     registerCreatedObject(firstId);
     assertThat(secondId, equalTo(firstId));
 
-    queryForReferences(Map.of("entityId", "entity-id-dedup-test"))
+    getReferenceById(firstId)
+      .then()
+      .statusCode(OK.code())
+      .body("location", equalTo("s3://bucket/dedup-path-b"))
+      .body("producer", equalTo("dedup-producer-updated"));
+
+    queryForReferences(Map.of("entityId", entityId))
       .then()
       .statusCode(OK.code())
       .body("size()", equalTo(1));

@@ -31,6 +31,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Function;
 
 public final class DataReferenceResolver {
 
@@ -84,21 +85,17 @@ public final class DataReferenceResolver {
                             return List.of();
                         }
 
-                        return newestReference(refs).map(List::of).orElseGet(List::of);
+                        return distinctNewestByUniquenessKey(refs);
                     }
 
                     long minCreatedAt = maybeAnchor.get().createdAt();
-                    if (onlyStale) {
-                        return refs.stream()
-                                .filter(r -> ts(r.getCreatedAt()) < minCreatedAt)
-                                .toList();
-                    }
+                    List<DataReference> filtered = refs.stream()
+                            .filter(r -> onlyStale
+                                    ? ts(r.getCreatedAt()) < minCreatedAt
+                                    : ts(r.getCreatedAt()) >= minCreatedAt)
+                            .toList();
 
-                    return refs.stream()
-                            .filter(r -> ts(r.getCreatedAt()) >= minCreatedAt)
-                            .max(Comparator.comparingLong(r -> ts(r.getCreatedAt())))
-                            .map(List::of)
-                            .orElseGet(List::of);
+                    return distinctNewestByUniquenessKey(filtered);
                 });
     }
 
@@ -119,20 +116,67 @@ public final class DataReferenceResolver {
                         return Future.succeededFuture(Optional.of(ref));
                     }
 
-                    // Stale -> try replacement for the same entityId
+                    // Stale -> try replacement for the same entity + uniqueness key
                     return references.load(entityId, null, null, null, null, null, null)
-                            .map(list -> pickNewestAtOrAfter(list, spaceCreatedAt));
+                            .map(list -> pickNewestAtOrAfterForSameKey(list, ref, spaceCreatedAt));
                 });
     }
 
-    private static Optional<DataReference> pickNewestAtOrAfter(List<DataReference> candidates, long minCreatedAt) {
+    private static Optional<DataReference> pickNewestAtOrAfterForSameKey(
+            List<DataReference> candidates,
+            DataReference reference,
+            long minCreatedAt
+    ) {
         return candidates.stream()
+                .filter(r -> matchesUniquenessKey(r, reference))
                 .filter(r -> ts(r.getCreatedAt()) >= minCreatedAt)
-                .max(Comparator.comparingLong(r -> ts(r.getCreatedAt())));
+                .max(Comparator
+                        .comparingLong((DataReference r) -> ts(r.getCreatedAt()))
+                        .thenComparing(r -> String.valueOf(r.getId())));
     }
 
-    private static Optional<DataReference> newestReference(List<DataReference> refs) {
-        return refs.stream().max(Comparator.comparingLong(r -> ts(r.getCreatedAt())));
+    private static List<DataReference> distinctNewestByUniquenessKey(List<DataReference> refs) {
+        return refs.stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        DataReferenceResolver::uniquenessKey,
+                        Function.identity(),
+                        DataReferenceResolver::newerReference,
+                        java.util.LinkedHashMap::new
+                ))
+                .values()
+                .stream()
+                .sorted(Comparator
+                        .comparingLong((DataReference r) -> ts(r.getCreatedAt()))
+                        .thenComparing(r -> String.valueOf(r.getId())))
+                .toList();
+    }
+
+    private static DataReference newerReference(DataReference a, DataReference b) {
+        int cmp = Long.compare(ts(a.getCreatedAt()), ts(b.getCreatedAt()));
+        if (cmp > 0) {
+            return a;
+        }
+        if (cmp < 0) {
+            return b;
+        }
+
+        return String.valueOf(a.getId()).compareTo(String.valueOf(b.getId())) >= 0 ? a : b;
+    }
+
+    private static boolean matchesUniquenessKey(DataReference left, DataReference right) {
+        return uniquenessKey(left).equals(uniquenessKey(right));
+    }
+
+    private static UniquenessKey uniquenessKey(DataReference r) {
+        return new UniquenessKey(
+                r.getEntityId(),
+                r.getStartVersion(),
+                r.getEndVersion(),
+                r.getObjectType(),
+                r.getContentType(),
+                r.getSourceSystem(),
+                r.getTargetSystem()
+        );
     }
 
     private Future<Optional<Anchor>> resolveAnchorSpace(Marker marker, String entityId) {
@@ -172,4 +216,14 @@ public final class DataReferenceResolver {
     }
 
     private record Anchor(String spaceId, long createdAt) {}
+
+    private record UniquenessKey(
+            String entityId,
+            Integer startVersion,
+            Integer endVersion,
+            String objectType,
+            String contentType,
+            String sourceSystem,
+            String targetSystem
+    ) {}
 }

@@ -67,15 +67,19 @@ public final class DataReferenceApi extends Api {
   }
 
   private Future<DataReference> storeOrReuseEquivalentReference(DataReference referenceToCreate) {
-    return findEquivalentReference(referenceToCreate)
-      .compose(maybeExisting ->
-        maybeExisting
-          .map(Future::succeededFuture)
-          .orElseGet(() -> dataReferences.store(referenceToCreate).map(referenceToCreate::withId))
-      );
+    return findByUniquenessKey(referenceToCreate)
+      .compose(maybeExisting -> {
+        if (maybeExisting.isEmpty()) {
+          return dataReferences.store(referenceToCreate).map(referenceToCreate::withId);
+        }
+
+        DataReference existing = maybeExisting.get();
+        DataReference toStore = mergeForUpsert(existing, referenceToCreate);
+        return dataReferences.store(toStore).map(v -> toStore);
+      });
   }
 
-  private Future<Optional<DataReference>> findEquivalentReference(DataReference referenceToCreate) {
+  private Future<Optional<DataReference>> findByUniquenessKey(DataReference referenceToCreate) {
     return dataReferences.load(
       referenceToCreate.getEntityId(),
       referenceToCreate.getStartVersion(),
@@ -86,24 +90,42 @@ public final class DataReferenceApi extends Api {
       referenceToCreate.getTargetSystem()
     ).map(candidates ->
       candidates.stream()
-        .filter(candidate -> isEquivalentReference(candidate, referenceToCreate))
-        .findFirst()
+        .filter(candidate -> matchesUniquenessKey(candidate, referenceToCreate))
+        .max(java.util.Comparator.comparingLong(r -> ts(r.getCreatedAt())))
     );
   }
 
-  private static boolean isEquivalentReference(DataReference existing, DataReference candidate) {
-    return existing.isPatch() == candidate.isPatch()
-      && Objects.equals(existing.getEntityId(), candidate.getEntityId())
-      && Objects.equals(existing.getStartVersion(), candidate.getStartVersion())
-      && Objects.equals(existing.getEndVersion(), candidate.getEndVersion())
-      && Objects.equals(existing.getObjectType(), candidate.getObjectType())
-      && Objects.equals(existing.getContentType(), candidate.getContentType())
-      && Objects.equals(existing.getContentEncoding(), candidate.getContentEncoding())
-      && Objects.equals(existing.getFilter(), candidate.getFilter())
-      && Objects.equals(existing.getProducer(), candidate.getProducer())
-      && Objects.equals(existing.getLocation(), candidate.getLocation())
-      && Objects.equals(existing.getSourceSystem(), candidate.getSourceSystem())
-      && Objects.equals(existing.getTargetSystem(), candidate.getTargetSystem());
+  private static DataReference mergeForUpsert(DataReference existing, DataReference incoming) {
+    DataReference merged = incoming.withId(existing.getId());
+
+    if (incoming.getContentEncoding() == null) {
+      merged.withContentEncoding(existing.getContentEncoding());
+    }
+    if (incoming.getFilter() == null) {
+      merged.withFilter(existing.getFilter());
+    }
+    if (incoming.getProducer() == null) {
+      merged.withProducer(existing.getProducer());
+    }
+    if (incoming.getKeepUntil() == null) {
+      merged.withKeepUntil(existing.getKeepUntil());
+    }
+
+    return merged;
+  }
+
+  private static boolean matchesUniquenessKey(DataReference left, DataReference right) {
+    return Objects.equals(left.getEntityId(), right.getEntityId())
+      && Objects.equals(left.getStartVersion(), right.getStartVersion())
+      && Objects.equals(left.getEndVersion(), right.getEndVersion())
+      && Objects.equals(left.getObjectType(), right.getObjectType())
+      && Objects.equals(left.getContentType(), right.getContentType())
+      && Objects.equals(left.getSourceSystem(), right.getSourceSystem())
+      && Objects.equals(left.getTargetSystem(), right.getTargetSystem());
+  }
+
+  private static long ts(@Nullable Long v) {
+    return v == null ? 0L : v;
   }
 
   private static Future<DataReference> failIfDataReferenceIsInvalid(DataReference dataReference) {
