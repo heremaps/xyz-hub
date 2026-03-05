@@ -31,7 +31,9 @@ import org.geotools.api.referencing.operation.MathTransform;
 import org.geotools.api.referencing.operation.TransformException;
 import org.geotools.geometry.jts.JTS;
 import org.geotools.referencing.CRS;
+import org.geotools.referencing.ReferencingFactoryFinder;
 import org.geotools.referencing.crs.DefaultGeographicCRS;
+import org.geotools.util.factory.Hints;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.LineString;
@@ -58,7 +60,8 @@ public class GeoTools {
   /**
    * The factory is used to guarantee that the coordinate order is x, y (so longitude/latitude) and not in an unknown state.
    */
-  private static final CRSAuthorityFactory factory = CRS.getAuthorityFactory(true);
+  private static final CRSAuthorityFactory factory = ReferencingFactoryFinder.getCRSAuthorityFactory("EPSG",
+      new Hints(Hints.FORCE_LONGITUDE_FIRST_AXIS_ORDER, Boolean.TRUE));
   private static final ConcurrentHashMap<String, CoordinateReferenceSystem> crsCache = new ConcurrentHashMap<>();
   private static final ConcurrentHashMap<String, MathTransform> transformCache = new ConcurrentHashMap<>();
 
