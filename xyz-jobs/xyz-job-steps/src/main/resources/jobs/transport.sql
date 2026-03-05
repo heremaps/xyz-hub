@@ -419,7 +419,7 @@ AS $BODY$
 DECLARE
     config RECORD;
     import_statistics TEXT;
-    base_delay_ms INT := 1000;
+    base_delay_ms INT := 10000;
     delay_ms INT;
 BEGIN
     -- Calculate exponential backoff delay: base * 2^attempts, capped at 10 seconds
