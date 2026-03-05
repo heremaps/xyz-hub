@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -94,8 +94,27 @@ public class JobAdminApi extends JobApiBase {
 
   private void postStep(RoutingContext context) throws HttpException {
     Step step = getStepFromBody(context);
-    loadJob(jobId(context))
-        .compose(job -> job.updateStep(step).mapEmpty())
+    Future<Void> future = Future.succeededFuture();
+    if (step.isPipeline()) {
+      if (step.getStatus().getState() == FAILED) {
+        future = loadJob(jobId(context))
+            .onSuccess(job -> {
+              job.getStatus()
+                  .withState(step.getStatus().getState())
+                  .withUpdatedAt(step.getStatus().getUpdatedAt())
+                  .withErrorMessage(step.getStatus().getErrorMessage())
+                  .withErrorCause(step.getStatus().getErrorCause())
+                  .withErrorCode(step.getStatus().getErrorCode());
+              JobService.callFinalizeObservers(job);
+            })
+            .mapEmpty();
+      }
+    }
+    else
+      future = loadJob(jobId(context))
+          .compose(job -> job.updateStep(step).mapEmpty());
+
+    future
         .onSuccess(v -> sendResponse(context, OK.code(), null))
         .onFailure(t -> sendErrorResponse(context, t));
   }
