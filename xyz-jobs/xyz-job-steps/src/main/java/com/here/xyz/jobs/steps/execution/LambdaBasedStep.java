@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -479,9 +479,6 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
 
   private void synchronizeStep() {
     if (isSimulation) //TODO: Remove testing code
-      return;
-    //NOTE: For steps that are part of a pipeline job, do not synchronize the state
-    if (isPipeline())
       return;
     logger.info("Synchronizing step {} with the job service ...", getGlobalStepId());
     try {
