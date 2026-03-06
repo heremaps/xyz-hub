@@ -20,18 +20,22 @@
 package com.here.xyz.hub.rest;
 
 import com.here.xyz.hub.config.DataReferenceConfigClient;
+import com.here.xyz.hub.util.DataReferenceResolver;
 import com.here.xyz.models.hub.DataReference;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.HttpException;
+import com.here.xyz.util.service.logging.LogUtil;
 import io.vertx.core.Future;
 import io.vertx.core.json.jackson.DatabindCodec;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.router.RouterBuilder;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.Marker;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -44,6 +48,7 @@ import static org.apache.commons.lang3.StringUtils.isNotBlank;
 public final class DataReferenceApi extends Api {
 
   private final DataReferenceConfigClient dataReferences = DataReferenceConfigClient.getInstance();
+  private final DataReferenceResolver resolver = new DataReferenceResolver(dataReferences);
 
   public DataReferenceApi(RouterBuilder rb) {
     rb.getRoute("createDataReference").setDoValidation(false).addHandler(handle(this::createDataReference, CREATED));
@@ -58,8 +63,69 @@ public final class DataReferenceApi extends Api {
 
     return failIfDataReferenceIsInvalid(dataReference)
       .compose(this::failIfReferenceAlreadyExists)
-      .compose(dataReferences::store)
-      .map(dataReference::withId);
+      .compose(this::storeOrReuseEquivalentReference);
+  }
+
+  private Future<DataReference> storeOrReuseEquivalentReference(DataReference referenceToCreate) {
+    return findByUniquenessKey(referenceToCreate)
+      .compose(maybeExisting -> {
+        if (maybeExisting.isEmpty()) {
+          return dataReferences.store(referenceToCreate).map(referenceToCreate::withId);
+        }
+
+        DataReference existing = maybeExisting.get();
+        DataReference toStore = mergeForUpsert(existing, referenceToCreate);
+        return dataReferences.store(toStore).map(v -> toStore);
+      });
+  }
+
+  private Future<Optional<DataReference>> findByUniquenessKey(DataReference referenceToCreate) {
+    return dataReferences.load(
+      referenceToCreate.getEntityId(),
+      referenceToCreate.getStartVersion(),
+      referenceToCreate.getEndVersion(),
+      referenceToCreate.getContentType(),
+      referenceToCreate.getObjectType(),
+      referenceToCreate.getSourceSystem(),
+      referenceToCreate.getTargetSystem()
+    ).map(candidates ->
+      candidates.stream()
+        .filter(candidate -> matchesUniquenessKey(candidate, referenceToCreate))
+        .max(java.util.Comparator.comparingLong(r -> ts(r.getCreatedAt())))
+    );
+  }
+
+  private static DataReference mergeForUpsert(DataReference existing, DataReference incoming) {
+    DataReference merged = incoming.withId(existing.getId());
+
+    if (incoming.getContentEncoding() == null) {
+      merged.withContentEncoding(existing.getContentEncoding());
+    }
+    if (incoming.getFilter() == null) {
+      merged.withFilter(existing.getFilter());
+    }
+    if (incoming.getProducer() == null) {
+      merged.withProducer(existing.getProducer());
+    }
+    if (incoming.getKeepUntil() == null) {
+      merged.withKeepUntil(existing.getKeepUntil());
+    }
+
+    return merged;
+  }
+
+  private static boolean matchesUniquenessKey(DataReference left, DataReference right) {
+    return Objects.equals(left.getEntityId(), right.getEntityId())
+      && Objects.equals(left.getStartVersion(), right.getStartVersion())
+      && Objects.equals(left.getEndVersion(), right.getEndVersion())
+      && Objects.equals(left.getObjectType(), right.getObjectType())
+      && Objects.equals(left.getContentType(), right.getContentType())
+      && Objects.equals(left.getSourceSystem(), right.getSourceSystem())
+      && Objects.equals(left.getTargetSystem(), right.getTargetSystem());
+  }
+
+  private static long ts(@Nullable Long v) {
+    return v == null ? 0L : v;
   }
 
   private static Future<DataReference> failIfDataReferenceIsInvalid(DataReference dataReference) {
@@ -102,14 +168,21 @@ public final class DataReferenceApi extends Api {
 
   private Future<DataReference> getDataReference(RoutingContext routingContext) {
     UUID referenceId = referenceIdFromRequestPath(routingContext);
-    return dataReferences.load(referenceId)
-      .compose(maybeReference ->
-        maybeReference.map(Future::succeededFuture)
-          .orElse(Future.failedFuture(new HttpException(NOT_FOUND, "Data Reference id=%s not found".formatted(referenceId))))
-      );
+    Marker marker = LogUtil.getMarker(routingContext);
+
+    return resolver.loadEffectiveById(marker, referenceId)
+            .compose(maybeReference ->
+                    maybeReference
+                            .map(Future::succeededFuture)
+                            .orElse(Future.failedFuture(
+                                    new HttpException(NOT_FOUND, "Data Reference id=%s not found".formatted(referenceId))
+                            ))
+            );
   }
 
   private Future<List<DataReference>> queryDataReferences(RoutingContext routingContext) {
+    Marker marker = LogUtil.getMarker(routingContext);
+
     String entityId = extractAndValidateEntityId(routingContext);
     Integer startVersion = extractAndValidatePositiveInteger(
       routingContext,
@@ -126,7 +199,10 @@ public final class DataReferenceApi extends Api {
     String sourceSystem = firstQueryParamAsStringOrNull(routingContext, "sourceSystem");
     String targetSystem = firstQueryParamAsStringOrNull(routingContext, "targetSystem");
 
-    return dataReferences.load(entityId, startVersion, endVersion, contentType, objectType, sourceSystem, targetSystem);
+    boolean onlyStale = queryOnlyStaleFlag(routingContext);
+
+    return dataReferences.load(entityId, startVersion, endVersion, contentType, objectType, sourceSystem, targetSystem)
+            .compose(list -> resolver.filterForEntity(marker, entityId, list, onlyStale));
   }
 
   private static @Nullable Integer extractAndValidatePositiveInteger(
@@ -157,8 +233,7 @@ public final class DataReferenceApi extends Api {
   }
 
   private static String firstQueryParamAsStringOrNull(RoutingContext routingContext, String parameterName) {
-    return firstQueryParamAsString(routingContext, parameterName)
-      .orElse(null);
+    return firstQueryParamAsString(routingContext, parameterName).orElse(null);
   }
 
   private static Optional<String> firstQueryParamAsString(RoutingContext routingContext, String parameterName) {
@@ -174,4 +249,21 @@ public final class DataReferenceApi extends Api {
       .orElse(null);
   }
 
+
+  private static boolean queryOnlyStaleFlag(RoutingContext routingContext) {
+    Optional<String> raw = firstQueryParamAsString(routingContext, "onlyStale");
+    if (raw.isEmpty()) {
+      return false;
+    }
+
+    String v = raw.get().trim();
+    if ("true".equalsIgnoreCase(v)) {
+      return true;
+    }
+    if ("false".equalsIgnoreCase(v)) {
+      return false;
+    }
+
+    throw new IllegalArgumentException("onlyStale must be either true or false");
+  }
 }
