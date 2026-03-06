@@ -197,6 +197,7 @@ public class JobAdminApi extends JobApiBase {
           .compose(job -> {
             State newJobState = switch (sfnStatus) {
               case "SUCCEEDED" -> SUCCEEDED;
+              case "ABORTED" -> CANCELLED;
               case "FAILED", "TIMED_OUT" -> FAILED;
               default -> null;
             };
@@ -209,6 +210,7 @@ public class JobAdminApi extends JobApiBase {
                 if ("TIMED_OUT".equals(sfnStatus))
                   future = failCausingStep(job, "Timeout was exceeded of step", future, executionArn);
                 else if ("States.Timeout".equals(detail.getString("error")))
+                  //In Localstack a SFN CANCEL gets not detected properly and results in a timeout of the execution.
                   future = failCausingStep(job, "Unknown error - No State-checks were received anymore (HeartBeat timeout) "
                       + "from the async step", future, executionArn);
                 else {
@@ -221,10 +223,9 @@ public class JobAdminApi extends JobApiBase {
                   future = failCausingStep(job, null, future, executionArn);
                   logger.info("[{}] Received job failure from SFN. Cause: {}", job.getId(), detail.getString("cause"));
                 }
-                //Set all PENDING steps to CANCELLED
-                future = future.compose(v -> cancelSteps(job, PENDING));
-                //Set all RESUMING steps to CANCELLED
-                future = future.compose(v -> cancelSteps(job, RESUMING));
+                future = setStepsToCancelled(job, future);
+              }else if (newJobState == CANCELLED) {
+                future = setStepsToCancelled(job, future);
               }
 
               State oldState = job.getStatus().getState();
@@ -242,6 +243,14 @@ public class JobAdminApi extends JobApiBase {
                 });
           })
           .onFailure(t -> logger.error("[{}] Error updating the state of the job after receiving an event from its state machine:", jobId, t));
+  }
+
+  private static Future<Void> setStepsToCancelled(Job job, Future<Void> future) {
+    //Set all PENDING steps to CANCELLED
+    future = future.compose(v -> cancelSteps(job, PENDING));
+    //Set all RESUMING steps to CANCELLED
+    future = future.compose(v -> cancelSteps(job, RESUMING));
+    return future;
   }
 
   private static Future<Void> failCausingStep(Job job, String errCausePrefixText, Future<Void> future, String executionArn) {

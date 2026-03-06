@@ -280,6 +280,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
       //NOTE: No heartbeat must be sent to SFN in this case!
     }
     catch (Exception e) {
+      logger.warn("Unexpected error while checking async execution state", e);
       //Unexpected exception, there is an issue in the implementation of the step, so cancel & report non-retryable failure
       //TODO: Check if calling cancel makes sense here
       //cancel();
