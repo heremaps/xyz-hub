@@ -30,46 +30,49 @@ import com.amazonaws.services.dynamodbv2.model.ResourceNotFoundException;
 import com.amazonaws.services.dynamodbv2.model.ScanRequest;
 import com.here.xyz.util.service.Core;
 import io.vertx.core.Vertx;
-import org.awaitility.Awaitility;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.utility.DockerImageName;
-
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import org.awaitility.Awaitility;
+import org.awaitility.core.ConditionTimeoutException;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.BeforeAll;
 
-// TODO: consider making DynamoBranchConfigClientIT extend this base class, too
-@Testcontainers(disabledWithoutDocker = true)
 abstract class DynamoDbIT {
 
-  protected static final DockerImageName dynamoImage = DockerImageName.parse("amazon/dynamodb-local:2.5.2");
-
-  @Container
-  private static final GenericContainer<?> dynamoContainer =
-    new GenericContainer<>(dynamoImage)
-      .withExposedPorts(8000)
-      .withCommand("-jar", "DynamoDBLocal.jar", "-inMemory", "-sharedDb");
+  private static final String DEFAULT_DYNAMO_ENDPOINT = "http://localhost:8000";
+  private static final String DYNAMO_ENDPOINT_PROPERTY = "xyz.test.dynamodb.endpoint";
+  private static final String DYNAMO_ENDPOINT_ENV = "XYZ_TEST_DYNAMODB_ENDPOINT";
 
   protected static String endpoint;
-
   protected static AmazonDynamoDB rawDynamoClient;
 
   protected abstract String tableName();
 
   @BeforeAll
   static void beforeAll() {
-    Core.vertx = Vertx.vertx();
-    endpoint = "http://%s:%s".formatted(dynamoContainer.getHost(), dynamoContainer.getFirstMappedPort());
+    if (Core.vertx == null) {
+      Core.vertx = Vertx.vertx();
+    }
+
+    endpoint = System.getProperty(
+      DYNAMO_ENDPOINT_PROPERTY,
+      System.getenv().getOrDefault(DYNAMO_ENDPOINT_ENV, DEFAULT_DYNAMO_ENDPOINT)
+    );
+
     rawDynamoClient = rawDynamo(endpoint);
+    assumeDynamoAvailable();
   }
 
   @AfterEach
   void tearDown() {
-    rawDynamoClient.deleteTable(tableName());
+    try {
+      rawDynamoClient.deleteTable(tableName());
+    }
+    catch (ResourceNotFoundException ignored) {
+      // Table may already be deleted
+    }
   }
 
   private static AmazonDynamoDB rawDynamo(String endpoint) {
@@ -78,6 +81,22 @@ abstract class DynamoDbIT {
       .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(endpoint, "local"))
       .withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials("dummy", "dummy")))
       .build();
+  }
+
+  private static void assumeDynamoAvailable() {
+    try {
+      Awaitility.await()
+        .atMost(Duration.ofSeconds(10))
+        .pollInterval(Duration.ofMillis(100))
+        .ignoreExceptions()
+        .until(() -> {
+          rawDynamoClient.listTables();
+          return true;
+        });
+    }
+    catch (ConditionTimeoutException e) {
+      Assumptions.assumeTrue(false, "Skipping Dynamo integration tests: local DynamoDB is not reachable at " + endpoint);
+    }
   }
 
   protected void awaitTableActive() {
