@@ -47,13 +47,17 @@ public class SFNHistoryInspector {
    * @param stepId The step identifier to look for (matches stateEnteredEventDetails.name).
    * @return Future that resolves to true if such an event exists, otherwise false.
    */
-  public static Future<Boolean> findStepFunctionExecutionInHistory(String executionArn, String stepId) {
+  public static Future<Boolean> findStepFunctionExecutionInHistory(String executionArn, String stepClassName, String stepId) {
     return Future.fromCompletionStage(asyncSfnClient().getExecutionHistory(GetExecutionHistoryRequest.builder()
             .executionArn(executionArn)
             .build()))
             .map(executionHistory -> executionHistory.events().stream()
                 .filter(event -> "TaskStateEntered".equals(event.type().toString()))
                 .anyMatch(event -> event.stateEnteredEventDetails() != null
-                    && stepId.equals(event.stateEnteredEventDetails().name())));
+                    && getStepName(stepClassName, stepId).equals(event.stateEnteredEventDetails().name())));
+  }
+
+  private static String getStepName(String stepClassName, String stepId) {
+    return stepClassName + "." + stepId;
   }
 }
