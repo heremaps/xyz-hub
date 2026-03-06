@@ -394,7 +394,8 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     if(redriveCount == 0)
       return false;
 
-    boolean isResume = SFNHistoryInspector.findStepFunctionExecutionInHistory(executionId, getGlobalStepId())
+    boolean isResume = SFNHistoryInspector.findStepFunctionExecutionInHistory(executionId,
+                    this.getClass().getSimpleName(), this.getId())
         .recover(t -> {
           //TODO: Check if we want to fail here instead
           logger.warn("[{}] Error while checking for resume execution in SFN history.", getGlobalStepId(), t);
