@@ -435,17 +435,15 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   public void execute(boolean resume) throws Exception {
     //The following code is running synchronously till the first task is getting started.
     String schema = getSchema(db());
+    List<I> taskDataList = createTaskItems();
+    taskItemCount = taskDataList.size();
+
     if (!resume) {
-      List<I> taskDataList = createTaskItems();
-      taskItemCount = taskDataList.size();
-      boolean isResume = insertTaskItemsInTaskTable(schema, this, taskDataList);
-      //TODO: Remove is DS-936 is fixed. With the lines below we detect a resume based on the existence of the job_data table.
-      if(!isResume)
-        initialSetup();
+      insertTaskItemsInTaskTable(schema, this, taskDataList);
+      initialSetup();
     }else{
-      //TODO: DS-936 needs to be fixed before this will work
       //Reset all items which are not finalized to be able to restart them
-      runWriteQuerySync(resetTaskItemWhichAreNotFinalized(schema, this), db(WRITER), 0);
+      runWriteQuerySyncUnkillable(resetTaskItemWhichAreNotFinalized(schema, this), db(WRITER), 0);
     }
     startInitialTasks();
     noTasksCreated = taskItemCount == 0;
@@ -516,7 +514,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
       finalCleanUp(noTasksCreated);
 
       infoLog(logPhase, "Cleanup temporary table");
-      runWriteQuerySync(buildTemporaryJobTableDropStatement(getSchema(db()), getTemporaryJobTableName(getId())), db(WRITER), 0);
+      runWriteQuerySyncUnkillable(buildTemporaryJobTableDropStatement(getSchema(db()), getTemporaryJobTableName(getId())), db(WRITER), 0);
     }catch (SQLException e){
       if (e.getSQLState() != null) {
         switch (e.getSQLState().toUpperCase()) {
@@ -636,7 +634,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   private void updateTaskItemInTaskTable(SpaceBasedTaskUpdate update) throws WebClientException, SQLException, TooManyResourcesClaimed {
     infoLog(STEP_ON_ASYNC_UPDATE,  "Update process table with: " + update.serialize());
     /** create update process table */
-    runWriteQuerySync(
+    runWriteQuerySyncUnkillable(
             buildUpdateTaskItemStatement(getSchema(db(WRITER)), this, update.taskId,
                     update,  true
             ), db(WRITER), 0);

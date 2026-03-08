@@ -90,14 +90,25 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
     return (int) executeQuery(query, db, estimatedMaxAcuLoad, null, true, false, false);
   }
 
+  protected final int runWriteQuerySyncUnkillable(SQLQuery query, Database db, double estimatedMaxAcuLoad) throws TooManyResourcesClaimed,
+          SQLException {
+    return (int) executeQuery(query, db, estimatedMaxAcuLoad, null, true, false, false, false);
+  }
+
   protected final int[] runBatchWriteQuerySync(SQLQuery query, Database db, double estimatedMaxAcuLoad) throws TooManyResourcesClaimed,
       SQLException {
     return (int[]) executeQuery(query, db, estimatedMaxAcuLoad, null, true, false, false);
   }
+  private Object executeQuery(SQLQuery query, Database db, double estimatedMaxAcuLoad, ResultSetHandler<?> resultSetHandler,
+                              boolean isWriteQuery, boolean async, boolean withCallbacks) throws TooManyResourcesClaimed, SQLException {
+    return executeQuery(query, db, estimatedMaxAcuLoad, resultSetHandler, isWriteQuery, async, withCallbacks, true);
+  }
 
   private Object executeQuery(SQLQuery query, Database db, double estimatedMaxAcuLoad, ResultSetHandler<?> resultSetHandler,
-      boolean isWriteQuery, boolean async, boolean withCallbacks) throws TooManyResourcesClaimed, SQLException {
-    query
+      boolean isWriteQuery, boolean async, boolean withCallbacks, boolean addLables) throws TooManyResourcesClaimed, SQLException {
+
+    if(addLables)
+      query
         .withLabel("jobId", getJobId())
         .withLabel("stepId", getId());
 
