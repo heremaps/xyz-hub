@@ -78,6 +78,7 @@ import software.amazon.awssdk.services.cloudwatchevents.model.PutTargetsRequest;
 import software.amazon.awssdk.services.cloudwatchevents.model.RemoveTargetsRequest;
 import software.amazon.awssdk.services.cloudwatchevents.model.ResourceNotFoundException;
 import software.amazon.awssdk.services.cloudwatchevents.model.Target;
+import software.amazon.awssdk.services.sfn.model.ExecutionStatus;
 import software.amazon.awssdk.services.sfn.model.InvalidTokenException;
 import software.amazon.awssdk.services.sfn.model.SendTaskFailureRequest;
 import software.amazon.awssdk.services.sfn.model.SendTaskHeartbeatRequest;
@@ -289,7 +290,8 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   }
 
   private void handleAsyncUpdate(LambdaStepRequest request) {
-    boolean isCompleted = onAsyncUpdate(request.getProcessUpdate());
+    ExecutionStatus sfnExecutionStatus = SFNInspector.getSFNExecutionStatus(executionId);
+    boolean isCompleted = onAsyncUpdate(request.getProcessUpdate(), sfnExecutionStatus);
 
     //Special handling for ExportChangedTiles step to avoid too many updates of the job.
     //Can happen if there are many tasks with very short execution times.
@@ -323,9 +325,10 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
    * underlying remote system.
    *
    * @param processUpdate Some information from the remote system to be passed to the step implementation
+   * @param sfnExecutionStatus Current Status of StateMachine
    * @return Whether the update lead to the successful completion of the step execution in the remote system.
    */
-  protected boolean onAsyncUpdate(ProcessUpdate processUpdate) {
+  protected boolean onAsyncUpdate(ProcessUpdate processUpdate, ExecutionStatus sfnExecutionStatus) {
     //Nothing to do by default (may be overridden in subclasses)
     return false;
   }
@@ -394,7 +397,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     if(redriveCount == 0)
       return false;
 
-    boolean isResume = SFNHistoryInspector.findStepFunctionExecutionInHistory(executionId,
+    boolean isResume = SFNInspector.findStepFunctionExecutionInHistory(executionId,
                     this.getClass().getSimpleName(), this.getId())
         .recover(t -> {
           //TODO: Check if we want to fail here instead

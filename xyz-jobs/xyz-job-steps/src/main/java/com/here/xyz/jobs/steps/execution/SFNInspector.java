@@ -1,14 +1,18 @@
 package com.here.xyz.jobs.steps.execution;
 
 import io.vertx.core.Future;
+import software.amazon.awssdk.services.sfn.model.DescribeExecutionRequest;
+import software.amazon.awssdk.services.sfn.model.DescribeExecutionResponse;
+import software.amazon.awssdk.services.sfn.model.ExecutionStatus;
 import software.amazon.awssdk.services.sfn.model.GetExecutionHistoryRequest;
 import software.amazon.awssdk.services.sfn.model.HistoryEvent;
 
 import java.util.List;
 
 import static com.here.xyz.jobs.util.AwsClientFactory.asyncSfnClient;
+import static com.here.xyz.jobs.util.AwsClientFactory.sfnClient;
 
-public class SFNHistoryInspector {
+public class SFNInspector {
 
   /**
    * Fetches the execution history for the provided executionArn and goes back in the event history
@@ -18,7 +22,7 @@ public class SFNHistoryInspector {
    * @param executionArn The execution ARN of the state machine
    * @return The ID of the causing step if found, `null` otherwise
    */
-  public static Future<String> loadCausingStepId(String executionArn){
+  public static Future<String> findCausingStepIdInHistory(String executionArn){
     return Future.fromCompletionStage(asyncSfnClient().getExecutionHistory(GetExecutionHistoryRequest.builder()
                     .executionArn(executionArn)
                     .build()))
@@ -55,6 +59,16 @@ public class SFNHistoryInspector {
                 .filter(event -> "TaskStateEntered".equals(event.type().toString()))
                 .anyMatch(event -> event.stateEnteredEventDetails() != null
                     && getStepName(stepClassName, stepId).equals(event.stateEnteredEventDetails().name())));
+  }
+
+  public static ExecutionStatus getSFNExecutionStatus(String executionArn){
+    DescribeExecutionRequest request = DescribeExecutionRequest.builder()
+            .executionArn(executionArn)
+            .build();
+
+    DescribeExecutionResponse response = sfnClient().describeExecution(request);
+    //RUNNING | SUCCEEDED | FAILED | TIMED_OUT | ABORTED | PENDING_REDRIVE
+    return response.status();
   }
 
   private static String getStepName(String stepClassName, String stepId) {

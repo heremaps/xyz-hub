@@ -27,7 +27,6 @@ import static com.here.xyz.jobs.RuntimeInfo.State.RESUMING;
 import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
 import static com.here.xyz.jobs.RuntimeInfo.State.SUCCEEDED;
 import static com.here.xyz.jobs.steps.execution.RunEmrJob.globalStepIdFromEmrJobName;
-import static com.here.xyz.jobs.util.AwsClientFactory.asyncSfnClient;
 import static com.here.xyz.jobs.util.AwsClientFactory.emrServerlessClient;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
@@ -44,17 +43,14 @@ import com.here.xyz.jobs.RuntimeInfo;
 import com.here.xyz.jobs.RuntimeInfo.State;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.execution.JobExecutor;
-import com.here.xyz.jobs.steps.execution.SFNHistoryInspector;
+import com.here.xyz.jobs.steps.execution.SFNInspector;
 import com.here.xyz.util.service.HttpException;
 import io.vertx.core.Future;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
-import java.util.List;
 import software.amazon.awssdk.services.emrserverless.model.GetJobRunRequest;
 import software.amazon.awssdk.services.emrserverless.model.JobRun;
-import software.amazon.awssdk.services.sfn.model.GetExecutionHistoryRequest;
-import software.amazon.awssdk.services.sfn.model.HistoryEvent;
 
 public class JobAdminApi extends JobApiBase {
   private static final String ADMIN_JOBS = "/admin/jobs";
@@ -255,7 +251,7 @@ public class JobAdminApi extends JobApiBase {
 
   private static Future<Void> failCausingStep(Job job, String errCausePrefixText, Future<Void> future, String executionArn) {
     //Find the causing step within the SFN ...
-    future = future.compose(v -> SFNHistoryInspector.loadCausingStepId(executionArn))
+    future = future.compose(v -> SFNInspector.findCausingStepIdInHistory(executionArn))
         .compose(causingStepId -> {
           //Patch the error cause on the *job* status
           patchErrorCause(job.getStatus(), errCausePrefixText == null ? null :  errCausePrefixText + " \"" + causingStepId + "\"");
