@@ -47,6 +47,7 @@ import com.here.xyz.util.web.XyzWebClient;
 import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import software.amazon.awssdk.services.sfn.model.ExecutionStatus;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -454,17 +455,27 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
    * database if a task is finished. If unstarted task are present the next one gets started.
    *
    * @param processUpdate The process update containing information about the progress.
+   * @param sfnExecutionStatus Current Status of StateMachine
    * @return {@code true} if all tasks are complete, {@code false} otherwise.
    * @throws RuntimeException If an unexpected error occurs during the update process.
    */
   @Override
-  protected boolean onAsyncUpdate(ProcessUpdate processUpdate){
+  protected boolean onAsyncUpdate(ProcessUpdate processUpdate, ExecutionStatus sfnExecutionStatus) {
     try {
       //Update the task table and mark item as finalized
       SpaceBasedTaskUpdate update = (SpaceBasedTaskUpdate) processUpdate;
-      infoLog(STEP_ON_ASYNC_UPDATE, "received progress update: " + processUpdate.serialize());
-
+      infoLog(STEP_ON_ASYNC_UPDATE, "Received progress update: " + processUpdate.serialize());
       updateTaskItemInTaskTable(update);
+
+      //StateMachine is not running anymore - stop further processing immediately!
+      if(sfnExecutionStatus.equals(ExecutionStatus.ABORTED) ||
+              sfnExecutionStatus.equals(ExecutionStatus.FAILED) ||
+              sfnExecutionStatus.equals(ExecutionStatus.TIMED_OUT) ||
+              sfnExecutionStatus.equals(ExecutionStatus.SUCCEEDED)
+      ) {
+        infoLog(STEP_ON_ASYNC_UPDATE, "SFN not running anymore - stop further processing! [" + sfnExecutionStatus + "]");
+        return false;
+      }
 
       TaskProgress taskProgressAndItem = getTaskProgressAndTaskItem();
       if (taskProgressAndItem.isComplete()) {
