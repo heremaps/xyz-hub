@@ -78,7 +78,6 @@ import software.amazon.awssdk.services.cloudwatchevents.model.PutTargetsRequest;
 import software.amazon.awssdk.services.cloudwatchevents.model.RemoveTargetsRequest;
 import software.amazon.awssdk.services.cloudwatchevents.model.ResourceNotFoundException;
 import software.amazon.awssdk.services.cloudwatchevents.model.Target;
-import software.amazon.awssdk.services.sfn.model.ExecutionStatus;
 import software.amazon.awssdk.services.sfn.model.InvalidTokenException;
 import software.amazon.awssdk.services.sfn.model.SendTaskFailureRequest;
 import software.amazon.awssdk.services.sfn.model.SendTaskHeartbeatRequest;
@@ -290,8 +289,13 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   }
 
   private void handleAsyncUpdate(LambdaStepRequest request) {
-    ExecutionStatus sfnExecutionStatus = isSimulation ? ExecutionStatus.RUNNING : SFNInspector.getSFNExecutionStatus(executionId);
-    boolean isCompleted = onAsyncUpdate(request.getProcessUpdate(), sfnExecutionStatus);
+    boolean isCompleted = onAsyncUpdate(request.getProcessUpdate());
+
+    //Safeguard to detect a StateMachine which is not running anymore;
+    reportAsyncHeartbeat();
+    if(request.getStep().getStatus().getState() != RUNNING) {
+      return;
+    }
 
     //Special handling for ExportChangedTiles step to avoid too many updates of the job.
     //Can happen if there are many tasks with very short execution times.
@@ -325,10 +329,9 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
    * underlying remote system.
    *
    * @param processUpdate Some information from the remote system to be passed to the step implementation
-   * @param sfnExecutionStatus Current Status of StateMachine
    * @return Whether the update lead to the successful completion of the step execution in the remote system.
    */
-  protected boolean onAsyncUpdate(ProcessUpdate processUpdate, ExecutionStatus sfnExecutionStatus) {
+  protected boolean onAsyncUpdate(ProcessUpdate processUpdate) {
     //Nothing to do by default (may be overridden in subclasses)
     return false;
   }

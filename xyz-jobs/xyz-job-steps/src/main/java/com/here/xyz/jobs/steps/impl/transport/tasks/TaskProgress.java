@@ -31,6 +31,12 @@ public class TaskProgress<I> {
     this.taskId = taskId;
   }
 
+  public TaskProgress(int totalTasks, int startedTasks, int finalizedTasks) {
+    this.totalTasks = totalTasks;
+    this.startedTasks = startedTasks;
+    this.finalizedTasks = finalizedTasks;
+  }
+
   public TaskProgress(int totalTasks, int startedTasks, int finalizedTasks, Integer taskId, I taskInput) {
     this.totalTasks = totalTasks;
     this.startedTasks = startedTasks;
