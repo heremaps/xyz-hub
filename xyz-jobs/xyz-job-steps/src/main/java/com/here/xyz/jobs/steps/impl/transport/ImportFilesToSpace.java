@@ -125,7 +125,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   @JsonView({Internal.class, Static.class})
   private boolean enableQuickValidation = true;
 
-  //Compilers can decide max allowed import size. Set default to 10G for normal use-case
+  //Compilers can decide max allowed import size. Set default to 200G for normal use-case
   @JsonIgnore
   private long maxInputBytesForNonEmptyImport = 200l * 1024 * 1024 * 1024;
 
