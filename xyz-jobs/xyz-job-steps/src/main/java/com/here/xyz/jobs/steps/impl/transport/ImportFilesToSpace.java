@@ -127,7 +127,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
   //Compilers can decide max allowed import size. Set default to 10G for normal use-case
   @JsonIgnore
-  private long maxInputBytesForNonEmptyImport = 10l * 1024 * 1024 * 1024;
+  private long maxInputBytesForNonEmptyImport = 200l * 1024 * 1024 * 1024;
 
   {
     setOutputSets(List.of(new OutputSet(STATISTICS, USER, true)));
@@ -635,7 +635,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
     //TODO: Check if we can forward the whole transaction to the FeatureWriter rather than doing it for each row
     return new SQLQuery("""
-        CREATE OR REPLACE TRIGGER insertTrigger BEFORE INSERT ON ${schema}.${table} 
+        CREATE OR REPLACE TRIGGER insertTrigger BEFORE INSERT ON ${schema}.${table}
           FOR EACH ROW EXECUTE PROCEDURE ${triggerFunction}(
              ${{author}},
              ${{spaceVersion}},
@@ -778,7 +778,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
           data.put("filesize", input.getByteSize());
 
         queryList.add(
-            new SQLQuery("""                
+            new SQLQuery("""
                     INSERT INTO  ${schema}.${table} (s3_bucket, s3_path, s3_region, state, data)
                         VALUES (#{bucketName}, #{s3Key}, #{bucketRegion}, #{state}, #{data}::jsonb)
                         ON CONFLICT (s3_path) DO NOTHING;
@@ -796,7 +796,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
     //Add final entry
     queryList.add(
-        new SQLQuery("""                
+        new SQLQuery("""
                 INSERT INTO  ${schema}.${table} (s3_bucket, s3_path, s3_region, state, data)
                     VALUES (#{bucketName}, #{s3Key}, #{bucketRegion}, #{state}, #{data}::jsonb)
                     ON CONFLICT (s3_path) DO NOTHING;
