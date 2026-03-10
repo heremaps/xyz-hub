@@ -290,7 +290,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   }
 
   private void handleAsyncUpdate(LambdaStepRequest request) {
-    ExecutionStatus sfnExecutionStatus = SFNInspector.getSFNExecutionStatus(executionId);
+    ExecutionStatus sfnExecutionStatus = isSimulation ? ExecutionStatus.RUNNING : SFNInspector.getSFNExecutionStatus(executionId);
     boolean isCompleted = onAsyncUpdate(request.getProcessUpdate(), sfnExecutionStatus);
 
     //Special handling for ExportChangedTiles step to avoid too many updates of the job.
