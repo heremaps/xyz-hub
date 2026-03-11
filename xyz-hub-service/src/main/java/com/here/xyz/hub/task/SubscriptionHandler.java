@@ -140,7 +140,7 @@ public class SubscriptionHandler {
         });
   }
 
-  private static int v2kForSubscribedNonHistoryLayers = 99991;
+  public static int v2kForSubscribedNonHistoryLayers = 99991;
 
   private static Future<Void> increaseVersionsToKeepIfNecessary(Marker marker, Space space) {
     return space != null && space.getVersionsToKeep() == 1 ?
