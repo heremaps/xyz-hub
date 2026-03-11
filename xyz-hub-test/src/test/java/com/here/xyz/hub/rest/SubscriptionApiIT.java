@@ -30,6 +30,7 @@ import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
+import com.here.xyz.hub.task.SubscriptionHandler;
 import com.here.xyz.models.hub.Subscription;
 import io.restassured.response.ValidatableResponse;
 import org.junit.After;
@@ -343,7 +344,7 @@ public class SubscriptionApiIT extends TestSpaceWithFeature {
         .get("/spaces/" + cleanUpSpaceId)
         .then()
         .statusCode(OK.code())
-        .body("versionsToKeep", equalTo(99991));
+        .body("versionsToKeep", equalTo(SubscriptionHandler.v2kForSubscribedNonHistoryLayers));
   }
 
   @Test
