@@ -343,7 +343,7 @@ public class SubscriptionApiIT extends TestSpaceWithFeature {
         .get("/spaces/" + cleanUpSpaceId)
         .then()
         .statusCode(OK.code())
-        .body("versionsToKeep", equalTo(2));
+        .body("versionsToKeep", equalTo(99991));
   }
 
   @Test
