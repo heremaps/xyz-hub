@@ -577,20 +577,20 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
     }
 
     try {
-      TaskProgress taskProgressAndItem = getTaskProgress();
-      if(taskProgressAndItem == null)
+      TaskProgress taskProgress = getTaskProgress();
+      if(taskProgress == null)
         throw new UnknownStateException("TaskTable does not exists anymore "+ getGlobalStepId() +"!");
-      else if(taskProgressAndItem.isComplete())
+      else if(taskProgress.isComplete())
         return AsyncExecutionState.SUCCEEDED;
-      else if (taskProgressAndItem.getStartedTasks() > 0 &&
-              taskProgressAndItem.getStartedTasks() > taskProgressAndItem.getFinalizedTasks()) {
+      else if (taskProgress.getStartedTasks() > 0 &&
+              taskProgress.getStartedTasks() > taskProgress.getFinalizedTasks()) {
         //Check if the expected queries are still running.
         return super.getExecutionState();
       }
-      else if(taskProgressAndItem.getStartedTasks() == 0 ||
-              taskProgressAndItem.getStartedTasks() == taskProgressAndItem.getFinalizedTasks()){
-        infoLog(STEP_ON_STATE_CHECK,"No running tasks detected. StartedTasks: "+ taskProgressAndItem.getStartedTasks()+ "," +
-                        " FinalizedTasks: "+taskProgressAndItem.getFinalizedTasks() + " !");
+      else if(taskProgress.getStartedTasks() == 0 ||
+              taskProgress.getStartedTasks() == taskProgress.getFinalizedTasks()){
+        infoLog(STEP_ON_STATE_CHECK,"No running tasks detected. StartedTasks: "+ taskProgress.getStartedTasks()+ "," +
+                        " FinalizedTasks: "+taskProgress.getFinalizedTasks() + " !");
         throw new UnknownStateException("No running Tasks detected for step: "+ getGlobalStepId() + " !");
       }
     } catch (Exception e) {
@@ -711,11 +711,11 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
             .withVariable("table", getTemporaryJobTableName(stepId));
   }
 
-  private SQLQuery retrieveTaskStatisticsQuery(String schema, String stepId) throws WebClientException {
+  private SQLQuery retrieveTaskStatisticsQuery(String schema, String stepId) {
     return new SQLQuery("""
             SELECT COUNT(1) as total,
-                SUM((A.started = true)::int) as started,
-                SUM((A.finalized = true)::int) as finalized
+                SUM((started = true)::int) as started,
+                SUM((finalized = true)::int) as finalized
                 FROM ${schema}.${table};
         """)
             .withVariable("schema", schema)
