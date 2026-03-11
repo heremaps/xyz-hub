@@ -140,9 +140,11 @@ public class SubscriptionHandler {
         });
   }
 
+  private static int v2kForSubscribedNonHistoryLayers = 99991;
+
   private static Future<Void> increaseVersionsToKeepIfNecessary(Marker marker, Space space) {
     return space != null && space.getVersionsToKeep() == 1 ?
-        Service.spaceConfigClient.store(marker, (com.here.xyz.hub.connectors.models.Space) space.withVersionsToKeep(2)) :
+        Service.spaceConfigClient.store(marker, (com.here.xyz.hub.connectors.models.Space) space.withVersionsToKeep(v2kForSubscribedNonHistoryLayers)) :
         Future.succeededFuture();
   }
 
