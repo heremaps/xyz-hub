@@ -101,9 +101,9 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
   @JsonView({Internal.class, Static.class})
   private int estimatedSeconds = -1;
 
-  //Compilers can decide max allowed import size. Set default to 10G for normal use-case
+  //Compilers can decide max allowed import size. Set default to 200G for normal use-case
   @JsonIgnore
-  private long maxInputBytesForNonEmptyImport = 10l * 1024 * 1024 * 1024;
+  private long maxInputBytesForNonEmptyImport = 200l * 1024 * 1024 * 1024;
 
   public UpdateStrategy getUpdateStrategy() {
     return updateStrategy;

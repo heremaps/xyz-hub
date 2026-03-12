@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -54,7 +54,6 @@ import com.here.xyz.util.service.aws.s3.S3Uri;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -244,14 +243,14 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
    * @return The outputs that have been registered for the specified outputSet (so far).
    */
   private List<Output> loadStepOutputs(OutputSet outputSet) {
-    return loadOutputs(Set.of(toS3Path(outputSet)), outputSet.modelBased);
+    return loadOutputs(defaultBucket(), Set.of(toS3Path(outputSet)), outputSet.modelBased);
   }
 
-  private List<Output> loadOutputs(Set<String> s3Prefixes, boolean modelBased) {
+  private List<Output> loadOutputs(String bucketName, Set<String> s3Prefixes, boolean modelBased) {
     return s3Prefixes
         .stream()
         //TODO: Scan the different folders in parallel
-        .flatMap(s3Prefix -> S3Client.getInstance().scanFolder(s3Prefix)
+        .flatMap(s3Prefix -> S3Client.getInstance(bucketName).scanFolder(s3Prefix)
             .stream()
             .filter(s3ObjectSummary -> s3ObjectSummary.size() > 0)
             .map(s3ObjectSummary -> modelBased
@@ -347,7 +346,8 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
    * @return All outputs for the specified InputSet
    */
   private List<Output> loadOutputsFor(InputSet inputSet) {
-    return loadOutputs(Set.of(inputSet.toS3Path(jobId)), inputSet.modelBased());
+    S3Uri s3Uri = inputSet.toS3Uri(jobId);
+    return loadOutputs(s3Uri.bucket(), Set.of(s3Uri.key()), inputSet.modelBased());
   }
 
   private static List<Input> filterInputs(List<Input> inputs, Class<? extends Input>[] inputTypes) {
@@ -714,17 +714,16 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
     return currentInputsCount(inputType) > 0;
   }
 
-  /**
-   * Use this constructor to reference the outputs of a step belonging to a different job than the one the consuming step belongs to.
-   * @param jobId The other job's id
-   * @param providerId The ID of the entity that provided the inputs (e.g., a step ID or "USER")
-   * @param name The name for the set of outputs to be produced
-   */
-  public record InputSet(String jobId, String providerId, String name, boolean modelBased, Map<String, String> metadata) {
+  public record InputSet(String jobId, String providerId, String name, boolean modelBased, Map<String, String> metadata, S3Uri s3Uri) {
     public static final String DEFAULT_SET_NAME = "inputs"; //Depicts the input set used if no set name is defined
     public static final String DEFAULT_SET_GROUP = "default"; //Depicts the output set group used if no set name is defined
     public static final String USER_PROVIDER = "USER";
+    public static final String GENERIC_PROVIDER = "GENERIC";
     public static final Supplier<InputSet> USER_INPUTS = () -> new InputSet();
+
+    public InputSet(String jobId, String providerId, String name, boolean modelBased, Map<String, String> metadata) {
+      this(jobId, providerId, name, modelBased, metadata, null);
+    }
 
     public InputSet(String jobId, String providerId, String name, boolean modelBased) {
       this(jobId, providerId, name, modelBased, null);
@@ -756,6 +755,10 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
       this(null, USER_PROVIDER, DEFAULT_SET_NAME, false);
     }
 
+    public InputSet(S3Uri s3Uri, String name, Map<String, String> metadata) {
+      this(null, GENERIC_PROVIDER, name, false, metadata, s3Uri);
+    }
+
     public String toS3Path(String consumerJobId) {
       return toS3Uri(consumerJobId).key();
     }
@@ -764,6 +767,8 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
       String jobId = this.jobId != null ? this.jobId : consumerJobId;
       if (USER_PROVIDER.equals(providerId))
         return Input.loadResolvedUserInputPrefixUri(jobId, name);
+      if (GENERIC_PROVIDER.equals(providerId))
+        return s3Uri;
       return new S3Uri(defaultBucket(), Output.stepOutputS3Prefix(jobId, providerId, name));
     }
   }
