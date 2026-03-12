@@ -281,10 +281,10 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     return buildNextVersionFragment(new Ref(HEAD), true, versionParamName, 0);
   }
 
-  private SQLQuery buildMinVersionFragment(SelectiveEvent event, long baseVersion) {
+  protected SQLQuery buildMinVersionFragment(SelectiveEvent event, long baseVersion) {
     Ref ref = event.getRef();
     boolean isHeadOrAllVersions = ref.isHead() || ref.isAllVersions() || ref.isRange() && ref.getEnd().isHead();
-    long requestedVersion = isHeadOrAllVersions ? Long.MAX_VALUE : ref.isRange() ? ref.getEnd().getVersion() : ref.getVersion();
+    long requestedVersion = isHeadOrAllVersions ? Long.MAX_VALUE : ref.isRange() ? ref.getStart().getVersion() : ref.getVersion();
 
     if (event.getVersionsToKeep() > 1) {
       return new SQLQuery("AND greatest(#{minVersion}, (SELECT max(version) + ${{baseVersion}} - #{versionsToKeep} FROM ${schema}.${table})) <= ${{requestedVersion}}")
