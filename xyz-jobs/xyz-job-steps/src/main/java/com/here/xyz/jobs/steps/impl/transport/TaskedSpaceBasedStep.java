@@ -99,6 +99,10 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   protected Ref versionRef;
   @JsonView({Internal.class, Static.class})
   protected long spaceCreatedAt;
+  @JsonView({Internal.class, Static.class})
+  protected long minSpaceVersion = -1;
+  @JsonView({Internal.class, Static.class})
+  protected long maxSpaceVersion = -1;
 
   public Ref getVersionRef() {
     return versionRef;
@@ -123,6 +127,32 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
 
   public T withSpaceCreatedAt(long spaceCreatedAt) {
     setSpaceCreatedAt(spaceCreatedAt);
+    return (T) this;
+  }
+
+  public long getMinSpaceVersion() {
+    return minSpaceVersion;
+  }
+
+  public void setMinSpaceVersion(long minSpaceVersion) {
+    this.minSpaceVersion = minSpaceVersion;
+  }
+
+  public T withMinSpaceVersion(long minSpaceVersion) {
+    setMinSpaceVersion(minSpaceVersion);
+    return (T) this;
+  }
+
+  public long getMaxSpaceVersion() {
+    return maxSpaceVersion;
+  }
+
+  public void setMaxSpaceVersion(long maxSpaceVersion) {
+    this.maxSpaceVersion = maxSpaceVersion;
+  }
+
+  public T withMaxSpaceVersion(long maxSpaceVersion) {
+    setMaxSpaceVersion(maxSpaceVersion);
     return (T) this;
   }
 
@@ -273,6 +303,10 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
       throw new ValidationException("Version ref is required.");
 
     try {
+      StatisticsResponse statistics = loadSpaceStatistics(getSpaceId(), context, true);
+      setMinSpaceVersion(statistics.getMinVersion().getValue());
+      setMaxSpaceVersion(statistics.getMaxVersion().getValue());
+
       try {
         setVersionRef(hubWebClient().resolveRef(getSpaceId(), context, versionRef));
         setSpaceCreatedAt(space(true).getCreatedAt());
@@ -300,32 +334,22 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
     if (this.versionRef == null)
       return true;
 
-    try{
-      //TODO: Discuss if we want move this to SpaceBaseStep impl
-      // Can be moved to SpaceBasedStep#validateRef
-      StatisticsResponse statistics = loadSpaceStatistics(getSpaceId(), context, true);
-
-      Long minSpaceVersion = statistics.getMinVersion().getValue();
-      Long maxSpaceVersion = statistics.getMaxVersion().getValue();
-
-      if (this.versionRef.isSingleVersion()) {
-        if (this.versionRef.getVersion() < minSpaceVersion)
-          throw new ValidationException("Invalid VersionRef! Version is smaller than min available version '" +
-                  minSpaceVersion + "'!");
-        if (this.versionRef.getVersion() > maxSpaceVersion)
-          throw new ValidationException("Invalid VersionRef! Version is higher than max available version '" +
-                  maxSpaceVersion + "'!");
-      } else if (this.versionRef.isRange()) {
-        if (this.versionRef.getStart().getVersion() < minSpaceVersion)
-          throw new ValidationException("Invalid VersionRef! StartVersion is smaller than min available version '" +
-                  minSpaceVersion + "'!");
-        if (this.versionRef.getEnd().getVersion() > maxSpaceVersion)
-          throw new ValidationException("Invalid VersionRef! EndVersion is higher than max available version '" +
-                  maxSpaceVersion + "'!");
-      }
-    }catch (WebClientException e) {
-      throw handleWebClientException("Error loading resource " + getSpaceId(), e);
+    if (this.versionRef.isSingleVersion()) {
+      if (this.versionRef.getVersion() < minSpaceVersion)
+        throw new ValidationException("Invalid VersionRef! Version is smaller than min available version '" +
+                minSpaceVersion + "'!");
+      if (this.versionRef.getVersion() > maxSpaceVersion)
+        throw new ValidationException("Invalid VersionRef! Version is higher than max available version '" +
+                maxSpaceVersion + "'!");
+    } else if (this.versionRef.isRange()) {
+      if (this.versionRef.getStart().getVersion() < minSpaceVersion)
+        throw new ValidationException("Invalid VersionRef! StartVersion is smaller than min available version '" +
+                minSpaceVersion + "'!");
+      if (this.versionRef.getEnd().getVersion() > maxSpaceVersion)
+        throw new ValidationException("Invalid VersionRef! EndVersion is higher than max available version '" +
+                maxSpaceVersion + "'!");
     }
+
     return true;
   }
 

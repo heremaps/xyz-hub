@@ -448,7 +448,7 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
     Space space = context == SUPER ? superSpace() : space();
 
     return new GetFeaturesByGeometryInput(space.getId(), hubWebClient().loadConnector(space.getStorage().getId()).params,
-        space().getExtension() != null ? space().resolveCompositeParams(superSpace()) : null, context, space.getVersionsToKeep(),
+        space().getExtension() != null ? space().resolveCompositeParams(superSpace()) : null, context, space.getVersionsToKeep(), minSpaceVersion,
         versionRef, spatialFilter != null ? spatialFilter.getGeometry() : null, spatialFilter != null ? spatialFilter.getRadius() : 0,
         spatialFilter != null && spatialFilter.isClip(), propertyFilter);
   }
