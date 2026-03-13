@@ -95,7 +95,7 @@
     <vertx-version>4.5.14</vertx-version>
     <geo-tools-version>30.1</geo-tools-version>
     <jts-version>1.19.0</jts-version>
-    <jackson-version>2.15.2</jackson-version>
+    <jackson-version>2.18.6</jackson-version>
     <lambda-core-version>1.2.1</lambda-core-version>
     <log4j-version>2.20.0</log4j-version>
     <aws-log4j-version>1.5.1</aws-log4j-version>
@@ -738,12 +738,12 @@
       <dependency>
         <groupId>com.mchange</groupId>
         <artifactId>mchange-commons-java</artifactId>
-        <version>0.2.20</version>
+        <version>0.4.0</version>
       </dependency>
       <dependency>
         <groupId>com.mchange</groupId>
         <artifactId>c3p0</artifactId>
-        <version>0.9.5.5</version>
+        <version>0.12.0</version>
       </dependency>
       <dependency>
         <artifactId>mapbox-vector-tile</artifactId>
