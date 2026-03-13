@@ -68,15 +68,11 @@ public final class DataReferenceApi extends Api {
 
   private Future<DataReference> storeOrReuseEquivalentReference(DataReference referenceToCreate) {
     return findByUniquenessKey(referenceToCreate)
-      .compose(maybeExisting -> {
-        if (maybeExisting.isEmpty()) {
-          return dataReferences.store(referenceToCreate).map(referenceToCreate::withId);
-        }
-
-        DataReference existing = maybeExisting.get();
-        DataReference toStore = mergeForUpsert(existing, referenceToCreate);
-        return dataReferences.store(toStore).map(v -> toStore);
-      });
+      .compose(maybeExisting -> maybeExisting
+        .map(existing -> mergeForUpsert(existing, referenceToCreate))
+        .map(toStore -> dataReferences.store(toStore).map(ignoreId -> toStore))
+        .orElseGet(() -> dataReferences.store(referenceToCreate).map(referenceToCreate::withId))
+      );
   }
 
   private Future<Optional<DataReference>> findByUniquenessKey(DataReference referenceToCreate) {

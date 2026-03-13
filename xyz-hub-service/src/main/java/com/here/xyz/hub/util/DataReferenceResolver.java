@@ -53,7 +53,7 @@ public final class DataReferenceResolver {
 
     /**
      * Load by reference id and return:
-     *  - onlyStale=true  -> the exact stored reference (if present), with stale references
+     *  - onlyStale=true  -> returns only stale references
      *  - onlyStale=false -> a non-stale effective reference or Optional.empty()
      */
     public Future<Optional<DataReference>> loadById(Marker marker, UUID referenceId, boolean onlyStale) {
@@ -203,7 +203,16 @@ public final class DataReferenceResolver {
     }
 
     private static Optional<String> parentMapHrn(String entityId) {
-        int idx = entityId == null ? -1 : entityId.lastIndexOf(':');
+        if (entityId == null) {
+            return Optional.empty();
+        }
+
+        String[] parts = entityId.split(":", -1);
+        if (parts.length != 7) {
+            return Optional.empty();
+        }
+
+        int idx = entityId.lastIndexOf(':');
         if (idx <= 0 || idx == entityId.length() - 1) {
             return Optional.empty();
         }

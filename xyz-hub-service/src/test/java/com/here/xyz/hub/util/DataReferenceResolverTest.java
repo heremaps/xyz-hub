@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -62,7 +63,7 @@ class DataReferenceResolverTest {
 
         Optional<DataReference> result = await(resolver.loadById(marker, id, false));
 
-        assertTrue(result.isEmpty());
+        assertThat(result).isEmpty();
         verify(references).load(id);
         verifyNoInteractions(spaces);
     }
@@ -76,8 +77,7 @@ class DataReferenceResolverTest {
 
         Optional<DataReference> result = await(resolver.loadById(marker, id, true));
 
-        assertTrue(result.isPresent());
-        assertSame(ref, result.get());
+        assertThat(result).containsSame(ref);
         verifyNoInteractions(spaces);
     }
 
@@ -270,9 +270,7 @@ class DataReferenceResolverTest {
 
         List<DataReference> result = await(resolver.filterStaleForEntity(marker, entityId, List.of(stale, atAnchor, fresh, nullCreatedAt)));
 
-        assertEquals(2, result.size());
-        assertTrue(result.contains(stale));
-        assertTrue(result.contains(nullCreatedAt));
+        assertThat(result).containsExactlyInAnyOrder(stale, nullCreatedAt);
     }
 
     @Test
@@ -292,6 +290,23 @@ class DataReferenceResolverTest {
         List<DataReference> result = await(resolver.filterStaleForEntity(marker, entityId, List.of(stale, atAnchor, fresh)));
 
         assertEquals(List.of(stale), result);
+    }
+
+    @Test
+    void filterForEntity_shouldNotTrimPlainMapHrnToNamespace_whenDirectSpaceIsMissing() {
+        String entityId = "hrn:here:data::olp-here:someMap";
+        String wrongParent = "hrn:here:data::olp-here";
+
+        DataReference older = ref(entityId, 100L);
+        DataReference newer = ref(entityId, 200L);
+
+        when(spaces.get(marker, entityId)).thenReturn(Future.succeededFuture(null));
+
+        List<DataReference> result = await(resolver.filterForEntity(marker, entityId, List.of(older, newer), false));
+
+        assertEquals(List.of(newer), result);
+        verify(spaces).get(marker, entityId);
+        verify(spaces, never()).get(marker, wrongParent);
     }
 
     @Test
