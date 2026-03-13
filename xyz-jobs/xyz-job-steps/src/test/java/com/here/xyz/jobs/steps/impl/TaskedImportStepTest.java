@@ -25,6 +25,7 @@ import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPerLine;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format;
 import com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace;
+import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.responses.StatisticsResponse;
@@ -148,6 +149,83 @@ public class TaskedImportStepTest extends ImportStepTest {
     Assertions.assertEquals(Long.valueOf(fileCount * featureCountPerFile), statsAfter.getCount().getValue());
     checkStatistics(fileCount * featureCountPerFile, step.loadUserOutputs());
   }
+
+/****  */
+  @Test
+  public void testImport_inEmpty_GEOJSON_with_deleted_features() throws Exception {
+    StatisticsResponse statsBefore = getStatistics(SPACE_ID);
+    Assertions.assertEquals(0L, statsBefore.getCount().getValue());
+
+    uploadInputFile(JOB_ID,
+        ByteStreams.toByteArray(this.getClass().getResourceAsStream("/testFiles/file_with_deleted.geojson")),
+        S3ContentType.APPLICATION_JSON);
+
+    TaskedImportFilesToSpace step = new TaskedImportFilesToSpace()
+            .withJobId(JOB_ID)
+            .withVersionRef(new Ref(Ref.HEAD))
+            .withFormat(TaskedImportFilesToSpace.Format.GEOJSON)
+            .withSpaceId(SPACE_ID)
+            .withInputSets(List.of(USER_INPUTS.get()));
+
+    sendLambdaStepRequestBlock(step, true);
+
+    StatisticsResponse statsAfter = getStatistics(SPACE_ID);
+
+    // The file contains 10 features total: 5 marked as deleted, 5 normal.
+    // When importing into an empty space, the deleted features should not appear as visible features.
+    // Only the 5 non-deleted features should be counted.
+    Assertions.assertEquals(Long.valueOf(5), statsAfter.getCount().getValue());
+    checkStatistics(5, step.loadUserOutputs());
+  }
+
+  @Test
+  public void testImport_inNonEmpty_GEOJSON_with_deleted_features() throws Exception {
+    // Pre-populate the space with features that overlap with IDs in the import file.
+    // Use IDs that match some deleted (del1, del2) and some normal (norm1, norm2) features from the file,
+    // plus additional features (existing1, existing2) that are not in the import file.
+    putFeatureCollectionToSpace(SPACE_ID, new FeatureCollection().withFeatures(List.of(
+        simpleFeature("del1"),      // exists in file as deleted
+        simpleFeature("del2"),      // exists in file as deleted
+        simpleFeature("norm1"),     // exists in file as normal (will be updated)
+        simpleFeature("norm2"),     // exists in file as normal (will be updated)
+        simpleFeature("existing1"), // not in file, should remain untouched
+        simpleFeature("existing2")  // not in file, should remain untouched
+    )));
+
+    StatisticsResponse statsBefore = getStatistics(SPACE_ID);
+    Assertions.assertEquals(Long.valueOf(6), statsBefore.getCount().getValue());
+
+    uploadInputFile(JOB_ID,
+        ByteStreams.toByteArray(this.getClass().getResourceAsStream("/testFiles/file_with_deleted.geojson")),
+        S3ContentType.APPLICATION_JSON);
+
+    TaskedImportFilesToSpace step = new TaskedImportFilesToSpace()
+            .withJobId(JOB_ID)
+            .withVersionRef(new Ref(Ref.HEAD))
+            .withFormat(TaskedImportFilesToSpace.Format.GEOJSON)
+            .withSpaceId(SPACE_ID)
+            .withInputSets(List.of(USER_INPUTS.get()));
+
+    sendLambdaStepRequestBlock(step, true);
+
+    StatisticsResponse statsAfter = getStatistics(SPACE_ID);
+
+    // Import file: 5 deleted (del1-del5), 5 normal (norm1-norm5)
+    // Pre-existing: del1, del2, norm1, norm2, existing1, existing2
+    //
+    // After import:
+    //   del1, del2  -> deleted by import (removed from visible features)
+    //   del3, del4, del5 -> deleted but didn't exist, no visible effect
+    //   norm1, norm2 -> updated by import (still visible)
+    //   norm3, norm4, norm5 -> inserted by import (new visible features)
+    //   existing1, existing2 -> untouched (still visible)
+    //
+    // Expected visible count: norm1 + norm2 + norm3 + norm4 + norm5 + existing1 + existing2 = 7
+    Assertions.assertEquals(Long.valueOf(7), statsAfter.getCount().getValue());
+    checkStatistics(10, step.loadUserOutputs()); // todo: clarify should (del3, del4, del5) be within the count ?
+  }
+
+/****  */
 
   protected void executeImportStep(TaskedImportFilesToSpace.Format format, int featureCountSource,
                                    ImportFilesToSpace.EntityPerLine entityPerLine) throws IOException, InterruptedException {
