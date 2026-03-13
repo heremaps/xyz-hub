@@ -179,7 +179,7 @@ DECLARE
     feature RECORD;
 BEGIN
     -- Skip features marked as deleted
-    IF (NEW.jsondata::JSONB->'properties'->'@ns:com:here:xyz'->>'deleted')::BOOLEAN IS TRUE THEN
+    IF (NEW.jsondata::JSONB#>>'{properties,@ns:com:here:xyz,deleted}')::BOOLEAN IS TRUE THEN
         RETURN NULL;
     END IF;
 
