@@ -506,10 +506,12 @@ public class Job implements XyzSerializable {
     //Delete StateMachine if still existing
     return JobExecutor.getInstance().deleteExecution(getExecutionId())
         //Delete the inputs of this job
-        .compose(b -> deleteInputs())
-        //Delete the outputs of all involved steps
-        .compose(v -> Future.all(Job.forEach(getSteps().stepStream().collect(Collectors.toList()), step -> deleteStepOutputs(step)))
-            .mapEmpty());
+        .compose(b -> deleteInputs());
+
+    //Temporary deactivation of deletions on S3.
+    //Delete the outputs of all involved steps
+    //      .compose(v -> Future.all(Job.forEach(getSteps().stepStream().collect(Collectors.toList()), step -> deleteStepOutputs(step)))
+    //          .mapEmpty());
   }
 
   private static Future<Boolean> deleteStepOutputs(Step step) {
