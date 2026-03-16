@@ -36,7 +36,6 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -91,8 +90,7 @@ class DataReferenceResolverTest {
 
         Optional<DataReference> result = await(resolver.loadEffectiveById(marker, id));
 
-        assertTrue(result.isPresent());
-        assertSame(ref, result.get());
+        assertThat(result).containsSame(ref);
     }
 
     @Test
@@ -111,8 +109,7 @@ class DataReferenceResolverTest {
 
         Optional<DataReference> result = await(resolver.loadEffectiveById(marker, id));
 
-        assertTrue(result.isPresent());
-        assertSame(candidate2Newest, result.get());
+        assertThat(result).containsSame(candidate2Newest);
     }
 
     @Test
@@ -130,7 +127,7 @@ class DataReferenceResolverTest {
 
         Optional<DataReference> result = await(resolver.loadEffectiveById(marker, id));
 
-        assertTrue(result.isEmpty());
+        assertThat(result).isEmpty();
     }
 
     @Test
@@ -167,8 +164,7 @@ class DataReferenceResolverTest {
 
         Optional<DataReference> result = await(resolver.loadEffectiveById(marker, id));
 
-        assertTrue(result.isPresent());
-        assertSame(sameKeyReplacement, result.get());
+        assertThat(result).containsSame(sameKeyReplacement);
     }
 
     @Test
@@ -184,7 +180,7 @@ class DataReferenceResolverTest {
 
         List<DataReference> result = await(resolver.filterForEntity(marker, entityId, List.of(stale, latest, newer), false));
 
-        assertEquals(List.of(newer), result);
+        assertThat(result).containsExactly(newer);
     }
 
     @Test
@@ -200,7 +196,7 @@ class DataReferenceResolverTest {
 
         List<DataReference> result = await(resolver.filterForEntity(marker, entityId, List.of(stale, latest, newer), true));
 
-        assertEquals(List.of(stale), result);
+        assertThat(result).containsExactly(stale);
     }
 
     @Test
@@ -213,7 +209,7 @@ class DataReferenceResolverTest {
 
         List<DataReference> result = await(resolver.filterForEntity(marker, entityId, List.of(older, newer), false));
 
-        assertEquals(List.of(newer), result);
+        assertThat(result).containsExactly(newer);
     }
 
     @Test
@@ -226,7 +222,7 @@ class DataReferenceResolverTest {
 
         List<DataReference> result = await(resolver.filterForEntity(marker, entityId, List.of(r1, r2), true));
 
-        assertTrue(result.isEmpty());
+        assertThat(result).isEmpty();
     }
 
     @Test
@@ -289,7 +285,7 @@ class DataReferenceResolverTest {
 
         List<DataReference> result = await(resolver.filterStaleForEntity(marker, entityId, List.of(stale, atAnchor, fresh)));
 
-        assertEquals(List.of(stale), result);
+        assertThat(result).containsExactly(stale);
     }
 
     @Test
@@ -304,7 +300,7 @@ class DataReferenceResolverTest {
 
         List<DataReference> result = await(resolver.filterForEntity(marker, entityId, List.of(older, newer), false));
 
-        assertEquals(List.of(newer), result);
+        assertThat(result).containsExactly(newer);
         verify(spaces).get(marker, entityId);
         verify(spaces, never()).get(marker, wrongParent);
     }
@@ -339,9 +335,7 @@ class DataReferenceResolverTest {
 
         List<DataReference> result = await(resolver.filterForEntity(marker, entityId, List.of(keyAOld, keyANew, keyB), false));
 
-        assertEquals(2, result.size());
-        assertTrue(result.contains(keyANew));
-        assertTrue(result.contains(keyB));
+        assertThat(result).containsExactlyInAnyOrder(keyANew, keyB);
     }
 
     @Test
@@ -373,9 +367,7 @@ class DataReferenceResolverTest {
 
         List<DataReference> result = await(resolver.filterForEntity(marker, entityId, List.of(keyAOld, keyANew, keyB), false));
 
-        assertEquals(2, result.size());
-        assertTrue(result.contains(keyANew));
-        assertTrue(result.contains(keyB));
+        assertThat(result).containsExactlyInAnyOrder(keyANew, keyB);
     }
 
     private static DataReference ref(String entityId, Long createdAt) {
