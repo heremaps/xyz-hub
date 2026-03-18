@@ -19,6 +19,10 @@
 
 package com.here.xyz.hub.config.dynamo;
 
+import static com.here.xyz.XyzSerializable.fromMap;
+import static com.here.xyz.util.service.aws.dynamo.DynamoClient.queryIndex;
+import static java.util.Optional.ofNullable;
+
 import com.amazonaws.services.dynamodbv2.document.Item;
 import com.amazonaws.services.dynamodbv2.document.ItemCollection;
 import com.amazonaws.services.dynamodbv2.document.QueryFilter;
@@ -32,11 +36,6 @@ import com.here.xyz.models.hub.DataReference;
 import com.here.xyz.util.service.aws.dynamo.DynamoClient;
 import com.here.xyz.util.service.aws.dynamo.IndexDefinition;
 import io.vertx.core.Future;
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.List;
 import java.util.Map;
@@ -46,10 +45,10 @@ import java.util.StringJoiner;
 import java.util.UUID;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
-
-import static com.here.xyz.XyzSerializable.fromMap;
-import static com.here.xyz.util.service.aws.dynamo.DynamoClient.queryIndex;
-import static java.util.Optional.ofNullable;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public final class DynamoDataReferenceConfigClient extends DataReferenceConfigClient {
 
@@ -215,7 +214,7 @@ public final class DynamoDataReferenceConfigClient extends DataReferenceConfigCl
 
         List<IndexDefinition> globalSecondaryIndices = List.of(idIndex);
 
-        dynamoClient.createTable(dataReferenceTable.getTableName(), attributes, keys, globalSecondaryIndices, null);
+        dynamoClient.createTable(dataReferenceTable.getTableName(), attributes, keys, globalSecondaryIndices, "keepUntil");
       }
       catch (AmazonDynamoDBException e) {
         logger.error("Failure during creating table on {}#init()", getClass().getSimpleName(), e);

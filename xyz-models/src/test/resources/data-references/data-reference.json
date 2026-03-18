@@ -6,6 +6,16 @@
   "endVersion": 134,
   "objectType": "some-object-type",
   "contentType": "some-content-type",
+  "contentEncoding": "gzip",
+  "filter": {
+    "jsonPaths": [
+      "properties.category"
+    ],
+    "spatial": {
+      "type": "bbox"
+    }
+  },
+  "producer": "some-producer",
   "location": "some-location",
   "sourceSystem": "some-source-system",
   "targetSystem": "some-target-system"

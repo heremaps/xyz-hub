@@ -1413,6 +1413,7 @@ paths:
           schema:
             type: string
             example: 'hrn:here:data::olp-here:CATALOG_ID:LAYER_ID'
+        - $ref: '#/components/parameters/OnlyStale'
         - name: startVersion
           in: query
           required: false
@@ -1501,6 +1502,16 @@ components:
       scheme: bearer
       bearerFormat: JWT
   parameters:
+    OnlyStale:
+      name: onlyStale
+      in: query
+      description: >-
+        If set to true, only stale Data References are returned.
+        Default is false.
+      required: false
+      schema:
+        type: boolean
+        default: false
     Author:
       name: author
       in: query

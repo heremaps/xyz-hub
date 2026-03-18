@@ -179,6 +179,7 @@ public class CountSpace extends TaskedSpaceBasedStep<CountSpace, CountInput, Exp
         space().getExtension() != null ? space().resolveCompositeParams(superSpace()) : null,
         context,
         space().getVersionsToKeep(),
+        minSpaceVersion,
         getVersionRef(),
         spatialFilter != null ? spatialFilter.getGeometry() : null,
         spatialFilter != null ? spatialFilter.getRadius() : 0,
