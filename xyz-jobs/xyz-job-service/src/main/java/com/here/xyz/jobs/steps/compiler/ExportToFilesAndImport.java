@@ -22,6 +22,7 @@ package com.here.xyz.jobs.steps.compiler;
 import static com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles.EXPORTED_DATA;
 
 import com.here.xyz.jobs.Job;
+import com.here.xyz.jobs.datasets.DatasetDescription;
 import com.here.xyz.jobs.datasets.DatasetDescription.Space;
 import com.here.xyz.jobs.processes.CopyViaFiles;
 import com.here.xyz.jobs.steps.CompilationStepGraph;
@@ -35,6 +36,7 @@ import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Compiler that exports data from a source space to files and then imports those files into a target space
@@ -68,11 +70,9 @@ public class ExportToFilesAndImport implements JobCompilationInterceptor {
         && job.getTarget() instanceof Space;
   }
 
-  @Override
-  public CompilationStepGraph compile(Job job) {
-    Space source = (Space) job.getSource();
-    Space target = (Space) job.getTarget();
 
+  public static CompilationStepGraph compile(String jobId, DatasetDescription.Space source, DatasetDescription.Space target, Map<String, String> outputMetadata)
+  {
     String sourceSpaceId = source.getId();
     String targetSpaceId = target.getId();
 
@@ -102,7 +102,14 @@ public class ExportToFilesAndImport implements JobCompilationInterceptor {
     return graph;
   }
 
-  private void checkIfSpaceIsAccessible(String spaceId) throws CompilationError {
+  @Override
+  public CompilationStepGraph compile(Job job) {
+
+    return compile(job.getId(),(DatasetDescription.Space) job.getSource(),(DatasetDescription.Space) job.getTarget(),null);
+
+  }
+
+  private static void checkIfSpaceIsAccessible(String spaceId) throws CompilationError {
     try {
       HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadSpaceStatistics(spaceId);
     }
