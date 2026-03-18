@@ -41,6 +41,7 @@ import com.here.xyz.models.hub.Space;
 import com.here.xyz.psql.query.GetFeaturesByGeometryBuilder;
 import com.here.xyz.psql.query.GetFeaturesByGeometryBuilder.GetFeaturesByGeometryInput;
 import com.here.xyz.psql.query.QueryBuilder.QueryBuildingException;
+import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.pg.FeatureWriterQueryBuilder.FeatureWriterQueryContextBuilder;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
@@ -58,6 +59,7 @@ import org.apache.logging.log4j.Logger;
  * only copy a dataset subset from the source space.
  */
 //TODO: Merge version creation step into this step again (basically both: pre- & post-step)
+//TODO: implement TaskedSpaceBasedStep
 public class CopySpace extends SpaceBasedStep<CopySpace> {
   private static final Logger logger = LogManager.getLogger();
 
@@ -70,6 +72,8 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
   private PropertiesQuery propertyFilter;
   @JsonView({Internal.class, Static.class})
   private Ref sourceVersionRef;
+  @JsonView({Internal.class, Static.class}) //TODO: Remove static
+  private long minSpaceVersion = -1;
   @JsonView({Internal.class, Static.class})
   private int[] threadInfo = {0,1};  // [threadId, threadCount]
 
@@ -287,8 +291,9 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
   private long loadSourceFeatureCount() {
     if (estimatedSourceFeatureCount < 0) {
       try {
-        estimatedSourceFeatureCount = loadSpaceStatistics(getSpaceId(), space().getExtension() != null ? EXTENSION : null)
-            .getCount().getValue();
+        StatisticsResponse statisticsResponse = loadSpaceStatistics(getSpaceId(), space().getExtension() != null ? EXTENSION : null);
+        estimatedSourceFeatureCount = statisticsResponse.getCount().getValue();
+        minSpaceVersion = statisticsResponse.getMinVersion().getValue();
       }
       catch (WebClientException e) {
         throw new StepException("Error loading the source feature count", e).withRetryable(true);
@@ -509,6 +514,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
         space().getExtension() != null ? space().resolveCompositeParams(superSpace()) : null,
         EXTENSION,
         space().getVersionsToKeep(),
+        minSpaceVersion,
         sourceVersionRef,
         spatialFilter != null ? spatialFilter.getGeometry() : null,
         spatialFilter != null ? spatialFilter.getRadius() : 0,
