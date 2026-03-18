@@ -19,14 +19,12 @@
 
 package com.here.xyz.jobs.processes;
 
-import com.fasterxml.jackson.annotation.JsonSubTypes;
-import com.here.xyz.Typed;
-
-@JsonSubTypes({
-    @JsonSubTypes.Type(value = Maintain.class),
-    @JsonSubTypes.Type(value = Prune.class),
-    @JsonSubTypes.Type(value = CopyViaFiles.class)
-})
-public abstract class ProcessDescription implements Typed {
+/**
+ * Process description for copying a space via file export and import.
+ * When set as the process on a job with Space source and Space target,
+ * the {@link com.here.xyz.jobs.steps.compiler.ExportToFilesAndImport} compiler will be chosen
+ * instead of the default {@link com.here.xyz.jobs.steps.compiler.SpaceCopy} compiler.
+ */
+public class CopyViaFiles extends ProcessDescription {
 
 }
