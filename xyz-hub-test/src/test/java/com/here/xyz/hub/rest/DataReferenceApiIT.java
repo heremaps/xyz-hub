@@ -356,7 +356,7 @@ final class DataReferenceApiIT extends RestAssuredTest {
         "contentType": "application/geo+json-seq",
         "contentEncoding": "gzip",
         "filter": {
-          "jsonPaths": ["properties.category"],
+          "jsonPath": "properties.category",
           "spatialFilter": {"type": "bbox"}
         },
         "producer": "data-pipeline-v1",
@@ -376,7 +376,7 @@ final class DataReferenceApiIT extends RestAssuredTest {
       .body("id", equalTo(referenceId.toString()))
       .body("contentEncoding", equalTo("gzip"))
       .body("producer", equalTo("data-pipeline-v1"))
-      .body("filter.jsonPaths[0]", equalTo("properties.category"))
+      .body("filter.jsonPath", equalTo("properties.category"))
       .body("filter.spatialFilter.type", equalTo("bbox"));
 
     registerCreatedObject(referenceId.toString());
@@ -386,7 +386,7 @@ final class DataReferenceApiIT extends RestAssuredTest {
       .statusCode(OK.code())
       .body("contentEncoding", equalTo("gzip"))
       .body("producer", equalTo("data-pipeline-v1"))
-      .body("filter.jsonPaths[0]", equalTo("properties.category"))
+      .body("filter.jsonPath", equalTo("properties.category"))
       .body("filter.spatialFilter.type", equalTo("bbox"));
   }
 
@@ -405,7 +405,7 @@ final class DataReferenceApiIT extends RestAssuredTest {
         "contentType": "application/geo+json-seq",
         "contentEncoding": "gzip",
         "filter": {
-          "jsonPaths": ["properties.type"],
+          "jsonPath": "properties.type",
           "spatialFilter": {"type": "bbox"}
         },
         "producer": "dedup-producer",
@@ -425,7 +425,7 @@ final class DataReferenceApiIT extends RestAssuredTest {
         "contentType": "application/geo+json-seq",
         "contentEncoding": "gzip",
         "filter": {
-          "jsonPaths": ["properties.type"],
+          "jsonPath": "properties.type",
           "spatialFilter": {"type": "bbox"}
         },
         "producer": "dedup-producer-updated",
