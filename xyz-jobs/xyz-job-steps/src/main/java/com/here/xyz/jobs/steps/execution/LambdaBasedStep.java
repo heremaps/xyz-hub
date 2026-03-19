@@ -299,7 +299,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
 
     //Special handling for ExportChangedTiles step to avoid too many updates of the job.
     //Can happen if there are many tasks with very short execution times.
-    if(!isCompleted && request.getStep() instanceof ExportChangedTiles){
+    if(!isCompleted && request.getStep() instanceof TaskedSpaceBasedStep<?,?,?>){
       float progress = request.getStep().getStatus().getEstimatedProgress();
 
       //ignore very small progress
