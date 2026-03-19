@@ -71,7 +71,7 @@ public class ExportToFilesAndImport implements JobCompilationInterceptor {
   }
 
 
-  public static CompilationStepGraph compile(String jobId, DatasetDescription.Space source, DatasetDescription.Space target, Map<String, String> outputMetadata)
+  public static CompilationStepGraph compile(String jobId, DatasetDescription.Space source, DatasetDescription.Space target, String layerType )
   {
     String sourceSpaceId = source.getId();
     String targetSpaceId = target.getId();
@@ -79,13 +79,17 @@ public class ExportToFilesAndImport implements JobCompilationInterceptor {
     checkIfSpaceIsAccessible(sourceSpaceId);
     checkIfSpaceIsAccessible(targetSpaceId);
 
+    Map<String, String> sourceMeta = java.util.Map.of( layerType == null ? source.getClass().getSimpleName().toLowerCase() : layerType , sourceSpaceId),
+                        targetMeta = java.util.Map.of( layerType == null ? target.getClass().getSimpleName().toLowerCase() : layerType , targetSpaceId);
+
     // Step 1: Export from source space to files
-    ExportSpaceToFiles exportStep = ExportToFiles.compile(source);
+    ExportSpaceToFiles exportStep = ExportToFiles.compile(source).withOutputMetadata(sourceMeta);
 
     // Step 2: Import the exported files into the target space, consuming the export's output
     TaskedImportFilesToSpace importStep = new TaskedImportFilesToSpace()
         .withSpaceId(targetSpaceId)
         .withVersionRef(new Ref(Ref.HEAD))
+        .withOutputMetadata(targetMeta)
         .withInputSets(List.of(new InputSet(exportStep.getOutputSet(EXPORTED_DATA))));
 
     // Build a sequential graph: export first, then import (with index drop/create)
