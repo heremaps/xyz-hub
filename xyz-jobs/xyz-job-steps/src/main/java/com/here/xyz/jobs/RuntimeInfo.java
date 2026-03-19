@@ -220,7 +220,7 @@ public class RuntimeInfo<T extends RuntimeInfo> implements XyzSerializable {
         NOT_READY, new State[]{SUBMITTED, FAILED},
         SUBMITTED, new State[]{PENDING, CANCELLING, FAILED},
         PENDING, new State[]{RUNNING, CANCELLING, SUCCEEDED, FAILED},
-        RESUMING, new State[]{PENDING, RUNNING, CANCELLING, FAILED},
+        RESUMING, new State[]{PENDING, CANCELLING, FAILED},
         RUNNING, new State[]{SUCCEEDED, CANCELLING, FAILED},
         CANCELLING, new State[]{CANCELLED, FAILED},
         CANCELLED, new State[]{RESUMING},
