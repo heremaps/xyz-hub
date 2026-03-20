@@ -397,7 +397,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
 
   @JsonIgnore
   protected boolean isResume() {
-    if(redriveCount == 0)
+    if(redriveCount == 0 || isPipeline())
       return false;
 
     boolean isResume = SFNInspector.findStepFunctionExecutionInHistory(executionId,
