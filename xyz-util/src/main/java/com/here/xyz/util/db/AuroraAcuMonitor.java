@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,23 +19,31 @@
 
 package com.here.xyz.util.db;
 
+import java.time.Instant;
+import java.util.Comparator;
+import java.util.List;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.IntStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.cloudwatch.CloudWatchClient;
-import software.amazon.awssdk.services.cloudwatch.model.*;
-
-import java.time.Instant;
-import java.util.Comparator;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
+import software.amazon.awssdk.services.cloudwatch.model.Dimension;
+import software.amazon.awssdk.services.cloudwatch.model.GetMetricDataRequest;
+import software.amazon.awssdk.services.cloudwatch.model.GetMetricDataResponse;
+import software.amazon.awssdk.services.cloudwatch.model.Metric;
+import software.amazon.awssdk.services.cloudwatch.model.MetricDataQuery;
+import software.amazon.awssdk.services.cloudwatch.model.MetricDataResult;
+import software.amazon.awssdk.services.cloudwatch.model.MetricStat;
 
 public final class AuroraAcuMonitor {
+
   private static final Logger logger = LogManager.getLogger();
   private static final long PERIOD_SEC = 60;
 
-  private final String clusterId;
+  private final List<Dimension> dimensions;
   private final Region region;
   private final CloudWatchClient cloudWatchClient;
   private final ScheduledFuture<?> task;
@@ -43,7 +51,23 @@ public final class AuroraAcuMonitor {
   private volatile double utilization = 0;
 
   public AuroraAcuMonitor(String clusterId, Region region, ScheduledExecutorService scheduler, CloudWatchClient cloudWatchClient) {
-    this.clusterId = clusterId;
+    this(List.of(dimension("DBClusterIdentifier", clusterId)), region, scheduler, cloudWatchClient);
+  }
+
+  public AuroraAcuMonitor(String clusterId, String role, Region region, ScheduledExecutorService scheduler,
+      CloudWatchClient cloudWatchClient) {
+    this(List.of(
+            dimension("DBClusterIdentifier", clusterId),
+            dimension("Role", role)
+        ),
+        region,
+        scheduler,
+        cloudWatchClient);
+  }
+
+  private AuroraAcuMonitor(List<Dimension> dimensions, Region region, ScheduledExecutorService scheduler,
+      CloudWatchClient cloudWatchClient) {
+    this.dimensions = List.copyOf(dimensions);
     this.region = region;
     this.cloudWatchClient = cloudWatchClient;
     this.task = scheduler.scheduleAtFixedRate(this::update, 0, PERIOD_SEC, TimeUnit.SECONDS);
@@ -62,8 +86,7 @@ public final class AuroraAcuMonitor {
       Metric metric = Metric.builder()
           .namespace("AWS/RDS")
           .metricName("ACUUtilization")
-          .dimensions(Dimension.builder()
-              .name("DBClusterIdentifier").value(clusterId).build())
+          .dimensions(dimensions)
           .build();
 
       MetricDataQuery query = MetricDataQuery.builder()
@@ -80,16 +103,29 @@ public final class AuroraAcuMonitor {
           .build());
 
       resp.metricDataResults().stream()
-          .flatMap(r -> r.values().stream()
-              .map(v -> new MetricPoint(v, r.timestamps().get(r.values().indexOf(v)))))
+          .flatMap(r -> toMetricPoints(r).stream())
           .max(Comparator.comparing(p -> p.ts))
           .ifPresent(p -> utilization = p.val);
 
+      logger.info("ACU poll result for dimensions={} in {}: utilization={}", dimensions, region, utilization);
     } catch (Exception e) {
-      logger.warn("ACU poll failed for {} in {}", clusterId, region, e);
+      logger.warn("ACU poll failed for dimensions={} in {}", dimensions, region, e);
       utilization = -1;
     }
   }
 
-  private record MetricPoint(double val, Instant ts) {}
+  private static List<MetricPoint> toMetricPoints(MetricDataResult result) {
+    int points = Math.min(result.values().size(), result.timestamps().size());
+    return IntStream.range(0, points)
+        .mapToObj(i -> new MetricPoint(result.values().get(i), result.timestamps().get(i)))
+        .toList();
+  }
+
+  private static Dimension dimension(String name, String value) {
+    return Dimension.builder().name(name).value(value).build();
+  }
+
+  private record MetricPoint(double val, Instant ts) {
+
+  }
 }

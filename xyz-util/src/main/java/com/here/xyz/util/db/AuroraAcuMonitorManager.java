@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,12 +19,19 @@
 
 package com.here.xyz.util.db;
 
+import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.cloudwatch.CloudWatchClient;
 
-import java.util.concurrent.*;
-
 public final class AuroraAcuMonitorManager {
+
+  private static final Logger logger = LogManager.getLogger();
   private static final ScheduledExecutorService executorService =
       Executors.newSingleThreadScheduledExecutor(r -> {
         Thread t = new Thread(r, "acu-monitor");
@@ -40,12 +47,40 @@ public final class AuroraAcuMonitorManager {
         new AuroraAcuMonitor(id, region, executorService, cw(region)));
   }
 
+  public static List<AuroraAcuMonitor> getForClusterRoles(String clusterId, Region region) {
+    try {
+      AuroraAcuMonitor writerMonitor = monitors.computeIfAbsent(clusterId + ":WRITER",
+          key -> new AuroraAcuMonitor(clusterId, "WRITER", region, executorService, cw(region)));
+      AuroraAcuMonitor readerMonitor = monitors.computeIfAbsent(clusterId + ":READER",
+          key -> new AuroraAcuMonitor(clusterId, "READER", region, executorService, cw(region)));
+      logger.info("Created role based ACU monitors for clusterId={} in {}.", clusterId, region);
+      return List.of(writerMonitor, readerMonitor);
+    } catch (Exception e) {
+      logger.warn("Could not create role based ACU monitors for clusterId={} in {}. Falling back to cluster monitor.", clusterId, region,
+          e);
+      return List.of(get(clusterId, region));
+    }
+  }
+
   public static void remove(String clusterId) {
-    if (clusterId == null) return;
+    if (clusterId == null) {
+      return;
+    }
 
     AuroraAcuMonitor m = monitors.remove(clusterId);
-    if (m != null) m.stop();
+    AuroraAcuMonitor writer = monitors.remove(clusterId + ":WRITER");
+    AuroraAcuMonitor reader = monitors.remove(clusterId + ":READER");
+    if (m != null) {
+      m.stop();
+    }
+    if (writer != null) {
+      writer.stop();
+    }
+    if (reader != null) {
+      reader.stop();
+    }
   }
+
 
   private static CloudWatchClient cw(Region r) {
     return cwPerRegion.computeIfAbsent(r, rr -> CloudWatchClient.builder().region(rr).build());
