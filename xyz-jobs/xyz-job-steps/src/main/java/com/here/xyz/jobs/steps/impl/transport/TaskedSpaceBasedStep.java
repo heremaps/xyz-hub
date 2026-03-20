@@ -578,9 +578,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
 
     try {
       TaskProgress taskProgress = getTaskProgress();
-      if(taskProgress == null)
-        throw new UnknownStateException("TaskTable does not exists anymore "+ getGlobalStepId() +"!");
-      else if(taskProgress.isComplete())
+      if(taskProgress.isComplete())
         return AsyncExecutionState.SUCCEEDED;
       else if (taskProgress.getStartedTasks() > 0 &&
               taskProgress.getStartedTasks() > taskProgress.getFinalizedTasks()) {
@@ -594,6 +592,11 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
         throw new UnknownStateException("No running Tasks detected for step: "+ getGlobalStepId() + " !");
       }
     } catch (Exception e) {
+      if(e instanceof  SQLException er && er.getSQLState() != null && er.getSQLState().equalsIgnoreCase("42P01")) {
+        //If we are here task table does not exist anymore. Could happen via getTaskProgress() or during check if quries are running
+        infoLog(STEP_ON_STATE_CHECK,  "Task table does not exist anymore. Ignore.");
+        throw new UnknownStateException("Task table does not exist anymore "+ getGlobalStepId() + " !");
+      }
       errorLog(STEP_ON_STATE_CHECK, e, "Error while checking execution state!");
       throw new RuntimeException(e);
     }
@@ -638,24 +641,12 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   }
 
   private TaskProgress getTaskProgress() throws WebClientException, SQLException, TooManyResourcesClaimed {
-    TaskProgress taskProgress;
-    try {
-      taskProgress = runReadQuerySync(retrieveTaskStatisticsQuery(getSchema(db(WRITER)), this.getId()), db(WRITER), 0,
+    return runReadQuerySync(retrieveTaskStatisticsQuery(getSchema(db(WRITER)), this.getId()), db(WRITER), 0,
               rs -> {
                 if (!rs.next())
                   return null;
                 return new TaskProgress(rs.getInt("total"), rs.getInt("started"), rs.getInt("finalized"));
               });
-    }catch (SQLException e){
-      if(e.getSQLState() != null && e.getSQLState().equalsIgnoreCase("42P01")) {
-        //If we are here task table does not exist anymore
-        infoLog(STEP_ON_STATE_CHECK,  "Task table does not exist anymore. Ignore.");
-        return null;
-      }
-      errorLog(STEP_ON_STATE_CHECK, e);
-      throw e;
-    }
-    return taskProgress;
   }
 
   private static SQLQuery buildTaskTableStatement(String schema, Step step) {
