@@ -650,14 +650,14 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   }
 
   private static SQLQuery buildTaskTableStatement(String schema, Step step) {
-    return new SQLQuery("""          
+    return new SQLQuery("""
             CREATE TABLE ${schema}.${table}
             (
             	task_id SERIAL,
             	task_input JSONB,
             	task_output JSONB,
-            	started BOOLEAN DEFAULT false,
-            	finalized BOOLEAN DEFAULT false,
+            	started TIMESTAMP DEFAULT NULL,
+            	finalized TIMESTAMP DEFAULT NULL,
             	CONSTRAINT ${primaryKey} PRIMARY KEY (task_id)
             );
         """)
@@ -678,10 +678,10 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
 
   private SQLQuery buildUpdateTaskItemStatement(String schema, Step step, int taskId,
                                                        SpaceBasedTaskUpdate update, boolean finalized) {
-    return new SQLQuery("""             
+    return new SQLQuery("""
             UPDATE ${schema}.${table} t
                 SET task_output = #{taskOutput}::JSONB,
-                    finalized = #{finalized}
+                    finalized = CASE WHEN #{finalized} THEN now() AT TIME ZONE 'UTC' ELSE finalized END
                 WHERE task_id = #{taskId};
         """)
             .withVariable("schema", schema)
@@ -693,10 +693,10 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
 
   private SQLQuery resetTaskItemWhichAreNotFinalized(String schema, String stepId) {
     infoLog(STEP_EXECUTE, "Reset task items for restart.");
-    return new SQLQuery("""             
+    return new SQLQuery("""
             UPDATE ${schema}.${table} t
-                SET started = false
-                WHERE started = true AND finalized = false;
+                SET started = NULL
+                WHERE started IS NOT NULL AND finalized IS NULL;
         """)
             .withVariable("schema", schema)
             .withVariable("table", getTemporaryJobTableName(stepId));
@@ -705,8 +705,8 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   private SQLQuery retrieveTaskStatisticsQuery(String schema, String stepId) {
     return new SQLQuery("""
             SELECT COUNT(1) as total,
-                SUM((started = true)::int) as started,
-                SUM((finalized = true)::int) as finalized
+                SUM((started IS NOT NULL)::int) as started,
+                SUM((finalized IS NOT NULL)::int) as finalized
                 FROM ${schema}.${table};
         """)
             .withVariable("schema", schema)
@@ -750,7 +750,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
       for (I taskInput : taskInputs) {
         String taskItem = taskInput.serialize();
 
-        insertQueries.add(new SQLQuery("""             
+        insertQueries.add(new SQLQuery("""
             INSERT INTO  ${schema}.${table} AS t (task_input)
                 VALUES (#{taskItem}::JSONB);
         """)
