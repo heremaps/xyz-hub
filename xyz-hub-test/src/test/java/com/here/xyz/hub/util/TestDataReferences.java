@@ -42,7 +42,7 @@ final class TestDataReferences {
       .withObjectType("object-type-A")
       .withContentType("content-type-A")
       .withContentEncoding("gzip")
-      .withFilter(Map.of("jsonPaths", java.util.List.of("properties.route"), "spatialFilter", Map.of("type", "bbox")))
+      .withFilter(Map.of("jsonPath", "properties.route", "spatialFilter", Map.of("type", "bbox")))
       .withProducer("producer-A")
       .withLocation("location-A")
       .withSourceSystem("source-system-A")
@@ -59,7 +59,7 @@ final class TestDataReferences {
     dataReference.put("objectType", "object-type-A");
     dataReference.put("contentType", "content-type-A");
     dataReference.put("contentEncoding", "gzip");
-    dataReference.put("filter", Map.of("jsonPaths", java.util.List.of("properties.route"), "spatialFilter", Map.of("type", "bbox")));
+    dataReference.put("filter", Map.of("jsonPath", "properties.route", "spatialFilter", Map.of("type", "bbox")));
     dataReference.put("producer", "producer-A");
     dataReference.put("location", "location-A");
     dataReference.put("sourceSystem", "source-system-A");
