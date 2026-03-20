@@ -444,8 +444,18 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
       insertTaskItemsInTaskTable(schema, this, taskDataList);
       initialSetup();
     }else{
-      //Reset all items which are not finalized to be able to restart them
-      runWriteQuerySyncUnkillable(resetTaskItemWhichAreNotFinalized(schema, this.getId()), db(WRITER), 0);
+      try {
+        //Reset all items which are not finalized to be able to restart them
+        runWriteQuerySyncUnkillable(resetTaskItemWhichAreNotFinalized(schema, this.getId()), db(WRITER), 0);
+      }catch (SQLException e){
+        if (e.getSQLState() != null && e.getSQLState().toUpperCase().equals("42P01")) {
+          //if the job_data table is not present anymore during a resume, we expect that the last execution completet
+          //after der StateMaschnine was already canceled. In this case only have to report success.
+          reportAsyncSuccess();
+          return;
+        }else
+          throw e;
+      }
     }
     startInitialTasks();
     noTasksCreated = taskItemCount == 0;
