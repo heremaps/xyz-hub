@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,12 +40,14 @@ import com.here.xyz.jobs.steps.resources.ResourcesRegistry;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.Initializable;
 import io.vertx.core.Future;
+import io.vertx.core.impl.ConcurrentHashSet;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -60,6 +62,7 @@ public abstract class JobExecutor implements Initializable {
   private static final long CANCELLATION_TIMEOUT = 10 * 60 * 1_000; //10 min
   private static final long CANCELLATION_CHECK_RERUN_PERIOD = 10_000; //10 sec
   private static final long JOB_START_TIMEOUT = 60_000;
+  private static Set<Predicate<Job>> singleJobAllowedPolicies = new ConcurrentHashSet<>();
 
   {
     exec.scheduleWithFixedDelay(this::checkPendingJobs, 10, 60, SECONDS);
@@ -329,8 +332,18 @@ public abstract class JobExecutor implements Initializable {
    * @return true, if the job may be executed / enough resources are free
    */
   private Future<Boolean> mayExecute(Job job) {
-    logger.info("[{}] Checking whether there are enough resources to execute the job ...", job.getId());
+    //Check execution policies and resources
+    return executionPoliciesSatisfied(job)
+        .compose(policiesSatisfied -> {
+          if (!policiesSatisfied)
+            return Future.succeededFuture(false);
+          return enoughResourcesAvailable(job);
+        });
+  }
+
+  private static Future<Boolean> enoughResourcesAvailable(Job job) {
     //Check for all necessary resource loads whether they can be fulfilled
+    logger.info("[{}] Checking whether there are enough resources to execute the job ...", job.getId());
     return ResourcesRegistry.getFreeVirtualUnits()
         .compose(freeVirtualUnits -> job.calculateResourceLoads()
             .map(neededResources -> neededResources.stream().allMatch(load -> {
@@ -342,6 +355,20 @@ public abstract class JobExecutor implements Initializable {
                     job.getId(), load.getResource(), load.getEstimatedVirtualUnits(), freeVirtualUnits.get(load.getResource()));
               return sufficientFreeUnits;
             })));
+  }
+
+  private Future<Boolean> executionPoliciesSatisfied(Job job) {
+    logger.info("[{}] Checking all execution policies prior to executing the job ...", job.getId());
+    Set<Predicate<Job>> policiesToApply = findMatchingJobPolicies(job);
+    if (policiesToApply.isEmpty())
+      return Future.succeededFuture(true);
+
+    //Check if there exists at least one other RUNNING job that matches one of the policies (if yes, the current job may not be executed)
+    return JobConfigClient.getInstance()
+        .loadJobs(RUNNING)
+        .compose(runningJobs ->
+            Future.succeededFuture(runningJobs.stream().noneMatch(runningJob ->
+                policiesToApply.stream().anyMatch(policy -> policy.test(runningJob)))));
   }
 
   private Future<Boolean> needsExecution(Job job) {
@@ -401,6 +428,14 @@ public abstract class JobExecutor implements Initializable {
     //Make sure to defer system shutdown until a potential run of #checkPendingJobs() is completed
     while (running)
       Thread.sleep(100);
+  }
+
+  public static void registerSingleJobAllowedPolicy(Predicate<Job> policy) {
+    singleJobAllowedPolicies.add(policy);
+  }
+
+  private static Set<Predicate<Job>> findMatchingJobPolicies(Job job) {
+    return singleJobAllowedPolicies.stream().filter(policy -> policy.test(job)).collect(Collectors.toSet());
   }
 
   static {
