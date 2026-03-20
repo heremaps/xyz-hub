@@ -18,6 +18,7 @@
  */
 package com.here.xyz.jobs;
 
+import static com.here.xyz.util.Random.randomAlpha;
 import com.here.xyz.jobs.datasets.DatasetDescription;
 import com.here.xyz.jobs.processes.CopyViaFiles;
 import com.here.xyz.models.hub.Ref;
@@ -46,16 +47,20 @@ public class ExportToFilesAndImportIT extends JobTest {
  {
   "description": "ExportToFilesAndImport Test",
   "process": { "type": "CopyViaFiles" },
-  "source": { "type": "Space", "id": "testExpImp-Source-01" },
-  "target": { "type": "Space", "id": "testExpImp-Target-01" }
+  "source": { "type": "Space", "id": "testExpImp-Source-<random>" },
+  "target": { "type": "Space", "id": "testExpImp-Target-<random>" }
  }
 */
 
-  private static final String SRC_SPACE = "testExpImp-Source-01";
-  private static final String TRG_SPACE = "testExpImp-Target-01";
+  private String SRC_SPACE;
+  private String TRG_SPACE;
 
   @BeforeEach
   public void setup() throws SQLException {
+    String suffix = randomAlpha(5);
+    SRC_SPACE = "testExpImp-Source-" + suffix;
+    TRG_SPACE = "testExpImp-Target-" + suffix;
+
     cleanup();
     createSpace(new Space().withId(SRC_SPACE).withVersionsToKeep(100), false);
     createSpace(new Space().withId(TRG_SPACE).withVersionsToKeep(100), false);
