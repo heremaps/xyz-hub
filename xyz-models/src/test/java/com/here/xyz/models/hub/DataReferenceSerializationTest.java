@@ -47,7 +47,7 @@ class DataReferenceSerializationTest {
     .withObjectType("some-object-type")
     .withContentType("some-content-type")
     .withContentEncoding("gzip")
-    .withFilter(Map.of("jsonPaths", java.util.List.of("properties.category"), "spatial", Map.of("type", "bbox")))
+    .withFilter(Map.of("jsonPath", "properties.category", "spatial", Map.of("type", "bbox")))
     .withProducer("some-producer")
     .withLocation("some-location")
     .withSourceSystem("some-source-system")

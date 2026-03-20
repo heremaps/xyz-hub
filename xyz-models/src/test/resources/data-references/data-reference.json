@@ -8,9 +8,7 @@
   "contentType": "some-content-type",
   "contentEncoding": "gzip",
   "filter": {
-    "jsonPaths": [
-      "properties.category"
-    ],
+    "jsonPath": "properties.category",
     "spatial": {
       "type": "bbox"
     }

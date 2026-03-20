@@ -23,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.filters.Filters;
+import com.here.xyz.models.filters.ParseSpatialFilterToJts;
 import com.here.xyz.models.filters.SpatialFilter;
 import com.here.xyz.models.geojson.coordinates.LinearRingCoordinates;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
@@ -42,9 +43,12 @@ import java.util.List;
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.GeometryFactory;
 
 class FilterFeatureUtilsTest {
 
+  private static final GeometryFactory GEOMETRY_FACTORY = new GeometryFactory();
   private static final ObjectMapper MAPPER = new ObjectMapper();
   private static final String JSON_PATH_FOR_UNCHANGED_ID = "$[?(@.id == 'Q45671')]";
 
@@ -161,6 +165,24 @@ class FilterFeatureUtilsTest {
     assertFalse(containsFeature);
   }
 
+  @Test
+  public void isFeatureMatchingFiltersIntersecting() throws InvalidGeometryException {
+    Point intersectingGeometryPoint = new Point().withCoordinates(new PointCoordinates(1.0, 1.0)); // inside the square from (0,0) to (2,2)
+    SpatialFilter spatialFilter = getTestSpatialFilter();
+    boolean matchesFilters = FilterFeatureUtils.isFeatureMatchingFilters(featureWithRightId, intersectingGeometryPoint,
+        new Filters().withJsonPath(JSON_PATH_FOR_UNCHANGED_ID).withSpatialFilter(spatialFilter), getParseSpatialFilterToJts());
+    assertTrue(matchesFilters);
+  }
+
+  @Test
+  public void isFeatureMatchingFiltersNotIntersecting() throws InvalidGeometryException {
+    Point intersectingGeometryPoint = new Point().withCoordinates(new PointCoordinates(3.0, 3.0)); // inside the square from (0,0) to (2,2)
+    SpatialFilter spatialFilter = getTestSpatialFilter();
+    boolean matchesFilters = FilterFeatureUtils.isFeatureMatchingFilters(featureWithRightId, intersectingGeometryPoint,
+        new Filters().withJsonPath(JSON_PATH_FOR_UNCHANGED_ID).withSpatialFilter(spatialFilter), getParseSpatialFilterToJts());
+    assertFalse(matchesFilters);
+  }
+
   // Returns a spatial filter of a square polygon from (0,0) to (2,2)
   private SpatialFilter getTestSpatialFilter() throws InvalidGeometryException {
     PolygonCoordinates polygonCoordinates = new PolygonCoordinates();
@@ -173,5 +195,21 @@ class FilterFeatureUtilsTest {
         new Position(0.0, 0.0)));
     polygonCoordinates.add(lrc);
     return new SpatialFilter().withGeometry(new Polygon().withCoordinates(polygonCoordinates));
+  }
+
+  // Returns a ParseSpatialFilterToJts implementation that parses the spatial filter to a square polygon from (0,0) to (2,2) regardless of the actual spatial filter geometry
+  private ParseSpatialFilterToJts getParseSpatialFilterToJts() {
+    return spatialFilter -> {
+      try {
+        return GEOMETRY_FACTORY.createPolygon(new Coordinate[]{
+            new Coordinate(0.0, 0.0),
+            new Coordinate(0.0, 2.0),
+            new Coordinate(2.0, 2.0),
+            new Coordinate(2.0, 0.0),
+            new Coordinate(0.0, 0.0)});
+      } catch (Exception e) {
+        throw new IllegalArgumentException("Error applying buffer to spatial filter geometry", e);
+      }
+    };
   }
 }
