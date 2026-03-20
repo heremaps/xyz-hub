@@ -47,6 +47,7 @@ import com.here.xyz.util.web.XyzWebClient;
 import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import software.amazon.awssdk.services.sfn.model.ExecutionStatus;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -62,6 +63,7 @@ import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_EXECUTE;
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_ON_ASYNC_FAILURE;
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_ON_ASYNC_SUCCESS;
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_ON_ASYNC_UPDATE;
+import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_ON_STATE_CHECK;
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.UNKNOWN;
 import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 
@@ -435,17 +437,15 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   public void execute(boolean resume) throws Exception {
     //The following code is running synchronously till the first task is getting started.
     String schema = getSchema(db());
+    List<I> taskDataList = createTaskItems();
+    taskItemCount = taskDataList.size();
+
     if (!resume) {
-      List<I> taskDataList = createTaskItems();
-      taskItemCount = taskDataList.size();
-      boolean isResume = insertTaskItemsInTaskTable(schema, this, taskDataList);
-      //TODO: Remove is DS-936 is fixed. With the lines below we detect a resume based on the existence of the job_data table.
-      if(!isResume)
-        initialSetup();
+      insertTaskItemsInTaskTable(schema, this, taskDataList);
+      initialSetup();
     }else{
-      //TODO: DS-936 needs to be fixed before this will work
       //Reset all items which are not finalized to be able to restart them
-      runWriteQuerySync(resetTaskItemWhichAreNotFinalized(schema, this), db(WRITER), 0);
+      runWriteQuerySyncUnkillable(resetTaskItemWhichAreNotFinalized(schema, this.getId()), db(WRITER), 0);
     }
     startInitialTasks();
     noTasksCreated = taskItemCount == 0;
@@ -460,12 +460,11 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
    * @throws RuntimeException If an unexpected error occurs during the update process.
    */
   @Override
-  protected boolean onAsyncUpdate(ProcessUpdate processUpdate){
+  protected boolean onAsyncUpdate(ProcessUpdate processUpdate) {
     try {
       //Update the task table and mark item as finalized
       SpaceBasedTaskUpdate update = (SpaceBasedTaskUpdate) processUpdate;
-      infoLog(STEP_ON_ASYNC_UPDATE, "received progress update: " + processUpdate.serialize());
-
+      infoLog(STEP_ON_ASYNC_UPDATE, "Received progress update: " + processUpdate.serialize());
       updateTaskItemInTaskTable(update);
 
       TaskProgress taskProgressAndItem = getTaskProgressAndTaskItem();
@@ -516,7 +515,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
       finalCleanUp(noTasksCreated);
 
       infoLog(logPhase, "Cleanup temporary table");
-      runWriteQuerySync(buildTemporaryJobTableDropStatement(getSchema(db()), getTemporaryJobTableName(getId())), db(WRITER), 0);
+      runWriteQuerySyncUnkillable(buildTemporaryJobTableDropStatement(getSchema(db()), getTemporaryJobTableName(getId())), db(WRITER), 0);
     }catch (SQLException e){
       if (e.getSQLState() != null) {
         switch (e.getSQLState().toUpperCase()) {
@@ -576,7 +575,33 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
       //report success
       return AsyncExecutionState.SUCCEEDED;
     }
-    return super.getExecutionState();
+
+    try {
+      TaskProgress taskProgress = getTaskProgress();
+      if(taskProgress.isComplete())
+        return AsyncExecutionState.SUCCEEDED;
+      else if (taskProgress.getStartedTasks() > 0 &&
+              taskProgress.getStartedTasks() > taskProgress.getFinalizedTasks()) {
+        //Check if the expected queries are still running.
+        return super.getExecutionState();
+      }
+      else if(taskProgress.getStartedTasks() == 0 ||
+              taskProgress.getStartedTasks() == taskProgress.getFinalizedTasks()){
+        infoLog(STEP_ON_STATE_CHECK,"No running tasks detected. StartedTasks: "+ taskProgress.getStartedTasks()+ "," +
+                        " FinalizedTasks: "+taskProgress.getFinalizedTasks() + " !");
+        throw new UnknownStateException("No running Tasks detected for step: "+ getGlobalStepId() + " !");
+      }
+    } catch (Exception e) {
+      if(e instanceof  SQLException er && er.getSQLState() != null && er.getSQLState().equalsIgnoreCase("42P01")) {
+        //If we are here task table does not exist anymore. Could happen via getTaskProgress() or during check if quries are running
+        infoLog(STEP_ON_STATE_CHECK,  "Task table does not exist anymore. Ignore.");
+        throw new UnknownStateException("Task table does not exist anymore "+ getGlobalStepId() + " !");
+      }
+      errorLog(STEP_ON_STATE_CHECK, e, "Error while checking execution state!");
+      throw new RuntimeException(e);
+    }
+
+    throw new UnknownStateException("Unknown state for step: "+ getGlobalStepId() +"!");
   }
 
   /**
@@ -615,6 +640,15 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
     return taskProgress;
   }
 
+  private TaskProgress getTaskProgress() throws WebClientException, SQLException, TooManyResourcesClaimed {
+    return runReadQuerySync(retrieveTaskStatisticsQuery(getSchema(db(WRITER)), this.getId()), db(WRITER), 0,
+              rs -> {
+                if (!rs.next())
+                  return null;
+                return new TaskProgress(rs.getInt("total"), rs.getInt("started"), rs.getInt("finalized"));
+              });
+  }
+
   private static SQLQuery buildTaskTableStatement(String schema, Step step) {
     return new SQLQuery("""          
             CREATE TABLE ${schema}.${table}
@@ -636,7 +670,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   private void updateTaskItemInTaskTable(SpaceBasedTaskUpdate update) throws WebClientException, SQLException, TooManyResourcesClaimed {
     infoLog(STEP_ON_ASYNC_UPDATE,  "Update process table with: " + update.serialize());
     /** create update process table */
-    runWriteQuerySync(
+    runWriteQuerySyncUnkillable(
             buildUpdateTaskItemStatement(getSchema(db(WRITER)), this, update.taskId,
                     update,  true
             ), db(WRITER), 0);
@@ -657,7 +691,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
             .withNamedParameter("finalized", finalized); //future prove
   }
 
-  private SQLQuery resetTaskItemWhichAreNotFinalized(String schema, Step step) {
+  private SQLQuery resetTaskItemWhichAreNotFinalized(String schema, String stepId) {
     infoLog(STEP_EXECUTE, "Reset task items for restart.");
     return new SQLQuery("""             
             UPDATE ${schema}.${table} t
@@ -665,7 +699,18 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
                 WHERE started = true AND finalized = false;
         """)
             .withVariable("schema", schema)
-            .withVariable("table", getTemporaryJobTableName(step.getId()));
+            .withVariable("table", getTemporaryJobTableName(stepId));
+  }
+
+  private SQLQuery retrieveTaskStatisticsQuery(String schema, String stepId) {
+    return new SQLQuery("""
+            SELECT COUNT(1) as total,
+                SUM((started = true)::int) as started,
+                SUM((finalized = true)::int) as finalized
+                FROM ${schema}.${table};
+        """)
+            .withVariable("schema", schema)
+            .withVariable("table", getTemporaryJobTableName(stepId));
   }
 
   private SQLQuery retrieveTaskItemAndStatisticsQuery(String schema) throws WebClientException {
@@ -699,7 +744,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
 
     if(tableAlreadyExists) {
       //Reset all items which are not finalized to be able to restart them
-      runWriteQuerySync(resetTaskItemWhichAreNotFinalized(schema, this), db(WRITER), 0);
+      runWriteQuerySync(resetTaskItemWhichAreNotFinalized(schema, this.getId()), db(WRITER), 0);
     }else{
       infoLog(STEP_EXECUTE, "Add initial entries in process_table for " + taskInputs.size() + " tasks.");
       for (I taskInput : taskInputs) {

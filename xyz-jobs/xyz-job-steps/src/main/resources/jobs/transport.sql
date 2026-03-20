@@ -504,19 +504,21 @@ $BODY$;
 CREATE OR REPLACE FUNCTION get_task_item_and_statistics()
     RETURNS TABLE (total INT, started INT, finalized INT, task_id INT, task_input JSONB) AS $$
 DECLARE
-    v_total INT;
-    v_started INT;
-    v_finalized INT;
+    v_total INT := 0;
+    v_started INT := 0;
+    v_finalized INT := 0;
     task_item RECORD;
     ctx JSONB;
 BEGIN
     SELECT context() INTO ctx;
 
     -- Get statistics
-    EXECUTE format('SELECT COUNT(1),
-            SUM((A.started = true)::int),
-            SUM((A.finalized = true)::int)
-            FROM %1$s A;',
+    EXECUTE format(
+            'SELECT
+                 COUNT(1)::int,
+                 COALESCE(SUM((A.started = true)::int), 0)::int,
+                 COALESCE(SUM((A.finalized = true)::int), 0)::int
+             FROM %1$s A;',
            get_table_reference(ctx->>'schema', ctx->>'stepId' ,'JOB_TABLE')
     ) INTO v_total, v_started, v_finalized;
 
@@ -538,16 +540,21 @@ BEGIN
 
     -- If a task is found, mark it as started
     IF task_item.task_id IS NOT NULL THEN
-        EXECUTE format('UPDATE %1$s C
+        EXECUTE format(
+            'UPDATE %1$s C
                 SET started = true
             WHERE C.task_id = %2$L;',
             get_table_reference(ctx->>'schema', ctx->>'stepId' ,'JOB_TABLE'),
-            task_item.task_id);
+            task_item.task_id
+       );
 
-        RETURN QUERY SELECT v_total, v_started, v_finalized, task_item.task_id, task_item.task_input;
-    ELSIF v_total > v_finalized + v_started THEN
+       RETURN QUERY SELECT v_total, v_started, v_finalized, task_item.task_id, task_item.task_input;
+       RETURN;
+    END IF;
+
+    IF v_total > v_finalized + v_started THEN
         -- There are unstarted tasks, but all are locked -> Wait & retry
-        PERFORM pg_sleep(500);
+        PERFORM pg_sleep(2);
         RETURN QUERY SELECT * FROM get_task_item_and_statistics();
     ELSE
         -- No unstarted tasks exist -> return no work

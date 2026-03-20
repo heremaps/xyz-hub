@@ -17,6 +17,7 @@ package com.here.xyz.util.datasets.filters;
 
 import com.google.common.base.Predicates;
 import com.here.xyz.filters.Filters;
+import com.here.xyz.models.filters.ParseSpatialFilterToJts;
 import com.here.xyz.models.filters.SpatialFilter;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.Geometry;
@@ -74,8 +75,37 @@ public class FilterFeatureUtils {
     }
   }
 
-  // Creates a features filtering predicate based on the provided Filters object with JSON path and spatial filter fields.
+  // Method to verify if a single feature matches the provided filters using a custom provided ParseSpatialFilterToJts implementation
+  // for parsing the spatial filter and applying the buffer instead of the default GeoTools implementation.
+  public static boolean isFeatureMatchingFilters(Feature feature, Geometry geometry, Filters filters, ParseSpatialFilterToJts parseSpatialFilterToJts) {
+    if (feature == null || geometry == null) {
+      return false;
+    }
+    try {
+      Predicate<Pair<Feature, Geometry>> filteringPredicate = getFilteringPredicate(filters, parseSpatialFilterToJts);
+      return filteringPredicate.test(Pair.of(feature, geometry));
+    } catch (ValidationException e) {
+      logger.warn("Spatial filter buffering using custom parsing failed when verifying feature: {}", e.getMessage());
+      return false;
+    }
+  }
+
   private static Predicate<Pair<Feature, Geometry>> getFilteringPredicate(Filters filters) throws ValidationException {
+    // By default, we parse the spatial filter using GeoTools to apply the necessary buffering to the spatial filter geometry.
+    ParseSpatialFilterToJts parseSpatialFilterUsingGeoTools = spatialFilter -> {
+      try {
+        return GeoTools.applyBufferInMetersToGeometry(spatialFilter.getGeometry().getJTSGeometry(), spatialFilter.getRadius());
+      } catch (FactoryException | TransformException | org.geotools.api.referencing.operation.TransformException e) {
+        logger.error("Encountered error when applying buffering using geotools in spatial filter: {}", e.getMessage());
+        throw new IllegalArgumentException("Error applying buffer to spatial filter geometry", e);
+      }
+    };
+    return getFilteringPredicate(filters, parseSpatialFilterUsingGeoTools);
+  }
+
+  // Creates a features filtering predicate based on the provided Filters object with JSON path and spatial filter fields.
+  private static Predicate<Pair<Feature, Geometry>> getFilteringPredicate(Filters filters, ParseSpatialFilterToJts parseSpatialFilter)
+      throws ValidationException {
     // if no filters provided, return an always true predicate to filter out no features.
     if (filters == null) {
       return Predicates.alwaysTrue();
@@ -90,8 +120,16 @@ public class FilterFeatureUtils {
           featureGeometryPair.getLeft(), compiledJsonPath);
     }
     // Else, create prepared geometry from spatial filter and filter by both a JSON path and spatial filter geometry.
-    PreparedGeometry preparedGeometry = getPreparedGeometryFromSpatialFilter(spatialFilter);
-    return featureGeometryPair -> filterFeatureWithJsonPathAndGeometry(featureGeometryPair, compiledJsonPath, preparedGeometry);
+    GeometryValidator.validateSpatialFilter(spatialFilter);
+    try {
+      // The provided spatial filter geometry is buffered using the provided ParseSpatialFilterToJts implementation
+      org.locationtech.jts.geom.Geometry bufferedGeometry = parseSpatialFilter.parseAndApplyBuffer(spatialFilter);
+      PreparedGeometry preparedGeometry = GEOMETRY_FACTORY.create(bufferedGeometry);
+      return featureGeometryPair -> filterFeatureWithJsonPathAndGeometry(featureGeometryPair, compiledJsonPath, preparedGeometry);
+    } catch (IllegalArgumentException e) {
+      logger.error("Encountered an illegal argument when transforming a spatial filter to JTS geometry: {}", e.getMessage());
+      throw new ValidationException("Error applying buffer to spatial filter geometry", e);
+    }
   }
 
   private static boolean filterFeatureWithJsonPathAndGeometry(Pair<Feature, Geometry> featureWithGeometry,
@@ -110,17 +148,5 @@ public class FilterFeatureUtils {
     }
     org.locationtech.jts.geom.Geometry jtsGeometry = featureGeometry.getJTSGeometry();
     return jtsGeometry.isValid() && preparedGeometry.intersects(jtsGeometry);
-  }
-
-  private static PreparedGeometry getPreparedGeometryFromSpatialFilter(SpatialFilter spatialFilter) throws ValidationException {
-    GeometryValidator.validateSpatialFilter(spatialFilter);
-    try {
-      org.locationtech.jts.geom.Geometry bufferedGeometry = GeoTools.applyBufferInMetersToGeometry(
-          spatialFilter.getGeometry().getJTSGeometry(), spatialFilter.getRadius());
-      return GEOMETRY_FACTORY.create(bufferedGeometry);
-    } catch (FactoryException | TransformException | org.geotools.api.referencing.operation.TransformException e) {
-      logger.error("Encountered error when applying buffering in spatial filter: {}", e.getMessage());
-      throw new ValidationException("Error applying buffer to spatial filter geometry", e);
-    }
   }
 }
