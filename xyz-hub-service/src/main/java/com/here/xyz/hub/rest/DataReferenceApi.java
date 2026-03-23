@@ -31,11 +31,10 @@ import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.router.RouterBuilder;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.Marker;
-import org.checkerframework.checker.nullness.qual.Nullable;
 
+import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -63,65 +62,7 @@ public final class DataReferenceApi extends Api {
 
     return failIfDataReferenceIsInvalid(dataReference)
       .compose(this::failIfReferenceAlreadyExists)
-      .compose(this::storeOrReuseEquivalentReference);
-  }
-
-  private Future<DataReference> storeOrReuseEquivalentReference(DataReference referenceToCreate) {
-    return findByUniquenessKey(referenceToCreate)
-      .compose(maybeExisting -> maybeExisting
-        .map(existing -> mergeForUpsert(existing, referenceToCreate))
-        .map(toStore -> dataReferences.store(toStore).map(ignoreId -> toStore))
-        .orElseGet(() -> dataReferences.store(referenceToCreate).map(referenceToCreate::withId))
-      );
-  }
-
-  private Future<Optional<DataReference>> findByUniquenessKey(DataReference referenceToCreate) {
-    return dataReferences.load(
-      referenceToCreate.getEntityId(),
-      referenceToCreate.getStartVersion(),
-      referenceToCreate.getEndVersion(),
-      referenceToCreate.getContentType(),
-      referenceToCreate.getObjectType(),
-      referenceToCreate.getSourceSystem(),
-      referenceToCreate.getTargetSystem()
-    ).map(candidates ->
-      candidates.stream()
-        .filter(candidate -> matchesUniquenessKey(candidate, referenceToCreate))
-        .max(java.util.Comparator.comparingLong(r -> ts(r.getCreatedAt())))
-    );
-  }
-
-  private static DataReference mergeForUpsert(DataReference existing, DataReference incoming) {
-    DataReference merged = incoming.withId(existing.getId());
-
-    if (incoming.getContentEncoding() == null) {
-      merged.withContentEncoding(existing.getContentEncoding());
-    }
-    if (incoming.getFilter() == null) {
-      merged.withFilter(existing.getFilter());
-    }
-    if (incoming.getProducer() == null) {
-      merged.withProducer(existing.getProducer());
-    }
-    if (incoming.getKeepUntil() == null) {
-      merged.withKeepUntil(existing.getKeepUntil());
-    }
-
-    return merged;
-  }
-
-  private static boolean matchesUniquenessKey(DataReference left, DataReference right) {
-    return Objects.equals(left.getEntityId(), right.getEntityId())
-      && Objects.equals(left.getStartVersion(), right.getStartVersion())
-      && Objects.equals(left.getEndVersion(), right.getEndVersion())
-      && Objects.equals(left.getObjectType(), right.getObjectType())
-      && Objects.equals(left.getContentType(), right.getContentType())
-      && Objects.equals(left.getSourceSystem(), right.getSourceSystem())
-      && Objects.equals(left.getTargetSystem(), right.getTargetSystem());
-  }
-
-  private static long ts(@Nullable Long v) {
-    return v == null ? 0L : v;
+      .compose(referenceToCreate -> dataReferences.store(referenceToCreate).map(referenceToCreate::withId));
   }
 
   private static Future<DataReference> failIfDataReferenceIsInvalid(DataReference dataReference) {
