@@ -21,6 +21,8 @@ package com.here.xyz.jobs.steps.compiler;
 
 import static com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles.EXPORTED_DATA;
 
+import com.here.xyz.events.ContextAwareEvent.SpaceContext;
+import com.here.xyz.filters.Filters;
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.datasets.DatasetDescription;
 import com.here.xyz.jobs.datasets.DatasetDescription.Space;
@@ -78,6 +80,12 @@ public class ExportToFilesAndImport implements JobCompilationInterceptor {
 
     checkIfSpaceIsAccessible(sourceSpaceId);
     checkIfSpaceIsAccessible(targetSpaceId);
+
+    // todo: iml-copy copies only extension in case of composite. Clarify behaviour for fetch use case
+    if (source.getFilters() == null)
+      source.setFilters(new Filters().withContext(SpaceContext.EXTENSION));
+    else
+      source.getFilters().setContext(SpaceContext.EXTENSION);
 
     Map<String, String> sourceMeta = java.util.Map.of( layerType == null ? source.getClass().getSimpleName().toLowerCase() : layerType , sourceSpaceId),
                         targetMeta = java.util.Map.of( layerType == null ? target.getClass().getSimpleName().toLowerCase() : layerType , targetSpaceId);
