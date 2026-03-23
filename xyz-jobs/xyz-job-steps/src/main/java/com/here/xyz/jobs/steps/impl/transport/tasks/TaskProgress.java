@@ -89,6 +89,16 @@ public class TaskProgress<I> {
     return totalTasks == finalizedTasks;
   }
 
+  public boolean hasRunningTasks() {
+    return startedTasks > 0
+            && startedTasks > finalizedTasks;
+  }
+
+  public boolean hasNoRunningTasks() {
+    return startedTasks == 0
+            || startedTasks == finalizedTasks;
+  }
+
   @Override
   public String toString() {
     return "TaskProgress{" +
