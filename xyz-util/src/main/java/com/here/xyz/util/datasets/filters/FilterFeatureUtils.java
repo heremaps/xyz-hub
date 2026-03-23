@@ -94,10 +94,13 @@ public class FilterFeatureUtils {
     // By default, we parse the spatial filter using GeoTools to apply the necessary buffering to the spatial filter geometry.
     ParseSpatialFilterToJts parseSpatialFilterUsingGeoTools = spatialFilter -> {
       try {
+        GeometryValidator.validateSpatialFilter(spatialFilter);
         return GeoTools.applyBufferInMetersToGeometry(spatialFilter.getGeometry().getJTSGeometry(), spatialFilter.getRadius());
       } catch (FactoryException | TransformException | org.geotools.api.referencing.operation.TransformException e) {
         logger.error("Encountered error when applying buffering using geotools in spatial filter: {}", e.getMessage());
         throw new IllegalArgumentException("Error applying buffer to spatial filter geometry", e);
+      } catch (ValidationException e) {
+        throw new IllegalArgumentException("Error validating spatial filter", e);
       }
     };
     return getFilteringPredicate(filters, parseSpatialFilterUsingGeoTools);
@@ -119,8 +122,6 @@ public class FilterFeatureUtils {
       return featureGeometryPair -> featureGeometryPair != null && JsonPathFilterUtils.filterByJsonPath(
           featureGeometryPair.getLeft(), compiledJsonPath);
     }
-    // Else, create prepared geometry from spatial filter and filter by both a JSON path and spatial filter geometry.
-    GeometryValidator.validateSpatialFilter(spatialFilter);
     try {
       // The provided spatial filter geometry is buffered using the provided ParseSpatialFilterToJts implementation
       org.locationtech.jts.geom.Geometry bufferedGeometry = parseSpatialFilter.parseAndApplyBuffer(spatialFilter);
