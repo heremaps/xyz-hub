@@ -1,0 +1,10 @@
+{"id": "del1", "type":"Feature","geometry":null,"properties":{"@ns:com:here:xyz":{"deleted":true}}}
+{"id": "del2", "type":"Feature","geometry":null,"properties":{"@ns:com:here:xyz":{"deleted":true}}}
+{"id": "del3", "type":"Feature","geometry":null,"properties":{"@ns:com:here:xyz":{"deleted":true}}}
+{"id": "norm1", "type":"Feature","geometry":{"type":"Point","coordinates":[8.58,50.77]},"properties":{"test":3}}
+{"id": "norm2", "type":"Feature","geometry":{"type":"Point","coordinates":[8.22,50.18]},"properties":{"test":4}}
+{"id": "norm3", "type":"Feature","geometry":{"type":"Point","coordinates":[8.73,50.99]},"properties":{"test":5}}
+{"id": "norm4", "type":"Feature","geometry":{"type":"Point","coordinates":[8.80,50.35]},"properties":{"test":6}}
+{"id": "del4", "type":"Feature","geometry":null,"properties":{"@ns:com:here:xyz":{"deleted":true}}}
+{"id": "del5", "type":"Feature","geometry":null,"properties":{"@ns:com:here:xyz":{"deleted":true}}}
+{"id": "norm5", "type":"Feature","geometry":{"type":"Point","coordinates":[8.92,50.63]},"properties":{"test":9}}
