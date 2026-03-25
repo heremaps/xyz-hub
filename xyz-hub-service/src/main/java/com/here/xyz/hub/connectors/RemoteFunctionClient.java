@@ -104,7 +104,7 @@ public abstract class RemoteFunctionClient {
   private final LimitedQueue<FunctionCall> queue = new LimitedQueue<>(0, 0);
   private final AtomicInteger usedConnections = new AtomicInteger(0);
   private static final ConcurrentHashMap<String, AtomicInteger> usedConnectionsByRequester = new ConcurrentHashMap<>();
-
+  private static final ConcurrentHashMap<String, AuroraAcuMonitor> acuMonitorsByClusterRole = new ConcurrentHashMap<>();
 //  /**
 //   * Sliding average request execution time in seconds.
 //   */
@@ -216,8 +216,8 @@ public abstract class RemoteFunctionClient {
       }
 
       region = Region.of(regionStr);
-      AuroraAcuMonitorManager.getForClusterRole(dbClusterId, READER, region);
-      AuroraAcuMonitorManager.getForClusterRole(dbClusterId, WRITER, region);
+      getMonitor(READER);
+      getMonitor(WRITER);
     }
   }
 
@@ -227,7 +227,7 @@ public abstract class RemoteFunctionClient {
     }
     AtomicInteger connectionCount = usedConnectionsByRequester.computeIfAbsent(context.getRequesterId(), key -> new AtomicInteger());
     String role = resolveRole(context);
-    AuroraAcuMonitor monitor = AuroraAcuMonitorManager.getForClusterRole(dbClusterId, role, region);
+    AuroraAcuMonitor monitor = getMonitor(role);
     int maxConnectionsPerRequester = (monitor != null && monitor.getUtilization() < HIGH_THRESHOLD)
         ? Integer.MAX_VALUE
         : context.getConnector().getMaxConnectionsPerRequester();
@@ -241,6 +241,20 @@ public abstract class RemoteFunctionClient {
       return true;
     }
     return false;
+  }
+
+  private String monitorKey(String role) {
+    return dbClusterId + "-" + role;
+  }
+
+  private AuroraAcuMonitor getMonitor(String role) {
+    if (dbClusterId == null || region == null) {
+      return null;
+    }
+    String key = monitorKey(role);
+    return acuMonitorsByClusterRole.computeIfAbsent(key, k ->
+        AuroraAcuMonitorManager.getForClusterRole(dbClusterId, role, region)
+    );
   }
 
   private String resolveRole(RpcContext context) {

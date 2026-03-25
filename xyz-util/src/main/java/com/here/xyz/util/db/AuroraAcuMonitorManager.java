@@ -49,7 +49,7 @@ public final class AuroraAcuMonitorManager {
 
   public static AuroraAcuMonitor getForClusterRole(String clusterId, String role, Region region) {
     try {
-      AuroraAcuMonitor acuMonitor = monitors.computeIfAbsent(clusterId + ":" + role,
+      AuroraAcuMonitor acuMonitor = monitors.computeIfAbsent(clusterId + "-" + role,
           key -> new AuroraAcuMonitor(clusterId, role, region, executorService, cw(region)));
       logger.info("Created role based ACU monitors for clusterId={} in {}.", clusterId, region);
       return acuMonitor;
@@ -69,7 +69,7 @@ public final class AuroraAcuMonitorManager {
         m.stop();
       }
     } else {
-      AuroraAcuMonitor m = monitors.remove(clusterId + ":" + role);
+      AuroraAcuMonitor m = monitors.remove(clusterId + "-" + role);
       if (m != null) {
         m.stop();
       }
