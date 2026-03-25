@@ -25,7 +25,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.here.xyz.util.db.AuroraAcuMonitor;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -85,19 +84,15 @@ public class AuroraAcuMonitorTest {
     }
   }
 
-  /**
-   * Busy-waits until the monitor's utilization equals {@code expected} (within 0.0001).
-   */
   private static void awaitUtilization(AuroraAcuMonitor monitor, double expected) throws InterruptedException {
-    long deadline = System.currentTimeMillis() + 3_000;
+    long deadline = System.currentTimeMillis() + 3000;
     while (System.currentTimeMillis() < deadline) {
       if (Math.abs(monitor.getUtilization() - expected) < 0.0001) {
         return;
       }
       Thread.sleep(25);
     }
-    assertEquals(expected, monitor.getUtilization(), 0.0001,
-        "Monitor utilization did not reach expected value in time");
+    assertEquals(expected, monitor.getUtilization(), 0.0001, "Monitor utilization did not reach expected value");
   }
 
   @Test
@@ -123,10 +118,10 @@ public class AuroraAcuMonitorTest {
     AuroraAcuMonitor monitor = new AuroraAcuMonitor("dummy-cluster", Region.EU_WEST_1, executor, client);
     try {
       GetMetricDataRequest req = client.awaitRequest();
-      List<String> names = dimensionNames(req);
-      assertEquals(1, names.size());
-      assertTrue(names.contains("DBClusterIdentifier"));
-      assertEquals("dummy-cluster", req.metricDataQueries().get(0).metricStat().metric().dimensions().get(0).value());
+      List<Dimension> dimensions = req.metricDataQueries().get(0).metricStat().metric().dimensions();
+      assertEquals(1, dimensions.size());
+      assertEquals("DBClusterIdentifier", dimensions.get(0).name());
+      assertEquals("dummy-cluster", dimensions.get(0).value());
     } finally {
       monitor.stop();
       executor.shutdownNow();
@@ -140,10 +135,12 @@ public class AuroraAcuMonitorTest {
     AuroraAcuMonitor monitor = new AuroraAcuMonitor("dummy-cluster", "WRITER", Region.EU_WEST_1, executor, client);
     try {
       GetMetricDataRequest req = client.awaitRequest();
-      List<String> names = dimensionNames(req);
-      assertEquals(2, names.size());
-      assertTrue(names.contains("DBClusterIdentifier"));
-      assertTrue(names.contains("Role"));
+      List<Dimension> dimensions = req.metricDataQueries().get(0).metricStat().metric().dimensions();
+
+      assertEquals(2, dimensions.size());
+      assertTrue(dimensions.stream().anyMatch(d -> d.name().equals("DBClusterIdentifier") && d.value().equals("dummy-cluster")));
+      assertTrue(dimensions.stream().anyMatch(d -> d.name().equals("Role") && d.value().equals("WRITER")));
+
       awaitUtilization(monitor, 22.0);
     } finally {
       monitor.stop();
@@ -184,16 +181,13 @@ public class AuroraAcuMonitorTest {
 
   private static GetMetricDataResponse responseWith(List<Double> values, List<Instant> timestamps) {
     MetricDataResult result = MetricDataResult.builder()
-        .id("u").values(values).timestamps(timestamps).build();
-    return GetMetricDataResponse.builder()
-        .metricDataResults(Collections.singletonList(result)).build();
-  }
+        .id("u")
+        .values(values)
+        .timestamps(timestamps)
+        .build();
 
-  private static List<String> dimensionNames(GetMetricDataRequest request) {
-    List<String> names = new ArrayList<>();
-    for (Dimension d : request.metricDataQueries().get(0).metricStat().metric().dimensions()) {
-      names.add(d.name());
-    }
-    return names;
+    return GetMetricDataResponse.builder()
+        .metricDataResults(Collections.singletonList(result))
+        .build();
   }
 }

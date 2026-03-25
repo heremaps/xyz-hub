@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.IntStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import software.amazon.awssdk.regions.Region;
@@ -35,7 +34,6 @@ import software.amazon.awssdk.services.cloudwatch.model.GetMetricDataRequest;
 import software.amazon.awssdk.services.cloudwatch.model.GetMetricDataResponse;
 import software.amazon.awssdk.services.cloudwatch.model.Metric;
 import software.amazon.awssdk.services.cloudwatch.model.MetricDataQuery;
-import software.amazon.awssdk.services.cloudwatch.model.MetricDataResult;
 import software.amazon.awssdk.services.cloudwatch.model.MetricStat;
 
 public final class AuroraAcuMonitor {
@@ -44,6 +42,7 @@ public final class AuroraAcuMonitor {
   private static final long PERIOD_SEC = 60;
 
   private final List<Dimension> dimensions;
+  private final String role;
   private final Region region;
   private final CloudWatchClient cloudWatchClient;
   private final ScheduledFuture<?> task;
@@ -51,7 +50,7 @@ public final class AuroraAcuMonitor {
   private volatile double utilization = 0;
 
   public AuroraAcuMonitor(String clusterId, Region region, ScheduledExecutorService scheduler, CloudWatchClient cloudWatchClient) {
-    this(List.of(dimension("DBClusterIdentifier", clusterId)), region, scheduler, cloudWatchClient);
+    this(List.of(dimension("DBClusterIdentifier", clusterId)), null, region, scheduler, cloudWatchClient);
   }
 
   public AuroraAcuMonitor(String clusterId, String role, Region region, ScheduledExecutorService scheduler,
@@ -60,14 +59,16 @@ public final class AuroraAcuMonitor {
             dimension("DBClusterIdentifier", clusterId),
             dimension("Role", role)
         ),
+        role,
         region,
         scheduler,
         cloudWatchClient);
   }
 
-  private AuroraAcuMonitor(List<Dimension> dimensions, Region region, ScheduledExecutorService scheduler,
+  private AuroraAcuMonitor(List<Dimension> dimensions, String role, Region region, ScheduledExecutorService scheduler,
       CloudWatchClient cloudWatchClient) {
     this.dimensions = List.copyOf(dimensions);
+    this.role = role;
     this.region = region;
     this.cloudWatchClient = cloudWatchClient;
     this.task = scheduler.scheduleAtFixedRate(this::update, 0, PERIOD_SEC, TimeUnit.SECONDS);
@@ -75,6 +76,10 @@ public final class AuroraAcuMonitor {
 
   public double getUtilization() {
     return utilization;
+  }
+
+  public String getRole() {
+    return role;
   }
 
   public void stop() {
@@ -103,7 +108,8 @@ public final class AuroraAcuMonitor {
           .build());
 
       resp.metricDataResults().stream()
-          .flatMap(r -> toMetricPoints(r).stream())
+          .flatMap(r -> r.values().stream()
+              .map(v -> new MetricPoint(v, r.timestamps().get(r.values().indexOf(v)))))
           .max(Comparator.comparing(p -> p.ts))
           .ifPresent(p -> utilization = p.val);
 
@@ -112,13 +118,6 @@ public final class AuroraAcuMonitor {
       logger.warn("ACU poll failed for dimensions={} in {}", dimensions, region, e);
       utilization = -1;
     }
-  }
-
-  private static List<MetricPoint> toMetricPoints(MetricDataResult result) {
-    int points = Math.min(result.values().size(), result.timestamps().size());
-    return IntStream.range(0, points)
-        .mapToObj(i -> new MetricPoint(result.values().get(i), result.timestamps().get(i)))
-        .toList();
   }
 
   private static Dimension dimension(String name, String value) {

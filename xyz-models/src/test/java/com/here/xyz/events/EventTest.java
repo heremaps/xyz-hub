@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -73,6 +73,8 @@ public class EventTest {
     assertEquals(-77.0745849609375D, event.getBbox().getEast(), 0);
     assertEquals(-12.060809058367298D, event.getBbox().getSouth(), 0);
     assertEquals(-77.080078125D, event.getBbox().getWest(), 0);
+    assertTrue(event.canExecuteOnReplica());
+    assertFalse(event.executeOnPrimary());
   }
 
   @Test
@@ -114,5 +116,16 @@ public class EventTest {
     assertNotNull(event.getTrustedParams());
     assertFalse(event.getTrustedParams().isEmpty());
     assertTrue(event.getTrustedParams().keySet().containsAll(Arrays.asList("cookies", "headers", "queryParams", "customKey")));
+  }
+
+  @Test
+  public void checkExecutionRoutingFlags() {
+    SelectiveEvent<?> selectiveRead = new SelectiveEvent<>();
+    assertTrue(selectiveRead.canExecuteOnReplica());
+    assertFalse(selectiveRead.executeOnPrimary());
+
+    LoadFeaturesEvent forcedPrimaryRead = new LoadFeaturesEvent();
+    assertFalse(forcedPrimaryRead.canExecuteOnReplica());
+    assertTrue(forcedPrimaryRead.executeOnPrimary());
   }
 }

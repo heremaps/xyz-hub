@@ -48,7 +48,6 @@ import io.vertx.core.impl.ConcurrentHashSet;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -73,11 +72,12 @@ public abstract class RemoteFunctionClient {
   private static final Logger logger = LogManager.getLogger();
   private static int MEASUREMENT_INTERVAL = 1000; //1s
   private static final int MIN_CONNECTIONS_PER_NODE = 4;
+  private static final String WRITER = "WRITER";
+  private static final String READER = "READER";
 
-  private AuroraAcuMonitor acuMonitor;
-  private List<AuroraAcuMonitor> acuRoleMonitors = Collections.emptyList();
   private static final double HIGH_THRESHOLD = 80.0;
   private String dbClusterId;
+  private Region region;
 
 //  /**
 //   * Tweaking constant for the percentage that the connection slots relevance should be used. The rest is the rateOfService relevance.
@@ -215,44 +215,39 @@ public abstract class RemoteFunctionClient {
         return;
       }
 
-      Region region = Region.of(regionStr);
-      acuMonitor = AuroraAcuMonitorManager.get(dbClusterId, region);
-      acuRoleMonitors = AuroraAcuMonitorManager.getForClusterRoles(dbClusterId, region);
+      region = Region.of(regionStr);
+      AuroraAcuMonitorManager.getForClusterRole(dbClusterId, READER, region);
+      AuroraAcuMonitorManager.getForClusterRole(dbClusterId, WRITER, region);
     }
   }
 
   private boolean checkRequesterThrottling(Marker marker, Handler<AsyncResult<byte[]>> callback, RpcContext context) {
-    if (context.getRequesterId() != null) {
-      AtomicInteger connectionCount = usedConnectionsByRequester.computeIfAbsent(context.getRequesterId(), (key) -> new AtomicInteger());
-      double leastUtilization = acuMonitor != null ? acuMonitor.getUtilization() : -1;
-      logger.info("Connector id={}, requesterId={}, baseMonitorUtilization={}, roleMonitorCount={}",
-          context.getConnector().id, context.getRequesterId(), leastUtilization, acuRoleMonitors.size());
-      if (acuRoleMonitors != null && !acuRoleMonitors.isEmpty()) {
-        acuRoleMonitors.forEach(monitor ->
-            logger.info("Role monitor utilization={} for connector id={} clusterId={}",
-                monitor.getUtilization(), context.getConnector().id, dbClusterId));
-        leastUtilization = acuRoleMonitors.stream()
-            .mapToDouble(AuroraAcuMonitor::getUtilization)
-            .filter(v -> v >= 0)
-            .min()
-            .orElse(leastUtilization);
-      }
-
-      int maxConnectionsPerRequester = (leastUtilization >= 0 && leastUtilization < HIGH_THRESHOLD)
-          ? Integer.MAX_VALUE
-          : context.getConnector().getMaxConnectionsPerRequester();
-      logger.info("Connector id={}, leastRoleUtilization={}, maxConnectionsPerRequester={}",
-          context.getConnector().id, leastUtilization, maxConnectionsPerRequester);
-      if (!compareAndIncrementUpTo(maxConnectionsPerRequester, connectionCount)) {
-        logger.warn(marker,
-            "Sending too many concurrent requests for user {}. Number of active connections: {}, Maximum allowed per node: {}",
-            context.getRequesterId(), connectionCount.get(), maxConnectionsPerRequester);
-        callback.handle(Future.failedFuture(new TooManyRequestsException("Maximum number of concurrent requests. "
-            + "Max concurrent connections: " + Math.round(maxConnectionsPerRequester * 0.6), QUOTA)));
-        return true;
-      }
+    if (context.getRequesterId() == null) {
+      return false;
+    }
+    AtomicInteger connectionCount = usedConnectionsByRequester.computeIfAbsent(context.getRequesterId(), key -> new AtomicInteger());
+    String role = resolveRole(context);
+    AuroraAcuMonitor monitor = AuroraAcuMonitorManager.getForClusterRole(dbClusterId, role, region);
+    int maxConnectionsPerRequester = (monitor != null && monitor.getUtilization() < HIGH_THRESHOLD)
+        ? Integer.MAX_VALUE
+        : context.getConnector().getMaxConnectionsPerRequester();
+    logger.info("Connector id={}, maxConnectionsPerRequester={}", context.getConnector().id, maxConnectionsPerRequester);
+    if (!compareAndIncrementUpTo(maxConnectionsPerRequester, connectionCount)) {
+      logger.warn(marker,
+          "Sending too many concurrent requests for user {}. Number of active connections: {}, Maximum allowed per node: {}",
+          context.getRequesterId(), connectionCount.get(), maxConnectionsPerRequester);
+      callback.handle(Future.failedFuture(new TooManyRequestsException("Maximum number of concurrent requests. "
+          + "Max concurrent connections: " + Math.round(maxConnectionsPerRequester * 0.6), QUOTA)));
+      return true;
     }
     return false;
+  }
+
+  private String resolveRole(RpcContext context) {
+    if (context.executeOnPrimary()) {
+      return WRITER;
+    }
+    return context.canExecuteOnReplica() ? READER : WRITER;
   }
 
   /**

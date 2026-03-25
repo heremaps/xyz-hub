@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,18 +32,13 @@ import java.util.Set;
 
 /**
  * The base class of all events that are sent by the XYZ Hub to a "procedure". All events extend this event. All "procedures" can be sure to
- * receive events that extend this class and need to respond with any {@link com.here.xyz.responses.XyzResponse}.
- *
- * It's not defined if that procedure is embedded into the XYZ Hub or located at a remote host nor is any assumption being made about how the
- * event or response are transferred. Basically the event-response model just describes what events the XYZ hub may trigger and how the
- * processing "procedures" must respond.
- *
- * A "procedure" is defined as
- *
- * Every event is basically encoded into a binary using a "procedure encoder". Be aware that this event is translated into some protocol
- * using a corresponding encoder. Only the remote procedure client will receive this event. It's not necessary that
- * the remote procedure itself uses this event class to communicate. Rather the remote procedure client needs to accept the event, translate
- * it into an arbitrary binary (byte[]), which is then sent to a remote service that processes the event.
+ * receive events that extend this class and need to respond with any {@link com.here.xyz.responses.XyzResponse}. It's not defined if that
+ * procedure is embedded into the XYZ Hub or located at a remote host nor is any assumption being made about how the event or response are
+ * transferred. Basically the event-response model just describes what events the XYZ hub may trigger and how the processing "procedures"
+ * must respond. A "procedure" is defined as Every event is basically encoded into a binary using a "procedure encoder". Be aware that this
+ * event is translated into some protocol using a corresponding encoder. Only the remote procedure client will receive this event. It's not
+ * necessary that the remote procedure itself uses this event class to communicate. Rather the remote procedure client needs to accept the
+ * event, translate it into an arbitrary binary (byte[]), which is then sent to a remote service that processes the event.
  */
 @JsonSubTypes({
     @JsonSubTypes.Type(value = ModifySpaceEvent.class, name = "ModifySpaceEvent"),
@@ -120,8 +115,7 @@ public abstract class Event<T extends Event> extends Payload {
   }
 
   /**
-   * A map with arbitrary parameters configured in the XYZ Hub service for each space. Therefore, each space can have different
-   * parameters.
+   * A map with arbitrary parameters configured in the XYZ Hub service for each space. Therefore, each space can have different parameters.
    *
    * @return a map with arbitrary parameters defined for the space.
    */
@@ -142,8 +136,8 @@ public abstract class Event<T extends Event> extends Payload {
   }
 
   /**
-   * A parameter map which may contains sensitive information such as identities and is forwarded only to connectors
-   * marked with "trusted" flag.
+   * A parameter map which may contains sensitive information such as identities and is forwarded only to connectors marked with "trusted"
+   * flag.
    *
    * @return a map with arbitrary parameters.
    */
@@ -363,17 +357,21 @@ public abstract class Event<T extends Event> extends Payload {
   }
 
   public static boolean isAllowedEventType(Map<String, Set<String>> allowedEventTypes, String eventType, String region) {
-    if (allowedEventTypes == null)
+    if (allowedEventTypes == null) {
       return true;
+    }
     Set<String> allowed = new HashSet<>();
-    if (allowedEventTypes.containsKey("*"))
+    if (allowedEventTypes.containsKey("*")) {
       allowed.addAll(allowedEventTypes.get("*"));
-    if (region != null && allowedEventTypes.containsKey(region))
+    }
+    if (region != null && allowedEventTypes.containsKey(region)) {
       allowed.addAll(allowedEventTypes.get(region));
+    }
     return allowed.contains("*") || allowed.contains(eventType);
   }
 
   public static class TrustedParams extends HashMap<String, Object> {
+
     public static final String COOKIES = "cookies";
     public static final String HEADERS = "headers";
     public static final String QUERY_PARAMS = "queryParams";
@@ -384,17 +382,23 @@ public abstract class Event<T extends Event> extends Payload {
     }
 
     public void setCookies(Map<String, String> cookies) {
-      if (cookies == null) return;
+      if (cookies == null) {
+        return;
+      }
       put(COOKIES, cookies);
     }
 
     public void putCookie(String name, String value) {
-      if (!containsKey(COOKIES)) put(COOKIES, new HashMap<String, String>());
+      if (!containsKey(COOKIES)) {
+        put(COOKIES, new HashMap<String, String>());
+      }
       getCookies().put(name, value);
     }
 
     public String getCookie(String name) {
-      if (containsKey(COOKIES)) return getCookies().get(name);
+      if (containsKey(COOKIES)) {
+        return getCookies().get(name);
+      }
       return null;
     }
 
@@ -404,17 +408,23 @@ public abstract class Event<T extends Event> extends Payload {
     }
 
     public void setHeaders(Map<String, String> headers) {
-      if (headers == null) return;
+      if (headers == null) {
+        return;
+      }
       put(HEADERS, headers);
     }
 
     public void putHeader(String name, String value) {
-      if (!containsKey(HEADERS)) put(HEADERS, new HashMap<String, String>());
+      if (!containsKey(HEADERS)) {
+        put(HEADERS, new HashMap<String, String>());
+      }
       getHeaders().put(name, value);
     }
 
     public String getHeader(String name) {
-      if (containsKey(HEADERS)) return getHeaders().get(name);
+      if (containsKey(HEADERS)) {
+        return getHeaders().get(name);
+      }
       return null;
     }
 
@@ -424,18 +434,32 @@ public abstract class Event<T extends Event> extends Payload {
     }
 
     public void setQueryParams(Map<String, String> queryParams) {
-      if (queryParams == null) return;
+      if (queryParams == null) {
+        return;
+      }
       put(QUERY_PARAMS, queryParams);
     }
 
     public void putQueryParam(String name, String value) {
-      if (!containsKey(QUERY_PARAMS)) put(QUERY_PARAMS, new HashMap<String, String>());
+      if (!containsKey(QUERY_PARAMS)) {
+        put(QUERY_PARAMS, new HashMap<String, String>());
+      }
       getQueryParams().put(name, value);
     }
 
     public String getQueryParam(String name) {
-      if (containsKey(QUERY_PARAMS)) return getQueryParams().get(name);
+      if (containsKey(QUERY_PARAMS)) {
+        return getQueryParams().get(name);
+      }
       return null;
     }
+  }
+
+  public boolean canExecuteOnReplica() {
+    return false;
+  }
+
+  public boolean executeOnPrimary() {
+    return !canExecuteOnReplica() || preferPrimaryDataSource;
   }
 }

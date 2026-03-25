@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ package com.here.xyz.events;
 import java.util.List;
 
 public class SelectiveEvent<T extends SelectiveEvent> extends ContextAwareEvent<T> {
+
   private List<String> selection;
   private boolean force2D;
 
@@ -56,5 +57,13 @@ public class SelectiveEvent<T extends SelectiveEvent> extends ContextAwareEvent<
     setForce2D(force2D);
     //noinspection unchecked
     return (T) this;
+  }
+
+  /**
+   * SelectiveEvent types are allowed to be executed on read-only replicas.
+   */
+  @Override
+  public boolean canExecuteOnReplica() {
+    return true;
   }
 }
