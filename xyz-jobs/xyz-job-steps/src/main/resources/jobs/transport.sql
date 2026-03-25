@@ -516,8 +516,8 @@ BEGIN
     EXECUTE format(
             'SELECT
                  COUNT(1)::int,
-                 COALESCE(SUM((A.started = true)::int), 0)::int,
-                 COALESCE(SUM((A.finalized = true)::int), 0)::int
+                 COALESCE(SUM((A.started IS NOT NULL)::int), 0)::int,
+                 COALESCE(SUM((A.finalized IS NOT NULL)::int), 0)::int
              FROM %1$s A;',
            get_table_reference(ctx->>'schema', ctx->>'stepId' ,'JOB_TABLE')
     ) INTO v_total, v_started, v_finalized;
@@ -531,7 +531,7 @@ BEGIN
     -- Retrieve next task_item (will be NULL if all are locked)
     EXECUTE format('SELECT B.task_id, B.task_input
             FROM %1$s B
-            WHERE B.started = false
+            WHERE B.started IS NULL
             ORDER BY random()
             LIMIT 1
             FOR UPDATE SKIP LOCKED;',
@@ -542,7 +542,7 @@ BEGIN
     IF task_item.task_id IS NOT NULL THEN
         EXECUTE format(
             'UPDATE %1$s C
-                SET started = true
+                SET started = now() AT TIME ZONE ''UTC''
             WHERE C.task_id = %2$L;',
             get_table_reference(ctx->>'schema', ctx->>'stepId' ,'JOB_TABLE'),
             task_item.task_id

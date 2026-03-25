@@ -452,7 +452,7 @@ public class StepTestBase {
   }
 
   protected SQLQuery retrieveNumberOfNotFinalizedTasks(String schema, Step step) throws XyzWebClient.WebClientException {
-    return new SQLQuery("SELECT count(1) from ${schema}.${table} WHERE finalized = false;")
+    return new SQLQuery("SELECT count(1) from ${schema}.${table} WHERE finalized IS NULL;")
             .withVariable("schema", schema)
             .withVariable("table", getTemporaryJobTableName(step.getId()));
   }
