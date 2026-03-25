@@ -74,7 +74,8 @@ class DatabaseWriter {
   clear() {
     this.plans = {};
     this.parameterSets = {};
-    this.resultParsers = {}
+    this.resultParsers = {};
+    this.queryOptions = {};
   }
 
   /**
@@ -98,7 +99,9 @@ class DatabaseWriter {
       catch (e) {
         if (e.sqlerrcode === SQLErrors.CONFLICT) {
           let exceptionToThrow;
-          let onVersionConflict = queryOptions?.onVersionConflict;
+          let options = queryOptions?.[index];
+          let onVersionConflict = options?.onVersionConflict;
+
           if (!onVersionConflict || onVersionConflict == "ERROR")
             exceptionToThrow = new VersionConflictError(`Version conflict while trying to write feature with ID ${parameterSets[index][0]} in version ${parameterSets[index][1]}.`);
           else
