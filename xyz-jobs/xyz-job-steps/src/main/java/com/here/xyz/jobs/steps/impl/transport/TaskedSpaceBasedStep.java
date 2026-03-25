@@ -444,8 +444,18 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
       insertTaskItemsInTaskTable(schema, this, taskDataList);
       initialSetup();
     }else{
-      //Reset all items which are not finalized to be able to restart them
-      runWriteQuerySyncUnkillable(resetTaskItemWhichAreNotFinalized(schema, this.getId()), db(WRITER), 0);
+      try {
+        //Reset all items which are not finalized to be able to restart them
+        runWriteQuerySyncUnkillable(resetTaskItemWhichAreNotFinalized(schema, this.getId()), db(WRITER), 0);
+      }catch (SQLException e){
+        if (e.getSQLState() != null && e.getSQLState().toUpperCase().equals("42P01")) {
+          //if the job_data table is not present anymore during a resume, we expect that the last execution completet
+          //after der StateMaschnine was already canceled. In this case only have to report success.
+          reportAsyncSuccess();
+          return;
+        }else
+          throw e;
+      }
     }
     startInitialTasks();
     noTasksCreated = taskItemCount == 0;
@@ -578,30 +588,32 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
 
     try {
       TaskProgress taskProgress = getTaskProgress();
+
       if(taskProgress.isComplete())
         return AsyncExecutionState.SUCCEEDED;
-      else if (taskProgress.getStartedTasks() > 0 &&
-              taskProgress.getStartedTasks() > taskProgress.getFinalizedTasks()) {
+      else if (taskProgress.hasRunningTasks()) {
         //Check if the expected queries are still running.
         return super.getExecutionState();
       }
-      else if(taskProgress.getStartedTasks() == 0 ||
-              taskProgress.getStartedTasks() == taskProgress.getFinalizedTasks()){
+      else if(taskProgress.hasNoRunningTasks()){
         infoLog(STEP_ON_STATE_CHECK,"No running tasks detected. StartedTasks: "+ taskProgress.getStartedTasks()+ "," +
                         " FinalizedTasks: "+taskProgress.getFinalizedTasks() + " !");
         throw new UnknownStateException("No running Tasks detected for step: "+ getGlobalStepId() + " !");
       }
-    } catch (Exception e) {
-      if(e instanceof  SQLException er && er.getSQLState() != null && er.getSQLState().equalsIgnoreCase("42P01")) {
-        //If we are here task table does not exist anymore. Could happen via getTaskProgress() or during check if quries are running
+    } catch (SQLException e) {
+      if(e.getSQLState() != null && e.getSQLState().equalsIgnoreCase("42P01")) {
+        //If we are here task table does not exist anymore. Could happen via getTaskProgress() or during check if quires are running
         infoLog(STEP_ON_STATE_CHECK,  "Task table does not exist anymore. Ignore.");
         throw new UnknownStateException("Task table does not exist anymore "+ getGlobalStepId() + " !");
       }
-      errorLog(STEP_ON_STATE_CHECK, e, "Error while checking execution state!");
+      errorLog(STEP_ON_STATE_CHECK,  e);
+      throw new UnknownStateException("SQLException occurred "+ getGlobalStepId() + " !");
+    } catch (UnknownStateException e){
+      throw e;
+    } catch (Exception e) {
       throw new RuntimeException(e);
     }
-
-    throw new UnknownStateException("Unknown state for step: "+ getGlobalStepId() +"!");
+    return AsyncExecutionState.RUNNING;
   }
 
   /**

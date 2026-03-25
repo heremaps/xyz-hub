@@ -265,7 +265,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     try {
       onStateCheck();
       switch (getExecutionState()) {
-        case RUNNING -> reportAsyncHeartbeat();
+        case RUNNING -> reportAsyncHeartbeat(true);
         case SUCCEEDED -> reportAsyncSuccess();
         case FAILED -> reportFailure(null, true);
       }
@@ -292,7 +292,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     boolean isCompleted = onAsyncUpdate(request.getProcessUpdate());
 
     //Safeguard to detect a StateMachine which is not running anymore;
-    reportAsyncHeartbeat();
+    reportAsyncHeartbeat(false);
     if(request.getStep().getStatus().getState() != RUNNING) {
       return;
     }
@@ -372,14 +372,16 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     //Nothing to do by default (may be overridden in subclasses)
   }
 
-  private void reportAsyncHeartbeat() {
+  private void reportAsyncHeartbeat(boolean synchronize) {
     if (isSimulation)
       return;
     //Report heartbeat to SFN and check for a potential necessary cancellation
     try {
       sfnClient().sendTaskHeartbeat(SendTaskHeartbeatRequest.builder().taskToken(taskToken).build());
-      getStatus().touch();
-      synchronizeStep();
+      if(synchronize) {
+        getStatus().touch();
+        synchronizeStep();
+      }
     }
     catch (TaskTimedOutException | InvalidTokenException e) {
       try {

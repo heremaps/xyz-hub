@@ -392,7 +392,7 @@ final class DataReferenceApiIT extends RestAssuredTest {
 
   @Order(12)
   @Test
-  void shouldUpsertReferenceWhenUniquenessKeyMatches_andLocationChanges() {
+  void shouldCreateNewImmutableReferenceWhenUniquenessKeyMatches_andLocationChanges() {
     String entityId = "entity-id-dedup-test";
 
     String initialPayload = """
@@ -458,9 +458,16 @@ final class DataReferenceApiIT extends RestAssuredTest {
       .path("id");
 
     registerCreatedObject(firstId);
-    assertThat(secondId, equalTo(firstId));
+    registerCreatedObject(secondId);
+    assertThat(secondId, not(equalTo(firstId)));
 
     getReferenceById(firstId)
+      .then()
+      .statusCode(OK.code())
+      .body("location", equalTo("s3://bucket/dedup-path-a"))
+      .body("producer", equalTo("dedup-producer"));
+
+    getReferenceById(secondId)
       .then()
       .statusCode(OK.code())
       .body("location", equalTo("s3://bucket/dedup-path-b"))
@@ -469,7 +476,8 @@ final class DataReferenceApiIT extends RestAssuredTest {
     queryForReferences(Map.of("entityId", entityId))
       .then()
       .statusCode(OK.code())
-      .body("size()", equalTo(1));
+      .body("size()", equalTo(1))
+      .body("id", containsInAnyOrder(secondId));
   }
 
   @Order(13)

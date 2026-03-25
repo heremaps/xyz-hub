@@ -178,6 +178,11 @@ DECLARE
     retain_meta BOOLEAN := TG_ARGV[2]::BOOLEAN;
     feature RECORD;
 BEGIN
+    -- Skip features marked as deleted
+    IF (NEW.jsondata::JSONB#>>'{properties,@ns:com:here:xyz,deleted}')::BOOLEAN IS TRUE THEN
+        RETURN NULL;
+    END IF;
+
     SELECT new_jsondata, new_geo, new_operation, new_id
         from import_from_s3_enrich_feature(NEW.jsondata, NEW.geo, retain_meta)
     INTO feature;
