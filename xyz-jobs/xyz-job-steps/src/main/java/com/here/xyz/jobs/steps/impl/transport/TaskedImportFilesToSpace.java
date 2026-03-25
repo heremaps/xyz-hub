@@ -42,6 +42,7 @@ import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.service.Core;
+import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
 
 import java.io.IOException;
 import java.sql.SQLException;
@@ -183,6 +184,9 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
     if(useFeatureWriter()) {
       infoLog(STEP_EXECUTE,  "initialSetup - Using FeatureWriter for import!");
 
+      //Pre-create two spare history partitions to avoid concurrency issue with hub requests.
+      createSpareHistoryPartitions(newVersion);
+
       String superRootTable = space().getExtension() != null ? getRootTableName(superSpace()) : null;
       runBatchWriteQuerySync(getQueryBuilder().buildTemporaryTriggerTableBlockForImportWithFW(space().getOwner(),
              newVersion, superRootTable, updateStrategy), db(), 0);
@@ -195,6 +199,18 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
       runBatchWriteQuerySync(getQueryBuilder().buildTemporaryTriggerTableBlockForImportIntoEmpty(space().getOwner(), newVersion, retainMetadata),
               db(), 0);
     }
+  }
+
+  private void createSpareHistoryPartitions(long version) throws SQLException, TooManyResourcesClaimed, WebClientException {
+    long currentPartitionNo = Math.floorDiv(version, XyzSpaceTableHelper.PARTITION_SIZE);
+
+    String schema = getSchema(db());
+    String rootTable = getRootTableName(space());
+
+    runBatchWriteQuerySync(SQLQuery.batchOf(
+        XyzSpaceTableHelper.buildCreateHistoryPartitionQuery(schema, rootTable, currentPartitionNo + 1, true),
+        XyzSpaceTableHelper.buildCreateHistoryPartitionQuery(schema, rootTable, currentPartitionNo + 2, true)
+    ), db(), 0);
   }
 
   @Override
