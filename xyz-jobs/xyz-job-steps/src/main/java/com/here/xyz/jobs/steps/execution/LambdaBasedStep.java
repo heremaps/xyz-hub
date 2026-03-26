@@ -48,7 +48,6 @@ import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.ProcessUpdate;
 import com.here.xyz.jobs.steps.execution.db.DatabaseBasedStep;
-import com.here.xyz.jobs.steps.impl.transport.ExportChangedTiles;
 import com.here.xyz.jobs.steps.impl.transport.TaskedSpaceBasedStep;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.util.StepWebClient;
@@ -402,16 +401,17 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     if(redriveCount == 0 || isPipeline())
       return false;
 
-    boolean isResume = SFNInspector.findStepFunctionExecutionInHistory(executionId,
-                    this.getClass().getSimpleName(), this.getId())
-        .recover(t -> {
-          //TODO: Check if we want to fail here instead
-          logger.warn("[{}] Error while checking for resume execution in SFN history.", getGlobalStepId(), t);
-          return Future.succeededFuture(false);
-        })
-        .toCompletionStage()
-        .toCompletableFuture()
-        .join();
+    final boolean isResume;
+    try {
+      isResume = SFNInspector.findStartedStepFunctionExecutionInHistory(executionId,
+                      this.getClass().getSimpleName(), this.getId())
+          .toCompletionStage()
+          .toCompletableFuture()
+          .join();
+    }
+    catch (Exception e) {
+      throw new RuntimeException("Failed to determine resume state for step " + getGlobalStepId(), e);
+    }
 
     if (isResume)
       logger.info("[{}] Resume detected!", getGlobalStepId());
