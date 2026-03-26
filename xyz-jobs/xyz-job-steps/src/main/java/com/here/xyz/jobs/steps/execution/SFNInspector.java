@@ -14,6 +14,7 @@ import java.util.Map;
 import static com.here.xyz.jobs.util.AwsClientFactory.asyncSfnClient;
 import static com.here.xyz.jobs.util.AwsClientFactory.sfnClient;
 import static software.amazon.awssdk.services.sfn.model.HistoryEventType.TASK_STATE_ENTERED;
+import static software.amazon.awssdk.services.sfn.model.HistoryEventType.TASK_STARTED;
 
 public class SFNInspector {
   private final static int PAGE_SIZE = 1000;
@@ -86,8 +87,8 @@ public class SFNInspector {
    * @param stepId The step identifier to look for (matches stateEnteredEventDetails.name).
    * @return Future that resolves to true if such an event exists, otherwise false.
    */
-  public static Future<Boolean> findStepFunctionExecutionInHistory(String executionArn, String stepClassName, String stepId) {
-    return containsEventTypeInHistory(executionArn, getStepName(stepClassName, stepId), TASK_STATE_ENTERED, null);
+  public static Future<Boolean> findStartedStepFunctionExecutionInHistory(String executionArn, String stepClassName, String stepId) {
+    return containsEventTypeInHistory(executionArn, getStepName(stepClassName, stepId), TASK_STARTED, null);
   }
 
   private static Future<Boolean> containsEventTypeInHistory(String executionArn, String fullStepName,
