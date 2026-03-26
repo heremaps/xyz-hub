@@ -564,6 +564,57 @@ END;
 $$ LANGUAGE plpgsql VOLATILE;
 
 /**
+ * Function: update_task_item_and_get_task_item_and_statistics
+ *
+ * Purpose:
+ *   Atomically finalizes a task item and fetches updated task statistics plus the next task item.
+ *
+ * Behavior:
+ *   1. Updates task_output/finalized for the provided task_id.
+ *   2. Computes total/started/finalized statistics.
+ *   3. If work remains, claims the next unstarted task using FOR UPDATE SKIP LOCKED.
+ *   4. Returns statistics + claimed task (or task_id=-1 if nothing claimable).
+ *
+ * Returns:
+ *   TABLE (
+ *     total INT,
+ *     started INT,
+ *     finalized INT,
+ *     task_id INT,
+ *     task_input JSONB
+ *   )
+ */
+CREATE OR REPLACE FUNCTION update_task_item_and_get_task_item_and_statistics(
+    p_task_id INT,
+    p_task_output JSONB,
+    p_finalized BOOLEAN DEFAULT true
+)
+    RETURNS TABLE (total INT, started INT, finalized INT, task_id INT, task_input JSONB) AS $$
+DECLARE
+    v_total INT := 0;
+    v_started INT := 0;
+    v_finalized INT := 0;
+    v_task_item RECORD;
+    ctx JSONB;
+BEGIN
+    SELECT context() INTO ctx;
+    -- Set provided task as finalized and store output
+    EXECUTE format(
+        'UPDATE %1$s t
+            SET task_output = %2$L::JSONB,
+                finalized = %3$L
+          WHERE task_id = %4$L;',
+        get_table_reference(ctx->>'schema', ctx->>'stepId', 'JOB_TABLE'),
+        p_task_output::TEXT,
+        p_finalized,
+        p_task_id
+    );
+
+    RETURN QUERY SELECT * FROM get_task_item_and_statistics();
+END;
+$$ LANGUAGE plpgsql VOLATILE;
+
+/**
  * Function: report_task_progress
  *
  * Purpose:
