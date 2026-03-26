@@ -99,6 +99,12 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
       SQLException {
     return (int[]) executeQuery(query, db, estimatedMaxAcuLoad, null, true, false, false);
   }
+
+  protected final int[] runBatchWriteQuerySyncUnkillable(SQLQuery query, Database db, double estimatedMaxAcuLoad) throws TooManyResourcesClaimed,
+          SQLException {
+    return (int[]) executeQuery(query, db, estimatedMaxAcuLoad, null, true, false, false, false);
+  }
+
   private Object executeQuery(SQLQuery query, Database db, double estimatedMaxAcuLoad, ResultSetHandler<?> resultSetHandler,
                               boolean isWriteQuery, boolean async, boolean withCallbacks) throws TooManyResourcesClaimed, SQLException {
     return executeQuery(query, db, estimatedMaxAcuLoad, resultSetHandler, isWriteQuery, async, withCallbacks, true);
