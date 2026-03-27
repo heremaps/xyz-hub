@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -60,6 +60,7 @@ import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import com.here.xyz.util.db.datasource.DatabaseSettings;
+import com.here.xyz.util.db.datasource.DatabaseSettings.ScriptResourcePath;
 import com.here.xyz.util.db.datasource.PooledDataSources;
 import com.here.xyz.util.db.pg.IndexHelper.OnDemandIndex;
 import com.here.xyz.util.db.pg.IndexHelper.SystemIndex;
@@ -353,12 +354,16 @@ public class StepTestBase {
             .toList();
   }
 
+  private static final List<ScriptResourcePath> SCRIPT_RESOURCE_PATHS = List.of(
+      new ScriptResourcePath("/sql", "jobs", "common"),
+      new ScriptResourcePath("/jobs", "jobs")
+  );
+
   private DataSourceProvider getDataSourceProvider() {
     if(testDatasource == null)
       testDatasource = new PooledDataSources(
             new DatabaseSettings("testSteps")
-                    //TODO: remove search_path. Temp solved as scripts are now getting installed via script installation.
-                    .withSearchPath(List.of("public", "jobs.common", "jobs.ext"))
+                    .withScriptResourcePaths(SCRIPT_RESOURCE_PATHS)
                     .withApplicationName(StepTestBase.class.getSimpleName())
                     .withHost(PG_HOST)
                     .withDb(PG_DB)
