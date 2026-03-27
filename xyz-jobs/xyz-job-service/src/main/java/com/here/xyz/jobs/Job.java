@@ -442,6 +442,7 @@ public class Job implements XyzSerializable {
   public Future<Boolean> resume() {
     logger.info("[{}] Resuming job ...", getId());
     if (isResumable()) {
+      clearErrors();
       getStatus().setState(RESUMING);
       getSteps().stepStream().forEach(step -> {
         if (step.getStatus().getState().isValidSuccessor(RESUMING)) //NOTE: Steps with e.g. state SUCCEEDED must not be resumed
@@ -461,6 +462,20 @@ public class Job implements XyzSerializable {
     }
     else
       return Future.failedFuture(new IllegalStateException("Job " + getId() + " is not resumable."));
+  }
+
+  /**
+   * Clears all runtime error fields on the global job status and all step statuses.
+   */
+  private void clearErrors() {
+    if (getStatus() != null)
+      getStatus().clearErrors();
+
+    if (getSteps() != null)
+      getSteps().stepStream().forEach(step -> {
+        if (step.getStatus() != null)
+          step.getStatus().clearErrors();
+      });
   }
 
   public Future<Void> store() {
