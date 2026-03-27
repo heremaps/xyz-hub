@@ -184,14 +184,12 @@ public abstract class RemoteFunctionClient {
     });
 
     if (!hasPriority) {
-      if (dbClusterId != null && context.getRequesterId() != null) {
         String role = resolveRole(context);
         String key = buildRequesterKey(role, context);
         if (checkRequesterThrottling(marker, callback, context, key)) {
           return fc;
         }
         fc.requesterKey = key;
-      }
       if (!compareAndIncrementUpTo(getWeightedMaxConnections(), usedConnections)) {
         enqueue(fc);
         return fc;
