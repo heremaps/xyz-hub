@@ -186,6 +186,15 @@ public class RuntimeInfo<T extends RuntimeInfo> implements XyzSerializable {
     return (T) this;
   }
 
+  /**
+   * Clears all error related fields.
+   */
+  public void clearErrors() {
+    setErrorCause(null);
+    setErrorCode(null);
+    setErrorMessage(null);
+  }
+
   public boolean isFailedRetryable() {
     return failedRetryable;
   }
