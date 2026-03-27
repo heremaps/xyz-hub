@@ -286,8 +286,6 @@ public class RpcClient {
             preview(eventJson, 4092));
 
     context.setRequesterId(requesterId);
-    // Passing whether the request can be executed on a replica or needs to be executed on the primary to the RpcContext
-    context.setCanExecuteOnReplica(event.canExecuteOnReplica());
     context.setExecuteOnPrimary(event.executeOnPrimary());
 
     invokeWithRelocation(marker, context, eventBytes, false, hasPriority, bytesResult -> {
@@ -648,7 +646,6 @@ public class RpcClient {
     private String requesterId;
     private volatile boolean cancelled = false;
 
-    private boolean canExecuteOnReplica;
     private boolean executeOnPrimary;
 
     private final Connector connector;
@@ -660,7 +657,7 @@ public class RpcClient {
 
     public void cancelRequest() {
       cancelled = true;
-      functionCall.cancel(requesterId);
+      functionCall.cancel();
     }
 
     public int getRequestSize() {
@@ -699,14 +696,6 @@ public class RpcClient {
 
     public void setRequesterId(String requesterId) {
       this.requesterId = requesterId;
-    }
-
-    public boolean canExecuteOnReplica() {
-      return canExecuteOnReplica;
-    }
-
-    public void setCanExecuteOnReplica(boolean canExecuteOnReplica) {
-      this.canExecuteOnReplica = canExecuteOnReplica;
     }
 
     public boolean executeOnPrimary() {

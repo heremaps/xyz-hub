@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.IntStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import software.amazon.awssdk.regions.Region;
@@ -34,6 +35,7 @@ import software.amazon.awssdk.services.cloudwatch.model.GetMetricDataRequest;
 import software.amazon.awssdk.services.cloudwatch.model.GetMetricDataResponse;
 import software.amazon.awssdk.services.cloudwatch.model.Metric;
 import software.amazon.awssdk.services.cloudwatch.model.MetricDataQuery;
+import software.amazon.awssdk.services.cloudwatch.model.MetricDataResult;
 import software.amazon.awssdk.services.cloudwatch.model.MetricStat;
 
 public final class AuroraAcuMonitor {
@@ -108,16 +110,25 @@ public final class AuroraAcuMonitor {
           .build());
 
       resp.metricDataResults().stream()
-          .flatMap(r -> r.values().stream()
-              .map(v -> new MetricPoint(v, r.timestamps().get(r.values().indexOf(v)))))
+          .flatMap(r -> toMetricPoints(r).stream())
           .max(Comparator.comparing(p -> p.ts))
-          .ifPresent(p -> utilization = p.val);
+          .ifPresentOrElse(
+              p -> utilization = p.val,
+              () -> utilization = -1
+          );
 
       logger.info("ACU poll result for dimensions={} in {}: utilization={}", dimensions, region, utilization);
     } catch (Exception e) {
       logger.warn("ACU poll failed for dimensions={} in {}", dimensions, region, e);
       utilization = -1;
     }
+  }
+
+  private static List<MetricPoint> toMetricPoints(MetricDataResult result) {
+    int points = Math.min(result.values().size(), result.timestamps().size());
+    return IntStream.range(0, points)
+        .mapToObj(i -> new MetricPoint(result.values().get(i), result.timestamps().get(i)))
+        .toList();
   }
 
   private static Dimension dimension(String name, String value) {

@@ -179,6 +179,21 @@ public class AuroraAcuMonitorTest {
     }
   }
 
+  @Test
+  public void testEmptyValuesResultsInMinusOne() throws Exception {
+    ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
+
+    DummyCloudWatchClient client = new DummyCloudWatchClient(responseWith(Collections.emptyList(), Collections.emptyList()));
+    AuroraAcuMonitor monitor = new AuroraAcuMonitor("dummy-cluster", Region.EU_WEST_1, executor, client);
+    try {
+      client.awaitRequest();
+      awaitUtilization(monitor, -1.0);
+    } finally {
+      monitor.stop();
+      executor.shutdownNow();
+    }
+  }
+
   private static GetMetricDataResponse responseWith(List<Double> values, List<Instant> timestamps) {
     MetricDataResult result = MetricDataResult.builder()
         .id("u")
