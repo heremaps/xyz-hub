@@ -223,15 +223,13 @@ public abstract class RemoteFunctionClient {
     }
   }
 
-  private boolean checkRequesterThrottling(Marker marker, Handler<AsyncResult<byte[]>> callback, RpcContext context, String key) {
+  private boolean checkRequesterThrottling(Marker marker, Handler<AsyncResult<byte[]>> callback, RpcClient.RpcContext context, String key) {
     AtomicInteger connectionCount = usedConnectionsByRequesterAndClusterRole.computeIfAbsent(key, k -> new AtomicInteger());
     AuroraAcuMonitor monitor = getEffectiveMonitor(context);
     int maxConnectionsPerRequester = (monitor != null && monitor.getUtilization() < HIGH_THRESHOLD)
         ? Integer.MAX_VALUE
         : context.getConnector().getMaxConnectionsPerRequester();
     //TODO Handle WRITER to READER change if WRITER is highly utilized?
-    // Do we need to do that at all or is it enough to just give the requester the chance to connect to a READER instead of WRITER when the WRITER is highly utilized?
-    logger.info("Connector id={}, maxConnectionsPerRequester={}", context.getConnector().id, maxConnectionsPerRequester);
     if (!compareAndIncrementUpTo(maxConnectionsPerRequester, connectionCount)) {
       logger.warn(marker,
           "Sending too many concurrent requests for user {}. Number of active connections: {}, Maximum allowed per node: {}",
@@ -271,8 +269,6 @@ public abstract class RemoteFunctionClient {
     } else {
       acuMonitor = acuMonitorsByClusterRole.get(monitorKey(requestedRole));
     }
-    logger.info("Effective monitor for clusterId={} and role {} is {}", dbClusterId, requestedRole,
-        acuMonitor != null ? acuMonitor.getRole() : "null");
     return acuMonitor;
   }
 
@@ -463,7 +459,6 @@ public abstract class RemoteFunctionClient {
           }
         }
       }
-      logger.info("usedConnectionsByRequesterAndClusterRole logging the map {}", usedConnectionsByRequesterAndClusterRole);
       try {
         if (!fc.cancelled) {
           fc.callback.handle(r);
