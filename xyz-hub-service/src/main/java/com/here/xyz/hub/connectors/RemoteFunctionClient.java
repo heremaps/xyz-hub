@@ -226,20 +226,20 @@ public abstract class RemoteFunctionClient {
   }
 
   private boolean checkRequesterThrottling(Marker marker, Handler<AsyncResult<byte[]>> callback, RpcContext context, String key) {
-    AtomicInteger connectionCount = usedConnectionsByRequesterAndClusterRole.computeIfAbsent(key, k -> new AtomicInteger());
-    AuroraAcuMonitor acuMonitor = getEffectiveMonitor(context);
-    int maxConnectionsPerRequester = (acuMonitor != null && acuMonitor.getUtilization() < HIGH_THRESHOLD)
-        ? Integer.MAX_VALUE
-        : context.getConnector().getMaxConnectionsPerRequester();
-    logger.info("Connector id={}, maxConnectionsPerRequester={}", context.getConnector().id, maxConnectionsPerRequester);
-    //TODO Handle WRITER to READER change if WRITER is highly utilized?
-    if (!compareAndIncrementUpTo(maxConnectionsPerRequester, connectionCount)) {
-      logger.warn(marker, "Sending too many concurrent requests for user {}. Number of active connections: {}, Maximum allowed per node: {}",
-          context.getRequesterId(), connectionCount.get(), maxConnectionsPerRequester);
-      callback.handle(Future.failedFuture(new TooManyRequestsException("Maximum number of concurrent requests. "
-              + "Max concurrent connections: " + Math.round(maxConnectionsPerRequester * 0.6), QUOTA)));
-      return true;
-    }
+      AtomicInteger connectionCount = usedConnectionsByRequesterAndClusterRole.computeIfAbsent(key, k -> new AtomicInteger());
+      AuroraAcuMonitor acuMonitor = getEffectiveMonitor(context);
+      int maxConnectionsPerRequester = (acuMonitor != null && acuMonitor.getUtilization() < HIGH_THRESHOLD)
+          ? Integer.MAX_VALUE
+          : context.getConnector().getMaxConnectionsPerRequester();
+      logger.info("Connector id={}, maxConnectionsPerRequester={}", context.getConnector().id, maxConnectionsPerRequester);
+      //TODO Handle WRITER to READER change if WRITER is highly utilized?
+      if (!compareAndIncrementUpTo(maxConnectionsPerRequester, connectionCount)) {
+        logger.warn(marker, "Sending too many concurrent requests for user {}. Number of active connections: {}, Maximum allowed per node: {}",
+            context.getRequesterId(), connectionCount.get(), maxConnectionsPerRequester);
+        callback.handle(Future.failedFuture(new TooManyRequestsException("Maximum number of concurrent requests. "
+                + "Max concurrent connections: " + Math.round(maxConnectionsPerRequester * 0.6), QUOTA)));
+        return true;
+      }
     return false;
   }
 
@@ -254,7 +254,7 @@ public abstract class RemoteFunctionClient {
   }
 
   private String buildRequesterKey(String role, RpcContext context) {
-    return dbClusterId + "-" + role + "-" + context.getRequesterId();
+    return monitorKey(role) + "-" + context.getRequesterId();
   }
 
   private AuroraAcuMonitor getEffectiveMonitor(RpcContext context) {
