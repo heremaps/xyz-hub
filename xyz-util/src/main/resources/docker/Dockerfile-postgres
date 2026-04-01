@@ -33,7 +33,9 @@ echo aws_s3.secret_access_key='localstack' >> $PGCONFFILE \n\
 psql -a -d postgres -U postgres -c \"SELECT pg_reload_conf();DROP USER IF EXISTS ro_user;CREATE USER ro_user WITH SUPERUSER ENCRYPTED PASSWORD 'password';GRANT pg_read_all_data TO ro_user;GRANT pg_write_server_files TO ro_user;\" > /dev/null \n\
 psql -a -d postgres -U postgres -c \"DROP DATABASE IF EXISTS postgres_db2;\" > /dev/null \n\
 psql -a -d postgres -U postgres -c \"CREATE DATABASE postgres_db2;\" > /dev/null \n\
-" > /docker-entrypoint-initdb.d/cfg_s3_dummy.sh && chmod 755 /docker-entrypoint-initdb.d/cfg_s3_dummy.sh
+" > /docker-entrypoint-initdb.d/cfg_s3_dummy.sh
+
+RUN chmod 755 /docker-entrypoint-initdb.d/cfg_s3_dummy.sh
 
 #Increase Database Loglevel
 RUN echo -e "#!/bin/sh -e\n\
@@ -44,5 +46,7 @@ sed -i.org \
  -e \"s/#log_statement = 'none'/log_statement = 'all'/\" \
  $PGCONFFILE\n\n\
 \n\n\
-" > /docker-entrypoint-initdb.d/cfg_postgresql.conf.sh && chmod 755 /docker-entrypoint-initdb.d/cfg_postgresql.conf.sh
+" > /docker-entrypoint-initdb.d/cfg_postgresql.conf.sh
+
+RUN chmod 755 /docker-entrypoint-initdb.d/cfg_postgresql.conf.sh
 

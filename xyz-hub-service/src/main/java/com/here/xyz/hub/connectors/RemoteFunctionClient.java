@@ -62,7 +62,6 @@ import org.apache.logging.log4j.Marker;
 import software.amazon.awssdk.regions.Region;
 
 public abstract class RemoteFunctionClient {
-
   /**
    * The global maximum byte size that is available for allocation by all of the queues.
    */
@@ -72,9 +71,9 @@ public abstract class RemoteFunctionClient {
   private static final Logger logger = LogManager.getLogger();
   private static int MEASUREMENT_INTERVAL = 1000; //1s
   private static final int MIN_CONNECTIONS_PER_NODE = 4;
+
   private static final String WRITER = "WRITER";
   private static final String READER = "READER";
-
   private static final double HIGH_THRESHOLD = 80.0;
   private String dbClusterId;
   private Region region;
@@ -146,14 +145,14 @@ public abstract class RemoteFunctionClient {
   }
 
   /**
-   * This method does further initialization for this client. It's guaranteed to be called before an instance will be actually used by not
-   * adding it to the internal {@link #clientInstances} map before initialization. Sub-classes should override that method to do further
-   * initialization rather than doing that in their constructor.
+   * This method does further initialization for this client.
+   * It's guaranteed to be called before an instance will be actually used by not adding it to the internal {@link #clientInstances} map
+   * before initialization.
+   * Sub-classes should override that method to do further initialization rather than doing that in their constructor.
    *
    * @throws NullPointerException if the connector configuration is null.
    */
-  protected void initialize() {
-  }
+  protected void initialize() {}
 
   /**
    * Should be overridden in sub-classes to implement clean-up steps (e.g. closing client / connections).
@@ -167,8 +166,7 @@ public abstract class RemoteFunctionClient {
     }
   }
 
-  protected FunctionCall submit(final Marker marker, byte[] bytes, boolean fireAndForget, boolean hasPriority,
-      final Handler<AsyncResult<byte[]>> callback, RpcClient.RpcContext context) {
+  protected FunctionCall submit(final Marker marker, byte[] bytes, boolean fireAndForget, boolean hasPriority, final Handler<AsyncResult<byte[]>> callback, RpcClient.RpcContext context) {
     //This is the point where new requests arrive so measure the arrival time
     invokeStarted();
 
@@ -183,13 +181,16 @@ public abstract class RemoteFunctionClient {
       callback.handle(Future.succeededFuture(r.result()));
     });
 
-    if (!hasPriority) {
+
+    if (!hasPriority){
+      if (context.getRequesterId() != null) {
         String role = resolveRole(context);
         String key = buildRequesterKey(role, context);
         if (checkRequesterThrottling(marker, callback, context, key)) {
           return fc;
         }
         fc.requesterKey = key;
+      }
       if (!compareAndIncrementUpTo(getWeightedMaxConnections(), usedConnections)) {
         enqueue(fc);
         return fc;
@@ -205,35 +206,38 @@ public abstract class RemoteFunctionClient {
       logger.warn("Monitor not started: Missing connection settings or remote function for connector id={}", connectorConfig.id);
       return;
     }
+
     ConnectorParameters connectorParameters = ConnectorParameters.fromMap(connectorConfig.params);
     if (connectorParameters.getEcps() != null) {
       Map<String, Object> connectorDbSettingsMap = ECPSTool.decryptToMap(DatabaseHandler.ECPS_PHRASE, connectorParameters.getEcps());
       DatabaseSettings connectorDbSettings = new DatabaseSettings(connectorConfig.id, connectorDbSettingsMap);
       dbClusterId = DBClusterResolver.getClusterIdFromHostname(connectorDbSettings.getHost());
       String regionStr = connectorConfig.getRemoteFunction().getRegion();
+
       if (dbClusterId == null || regionStr == null) {
         logger.warn("Monitor not started: Unable to resolve clusterId or region for connector id={}", connectorConfig.id);
         return;
       }
+
       region = Region.of(regionStr);
       addMonitor(WRITER);
       addMonitor(READER);
     }
   }
 
-  private boolean checkRequesterThrottling(Marker marker, Handler<AsyncResult<byte[]>> callback, RpcClient.RpcContext context, String key) {
+  private boolean checkRequesterThrottling(Marker marker, Handler<AsyncResult<byte[]>> callback, RpcContext context, String key) {
     AtomicInteger connectionCount = usedConnectionsByRequesterAndClusterRole.computeIfAbsent(key, k -> new AtomicInteger());
-    AuroraAcuMonitor monitor = getEffectiveMonitor(context);
-    int maxConnectionsPerRequester = (monitor != null && monitor.getUtilization() < HIGH_THRESHOLD)
+    AuroraAcuMonitor acuMonitor = getEffectiveMonitor(context);
+    int maxConnectionsPerRequester = (acuMonitor != null && acuMonitor.getUtilization() < HIGH_THRESHOLD)
         ? Integer.MAX_VALUE
         : context.getConnector().getMaxConnectionsPerRequester();
+    logger.info("Connector id={}, maxConnectionsPerRequester={}", context.getConnector().id, maxConnectionsPerRequester);
     //TODO Handle WRITER to READER change if WRITER is highly utilized?
     if (!compareAndIncrementUpTo(maxConnectionsPerRequester, connectionCount)) {
-      logger.warn(marker,
-          "Sending too many concurrent requests for user {}. Number of active connections: {}, Maximum allowed per node: {}",
+      logger.warn(marker, "Sending too many concurrent requests for user {}. Number of active connections: {}, Maximum allowed per node: {}",
           context.getRequesterId(), connectionCount.get(), maxConnectionsPerRequester);
       callback.handle(Future.failedFuture(new TooManyRequestsException("Maximum number of concurrent requests. "
-          + "Max concurrent connections: " + Math.round(maxConnectionsPerRequester * 0.6), QUOTA)));
+              + "Max concurrent connections: " + Math.round(maxConnectionsPerRequester * 0.6), QUOTA)));
       return true;
     }
     return false;
@@ -282,9 +286,9 @@ public abstract class RemoteFunctionClient {
    * Measures the occurrence of events in relation to the time having passed by since the last measurement. This is at minimum the value of
    * {@link #MEASUREMENT_INTERVAL}.
    *
-   * @param eventCount          A counter for the events having occurred so far within the current time-interval
+   * @param eventCount A counter for the events having occurred so far within the current time-interval
    * @param lastMeasurementTime The point in time when the last measurement was done This reference will be updated in case the
-   *                            time-interval was exceeded
+   * time-interval was exceeded
    * @return The new current value for the dimension. If the time-interval was exceeded this is a newly calculated value otherwise the
    * return value is -1.
    */
@@ -346,23 +350,20 @@ public abstract class RemoteFunctionClient {
 
   /**
    * Should be called when the connector configuration changed during the runtime in order to inform this function client to do necessary
-   * update steps. Should be overridden in sub-classes to implement refreshing steps. (e.g. creating client / connections)
+   * update steps.
+   * Should be overridden in sub-classes to implement refreshing steps. (e.g. creating client / connections)
    *
    * @param connectorConfig the connector configuration
-   * @throws NullPointerException     if the given connector configuration is null.
+   * @throws NullPointerException if the given connector configuration is null.
    * @throws IllegalArgumentException if the given connector configuration is null or the id of the current connector configuration and the
-   *                                  given one do not match.
+   *  given one do not match.
    */
   synchronized void setConnectorConfig(Connector connectorConfig) throws NullPointerException, IllegalArgumentException {
-    if (connectorConfig == null) {
-      throw new NullPointerException("connectorConfig");
-    }
+    if (connectorConfig == null) throw new NullPointerException("connectorConfig");
 
-    if (this.connectorConfig != null && !this.connectorConfig.id.equals(connectorConfig.id)) {
-      throw new IllegalArgumentException(
-          "Wrong connector config was provided to an existing function client during a runtime update. IDs are not matching. new ID: "
-              + connectorConfig.id + " vs. old ID: " + this.connectorConfig.id);
-    }
+    if (this.connectorConfig != null && !this.connectorConfig.id.equals(connectorConfig.id)) throw new IllegalArgumentException(
+        "Wrong connector config was provided to an existing function client during a runtime update. IDs are not matching. new ID: "
+            + connectorConfig.id + " vs. old ID: " + this.connectorConfig.id);
 
     final int oldMinConnections = getMinConnections();
     final int oldMaxConnections = getMaxConnections();
@@ -440,7 +441,7 @@ public abstract class RemoteFunctionClient {
     return Collections.unmodifiableSet(clientInstances);
   }
 
-  private void _invoke(final FunctionCall fc, RpcContext context) {
+  private void _invoke(final FunctionCall fc, RpcClient.RpcContext context) {
     //long start = System.nanoTime();
     invoke(fc, r -> {
       //long end = System.nanoTime();
@@ -449,19 +450,19 @@ public abstract class RemoteFunctionClient {
       //Look into queue if there is something further to do
       FunctionCall nextFc = queue.remove();
       if (nextFc == null && !fc.hasPriority) {
-        if (usedConnections.intValue() > 0) {
+        if(usedConnections.intValue() > 0) {
           usedConnections.getAndDecrement(); //Free the connection only in case it's not needed for the next invocation
           if (fc.requesterKey != null) {
             Optional.ofNullable(usedConnectionsByRequesterAndClusterRole.get(fc.requesterKey))
-                .ifPresent(counter -> compareAndDecrement(0, counter));
+                .ifPresent(connectionCount -> compareAndDecrement(0, connectionCount));
           }
         }
       }
       try {
-        if (!fc.cancelled) {
+        if (!fc.cancelled)
           fc.callback.handle(r);
-        }
-      } catch (Exception e) {
+      }
+      catch (Exception e) {
         logger.error(fc.marker, "Error while calling response handler", e);
       }
       //In case there has been an enqueued element invoke it
@@ -496,15 +497,15 @@ public abstract class RemoteFunctionClient {
   }
 
   public int getMaxConnections() {
-    return connectorConfig == null ? MIN_CONNECTIONS_PER_NODE
-        : Math.max(MIN_CONNECTIONS_PER_NODE, connectorConfig.getMaxConnectionsPerInstance());
+    return connectorConfig == null ? MIN_CONNECTIONS_PER_NODE : Math.max(MIN_CONNECTIONS_PER_NODE, connectorConfig.getMaxConnectionsPerInstance());
   }
 
   public int getWeightedMaxConnections() {
     if (getGlobalUsedConnectionsPercentage() > Service.configuration.REMOTE_FUNCTION_CONNECTION_HIGH_UTILIZATION_THRESHOLD) {
       //Distribute available connections based on the client's priority
       return Math.min((int) (Service.configuration.REMOTE_FUNCTION_MAX_CONNECTIONS * getPriority()), getMaxConnections());
-    } else {
+    }
+    else {
       return getMaxConnections();
     }
   }
@@ -559,8 +560,7 @@ public abstract class RemoteFunctionClient {
         //Send timeout for discarded (old) calls
         .forEach(timeoutFc ->
             timeoutFc.callback
-                .handle(Future.failedFuture(
-                    new TooManyRequestsException("Remote function is busy or cannot be invoked.", STORAGE_QUEUE_FULL))));
+                .handle(Future.failedFuture(new TooManyRequestsException("Remote function is busy or cannot be invoked.", STORAGE_QUEUE_FULL))));
   }
 
   public class FunctionCall implements ByteSizeAware {
@@ -574,11 +574,9 @@ public abstract class RemoteFunctionClient {
     private final Handler<AsyncResult<byte[]>> callback;
     private Runnable cancelHandler;
     private volatile boolean cancelled;
-
     private String requesterKey;
 
-    public FunctionCall(Marker marker, byte[] bytes, boolean fireAndForget,
-        boolean hasPriority, Handler<AsyncResult<byte[]>> callback) {
+    public FunctionCall(Marker marker, byte[] bytes, boolean fireAndForget, boolean hasPriority, Handler<AsyncResult<byte[]>> callback) {
       this.marker = marker;
       this.bytes = bytes;
       this.callback = callback;
@@ -592,9 +590,8 @@ public abstract class RemoteFunctionClient {
     }
 
     public void setCancelHandler(Runnable cancelHandler) {
-      if (this.cancelHandler != null) {
-        throw new IllegalStateException("Cancel handler already set");
-      }
+      if (this.cancelHandler != null)
+        throw new IllegalStateException("Cancel handler was already set for FunctionCall");
       this.cancelHandler = cancelHandler;
     }
 
@@ -604,14 +601,16 @@ public abstract class RemoteFunctionClient {
         if (cancelHandler != null) {
           cancelHandler.run();
         }
-      } catch (Exception e) {
+      }
+      catch (Exception e) {
         logger.error(marker, "Error cancelling call to Remote Function.");
-      } finally {
-        if (!hasPriority && usedConnections.intValue() > 0) {
-          usedConnections.getAndDecrement();
+      }
+      finally {
+        if(!hasPriority && usedConnections.intValue() > 0) {
+          usedConnections.getAndDecrement(); //Free the connection
           if (requesterKey != null) {
             Optional.ofNullable(usedConnectionsByRequesterAndClusterRole.get(requesterKey))
-                .ifPresent(counter -> compareAndDecrement(0, counter));
+                .ifPresent(connectionCount -> compareAndDecrement(0, connectionCount));
           }
         }
       }

@@ -22,7 +22,6 @@ package com.here.xyz.events;
 import java.util.List;
 
 public class SelectiveEvent<T extends SelectiveEvent> extends ContextAwareEvent<T> {
-
   private List<String> selection;
   private boolean force2D;
 

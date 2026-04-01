@@ -19,27 +19,21 @@
 
 package com.here.xyz.util.db;
 
-import java.time.Instant;
-import java.util.Comparator;
 import java.util.List;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.cloudwatch.CloudWatchClient;
-import software.amazon.awssdk.services.cloudwatch.model.Dimension;
-import software.amazon.awssdk.services.cloudwatch.model.GetMetricDataRequest;
-import software.amazon.awssdk.services.cloudwatch.model.GetMetricDataResponse;
-import software.amazon.awssdk.services.cloudwatch.model.Metric;
-import software.amazon.awssdk.services.cloudwatch.model.MetricDataQuery;
-import software.amazon.awssdk.services.cloudwatch.model.MetricDataResult;
-import software.amazon.awssdk.services.cloudwatch.model.MetricStat;
+import software.amazon.awssdk.services.cloudwatch.model.*;
+
+import java.time.Instant;
+import java.util.Comparator;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 
 public final class AuroraAcuMonitor {
-
   private static final Logger logger = LogManager.getLogger();
   private static final long PERIOD_SEC = 60;
 
@@ -117,7 +111,6 @@ public final class AuroraAcuMonitor {
               () -> utilization = -1
           );
 
-      logger.info("ACU poll result for dimensions={} in {}: utilization={}", dimensions, region, utilization);
     } catch (Exception e) {
       logger.warn("ACU poll failed for dimensions={} in {}", dimensions, region, e);
       utilization = -1;
@@ -135,7 +128,5 @@ public final class AuroraAcuMonitor {
     return Dimension.builder().name(name).value(value).build();
   }
 
-  private record MetricPoint(double val, Instant ts) {
-
-  }
+  private record MetricPoint(double val, Instant ts) {}
 }
