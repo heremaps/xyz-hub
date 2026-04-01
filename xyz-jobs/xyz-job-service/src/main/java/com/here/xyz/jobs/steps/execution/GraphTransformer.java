@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -58,10 +58,12 @@ public class GraphTransformer {
   private Map<String, LambdaTaskParameters> lambdaTaskParametersLookup = new HashMap<>(); //TODO: This is a workaround for an open issue with AWS SDK2 for StepFunctions
   private Map<String, Map<String, Object>> taskParametersLookup = new HashMap<>(); //TODO: This is a workaround for an open issue with AWS SDK2 for StepFunctions
   private final ARN stepLambdaArn;
+  private final String stepLambdaPipelineAlias;
   private boolean isPipeline;
 
-  GraphTransformer(ARN stepLambdaArn, boolean isPipeline) {
+  GraphTransformer(ARN stepLambdaArn, String stepLambdaPipelineAlias, boolean isPipeline) {
     this.stepLambdaArn = stepLambdaArn;
+    this.stepLambdaPipelineAlias = stepLambdaPipelineAlias;
     this.isPipeline = isPipeline;
   }
 
@@ -286,7 +288,8 @@ public class GraphTransformer {
         .withStep(lambdaStep);
 
     //TODO: This is a workaround for an open issue with AWS SDK2 for StepFunctions
-    lambdaTaskParametersLookup.put(state.stateName, new LambdaTaskParameters(stepLambdaArn.toString(), payload.toMap()));
+    lambdaTaskParametersLookup.put(state.stateName, new LambdaTaskParameters(stepLambdaArn.toString()
+        + (isPipeline && stepLambdaPipelineAlias != null ? ":" + stepLambdaPipelineAlias : ""), payload.toMap()));
 
     state.stateBuilder.resource(taskResource);
     if (executionMode == ASYNC)
