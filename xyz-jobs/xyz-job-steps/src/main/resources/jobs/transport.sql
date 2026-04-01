@@ -428,7 +428,7 @@ DECLARE
     delay_ms INT;
 BEGIN
     -- Calculate exponential backoff delay: base * 2^attempts, capped at 10 seconds
-    delay_ms := LEAST(base_delay_ms * (2 ^ attempts), 10000);
+    delay_ms := LEAST(base_delay_ms * (2 ^ attempts), 60000);
 
     SELECT * FROM s3_plugin_config(format) into config;
 
@@ -448,8 +448,7 @@ BEGIN
     RETURN import_statistics;
 
     EXCEPTION
-        -- SQLSTATE 'XX000' got added temporarily
-        WHEN SQLSTATE '55P03' OR  SQLSTATE '23505' OR  SQLSTATE '22P02' OR  SQLSTATE '22P04' OR  SQLSTATE 'XX000' THEN
+        WHEN SQLSTATE '55P03' OR  SQLSTATE '23505' OR  SQLSTATE '22P02' OR  SQLSTATE '22P04' THEN
             IF attempts < max_attempts THEN
                 --1 s, 2 s, 4 s, 8 s, 10 s .. max
                 PERFORM pg_sleep(delay_ms / 1000.0);
@@ -560,6 +559,57 @@ BEGIN
         -- No unstarted tasks exist -> return no work
         RETURN QUERY SELECT v_total, v_started, v_finalized, -1, '{"type" : "Empty"}'::JSONB;
     END IF;
+END;
+$$ LANGUAGE plpgsql VOLATILE;
+
+/**
+ * Function: update_task_item_and_get_task_item_and_statistics
+ *
+ * Purpose:
+ *   Atomically finalizes a task item and fetches updated task statistics plus the next task item.
+ *
+ * Behavior:
+ *   1. Updates task_output/finalized for the provided task_id.
+ *   2. Computes total/started/finalized statistics.
+ *   3. If work remains, claims the next unstarted task using FOR UPDATE SKIP LOCKED.
+ *   4. Returns statistics + claimed task (or task_id=-1 if nothing claimable).
+ *
+ * Returns:
+ *   TABLE (
+ *     total INT,
+ *     started INT,
+ *     finalized INT,
+ *     task_id INT,
+ *     task_input JSONB
+ *   )
+ */
+CREATE OR REPLACE FUNCTION update_task_item_and_get_task_item_and_statistics(
+    p_task_id INT,
+    p_task_output JSONB,
+    p_finalized BOOLEAN DEFAULT true
+)
+    RETURNS TABLE (total INT, started INT, finalized INT, task_id INT, task_input JSONB) AS $$
+DECLARE
+    v_total INT := 0;
+    v_started INT := 0;
+    v_finalized INT := 0;
+    v_task_item RECORD;
+    ctx JSONB;
+BEGIN
+    SELECT context() INTO ctx;
+    -- Set provided task as finalized and store output
+    EXECUTE format(
+        'UPDATE %1$s t
+            SET task_output = %2$L::JSONB,
+                finalized = %3$L
+          WHERE task_id = %4$L;',
+        get_table_reference(ctx->>'schema', ctx->>'stepId', 'JOB_TABLE'),
+        p_task_output::TEXT,
+        p_finalized,
+        p_task_id
+    );
+
+    RETURN QUERY SELECT * FROM get_task_item_and_statistics();
 END;
 $$ LANGUAGE plpgsql VOLATILE;
 
