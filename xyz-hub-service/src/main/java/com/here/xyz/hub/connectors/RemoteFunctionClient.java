@@ -232,7 +232,6 @@ public abstract class RemoteFunctionClient {
           ? Integer.MAX_VALUE
           : context.getConnector().getMaxConnectionsPerRequester();
       logger.info("Connector id={}, maxConnectionsPerRequester={}", context.getConnector().id, maxConnectionsPerRequester);
-      //TODO Handle WRITER to READER change if WRITER is highly utilized?
       if (!compareAndIncrementUpTo(maxConnectionsPerRequester, connectionCount)) {
         logger.warn(marker, "Sending too many concurrent requests for user {}. Number of active connections: {}, Maximum allowed per node: {}",
             context.getRequesterId(), connectionCount.get(), maxConnectionsPerRequester);
@@ -259,19 +258,22 @@ public abstract class RemoteFunctionClient {
 
   private AuroraAcuMonitor getEffectiveMonitor(RpcContext context) {
     String requestedRole = resolveRole(context);
-    AuroraAcuMonitor acuMonitor;
+    AuroraAcuMonitor writerMonitor = acuMonitorsByClusterRole.get(WRITER);
     if (WRITER.equals(requestedRole)) {
-      acuMonitor = acuMonitorsByClusterRole.get(monitorKey(requestedRole));
-      if (acuMonitor != null && acuMonitor.getUtilization() >= HIGH_THRESHOLD) {
-        acuMonitor = acuMonitorsByClusterRole.get(monitorKey(READER));
-        if (acuMonitor != null && acuMonitor.getUtilization() > 0) {
-          return acuMonitor;
+      if (writerMonitor != null && writerMonitor.getUtilization() >= HIGH_THRESHOLD) {
+        //if writer threshold crossed try reader monitor and if it's healthy use it
+        AuroraAcuMonitor readerMonitor = acuMonitorsByClusterRole.get(monitorKey(READER));
+        if (readerMonitor != null && readerMonitor.getUtilization() > 0) {
+          return readerMonitor;
         }
       }
     } else {
-      acuMonitor = acuMonitorsByClusterRole.get(monitorKey(requestedRole));
+      AuroraAcuMonitor readerMonitor = acuMonitorsByClusterRole.get(monitorKey(requestedRole));
+      if (readerMonitor == null || readerMonitor.getUtilization() < 0) {
+        return writerMonitor;
+      }
     }
-    return acuMonitor;
+    return writerMonitor;
   }
 
   private String monitorKey(String role) {
