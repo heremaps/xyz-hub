@@ -159,17 +159,19 @@ public class SpaceCopy implements JobCompilationInterceptor {
       if (outputMetadata == null)
         outputMetadata = Map.of(target.getClass().getSimpleName().toLowerCase(), targetSpaceId);
 
+      long DROPCREATEINDEX_THRESHOLD = 4_000_000;
+      boolean skipCountStatistics = sourceFeatureCount >= DROPCREATEINDEX_THRESHOLD;
+
       CopySpacePost postCopySpace = new CopySpacePost()
           .withSpaceId(targetSpaceId)
           .withJobId(jobId)
           .withOutputMetadata(outputMetadata)
-          .withInputSets(List.of(new InputSet(nextSpaceVersion.getOutputSet(VERSION))));
+          .withInputSets(List.of(new InputSet(nextSpaceVersion.getOutputSet(VERSION))))
+          .withSkipCounts( skipCountStatistics );
 
       startGraph.addExecution(postCopySpace);
 
-      long DROPCREATEINDEX_THRESHOLD = 4_000_000;
-
-      boolean useDropIndexOptimization =    sourceFeatureCount >= DROPCREATEINDEX_THRESHOLD
+      boolean useDropIndexOptimization =    skipCountStatistics
                                             // target is empty and no filtering
                                          && targetFeatureCount <= 0
                                          && filters == null;
