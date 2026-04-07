@@ -51,7 +51,7 @@ public final class AuroraAcuMonitorManager {
     try {
       AuroraAcuMonitor acuMonitor = monitors.computeIfAbsent(clusterId + "-" + role,
           key -> new AuroraAcuMonitor(clusterId, role, region, executorService, cw(region)));
-      logger.info("Created role based ACU monitors for clusterId={} in {}.", clusterId, region);
+      logger.info("Created role based ACU monitors for clusterId={} and role={} in {}.", clusterId, role, region);
       return acuMonitor;
     } catch (Exception e) {
       logger.warn("Could not create role based ACU monitors for clusterId={} in {}.", clusterId, region, e);
