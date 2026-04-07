@@ -231,8 +231,7 @@ public abstract class RemoteFunctionClient {
       int maxConnectionsPerRequester = (acuMonitor != null && acuMonitor.getUtilization() < HIGH_THRESHOLD)
           ? Integer.MAX_VALUE
           : context.getConnector().getMaxConnectionsPerRequester();
-      logger.info("Connector id={}, maxConnectionsPerRequester={}, current connections={}, utilization={}",
-          context.getConnector().id, maxConnectionsPerRequester, connectionCount.get(), acuMonitor!= null ? acuMonitor.getUtilization() : -1);
+      logger.info("Connector id={}, maxConnectionsPerRequester={}", context.getConnector().id, maxConnectionsPerRequester);
       //TODO Handle WRITER to READER change if WRITER is highly utilized?
       if (!compareAndIncrementUpTo(maxConnectionsPerRequester, connectionCount)) {
         logger.warn(marker, "Sending too many concurrent requests for user {}. Number of active connections: {}, Maximum allowed per node: {}",
