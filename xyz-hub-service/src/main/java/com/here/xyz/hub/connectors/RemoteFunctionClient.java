@@ -258,20 +258,19 @@ public abstract class RemoteFunctionClient {
 
   private AuroraAcuMonitor getEffectiveMonitor(RpcContext context) {
     String requestedRole = resolveRole(context);
-    AuroraAcuMonitor writerMonitor = acuMonitorsByClusterRole.get(WRITER);
+    AuroraAcuMonitor writerMonitor = acuMonitorsByClusterRole.get(monitorKey(WRITER));
     if (WRITER.equals(requestedRole)) {
       if (writerMonitor != null && writerMonitor.getUtilization() >= HIGH_THRESHOLD) {
-        //if writer threshold crossed try reader monitor and if it's healthy use it
         AuroraAcuMonitor readerMonitor = acuMonitorsByClusterRole.get(monitorKey(READER));
-        if (readerMonitor != null && readerMonitor.getUtilization() > 0) {
+        if (readerMonitor != null && readerMonitor.getUtilization() >= 0) {
           return readerMonitor;
         }
       }
-    } else {
-      AuroraAcuMonitor readerMonitor = acuMonitorsByClusterRole.get(monitorKey(requestedRole));
-      if (readerMonitor == null || readerMonitor.getUtilization() < 0) {
-        return writerMonitor;
-      }
+      return writerMonitor;
+    }
+    AuroraAcuMonitor requestedMonitor = acuMonitorsByClusterRole.get(monitorKey(requestedRole));
+    if (requestedMonitor != null && requestedMonitor.getUtilization() >= 0) {
+      return requestedMonitor;
     }
     return writerMonitor;
   }
