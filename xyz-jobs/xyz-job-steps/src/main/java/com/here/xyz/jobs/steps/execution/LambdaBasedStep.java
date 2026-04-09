@@ -66,7 +66,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import io.vertx.core.Future;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import software.amazon.awssdk.services.cloudwatchevents.model.ConcurrentModificationException;
@@ -384,7 +383,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     }
     catch (TaskTimedOutException | InvalidTokenException e) {
       try {
-        logger.warn("[{}] Task Heartbeat is failed. Cancelling step!", getGlobalStepId());
+        logger.warn("[{}] Task Heartbeat is failed. Cancelling step!", getGlobalStepId(), e);
         updateState(CANCELLING);
         cancel();
         updateState(CANCELLED);
@@ -403,7 +402,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
 
     final boolean isResume;
     try {
-      isResume = SFNInspector.findStartedStepFunctionExecutionInHistory(executionId,
+      isResume = SFNInspector.checkIfStepIsResumable(executionId,
                       this.getClass().getSimpleName(), this.getId())
           .toCompletionStage()
           .toCompletableFuture()
