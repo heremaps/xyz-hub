@@ -119,6 +119,7 @@ public class DatabaseSettings extends Payload {
     private int dbAcquireIncrement = 1;
     private int dbAcquireRetryAttempts = 5;
     private int dbCheckoutTimeout = 7_000;
+    private int dbAcquireRetryDelay = 1_000;
     private boolean dbTestConnectionOnCheckout = true;
     private int dbMaxIdleTime;
     private int statementTimeoutSeconds = 23;
@@ -377,6 +378,19 @@ public class DatabaseSettings extends Payload {
 
     public DatabaseSettings withDbAcquireRetryAttempts(int dbAcquireRetryAttempts) {
         setDbAcquireRetryAttempts(dbAcquireRetryAttempts);
+        return this;
+    }
+
+    public int getDbAcquireRetryDelay() {
+       return dbAcquireRetryDelay;
+    }
+
+    public void setDbAcquireRetryDelay(int dbAcquireRetryDelay) {
+        this.dbAcquireRetryDelay = dbAcquireRetryDelay;
+    }
+
+    public DatabaseSettings withDbAcquireRetryDelay(int dbAcquireRetryDelay) {
+        setDbAcquireRetryDelay(dbAcquireRetryDelay);
         return this;
     }
 
