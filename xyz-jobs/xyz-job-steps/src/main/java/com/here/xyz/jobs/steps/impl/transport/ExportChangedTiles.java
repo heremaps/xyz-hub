@@ -81,6 +81,7 @@ import java.util.Set;
  * and {@link TileInvalidations}.</p>
  */
 public class ExportChangedTiles extends ExportSpaceToFiles {
+  private static final int STATEMENT_TIMEOUT = 895;
   //GetFeaturesById queries are getting chunked  in MAX_ID_BLOCKSIZE blocks
   private static final int MAX_ID_BLOCKSIZE = 400_000;
   public static final String TILE_INVALIDATIONS = "tileInvalidations";
@@ -375,7 +376,8 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
             .withNamedParameter("targetLevel", targetLevel)
             .withNamedParameter("quadType", quadType.name())
             .withQueryFragment("squashedDeltaChangesQuery", getBaseFeaturesByIdQuery)
-            .withLoggingEnabled(false);;
+            .withTimeout(STATEMENT_TIMEOUT)
+            .withLoggingEnabled(false);
 
     return getChangedTilesQuery;
   }
@@ -402,6 +404,7 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
             .withNamedParameter("targetLevel", targetLevel)
             .withNamedParameter("quadType", quadType.name())
             .withQueryFragment("squashedDeltaChangesQuery", getDeltaFeaturesQuery)
+            .withTimeout(STATEMENT_TIMEOUT)
             .withLoggingEnabled(false);
   }
 
@@ -419,7 +422,8 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
 
     return queryBuilder
             .withSelectClauseOverride(selectClauseOverride)
-            .buildQuery(input);
+            .buildQuery(input)
+            .withTimeout(STATEMENT_TIMEOUT);
   }
 
   private SQLQuery getFeaturesByTileIdQuery(
