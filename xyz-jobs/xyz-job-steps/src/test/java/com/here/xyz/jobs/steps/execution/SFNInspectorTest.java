@@ -92,7 +92,7 @@ class SFNInspectorTest {
   }
 
   @Test
-  void checkIfStepIsResumableShouldReturnTrueWhenStartedButNotSucceeded() throws Exception {
+  void checkIfStepWasRunningBeforeShouldReturnTrueWhenStartedButNotSucceeded() throws Exception {
     setAsyncSfnClient(createAsyncSfnClient(request -> GetExecutionHistoryResponse.builder()
         .events(
             entered(1L, "TaskedImportFilesToSpace.lgiateettp"),
@@ -102,13 +102,13 @@ class SFNInspectorTest {
         )
         .build()));
 
-    Boolean resumable = await(SFNInspector.checkIfStepIsResumable(EXECUTION_ARN, "TaskedImportFilesToSpace", "lgiateettp"));
+    Boolean resumable = await(SFNInspector.checkIfStepWasRunningBefore(EXECUTION_ARN, "TaskedImportFilesToSpace", "lgiateettp"));
 
     assertTrue(resumable);
   }
 
   @Test
-  void checkIfStepIsResumableShouldReturnFalseWhenSucceeded() throws Exception {
+  void checkIfStepWasRunningBeforeShouldReturnFalseWhenSucceeded() throws Exception {
     setAsyncSfnClient(createAsyncSfnClient(request -> GetExecutionHistoryResponse.builder()
             .events(
                     entered(1L, "TaskedImportFilesToSpace.lgiateettp"),
@@ -119,7 +119,7 @@ class SFNInspectorTest {
             )
             .build()));
 
-    Boolean resumable = await(SFNInspector.checkIfStepIsResumable(EXECUTION_ARN, "TaskedImportFilesToSpace", "lgiateettp"));
+    Boolean resumable = await(SFNInspector.checkIfStepWasRunningBefore(EXECUTION_ARN, "TaskedImportFilesToSpace", "lgiateettp"));
 
     assertFalse(resumable);
   }

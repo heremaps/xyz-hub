@@ -114,7 +114,7 @@ public class SFNInspector {
             .map(eventsById -> resolveStepProgress(eventsById, fullStepName));
   }
 
-  public static Future<Boolean> checkIfStepIsResumable(
+  public static Future<Boolean> checkIfStepWasRunningBefore(
           String executionArn, String stepClassName, String stepId) {
     return findStepProgressInHistory(executionArn, stepClassName, stepId)
             .map(StepProgress::isResumable);

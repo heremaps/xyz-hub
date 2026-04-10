@@ -402,7 +402,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
 
     final boolean isResume;
     try {
-      isResume = SFNInspector.checkIfStepIsResumable(executionId,
+      isResume = SFNInspector.checkIfStepWasRunningBefore(executionId,
                       this.getClass().getSimpleName(), this.getId())
           .toCompletionStage()
           .toCompletableFuture()
