@@ -110,7 +110,6 @@ public class Database extends ExecutionResource {
       dbSettings = new RestrictedDatabaseSettings(getName(), connectorDbSettingsMap)
           .withApplicationName("JobFramework")
           .withScriptResourcePaths(SCRIPT_RESOURCE_PATHS);
-    dbSettings.setStatementTimeoutSeconds(STATEMENT_TIMEOUT);
     return dbSettings;
   }
 
@@ -204,6 +203,11 @@ public class Database extends ExecutionResource {
         fixLocalDbHosts(connectorDbSettingsMap);
 
         DatabaseSettings connectorDbSettings = new DatabaseSettings(connector.id, connectorDbSettingsMap)
+            .withStatementTimeoutSeconds(STATEMENT_TIMEOUT)
+            .withDbCheckoutTimeout(20_000)
+            .withDbAcquireRetryDelay(5_000)
+            .withDbAcquireRetryAttempts(10)
+            .withDbAcquireIncrement(3)
             .withDbMaxPoolSize(10)
             .withScriptResourcePaths(SCRIPT_RESOURCE_PATHS);
 
