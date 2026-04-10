@@ -53,6 +53,7 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
@@ -83,6 +84,20 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
         extends SpaceBasedStep<T> {
   private static final String JOB_DATA_PREFIX = "job_data_";
   private static final Logger logger = LogManager.getLogger();
+  private static final Set<String> RETRYABLE_SQL_CODES = Set.of(
+          "40001", // serialization_failure
+          "40P01", // deadlock_detected
+          "55P03", // lock_not_available
+          "23505", // unique_violation
+          "23P01", // exclusion_violation, same caveat
+          "53300", // too_many_connections
+          "08000", // connection_exception
+          "08001", // sqlclient_unable_to_establish_sqlconnection
+          "08003", // connection_does_not_exist
+          "08006", // connection_failure
+          "08004", // sqlserver_rejected_establishment_of_sqlconnection
+          "57P01"  // admin_shutdown
+          );
 
   @JsonView({Internal.class, Static.class})
   protected int threadCount = 8;
@@ -580,12 +595,11 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
     }
     catch (SQLException e) {
       throw mapSqlException(e);
+    }catch (WebClientException e) {
+      throw new UnknownStateException("WebClientException occurred during execution state check for step: " + getGlobalStepId() + " !");
     }
-    catch (UnknownStateException e) {
-      throw e;
-    }
-    catch (Exception e) {
-      throw new UnknownStateException("Unexpected issue occurred " + getGlobalStepId() + " !");
+    catch (TooManyResourcesClaimed e) {
+      throw new StepException("Unexpected error occurred during execution state check for step: " + getGlobalStepId() + " !", e);
     }
   }
 
@@ -730,12 +744,14 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
                 FROM ${schema}.${table};
         """)
             .withVariable("schema", schema)
-            .withVariable("table", getTemporaryJobTableName(stepId));
+            .withVariable("table", getTemporaryJobTableName(stepId))
+            .withRetryableErrorCodes(RETRYABLE_SQL_CODES);
   }
 
   private SQLQuery retrieveTaskItemAndStatisticsQuery(String schema) throws WebClientException {
     return new SQLQuery("SELECT total, started, finalized, task_id, task_input from get_task_item_and_statistics();")
-            .withContext(getQueryContext(schema));
+            .withContext(getQueryContext(schema))
+            .withRetryableErrorCodes(RETRYABLE_SQL_CODES);
   }
 
   private SQLQuery retrieveTaskItemAndStatisticsAfterUpdateQuery(String schema, SpaceBasedTaskUpdate update)
@@ -751,13 +767,15 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
         .withNamedParameter("taskId", update.taskId)
         .withNamedParameter("taskOutput", XyzSerializable.serialize(update))
         .withNamedParameter("finalized", true)
-        .withContext(getQueryContext(schema));
+        .withContext(getQueryContext(schema))
+        .withRetryableErrorCodes(RETRYABLE_SQL_CODES);
   }
 
   private SQLQuery retrieveTaskOutputsQuery() throws WebClientException {
     return new SQLQuery("SELECT task_id, task_input, task_output->'taskOutput' as task_output FROM ${schema}.${tmpTable};")
             .withVariable("schema", getSchema(db()))
-            .withVariable("tmpTable", getTemporaryJobTableName(getId()));
+            .withVariable("tmpTable", getTemporaryJobTableName(getId()))
+            .withRetryableErrorCodes(RETRYABLE_SQL_CODES);
   }
 
   private boolean insertTaskItemsInTaskTable(String schema, Step step, List<I> taskInputs)
