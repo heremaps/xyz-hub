@@ -19,7 +19,9 @@
 
 package com.here.xyz.jobs.steps;
 
+import static com.here.xyz.jobs.steps.Step.InputSet.GENERIC_PROVIDER;
 import static com.here.xyz.jobs.steps.Step.InputSet.USER_PROVIDER;
+import static com.here.xyz.jobs.steps.Step.Visibility.SYSTEM;
 import static com.here.xyz.jobs.steps.Step.Visibility.USER;
 import static com.here.xyz.jobs.steps.inputs.Input.defaultBucket;
 import static com.here.xyz.jobs.steps.resources.Load.addLoad;
@@ -739,12 +741,12 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
     }
 
     public InputSet(OutputSet outputSetOfOtherStep) {
-      this(outputSetOfOtherStep.getStepId(), outputSetOfOtherStep.name, outputSetOfOtherStep.modelBased);
+      this(outputSetOfOtherStep, null);
     }
 
     public InputSet(OutputSet outputSetOfOtherStep, Map<String, String> metadata) {
       this(outputSetOfOtherStep.getJobId(), outputSetOfOtherStep.getStepId(), outputSetOfOtherStep.name, outputSetOfOtherStep.modelBased,
-          metadata);
+          metadata, outputSetOfOtherStep.s3Uri);
     }
 
     /**
@@ -774,14 +776,14 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   }
 
   protected String toS3Path(OutputSet outputSet) {
-    return Output.stepOutputS3Prefix(outputSet.jobId != null ? outputSet.jobId : getJobId(),
-        outputSet.stepId != null ? outputSet.stepId : getId(), outputSet.name);
+    return outputSet.toS3Path(getJobId(), getId());
   }
 
   @JsonInclude(Include.NON_DEFAULT)
   public static class OutputSet {
     private String jobId;
     private String stepId;
+    private S3Uri s3Uri;
     public String name;
     public String fileSuffix;
     public boolean modelBased;
@@ -807,6 +809,15 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
       this.modelBased = other.modelBased;
       this.jobId = jobId;
       this.stepId = other.stepId;
+    }
+
+    public OutputSet(S3Uri s3Uri, String name) {
+      this.s3Uri = s3Uri;
+      this.name = name;
+      stepId = GENERIC_PROVIDER;
+      visibility = SYSTEM;
+      jobId = null;
+      fileSuffix = "unknown";
     }
 
     public String getJobId() {
@@ -842,6 +853,18 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
 
       return Objects.equals(jobId, that.jobId) && Objects.equals(stepId, that.stepId) && name.equals(that.name)
           && visibility == that.visibility && fileSuffix.equals(that.fileSuffix);
+    }
+
+    String toS3Path(String consumerJobId, String providerId) {
+      return Output.stepOutputS3Prefix(jobId != null ? jobId : consumerJobId, stepId != null ? stepId : providerId, name);
+    }
+
+    public S3Uri toS3Uri(String consumerJobId) {
+      String jobId = this.jobId != null ? this.jobId : consumerJobId;
+      if (GENERIC_PROVIDER.equals(stepId))
+        return s3Uri;
+      else
+        return new S3Uri(defaultBucket(), toS3Path(jobId, stepId));
     }
   }
 
