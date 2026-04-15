@@ -91,21 +91,41 @@ class DatabaseWriter {
   _executePlan(plan, parameterSets, resultParsers, queryOptions) {
     let results = [];
     for (let index in parameterSets) {
+      const parameters = parameterSets[index];
+      const options = queryOptions?.[index];
       try {
-        let result = resultParsers[index](plan.execute(parameterSets[index]));
+        let result = resultParsers[index](plan.execute(parameters), parameters);
         if (result != null)
           results.push(result);
       }
       catch (e) {
         if (e.sqlerrcode === SQLErrors.CONFLICT) {
-          let exceptionToThrow;
-          let options = queryOptions?.[index];
           let onVersionConflict = options?.onVersionConflict;
 
-          if (!onVersionConflict || onVersionConflict == "ERROR")
-            exceptionToThrow = new VersionConflictError(`Version conflict while trying to write feature with ID ${parameterSets[index][0]} in version ${parameterSets[index][1]}.`);
+          if (onVersionConflict == null) {
+            const versionParameterIndex = options?.versionParameterIndex ?? 1;
+            const originalVersion = parameters[versionParameterIndex];
+            parameters[versionParameterIndex] = FeatureWriter.getNextVersion(false);
+            this._markSplitFromVersion(parameters, originalVersion);
+
+            try {
+              const retryResult = resultParsers[index](plan.execute(parameters), parameters);
+              if (retryResult != null)
+                results.push(retryResult);
+              continue;
+            }
+            catch (retryError) {
+              if (retryError.sqlerrcode !== SQLErrors.CONFLICT)
+                throw retryError;
+            }
+          }
+
+          let exceptionToThrow;
+
+          if (onVersionConflict === "ERROR")
+            exceptionToThrow = new VersionConflictError(`Version conflict while trying to write feature with ID ${parameters[0]} in version ${parameters[1]}.`);
           else
-            exceptionToThrow = new RetryableVersionConflictError(`Retryable version conflict while trying to write feature with ID ${parameterSets[index][0]} in version ${parameterSets[index][1]}.`);
+            exceptionToThrow = new RetryableVersionConflictError(`Retryable version conflict while trying to write feature with ID ${parameters[0]} in version ${parameters[1]}.`);
           throw exceptionToThrow.withHint("The feature has been modified in the meantime.");
         }
         else
@@ -114,6 +134,18 @@ class DatabaseWriter {
     }
     plan.free();
     return results;
+  }
+
+  _markSplitFromVersion(parameters, originalVersion) {
+    for (const parameter of parameters) {
+      if (parameter && typeof parameter === "object" && parameter.properties) {
+        parameter.properties[XYZ_NS] = {
+          ...parameter.properties[XYZ_NS],
+          splitFromVersion: originalVersion
+        };
+        return;
+      }
+    }
   }
 
   /**
@@ -162,6 +194,7 @@ class DatabaseWriter {
       this.plans[method] = this._preparePlan(sql, ["TEXT", "BIGINT", "CHAR", "TEXT", "JSONB", "JSONB"]);
       this.parameterSets[method] = [];
       this.resultParsers[method] = [];
+      this.queryOptions[method] = [];
     }
 
     if (inputFeature == null) {
@@ -177,13 +210,16 @@ class DatabaseWriter {
       inputFeature,
       inputFeature.geometry //TODO: Use TEXT
     ]);
-    this.resultParsers[method].push(result => {
+    this.resultParsers[method].push((result, usedParameters) => {
       //TODO: In future return null here, if actually no update was taking place (due to non-changed content) - keeping status quo for BWC for now
       let executedAction = !result.length ? ExecutionAction.NONE : ExecutionAction.fromOperation[result[0].operation];
       if (result.length && executedAction == ExecutionAction.UPDATED)
         //Inject createdAt
         inputFeature.properties[XYZ_NS].createdAt = result[0].created_at;
-      return resultHandler(new FeatureModificationExecutionResult(executedAction, inputFeature, version, author));
+      return resultHandler(new FeatureModificationExecutionResult(executedAction, inputFeature, usedParameters[1], author));
+    });
+    this.queryOptions[method].push({
+      versionParameterIndex: 1
     });
 
     if (!this.batchMode)
@@ -212,6 +248,7 @@ class DatabaseWriter {
       this.plans[method] = this._preparePlan(sql, ["BIGINT", "CHAR", "TEXT", "JSONB", "JSONB", "TEXT", "BIGINT"]);
       this.parameterSets[method] = [];
       this.resultParsers[method] = [];
+      this.queryOptions[method] = [];
     }
 
     if (inputFeature == null) {
@@ -228,8 +265,11 @@ class DatabaseWriter {
       inputFeature.id,
       baseVersion
     ]);
-    this.resultParsers[method].push(result => {
-      return resultHandler(!result.length ? null : new FeatureModificationExecutionResult(ExecutionAction.UPDATED, inputFeature, version, author));
+    this.resultParsers[method].push((result, usedParameters) => {
+      return resultHandler(!result.length ? null : new FeatureModificationExecutionResult(ExecutionAction.UPDATED, inputFeature, usedParameters[0], author));
+    });
+    this.queryOptions[method].push({
+      versionParameterIndex: 0
     });
 
     if (!this.batchMode)
@@ -311,11 +351,14 @@ class DatabaseWriter {
     }
 
     this.parameterSets[method].push(params);
-    this.resultParsers[method].push(result => {
+    this.resultParsers[method].push((result, usedParameters) => {
       let executedAction = inputFeature.properties[XYZ_NS].deleted ? ExecutionAction.DELETED : ExecutionAction.fromOperation[operation];
-      return resultHandler(new FeatureModificationExecutionResult(executedAction, inputFeature, version + this.tableBaseVersion, author));
+      return resultHandler(new FeatureModificationExecutionResult(executedAction, inputFeature, usedParameters[1] + this.tableBaseVersion, author));
     });
-    this.queryOptions[method].push({onVersionConflict: onVersionConflict});
+    this.queryOptions[method].push({
+      onVersionConflict: onVersionConflict,
+      versionParameterIndex: 1
+    });
 
     if (!this.batchMode)
       return this.execute()[0];
