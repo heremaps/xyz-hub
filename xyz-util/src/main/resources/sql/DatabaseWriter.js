@@ -100,9 +100,11 @@ class DatabaseWriter {
       }
       catch (e) {
         if (e.sqlerrcode === SQLErrors.CONFLICT) {
+          //TODO: Implement a robust solution with recursive retries by using a callbackFunction
           let onVersionConflict = options?.onVersionConflict;
 
-          if (onVersionConflict == null) {
+          //TODO: handle different Strategies separately
+          if (onVersionConflict == null || onVersionConflict !== "ERROR") {
             const versionParameterIndex = options?.versionParameterIndex ?? 1;
             const originalVersion = parameters[versionParameterIndex];
             parameters[versionParameterIndex] = FeatureWriter.getNextVersion(false);
@@ -122,6 +124,7 @@ class DatabaseWriter {
 
           let exceptionToThrow;
 
+          //TODO: Distinguish better different Strategies
           if (onVersionConflict === "ERROR")
             exceptionToThrow = new VersionConflictError(`Version conflict while trying to write feature with ID ${parameters[0]} in version ${parameters[1]}.`);
           else
