@@ -98,6 +98,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   @JsonView(Internal.class)
   protected boolean isSimulation = false; //TODO: Remove testing code
   private static final Logger logger = LogManager.getLogger();
+  protected boolean inLambda;
 
   @JsonView(Internal.class)
   private String taskToken = TASK_TOKEN_TEMPLATE; //Will be defined by the Step Function
@@ -657,6 +658,8 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
 
         if (request.getStep() == null)
           throw new NullPointerException("Malformed step request, missing step definition.");
+
+        request.getStep().inLambda = true;
 
         //Set the userAgent of the web clients correctly
         HubWebClient.userAgent = StepWebClient.userAgent = "XYZ-JobStep-" + request.getStep().getClass().getSimpleName();
