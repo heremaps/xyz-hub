@@ -278,16 +278,14 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
       logger.warn("Unknown execution state for step {}", getGlobalStepId(), e);
 
       //Check if the StateMachine is still existing and if it is RUNNING. If not - unregister StateCheckTrigger.
-      ExecutionStatus sfnExecutionStatus;
       try {
-        sfnExecutionStatus = SFNInspector.getSFNExecutionStatus(executionId);
+        ExecutionStatus sfnExecutionStatus = SFNInspector.getSFNExecutionStatus(executionId);
+        if(sfnExecutionStatus != ExecutionStatus.RUNNING)
+          unregisterStateCheckTrigger();
       }catch (ExecutionDoesNotExistException e1){
         logger.info("[{}] StateMachine already gone ...", getGlobalStepId());
-        sfnExecutionStatus = ExecutionStatus.FAILED;
-      }
-
-      if(sfnExecutionStatus != ExecutionStatus.RUNNING)
         unregisterStateCheckTrigger();
+      }
 
       synchronizeStep();
       //NOTE: No heartbeat must be sent to SFN in this case!
