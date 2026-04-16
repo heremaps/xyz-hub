@@ -52,6 +52,8 @@ public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
   public static final String STATISTICS = "statistics";
   private static final Logger logger = LogManager.getLogger();
 
+  private static final int STATEMENT_TIMEOUT = 895;
+
   @JsonView({Internal.class, Static.class})
   private boolean skipCounts = false;
 
@@ -156,6 +158,7 @@ public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
         """)
         .withVariable("schema", targetSchema)
         .withVariable("table", targetTable)
+        .withTimeout(STATEMENT_TIMEOUT)
         .withQueryFragment("fetchedVersion", "" + fetchedVersion);
 
     FeatureStatistics statistics = runReadQuerySync(incVersionSql, db(), 0, rs -> rs.next()
