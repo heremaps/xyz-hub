@@ -76,6 +76,8 @@ import software.amazon.awssdk.services.cloudwatchevents.model.PutTargetsRequest;
 import software.amazon.awssdk.services.cloudwatchevents.model.RemoveTargetsRequest;
 import software.amazon.awssdk.services.cloudwatchevents.model.ResourceNotFoundException;
 import software.amazon.awssdk.services.cloudwatchevents.model.Target;
+import software.amazon.awssdk.services.sfn.model.ExecutionDoesNotExistException;
+import software.amazon.awssdk.services.sfn.model.ExecutionStatus;
 import software.amazon.awssdk.services.sfn.model.InvalidTokenException;
 import software.amazon.awssdk.services.sfn.model.SendTaskFailureRequest;
 import software.amazon.awssdk.services.sfn.model.SendTaskHeartbeatRequest;
@@ -275,6 +277,19 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
       If the issue persists, the step will fail after the heartbeat timeout.
        */
       logger.warn("Unknown execution state for step {}", getGlobalStepId(), e);
+
+      //Check if the StateMachine is still existing and if it is RUNNING. If not - unregister StateCheckTrigger.
+      ExecutionStatus sfnExecutionStatus;
+      try {
+        sfnExecutionStatus = SFNInspector.getSFNExecutionStatus(executionId);
+      }catch (ExecutionDoesNotExistException e1){
+        logger.info("[{}] StateMachine already gone ...", getGlobalStepId());
+        sfnExecutionStatus = ExecutionStatus.FAILED;
+      }
+
+      if(sfnExecutionStatus != ExecutionStatus.RUNNING)
+        unregisterStateCheckTrigger();
+
       synchronizeStep();
       //NOTE: No heartbeat must be sent to SFN in this case!
     }
