@@ -225,7 +225,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
 
   @Override
   public int getTimeoutSeconds() {
-    return 2 * 3600; //TODO: Calculate using #getEstimatedExecutionSeconds()
+    return 12 * 3600; //TODO: Calculate using #getEstimatedExecutionSeconds()
   }
 
   private int getThreadPartitions() {
@@ -406,8 +406,8 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
               ) as wfresult
             from
             (
-             select ((row_number() over ())-1)/${{maxBatchSize}} as rn, 
-                    idata.jsondata#>>'{properties,@ns:com:here:xyz,author}' as author, 
+             select ((row_number() over ())-1)/${{maxBatchSize}} as rn,
+                    idata.jsondata#>>'{properties,@ns:com:here:xyz,author}' as author,
                     idata.jsondata || jsonb_build_object('geometry', (idata.geo)::json) as feature
              from
              ( ${{contentQuery}} ) idata
@@ -428,12 +428,12 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
         INSERT INTO ${schema}.${table} (jsondata, operation, author, geo, id, version, next_version )
           SELECT idata.jsondata, case when idata.operation = 'U' then 'I' else idata.operation end AS operation, idata.author, idata.geo, idata.id, ${{versionToBeUsed}} as version, max_bigint() as next_version
           FROM
-          ( 
-            ${{contentQuery}} 
+          (
+            ${{contentQuery}}
           ) idata
         RETURNING id
       ),
-      count_data as 
+      count_data as
       ( SELECT count(1) AS rows FROM ins_data )
       select rows into dummy_output from count_data
     """)
