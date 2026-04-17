@@ -189,7 +189,7 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
 
       String superRootTable = space().getExtension() != null ? getRootTableName(superSpace()) : null;
       runBatchWriteQuerySync(getQueryBuilder().buildTemporaryTriggerTableBlockForImportWithFW(space().getOwner(),
-             newVersion, superRootTable, updateStrategy), db(), 0);
+             newVersion, superRootTable, updateStrategy, "Feature"), db(), 0);
     }else{
       infoLog(STEP_EXECUTE,  "initialSetup - Import into empty layer detected!");
 

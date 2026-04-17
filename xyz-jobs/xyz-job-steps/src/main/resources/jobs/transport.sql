@@ -199,7 +199,7 @@ BEGIN
 END;
 $BODY$
     LANGUAGE plpgsql VOLATILE;
-
+    
 /**
  * Function: import_from_s3_trigger_for_non_empty_layer
  * (for tasked import into non-empty layers)
@@ -232,25 +232,24 @@ $BODY$
  * Returns:
  *   - The enriched NEW row (trigger return).
  */
---TODO: Remove code-duplication of the following trigger functions!!
 CREATE OR REPLACE FUNCTION import_from_s3_trigger_for_non_empty_layer() RETURNS trigger AS
 $BODY$
 DECLARE
-    author TEXT := TG_ARGV[0];
-    currentVersion BIGINT := TG_ARGV[1];
-    isPartial BOOLEAN := TG_ARGV[2];
-    onExists TEXT := TG_ARGV[3];
-    onNotExists TEXT := TG_ARGV[4];
-    onVersionConflict TEXT := TG_ARGV[5];
-    onMergeConflict TEXT := TG_ARGV[6];
-    historyEnabled BOOLEAN := TG_ARGV[7]::BOOLEAN;
-    spaceContext TEXT := TG_ARGV[8];
-    tables TEXT := TG_ARGV[9];
-    format TEXT := TG_ARGV[10];
-    entityPerLine TEXT := TG_ARGV[11];
-    featureCount INT := 0;
-    input TEXT;
-    inputType TEXT;
+    author text := TG_ARGV[0];
+    currentVersion bigint := TG_ARGV[1];
+    isPartial boolean := TG_ARGV[2];
+    onExists text := TG_ARGV[3];
+    onNotExists text := TG_ARGV[4];
+    onVersionConflict text := TG_ARGV[5];
+    onMergeConflict text := TG_ARGV[6];
+    historyEnabled boolean := TG_ARGV[7]::boolean;
+    spaceContext text := TG_ARGV[8];
+    tables text := TG_ARGV[9];
+    format text := TG_ARGV[10];
+    entityPerLine text := TG_ARGV[11];
+
+    feature_collection text;
+    featureCount int := 0;
 BEGIN
     --TODO: Remove the following workaround once the caller-side was fixed
     onExists = CASE WHEN onExists = 'null' THEN NULL ELSE onExists END;
@@ -258,48 +257,77 @@ BEGIN
     onVersionConflict = CASE WHEN onVersionConflict = 'null' THEN NULL ELSE onVersionConflict END;
     onMergeConflict = CASE WHEN onMergeConflict = 'null' THEN NULL ELSE onMergeConflict END;
 
-    -- TODO: remove support for CSV_JSON_WKB and CSV_GEOJSON if all import process are tasked based
-    IF format = 'CSV_JSON_WKB' AND NEW.geo IS NOT NULL THEN
-        --TODO: Extend feature_writer with possibility to provide geometry (as JSONB manipulations are quite slow)
-        --TODO: Remove unnecessary xyz_reduce_precision call, because the FeatureWriter will do it anyways
-        NEW.jsondata := jsonb_set(NEW.jsondata::JSONB, '{geometry}', xyz_reduce_precision(ST_ASGeojson(ST_Force3D(NEW.geo)), false)::JSONB);
-        input = NEW.jsondata::TEXT;
-        inputType = 'Feature';
-    END IF;
-
-    IF format = 'GEOJSON' OR  format = 'CSV_GEOJSON' THEN
-        IF entityPerLine = 'Feature' THEN
-            input = NEW.jsondata::TEXT;
-            inputType = 'Feature';
-        ELSE
-            --TODO: Shouldn't the input be a FeatureCollection here? Seems to be a list of Features
-            input = (NEW.jsondata::JSONB->'features')::TEXT;
-            inputType = 'Features';
-        END IF;
-    END IF;
-
-    --TODO: check how to use asyncify instead
     PERFORM context(
         jsonb_build_object(
-            'stepId', get_stepid_from_work_table(TG_TABLE_NAME::REGCLASS) ,
+            'stepId', get_stepid_from_work_table(TG_TABLE_NAME::regclass),
             'schema', TG_TABLE_SCHEMA,
             'tables', string_to_array(tables, ','),
             'historyEnabled', historyEnabled,
             'context', CASE WHEN spaceContext = 'null' THEN null ELSE spaceContext END,
-            'batchMode', inputType != 'Feature'
+            'batchMode', true
         )
     );
 
-    SELECT write_features(
-        input, inputType, author, false, currentVersion,
-        onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial
-    )::JSONB->'count' INTO featureCount;
+    IF format = 'CSV_JSON_WKB' THEN
+        SELECT jsonb_build_object(
+	       'type', 'FeatureCollection',
+	       'features',
+	       coalesce(
+	           jsonb_agg(
+	               jsonb_set(
+	                   n.jsondata::jsonb,
+	                   '{geometry}',
+	                   xyz_reduce_precision(ST_AsGeoJSON(ST_Force3D(n.geo)), false)::JSONB
+	               )
+	           ),
+	           '[]'::jsonb
+	       )
+	   )::text
+        INTO feature_collection
+            FROM new_rows n
+        WHERE n.geo IS NOT NULL;
+    END IF;
 
-    NEW.jsondata = NULL;
-    NEW.geo = NULL;
-    NEW.count = featureCount;
+    IF format IN ('GEOJSON', 'CSV_GEOJSON') THEN
+        IF entityPerLine = 'Feature' THEN
+            SELECT jsonb_build_object(
+                       'type', 'FeatureCollection',
+                       'features',
+                       COALESCE(jsonb_agg(n.jsondata::jsonb), '[]'::jsonb)
+                   )::text
+              INTO feature_collection
+              FROM new_rows n;
+        ELSE
+            SELECT jsonb_build_object(
+                       'type', 'FeatureCollection',
+                       'features',
+                       COALESCE(jsonb_agg(f.feature), '[]'::jsonb)
+                   )::text
+              INTO feature_collection
+                  FROM new_rows n
+              CROSS JOIN LATERAL jsonb_array_elements(n.jsondata::jsonb -> 'features') AS f(feature);
+        END IF;
+    ELSE
+        RAISE EXCEPTION 'Unsupported format: %', format;
+    END IF;
 
-    RETURN NEW;
+    IF feature_collection IS NOT NULL THEN
+        SELECT (write_features(
+                    feature_collection,
+                    'FeatureCollection',
+                    author,
+                    false,
+                    currentVersion,
+                    onExists,
+                    onNotExists,
+                    onVersionConflict,
+                    onMergeConflict,
+                    isPartial
+                )::jsonb ->> 'count')::int
+          INTO featureCount;
+    END IF;
+
+    RETURN null;
 END;
 $BODY$
 LANGUAGE plpgsql VOLATILE;

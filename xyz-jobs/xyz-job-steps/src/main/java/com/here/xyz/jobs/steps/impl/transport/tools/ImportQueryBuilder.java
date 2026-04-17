@@ -44,10 +44,10 @@ public class ImportQueryBuilder {
   }
 
   public SQLQuery buildTemporaryTriggerTableBlockForImportWithFW(String author, long newVersion, String superRootTable,
-                                                                 UpdateStrategy updateStrategy){
+                                                                 UpdateStrategy updateStrategy, String entityPerLine){
     return SQLQuery.batchOf(
             buildTemporaryTriggerTableForImportQuery(),
-            buildCreateFeatureWriterImportTrigger(author, newVersion, superRootTable, updateStrategy)
+            buildCreateFeatureWriterImportTrigger(author, newVersion, superRootTable, updateStrategy, entityPerLine)
     );
   }
   public SQLQuery buildNextVersionQuery(){
@@ -108,14 +108,19 @@ public class ImportQueryBuilder {
             .withVariable("table", rootTable);
   }
 
-  private SQLQuery buildCreateFeatureWriterImportTrigger(String author, long newVersion, String superRootTable,
-                                                         UpdateStrategy updateStrategy){
+  //TODO: make private ones deprecated ImportFilesToSpace got removed
+  public SQLQuery buildCreateFeatureWriterImportTrigger(String author, long newVersion, String superRootTable,
+                                                        UpdateStrategy updateStrategy,
+                                                        String entityPerLine){
     List<String> tables = superRootTable == null ? List.of(rootTable) : List.of(superRootTable, rootTable);
 
     //TODO: Check if we can forward the whole transaction to the FeatureWriter rather than doing it for each row
     return new SQLQuery("""
-        CREATE OR REPLACE TRIGGER insertTrigger BEFORE INSERT ON ${schema}.${table}
-          FOR EACH ROW EXECUTE PROCEDURE ${triggerFunction}(
+          CREATE TRIGGER insertTrigger
+            AFTER INSERT on ${schema}.${table}
+          REFERENCING NEW TABLE as new_rows
+            FOR EACH STATEMENT
+          EXECUTE FUNCTION ${triggerFunction}(
              ${{author}},
              ${{spaceVersion}},
              false, --isPartial
@@ -144,7 +149,7 @@ public class ImportQueryBuilder {
             //Maybe other formats will be supported in the future
             .withQueryFragment("format", GEOJSON.name())
             //If FeatureCollection is supported in the future, this needs to be adapted with EMR
-            .withQueryFragment("entityPerLine", "Feature")
+            .withQueryFragment("entityPerLine", entityPerLine)
             .withVariable("schema", schema)
             .withVariable("triggerFunction", "import_from_s3_trigger_for_non_empty_layer")
             .withVariable("table", temporaryImportTable);
