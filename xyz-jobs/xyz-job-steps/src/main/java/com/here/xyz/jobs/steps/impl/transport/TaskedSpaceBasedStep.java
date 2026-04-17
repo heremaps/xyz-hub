@@ -43,8 +43,6 @@ import com.here.xyz.util.db.pg.FeatureWriterQueryBuilder.FeatureWriterQueryConte
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.web.XyzWebClient;
 import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
-import com.here.xyz.util.web.XyzWebClient.WebClientException;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
