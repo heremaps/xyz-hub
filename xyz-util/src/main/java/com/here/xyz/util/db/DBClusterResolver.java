@@ -19,6 +19,8 @@
 
 package com.here.xyz.util.db;
 
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -28,9 +30,11 @@ import java.util.stream.Collectors;
 import org.xbill.DNS.Lookup;
 import org.xbill.DNS.Record;
 import org.xbill.DNS.Name;
+import org.xbill.DNS.SimpleResolver;
 
 public class DBClusterResolver {
   private static final Pattern RDS_CLUSTER_HOSTNAME_PATTERN = Pattern.compile("(.+).cluster-.*.rds.amazonaws.com.*");
+  private static final int DNS_LOOKUP_TIMEOUT_SECONDS = 2;
 
   public static String getClusterIdFromHostname(String hostname) {
     if(hostname == null) return null;
@@ -44,7 +48,10 @@ public class DBClusterResolver {
 
   private static String resolveAndExtractClusterId(String hostname) {
     try {
+      SimpleResolver resolver = new SimpleResolver();
+      resolver.setTimeout(Duration.of(DNS_LOOKUP_TIMEOUT_SECONDS, ChronoUnit.SECONDS));
       Lookup lookup = new Lookup(hostname);
+      lookup.setResolver(resolver);
 
       List<String> records = Arrays.stream(lookup.run()).map(Record::toString).collect(Collectors.toList());
       records.addAll(Arrays.stream(lookup.getAliases()).map(Name::toString).collect(Collectors.toList()));
