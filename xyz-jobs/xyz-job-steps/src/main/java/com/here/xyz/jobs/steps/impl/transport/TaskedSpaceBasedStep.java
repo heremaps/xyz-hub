@@ -440,7 +440,8 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
       //We can`t use the default callback here because we are reporting success during onAsyncUpdate in Java.
       //The failureCallback is still needed to report failures from the DB-side
       String failureCallback = buildFailureCallbackQuery().substitute().text().replaceAll("'", "''");
-      runReadQueryAsync(buildTaskQuery(taskProgressAndItem.getTaskId(), (I) taskProgressAndItem.getTaskInput(), failureCallback),
+      runReadQueryAsync(buildTaskQuery(taskProgressAndItem.getTaskId(), (I) taskProgressAndItem.getTaskInput(), failureCallback)
+                         .withRetryableErrorCodes(RETRYABLE_SQL_CODES),
                 queryRunsOnWriter() ? dbWriter() : dbReader(), 0d/*perItemAcus.doubleValue()*/,  false);
     }
   }
@@ -708,7 +709,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   }
 
   private static SQLQuery buildTaskTableStatement(String schema, Step step) {
-    return new SQLQuery("""          
+    return new SQLQuery("""
             CREATE TABLE ${schema}.${table}
             (
             	task_id SERIAL,
@@ -727,7 +728,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
 
   private SQLQuery resetTaskItemWhichAreNotFinalized(String schema, String stepId) {
     infoLog(STEP_EXECUTE, "Reset task items for restart.");
-    return new SQLQuery("""             
+    return new SQLQuery("""
             UPDATE ${schema}.${table} t
                 SET started = false
                 WHERE started = true AND finalized = false;
@@ -804,7 +805,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
       for (I taskInput : taskInputs) {
         String taskItem = taskInput.serialize();
 
-        insertQueries.add(new SQLQuery("""             
+        insertQueries.add(new SQLQuery("""
             INSERT INTO  ${schema}.${table} AS t (task_input)
                 VALUES (#{taskItem}::JSONB);
         """)
