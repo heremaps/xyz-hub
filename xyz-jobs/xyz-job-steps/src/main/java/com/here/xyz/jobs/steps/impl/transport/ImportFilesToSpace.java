@@ -47,6 +47,7 @@ import com.here.xyz.jobs.steps.execution.StepException;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
 import com.here.xyz.jobs.steps.impl.transport.tools.ImportFilesQuickValidator;
+import com.here.xyz.jobs.steps.impl.transport.tools.ImportQueryBuilder;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.inputs.InputFromOutput;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
@@ -628,45 +629,10 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   }
 
   private SQLQuery buildCreateImportTriggerWithFeatureWriter(String author, long newVersion) throws WebClientException {
-    String triggerFunction = "import_from_s3_trigger_for_non_empty_layer";
-    String superTable = space().getExtension() != null ? getRootTableName(superSpace()) : null;
-
-    List<String> tables = superTable == null ? List.of(getRootTableName(space())) : List.of(superTable, getRootTableName(space()));
-
-    //TODO: Check if we can forward the whole transaction to the FeatureWriter rather than doing it for each row
-    return new SQLQuery("""
-        CREATE OR REPLACE TRIGGER insertTrigger BEFORE INSERT ON ${schema}.${table}
-          FOR EACH ROW EXECUTE PROCEDURE ${triggerFunction}(
-             ${{author}},
-             ${{spaceVersion}},
-             false, --isPartial
-             ${{onExists}},
-             ${{onNotExists}},
-             ${{onVersionConflict}},
-             ${{onMergeConflict}},
-             ${{historyEnabled}},
-             ${{context}},
-             '${{tables}}',
-             '${{format}}',
-             '${{entityPerLine}}'
-             )
-        """)
-        .withQueryFragment("spaceVersion", Long.toString(newVersion))
-        .withQueryFragment("author", "'" + author + "'")
-        .withQueryFragment("onExists", updateStrategy.onExists() == null ? "NULL" : "'" + updateStrategy.onExists() + "'")
-        .withQueryFragment("onNotExists", updateStrategy.onNotExists() == null ? "NULL" : "'" + updateStrategy.onNotExists() + "'")
-        .withQueryFragment("onVersionConflict",
-            updateStrategy.onVersionConflict() == null ? "NULL" : "'" + updateStrategy.onVersionConflict() + "'")
-        .withQueryFragment("onMergeConflict",
-            updateStrategy.onMergeConflict() == null ? "NULL" : "'" + updateStrategy.onMergeConflict() + "'")
-        .withQueryFragment("historyEnabled", "" + (space().getVersionsToKeep() > 1))
-        .withQueryFragment("context", superTable == null ? "NULL" : "'DEFAULT'")
-        .withQueryFragment("tables", String.join(",", tables))
-        .withQueryFragment("format", format.toString())
-        .withQueryFragment("entityPerLine", entityPerLine.toString())
-        .withVariable("schema", getSchema(db()))
-        .withVariable("triggerFunction", triggerFunction)
-        .withVariable("table", getTemporaryTriggerTableName(getId()));
+    String superRootTable = space().getExtension() != null ? getRootTableName(superSpace()) : null;
+    return new ImportQueryBuilder(getId(), getSchema(db()), getRootTableName(space()), space().getVersionsToKeep())
+            .buildCreateFeatureWriterImportTrigger(author, newVersion, superRootTable, updateStrategy,
+                    entityPerLine.name());
   }
 
   //TODO: Move to XyzSpaceTableHelper or so (it's the nth time we have that implemented somewhere)
