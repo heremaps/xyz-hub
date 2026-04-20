@@ -53,8 +53,8 @@ public class GraphFusionTool {
   }
 
   protected static StepGraph fuseGraphs(String newJobId, StepGraph newGraph, StepGraph oldGraph) {
-    newGraph = canonicalize(newGraph);
-    oldGraph = canonicalize(oldGraph);
+    newGraph = canonicalize(newGraph, false);
+    oldGraph = canonicalize(oldGraph, true);
     CompilationStepGraph fusedGraph = replaceByDelegations(newGraph, oldGraph);
 
     //Replace previous step relations (previousStepIds)
@@ -66,13 +66,17 @@ public class GraphFusionTool {
   }
 
   protected static StepGraph canonicalize(StepGraph graph) {
+    return canonicalize(graph, true);
+  }
+
+  protected static StepGraph canonicalize(StepGraph graph, boolean removeNotReusableSteps) {
     /*
     1.) Remove all steps that are flagged as being "notReusable" (these should be basically hidden from the reusability process)
     2.) Then, remove empty sub-graphs (NOTE: The traversal is done in "bottom-up" manner so sub-graphs
       that became empty due to the removal of "notReusable" steps will be removed as well
      */
     traverse(graph, execution -> {
-      if (execution instanceof Step step && step.isNotReusable())
+      if (execution instanceof Step step && step.isNotReusable() && removeNotReusableSteps)
         return null;
       if (execution instanceof StepGraph subGraph) {
         if (subGraph.isEmpty())
