@@ -127,7 +127,7 @@ public class SpaceCopy implements JobCompilationInterceptor {
       long sourceFeatureCount = sourceStatistics.getCount().getValue(),
            targetFeatureCount = targetStatistics.getCount().getValue();
 
-      long MAX_FEATURE_NOT_USING_FILTER = 60_100_000l;
+      long MAX_FEATURE_NOT_USING_FILTER = 200_100_000l;
       if( MAX_FEATURE_NOT_USING_FILTER <= sourceFeatureCount && !usingFilter(filters) )
        throw new CompilationError( String.format("too many features (%d > %d) to copy from %s ", sourceFeatureCount, MAX_FEATURE_NOT_USING_FILTER ,sourceSpaceId) );
 
