@@ -226,8 +226,7 @@ public class JobAdminApi extends JobApiBase {
                   future = failCausingStep(job, "Timeout was exceeded of step", future, executionArn);
                 else if ("States.Timeout".equals(detail.getString("error")))
                   //In Localstack a SFN CANCEL gets not detected properly and results in a timeout of the execution.
-                  future = failCausingStep(job, "Unknown error - No State-checks were received anymore (HeartBeat timeout) "
-                      + "from the async step", future, executionArn);
+                  future = failCausingStep(job, "Async step timed out or no state-checks were received anymore (HeartBeat timeout) ", future, executionArn);
                 else {
                   /*
                   NOTE: This case handles any other failures of the SFN that are nothing unusual.
