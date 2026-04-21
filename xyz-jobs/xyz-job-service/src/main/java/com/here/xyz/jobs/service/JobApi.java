@@ -26,6 +26,7 @@ import static com.here.xyz.jobs.RuntimeStatus.Action.CANCEL;
 import static com.here.xyz.jobs.service.JobApiBase.ApiParam.Path.SPACE_ID;
 import static com.here.xyz.jobs.service.JobApiBase.ApiParam.getPathParam;
 import static com.here.xyz.jobs.steps.Step.InputSet.DEFAULT_SET_NAME;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.ACCEPTED;
 import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
@@ -50,6 +51,7 @@ import com.here.xyz.util.service.errors.DetailedHttpException;
 import io.vertx.core.Future;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.router.RouterBuilder;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -90,18 +92,45 @@ public class JobApi extends JobApiBase {
     return job.create().submit()
         .compose(v -> applyInputReferences(job))
         .map(res -> job)
-        .recover(t -> {
-          if (t instanceof CompilationError)
-            return Future.failedFuture(new DetailedHttpException("E319002", t));
-          if (t instanceof ValidationException)
-            return Future.failedFuture(new DetailedHttpException("E319003", t));
-          return Future.failedFuture(t);
-        })
+        .recover(t -> Future.failedFuture(normalizeJobCreationError(t, job.getId())))
         .onSuccess(res -> {
           sendResponse(context, CREATED.code(), res);
           logger.info(getMarker(context), "Job was created successfully: {}", job.serialize(true));
         })
         .onFailure(err -> sendErrorResponse(context, err));
+  }
+
+  protected Throwable normalizeJobCreationError(Throwable error, String jobId) {
+    final Throwable rootCause = rootCause(error);
+    final Map<String, Object> errorDetails = Map.of("jobId", jobId);
+
+    if (error instanceof CompilationError)
+      return new DetailedHttpException("E319002", placeholdersFor(error), errorDetails, error);
+
+    if (error instanceof ValidationException)
+      return new DetailedHttpException("E319003", placeholdersFor(error), errorDetails, error);
+
+    if (rootCause instanceof ClassCastException)
+      return new DetailedHttpException("E319003", placeholdersFor(rootCause), errorDetails, rootCause);
+
+    if (error instanceof IllegalArgumentException || error instanceof IllegalStateException)
+      return new HttpException(BAD_REQUEST, error.getMessage(), errorDetails);
+
+    return error;
+  }
+
+  private static Throwable rootCause(Throwable error) {
+    Throwable current = error;
+    while (current.getCause() != null && current.getCause() != current)
+      current = current.getCause();
+    return current;
+  }
+
+  private static Map<String, String> placeholdersFor(Throwable error) {
+    Map<String, String> placeholders = new HashMap<>();
+    if (error != null && error.getMessage() != null)
+      placeholders.put("cause", error.getMessage());
+    return placeholders;
   }
 
   protected Future<Void> applyInputReferences(Job job) {
