@@ -399,13 +399,19 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
    */
   private void startInitialTasks() throws TooManyResourcesClaimed,
           QueryBuildingException, WebClientException, SQLException, InvalidGeometryException {
+    List<TaskProgress<I>> claimedInitialTasks = new ArrayList<>();
 
+    //Claim the initial task set
     for (int i = 0; i < threadCount; i++) {
-      TaskProgress taskProgressAndTaskItem = getTaskProgressAndNextTaskItem();
-      if(taskProgressAndTaskItem.getTaskId() == -1)
+      TaskProgress<I> taskProgressAndTaskItem = getTaskProgressAndNextTaskItem();
+      if (taskProgressAndTaskItem.getTaskId() == -1)
         break;
-      startTask(taskProgressAndTaskItem);
+      claimedInitialTasks.add(taskProgressAndTaskItem);
     }
+
+    //Start initial tasks
+    for (TaskProgress<I> claimedTask : claimedInitialTasks)
+      startTask(claimedTask);
   }
 
   /**
