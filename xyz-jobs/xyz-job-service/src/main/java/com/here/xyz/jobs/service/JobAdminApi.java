@@ -226,7 +226,9 @@ public class JobAdminApi extends JobApiBase {
                   future = failCausingStep(job, "Timeout was exceeded of step", future, executionArn);
                 else if ("States.Timeout".equals(detail.getString("error")))
                   //In Localstack a SFN CANCEL gets not detected properly and results in a timeout of the execution.
-                  future = failCausingStep(job, "Async step timed out or no state-checks were received anymore (HeartBeat timeout) ", future, executionArn);
+                  future = failCausingStep(job, "Async step timed out or no state-checks were received anymore (HeartBeat timeout)", future, executionArn);
+                else if (isEmrCancelledBySfn(detail))
+                  future = failCausingStep(job, "EMR execution got cancelled", future, executionArn);
                 else {
                   /*
                   NOTE: This case handles any other failures of the SFN that are nothing unusual.
@@ -257,6 +259,23 @@ public class JobAdminApi extends JobApiBase {
                 });
           })
           .onFailure(t -> logger.error("[{}] Error updating the state of the job after receiving an event from its state machine:", jobId, t));
+  }
+
+  private static boolean isEmrCancelledBySfn(JsonObject detail) {
+    String cause = detail.getString("cause");
+    if (cause == null || cause.isBlank())
+      return false;
+
+    try {
+      JsonObject causeJson = new JsonObject(cause);
+      String emrState = causeJson.getString("State");
+      String jobRunName = causeJson.getString("JobRunName");
+
+      return "CANCELLED".equals(emrState) && jobRunName != null && !jobRunName.isBlank();
+    }
+    catch (Exception e) {
+      return false;
+    }
   }
 
   private static Future<Void> setStepsToCancelled(Job job, Future<Void> future) {
