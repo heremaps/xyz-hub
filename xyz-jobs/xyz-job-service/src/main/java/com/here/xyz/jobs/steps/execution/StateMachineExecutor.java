@@ -36,7 +36,9 @@ import org.apache.logging.log4j.Logger;
 import software.amazon.awssdk.services.sfn.model.CreateStateMachineRequest;
 import software.amazon.awssdk.services.sfn.model.CreateStateMachineResponse;
 import software.amazon.awssdk.services.sfn.model.DeleteStateMachineRequest;
+import software.amazon.awssdk.services.sfn.model.ExecutionAlreadyExistsException;
 import software.amazon.awssdk.services.sfn.model.RedriveExecutionRequest;
+import software.amazon.awssdk.services.sfn.model.StateMachineAlreadyExistsException;
 import software.amazon.awssdk.services.sfn.model.StartExecutionRequest;
 import software.amazon.awssdk.services.sfn.model.StartExecutionResponse;
 import software.amazon.awssdk.services.sfn.model.StopExecutionRequest;
@@ -157,25 +159,53 @@ class StateMachineExecutor extends JobExecutor {
   private Future<String> executeStateMachine(String jobId, String stateMachineArn, String input) {
     logger.info("[{}] Starting SFN state machine execution of job ...", jobId);
     return ASYNC.run(() -> {
-      StartExecutionResponse startExecutionResponse = sfnClient().startExecution(StartExecutionRequest.builder()
-          .stateMachineArn(stateMachineArn)
-          .name(jobId)
-          .input(input == null ? "{}" : input)
-          .build());
-      return startExecutionResponse.executionArn();
+      try {
+        StartExecutionResponse startExecutionResponse = sfnClient().startExecution(StartExecutionRequest.builder()
+            .stateMachineArn(stateMachineArn)
+            .name(jobId)
+            .input(input == null ? "{}" : input)
+            .build());
+        return startExecutionResponse.executionArn();
+      }
+      catch (ExecutionAlreadyExistsException e) {
+        //TODO: find and fix RC
+        logger.error("[{}] SFN execution already exists. Re-using existing execution.", jobId);
+        return executionArnFromStateMachineArn(stateMachineArn, jobId);
+      }
     });
   }
 
   private static Future<String> createStateMachine(String jobId, String stateMachineDefinition, boolean isPipeline) {
     logger.info("[{}] Creating SFN state machine of job ...", jobId);
     return ASYNC.run(() -> {
-      CreateStateMachineResponse creationResponse = sfnClient().createStateMachine(CreateStateMachineRequest.builder()
-          .name(STATE_MACHINE_NAME_PREFIX + jobId)
-          .definition(stateMachineDefinition)
-          .roleArn(Config.instance.STATE_MACHINE_ROLE)
-          .type(isPipeline ? EXPRESS : STANDARD)
-          .build());
-      return creationResponse.stateMachineArn();
+      try {
+        CreateStateMachineResponse creationResponse = sfnClient().createStateMachine(CreateStateMachineRequest.builder()
+            .name(STATE_MACHINE_NAME_PREFIX + jobId)
+            .definition(stateMachineDefinition)
+            .roleArn(Config.instance.STATE_MACHINE_ROLE)
+            .type(isPipeline ? EXPRESS : STANDARD)
+            .build());
+        return creationResponse.stateMachineArn();
+      }
+      catch (StateMachineAlreadyExistsException e) {
+        //TODO: find and fix RC
+        logger.error("[{}] SFN state machine already exists. Re-using existing state machine.", jobId);
+        return stateMachineArnFromJobId(jobId);
+      }
     });
+  }
+
+  private static String stateMachineArnFromJobId(String jobId) {
+    String stateMachineName = STATE_MACHINE_NAME_PREFIX + jobId;
+    return "arn:aws:states:" + Config.instance.AWS_REGION + ":" + Config.instance.STEP_LAMBDA_ARN.getAccountId()
+        + ":stateMachine:" + stateMachineName;
+  }
+
+  private static String executionArnFromStateMachineArn(String stateMachineArn, String executionName) {
+    //eg: stateMachineARN="arn:aws:states:eu-west-1:12345678:stateMachine:job-cmnwufdhix"
+    //=> stateMachineExecutionArn="arn:aws:states:eu-west-1:12345678:execution:job-cmnwufdhix:cmnwufdhix";
+    String[] parts = stateMachineArn.split(":");
+    String stateMachineName = new ARN(stateMachineArn).getResourceWithoutType();
+    return String.join(":", Arrays.asList(parts).subList(0, 5)) + ":execution:" + stateMachineName + ":" + executionName;
   }
 }
