@@ -100,14 +100,18 @@ public final class DynamoDataReferenceConfigClient extends DataReferenceConfigCl
     Map<String, Object> dataReferenceAsMap = dataReference.toMap();
     dataReferenceAsMap.put(SORT_KEY_NAME, sortKeyValue(dataReference));
     // Converts ms to seconds (required by DynamoDB TTL) and adds grace period
-    dataReferenceAsMap.put("keepUntil", ((Number) dataReferenceAsMap.get("keepUntil")).longValue() / 1000 + KEEP_UNTIL_GRACE_PERIOD_SECONDS);
+    if (dataReferenceAsMap.get("keepUntil") != null) {
+      dataReferenceAsMap.put("keepUntil", ((Number) dataReferenceAsMap.get("keepUntil")).longValue() / 1000 + KEEP_UNTIL_GRACE_PERIOD_SECONDS);
+    }
     return dataReferenceAsMap;
   }
 
   private static <T> T fromDynamoMap(Map<String, Object> itemAsMap, Class<T> resultItemClass) {
     Map<String, Object> mutableMap = new HashMap<>(itemAsMap);
     // Subtracts grace period and converts seconds back to ms for the API
-    mutableMap.put("keepUntil", (((Number) mutableMap.get("keepUntil")).longValue() - KEEP_UNTIL_GRACE_PERIOD_SECONDS) * 1000);
+    if (mutableMap.get("keepUntil") != null) {
+      mutableMap.put("keepUntil", (((Number) mutableMap.get("keepUntil")).longValue() - KEEP_UNTIL_GRACE_PERIOD_SECONDS) * 1000);
+    }
     return fromMap(mutableMap, resultItemClass);
   }
 
