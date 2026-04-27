@@ -52,6 +52,11 @@ public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
   public static final String STATISTICS = "statistics";
   private static final Logger logger = LogManager.getLogger();
 
+  private static final int STATEMENT_TIMEOUT = 895;
+
+  @JsonView({Internal.class, Static.class})
+  private boolean skipCounts = false;
+
   @JsonView({Internal.class, Static.class})
   private long copiedByteSize = 0;
 
@@ -88,6 +93,12 @@ public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
     this.copiedByteSize = copiedByteSize;
   }
 
+  public CopySpacePost withSkipCounts(boolean skipCounts)
+  {
+    this.skipCounts = skipCounts;
+    return this;
+  }
+
   @Override
   public int getTimeoutSeconds() {
     return 15 * 60;
@@ -116,7 +127,8 @@ public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
 
     infoLog(STEP_EXECUTE,  String.format("Get stats for version %d - %s", fetchedVersion, getSpaceId()));
 
-    FeatureStatistics statistics = getCopiedFeatures(fetchedVersion);
+    FeatureStatistics statistics = skipCounts ? new FeatureStatistics().withFeatureCount(-1).withByteSize(-1)
+                                              : getCopiedFeatures(fetchedVersion);
 
     infoLog(STEP_EXECUTE,  "Job Statistics: bytes=" + statistics.getByteSize() + " rows=" + statistics.getFeatureCount());
     registerOutputs(List.of(statistics), STATISTICS);
@@ -141,11 +153,12 @@ public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
     SQLQuery incVersionSql = new SQLQuery(
         """
          select count(1), coalesce( sum( (coalesce(pg_column_size(jsondata),0) + coalesce(pg_column_size(geo),0))::bigint ), 0::bigint )
-         from ${schema}.${table} 
-         where version = ${{fetchedVersion}} 
+         from ${schema}.${table}
+         where version = ${{fetchedVersion}}
         """)
         .withVariable("schema", targetSchema)
         .withVariable("table", targetTable)
+        .withTimeout(STATEMENT_TIMEOUT)
         .withQueryFragment("fetchedVersion", "" + fetchedVersion);
 
     FeatureStatistics statistics = runReadQuerySync(incVersionSql, db(), 0, rs -> rs.next()

@@ -84,8 +84,28 @@ global.plv8 = {
       deasync.loopWhile(() => !clientConnected);
 
     let queryResult = null;
-    pgClient.query(substituteSQL(sql, params)).then(result => queryResult = result);
-    deasync.loopWhile(() => queryResult == null);
+    let queryError = null;
+    let finished = false;
+
+    pgClient.query(substituteSQL(sql, params))
+      .then(result => {
+        queryResult = result;
+        finished = true;
+      })
+      .catch(err => {
+        queryError = err;
+        finished = true;
+      });
+
+    deasync.loopWhile(() => !finished);
+
+    if (queryError) {
+      // translate to PLV8-style sqlerrCode
+      if (queryError.code && !queryError.sqlerrcode)
+        queryError.sqlerrcode = queryError.code;
+      throw queryError;
+    }
+
     return queryResult.rows;
   },
   prepare(sql, typeNames = []) {

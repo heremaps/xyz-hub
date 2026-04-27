@@ -53,6 +53,7 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
@@ -83,6 +84,20 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
         extends SpaceBasedStep<T> {
   private static final String JOB_DATA_PREFIX = "job_data_";
   private static final Logger logger = LogManager.getLogger();
+  private static final Set<String> RETRYABLE_SQL_CODES = Set.of(
+          "40001", // serialization_failure
+          "40P01", // deadlock_detected
+          "55P03", // lock_not_available
+          "23505", // unique_violation
+          "23P01", // exclusion_violation, same caveat
+          "53300", // too_many_connections
+          "08000", // connection_exception
+          "08001", // sqlclient_unable_to_establish_sqlconnection
+          "08003", // connection_does_not_exist
+          "08006", // connection_failure
+          "08004", // sqlserver_rejected_establishment_of_sqlconnection
+          "57P01"  // admin_shutdown
+          );
 
   @JsonView({Internal.class, Static.class})
   protected int threadCount = 8;
@@ -384,13 +399,19 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
    */
   private void startInitialTasks() throws TooManyResourcesClaimed,
           QueryBuildingException, WebClientException, SQLException, InvalidGeometryException {
+    List<TaskProgress<I>> claimedInitialTasks = new ArrayList<>();
 
+    //Claim the initial task set
     for (int i = 0; i < threadCount; i++) {
-      TaskProgress taskProgressAndTaskItem = getTaskProgressAndNextTaskItem();
-      if(taskProgressAndTaskItem.getTaskId() == -1)
+      TaskProgress<I> taskProgressAndTaskItem = getTaskProgressAndNextTaskItem();
+      if (taskProgressAndTaskItem.getTaskId() == -1)
         break;
-      startTask(taskProgressAndTaskItem);
+      claimedInitialTasks.add(taskProgressAndTaskItem);
     }
+
+    //Start initial tasks
+    for (TaskProgress<I> claimedTask : claimedInitialTasks)
+      startTask(claimedTask);
   }
 
   /**
@@ -425,7 +446,8 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
       //We can`t use the default callback here because we are reporting success during onAsyncUpdate in Java.
       //The failureCallback is still needed to report failures from the DB-side
       String failureCallback = buildFailureCallbackQuery().substitute().text().replaceAll("'", "''");
-      runReadQueryAsync(buildTaskQuery(taskProgressAndItem.getTaskId(), (I) taskProgressAndItem.getTaskInput(), failureCallback),
+      runReadQueryAsync(buildTaskQuery(taskProgressAndItem.getTaskId(), (I) taskProgressAndItem.getTaskInput(), failureCallback)
+                         .withRetryableErrorCodes(RETRYABLE_SQL_CODES),
                 queryRunsOnWriter() ? dbWriter() : dbReader(), 0d/*perItemAcus.doubleValue()*/,  false);
     }
   }
@@ -571,44 +593,55 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
 
   @Override
   public AsyncExecutionState getExecutionState() throws UnknownStateException {
-    if(noTasksCreated) {
-      try {
-        cleanUpDbResources(STEP_ON_ASYNC_SUCCESS);
-      }catch (Exception e) {
-        throw new RuntimeException(e);
-      }
-      //report success
-      return AsyncExecutionState.SUCCEEDED;
-    }
+    if (noTasksCreated)
+      return handleNoTasksCreatedState();
 
     try {
       TaskProgress taskProgress = getTaskProgress();
+      return evaluateExecutionState(taskProgress);
+    }
+    catch (SQLException e) {
+      throw mapSqlException(e);
+    }catch (WebClientException e) {
+      throw new UnknownStateException("WebClientException occurred during execution state check for step: " + getGlobalStepId() + " !");
+    }
+    catch (TooManyResourcesClaimed e) {
+      throw new StepException("Unexpected error occurred during execution state check for step: " + getGlobalStepId() + " !", e);
+    }
+  }
 
-      if(taskProgress.isComplete())
-        return AsyncExecutionState.SUCCEEDED;
-      else if (taskProgress.hasRunningTasks()) {
-        //Check if the expected queries are still running.
-        return super.getExecutionState();
-      }
-      else if(taskProgress.hasNoRunningTasks()){
-        infoLog(STEP_ON_STATE_CHECK,"No running tasks detected. StartedTasks: "+ taskProgress.getStartedTasks()+ "," +
-                        " FinalizedTasks: "+taskProgress.getFinalizedTasks() + " !");
-        throw new UnknownStateException("No running Tasks detected for step: "+ getGlobalStepId() + " !");
-      }
-    } catch (SQLException e) {
-      if(e.getSQLState() != null && e.getSQLState().equalsIgnoreCase("42P01")) {
-        //If we are here task table does not exist anymore. Could happen via getTaskProgress() or during check if quires are running
-        infoLog(STEP_ON_STATE_CHECK,  "Task table does not exist anymore. Ignore.");
-        throw new UnknownStateException("Task table does not exist anymore "+ getGlobalStepId() + " !");
-      }
-      errorLog(STEP_ON_STATE_CHECK,  e);
-      throw new UnknownStateException("SQLException occurred "+ getGlobalStepId() + " !");
-    } catch (UnknownStateException e){
-      throw e;
-    } catch (Exception e) {
+  private AsyncExecutionState handleNoTasksCreatedState() {
+    try {
+      cleanUpDbResources(STEP_ON_ASYNC_SUCCESS);
+    }
+    catch (Exception e) {
       throw new RuntimeException(e);
     }
+    return AsyncExecutionState.SUCCEEDED;
+  }
+
+  private AsyncExecutionState evaluateExecutionState(TaskProgress taskProgress) throws UnknownStateException {
+    if (taskProgress.isComplete())
+      return AsyncExecutionState.SUCCEEDED;
+    if (taskProgress.hasRunningTasks())
+      // Check if the expected queries are still running.
+      return super.getExecutionState();
+    if (taskProgress.hasNoRunningTasks()) {
+      infoLog(STEP_ON_STATE_CHECK, "No running tasks detected. StartedTasks: " + taskProgress.getStartedTasks() + ","
+          + " FinalizedTasks: " + taskProgress.getFinalizedTasks() + " !");
+      throw new UnknownStateException("No running Tasks detected for step: " + getGlobalStepId() + " !");
+    }
     return AsyncExecutionState.RUNNING;
+  }
+
+  private UnknownStateException mapSqlException(SQLException e) {
+    if (e.getSQLState() != null && e.getSQLState().equalsIgnoreCase("42P01")) {
+      // If we are here task table does not exist anymore. Could happen via getTaskProgress() or during check if queries are running.
+      infoLog(STEP_ON_STATE_CHECK, "Task table does not exist anymore. Ignore.");
+      return new UnknownStateException("Task table does not exist anymore " + getGlobalStepId() + " !");
+    }
+    errorLog(STEP_ON_STATE_CHECK, e);
+    return new UnknownStateException("SQLException occurred " + getGlobalStepId() + " !");
   }
 
   /**
@@ -682,7 +715,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   }
 
   private static SQLQuery buildTaskTableStatement(String schema, Step step) {
-    return new SQLQuery("""          
+    return new SQLQuery("""
             CREATE TABLE ${schema}.${table}
             (
             	task_id SERIAL,
@@ -701,7 +734,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
 
   private SQLQuery resetTaskItemWhichAreNotFinalized(String schema, String stepId) {
     infoLog(STEP_EXECUTE, "Reset task items for restart.");
-    return new SQLQuery("""             
+    return new SQLQuery("""
             UPDATE ${schema}.${table} t
                 SET started = false
                 WHERE started = true AND finalized = false;
@@ -718,12 +751,14 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
                 FROM ${schema}.${table};
         """)
             .withVariable("schema", schema)
-            .withVariable("table", getTemporaryJobTableName(stepId));
+            .withVariable("table", getTemporaryJobTableName(stepId))
+            .withRetryableErrorCodes(RETRYABLE_SQL_CODES);
   }
 
   private SQLQuery retrieveTaskItemAndStatisticsQuery(String schema) throws WebClientException {
     return new SQLQuery("SELECT total, started, finalized, task_id, task_input from get_task_item_and_statistics();")
-            .withContext(getQueryContext(schema));
+            .withContext(getQueryContext(schema))
+            .withRetryableErrorCodes(RETRYABLE_SQL_CODES);
   }
 
   private SQLQuery retrieveTaskItemAndStatisticsAfterUpdateQuery(String schema, SpaceBasedTaskUpdate update)
@@ -739,13 +774,15 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
         .withNamedParameter("taskId", update.taskId)
         .withNamedParameter("taskOutput", XyzSerializable.serialize(update))
         .withNamedParameter("finalized", true)
-        .withContext(getQueryContext(schema));
+        .withContext(getQueryContext(schema))
+        .withRetryableErrorCodes(RETRYABLE_SQL_CODES);
   }
 
   private SQLQuery retrieveTaskOutputsQuery() throws WebClientException {
     return new SQLQuery("SELECT task_id, task_input, task_output->'taskOutput' as task_output FROM ${schema}.${tmpTable};")
             .withVariable("schema", getSchema(db()))
-            .withVariable("tmpTable", getTemporaryJobTableName(getId()));
+            .withVariable("tmpTable", getTemporaryJobTableName(getId()))
+            .withRetryableErrorCodes(RETRYABLE_SQL_CODES);
   }
 
   private boolean insertTaskItemsInTaskTable(String schema, Step step, List<I> taskInputs)
@@ -774,7 +811,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
       for (I taskInput : taskInputs) {
         String taskItem = taskInput.serialize();
 
-        insertQueries.add(new SQLQuery("""             
+        insertQueries.add(new SQLQuery("""
             INSERT INTO  ${schema}.${table} AS t (task_input)
                 VALUES (#{taskItem}::JSONB);
         """)

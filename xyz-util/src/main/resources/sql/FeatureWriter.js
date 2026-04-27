@@ -811,10 +811,10 @@ class FeatureWriter {
 
   //Low level DB / table facing helper methods:
 
-  static getNextVersion() {
+  static getNextVersion(globalVersion = true) {
     const VERSION_SEQUENCE_SUFFIX = "_version_seq";
     let fullQualifiedSequenceName = `"${queryContext().schema}"."${(this._targetTable() + VERSION_SEQUENCE_SUFFIX)}"`;
-    return Number(plv8.execute("SELECT nextval($1)", [fullQualifiedSequenceName])[0].nextval) + this._tableBaseVersions().at(-1);
+    return Number(plv8.execute("SELECT nextval($1)", [fullQualifiedSequenceName])[0].nextval) + (globalVersion ? this._tableBaseVersions().at(-1) : 0);
   }
 
   static _targetTable(context = queryContext().context) {

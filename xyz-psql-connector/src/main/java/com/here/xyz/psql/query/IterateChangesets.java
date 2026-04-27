@@ -60,7 +60,10 @@ public class IterateChangesets extends IterateFeatures<IterateChangesetsEvent, C
 
   @Override
   protected String buildOrderByFragment(ContextAwareEvent event) {
-    return "ORDER BY version, id";
+    if( event.getBranchPath() == null || event.getBranchPath().isEmpty() )
+     return "ORDER BY ${schema}.${table}.version, id";
+    else
+     return "ORDER BY version, id";
   }
 
   @Override

@@ -145,6 +145,62 @@ END;
 $BODY$;
 
 -- ####################################################################################################################
+-- Retry helpers (shared between execute_import_from_s3 / execute_export_to_s3) ---
+
+/**
+ * is_retryable_s3_sqlstate(state TEXT)
+ *
+ * Returns TRUE if the given SQLSTATE is considered a transient / retryable error
+ * for aws_s3 import & export operations.
+ *
+ * Covered classes:
+ *   - 40001 serialization_failure
+ *   - 40P01 deadlock_detected
+ *   - 55P03 lock_not_available
+ *   - 23505 unique_violation           (import only in practice)
+ *   - 23P01 exclusion_violation        (import only in practice)
+ *   - 53300 too_many_connections
+ *   - 08xxx connection_exception family
+ *   - 57P01 admin_shutdown
+ *   - 22P02 invalid_text_representation (import only in practice)
+ *   - 22P04 bad_copy_file_format        (import only in practice)
+ */
+CREATE OR REPLACE FUNCTION is_retryable_s3_sqlstate(state TEXT)
+    RETURNS BOOLEAN
+    LANGUAGE 'sql'
+    IMMUTABLE
+    PARALLEL SAFE
+AS $BODY$
+    SELECT state IN (
+        '40001', '40P01', '55P03',
+        '23505', '23P01',
+        '53300',
+        '08000', '08001', '08003', '08006', '08004',
+       -- '57P01', TBD: clarify
+        '22P02', '22P04'
+    );
+$BODY$;
+
+/**
+ * s3_retry_backoff_ms(attempts INT, base_ms INT, cap_ms INT)
+ *
+ * Computes exponential backoff delay in milliseconds:
+ *   delay = min(base_ms * 2^attempts, cap_ms)
+ */
+CREATE OR REPLACE FUNCTION s3_retry_backoff_ms(
+        attempts INT,
+        base_delay_ms INT DEFAULT 10000,
+        max_ms INT DEFAULT 60000
+    )
+    RETURNS INT
+    LANGUAGE 'sql'
+    IMMUTABLE
+    PARALLEL SAFE
+AS $BODY$
+    SELECT LEAST(base_delay_ms * (2 ^ attempts), max_ms)::INT;
+$BODY$;
+
+-- ####################################################################################################################
 -- Import related helper functions ---
 
 /**
@@ -199,7 +255,7 @@ BEGIN
 END;
 $BODY$
     LANGUAGE plpgsql VOLATILE;
-
+    
 /**
  * Function: import_from_s3_trigger_for_non_empty_layer
  * (for tasked import into non-empty layers)
@@ -232,25 +288,24 @@ $BODY$
  * Returns:
  *   - The enriched NEW row (trigger return).
  */
---TODO: Remove code-duplication of the following trigger functions!!
 CREATE OR REPLACE FUNCTION import_from_s3_trigger_for_non_empty_layer() RETURNS trigger AS
 $BODY$
 DECLARE
-    author TEXT := TG_ARGV[0];
-    currentVersion BIGINT := TG_ARGV[1];
-    isPartial BOOLEAN := TG_ARGV[2];
-    onExists TEXT := TG_ARGV[3];
-    onNotExists TEXT := TG_ARGV[4];
-    onVersionConflict TEXT := TG_ARGV[5];
-    onMergeConflict TEXT := TG_ARGV[6];
-    historyEnabled BOOLEAN := TG_ARGV[7]::BOOLEAN;
-    spaceContext TEXT := TG_ARGV[8];
-    tables TEXT := TG_ARGV[9];
-    format TEXT := TG_ARGV[10];
-    entityPerLine TEXT := TG_ARGV[11];
-    featureCount INT := 0;
-    input TEXT;
-    inputType TEXT;
+    author text := TG_ARGV[0];
+    currentVersion bigint := TG_ARGV[1];
+    isPartial boolean := TG_ARGV[2];
+    onExists text := TG_ARGV[3];
+    onNotExists text := TG_ARGV[4];
+    onVersionConflict text := TG_ARGV[5];
+    onMergeConflict text := TG_ARGV[6];
+    historyEnabled boolean := TG_ARGV[7]::boolean;
+    spaceContext text := TG_ARGV[8];
+    tables text := TG_ARGV[9];
+    format text := TG_ARGV[10];
+    entityPerLine text := TG_ARGV[11];
+
+    feature_collection text;
+    featureCount int := 0;
 BEGIN
     --TODO: Remove the following workaround once the caller-side was fixed
     onExists = CASE WHEN onExists = 'null' THEN NULL ELSE onExists END;
@@ -258,48 +313,77 @@ BEGIN
     onVersionConflict = CASE WHEN onVersionConflict = 'null' THEN NULL ELSE onVersionConflict END;
     onMergeConflict = CASE WHEN onMergeConflict = 'null' THEN NULL ELSE onMergeConflict END;
 
-    -- TODO: remove support for CSV_JSON_WKB and CSV_GEOJSON if all import process are tasked based
-    IF format = 'CSV_JSON_WKB' AND NEW.geo IS NOT NULL THEN
-        --TODO: Extend feature_writer with possibility to provide geometry (as JSONB manipulations are quite slow)
-        --TODO: Remove unnecessary xyz_reduce_precision call, because the FeatureWriter will do it anyways
-        NEW.jsondata := jsonb_set(NEW.jsondata::JSONB, '{geometry}', xyz_reduce_precision(ST_ASGeojson(ST_Force3D(NEW.geo)), false)::JSONB);
-        input = NEW.jsondata::TEXT;
-        inputType = 'Feature';
-    END IF;
-
-    IF format = 'GEOJSON' OR  format = 'CSV_GEOJSON' THEN
-        IF entityPerLine = 'Feature' THEN
-            input = NEW.jsondata::TEXT;
-            inputType = 'Feature';
-        ELSE
-            --TODO: Shouldn't the input be a FeatureCollection here? Seems to be a list of Features
-            input = (NEW.jsondata::JSONB->'features')::TEXT;
-            inputType = 'Features';
-        END IF;
-    END IF;
-
-    --TODO: check how to use asyncify instead
     PERFORM context(
         jsonb_build_object(
-            'stepId', get_stepid_from_work_table(TG_TABLE_NAME::REGCLASS) ,
+            'stepId', get_stepid_from_work_table(TG_TABLE_NAME::regclass),
             'schema', TG_TABLE_SCHEMA,
             'tables', string_to_array(tables, ','),
             'historyEnabled', historyEnabled,
             'context', CASE WHEN spaceContext = 'null' THEN null ELSE spaceContext END,
-            'batchMode', inputType != 'Feature'
+            'batchMode', true
         )
     );
 
-    SELECT write_features(
-        input, inputType, author, false, currentVersion,
-        onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial
-    )::JSONB->'count' INTO featureCount;
+    IF format = 'CSV_JSON_WKB' THEN
+        SELECT jsonb_build_object(
+	       'type', 'FeatureCollection',
+	       'features',
+	       coalesce(
+	           jsonb_agg(
+	               jsonb_set(
+	                   n.jsondata::jsonb,
+	                   '{geometry}',
+	                   xyz_reduce_precision(ST_AsGeoJSON(ST_Force3D(n.geo)), false)::JSONB
+	               )
+	           ),
+	           '[]'::jsonb
+	       )
+	   )::text
+        INTO feature_collection
+            FROM new_rows n
+        WHERE n.geo IS NOT NULL;
+    END IF;
 
-    NEW.jsondata = NULL;
-    NEW.geo = NULL;
-    NEW.count = featureCount;
+    IF format IN ('GEOJSON', 'CSV_GEOJSON') THEN
+        IF entityPerLine = 'Feature' THEN
+            SELECT jsonb_build_object(
+                       'type', 'FeatureCollection',
+                       'features',
+                       COALESCE(jsonb_agg(n.jsondata::jsonb), '[]'::jsonb)
+                   )::text
+              INTO feature_collection
+              FROM new_rows n;
+        ELSE
+            SELECT jsonb_build_object(
+                       'type', 'FeatureCollection',
+                       'features',
+                       COALESCE(jsonb_agg(f.feature), '[]'::jsonb)
+                   )::text
+              INTO feature_collection
+                  FROM new_rows n
+              CROSS JOIN LATERAL jsonb_array_elements(n.jsondata::jsonb -> 'features') AS f(feature);
+        END IF;
+    ELSE
+        RAISE EXCEPTION 'Unsupported format: %', format;
+    END IF;
 
-    RETURN NEW;
+    IF feature_collection IS NOT NULL THEN
+        SELECT (write_features(
+                    feature_collection,
+                    'FeatureCollection',
+                    author,
+                    false,
+                    currentVersion,
+                    onExists,
+                    onNotExists,
+                    onVersionConflict,
+                    onMergeConflict,
+                    isPartial
+                )::jsonb ->> 'count')::int
+          INTO featureCount;
+    END IF;
+
+    RETURN null;
 END;
 $BODY$
 LANGUAGE plpgsql VOLATILE;
@@ -382,12 +466,13 @@ $BODY$
 LANGUAGE plpgsql VOLATILE;
 
 /**
- * Function: perform_import_from_s3
+ * Function: execute_import_from_s3
  * (used for tasked import with retries)
  *
  * Purpose:
  *   Imports data from an S3 bucket into a target table using the AWS S3 extension.
- *   Supports automatic retries with exponential backoff for transient errors.
+ *   Supports automatic retries with exponential backoff for transient errors
+ *   (see is_retryable_s3_sqlstate()).
  *
  * Arguments:
  *   - schema (TEXT): The schema name (not directly used in the function).
@@ -396,20 +481,13 @@ LANGUAGE plpgsql VOLATILE;
  *   - s3_bucket (TEXT): The S3 bucket name.
  *   - s3_key (TEXT): The S3 object key.
  *   - s3_region (TEXT): The AWS region of the S3 bucket.
- *   - max_attempts (INT, default 2): Maximum number of retry attempts.
- *   - attempts (INT, default 0): Current attempt count.
+ *   - max_attempts (INT, default 3): Maximum number of retry attempts.
+ *   - attempts (INT, default 0): Current attempt count (internal, for recursion).
  *
  * Returns:
  *   - TEXT: Import statistics (e.g., '20 rows imported').
- *
- * Behavior:
- *   - Fetches plugin configuration for the given format.
- *   - Executes the import using aws_s3.table_import_from_s3.
- *   - On retryable errors (lock, duplicate key, invalid input, extra data), waits and retries.
- *   - Uses exponential backoff for delay between retries, capped at 10 seconds.
- *   - Raises an exception if max_attempts is exceeded.
  */
-CREATE OR REPLACE FUNCTION perform_import_from_s3(
+CREATE OR REPLACE FUNCTION execute_import_from_s3(
         schema TEXT,
         target_tbl REGCLASS,
         format TEXT,
@@ -424,12 +502,7 @@ AS $BODY$
 DECLARE
     config RECORD;
     import_statistics TEXT;
-    base_delay_ms INT := 10000;
-    delay_ms INT;
 BEGIN
-    -- Calculate exponential backoff delay: base * 2^attempts, capped at 10 seconds
-    delay_ms := LEAST(base_delay_ms * (2 ^ attempts), 60000);
-
     SELECT * FROM s3_plugin_config(format) into config;
 
     EXECUTE format(
@@ -447,27 +520,110 @@ BEGIN
 
     RETURN import_statistics;
 
-    EXCEPTION
-        WHEN SQLSTATE '55P03' OR  SQLSTATE '23505' OR  SQLSTATE '22P02' OR  SQLSTATE '22P04' THEN
-            IF attempts < max_attempts THEN
-                --1 s, 2 s, 4 s, 8 s, 10 s .. max
-                PERFORM pg_sleep(delay_ms / 1000.0);
+    EXCEPTION WHEN OTHERS THEN
+        IF NOT is_retryable_s3_sqlstate(SQLSTATE) THEN
+            RAISE;
+        END IF;
 
-                RETURN perform_import_from_s3(
-                    schema,
-                    target_tbl,
-                    format,
-                    s3_bucket,
-                    s3_key,
-                    s3_region,
-                    max_attempts,
-                    attempts + 1
-                );
-            ELSE
-                RAISE EXCEPTION 'Import of ''%'' failed after ''%'' attempts. SQLSTATE: %, Message: %',
-                    s3_key, max_attempts, SQLSTATE, SQLERRM
-                        USING ERRCODE = SQLSTATE;
-    END IF;
+        IF attempts >= max_attempts THEN
+            RAISE EXCEPTION 'Import of ''%'' failed after ''%'' attempts. SQLSTATE: %, Message: %',
+                s3_key, max_attempts, SQLSTATE, SQLERRM
+                    USING ERRCODE = SQLSTATE;
+        END IF;
+
+        -- Exponential backoff: 10 s, 20 s, 40 s .. capped at 60 s
+        PERFORM pg_sleep(s3_retry_backoff_ms(attempts) / 1000.0);
+
+        RETURN execute_import_from_s3(
+            schema,
+            target_tbl,
+            format,
+            s3_bucket,
+            s3_key,
+            s3_region,
+            max_attempts,
+            attempts + 1
+        );
+END;
+$BODY$;
+
+/**
+ * Function: execute_export_to_s3
+ * (used for tasked export with retries)
+ *
+ * Purpose:
+ *   Exports data from RDS to an S3 bucket using the AWS S3 extension.
+ *   Supports automatic retries with exponential backoff for transient errors
+ *   (see is_retryable_s3_sqlstate()).
+ *
+ * Arguments:
+ *   - s3_bucket (TEXT): The target S3 bucket.
+ *   - s3_path (TEXT): The target S3 object key/path.
+ *   - s3_region (TEXT): The AWS region of the S3 bucket.
+ *   - content_query (TEXT): SQL query producing the content to export.
+ *   - max_attempts (INT, default 3): Maximum number of retry attempts.
+ *   - attempts (INT, default 0): Current attempt count (internal, for recursion).
+ *
+ * Returns:
+ *   - TABLE(rows_uploaded BIGINT, files_uploaded BIGINT, bytes_uploaded BIGINT):
+ *     Export statistics returned by aws_s3.query_export_to_s3.
+ */
+CREATE OR REPLACE FUNCTION execute_export_to_s3(
+        s3_bucket TEXT, s3_path TEXT, s3_region TEXT,
+        content_query TEXT,
+        max_attempts INT DEFAULT 3,
+        attempts INT DEFAULT 0
+    )
+RETURNS TABLE(rows_uploaded BIGINT, files_uploaded BIGINT, bytes_uploaded BIGINT)
+    LANGUAGE 'plpgsql'
+    VOLATILE
+AS $BODY$
+DECLARE
+    config RECORD;
+    export_statistics RECORD;
+BEGIN
+    SELECT * FROM s3_plugin_config('GEOJSON') INTO config;
+
+    EXECUTE format(
+           'SELECT * from aws_s3.query_export_to_s3( '
+                ||' ''%1$s'', '
+                ||' aws_commons.create_s3_uri(%2$L,%3$L,%4$L),'
+                ||' %5$L )',
+            format('select jsondata || jsonb_build_object(''''geometry'''', ST_AsGeoJSON(geo, 8)::jsonb) from (%1$s) X',
+                    REPLACE(content_query, '''', '''''')),
+            s3_bucket,
+            s3_path,
+            s3_region,
+            REGEXP_REPLACE(config.plugin_options, '[\(\)]', '', 'g')
+            ) INTO export_statistics;
+
+    rows_uploaded := export_statistics.rows_uploaded;
+    files_uploaded := export_statistics.files_uploaded;
+    bytes_uploaded := export_statistics.bytes_uploaded;
+    RETURN NEXT;
+
+    EXCEPTION WHEN OTHERS THEN
+        IF NOT is_retryable_s3_sqlstate(SQLSTATE) THEN
+            RAISE;
+        END IF;
+
+        IF attempts >= max_attempts THEN
+            RAISE EXCEPTION 'Export to ''%'' failed after ''%'' attempts. SQLSTATE: %, Message: %',
+                s3_path, max_attempts, SQLSTATE, SQLERRM
+                    USING ERRCODE = SQLSTATE;
+        END IF;
+
+        -- Exponential backoff: 10 s, 20 s, 40 s .. capped at 60 s
+        PERFORM pg_sleep(s3_retry_backoff_ms(attempts) / 1000.0);
+
+        RETURN QUERY SELECT * FROM execute_export_to_s3(
+            s3_bucket,
+            s3_path,
+            s3_region,
+            content_query,
+            max_attempts,
+            attempts + 1
+        );
 END;
 $BODY$;
 
@@ -708,7 +864,6 @@ BEGIN
 	$wrappedinner$
 	DECLARE
 		export_statistics RECORD;
-	    config RECORD;
         task_id INT := $wrappedouter$||task_id||$wrappedouter$::INT;
 		content_query TEXT := $x$$wrappedouter$||coalesce(content_query,'')||$wrappedouter$$x$::TEXT;
         s3_bucket TEXT := '$wrappedouter$||s3_bucket||$wrappedouter$'::TEXT;
@@ -718,19 +873,12 @@ BEGIN
 		lambda_function_arn TEXT := '$wrappedouter$||lambda_function_arn||$wrappedouter$'::TEXT;
 		lambda_region TEXT := '$wrappedouter$||lambda_region||$wrappedouter$'::TEXT;
 	BEGIN
-    	SELECT * FROM s3_plugin_config('GEOJSON') INTO config;
-	    EXECUTE format(
-	           'SELECT * from aws_s3.query_export_to_s3( '
-	                ||' ''%1$s'', '
-	                ||' aws_commons.create_s3_uri(%2$L,%3$L,%4$L),'
-	                ||' %5$L )',
-			    format('select jsondata || jsonb_build_object(''''geometry'''', ST_AsGeoJSON(geo, 8)::jsonb) from (%1$s) X',
-						REPLACE(content_query, '''', '''''')),
-			    s3_bucket,
-			    s3_path,
-			    s3_region,
-			    REGEXP_REPLACE(config.plugin_options, '[\(\)]', '', 'g')
-	            )INTO export_statistics;
+	    SELECT * FROM execute_export_to_s3(
+	        s3_bucket,
+	        s3_path,
+	        s3_region,
+	        content_query
+	    ) INTO export_statistics;
 
 		PERFORM report_task_progress(
 			 lambda_function_arn,
@@ -780,7 +928,7 @@ $BODY$;
  *   - failure_callback (TEXT): Callback to execute on failure.
  *
  * Behavior:
- *   - Executes the import using perform_import_from_s3.
+ *   - Executes the import using execute_import_from_s3.
  *   - Reports import statistics and file size to Lambda via report_task_progress.
  *   - On error, executes the failure callback.
  *
@@ -823,7 +971,7 @@ BEGIN
 		lambda_function_arn TEXT := '$wrappedouter$||lambda_function_arn||$wrappedouter$'::TEXT;
 		lambda_region TEXT := '$wrappedouter$||lambda_region||$wrappedouter$'::TEXT;
 	BEGIN
-        SELECT perform_import_from_s3(
+        SELECT execute_import_from_s3(
             schema,
             target_tbl,
             format,

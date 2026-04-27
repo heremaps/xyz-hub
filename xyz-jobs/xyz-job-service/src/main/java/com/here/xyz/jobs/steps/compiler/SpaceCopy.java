@@ -127,7 +127,7 @@ public class SpaceCopy implements JobCompilationInterceptor {
       long sourceFeatureCount = sourceStatistics.getCount().getValue(),
            targetFeatureCount = targetStatistics.getCount().getValue();
 
-      long MAX_FEATURE_NOT_USING_FILTER = 60_100_000l;
+      long MAX_FEATURE_NOT_USING_FILTER = 200_100_000l;
       if( MAX_FEATURE_NOT_USING_FILTER <= sourceFeatureCount && !usingFilter(filters) )
        throw new CompilationError( String.format("too many features (%d > %d) to copy from %s ", sourceFeatureCount, MAX_FEATURE_NOT_USING_FILTER ,sourceSpaceId) );
 
@@ -159,15 +159,17 @@ public class SpaceCopy implements JobCompilationInterceptor {
       if (outputMetadata == null)
         outputMetadata = Map.of(target.getClass().getSimpleName().toLowerCase(), targetSpaceId);
 
+      long DROPCREATEINDEX_THRESHOLD = 4_000_000;
+      long SKIPCOUNT_THRESHOLD = 50_000;
+
       CopySpacePost postCopySpace = new CopySpacePost()
           .withSpaceId(targetSpaceId)
           .withJobId(jobId)
           .withOutputMetadata(outputMetadata)
-          .withInputSets(List.of(new InputSet(nextSpaceVersion.getOutputSet(VERSION))));
+          .withInputSets(List.of(new InputSet(nextSpaceVersion.getOutputSet(VERSION))))
+          .withSkipCounts( sourceFeatureCount >= SKIPCOUNT_THRESHOLD );
 
       startGraph.addExecution(postCopySpace);
-
-      long DROPCREATEINDEX_THRESHOLD = 4_000_000;
 
       boolean useDropIndexOptimization =    sourceFeatureCount >= DROPCREATEINDEX_THRESHOLD
                                             // target is empty and no filtering

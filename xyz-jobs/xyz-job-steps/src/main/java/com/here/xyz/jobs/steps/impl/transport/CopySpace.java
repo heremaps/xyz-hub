@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2017-2026 HERE Europe B.V.
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -26,7 +27,6 @@ import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_RESUME;
 
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.events.PropertiesQuery;
-import com.here.xyz.models.filters.SpatialFilter;
 import com.here.xyz.jobs.steps.execution.StepException;
 import com.here.xyz.jobs.steps.execution.db.Database;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
@@ -34,6 +34,7 @@ import com.here.xyz.jobs.steps.inputs.InputFromOutput;
 import com.here.xyz.jobs.steps.outputs.CreatedVersion;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
+import com.here.xyz.models.filters.SpatialFilter;
 import com.here.xyz.models.geojson.coordinates.WKTHelper;
 import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.models.hub.Ref;
@@ -46,7 +47,6 @@ import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.pg.FeatureWriterQueryBuilder.FeatureWriterQueryContextBuilder;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -111,6 +111,9 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
 
 
   public SpatialFilter getSpatialFilter() {
+    //TODO: This is a hotfix for large spatial filters ending up in the state check trigger paylooad. Long term fix should be to only keep the Step ID in the trigger payload and fetch the step config from service when step executions starts in lambda
+    if (inLambda)
+      return null;
     return spatialFilter;
   }
 
@@ -222,7 +225,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
 
   @Override
   public int getTimeoutSeconds() {
-    return 2 * 3600; //TODO: Calculate using #getEstimatedExecutionSeconds()
+    return 12 * 3600; //TODO: Calculate using #getEstimatedExecutionSeconds()
   }
 
   private int getThreadPartitions() {
@@ -403,8 +406,8 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
               ) as wfresult
             from
             (
-             select ((row_number() over ())-1)/${{maxBatchSize}} as rn, 
-                    idata.jsondata#>>'{properties,@ns:com:here:xyz,author}' as author, 
+             select ((row_number() over ())-1)/${{maxBatchSize}} as rn,
+                    idata.jsondata#>>'{properties,@ns:com:here:xyz,author}' as author,
                     idata.jsondata || jsonb_build_object('geometry', (idata.geo)::json) as feature
              from
              ( ${{contentQuery}} ) idata
@@ -425,12 +428,12 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
         INSERT INTO ${schema}.${table} (jsondata, operation, author, geo, id, version, next_version )
           SELECT idata.jsondata, case when idata.operation = 'U' then 'I' else idata.operation end AS operation, idata.author, idata.geo, idata.id, ${{versionToBeUsed}} as version, max_bigint() as next_version
           FROM
-          ( 
-            ${{contentQuery}} 
+          (
+            ${{contentQuery}}
           ) idata
         RETURNING id
       ),
-      count_data as 
+      count_data as
       ( SELECT count(1) AS rows FROM ins_data )
       select rows into dummy_output from count_data
     """)

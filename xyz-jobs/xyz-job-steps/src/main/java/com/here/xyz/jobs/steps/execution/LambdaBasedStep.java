@@ -66,7 +66,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import io.vertx.core.Future;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import software.amazon.awssdk.services.cloudwatchevents.model.ConcurrentModificationException;
@@ -77,6 +76,8 @@ import software.amazon.awssdk.services.cloudwatchevents.model.PutTargetsRequest;
 import software.amazon.awssdk.services.cloudwatchevents.model.RemoveTargetsRequest;
 import software.amazon.awssdk.services.cloudwatchevents.model.ResourceNotFoundException;
 import software.amazon.awssdk.services.cloudwatchevents.model.Target;
+import software.amazon.awssdk.services.sfn.model.ExecutionDoesNotExistException;
+import software.amazon.awssdk.services.sfn.model.ExecutionStatus;
 import software.amazon.awssdk.services.sfn.model.InvalidTokenException;
 import software.amazon.awssdk.services.sfn.model.SendTaskFailureRequest;
 import software.amazon.awssdk.services.sfn.model.SendTaskHeartbeatRequest;
@@ -99,6 +100,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   @JsonView(Internal.class)
   protected boolean isSimulation = false; //TODO: Remove testing code
   private static final Logger logger = LogManager.getLogger();
+  protected boolean inLambda;
 
   @JsonView(Internal.class)
   private String taskToken = TASK_TOKEN_TEMPLATE; //Will be defined by the Step Function
@@ -275,6 +277,17 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
       If the issue persists, the step will fail after the heartbeat timeout.
        */
       logger.warn("Unknown execution state for step {}", getGlobalStepId(), e);
+
+      //Check if the StateMachine is still existing and if it is RUNNING. If not - unregister StateCheckTrigger.
+      try {
+        ExecutionStatus sfnExecutionStatus = SFNInspector.getSFNExecutionStatus(executionId);
+        if(sfnExecutionStatus != ExecutionStatus.RUNNING)
+          unregisterStateCheckTrigger();
+      }catch (ExecutionDoesNotExistException e1){
+        logger.info("[{}] StateMachine already gone ...", getGlobalStepId());
+        unregisterStateCheckTrigger();
+      }
+
       synchronizeStep();
       //NOTE: No heartbeat must be sent to SFN in this case!
     }
@@ -384,7 +397,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     }
     catch (TaskTimedOutException | InvalidTokenException e) {
       try {
-        logger.warn("[{}] Task Heartbeat is failed. Cancelling step!", getGlobalStepId());
+        logger.warn("[{}] Task Heartbeat is failed. Cancelling step!", getGlobalStepId(), e);
         updateState(CANCELLING);
         cancel();
         updateState(CANCELLED);
@@ -403,7 +416,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
 
     final boolean isResume;
     try {
-      isResume = SFNInspector.findStartedStepFunctionExecutionInHistory(executionId,
+      isResume = SFNInspector.checkIfStepWasRunningBefore(executionId,
                       this.getClass().getSimpleName(), this.getId())
           .toCompletionStage()
           .toCompletableFuture()
@@ -658,6 +671,8 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
 
         if (request.getStep() == null)
           throw new NullPointerException("Malformed step request, missing step definition.");
+
+        request.getStep().inLambda = true;
 
         //Set the userAgent of the web clients correctly
         HubWebClient.userAgent = StepWebClient.userAgent = "XYZ-JobStep-" + request.getStep().getClass().getSimpleName();
