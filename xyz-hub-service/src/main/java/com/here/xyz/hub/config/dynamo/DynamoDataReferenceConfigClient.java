@@ -37,6 +37,7 @@ import com.here.xyz.util.service.aws.dynamo.DynamoClient;
 import com.here.xyz.util.service.aws.dynamo.IndexDefinition;
 import io.vertx.core.Future;
 import java.util.AbstractMap.SimpleImmutableEntry;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -63,6 +64,8 @@ public final class DynamoDataReferenceConfigClient extends DataReferenceConfigCl
   private static final String SORT_KEY_PATTERN = END_VERSION_SORT_KEY_PART + "#id#%s";
 
   private static final String ID_INDEX_ATTRIBUTE_NAME = "id";
+
+  private static final long KEEP_UNTIL_GRACE_PERIOD_SECONDS = 48 * 3600;
 
   private static final IndexDefinition idIndex = new IndexDefinition(ID_INDEX_ATTRIBUTE_NAME);
 
@@ -96,8 +99,20 @@ public final class DynamoDataReferenceConfigClient extends DataReferenceConfigCl
   private static Map<String, Object> dynamoItemAsMap(DataReference dataReference) {
     Map<String, Object> dataReferenceAsMap = dataReference.toMap();
     dataReferenceAsMap.put(SORT_KEY_NAME, sortKeyValue(dataReference));
-
+    // Converts ms to seconds (required by DynamoDB TTL) and adds grace period
+    if (dataReferenceAsMap.get("keepUntil") != null) {
+      dataReferenceAsMap.put("keepUntil", ((Number) dataReferenceAsMap.get("keepUntil")).longValue() / 1000 + KEEP_UNTIL_GRACE_PERIOD_SECONDS);
+    }
     return dataReferenceAsMap;
+  }
+
+  private static <T> T fromDynamoMap(Map<String, Object> itemAsMap, Class<T> resultItemClass) {
+    Map<String, Object> mutableMap = new HashMap<>(itemAsMap);
+    // Subtracts grace period and converts seconds back to ms for the API
+    if (mutableMap.get("keepUntil") != null) {
+      mutableMap.put("keepUntil", (((Number) mutableMap.get("keepUntil")).longValue() - KEEP_UNTIL_GRACE_PERIOD_SECONDS) * 1000);
+    }
+    return fromMap(mutableMap, resultItemClass);
   }
 
   private static String sortKeyValue(DataReference dataReference) {
@@ -110,7 +125,7 @@ public final class DynamoDataReferenceConfigClient extends DataReferenceConfigCl
       queryIndex(dataReferenceTable, idIndex, id.toString())
         .stream()
         .findFirst()
-        .map(item -> fromMap(item.asMap(), DataReference.class))
+        .map(item -> fromDynamoMap(item.asMap(), DataReference.class))
     );
   }
 
@@ -175,7 +190,7 @@ public final class DynamoDataReferenceConfigClient extends DataReferenceConfigCl
   private static <T> List<T> itemCollectionToList(ItemCollection<QueryOutcome> itemCollection, Class<T> resultItemClass) {
     return StreamSupport.stream(itemCollection.spliterator(), false)
       .map(Item::asMap)
-      .map(itemAsMap -> fromMap(itemAsMap, resultItemClass))
+      .map(itemAsMap -> fromDynamoMap(itemAsMap, resultItemClass))
       .toList();
   }
 
