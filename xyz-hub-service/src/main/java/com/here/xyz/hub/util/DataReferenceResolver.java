@@ -24,6 +24,7 @@ import com.here.xyz.hub.config.DataReferenceConfigClient;
 import com.here.xyz.hub.config.SpaceConfigClient;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.models.hub.DataReference;
+import com.here.xyz.util.service.Core;
 import io.vertx.core.Future;
 import org.apache.logging.log4j.Marker;
 
@@ -65,6 +66,10 @@ public final class DataReferenceResolver {
 
                     DataReference ref = maybeRef.get();
 
+                    if (isExpired(ref)) {
+                        return Future.succeededFuture(Optional.empty());
+                    }
+
                     if (onlyStale) {
                         return Future.succeededFuture(Optional.of(ref));
                     }
@@ -78,6 +83,7 @@ public final class DataReferenceResolver {
     }
 
     public Future<List<DataReference>> filterForEntity(Marker marker, String entityId, List<DataReference> refs, boolean onlyStale) {
+        List<DataReference> nonExpiredRefs = refs.stream().filter(r -> !isExpired(r)).toList();
         return resolveAnchorSpace(marker, entityId)
                 .map(maybeAnchor -> {
                     if (maybeAnchor.isEmpty()) {
@@ -85,11 +91,11 @@ public final class DataReferenceResolver {
                             return List.of();
                         }
 
-                        return distinctNewestByUniquenessKey(refs);
+                        return distinctNewestByUniquenessKey(nonExpiredRefs);
                     }
 
                     long minCreatedAt = maybeAnchor.get().createdAt();
-                    List<DataReference> filtered = refs.stream()
+                    List<DataReference> filtered = nonExpiredRefs.stream()
                             .filter(r -> onlyStale
                                     ? ts(r.getCreatedAt()) < minCreatedAt
                                     : ts(r.getCreatedAt()) >= minCreatedAt)
@@ -222,6 +228,10 @@ public final class DataReferenceResolver {
 
     private static long ts(Long v) {
         return v == null ? 0L : v;
+    }
+
+    private static boolean isExpired(DataReference r) {
+        return r.getKeepUntil() != null && r.getKeepUntil() < Core.currentTimeMillis();
     }
 
     private record Anchor(String spaceId, long createdAt) {}
