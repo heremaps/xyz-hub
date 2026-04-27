@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,14 +19,6 @@
 
 package com.here.xyz.jobs.steps.compiler;
 
-import static com.here.xyz.jobs.steps.Step.InputSet.USER_INPUTS;
-import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.CSV_GEOJSON;
-import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.CSV_JSON_WKB;
-import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.GEOJSON;
-import static com.here.xyz.util.db.pg.IndexHelper.SystemIndex.NEXT_VERSION;
-import static com.here.xyz.util.db.pg.IndexHelper.SystemIndex.OPERATION;
-import static com.here.xyz.util.db.pg.IndexHelper.SystemIndex.VERSION_ID;
-
 import com.google.common.collect.Lists;
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.datasets.DatasetDescription.Space;
@@ -42,9 +34,6 @@ import com.here.xyz.jobs.steps.compiler.tools.IndexCompilerHelper;
 import com.here.xyz.jobs.steps.impl.AnalyzeSpaceTable;
 import com.here.xyz.jobs.steps.impl.CreateIndex;
 import com.here.xyz.jobs.steps.impl.DropIndexes;
-import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
-import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPerLine;
-import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format;
 import com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.util.db.pg.IndexHelper.Index;
@@ -52,24 +41,20 @@ import com.here.xyz.util.db.pg.IndexHelper.SystemIndex;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
+
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static com.here.xyz.jobs.steps.Step.InputSet.USER_INPUTS;
+import static com.here.xyz.util.db.pg.IndexHelper.SystemIndex.NEXT_VERSION;
+import static com.here.xyz.util.db.pg.IndexHelper.SystemIndex.OPERATION;
+import static com.here.xyz.util.db.pg.IndexHelper.SystemIndex.VERSION_ID;
+
 public class ImportFromFiles implements JobCompilationInterceptor {
-  public boolean useNewTaskedImportStep = true;
-
   public static Set<Class<? extends Space>> allowedTargetTypes = new HashSet<>(Set.of(Space.class));
-
-  public void setUseNewTaskedImportStep(boolean useNewTaskedImportStep) {
-    this.useNewTaskedImportStep = useNewTaskedImportStep;
-  }
-  public ImportFromFiles withUseNewTaskedImportStep(boolean useNewTaskedImportStep) {
-    setUseNewTaskedImportStep(useNewTaskedImportStep);
-    return this;
-  }
 
   @Override
   public boolean chooseMe(Job job) {
@@ -87,52 +72,31 @@ public class ImportFromFiles implements JobCompilationInterceptor {
     String spaceId = target.getId();
 
     final FileFormat sourceFormat = ((Files) job.getSource()).getInputSettings().getFormat();
-    Format importStepFormat;
-    if (sourceFormat instanceof GeoJson)
-      importStepFormat = GEOJSON;
-    else if (sourceFormat instanceof Csv csvFormat)
-      importStepFormat = csvFormat.isGeometryAsExtraWkbColumn() ? CSV_JSON_WKB : CSV_GEOJSON;
-    else
-      throw new CompilationError("Unsupported import file format: " + sourceFormat.getClass().getSimpleName());
 
-    EntityPerLine entityPerLine = getEntityPerLine(sourceFormat);
+    if (!(sourceFormat instanceof GeoJson))
+      throw new CompilationError("Unsupported import file format: " + sourceFormat.getClass().getSimpleName());
 
     //This validation check is necessary to deliver a constructive error to the user - otherwise keepIndices will throw a runtime error.
     checkIfSpaceIsAccessible(spaceId);
 
-    if(useNewTaskedImportStep) {
-      if(!entityPerLine.equals(EntityPerLine.Feature))
-        throw new CompilationError("TaskedImportStep - Unsupported entityPerLine configuration: " + entityPerLine.name());
-      if(!(sourceFormat instanceof GeoJson))
-        throw new CompilationError("TaskedImportStep - Unsupported format configuration: " + sourceFormat.getClass().getSimpleName());
+    TaskedImportFilesToSpace importFilesStep = new TaskedImportFilesToSpace() //Perform import
+            .withEntityPerLine(getEntityPerLine(sourceFormat))
+            .withSpaceId(spaceId)
+            .withVersionRef(new Ref(Ref.HEAD))
+            .withJobId(job.getId())
+            .withInputSets(List.of(USER_INPUTS.get()));
 
-      TaskedImportFilesToSpace importFilesStep = new TaskedImportFilesToSpace() //Perform import
-              .withSpaceId(spaceId)
-              .withVersionRef(new Ref(Ref.HEAD))
-              .withJobId(job.getId())
-              .withInputSets(List.of(USER_INPUTS.get()));
-      if (importFilesStep.keepIndices())
+    try {
+      if (importFilesStep.useFeatureWriter())
         //Perform only the import Step
         return (CompilationStepGraph) new CompilationStepGraph()
                 .addExecution(importFilesStep);
-
-      //perform full Import with all 11 Steps (IDX deletion/creation..)
-      return compileTaskedImportSteps(importFilesStep);
-    }else{
-      ImportFilesToSpace importFilesStep = new ImportFilesToSpace() //Perform import
-              .withSpaceId(spaceId)
-              .withFormat(importStepFormat)
-              .withEntityPerLine(entityPerLine)
-              .withJobId(job.getId())
-              .withInputSets(List.of(USER_INPUTS.get()));
-      if (importFilesStep.keepIndices())
-        //Perform only the import Step
-        return (CompilationStepGraph) new CompilationStepGraph()
-                .addExecution(importFilesStep);
-
-      //perform full Import with all 11 Steps (IDX deletion/creation..)
-      return compileImportSteps(importFilesStep);
+    } catch (WebClientException e) {
+      throw new CompilationError("Error retrieving statistics for target resource during compilation!", e);
     }
+
+    //perform full Import with all 11 Steps (IDX deletion/creation..)
+    return compileTaskedImportSteps(importFilesStep);
   }
 
   public static CompilationStepGraph compileWrapWithDropRecreateIndices(String spaceId, StepExecution stepExecution) {
@@ -179,20 +143,10 @@ public class ImportFromFiles implements JobCompilationInterceptor {
     }
   }
 
-  public static CompilationStepGraph compileImportSteps(ImportFilesToSpace importFilesStep) {
-    try {
-      //Keep these indices if FeatureWriter is used
-      List<Index> whiteListIndex = importFilesStep.useFeatureWriter() ? List.of(VERSION_ID, NEXT_VERSION, OPERATION) : null;
-      return compileWrapWithDropRecreateIndices(importFilesStep.getSpaceId(), importFilesStep, whiteListIndex);
-    } catch (WebClientException e) {
-      throw new CompilationError("Unexpected error occurred during compilation", e);
-    }
-  }
-
-  private EntityPerLine getEntityPerLine(FileFormat format) {
-    return EntityPerLine.valueOf((format instanceof GeoJson geoJson
-        ? geoJson.getEntityPerLine()
-        : ((Csv) format).getEntityPerLine()).toString());
+  private TaskedImportFilesToSpace.EntityPerLine getEntityPerLine(FileFormat format) {
+    return TaskedImportFilesToSpace.EntityPerLine.valueOf((format instanceof GeoJson geoJson
+            ? geoJson.getEntityPerLine()
+            : ((Csv) format).getEntityPerLine()).toString());
   }
 
   private static List<StepExecution> toSequentialSteps(String spaceId, List<SystemIndex> indices) {

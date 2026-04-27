@@ -44,7 +44,6 @@ import com.here.xyz.jobs.steps.impl.transport.CountSpace;
 import com.here.xyz.jobs.steps.impl.transport.ExportChangedTiles;
 import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
 import com.here.xyz.jobs.steps.impl.transport.GetNextSpaceVersion;
-import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
 import com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace;
 import com.here.xyz.models.hub.Branch;
 import com.here.xyz.models.hub.Connector;
@@ -67,7 +66,6 @@ import org.apache.logging.log4j.Logger;
     @JsonSubTypes.Type(value = CreateIndex.class),
     @JsonSubTypes.Type(value = ExportSpaceToFiles.class),
     @JsonSubTypes.Type(value = ExportChangedTiles.class),
-    @JsonSubTypes.Type(value = ImportFilesToSpace.class),
     @JsonSubTypes.Type(value = TaskedImportFilesToSpace.class),
     @JsonSubTypes.Type(value = DropIndexes.class),
     @JsonSubTypes.Type(value = AnalyzeSpaceTable.class),

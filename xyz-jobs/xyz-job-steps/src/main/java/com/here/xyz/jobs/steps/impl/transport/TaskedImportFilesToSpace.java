@@ -82,6 +82,9 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
     GEOJSON, FAST_IMPORT_INTO_EMPTY
   }
 
+  @JsonView({Internal.class, Static.class})
+  private EntityPerLine entityPerLine = EntityPerLine.Feature;
+
   private ImportQueryBuilder importQueryBuilder;
 
   @JsonView({Internal.class, Static.class})
@@ -172,6 +175,19 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
     return this;
   }
 
+  public EntityPerLine getEntityPerLine() {
+    return entityPerLine;
+  }
+
+  public void setEntityPerLine(EntityPerLine entityPerLine) {
+    this.entityPerLine = entityPerLine;
+  }
+
+  public TaskedImportFilesToSpace withEntityPerLine(EntityPerLine entityPerLine) {
+    setEntityPerLine(entityPerLine);
+    return this;
+  }
+
   @Override
   protected boolean queryRunsOnWriter(){
     return true;
@@ -189,7 +205,7 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
 
       String superRootTable = space().getExtension() != null ? getRootTableName(superSpace()) : null;
       runBatchWriteQuerySync(getQueryBuilder().buildTemporaryTriggerTableBlockForImportWithFW(space().getOwner(),
-             newVersion, superRootTable, updateStrategy, "Feature"), db(), 0);
+             newVersion, superRootTable, updateStrategy, entityPerLine.name()), db(), 0);
     }else{
       infoLog(STEP_EXECUTE,  "initialSetup - Import into empty layer detected!");
 
@@ -401,5 +417,10 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
       importQueryBuilder = new ImportQueryBuilder(getId(), getSchema(db()), getRootTableName(space()), space().getVersionsToKeep());
     }
     return importQueryBuilder;
+  }
+
+  public enum EntityPerLine {
+    Feature,
+    FeatureCollection
   }
 }

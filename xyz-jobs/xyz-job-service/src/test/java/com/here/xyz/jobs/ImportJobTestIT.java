@@ -25,7 +25,6 @@ import com.here.xyz.jobs.datasets.files.FileInputSettings;
 import com.here.xyz.jobs.datasets.files.GeoJson;
 import com.here.xyz.jobs.steps.JobCompiler;
 import com.here.xyz.jobs.steps.compiler.ImportFromFiles;
-import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
 import com.here.xyz.jobs.util.test.ContentCreator;
 import com.here.xyz.models.hub.Space;
 import org.junit.jupiter.api.Assertions;
@@ -46,12 +45,13 @@ import static com.here.xyz.jobs.datasets.files.FileFormat.EntityPerLine.FeatureC
 public class ImportJobTestIT extends JobTest {
   @BeforeEach
   public void setUp() {
-    createSpace(new Space().withId(SPACE_ID).withSearchableProperties(Map.of(
+    createSpace(new Space().withId(SPACE_ID).withVersionsToKeep(10000).withSearchableProperties(Map.of(
                     "foo1", true,
                     "foo2.nested", true,
                     "foo3.nested.array::array", true
             )
     ), false);
+    putRandomFeatureCollectionToSpace(SPACE_ID, 10);
   }
 
   @Test
@@ -60,7 +60,7 @@ public class ImportJobTestIT extends JobTest {
             new FileInputSettings()
                     .withFormat(new GeoJson().withEntityPerLine(Feature)))
     );
-    createAndStartJob(importJob, ContentCreator.generateImportFileContent(ImportFilesToSpace.Format.GEOJSON, 50));
+    createAndStartJob(importJob, ContentCreator.generateImportFileContent(50));
   }
 
   @Test
@@ -71,7 +71,6 @@ public class ImportJobTestIT extends JobTest {
     );
     Assertions.assertThrows(JobCompiler.CompilationError.class, () ->
             new ImportFromFiles()
-              .withUseNewTaskedImportStep(true)
               .compile(importJob));
   }
 
@@ -82,7 +81,6 @@ public class ImportJobTestIT extends JobTest {
                             .withFormat(new Csv().withEntityPerLine(Feature))));
     Assertions.assertThrows(JobCompiler.CompilationError.class, () ->
             new ImportFromFiles()
-                    .withUseNewTaskedImportStep(true)
                     .compile(importJob));
   }
 
