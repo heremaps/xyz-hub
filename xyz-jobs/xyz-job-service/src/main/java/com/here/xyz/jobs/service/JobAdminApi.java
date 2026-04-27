@@ -227,8 +227,8 @@ public class JobAdminApi extends JobApiBase {
                 else if ("States.Timeout".equals(detail.getString("error")))
                   //In Localstack a SFN CANCEL gets not detected properly and results in a timeout of the execution.
                   future = failCausingStep(job, "Async step timed out or no state-checks were received anymore (HeartBeat timeout)", future, executionArn);
-                else if (isEmrCancelledBySfn(detail))
-                  future = failCausingStep(job, "EMR execution got cancelled", future, executionArn);
+                else if (isEmrCancelledManually(detail))
+                  future = failCausingStep(job, "EMR execution was cancelled manually", future, executionArn);
                 else {
                   /*
                   NOTE: This case handles any other failures of the SFN that are nothing unusual.
@@ -261,7 +261,7 @@ public class JobAdminApi extends JobApiBase {
           .onFailure(t -> logger.error("[{}] Error updating the state of the job after receiving an event from its state machine:", jobId, t));
   }
 
-  private static boolean isEmrCancelledBySfn(JsonObject detail) {
+  private static boolean isEmrCancelledManually(JsonObject detail) {
     String cause = detail.getString("cause");
     if (cause == null || cause.isBlank())
       return false;
