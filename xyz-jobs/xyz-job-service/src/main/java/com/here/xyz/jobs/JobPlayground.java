@@ -51,7 +51,7 @@ import com.here.xyz.jobs.steps.impl.DropIndexes;
 import com.here.xyz.jobs.steps.impl.maintenance.MarkForMaintenance;
 import com.here.xyz.jobs.steps.impl.transport.CopySpace;
 import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
-import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
+import com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
@@ -117,7 +117,6 @@ public class JobPlayground {
   private static Space targetSpace;
   private static boolean simulateExecution = true;
   private static boolean executeWholeJob = false;
-  private static ImportFilesToSpace.Format importFormat = ImportFilesToSpace.Format.GEOJSON;
   private static int uploadFileCount = 2;
   private static String jobServiceBaseUrl = "http://localhost:7070";
 
@@ -235,7 +234,7 @@ public class JobPlayground {
 
       runDropIndexStep(sampleSpace.getId());
 
-      runImportFilesToSpaceStep(sampleSpace.getId(), importFormat);
+      runImportFilesToSpaceStep(sampleSpace.getId());
 
       for (SystemIndex index : SystemIndex.values())
         runCreateIndexStep(sampleSpace.getId(), index);
@@ -253,7 +252,7 @@ public class JobPlayground {
   private static void uploadFiles() throws IOException {
     //Generate N Files with M features
     for (int i = 0; i < uploadFileCount; i++)
-      uploadInputFile(generateContent(importFormat, 10));
+      uploadInputFile(generateContent( 10));
   }
 
   private static void uploadFilesToRealJob(String jobId) throws IOException, InterruptedException {
@@ -261,7 +260,7 @@ public class JobPlayground {
     for (int i = 0; i < uploadFileCount; i++) {
       HttpResponse<byte[]> inputResponse = post("/jobs/" + jobId + "/inputs", Map.of("type", "UploadUrl"));
       String uploadUrl = (String) XyzSerializable.deserialize(inputResponse.body(), Map.class).get("url");
-      uploadInputFile(generateContent(importFormat, 10), new URL(uploadUrl));
+      uploadInputFile(generateContent( 10), new URL(uploadUrl));
     }
 
   }
@@ -291,16 +290,16 @@ public class JobPlayground {
     }
   }
 
-  private static byte[] generateContent(ImportFilesToSpace.Format format, int featureCnt) {
+  private static byte[] generateContent(int featureCnt) {
     String output = "";
 
     for (int i = 1; i <= featureCnt; i++) {
-      output += generateContentLine(format, i);
+      output += generateContentLine(i);
     }
     return output.getBytes();
   }
 
-  private static void generateContentToFile(ImportFilesToSpace.Format format, int featureCnt, boolean beZipped) throws IOException {
+  private static void generateContentToFile(int featureCnt, boolean beZipped) throws IOException {
     String outputFile = "/tmp/output.file" + (beZipped ? ".gz" : "");
 
     BufferedWriter writer = null;
@@ -315,7 +314,7 @@ public class JobPlayground {
                 new OutputStreamWriter(zip, "UTF-8"));
       }
       for (int i = 1; i <= featureCnt; i++) {
-        writer.write(generateContentLine(format, i));
+        writer.write(generateContentLine(i));
       }
     }finally {
       if (writer != null)
@@ -323,16 +322,10 @@ public class JobPlayground {
     }
   }
 
-  private static String generateContentLine(ImportFilesToSpace.Format format, int i){
+  private static String generateContentLine(int i){
     Random rd = new Random();
     String lineSeparator = "\n";
-
-    if(format.equals(ImportFilesToSpace.Format.CSV_JSON_WKB))
-      return "\"{'\"properties'\": {'\"test'\": "+i+"}}\",01010000A0E61000007DAD4B8DD0AF07C0BD19355F25B74A400000000000000000"+lineSeparator;
-    else if(format.equals(ImportFilesToSpace.Format.CSV_GEOJSON))
-      return "\"{'\"type'\":'\"Feature'\",'\"geometry'\":{'\"type'\":'\"Point'\",'\"coordinates'\":["+(rd.nextInt(179))+"."+(rd.nextInt(100))+","+(rd.nextInt(79))+"."+(rd.nextInt(100))+"]},'\"properties'\":{'\"test'\":"+i+"}}\""+lineSeparator;
-    else
-      return "{\"type\":\"Feature\",\"geometry\":{\"type\":\"Point\",\"coordinates\":["+(rd.nextInt(179))+"."+(rd.nextInt(100))+","+(rd.nextInt(79))+"."+(rd.nextInt(100))+"]},\"properties\":{\"te\\\"st\":"+i+"}}"+lineSeparator;
+    return "{\"type\":\"Feature\",\"geometry\":{\"type\":\"Point\",\"coordinates\":["+(rd.nextInt(179))+"."+(rd.nextInt(100))+","+(rd.nextInt(79))+"."+(rd.nextInt(100))+"]},\"properties\":{\"te\\\"st\":"+i+"}}"+lineSeparator;
   }
 
   private static void startMockJob() {
@@ -479,8 +472,8 @@ public class JobPlayground {
     runStep(new DropIndexes().withSpaceId(spaceId));
   }
 
-  public static void runImportFilesToSpaceStep(String spaceId, ImportFilesToSpace.Format format) throws IOException {
-    runStep(new ImportFilesToSpace().withSpaceId(spaceId).withFormat(format).withUpdateStrategy(UpdateStrategy.DEFAULT_UPDATE_STRATEGY));
+  public static void runImportFilesToSpaceStep(String spaceId) throws IOException {
+    runStep(new TaskedImportFilesToSpace().withSpaceId(spaceId).withUpdateStrategy(UpdateStrategy.DEFAULT_UPDATE_STRATEGY));
   }
 
   public static void runCreateIndexStep(String spaceId, SystemIndex index) throws IOException {
