@@ -801,17 +801,20 @@ RETURNS VOID
     LANGUAGE 'plpgsql'
     VOLATILE
 AS $BODY$
+DECLARE
+    lamda_response RECORD;
 BEGIN
-	PERFORM report_progress(
-		lambda_function_arn,
-		lambda_region,
-		step_payload,
-		json_build_object(
-		       'type','SpaceBasedTaskUpdate',
-			   'taskId', task_id,
-			   'taskOutput', task_output
-			)
-	);
+    --TODO: Add error handling
+    SELECT aws_lambda.invoke(aws_commons.create_lambda_function_arn(lambda_function_arn, lambda_region),
+         json_build_object(
+                 'type','UPDATE_CALLBACK',
+                 'step', step_payload,
+                 'processUpdate', json_build_object(
+                         'type','SpaceBasedTaskUpdate',
+                         'taskId', task_id,
+                         'taskOutput', task_output
+                )
+         ), 'Event') INTO lamda_response;
 END
 $BODY$;
 
