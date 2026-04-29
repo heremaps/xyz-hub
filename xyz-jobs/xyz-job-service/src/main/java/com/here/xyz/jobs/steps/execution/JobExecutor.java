@@ -59,19 +59,19 @@ public abstract class JobExecutor implements Initializable {
   private static volatile boolean running;
   private static volatile boolean stopRequested;
   private static AtomicBoolean cancellationCheckRunning = new AtomicBoolean();
-  private static final long CANCELLATION_TIMEOUT = 10 * 60 * 1_000; //10 min
-  private static final long CANCELLATION_CHECK_RERUN_PERIOD = 10_000; //10 sec
-  private static final long JOB_START_TIMEOUT = 60_000;
-  private static Set<Predicate<Job>> singleJobAllowedPolicies = new ConcurrentHashSet<>();
-
+  private static final AtomicBoolean schedulerPaused = new AtomicBoolean(false);
+  private static final AtomicBoolean singleJobAllowedPoliciesEnabled = new AtomicBoolean(true);
   /**
    * Global switch to enable/disable the "one active job per resource" policy.
    * <p>When enabled, a job will not be started (it stays in PENDING) if any other RUNNING job
    * shares at least one resource key (source or target) with it. This prevents concurrent
    * imports writing to the same target or concurrent exports reading from the same source.
-   * <p>Defaults to {@code false} to preserve previous behavior.
    */
-  public static volatile boolean singleJobPerResourceEnabled = true;
+  private static final AtomicBoolean singleJobPerResourceEnabled = new AtomicBoolean(true);
+  private static final long CANCELLATION_TIMEOUT = 10 * 60 * 1_000; //10 min
+  private static final long CANCELLATION_CHECK_RERUN_PERIOD = 10_000; //10 sec
+  private static final long JOB_START_TIMEOUT = 60_000;
+  private static Set<Predicate<Job>> singleJobAllowedPolicies = new ConcurrentHashSet<>();
 
   {
     exec.scheduleWithFixedDelay(this::checkPendingJobs, 10, 60, SECONDS);
@@ -84,6 +84,11 @@ public abstract class JobExecutor implements Initializable {
   }
 
   public final Future<Void> startExecution(Job job, String formerExecutionId) {
+    if (isSchedulingPaused()) {
+      logger.info("[{}] Scheduler is paused. Job remains in PENDING and will not be started.", job.getId());
+      return Future.succeededFuture();
+    }
+
     //TODO: Care about concurrency between nodes when it comes to resource-load calculation within this thread
     return Future.succeededFuture()
         .compose(v -> formerExecutionId == null ? reuseExistingJobIfPossible(job) : Future.succeededFuture())
@@ -133,6 +138,12 @@ public abstract class JobExecutor implements Initializable {
     if (stopRequested) {
       //Do not start an execution if a stop was requested
       running = false;
+      return;
+    }
+
+    if (isSchedulingPaused()) {
+      running = false;
+      logger.info("[checkPendingJobs] Scheduler is paused. Skipping check of pending jobs...");
       return;
     }
 
@@ -364,7 +375,7 @@ public abstract class JobExecutor implements Initializable {
    *         resources (in which case the job remains in PENDING and is re-checked later).
    */
   private static Future<Boolean> singleJobPerResourceSatisfied(Job job) {
-    if (!singleJobPerResourceEnabled)
+    if (!isSingleJobPerResourceEnabled())
       return Future.succeededFuture(true);
 
     Set<String> resourceKeys = job.getResourceKeys();
@@ -433,6 +444,9 @@ public abstract class JobExecutor implements Initializable {
   }
 
   private Future<Boolean> executionPoliciesSatisfied(Job job) {
+    if (!isSingleJobAllowedPoliciesEnabled())
+      return Future.succeededFuture(true);
+
     logger.info("[{}] Checking all execution policies prior to executing the job ...", job.getId());
     Set<Predicate<Job>> policiesToApply = findMatchingJobPolicies(job);
     if (policiesToApply.isEmpty())
@@ -507,6 +521,34 @@ public abstract class JobExecutor implements Initializable {
 
   public static void registerSingleJobAllowedPolicy(Predicate<Job> policy) {
     singleJobAllowedPolicies.add(policy);
+  }
+
+  public static void pauseScheduling() {
+    schedulerPaused.set(true);
+  }
+
+  public static void resumeScheduling() {
+    schedulerPaused.set(false);
+  }
+
+  public static boolean isSchedulingPaused() {
+    return schedulerPaused.get();
+  }
+
+  public static void setSingleJobAllowedPoliciesEnabled(boolean enabled) {
+    singleJobAllowedPoliciesEnabled.set(enabled);
+  }
+
+  public static boolean isSingleJobAllowedPoliciesEnabled() {
+    return singleJobAllowedPoliciesEnabled.get();
+  }
+
+  public static void setSingleJobPerResourceEnabled(boolean enabled) {
+    singleJobPerResourceEnabled.set(enabled);
+  }
+
+  public static boolean isSingleJobPerResourceEnabled() {
+    return singleJobPerResourceEnabled.get();
   }
 
   private static Set<Predicate<Job>> findMatchingJobPolicies(Job job) {
