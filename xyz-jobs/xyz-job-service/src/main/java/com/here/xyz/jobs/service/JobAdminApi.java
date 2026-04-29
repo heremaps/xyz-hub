@@ -35,12 +35,14 @@ import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.vertx.core.http.HttpMethod.DELETE;
 import static io.vertx.core.http.HttpMethod.GET;
 import static io.vertx.core.http.HttpMethod.POST;
+import static io.vertx.core.http.HttpMethod.PUT;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.RuntimeInfo;
 import com.here.xyz.jobs.RuntimeInfo.State;
+import com.here.xyz.jobs.config.JobConfigClient;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.execution.JobExecutor;
 import com.here.xyz.jobs.steps.execution.SFNInspector;
@@ -58,6 +60,7 @@ public class JobAdminApi extends JobApiBase {
   private static final String ADMIN_JOB_STEPS = ADMIN_JOB + "/steps";
   private static final String ADMIN_JOB_STEP = ADMIN_JOB_STEPS + "/:stepId";
   private static final String ADMIN_STATE_MACHINE_EVENTS = "/admin/state/events";
+  private static final String ADMIN_SERVICE_SCHEDULER_STATE = "/admin/service/scheduler/state";
 
   public JobAdminApi(Router router) {
     router.route(GET, ADMIN_JOBS).handler(handleErrors(this::getJobs));
@@ -66,6 +69,8 @@ public class JobAdminApi extends JobApiBase {
     router.route(POST, ADMIN_JOB_STEPS).handler(handleErrors(this::postStep));
     router.route(GET, ADMIN_JOB_STEP).handler(handleErrors(this::getStep));
     router.route(POST, ADMIN_STATE_MACHINE_EVENTS).handler(handleErrors(this::postStateEvent));
+    router.route(GET, ADMIN_SERVICE_SCHEDULER_STATE).handler(handleErrors(this::getSchedulerState));
+    router.route(PUT, ADMIN_SERVICE_SCHEDULER_STATE).handler(handleErrors(this::putSchedulerState));
   }
 
   private void getJobs(RoutingContext context) {
@@ -423,6 +428,10 @@ public class JobAdminApi extends JobApiBase {
     return deserializeFromBody(context, Job.class);
   }
 
+  private SchedulerStateRequest getStateRequestFromBody(RoutingContext context) throws HttpException {
+    return deserializeFromBody(context, SchedulerStateRequest.class);
+  }
+
   private <T extends XyzSerializable> T deserializeFromBody(RoutingContext context, Class<T> type) throws HttpException {
     try {
       return XyzSerializable.deserialize(context.body().asString(), type);
@@ -435,4 +444,94 @@ public class JobAdminApi extends JobApiBase {
   private static String stepId(RoutingContext context) {
     return context.pathParam("stepId");
   }
+
+  private void putSchedulerState(RoutingContext context) throws HttpException {
+    String body = context.body().asString();
+    if (body == null)
+      throw new HttpException(BAD_REQUEST, "Request body must be a JSON object.");
+
+    SchedulerStateRequest request =  getStateRequestFromBody(context);
+    boolean changeApplied = false;
+
+    if (request.state() != null) {
+      switch (request.state()) {
+        // As requested: START pauses scheduler pickup; STOP resumes pickup.
+        case START -> JobExecutor.resumeScheduling();
+        case STOP -> JobExecutor.pauseScheduling();
+        default -> throw new HttpException(BAD_REQUEST, "State must be either START or STOP.");
+      }
+      changeApplied = true;
+    }
+
+    if (request.singleJobAllowedPoliciesEnabled() != null) {
+      JobExecutor.setSingleJobAllowedPoliciesEnabled(request.singleJobAllowedPoliciesEnabled());
+      changeApplied = true;
+    }
+
+    if (request.singleJobPerResourceEnabled() != null) {
+      JobExecutor.setSingleJobPerResourceEnabled(request.singleJobPerResourceEnabled());
+      changeApplied = true;
+    }
+
+    if (!changeApplied)
+      throw new HttpException(BAD_REQUEST,
+          "Nothing to update. Provide 'state', 'singleJobAllowedPoliciesEnabled' and/or 'singleJobPerResourceEnabled'.");
+
+    loadSchedulerState(true)
+        .onSuccess(state -> sendResponse(context, OK, state))
+        .onFailure(t -> sendErrorResponse(context, t));
+  }
+
+  private void getSchedulerState(RoutingContext context) {
+    loadSchedulerState(true)
+        .onSuccess(state -> sendResponse(context, OK, state))
+        .onFailure(t -> sendErrorResponse(context, t));
+  }
+
+  private Future<SchedulerStateResponse> loadSchedulerState(boolean includeCounts) {
+    SchedulerStateResponse base = new SchedulerStateResponse(
+        JobExecutor.isSchedulingPaused() ? SchedulerRuntimeState.PAUSED : SchedulerRuntimeState.RUNNING,
+        JobExecutor.isSingleJobAllowedPoliciesEnabled(),
+        JobExecutor.isSingleJobPerResourceEnabled(),
+        null,
+        null
+    );
+
+    if (!includeCounts)
+      return Future.succeededFuture(base);
+
+    return JobConfigClient.getInstance().loadJobs(RUNNING)
+        .compose(runningJobs -> JobConfigClient.getInstance().loadJobs(PENDING)
+            .map(pendingJobs -> new SchedulerStateResponse(
+                base.state(),
+                base.singleJobAllowedPoliciesEnabled(),
+                base.singleJobPerResourceEnabled(),
+                runningJobs.size(),
+                pendingJobs.size()
+            )));
+  }
+
+  private record SchedulerStateRequest(
+      SchedulerControlState state,
+      Boolean singleJobAllowedPoliciesEnabled,
+      Boolean singleJobPerResourceEnabled
+  ) implements XyzSerializable {}
+
+  private enum SchedulerControlState {
+    START,
+    STOP
+  }
+
+  private enum SchedulerRuntimeState {
+    RUNNING,
+    PAUSED
+  }
+
+  private record SchedulerStateResponse(
+      SchedulerRuntimeState state,
+      boolean singleJobAllowedPoliciesEnabled,
+      boolean singleJobPerResourceEnabled,
+      Integer runningJobs,
+      Integer queuedJobs
+  ) implements XyzSerializable {}
 }
