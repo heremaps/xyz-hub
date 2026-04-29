@@ -64,6 +64,15 @@ public abstract class JobExecutor implements Initializable {
   private static final long JOB_START_TIMEOUT = 60_000;
   private static Set<Predicate<Job>> singleJobAllowedPolicies = new ConcurrentHashSet<>();
 
+  /**
+   * Global switch to enable/disable the "one active job per resource" policy.
+   * <p>When enabled, a job will not be started (it stays in PENDING) if any other RUNNING job
+   * shares at least one resource key (source or target) with it. This prevents concurrent
+   * imports writing to the same target or concurrent exports reading from the same source.
+   * <p>Defaults to {@code false} to preserve previous behavior.
+   */
+  public static volatile boolean singleJobPerResourceEnabled = true;
+
   {
     exec.scheduleWithFixedDelay(this::checkPendingJobs, 10, 60, SECONDS);
   }
@@ -334,11 +343,77 @@ public abstract class JobExecutor implements Initializable {
   private Future<Boolean> mayExecute(Job job) {
     //Check execution policies and resources
     return executionPoliciesSatisfied(job)
-        .compose(policiesSatisfied -> {
-          if (!policiesSatisfied)
+            .compose(policiesSatisfied -> {
+              if (!policiesSatisfied)
+                return Future.succeededFuture(false);
+              return singleJobPerResourceSatisfied(job);
+            })
+            .compose(singleJobCanGetStarted -> {
+              if (!singleJobCanGetStarted)
+                return Future.succeededFuture(false);
+              return enoughResourcesAvailable(job);
+            });
+  }
+
+  /**
+   * If {@link #singleJobPerResourceEnabled} is on, ensures no other RUNNING job shares any
+   * resource key (source/target) with the given job.
+   *
+   * @return A future that resolves to true if the job may execute, false if another RUNNING job
+   *         already occupies one of its resources or an older PENDING job exists for overlapping
+   *         resources (in which case the job remains in PENDING and is re-checked later).
+   */
+  private static Future<Boolean> singleJobPerResourceSatisfied(Job job) {
+    if (!singleJobPerResourceEnabled)
+      return Future.succeededFuture(true);
+
+    Set<String> resourceKeys = job.getResourceKeys();
+    if (resourceKeys == null || resourceKeys.isEmpty())
+      return Future.succeededFuture(true);
+
+    return JobConfigClient.getInstance().loadJobs(resourceKeys, RUNNING)
+        .compose(runningJobs -> {
+          //Filter the job itself in case its state is already RUNNING when this check runs
+          List<Job> conflictingRunning = runningJobs.stream()
+              .filter(other -> !job.getId().equals(other.getId()))
+              .toList();
+
+          if (!conflictingRunning.isEmpty()) {
+            logger.info("[{}] Job can not be executed (yet) because the following RUNNING job(s) already occupy at least one of "
+                    + "its source/target resources: {}",
+                job.getId(),
+                conflictingRunning.stream().map(Job::getId).collect(Collectors.joining(", ")));
             return Future.succeededFuture(false);
-          return enoughResourcesAvailable(job);
+          }
+
+          //No RUNNING conflict exists. Enforce FIFO for pending jobs on overlapping resources.
+          return JobConfigClient.getInstance().loadJobs(resourceKeys, PENDING)
+              .map(pendingJobs -> {
+                List<Job> olderPendingConflicts = pendingJobs.stream()
+                    .filter(other -> !job.getId().equals(other.getId()))
+                    .filter(other -> compareBySchedulingOrder(other, job) < 0)
+                    .sorted(JobExecutor::compareBySchedulingOrder)
+                    .toList();
+
+                if (olderPendingConflicts.isEmpty())
+                  return true;
+
+                logger.info("[{}] Job can not be executed (yet) because older PENDING job(s) exist for overlapping resources: {}",
+                    job.getId(),
+                    olderPendingConflicts.stream().map(Job::getId).collect(Collectors.joining(", ")));
+                return false;
+              });
         });
+  }
+
+  private static int compareBySchedulingOrder(Job left, Job right) {
+    int byCreatedAt = Long.compare(left.getCreatedAt(), right.getCreatedAt());
+    if (byCreatedAt != 0)
+      return byCreatedAt;
+
+    String leftId = left.getId() == null ? "" : left.getId();
+    String rightId = right.getId() == null ? "" : right.getId();
+    return leftId.compareTo(rightId);
   }
 
   private static Future<Boolean> enoughResourcesAvailable(Job job) {
