@@ -57,6 +57,7 @@ public class JobAdminApi extends JobApiBase {
   private static final String ADMIN_JOB = ADMIN_JOBS + "/:jobId";
   private static final String ADMIN_JOB_STEPS = ADMIN_JOB + "/steps";
   private static final String ADMIN_JOB_STEP = ADMIN_JOB_STEPS + "/:stepId";
+  private static final String ADMIN_JOB_STEP_STATUS = ADMIN_JOB_STEP + "/status";
   private static final String ADMIN_STATE_MACHINE_EVENTS = "/admin/state/events";
 
   public JobAdminApi(Router router) {
@@ -65,6 +66,7 @@ public class JobAdminApi extends JobApiBase {
     router.route(DELETE, ADMIN_JOBS).handler(handleErrors(this::deleteJob));
     router.route(POST, ADMIN_JOB_STEPS).handler(handleErrors(this::postStep));
     router.route(GET, ADMIN_JOB_STEP).handler(handleErrors(this::getStep));
+    router.route(POST, ADMIN_JOB_STEP_STATUS).handler(handleErrors(this::postStepStatus));
     router.route(POST, ADMIN_STATE_MACHINE_EVENTS).handler(handleErrors(this::postStateEvent));
   }
 
@@ -128,6 +130,13 @@ public class JobAdminApi extends JobApiBase {
         .onFailure(t -> sendErrorResponse(context, t));
   }
 
+  private void postStepStatus(RoutingContext context) throws HttpException {
+    RuntimeInfo status = deserializeFromBody(context, RuntimeInfo.class);
+    loadJob(jobId(context))
+        .compose(job -> job.updateStepStatus(stepId(context), status, true))
+        .onSuccess(v -> sendResponse(context, OK.code(), null))
+        .onFailure(t -> sendErrorResponse(context, t));
+  }
 
   /**
    * The sample event format in the request:

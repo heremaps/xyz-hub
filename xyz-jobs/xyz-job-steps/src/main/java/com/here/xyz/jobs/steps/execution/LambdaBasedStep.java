@@ -129,6 +129,9 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
 
   private ARN ownLambdaArn; //Will be defined from Lambda's execution context
 
+  @JsonIgnore
+  private boolean statusOnlySync;
+
   private static final String INVOKE_SUCCESS = """
       {"status": "OK"}""";
 
@@ -553,7 +556,11 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
       return;
     logger.info("Synchronizing step {} with the job service ...", getGlobalStepId());
     try {
-      StepWebClient.getInstance(Config.instance.JOB_API_ENDPOINT.toString()).postStepUpdate(this);
+      StepWebClient stepWebClient = StepWebClient.getInstance(Config.instance.JOB_API_ENDPOINT.toString());
+      if (statusOnlySync)
+        stepWebClient.postStepStatusUpdate(getJobId(), getId(), getStatus());
+      else
+        stepWebClient.postStepUpdate(this);
     }
     catch (ErrorResponseException httpError) {
       HttpResponse<byte[]> errorResponse = httpError.getErrorResponse();
@@ -726,6 +733,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
           switch (request.getType()) {
             case STATE_CHECK -> {
               logger.info("Checking async execution state of step {} ...", request.getStep().getGlobalStepId());
+              request.getStep().statusOnlySync = true;
               request.getStep().checkAsyncExecutionState();
               logger.info("Async execution state of step {} has been checked & reported successfully.", request.getStep().getGlobalStepId());
             }
