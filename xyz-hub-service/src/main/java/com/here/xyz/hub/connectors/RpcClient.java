@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -286,6 +286,7 @@ public class RpcClient {
             preview(eventJson, 4092));
 
     context.setRequesterId(requesterId);
+    context.setExecuteOnPrimary(event.executeOnPrimary());
 
     invokeWithRelocation(marker, context, eventBytes, false, hasPriority, bytesResult -> {
       if (functionClient == null) {
@@ -645,6 +646,8 @@ public class RpcClient {
     private String requesterId;
     private volatile boolean cancelled = false;
 
+    private boolean executeOnPrimary;
+
     private final Connector connector;
     private FunctionCall functionCall;
 
@@ -654,7 +657,7 @@ public class RpcClient {
 
     public void cancelRequest() {
       cancelled = true;
-      functionCall.cancel(requesterId);
+      functionCall.cancel();
     }
 
     public int getRequestSize() {
@@ -694,7 +697,14 @@ public class RpcClient {
     public void setRequesterId(String requesterId) {
       this.requesterId = requesterId;
     }
+
+    public boolean executeOnPrimary() {
+      return executeOnPrimary;
+    }
+
+    public void setExecuteOnPrimary(boolean executeOnPrimary) {
+      this.executeOnPrimary = executeOnPrimary;
+    }
+
   }
-
-
 }
