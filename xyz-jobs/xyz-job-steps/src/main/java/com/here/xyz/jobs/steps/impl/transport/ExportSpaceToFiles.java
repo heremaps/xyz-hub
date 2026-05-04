@@ -1,6 +1,5 @@
 /*
  * Copyright (C) 2017-2026 HERE Europe B.V.
- *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -30,6 +29,7 @@ import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_ON_ASYNC
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.PropertiesQuery;
+import com.here.xyz.models.filters.SpatialFilter;
 import com.here.xyz.jobs.steps.StepExecution;
 import com.here.xyz.jobs.steps.execution.StepException;
 import com.here.xyz.jobs.steps.execution.db.Database;
@@ -41,7 +41,6 @@ import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
 import com.here.xyz.jobs.steps.resources.IOResource;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
-import com.here.xyz.models.filters.SpatialFilter;
 import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
@@ -54,6 +53,7 @@ import com.here.xyz.util.geo.GeoTools;
 import com.here.xyz.util.geo.GeometryValidator;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
+
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -153,9 +153,6 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
   }
 
   public SpatialFilter getSpatialFilter() {
-    //TODO: This is a hotfix for large spatial filters ending up in the state check trigger paylooad. Long term fix should be to only keep the Step ID in the trigger payload and fetch the step config from service when step executions starts in lambda
-    if (inLambda)
-      return null;
     return spatialFilter;
   }
 

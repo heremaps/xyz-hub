@@ -57,6 +57,8 @@ import com.here.xyz.util.service.aws.lambda.SimulatedContext;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
+import io.vertx.core.json.JsonArray;
+import io.vertx.core.json.JsonObject;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -100,7 +102,6 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   @JsonView(Internal.class)
   protected boolean isSimulation = false; //TODO: Remove testing code
   private static final Logger logger = LogManager.getLogger();
-  protected boolean inLambda;
 
   @JsonView(Internal.class)
   private String taskToken = TASK_TOKEN_TEMPLATE; //Will be defined by the Step Function
@@ -200,7 +201,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
           .targets(Target.builder()
               .id(getGlobalStepId())
               .arn(ownLambdaArn.toString())
-              .input(new LambdaStepRequest().withType(STATE_CHECK).withStep(this).serialize())
+              .input(compactStateCheckInput(new LambdaStepRequest().withType(STATE_CHECK).withStep(this).serialize()))
               .build())
           .build());
     }
@@ -212,6 +213,27 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
 
   private void unregisterStateCheckTrigger() {
     _unregisterStateCheckTriggerDeferred(0, 1);
+  }
+
+  static String compactStateCheckInput(String input) {
+    JsonObject payload = new JsonObject(input);
+    stripLargeFilters(payload);
+    return payload.encode();
+  }
+
+  private static void stripLargeFilters(Object node) {
+    if (node instanceof JsonObject jsonObject) {
+      // SpatialFilter fields can be very large (e.g., huge multipolygons) and are
+      // not needed for heartbeat/state-checks.
+      jsonObject.remove("spatialFilter");
+      for (String fieldName : List.copyOf(jsonObject.fieldNames()))
+        stripLargeFilters(jsonObject.getValue(fieldName));
+      return;
+    }
+
+    if (node instanceof JsonArray jsonArray)
+      for (int i = 0; i < jsonArray.size(); i++)
+        stripLargeFilters(jsonArray.getValue(i));
   }
 
   private void _unregisterStateCheckTriggerDeferred(long waitMs, int attempt) {
@@ -671,8 +693,6 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
 
         if (request.getStep() == null)
           throw new NullPointerException("Malformed step request, missing step definition.");
-
-        request.getStep().inLambda = true;
 
         //Set the userAgent of the web clients correctly
         HubWebClient.userAgent = StepWebClient.userAgent = "XYZ-JobStep-" + request.getStep().getClass().getSimpleName();
