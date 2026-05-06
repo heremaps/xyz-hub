@@ -308,6 +308,7 @@ public class GraphTransformer {
         "ApplicationId", emrStep.getApplicationId(),
         "ExecutionRoleArn", emrStep.getExecutionRoleArn(),
         "ExecutionTimeoutMinutes", EMR_EXECUTION_TIMEOUT_MINUTES,
+        "Tags", emrStep.getTags(),
         "ConfigurationOverrides", Map.of(
             "MonitoringConfiguration", Map.of(
                 "CloudWatchLoggingConfiguration", Map.of(
