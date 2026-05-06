@@ -67,6 +67,7 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
   private List<String> positionalScriptParams = new ArrayList<>();
   private Map<String, String> namedScriptParams = new HashMap<>();
   private String sparkParams;
+  private Map<String, String> tags;
 
   @JsonIgnore
   public String getEmrJobName() {
@@ -298,6 +299,19 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
 
   public RunEmrJob withSparkParams(String sparkParams) {
     setSparkParams(sparkParams);
+    return this;
+  }
+
+  public Map<String, String> getTags() {
+    return tags;
+  }
+
+  public void setTags(Map<String, String> tags) {
+    this.tags = tags;
+  }
+
+  public RunEmrJob withTags(Map<String, String> tags) {
+    setTags(tags);
     return this;
   }
 
