@@ -95,7 +95,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
 
     double neededAcus = (nrFeatureSource <= ftBlock ? 1.0 : (nrFeatureSource / ftBlock) * 0.5 + 0.5);
 
-    return Math.min(neededAcus, maxAcus);
+    return Math.min(neededAcus, maxAcus) / 2.0;
   }
 
   public static int calculateCopyTimeInSeconds(long nrFeatureSource, long featureCountInTarget) {
