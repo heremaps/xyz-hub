@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -100,7 +100,7 @@ public abstract class RemoteFunctionClient {
   private final AtomicLong lastThroughputMeasurement = new AtomicLong(Core.currentTimeMillis());
   private final LimitedQueue<FunctionCall> queue = new LimitedQueue<>(0, 0);
   private final AtomicInteger usedConnections = new AtomicInteger(0);
-  private static final ConcurrentHashMap<String, AtomicInteger> usedConnectionsByRequester =  new ConcurrentHashMap<>();
+  private final ConcurrentHashMap<String, AtomicInteger> usedConnectionsByRequester = new ConcurrentHashMap<>();
 
 //  /**
 //   * Sliding average request execution time in seconds.
@@ -165,8 +165,6 @@ public abstract class RemoteFunctionClient {
   }
 
   protected FunctionCall submit(final Marker marker, byte[] bytes, boolean fireAndForget, boolean hasPriority, final Handler<AsyncResult<byte[]>> callback, RpcClient.RpcContext context) {
-    //This is the point where new requests arrive so measure the arrival time
-    invokeStarted();
 
     FunctionCall fc = new FunctionCall(marker, bytes, fireAndForget, hasPriority, r -> {
       //This is the point where the request's response came back so measure the throughput
@@ -177,20 +175,25 @@ public abstract class RemoteFunctionClient {
         return;
       }
       callback.handle(Future.succeededFuture(r.result()));
-    });
+    }, context);
 
 
     if (!hasPriority){
       if(checkRequesterThrottling(marker, callback, context)) {
         return fc;
       }
+      // This is the point where new requests arrive so measure the arrival time (only for non-throttled requests)
+      invokeStarted();
       if (!compareAndIncrementUpTo(getWeightedMaxConnections(), usedConnections)) {
         enqueue(fc);
         return fc;
       }
     }
+    else {
+      invokeStarted();
+    }
 
-    _invoke(fc, context);
+    _invoke(fc);
     return fc;
   }
 
@@ -223,12 +226,12 @@ public abstract class RemoteFunctionClient {
       int maxConnectionsPerRequester = (acuMonitor != null && acuMonitor.getUtilization() < HIGH_THRESHOLD)
           ? Integer.MAX_VALUE
           : context.getConnector().getMaxConnectionsPerRequester();
-      logger.info("Connector id={}, maxConnectionsPerRequester={}", context.getConnector().id, maxConnectionsPerRequester);
+      logger.debug("Connector id={}, maxConnectionsPerRequester={}", context.getConnector().id, maxConnectionsPerRequester);
       if (!compareAndIncrementUpTo(maxConnectionsPerRequester, connectionCount)) {
         logger.warn(marker, "Sending too many concurrent requests for user {}. Number of active connections: {}, Maximum allowed per node: {}",
             context.getRequesterId(), connectionCount.get(), maxConnectionsPerRequester);
         callback.handle(Future.failedFuture(new TooManyRequestsException("Maximum number of concurrent requests. "
-                + "Max concurrent connections: " + Math.round(maxConnectionsPerRequester * 0.6), QUOTA)));
+                + "Max concurrent connections: " + maxConnectionsPerRequester, QUOTA)));
         return true;
       }
     }
@@ -394,7 +397,7 @@ public abstract class RemoteFunctionClient {
     return Collections.unmodifiableSet(clientInstances);
   }
 
-  private void _invoke(final FunctionCall fc, RpcClient.RpcContext context) {
+  private void _invoke(final FunctionCall fc) {
     //long start = System.nanoTime();
     invoke(fc, r -> {
       //long end = System.nanoTime();
@@ -402,12 +405,17 @@ public abstract class RemoteFunctionClient {
       //recalculatePerformance(end - start, TimeUnit.NANOSECONDS);
       //Look into queue if there is something further to do
       FunctionCall nextFc = queue.remove();
+
+      // Always decrement the completing request's requester counter
+      if (!fc.hasPriority && fc.rpcContext != null) {
+        Optional.ofNullable(fc.rpcContext.getRequesterId())
+                .map(usedConnectionsByRequester::get)
+                .ifPresent(connectionCount -> compareAndDecrement(0, connectionCount));
+      }
+
       if (nextFc == null && !fc.hasPriority) {
         if(usedConnections.intValue() > 0) {
           usedConnections.getAndDecrement(); //Free the connection only in case it's not needed for the next invocation
-          Optional.ofNullable(context.getRequesterId())
-                  .map(usedConnectionsByRequester::get)
-                  .ifPresent(connectionCount -> compareAndDecrement(0, connectionCount));
         }
       }
       try {
@@ -417,9 +425,9 @@ public abstract class RemoteFunctionClient {
       catch (Exception e) {
         logger.error(fc.marker, "Error while calling response handler", e);
       }
-      //In case there has been an enqueued element invoke it
+      //In case there has been an enqueued element invoke it using its own context
       if (nextFc != null) {
-        _invoke(nextFc, context);
+        _invoke(nextFc);
       }
     });
   }
@@ -510,9 +518,16 @@ public abstract class RemoteFunctionClient {
     //In any case add the element to the queue
     queue.add(fc)
         //Send timeout for discarded (old) calls
-        .forEach(timeoutFc ->
+        .forEach(timeoutFc -> {
+            // Decrement requester counter for discarded calls
+            if (timeoutFc.rpcContext != null) {
+              Optional.ofNullable(timeoutFc.rpcContext.getRequesterId())
+                      .map(usedConnectionsByRequester::get)
+                      .ifPresent(connectionCount -> compareAndDecrement(0, connectionCount));
+            }
             timeoutFc.callback
-                .handle(Future.failedFuture(new TooManyRequestsException("Remote function is busy or cannot be invoked.", STORAGE_QUEUE_FULL))));
+                .handle(Future.failedFuture(new TooManyRequestsException("Remote function is busy or cannot be invoked.", STORAGE_QUEUE_FULL)));
+        });
   }
 
   public class FunctionCall implements ByteSizeAware {
@@ -522,17 +537,19 @@ public abstract class RemoteFunctionClient {
     final boolean fireAndForget;
     final boolean hasPriority;
     final Context context = Core.vertx.getOrCreateContext();
+    final RpcClient.RpcContext rpcContext;
 
     private final Handler<AsyncResult<byte[]>> callback;
     private Runnable cancelHandler;
     private volatile boolean cancelled;
 
-    public FunctionCall(Marker marker, byte[] bytes, boolean fireAndForget, boolean hasPriority, Handler<AsyncResult<byte[]>> callback) {
+    public FunctionCall(Marker marker, byte[] bytes, boolean fireAndForget, boolean hasPriority, Handler<AsyncResult<byte[]>> callback, RpcClient.RpcContext rpcContext) {
       this.marker = marker;
       this.bytes = bytes;
       this.callback = callback;
       this.fireAndForget = fireAndForget;
       this.hasPriority = hasPriority;
+      this.rpcContext = rpcContext;
     }
 
     @Override
@@ -546,7 +563,16 @@ public abstract class RemoteFunctionClient {
       this.cancelHandler = cancelHandler;
     }
 
+    /**
+     * @deprecated Use {@link #cancel()} instead. The requesterId parameter is ignored;
+     * the requester is resolved from this FunctionCall's own rpcContext.
+     */
+    @Deprecated
     public void cancel(String requesterId) {
+      cancel();
+    }
+
+    public void cancel() {
       cancelled = true;
       try {
         if (cancelHandler != null) {
@@ -557,12 +583,17 @@ public abstract class RemoteFunctionClient {
         logger.error(marker, "Error cancelling call to Remote Function.");
       }
       finally {
-        if(!hasPriority && usedConnections.intValue() > 0) {
-          usedConnections.getAndDecrement(); //Free the connection
-          Optional.ofNullable(requesterId)
-                  .map(usedConnectionsByRequester::get)
-                  .ifPresent(connectionCount -> compareAndDecrement(0, connectionCount));
+        if (!hasPriority) {
+          if (usedConnections.intValue() > 0)
+            usedConnections.getAndDecrement(); //Free the connection
+          if (rpcContext != null) {
+            Optional.ofNullable(rpcContext.getRequesterId())
+                    .map(usedConnectionsByRequester::get)
+                    .ifPresent(connectionCount -> compareAndDecrement(0, connectionCount));
+          }
         }
+        //Keep arrival/throughput metrics balanced
+        invokeCompleted();
       }
     }
   }
