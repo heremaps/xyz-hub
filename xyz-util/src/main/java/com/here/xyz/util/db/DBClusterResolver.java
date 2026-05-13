@@ -25,15 +25,22 @@ import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.xbill.DNS.Lookup;
 import org.xbill.DNS.Record;
 import org.xbill.DNS.Name;
 
 public class DBClusterResolver {
+
+  private static final Logger logger = LogManager.getLogger();
   private static final Pattern RDS_CLUSTER_HOSTNAME_PATTERN = Pattern.compile("(.+).cluster-.*.rds.amazonaws.com.*");
 
   public static String getClusterIdFromHostname(String hostname) {
-    if(hostname == null) return null;
+    if (hostname == null) {
+      logger.warn("Hostname is null, cannot resolve cluster ID");
+      return null;
+    }
     return Optional.ofNullable(extractClusterId(hostname)).orElse(resolveAndExtractClusterId(hostname));
   }
 
@@ -51,10 +58,15 @@ public class DBClusterResolver {
 
       for(String record : records) {
         String clusterId = extractClusterId(record);
-        if(clusterId != null) return clusterId;
+        if (clusterId != null)
+          return clusterId;
+        else {
+          logger.warn("Failed to extract cluster ID from record '{}'", record);
+        }
       }
     } catch (Exception e) {
       // Do nothing
+      logger.warn("Failed to resolve cluster ID from hostname '{}': {}", hostname, e.getMessage());
     }
     return null;
   }
