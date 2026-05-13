@@ -30,6 +30,7 @@ import static java.util.Comparator.comparingLong;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.RuntimeInfo.State;
 import com.here.xyz.jobs.config.JobConfigClient;
@@ -59,19 +60,32 @@ public abstract class JobExecutor implements Initializable {
   private static volatile boolean running;
   private static volatile boolean stopRequested;
   private static AtomicBoolean cancellationCheckRunning = new AtomicBoolean();
-  private static final AtomicBoolean schedulerPaused = new AtomicBoolean(false);
-  private static final AtomicBoolean singleJobAllowedPoliciesEnabled = new AtomicBoolean(true);
   /**
-   * Global switch to enable/disable the "one active job per resource" policy.
-   * <p>When enabled, a job will not be started (it stays in PENDING) if any other RUNNING job
-   * shares at least one resource key (source or target) with it. This prevents concurrent
-   * imports writing to the same target or concurrent exports reading from the same source.
+   * Live scheduler configuration. The {@code runningJobs}/{@code queuedJobs} fields are always
+   * {@code null} here; they are filled in dynamically by {@link #loadSchedulerState(boolean)}.
+   * <p>Defaults: state={@code RUNNING}, singleJobAllowedPoliciesEnabled={@code true},
+   * singleJobPerResourceEnabled={@code true}.
    */
-  private static final AtomicBoolean singleJobPerResourceEnabled = new AtomicBoolean(true);
+  private static volatile SchedulerState schedulerState = new SchedulerState(
+      SchedulerState.SchedulerRuntimeState.RUNNING, true, true, null, null
+  );
   private static final long CANCELLATION_TIMEOUT = 10 * 60 * 1_000; //10 min
   private static final long CANCELLATION_CHECK_RERUN_PERIOD = 10_000; //10 sec
   private static final long JOB_START_TIMEOUT = 60_000;
   private static Set<Predicate<Job>> singleJobAllowedPolicies = new ConcurrentHashSet<>();
+
+  public record SchedulerState(
+          SchedulerRuntimeState state,
+          Boolean singleJobAllowedPoliciesEnabled,
+          Boolean singleJobPerResourceEnabled,
+          Integer runningJobs,
+          Integer queuedJobs
+  ) implements XyzSerializable {
+    public enum SchedulerRuntimeState {
+      RUNNING,
+      PAUSED
+    }
+  }
 
   {
     exec.scheduleWithFixedDelay(this::checkPendingJobs, 10, 60, SECONDS);
@@ -367,7 +381,7 @@ public abstract class JobExecutor implements Initializable {
   }
 
   /**
-   * If {@link #singleJobPerResourceEnabled} is on, ensures no other RUNNING job shares any
+   * If the {@code singleJobPerResourceEnabled} flag is on, ensures no other RUNNING job shares any
    * resource key (source/target) with the given job.
    *
    * @return A future that resolves to true if the job may execute, false if another RUNNING job
@@ -398,12 +412,15 @@ public abstract class JobExecutor implements Initializable {
           }
 
           //No RUNNING conflict exists. Enforce FIFO for pending jobs on overlapping resources.
+          //NOTE: This check is still needed even though checkPendingJobs() sorts by createdAt, because:
+          // 1. A job directly submitted via startExecution() (outside the poll loop) has no ordering guarantee.
+          // 2. An older job blocked by insufficient virtual units stays PENDING while a newer job could otherwise jump ahead.
           return JobConfigClient.getInstance().loadJobs(resourceKeys, PENDING)
               .map(pendingJobs -> {
                 List<Job> olderPendingConflicts = pendingJobs.stream()
                     .filter(other -> !job.getId().equals(other.getId()))
-                    .filter(other -> compareBySchedulingOrder(other, job) < 0)
-                    .sorted(JobExecutor::compareBySchedulingOrder)
+                    .filter(other -> other.getCreatedAt() < job.getCreatedAt())
+                    .sorted(comparingLong(Job::getCreatedAt))
                     .toList();
 
                 if (olderPendingConflicts.isEmpty())
@@ -415,16 +432,6 @@ public abstract class JobExecutor implements Initializable {
                 return false;
               });
         });
-  }
-
-  private static int compareBySchedulingOrder(Job left, Job right) {
-    int byCreatedAt = Long.compare(left.getCreatedAt(), right.getCreatedAt());
-    if (byCreatedAt != 0)
-      return byCreatedAt;
-
-    String leftId = left.getId() == null ? "" : left.getId();
-    String rightId = right.getId() == null ? "" : right.getId();
-    return leftId.compareTo(rightId);
   }
 
   private static Future<Boolean> enoughResourcesAvailable(Job job) {
@@ -523,32 +530,49 @@ public abstract class JobExecutor implements Initializable {
     singleJobAllowedPolicies.add(policy);
   }
 
-  public static void pauseScheduling() {
-    schedulerPaused.set(true);
-  }
-
-  public static void resumeScheduling() {
-    schedulerPaused.set(false);
-  }
-
   public static boolean isSchedulingPaused() {
-    return schedulerPaused.get();
-  }
-
-  public static void setSingleJobAllowedPoliciesEnabled(boolean enabled) {
-    singleJobAllowedPoliciesEnabled.set(enabled);
+    return schedulerState.state() == SchedulerState.SchedulerRuntimeState.PAUSED;
   }
 
   public static boolean isSingleJobAllowedPoliciesEnabled() {
-    return singleJobAllowedPoliciesEnabled.get();
-  }
-
-  public static void setSingleJobPerResourceEnabled(boolean enabled) {
-    singleJobPerResourceEnabled.set(enabled);
+    return schedulerState.singleJobAllowedPoliciesEnabled();
   }
 
   public static boolean isSingleJobPerResourceEnabled() {
-    return singleJobPerResourceEnabled.get();
+    return schedulerState.singleJobPerResourceEnabled();
+  }
+
+  public static boolean applySchedulerState(SchedulerState patch) {
+    if (patch == null)
+      return false;
+
+    if (patch.state() == null && patch.singleJobAllowedPoliciesEnabled() == null && patch.singleJobPerResourceEnabled() == null)
+      return false;
+
+    SchedulerState current = schedulerState;
+    schedulerState = new SchedulerState(
+        patch.state() != null ? patch.state() : current.state(),
+        patch.singleJobAllowedPoliciesEnabled() != null ? patch.singleJobAllowedPoliciesEnabled() : current.singleJobAllowedPoliciesEnabled(),
+        patch.singleJobPerResourceEnabled() != null ? patch.singleJobPerResourceEnabled() : current.singleJobPerResourceEnabled(),
+        null,
+        null
+    );
+    return true;
+  }
+
+  public static Future<SchedulerState> loadSchedulerState(boolean includeCounts) {
+    if (!includeCounts)
+      return Future.succeededFuture(schedulerState);
+
+    return JobConfigClient.getInstance().loadJobs(RUNNING)
+        .compose(runningJobs -> JobConfigClient.getInstance().loadJobs(PENDING)
+            .map(pendingJobs -> new SchedulerState(
+                schedulerState.state(),
+                schedulerState.singleJobAllowedPoliciesEnabled(),
+                schedulerState.singleJobPerResourceEnabled(),
+                runningJobs.size(),
+                pendingJobs.size()
+            )));
   }
 
   private static Set<Predicate<Job>> findMatchingJobPolicies(Job job) {

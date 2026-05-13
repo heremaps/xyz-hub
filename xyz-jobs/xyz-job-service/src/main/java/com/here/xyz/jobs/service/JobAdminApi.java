@@ -42,7 +42,6 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.RuntimeInfo;
 import com.here.xyz.jobs.RuntimeInfo.State;
-import com.here.xyz.jobs.config.JobConfigClient;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.execution.JobExecutor;
 import com.here.xyz.jobs.steps.execution.SFNInspector;
@@ -437,8 +436,8 @@ public class JobAdminApi extends JobApiBase {
     return deserializeFromBody(context, Job.class);
   }
 
-  private SchedulerStateRequest getStateRequestFromBody(RoutingContext context) throws HttpException {
-    return deserializeFromBody(context, SchedulerStateRequest.class);
+  private JobExecutor.SchedulerState getStateRequestFromBody(RoutingContext context) throws HttpException {
+    return deserializeFromBody(context, JobExecutor.SchedulerState.class);
   }
 
   private <T extends XyzSerializable> T deserializeFromBody(RoutingContext context, Class<T> type) throws HttpException {
@@ -459,88 +458,21 @@ public class JobAdminApi extends JobApiBase {
     if (body == null)
       throw new HttpException(BAD_REQUEST, "Request body must be a JSON object.");
 
-    SchedulerStateRequest request =  getStateRequestFromBody(context);
-    boolean changeApplied = false;
-
-    if (request.state() != null) {
-      switch (request.state()) {
-        // As requested: START pauses scheduler pickup; STOP resumes pickup.
-        case START -> JobExecutor.resumeScheduling();
-        case STOP -> JobExecutor.pauseScheduling();
-        default -> throw new HttpException(BAD_REQUEST, "State must be either START or STOP.");
-      }
-      changeApplied = true;
-    }
-
-    if (request.singleJobAllowedPoliciesEnabled() != null) {
-      JobExecutor.setSingleJobAllowedPoliciesEnabled(request.singleJobAllowedPoliciesEnabled());
-      changeApplied = true;
-    }
-
-    if (request.singleJobPerResourceEnabled() != null) {
-      JobExecutor.setSingleJobPerResourceEnabled(request.singleJobPerResourceEnabled());
-      changeApplied = true;
-    }
+    JobExecutor.SchedulerState request = getStateRequestFromBody(context);
+    boolean changeApplied = JobExecutor.applySchedulerState(request);
 
     if (!changeApplied)
       throw new HttpException(BAD_REQUEST,
           "Nothing to update. Provide 'state', 'singleJobAllowedPoliciesEnabled' and/or 'singleJobPerResourceEnabled'.");
 
-    loadSchedulerState(true)
+    JobExecutor.loadSchedulerState(true)
         .onSuccess(state -> sendResponse(context, OK, state))
         .onFailure(t -> sendErrorResponse(context, t));
   }
 
   private void getSchedulerState(RoutingContext context) {
-    loadSchedulerState(true)
+    JobExecutor.loadSchedulerState(true)
         .onSuccess(state -> sendResponse(context, OK, state))
         .onFailure(t -> sendErrorResponse(context, t));
   }
-
-  private Future<SchedulerStateResponse> loadSchedulerState(boolean includeCounts) {
-    SchedulerStateResponse base = new SchedulerStateResponse(
-        JobExecutor.isSchedulingPaused() ? SchedulerRuntimeState.PAUSED : SchedulerRuntimeState.RUNNING,
-        JobExecutor.isSingleJobAllowedPoliciesEnabled(),
-        JobExecutor.isSingleJobPerResourceEnabled(),
-        null,
-        null
-    );
-
-    if (!includeCounts)
-      return Future.succeededFuture(base);
-
-    return JobConfigClient.getInstance().loadJobs(RUNNING)
-        .compose(runningJobs -> JobConfigClient.getInstance().loadJobs(PENDING)
-            .map(pendingJobs -> new SchedulerStateResponse(
-                base.state(),
-                base.singleJobAllowedPoliciesEnabled(),
-                base.singleJobPerResourceEnabled(),
-                runningJobs.size(),
-                pendingJobs.size()
-            )));
-  }
-
-  private record SchedulerStateRequest(
-      SchedulerControlState state,
-      Boolean singleJobAllowedPoliciesEnabled,
-      Boolean singleJobPerResourceEnabled
-  ) implements XyzSerializable {}
-
-  private enum SchedulerControlState {
-    START,
-    STOP
-  }
-
-  private enum SchedulerRuntimeState {
-    RUNNING,
-    PAUSED
-  }
-
-  private record SchedulerStateResponse(
-      SchedulerRuntimeState state,
-      boolean singleJobAllowedPoliciesEnabled,
-      boolean singleJobPerResourceEnabled,
-      Integer runningJobs,
-      Integer queuedJobs
-  ) implements XyzSerializable {}
 }
