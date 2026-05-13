@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,15 +21,19 @@ package com.here.xyz.jobs.steps.impl;
 
 import com.google.common.io.ByteStreams;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
-import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
-import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPerLine;
-import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format;
 import com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace;
+import com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace.EntityPerLine;
+import com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace.Format;
+import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
+import com.here.xyz.jobs.steps.outputs.Output;
+import com.here.xyz.models.geojson.coordinates.PointCoordinates;
+import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
+import com.here.xyz.models.hub.Tag;
 import com.here.xyz.responses.StatisticsResponse;
-import com.here.xyz.util.service.BaseHttpServerVerticle;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
@@ -41,25 +45,40 @@ import java.util.List;
 
 import static com.here.xyz.jobs.steps.Step.InputSet.USER_INPUTS;
 
-@Disabled
-public class TaskedImportStepTest extends ImportStepTest {
+public class TaskedImportStepTest extends StepTest {
 
   @BeforeEach
   public void setup() throws SQLException {
     cleanup();
-    createSpace(new Space().withId(SPACE_ID).withVersionsToKeep(100).withStorage(new Space.ConnectorRef().withId("psql")), false);
+    createSpace(new Space().withId(SPACE_ID).withVersionsToKeep(1000).withStorage(new Space.ConnectorRef().withId("psql")), false);
+  }
+
+  //@Test
+  public void write(){
+    createTag(SPACE_ID, new Tag().withId("tag").withVersion(0));
+    for (int i = 0; i < 999; i++) {
+
+      putFeatureCollectionToSpace(SPACE_ID,
+              new FeatureCollection().withFeatures(List.of(
+        new Feature().withGeometry(new Point().withCoordinates(new PointCoordinates(10, 10)))))
+      );
+    }
+    System.out.println("done");
   }
 
   @Disabled
+  @Test
   public void testNewFormat() throws Exception {
     executeImportStep(TaskedImportFilesToSpace.Format.FAST_IMPORT_INTO_EMPTY,0, EntityPerLine.Feature);
   }
 
   @Test
   public void testSyncImport_with_many_files() throws Exception {
-    executeImportStepWithManyFiles(Format.GEOJSON, 10, 2 , false);
+    executeImportStepWithManyFiles(Format.GEOJSON, 100, 2 , false);
   }
 
+  //TODO: fix versionRef -1 issue
+  @Disabled
   @Test
   public void testEmptyImportWithEmptyUserInput() throws Exception {
     TaskedImportFilesToSpace step = new TaskedImportFilesToSpace()
@@ -71,6 +90,8 @@ public class TaskedImportStepTest extends ImportStepTest {
     Assertions.assertFalse(step.validate());
   }
 
+  //TODO: fix versionRef -1 issue
+  @Disabled
   @Test
   public void testEmptyImportWithoutUserInput() throws Exception {
     TaskedImportFilesToSpace step = new TaskedImportFilesToSpace()
@@ -93,16 +114,6 @@ public class TaskedImportStepTest extends ImportStepTest {
     executeImportStep(TaskedImportFilesToSpace.Format.GEOJSON, 0, EntityPerLine.Feature);
   }
 
-  @Test
-  public void testImport_inEmpty_CSV_JSON_WKB_Entity_Feature() throws Exception {
-    //NOT IMPLEMENTED
-  }
-
-  @Test
-  public void testImport_inEmpty_CSV_GEOJSON_Entity_Feature() throws Exception {
-    //NOT IMPLEMENTED
-  }
-
   /** Import in NON-Empty Layer + Entity: Feature */
   @Test
   public void testImport_inNonEmpty_GEOJSON_Entity_Feature() throws Exception {
@@ -112,23 +123,12 @@ public class TaskedImportStepTest extends ImportStepTest {
     executeImportStep(TaskedImportFilesToSpace.Format.GEOJSON, existingFeatureCount, EntityPerLine.Feature);
   }
 
-  @Test
-  public void testImport_inNonEmpty_CSV_JSON_WKB_Entity_Feature() throws Exception {
-    //NOT IMPLEMENTED
-  }
-
-  @Test
+  //TODO: fix statistics
+  @Disabled
   public void testImport_inNonEmpty_GEOJSON_Entity_FeatureCollection() throws Exception {
-    //NOT IMPLEMENTED
-  }
-
-  @Test
-  public void testImport_inNonEmpty_CSV_GEOJSON_Entity_FeatureCollection() throws Exception {
-    Assertions.assertThrows(BaseHttpServerVerticle.ValidationException.class, () -> new ImportFilesToSpace()
-            .withFormat(Format.CSV_JSON_WKB)
-            .withEntityPerLine(EntityPerLine.FeatureCollection)
-            .withSpaceId(SPACE_ID)
-            .validate());
+    int existingFeatureCount = 10;
+    putRandomFeatureCollectionToSpace(SPACE_ID, existingFeatureCount);
+    executeImportStep(Format.GEOJSON, existingFeatureCount, EntityPerLine.FeatureCollection);
   }
 
   private void executeImportStepWithManyFiles(Format format, int fileCount, int featureCountPerFile, boolean runAsync) throws IOException, InterruptedException {
@@ -227,8 +227,8 @@ public class TaskedImportStepTest extends ImportStepTest {
 
 /****  */
 
-  protected void executeImportStep(TaskedImportFilesToSpace.Format format, int featureCountSource,
-                                   ImportFilesToSpace.EntityPerLine entityPerLine) throws IOException, InterruptedException {
+  protected void executeImportStep(Format format, int featureCountSource,
+                                   EntityPerLine entityPerLine) throws IOException, InterruptedException {
 
     StatisticsResponse statsBefore = getStatistics(SPACE_ID);
     if(featureCountSource == 0)
@@ -244,7 +244,7 @@ public class TaskedImportStepTest extends ImportStepTest {
     if (entityPerLine == EntityPerLine.FeatureCollection)
       fileExtension += "fc";
 
-    S3ContentType contentType = format == TaskedImportFilesToSpace.Format.GEOJSON ? S3ContentType.APPLICATION_JSON : S3ContentType.TEXT_CSV;
+    S3ContentType contentType = format == Format.GEOJSON ? S3ContentType.APPLICATION_JSON : S3ContentType.TEXT_CSV;
 
     //* Only files with enriched features are allowed */
     uploadInputFile(JOB_ID, ByteStreams.toByteArray(this.getClass().getResourceAsStream("/testFiles/file1" + fileExtension)), contentType);
@@ -254,6 +254,7 @@ public class TaskedImportStepTest extends ImportStepTest {
             .withJobId(JOB_ID)
             .withVersionRef(new Ref(Ref.HEAD))
             .withFormat(format)
+            .withEntityPerLine(entityPerLine)
             .withSpaceId(SPACE_ID)
             .withInputSets(List.of(USER_INPUTS.get()));
 
@@ -264,5 +265,13 @@ public class TaskedImportStepTest extends ImportStepTest {
     //We have 2 files with 20 features each.
     Assertions.assertEquals(Long.valueOf(40 + featureCountSource), statsAfter.getCount().getValue());
     checkStatistics(40, step.loadUserOutputs());
+  }
+
+  protected void checkStatistics(int expectedFeatureCount, List<Output> outputs) throws IOException {
+    for (Object output : outputs) {
+      if(output instanceof FeatureStatistics statistics) {
+        Assertions.assertEquals(expectedFeatureCount, statistics.getFeatureCount());
+      }
+    }
   }
 }

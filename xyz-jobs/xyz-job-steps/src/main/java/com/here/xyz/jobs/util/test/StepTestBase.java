@@ -43,8 +43,8 @@ import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
 import com.here.xyz.jobs.steps.impl.DropIndexes;
 import com.here.xyz.jobs.steps.impl.transport.CountSpace;
 import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
-import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
 import com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace;
+import com.here.xyz.jobs.steps.impl.transport.tools.ImportQueryBuilder;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.jobs.util.S3Client;
@@ -101,6 +101,8 @@ import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.lambda.LambdaClient;
 import software.amazon.awssdk.services.lambda.model.InvokeRequest;
+
+import static com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace.Format;
 
 public class StepTestBase {
 
@@ -383,7 +385,7 @@ public class StepTestBase {
       dropQueries.add(
           new SQLQuery("DROP TABLE IF EXISTS ${schema}.${table};")
               .withVariable("schema", SCHEMA)
-              .withVariable("table", ImportFilesToSpace.getTemporaryTriggerTableName(stepId))
+              .withVariable("table", new ImportQueryBuilder(stepId, SCHEMA).getTemporaryTriggerTableName())
       );
     }
     SQLQuery.join(dropQueries, ";").write(getDataSourceProvider());
@@ -489,11 +491,11 @@ public class StepTestBase {
   }
 
   //TODO: find a central place to avoid double implementation from JobPlayground
-  public void uploadFiles(String jobId, int uploadFileCount, int featureCountPerFile, ImportFilesToSpace.Format format)
+  public void uploadFiles(String jobId, int uploadFileCount, int featureCountPerFile, Format format)
       throws IOException {
     //Generate N Files with M features
     for (int i = 0; i < uploadFileCount; i++)
-      uploadInputFile(jobId, ContentCreator.generateImportFileContent(format, featureCountPerFile), S3ContentType.APPLICATION_JSON);
+      uploadInputFile(jobId, ContentCreator.generateImportFileContent(featureCountPerFile), S3ContentType.APPLICATION_JSON);
   }
 
   public void uploadInputFile(String jobId, byte[] bytes, S3ContentType contentType) throws IOException {

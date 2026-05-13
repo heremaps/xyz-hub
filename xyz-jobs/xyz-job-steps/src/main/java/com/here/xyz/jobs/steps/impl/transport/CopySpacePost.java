@@ -134,7 +134,7 @@ public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
     registerOutputs(List.of(statistics), STATISTICS);
 
     setCopiedByteSize(statistics.getByteSize());
-    if (statistics.getFeatureCount() > 0)
+    if (statistics.getFeatureCount() != 0) // -> FeatureCount = -1 on (skipCounts)
       writeContentUpdatedAtTs();
   }
 

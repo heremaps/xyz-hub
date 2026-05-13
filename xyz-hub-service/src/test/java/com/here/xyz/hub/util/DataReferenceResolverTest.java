@@ -370,6 +370,36 @@ class DataReferenceResolverTest {
         assertThat(result).containsExactlyInAnyOrder(keyANew, keyB);
     }
 
+    @Test
+    void loadById_shouldReturnEmpty_whenReferenceIsExpired() {
+        UUID id = UUID.randomUUID();
+        long expiredKeepUntil = System.currentTimeMillis() - 1000;
+        DataReference expired = ref("entity-id-1", 100L).withId(id).withKeepUntil(expiredKeepUntil);
+
+        when(references.load(id)).thenReturn(Future.succeededFuture(Optional.of(expired)));
+
+        Optional<DataReference> result = await(resolver.loadById(marker, id, false));
+
+        assertThat(result).isEmpty();
+        verifyNoInteractions(spaces);
+    }
+
+    @Test
+    void filterForEntity_shouldExcludeExpiredReferences() {
+        String entityId = "entity-id-1";
+        long expiredKeepUntil = System.currentTimeMillis() - 1000;
+        long futureKeepUntil = System.currentTimeMillis() + 60_000;
+
+        DataReference expired = ref(entityId, 100L).withKeepUntil(expiredKeepUntil);
+        DataReference valid = ref(entityId, 200L).withKeepUntil(futureKeepUntil);
+
+        when(spaces.get(marker, entityId)).thenReturn(Future.succeededFuture(null));
+
+        List<DataReference> result = await(resolver.filterForEntity(marker, entityId, List.of(expired, valid), false));
+
+        assertThat(result).containsExactly(valid);
+    }
+
     private static DataReference ref(String entityId, Long createdAt) {
         DataReference r = new DataReference().withEntityId(entityId);
         if (createdAt != null) {

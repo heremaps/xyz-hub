@@ -20,6 +20,7 @@
 package com.here.xyz.jobs.util;
 
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.jobs.RuntimeInfo;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.util.web.JobWebClient;
 
@@ -58,5 +59,12 @@ public class StepWebClient extends JobWebClient {
         .uri(uri("/admin/jobs/" + step.getJobId() + "/steps"))
         .header(CONTENT_TYPE, JSON_UTF_8.toString())
         .method("POST", BodyPublishers.ofByteArray(XyzSerializable.serialize(step).getBytes())));
+  }
+
+  public void postStepStatusUpdate(String jobId, String stepId, RuntimeInfo<?> status) throws WebClientException {
+    request(HttpRequest.newBuilder()
+        .uri(uri("/admin/jobs/" + jobId + "/steps/" + stepId + "/status"))
+        .header(CONTENT_TYPE, JSON_UTF_8.toString())
+        .method("POST", BodyPublishers.ofByteArray(XyzSerializable.serialize(status).getBytes())));
   }
 }

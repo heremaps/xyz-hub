@@ -57,6 +57,7 @@ public class JobAdminApi extends JobApiBase {
   private static final String ADMIN_JOB = ADMIN_JOBS + "/:jobId";
   private static final String ADMIN_JOB_STEPS = ADMIN_JOB + "/steps";
   private static final String ADMIN_JOB_STEP = ADMIN_JOB_STEPS + "/:stepId";
+  private static final String ADMIN_JOB_STEP_STATUS = ADMIN_JOB_STEP + "/status";
   private static final String ADMIN_STATE_MACHINE_EVENTS = "/admin/state/events";
 
   public JobAdminApi(Router router) {
@@ -65,6 +66,7 @@ public class JobAdminApi extends JobApiBase {
     router.route(DELETE, ADMIN_JOBS).handler(handleErrors(this::deleteJob));
     router.route(POST, ADMIN_JOB_STEPS).handler(handleErrors(this::postStep));
     router.route(GET, ADMIN_JOB_STEP).handler(handleErrors(this::getStep));
+    router.route(POST, ADMIN_JOB_STEP_STATUS).handler(handleErrors(this::postStepStatus));
     router.route(POST, ADMIN_STATE_MACHINE_EVENTS).handler(handleErrors(this::postStateEvent));
   }
 
@@ -128,6 +130,13 @@ public class JobAdminApi extends JobApiBase {
         .onFailure(t -> sendErrorResponse(context, t));
   }
 
+  private void postStepStatus(RoutingContext context) throws HttpException {
+    RuntimeInfo status = deserializeFromBody(context, RuntimeInfo.class);
+    loadJob(jobId(context))
+        .compose(job -> job.updateStepStatus(stepId(context), status, true))
+        .onSuccess(v -> sendResponse(context, OK.code(), null))
+        .onFailure(t -> sendErrorResponse(context, t));
+  }
 
   /**
    * The sample event format in the request:
@@ -227,8 +236,8 @@ public class JobAdminApi extends JobApiBase {
                 else if ("States.Timeout".equals(detail.getString("error")))
                   //In Localstack a SFN CANCEL gets not detected properly and results in a timeout of the execution.
                   future = failCausingStep(job, "Async step timed out or no state-checks were received anymore (HeartBeat timeout)", future, executionArn);
-                else if (isEmrCancelledBySfn(detail))
-                  future = failCausingStep(job, "EMR execution got cancelled", future, executionArn);
+                else if (isEmrCancelledManually(detail))
+                  future = failCausingStep(job, "EMR execution was cancelled manually", future, executionArn);
                 else {
                   /*
                   NOTE: This case handles any other failures of the SFN that are nothing unusual.
@@ -261,7 +270,7 @@ public class JobAdminApi extends JobApiBase {
           .onFailure(t -> logger.error("[{}] Error updating the state of the job after receiving an event from its state machine:", jobId, t));
   }
 
-  private static boolean isEmrCancelledBySfn(JsonObject detail) {
+  private static boolean isEmrCancelledManually(JsonObject detail) {
     String cause = detail.getString("cause");
     if (cause == null || cause.isBlank())
       return false;

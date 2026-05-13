@@ -21,11 +21,16 @@ public class ImportQueryBuilder {
 
   public static void main(String[] args) {}
 
+  public ImportQueryBuilder(String stepId, String schema){
+    this.schema = schema;
+    this.temporaryImportTable = getTemporaryJobTableName(stepId) + TRIGGER_TABLE_SUFFIX;;
+  }
+
   public ImportQueryBuilder(String stepId, String schema, String rootTable, long versionsToKeep){
     this.schema = schema;
     this.rootTable = rootTable;
     this.versionsToKeep = versionsToKeep;
-    this.temporaryImportTable = getTemporaryTriggerTableName(stepId);
+    this.temporaryImportTable = getTemporaryJobTableName(stepId) + TRIGGER_TABLE_SUFFIX;;
   }
 
   public SQLQuery buildCleanUpStatement(){
@@ -93,8 +98,8 @@ public class ImportQueryBuilder {
             .withVariable("table", temporaryImportTable);
   }
 
-  private String getTemporaryTriggerTableName(String stepId) {
-    return getTemporaryJobTableName(stepId) + TRIGGER_TABLE_SUFFIX;
+  public String getTemporaryTriggerTableName() {
+    return this.temporaryImportTable;
   }
 
   private SQLQuery buildCreateImportTriggerForEmptyLayers(String targetAuthor, long targetSpaceVersion, boolean retainMetadata){
