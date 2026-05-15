@@ -4203,8 +4203,8 @@ components:
               type: string
               example: ""
         filter:
-          $ref: '#/components/schemas/Filters'
-    Filters:
+          $ref: '#/components/schemas/SubscriptionFilters'
+    SubscriptionFilters:
       type: object
       description: Filter criteria for subscription notifications.
       properties:

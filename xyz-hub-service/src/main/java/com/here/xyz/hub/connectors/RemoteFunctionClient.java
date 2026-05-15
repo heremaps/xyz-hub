@@ -209,10 +209,14 @@ public abstract class RemoteFunctionClient {
 
     ConnectorParameters connectorParameters = ConnectorParameters.fromMap(connectorConfig.params);
     if (connectorParameters.getEcps() != null) {
+      logger.info("Starting throttling monitor for connector id={}", connectorConfig.id);
+
       Map<String, Object> connectorDbSettingsMap = ECPSTool.decryptToMap(DatabaseHandler.ECPS_PHRASE, connectorParameters.getEcps());
       DatabaseSettings connectorDbSettings = new DatabaseSettings(connectorConfig.id, connectorDbSettingsMap);
       dbClusterId = DBClusterResolver.getClusterIdFromHostname(connectorDbSettings.getHost());
       String regionStr = connectorConfig.getRemoteFunction().getRegion();
+
+      logger.debug("Connector id={}, dbClusterId={}, region={}", connectorConfig.id, dbClusterId, regionStr);
 
       if (dbClusterId == null || regionStr == null) {
         logger.warn("Monitor not started: Unable to resolve clusterId or region for connector id={}", connectorConfig.id);
@@ -222,6 +226,11 @@ public abstract class RemoteFunctionClient {
       region = Region.of(regionStr);
       addMonitor(WRITER);
       addMonitor(READER);
+      logger.info("Throttling role monitors initialized successfully - connectorId={}, dbClusterId={}, writerMonitorActive={}, readerMonitorActive={}",
+          connectorConfig.id, dbClusterId, acuMonitorsByClusterRole.get(monitorKey(WRITER)) != null,
+          acuMonitorsByClusterRole.get(monitorKey(READER)) != null);
+    } else {
+      logger.debug("No ECPS configuration found for connector id={}, throttling monitor not started", connectorConfig.id);
     }
   }
 
@@ -232,6 +241,10 @@ public abstract class RemoteFunctionClient {
           ? Integer.MAX_VALUE
           : context.getConnector().getMaxConnectionsPerRequester();
       logger.info("Connector id={}, maxConnectionsPerRequester={}", context.getConnector().id, maxConnectionsPerRequester);
+
+      logger.debug(marker, "Requester incoming request - requesterId={}, currentConnections={}, maxAllowed={}",
+          context.getRequesterId(), connectionCount.get(), maxConnectionsPerRequester);
+
       if (!compareAndIncrementUpTo(maxConnectionsPerRequester, connectionCount)) {
         logger.warn(marker, "Sending too many concurrent requests for user {}. Number of active connections: {}, Maximum allowed per node: {}",
             context.getRequesterId(), connectionCount.get(), maxConnectionsPerRequester);
@@ -239,6 +252,8 @@ public abstract class RemoteFunctionClient {
                 + "Max concurrent connections: " + Math.round(maxConnectionsPerRequester * 0.6), QUOTA)));
         return true;
       }
+      logger.debug(marker, "Requester request accepted - requesterId={}, currentConnections={}",
+          context.getRequesterId(), connectionCount.get());
     return false;
   }
 
