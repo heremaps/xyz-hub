@@ -184,7 +184,7 @@ public abstract class RemoteFunctionClient {
 
     if (!hasPriority){
       if (context.getRequesterId() != null) {
-        String role = resolveRole(context);
+        String role = resolveEffectiveRole(context);
         String key = buildRequesterKey(role, context);
         if (checkRequesterThrottling(marker, callback, context, key)) {
           return fc;
@@ -272,30 +272,25 @@ public abstract class RemoteFunctionClient {
   }
 
   private AuroraAcuMonitor getEffectiveMonitor(RpcContext context) {
-    String requestedRole = resolveRole(context);
-    AuroraAcuMonitor writerMonitor = acuMonitorsByClusterRole.get(monitorKey(WRITER));
-    if (WRITER.equals(requestedRole)) {
-      if (writerMonitor != null && writerMonitor.getUtilization() >= HIGH_THRESHOLD) {
-        AuroraAcuMonitor readerMonitor = acuMonitorsByClusterRole.get(monitorKey(READER));
-        if (readerMonitor != null && readerMonitor.getUtilization() >= 0) {
-          return readerMonitor;
-        }
+    String requestedRole = resolveEffectiveRole(context);
+    if (READER.equals(requestedRole)) {
+      AuroraAcuMonitor readerMonitor = acuMonitorsByClusterRole.get(monitorKey(READER));
+      if (readerMonitor != null && readerMonitor.getUtilization() >= 0) {
+        return readerMonitor;
       }
-      return writerMonitor;
     }
-    AuroraAcuMonitor requestedMonitor = acuMonitorsByClusterRole.get(monitorKey(requestedRole));
-    if (requestedMonitor != null && requestedMonitor.getUtilization() >= 0) {
-      return requestedMonitor;
-    }
-    return writerMonitor;
+    return acuMonitorsByClusterRole.get(monitorKey(WRITER));
   }
 
   private String monitorKey(String role) {
     return dbClusterId + "-" + role;
   }
 
-  private String resolveRole(RpcContext context) {
-    return context.executeOnPrimary() ? WRITER : READER;
+  private String resolveEffectiveRole(RpcContext context) {
+    if (!context.executeOnPrimary() && acuMonitorsByClusterRole.get(monitorKey(READER)) != null) {
+      return READER;
+    }
+    return WRITER;
   }
 
   /**
