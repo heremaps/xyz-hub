@@ -89,12 +89,12 @@ DECLARE
     prefix TEXT := '';
     suffix TEXT := '';
 BEGIN
-    IF type = 'JOB_TABLE' OR type = 'TRIGGER_TABLE' THEN
+    IF type = 'JOB_TABLE' OR type = 'TMP_TABLE' THEN
        prefix = 'job_data_';
     END IF;
 
-    IF type = 'TRIGGER_TABLE' THEN
-       suffix = '_trigger_tbl';
+    IF type = 'TMP_TABLE' THEN
+       suffix = '_tmp_tbl_';
     END IF;
 
     RETURN (schema ||'.'|| '"' || prefix || tbl || suffix ||'"')::REGCLASS;
@@ -255,138 +255,6 @@ BEGIN
 END;
 $BODY$
     LANGUAGE plpgsql VOLATILE;
-    
-/**
- * Function: import_from_s3_trigger_for_non_empty_layer
- * (for tasked import into non-empty layers)
- *
- * Purpose:
- *   Trigger function for importing features into non-empty layers (entity features).
- *   Handles feature enrichment, conflict resolution, and batch context setup.
- *   Uses write_features to process and import features.
- *
- * Arguments:
- *   - TG_ARGV[0]: author (TEXT) - The author of the import.
- *   - TG_ARGV[1]: currentVersion (BIGINT) - The version to assign to the feature.
- *   - TG_ARGV[2]: isPartial (BOOLEAN) - Whether the import is partial.
- *   - TG_ARGV[3]: onExists (TEXT) - Action to take if the feature exists.
- *   - TG_ARGV[4]: onNotExists (TEXT) - Action to take if the feature does not exist.
- *   - TG_ARGV[5]: onVersionConflict (TEXT) - Action on version conflict.
- *   - TG_ARGV[6]: onMergeConflict (TEXT) - Action on merge conflict.
- *   - TG_ARGV[7]: historyEnabled (BOOLEAN) - Whether history tracking is enabled.
- *   - TG_ARGV[8]: spaceContext (TEXT) - Context for the import.
- *   - TG_ARGV[9]: tables (TEXT) - Comma-separated list of tables.
- *   - TG_ARGV[10]: format (TEXT) - Import format (e\.g\., CSV_JSON_WKB, GEOJSON, CSV_GEOJSON).
- *   - TG_ARGV[11]: entityPerLine (TEXT) - Entity type per line (Feature or Features).
- *
- * Behavior:
- *   - Prepares input data based on format and entity type.
- *   - Sets up context for batch or single feature import.
- *   - Calls write_features to process and import the feature(s).
- *   - Updates NEW row with import results.
- *
- * Returns:
- *   - The enriched NEW row (trigger return).
- */
-CREATE OR REPLACE FUNCTION import_from_s3_trigger_for_non_empty_layer() RETURNS trigger AS
-$BODY$
-DECLARE
-    author text := TG_ARGV[0];
-    currentVersion bigint := TG_ARGV[1];
-    isPartial boolean := TG_ARGV[2];
-    onExists text := TG_ARGV[3];
-    onNotExists text := TG_ARGV[4];
-    onVersionConflict text := TG_ARGV[5];
-    onMergeConflict text := TG_ARGV[6];
-    historyEnabled boolean := TG_ARGV[7]::boolean;
-    spaceContext text := TG_ARGV[8];
-    tables text := TG_ARGV[9];
-    format text := TG_ARGV[10];
-    entityPerLine text := TG_ARGV[11];
-
-    feature_collection text;
-    featureCount int := 0;
-BEGIN
-    --TODO: Remove the following workaround once the caller-side was fixed
-    onExists = CASE WHEN onExists = 'null' THEN NULL ELSE onExists END;
-    onNotExists = CASE WHEN onNotExists = 'null' THEN NULL ELSE onNotExists END;
-    onVersionConflict = CASE WHEN onVersionConflict = 'null' THEN NULL ELSE onVersionConflict END;
-    onMergeConflict = CASE WHEN onMergeConflict = 'null' THEN NULL ELSE onMergeConflict END;
-
-    PERFORM context(
-        jsonb_build_object(
-            'stepId', get_stepid_from_work_table(TG_TABLE_NAME::regclass),
-            'schema', TG_TABLE_SCHEMA,
-            'tables', string_to_array(tables, ','),
-            'historyEnabled', historyEnabled,
-            'context', CASE WHEN spaceContext = 'null' THEN null ELSE spaceContext END,
-            'batchMode', true
-        )
-    );
-
-    IF format = 'CSV_JSON_WKB' THEN
-        SELECT jsonb_build_object(
-	       'type', 'FeatureCollection',
-	       'features',
-	       coalesce(
-	           jsonb_agg(
-	               jsonb_set(
-	                   n.jsondata::jsonb,
-	                   '{geometry}',
-	                   xyz_reduce_precision(ST_AsGeoJSON(ST_Force3D(n.geo)), false)::JSONB
-	               )
-	           ),
-	           '[]'::jsonb
-	       )
-	   )::text
-        INTO feature_collection
-            FROM new_rows n
-        WHERE n.geo IS NOT NULL;
-    END IF;
-
-    IF format IN ('GEOJSON', 'CSV_GEOJSON') THEN
-        IF entityPerLine = 'Feature' THEN
-            SELECT jsonb_build_object(
-                       'type', 'FeatureCollection',
-                       'features',
-                       COALESCE(jsonb_agg(n.jsondata::jsonb), '[]'::jsonb)
-                   )::text
-              INTO feature_collection
-              FROM new_rows n;
-        ELSE
-            SELECT jsonb_build_object(
-                       'type', 'FeatureCollection',
-                       'features',
-                       COALESCE(jsonb_agg(f.feature), '[]'::jsonb)
-                   )::text
-              INTO feature_collection
-                  FROM new_rows n
-              CROSS JOIN LATERAL jsonb_array_elements(n.jsondata::jsonb -> 'features') AS f(feature);
-        END IF;
-    ELSE
-        RAISE EXCEPTION 'Unsupported format: %', format;
-    END IF;
-
-    IF feature_collection IS NOT NULL THEN
-        SELECT (write_features(
-                    feature_collection,
-                    'FeatureCollection',
-                    author,
-                    false,
-                    currentVersion,
-                    onExists,
-                    onNotExists,
-                    onVersionConflict,
-                    onMergeConflict,
-                    isPartial
-                )::jsonb ->> 'count')::int
-          INTO featureCount;
-    END IF;
-
-    RETURN null;
-END;
-$BODY$
-LANGUAGE plpgsql VOLATILE;
 
 /**
  * Function: import_from_s3_enrich_feature
@@ -756,7 +624,13 @@ BEGIN
     -- Set provided task as finalized and store output
     EXECUTE format(
         'UPDATE %1$s t
-            SET task_output = %2$L::JSONB,
+            SET task_output = (
+                    COALESCE(t.task_output, ''{}''::JSONB) || %2$L::JSONB
+                ) || jsonb_build_object(
+                    ''taskOutput'',
+                    COALESCE(t.task_output->''taskOutput'', ''{}''::JSONB)
+                    || COALESCE((%2$L::JSONB)->''taskOutput'', ''{}''::JSONB)
+                ),
                 finalized = %3$L
           WHERE task_id = %4$L;',
         get_table_reference(ctx->>'schema', ctx->>'stepId', 'JOB_TABLE'),
@@ -991,6 +865,202 @@ BEGIN
 		     jsonb_build_object(
                 'importStatistics', import_statistics,
                 'fileBytes', file_bytes,
+                'type', 'ImportOutput'
+            )
+		);
+
+		EXCEPTION
+		 	WHEN OTHERS THEN
+		 		BEGIN
+		 			$wrappedouter$ || failure_callback || $wrappedouter$
+		 		END;
+	END;
+	$wrappedinner$ $wrappedouter$;
+	EXECUTE sql_text;
+END;
+$BODY$;
+
+/**
+ * Function: perform_import_from_tmp_table_task
+ *
+ * Purpose:
+ *   Reads records from a temporary source table (jsondata TEXT) beginning at range_start,
+ *   selecting rows until a target MB window is reached,
+ *   builds a
+ *   FeatureCollection, writes it using write_features, and reports task progress.
+ *
+ * Notes:
+ *   - Rows are not deleted by this function.
+ *   - Expects an i column (serial/bigserial) in the source table.
+ *   - Selection starts at range_start and stops before cumulative bytes exceed target_mb.
+ *   - Expects source rows to contain one GeoJSON Feature per jsondata entry.
+ */
+CREATE OR REPLACE FUNCTION perform_import_from_tmp_table_task(
+        task_id INT,
+        source_tbl REGCLASS,
+        range_start BIGINT,
+        target_mb NUMERIC,
+        author TEXT,
+        currentVersion BIGINT,
+        isPartial BOOLEAN,
+        onExists TEXT,
+        onNotExists TEXT,
+        onVersionConflict TEXT,
+        onMergeConflict TEXT,
+        step_payload JSON,
+        lambda_function_arn TEXT,
+        lambda_region TEXT,
+        failure_callback TEXT
+	)
+    RETURNS void
+    LANGUAGE 'plpgsql'
+    VOLATILE
+AS $BODY$
+DECLARE
+	sql_text TEXT;
+BEGIN
+	sql_text = $wrappedouter$ DO
+	$wrappedinner$
+	DECLARE
+        feature_collection TEXT;
+        featureCount INT := 0;
+        pulled_count INT := 0;
+        pulled_bytes BIGINT := 0;
+        selected_range_start BIGINT := NULL;
+        selected_range_end BIGINT := NULL;
+        first_available_i BIGINT := NULL;
+        first_available_bytes BIGINT := NULL;
+        first_available_id TEXT := NULL;
+        import_statistics TEXT;
+
+        task_id INT := $wrappedouter$||task_id||$wrappedouter$::INT;
+        source_tbl REGCLASS := '$wrappedouter$||coalesce(source_tbl::TEXT, $v$null$v$)||$wrappedouter$'::REGCLASS;
+        range_start BIGINT := $wrappedouter$||coalesce(range_start::TEXT, $v$NULL$v$)||$wrappedouter$::BIGINT;
+        target_mb NUMERIC := $wrappedouter$||coalesce(target_mb::TEXT, $v$NULL$v$)||$wrappedouter$::NUMERIC;
+        author TEXT := '$wrappedouter$||author||$wrappedouter$'::TEXT;
+        currentVersion BIGINT := $wrappedouter$||coalesce(currentVersion::TEXT, $v$NULL$v$)||$wrappedouter$::BIGINT;
+        isPartial BOOLEAN := $wrappedouter$||coalesce(isPartial::TEXT, $v$NULL$v$)||$wrappedouter$::BOOLEAN;
+        onExists TEXT := '$wrappedouter$||coalesce(onExists, $v$null$v$)||$wrappedouter$'::TEXT;
+        onNotExists TEXT := '$wrappedouter$||coalesce(onNotExists, $v$null$v$)||$wrappedouter$'::TEXT;
+        onVersionConflict TEXT := '$wrappedouter$||coalesce(onVersionConflict, $v$null$v$)||$wrappedouter$'::TEXT;
+        onMergeConflict TEXT := '$wrappedouter$||coalesce(onMergeConflict, $v$null$v$)||$wrappedouter$'::TEXT;
+		step_payload JSON := '$wrappedouter$||coalesce(step_payload::TEXT, $v$null$v$)||$wrappedouter$'::JSON;
+		lambda_function_arn TEXT := '$wrappedouter$||lambda_function_arn||$wrappedouter$'::TEXT;
+		lambda_region TEXT := '$wrappedouter$||lambda_region||$wrappedouter$'::TEXT;
+	BEGIN
+        IF range_start IS NULL THEN
+            RAISE EXCEPTION 'range_start must be provided.' USING ERRCODE = 'XYZ40';
+        END IF;
+
+        IF target_mb IS NULL OR target_mb <= 0 THEN
+            RAISE EXCEPTION 'target_mb must be provided and > 0.' USING ERRCODE = 'XYZ40';
+        END IF;
+
+        onExists = CASE WHEN onExists = 'null' THEN NULL ELSE onExists END;
+        onNotExists = CASE WHEN onNotExists = 'null' THEN NULL ELSE onNotExists END;
+        onVersionConflict = CASE WHEN onVersionConflict = 'null' THEN NULL ELSE onVersionConflict END;
+        onMergeConflict = CASE WHEN onMergeConflict = 'null' THEN NULL ELSE onMergeConflict END;
+
+        PERFORM context();
+
+        EXECUTE format($fmt$
+            WITH params AS (
+                SELECT %2$s::BIGINT AS start_i,
+                       (%3$s::NUMERIC * 1024 * 1024)::BIGINT AS target_bytes
+            ),
+            ordered AS (
+                SELECT i,
+                       jsondata::jsonb AS feature,
+                       octet_length(jsondata) AS feature_bytes,
+                       SUM(octet_length(jsondata)) OVER (ORDER BY i) AS running_bytes
+                  FROM %1$s
+                 CROSS JOIN params p
+                 WHERE jsondata IS NOT NULL
+                   AND i >= p.start_i
+            ),
+            selected AS (
+                SELECT o.*
+                  FROM ordered o
+                 CROSS JOIN params p
+                 WHERE o.running_bytes <= p.target_bytes
+            ),
+            first_row AS (
+                SELECT o.i, o.feature_bytes, (o.feature->>'id') AS feature_id
+                  FROM ordered o
+                 ORDER BY o.i
+                 LIMIT 1
+            )
+            SELECT jsonb_build_object(
+                       'type', 'FeatureCollection',
+                       'features', COALESCE(jsonb_agg(s.feature ORDER BY s.i), '[]'::jsonb)
+                   )::text as feature_collection,
+                   COALESCE(COUNT(s.i), 0)::INT as pulled_count,
+                   COALESCE(SUM(s.feature_bytes), 0)::BIGINT as pulled_bytes,
+                   MIN(s.i)::BIGINT as minI,
+                   MAX(s.i)::BIGINT as maxI,
+                   MIN(fr.i)::BIGINT as first_available_i,
+                   MIN(fr.feature_bytes)::BIGINT as first_available_bytes,
+                   MIN(fr.feature_id) as first_available_id
+              FROM selected s
+              FULL JOIN first_row fr ON true
+        $fmt$, source_tbl, range_start, target_mb)
+        INTO feature_collection, pulled_count, pulled_bytes, selected_range_start, selected_range_end, first_available_i, first_available_bytes, first_available_id;
+
+        -- No more rows in the source table at or after range_start -> tmp table fully processed
+        IF first_available_i IS NULL THEN
+            PERFORM report_task_progress(
+                 lambda_function_arn,
+                 lambda_region,
+                 step_payload,
+                 task_id,
+                 jsonb_build_object(
+                    'progress', jsonb_build_object(
+                        'type', 'ImportOutput$ImportProgress',
+                        'tmpTableLoaded', true
+                    ),
+                    'type', 'ImportOutput'
+                )
+            );
+            RETURN;
+        END IF;
+
+        -- There are unprocessed rows, but the very next feature alone already exceeds the target window -> fail
+        IF pulled_count = 0 THEN
+            RAISE EXCEPTION 'Feature with id=''%'' with ''%'' bytes exceeds the per-batch limit of ''%'' MB! (Batch i=''%'')',
+                COALESCE(first_available_id, '<no-id>'), first_available_bytes, target_mb, first_available_i
+            USING HINT = 'Remove features which are exceeding the limit from your datasets.',
+                  ERRCODE = 'XYZ40';
+        END IF;
+
+        SELECT (write_features(
+                feature_collection,
+                'FeatureCollection',
+                author,
+                false,
+                currentVersion,
+                onExists,
+                onNotExists,
+                onVersionConflict,
+                onMergeConflict,
+                isPartial
+                )::jsonb ->> 'count')::int
+        INTO featureCount;
+
+        --currently we are not using this
+        --import_statistics := format('%s rows imported', featureCount);
+
+		PERFORM report_task_progress(
+			 lambda_function_arn,
+			 lambda_region,
+			 step_payload,
+			 task_id,
+		     jsonb_build_object(
+                'progress', jsonb_build_object(
+                    'type', 'ImportOutput$ImportProgress',
+                    'tmpTableLoaded', false,
+                    'startI', selected_range_start,
+                    'endI', selected_range_end
+                ),
                 'type', 'ImportOutput'
             )
 		);
