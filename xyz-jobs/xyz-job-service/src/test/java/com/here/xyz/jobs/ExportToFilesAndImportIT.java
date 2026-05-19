@@ -169,7 +169,7 @@ public class ExportToFilesAndImportIT extends JobTest {
     checkSucceededJob(job);
 
     List<Map> outputs = getJobOutputs(job.getId());
-    Assertions.assertEquals(1, outputs.size());
+    Assertions.assertEquals(2, outputs.size());
     Assertions.assertEquals(0, outputs.get(0).get("featureCount"));
 
     StatisticsResponse targetStats = getStatistics(TRG_SPACE);
