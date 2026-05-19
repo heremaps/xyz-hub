@@ -61,13 +61,12 @@ public abstract class JobExecutor implements Initializable {
   private static volatile boolean stopRequested;
   private static AtomicBoolean cancellationCheckRunning = new AtomicBoolean();
   /**
-   * Live scheduler configuration. The {@code runningJobs}/{@code queuedJobs} fields are always
-   * {@code null} here; they are filled in dynamically by {@link #loadSchedulerState(boolean)}.
+   * Live scheduler configuration.
    * <p>Defaults: state={@code RUNNING}, singleJobAllowedPoliciesEnabled={@code true},
    * singleJobPerResourceEnabled={@code true}.
    */
   private static volatile SchedulerState schedulerState = new SchedulerState(
-      SchedulerState.SchedulerRuntimeState.RUNNING, true, true, null, null
+      SchedulerState.SchedulerRuntimeState.RUNNING, true, true
   );
   private static final long CANCELLATION_TIMEOUT = 10 * 60 * 1_000; //10 min
   private static final long CANCELLATION_CHECK_RERUN_PERIOD = 10_000; //10 sec
@@ -76,10 +75,8 @@ public abstract class JobExecutor implements Initializable {
 
   public record SchedulerState(
           SchedulerRuntimeState state,
-          Boolean singleJobAllowedPoliciesEnabled,
-          Boolean singleJobPerResourceEnabled,
-          Integer runningJobs,
-          Integer queuedJobs
+          boolean singleJobAllowedPoliciesEnabled,
+          boolean singleJobPerResourceEnabled
   ) implements XyzSerializable {
     public enum SchedulerRuntimeState {
       RUNNING,
@@ -543,36 +540,15 @@ public abstract class JobExecutor implements Initializable {
   }
 
   public static boolean applySchedulerState(SchedulerState patch) {
-    if (patch == null)
+    if (patch == null || patch.state() == null)
       return false;
 
-    if (patch.state() == null && patch.singleJobAllowedPoliciesEnabled() == null && patch.singleJobPerResourceEnabled() == null)
-      return false;
-
-    SchedulerState current = schedulerState;
-    schedulerState = new SchedulerState(
-        patch.state() != null ? patch.state() : current.state(),
-        patch.singleJobAllowedPoliciesEnabled() != null ? patch.singleJobAllowedPoliciesEnabled() : current.singleJobAllowedPoliciesEnabled(),
-        patch.singleJobPerResourceEnabled() != null ? patch.singleJobPerResourceEnabled() : current.singleJobPerResourceEnabled(),
-        null,
-        null
-    );
+    schedulerState = patch;
     return true;
   }
 
-  public static Future<SchedulerState> loadSchedulerState(boolean includeCounts) {
-    if (!includeCounts)
-      return Future.succeededFuture(schedulerState);
-
-    return JobConfigClient.getInstance().loadJobs(RUNNING)
-        .compose(runningJobs -> JobConfigClient.getInstance().loadJobs(PENDING)
-            .map(pendingJobs -> new SchedulerState(
-                schedulerState.state(),
-                schedulerState.singleJobAllowedPoliciesEnabled(),
-                schedulerState.singleJobPerResourceEnabled(),
-                runningJobs.size(),
-                pendingJobs.size()
-            )));
+  public static Future<SchedulerState> loadSchedulerState() {
+    return Future.succeededFuture(schedulerState);
   }
 
   private static Set<Predicate<Job>> findMatchingJobPolicies(Job job) {

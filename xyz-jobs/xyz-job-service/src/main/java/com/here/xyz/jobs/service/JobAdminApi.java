@@ -465,13 +465,13 @@ public class JobAdminApi extends JobApiBase {
       throw new HttpException(BAD_REQUEST,
           "Nothing to update. Provide 'state', 'singleJobAllowedPoliciesEnabled' and/or 'singleJobPerResourceEnabled'.");
 
-    JobExecutor.loadSchedulerState(true)
+    JobExecutor.loadSchedulerState()
         .onSuccess(state -> sendResponse(context, OK, state))
         .onFailure(t -> sendErrorResponse(context, t));
   }
 
   private void getSchedulerState(RoutingContext context) {
-    JobExecutor.loadSchedulerState(true)
+    JobExecutor.loadSchedulerState()
         .onSuccess(state -> sendResponse(context, OK, state))
         .onFailure(t -> sendErrorResponse(context, t));
   }
