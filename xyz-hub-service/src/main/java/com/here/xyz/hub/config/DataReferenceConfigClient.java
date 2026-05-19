@@ -31,9 +31,15 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Marker;
+
 import static com.google.common.base.Preconditions.checkNotNull;
 
 public abstract class DataReferenceConfigClient implements Initializable {
+
+  private static final Logger logger = LogManager.getLogger();
 
   private static final class InstanceHolder {
     private static final DataReferenceConfigClient instance = new DynamoDataReferenceConfigClient(
@@ -97,4 +103,30 @@ public abstract class DataReferenceConfigClient implements Initializable {
     return doDelete(id);
   }
 
+  public final Future<List<DataReference>> loadByEntity(@Nonnull String entityId) {
+    return load(entityId, null, null, null, null, null, null);
+  }
+
+  /**
+   * Set {@code keepUntil} on every DataReference whose {@code entityId} matches the given value, overwriting existing value.
+   * Used to schedule expiry of references attached to a deleted space.
+   */
+  public final Future<Void> expireForEntity(@Nullable Marker marker, @Nonnull String entityId, long keepUntil) {
+    return loadByEntity(entityId)
+        .compose(references -> {
+          if (references == null || references.isEmpty()) {
+            logger.info(marker, "expireForEntity: no DataReferences found for entityId={}", entityId);
+            return Future.succeededFuture();
+          }
+          logger.info(marker, "expireForEntity: setting keepUntil={} on {} DataReferences for entityId={}",
+              keepUntil, references.size(), entityId);
+          List<Future<UUID>> updatedReferences = references.stream()
+              .map(reference -> doStore(reference.withKeepUntil(keepUntil))
+                  .onFailure(t -> logger.warn(marker,
+                      "expireForEntity: failed to update keepUntil for reference id={} entityId={}",
+                      reference.getId(), entityId, t)))
+              .toList();
+          return Future.all(updatedReferences).mapEmpty();
+        });
+  }
 }

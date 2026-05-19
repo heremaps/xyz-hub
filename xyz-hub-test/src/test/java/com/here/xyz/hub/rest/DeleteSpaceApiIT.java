@@ -20,20 +20,25 @@
 package com.here.xyz.hub.rest;
 
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
+import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.restassured.RestAssured.given;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
+import java.util.concurrent.TimeUnit;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Ignore;
 import org.junit.Test;
-import org.junit.jupiter.api.Disabled;
 
 public class DeleteSpaceApiIT extends TestSpaceWithFeature {
+
+  private static final long TWO_HOURS_EXPIRY = TimeUnit.HOURS.toMillis(2);
+  private static final long TOLERANCE_MS = TimeUnit.SECONDS.toMillis(5);
 
   private static String spaceName;
 
@@ -107,5 +112,67 @@ public class DeleteSpaceApiIT extends TestSpaceWithFeature {
 
   }
 
+  @Test
+  public void deletingSpaceWithReference_shouldExpireReference() {
+    String referenceId = createReferenceForEntity(spaceName);
+
+    try {
+      long beforeDeleteMs = System.currentTimeMillis();
+
+      given()
+          .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+          .when()
+          .delete("/spaces/" + spaceName);
+
+      long afterDeleteMs = System.currentTimeMillis();
+
+      given()
+          .accept(APPLICATION_JSON)
+          .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+          .when()
+          .get("/references/" + referenceId)
+          .then()
+          .statusCode(OK.code())
+          .body("keepUntil", allOf(
+              greaterThanOrEqualTo(beforeDeleteMs + TWO_HOURS_EXPIRY - TOLERANCE_MS),
+              lessThanOrEqualTo(afterDeleteMs + TWO_HOURS_EXPIRY + TOLERANCE_MS)
+          ));
+    } finally {
+      deleteReference(referenceId);
+    }
+  }
+
+  private static String createReferenceForEntity(String entityId) {
+    String payload = """
+      {
+        "entityId": "%s",
+        "isPatch": false,
+        "endVersion": 1,
+        "objectType": "features",
+        "contentType": "application/geo+json-seq",
+        "location": "s3://bucket/space-delete-it",
+        "sourceSystem": "IML",
+        "targetSystem": "S3"
+      }
+      """.formatted(entityId);
+
+    return given()
+        .accept(APPLICATION_JSON)
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .body(payload)
+        .post("/references")
+        .then()
+        .statusCode(CREATED.code())
+        .extract()
+        .path("id");
+  }
+
+  private static void deleteReference(String referenceId) {
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .when()
+        .delete("/references/" + referenceId);
+  }
 
 }
