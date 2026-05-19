@@ -105,6 +105,12 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
   @JsonView({Internal.class, Static.class})
   private int estimatedSeconds = -1;
 
+  @JsonView({Internal.class, Static.class})
+  private long targetVersion = -1;
+
+  @JsonView({Internal.class, Static.class})
+  private double featureWriterBatchSizeInMb = 20;
+
   //Compilers can decide max allowed import size. Set default to 200G for normal use-case
   @JsonIgnore
   private long maxInputBytesForNonEmptyImport = 200l * 1024 * 1024 * 1024;
@@ -188,6 +194,19 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
     return this;
   }
 
+  public void setFeatureWriterBatchSizeInMb(double featureWriterBatchSizeInMb) {
+    this.featureWriterBatchSizeInMb = featureWriterBatchSizeInMb;
+  }
+
+  public double getFeatureWriterBatchSizeInMb() {
+    return featureWriterBatchSizeInMb;
+  }
+
+  public TaskedImportFilesToSpace withFeatureWriterBatchSizeInMb(double featureWriterBatchSizeInMb) {
+    setFeatureWriterBatchSizeInMb(featureWriterBatchSizeInMb);
+    return this;
+  }
+
   @Override
   protected boolean queryRunsOnWriter(){
     return true;
@@ -195,24 +214,20 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
 
   @Override
   protected void initialSetup() throws SQLException, TooManyResourcesClaimed, WebClientException {
-    long newVersion = getOrIncreaseVersionSequence();
+    targetVersion = getOrIncreaseVersionSequence();
 
     if(useFeatureWriter()) {
       infoLog(STEP_EXECUTE,  "initialSetup - Using FeatureWriter for import!");
 
       //Pre-create two spare history partitions to avoid concurrency issue with hub requests.
-      createSpareHistoryPartitions(newVersion);
-
-      String superRootTable = space().getExtension() != null ? getRootTableName(superSpace()) : null;
-      runBatchWriteQuerySync(getQueryBuilder().buildTemporaryTriggerTableBlockForImportWithFW(space().getOwner(),
-             newVersion, superRootTable, updateStrategy, entityPerLine.name()), db(), 0);
+      createSpareHistoryPartitions(targetVersion);
     }else{
       infoLog(STEP_EXECUTE,  "initialSetup - Import into empty layer detected!");
 
       if(format.equals(FAST_IMPORT_INTO_EMPTY))
         return;
       //import into an empty, non-composite, layer
-      runBatchWriteQuerySync(getQueryBuilder().buildTemporaryTriggerTableBlockForImportIntoEmpty(space().getOwner(), newVersion, retainMetadata),
+      runWriteQuerySync(getQueryBuilder().buildCreateImportTriggerForEmptyLayers(space().getOwner(), targetVersion, retainMetadata),
               db(), 0);
     }
   }
@@ -327,6 +342,55 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
   }
 
   @Override
+  protected void onTaskProgress(int taskId, ImportOutput output) throws WebClientException, SQLException, TooManyResourcesClaimed {
+    //TODO: CHECK
+    //String superRootTable = space().getExtension() != null ? getRootTableName(superSpace()) : null;
+
+    runReadQueryAsync(getQueryBuilder().buildImportFromTmpTableTaskQuery(
+            taskId,
+            output.progress() == null ? 1 : output.progress().endI() + 1, //TBD check
+            space().getOwner(),
+            targetVersion,
+            false,
+            updateStrategy,
+            new LambdaStepRequest().withStep(this).serialize(),
+            getwOwnLambdaArn().toString(),
+            getwOwnLambdaArn().getRegion(),
+            getQueryContext(getSchema(db())),
+            buildFailureCallbackQuery().substitute().text()
+                    .replaceAll("'", "''")
+    ).withRetryableErrorCodes(RETRYABLE_SQL_CODES)
+            ,dbWriter(), 0, false);
+  }
+
+  @Override
+  protected boolean isTaskFinalized(int taskId, ImportOutput output) throws WebClientException {
+    if(useFeatureWriter() && (output.progress() == null || !output.progress().tmpTableLoaded())) {
+      infoLog(STEP_EXECUTE, "Task "+taskId+" is not finalized yet! " + output.progress());
+      return false;
+    }
+    return true;
+  }
+
+  @Override
+  protected void prepareTaskQuery(int taskId) throws WebClientException,
+          SQLException, TooManyResourcesClaimed {
+    if(useFeatureWriter()) {
+      //create tmp table for each file
+      runWriteQuerySync(getQueryBuilder().buildTemporaryDataTableForImportQuery(taskId), db(), 0);
+    }
+  }
+
+  @Override
+  protected void finalizeTaskQuery(int taskId) throws WebClientException,
+          SQLException, TooManyResourcesClaimed {
+    if(useFeatureWriter()) {
+      //drop tmp table for loaded file
+      runWriteQuerySync(getQueryBuilder().dropTemporaryDataTableForImportQuery(taskId), db(), 0);
+    }
+  }
+
+  @Override
   protected SQLQuery buildTaskQuery(Integer taskId, ImportInput taskInput, String failureCallback)
           throws WebClientException {
 
@@ -414,7 +478,8 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
 
   private ImportQueryBuilder getQueryBuilder() throws WebClientException {
     if(importQueryBuilder == null){
-      importQueryBuilder = new ImportQueryBuilder(getId(), getSchema(db()), getRootTableName(space()), space().getVersionsToKeep());
+      importQueryBuilder = new ImportQueryBuilder(getId(), getSchema(db()), getRootTableName(space()),
+              space().getVersionsToKeep(), featureWriterBatchSizeInMb);
     }
     return importQueryBuilder;
   }

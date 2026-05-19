@@ -84,7 +84,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
         extends SpaceBasedStep<T> {
   private static final String JOB_DATA_PREFIX = "job_data_";
   private static final Logger logger = LogManager.getLogger();
-  private static final Set<String> RETRYABLE_SQL_CODES = Set.of(
+  protected static final Set<String> RETRYABLE_SQL_CODES = Set.of(
           "40001", // serialization_failure
           "40P01", // deadlock_detected
           "55P03", // lock_not_available
@@ -303,6 +303,65 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   protected void finalCleanUp(boolean noTasksCreated) throws WebClientException, SQLException, TooManyResourcesClaimed, IOException {};
 
   /**
+   * Hook invoked immediately before starting an individual task query.
+   * <p>
+   * Use this to prepare task-scoped resources (for example creating temporary helper tables)
+   * that are required by the task query execution.
+   * </p>
+   *
+   * @param taskId The id of the task about to be started.
+   * @throws WebClientException If external calls fail.
+   * @throws SQLException If DB preparation fails.
+   * @throws TooManyResourcesClaimed If resource claiming exceeds configured limits.
+   */
+  protected void prepareTaskQuery(int taskId) throws WebClientException, SQLException, TooManyResourcesClaimed {}
+
+  /**
+   * Hook invoked when a non-final progress update for a running task is received.
+   * If a async query is needed - always use callback=false!
+   * <p>
+   * This is the place to trigger follow-up async work (for example the next chunk query).
+   * If a new async query is started here, it should use callback=false to avoid duplicate callback chains.
+   * </p>
+   *
+   * @param taskId The id of the task that reported progress.
+   * @param output The current task output payload from the callback.
+   * @throws WebClientException If external calls fail.
+   * @throws SQLException If DB interaction fails.
+   * @throws TooManyResourcesClaimed If resource claiming exceeds configured limits.
+   */
+  protected void onTaskProgress(int taskId, O output) throws WebClientException, SQLException, TooManyResourcesClaimed {}
+
+  /**
+   * Determines whether the received task update represents the final state of the task.
+   * <p>
+   * Returning {@code false} keeps the task in running state and routes the update through the
+   * progress hook. Returning {@code true} triggers finalization flow.
+   * </p>
+   *
+   * @param taskId The id of the task being evaluated.
+   * @param output The task output payload from the callback.
+   * @return {@code true} if the task is final and can be finalized; {@code false} otherwise.
+   * @throws WebClientException If external calls fail during decision making.
+   */
+  protected boolean isTaskFinalized(int taskId, O output) throws WebClientException { return true; }
+
+  /**
+   * Hook invoked after a task is considered finalized and before the framework marks it finalized
+   * in the process table and claims the next task.
+   * <p>
+   * Use this for task-level finalization work that must succeed before finalization is persisted
+   * (for example deleting task-specific temporary artifacts).
+   * </p>
+   *
+   * @param taskId The id of the task being finalized.
+   * @throws WebClientException If external calls fail.
+   * @throws SQLException If DB finalization work fails.
+   * @throws TooManyResourcesClaimed If resource claiming exceeds configured limits.
+   */
+  protected void finalizeTaskQuery(int taskId) throws WebClientException, SQLException, TooManyResourcesClaimed {}
+
+  /**
    * Prepares the process by resolving the version reference to an actual version.
    *
    * @param owner The owner of the job.
@@ -446,6 +505,9 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
       //We can`t use the default callback here because we are reporting success during onAsyncUpdate in Java.
       //The failureCallback is still needed to report failures from the DB-side
       String failureCallback = buildFailureCallbackQuery().substitute().text().replaceAll("'", "''");
+
+      prepareTaskQuery(taskProgressAndItem.getTaskId());
+
       runReadQueryAsync(buildTaskQuery(taskProgressAndItem.getTaskId(), (I) taskProgressAndItem.getTaskInput(), failureCallback)
                          .withRetryableErrorCodes(RETRYABLE_SQL_CODES),
                 queryRunsOnWriter() ? dbWriter() : dbReader(), 0d/*perItemAcus.doubleValue()*/,  false);
@@ -494,29 +556,42 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
       //Update the task table and mark item as finalized
       SpaceBasedTaskUpdate update = (SpaceBasedTaskUpdate) processUpdate;
       infoLog(STEP_ON_ASYNC_UPDATE, "Received progress update: " + processUpdate.serialize());
-      TaskProgress taskProgressAndItem = finalizeCurrentTaskAndGetTaskProgressAndNextTaskItem(update);
-      if (taskProgressAndItem.isComplete()) {
-        infoLog(STEP_ON_ASYNC_UPDATE, "All tasks are finished." + taskProgressAndItem);
 
-        //Collect outputs and process them
-        processFinalizedTasks(collectOutputs());
+      if (!isTaskFinalized(update.taskId, (O) update.taskOutput)){
+        updateQueryTaskItemOutput(update); //update taskItem output
+        onTaskProgress(update.taskId, (O) update.taskOutput);  //hook method
+      }else{
+        finalizeTaskQuery(update.taskId); //hook method
 
-        //Clean up temporary resources
-        cleanUpDbResources(STEP_ON_ASYNC_UPDATE);
-
-        return true;
-      }else {
-        infoLog(STEP_ON_ASYNC_UPDATE, "Found existing tasks. Start new item:" + taskProgressAndItem);
-        //If we are not finished, start the next task
-        startTask(taskProgressAndItem);
-        //Calculate progress and set it on the step's status
-        getStatus().setEstimatedProgress((float) taskProgressAndItem.getFinalizedTasks() / (float) taskProgressAndItem.getTotalTasks());
+        TaskProgress taskProgressAndItem = finalizeCurrentTaskAndGetTaskProgressAndNextTaskItem(update);
+        if (taskProgressAndItem.isComplete()) {
+          return true;
+        }else {
+          infoLog(STEP_ON_ASYNC_UPDATE, "Found existing tasks. Start new item:" + taskProgressAndItem);
+          //If we are not finished, start the next task
+          startTask(taskProgressAndItem);
+          //Calculate progress and set it on the step's status
+          getStatus().setEstimatedProgress((float) taskProgressAndItem.getFinalizedTasks() / (float) taskProgressAndItem.getTotalTasks());
+        }
       }
-
       return false;
     }catch (Exception e) {
       throw new RuntimeException(e);
     }
+  }
+
+  @Override
+  protected void onAsyncSuccess() throws Exception {
+    infoLog(STEP_ON_ASYNC_SUCCESS, "Reached onAsyncSuccess!");
+    finalizeStep();
+  }
+
+  private void finalizeStep() throws IOException, WebClientException, SQLException, TooManyResourcesClaimed {
+    //Collect outputs and process them
+    processFinalizedTasks(collectOutputs());
+
+    //Clean up temporary resources
+    cleanUpDbResources(STEP_ON_ASYNC_UPDATE);
   }
 
   @Override
@@ -621,9 +696,9 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   }
 
   private AsyncExecutionState evaluateExecutionState(TaskProgress taskProgress) throws UnknownStateException {
-    if (taskProgress.isComplete())
+    if (taskProgress.isComplete()) {
       return AsyncExecutionState.SUCCEEDED;
-    if (taskProgress.hasRunningTasks())
+    }if (taskProgress.hasRunningTasks())
       // Check if the expected queries are still running.
       return super.getExecutionState();
     if (taskProgress.hasNoRunningTasks()) {
@@ -675,6 +750,39 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
           throws WebClientException, SQLException, TooManyResourcesClaimed {
     infoLog(STEP_ON_ASYNC_UPDATE, "Update process table and claim next task with: " + update.serialize());
     return  executeTaskItemQuery(retrieveTaskItemAndStatisticsAfterUpdateQuery(getSchema(db(WRITER)), update));
+  }
+
+  /**
+   * Merges the task update into the task's {@code task_output} column.
+   * <p>
+   * The update is merged with the existing output to preserve any previously stored fields.
+   * For example, if the existing output contains {@code fileBytes} and {@code importStatistics},
+   * and the update contains a {@code progress} field, the result will contain all three fields.
+   * Fields in the update override fields with the same name in the existing output.
+   * </p>
+   *
+   * @param update The in-progress task update carrying the complete payload.
+   */
+  private void updateQueryTaskItemOutput(SpaceBasedTaskUpdate update) throws WebClientException, SQLException, TooManyResourcesClaimed {
+    String schema = getSchema(db(WRITER));
+    SQLQuery query = new SQLQuery("""
+            UPDATE ${schema}.${table}
+            SET task_output = (
+                COALESCE(task_output, '{}'::JSONB) || #{taskUpdate}::JSONB
+            ) || jsonb_build_object(
+                'taskOutput',
+                COALESCE(task_output->'taskOutput', '{}'::JSONB)
+                || COALESCE((#{taskUpdate}::JSONB)->'taskOutput', '{}'::JSONB)
+            )
+            WHERE task_id = #{taskId};
+        """)
+        .withVariable("schema", schema)
+        .withVariable("table", getTemporaryJobTableName(getId()))
+        .withNamedParameter("taskId", update.taskId)
+        .withNamedParameter("taskUpdate", XyzSerializable.serialize(update))
+        .withRetryableErrorCodes(RETRYABLE_SQL_CODES);
+
+    runWriteQuerySyncUnkillable(query, db(WRITER), 0);
   }
 
   private TaskProgress executeTaskItemQuery(SQLQuery query) throws WebClientException, SQLException, TooManyResourcesClaimed {

@@ -382,11 +382,9 @@ public class StepTestBase {
           .withVariable("schema", SCHEMA)
           .withVariable("table", getTemporaryJobTableName(stepId))
       );
-      dropQueries.add(
-          new SQLQuery("DROP TABLE IF EXISTS ${schema}.${table};")
-              .withVariable("schema", SCHEMA)
-              .withVariable("table", new ImportQueryBuilder(stepId, SCHEMA).getTemporaryTriggerTableName())
-      );
+
+      dropQueries.add(new ImportQueryBuilder(stepId, SCHEMA)
+              .buildDropAllTemporaryTablesByStepPrefixQuery());
     }
     SQLQuery.join(dropQueries, ";").write(getDataSourceProvider());
   }

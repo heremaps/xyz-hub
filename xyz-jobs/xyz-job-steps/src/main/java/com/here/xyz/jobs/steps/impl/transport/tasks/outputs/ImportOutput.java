@@ -18,13 +18,40 @@
  */
 package com.here.xyz.jobs.steps.impl.transport.tasks.outputs;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.here.xyz.Typed;
 import com.here.xyz.jobs.steps.impl.transport.tasks.TaskPayload;
 
-public record ImportOutput(String importStatistics, long fileBytes) implements TaskPayload {
+import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_DEFAULT;
+
+@JsonInclude(NON_DEFAULT)
+@JsonIgnoreProperties(ignoreUnknown = true)
+public record ImportOutput(String importStatistics, long fileBytes,
+                           ImportProgress progress) implements TaskPayload {
+
+  public ImportOutput(String importStatistics, long fileBytes) {
+    this(importStatistics, fileBytes, null);
+  }
+
+  public ImportOutput(ImportProgress progress) {
+    this(null, -1, progress);
+  }
+
   //@TODO: shift this extraction to SQL function "perform_import_from_s3_task()"
   public long extractRowCount() {
     if (importStatistics == null) return 0;
     var matcher = java.util.regex.Pattern.compile("\\d+").matcher(importStatistics);
     return matcher.find() ? Long.parseLong(matcher.group()) : 0;
   }
+
+  @JsonInclude(NON_DEFAULT)
+  @JsonIgnoreProperties(ignoreUnknown = true)
+  public record ImportProgress(boolean tmpTableLoaded, long startI, long endI)
+          implements Typed {
+    public ImportProgress(boolean tmpTableLoaded){
+      this(tmpTableLoaded, -1,-1);
+    }
+  }
 }
+
