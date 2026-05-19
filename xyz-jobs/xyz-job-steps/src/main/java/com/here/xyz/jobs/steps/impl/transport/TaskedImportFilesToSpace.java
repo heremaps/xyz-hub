@@ -394,6 +394,38 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
   protected SQLQuery buildTaskQuery(Integer taskId, ImportInput taskInput, String failureCallback)
           throws WebClientException {
 
+    //Resume support for non-empty (FeatureWriter) imports: if we already have a previous task output,
+    //the S3 -> tmp-table import (phase 1) was at least started. Skip phase 1 and resume phase 2
+    //(batched import from tmp table) starting from the last reported endI + 1.
+    if (useFeatureWriter()) {
+      try {
+        ImportOutput previous = loadTaskOutput(taskId);
+        if (previous != null) {
+          long resumeStartI = previous.progress() != null && previous.progress().endI() > 0
+                  ? previous.progress().endI() + 1 : 1;
+          infoLog(STEP_EXECUTE, "Resume task " + taskId + " - skipping phase 1, " +
+                  "starting phase 2 at startI=" + resumeStartI);
+
+          return getQueryBuilder().buildImportFromTmpTableTaskQuery(
+                  taskId,
+                  resumeStartI,
+                  space().getOwner(),
+                  targetVersion,
+                  false,
+                  updateStrategy,
+                  new LambdaStepRequest().withStep(this).serialize(),
+                  getwOwnLambdaArn().toString(),
+                  getwOwnLambdaArn().getRegion(),
+                  getQueryContext(getSchema(db())),
+                  failureCallback);
+        }
+      } catch (SQLException | TooManyResourcesClaimed e) {
+        //Resume detection failed -> fall back to normal phase 1 start
+        errorLog(STEP_EXECUTE, e, "Resume detection failed for task " + taskId + " - falling back to fresh start. " + e.getMessage());
+        throw new StepException("Resume detection failed for task " + taskId + " - falling back to fresh start. " + e.getMessage(), e);
+      }
+    }
+
     return getQueryBuilder().buildImportTaskQuery(format, taskId, taskInput, new LambdaStepRequest().withStep(this).serialize(),
                     getwOwnLambdaArn().toString(), getwOwnLambdaArn().getRegion(), getQueryContext(getSchema(db())),
                     useFeatureWriter(), failureCallback);
