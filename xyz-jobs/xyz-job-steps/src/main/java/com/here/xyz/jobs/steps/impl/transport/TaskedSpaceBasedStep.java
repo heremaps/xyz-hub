@@ -883,6 +883,40 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
             .withRetryableErrorCodes(RETRYABLE_SQL_CODES);
   }
 
+  /**
+   * Loads the previously stored {@code task_output.taskOutput} payload of a single task item, if available.
+   * <p>
+   * Returns {@code null} when no row matches the given {@code taskId} or when no output has been stored yet.
+   * This helper is intended to support resume scenarios where a subclass needs to inspect the last
+   * persisted state of a task before deciding which query to start next.
+   * </p>
+   *
+   * @param taskId The id of the task whose output should be loaded.
+   * @return The deserialized output payload of type {@code O}, or {@code null} if not available.
+   */
+  protected O loadTaskOutput(int taskId) throws WebClientException, SQLException, TooManyResourcesClaimed {
+    SQLQuery query = new SQLQuery("""
+              SELECT task_output->'taskOutput' AS task_output
+                FROM ${schema}.${tmpTable}
+               WHERE task_id = #{taskId};
+        """)
+            .withVariable("schema", getSchema(db()))
+            .withVariable("tmpTable", getTemporaryJobTableName(getId()))
+            .withNamedParameter("taskId", taskId)
+            .withRetryableErrorCodes(RETRYABLE_SQL_CODES);
+
+    return runReadQuerySync(query, db(WRITER), 0, rs -> {
+      try {
+        if (!rs.next()) return null;
+        String taskOutput = rs.getString("task_output");
+        if (taskOutput == null) return null;
+        return XyzSerializable.deserialize(taskOutput, new TypeReference<O>() {});
+      } catch (JsonProcessingException e) {
+        throw new RuntimeException("Can not deserialize task_output for taskId=" + taskId, e);
+      }
+    });
+  }
+
   private boolean insertTaskItemsInTaskTable(String schema, Step step, List<I> taskInputs)
           throws WebClientException, SQLException, TooManyResourcesClaimed {
     List<SQLQuery> insertQueries = new ArrayList<>();
