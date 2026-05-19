@@ -669,7 +669,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   @Override
   public AsyncExecutionState getExecutionState() throws UnknownStateException {
     if (noTasksCreated)
-      return handleNoTasksCreatedState();
+      return AsyncExecutionState.SUCCEEDED;
 
     try {
       TaskProgress taskProgress = getTaskProgress();
@@ -683,16 +683,6 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
     catch (TooManyResourcesClaimed e) {
       throw new StepException("Unexpected error occurred during execution state check for step: " + getGlobalStepId() + " !", e);
     }
-  }
-
-  private AsyncExecutionState handleNoTasksCreatedState() {
-    try {
-      cleanUpDbResources(STEP_ON_ASYNC_SUCCESS);
-    }
-    catch (Exception e) {
-      throw new RuntimeException(e);
-    }
-    return AsyncExecutionState.SUCCEEDED;
   }
 
   private AsyncExecutionState evaluateExecutionState(TaskProgress taskProgress) throws UnknownStateException {
