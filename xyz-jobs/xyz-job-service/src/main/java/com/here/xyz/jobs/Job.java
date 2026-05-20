@@ -532,18 +532,25 @@ public class Job implements XyzSerializable {
   E.g., when a job config was deleted due to a Dynamo TTL
    */
   public Future<Void> deleteJobResources() {
-    //Delete StateMachine if still existing
-    return JobExecutor.getInstance().deleteExecution(getExecutionId())
-        //Delete the inputs of this job
-        .compose(b -> deleteInputs());
-
-    //Temporary deactivation of deletions on S3.
-    //Delete the outputs of all involved steps
-    //      .compose(v -> Future.all(Job.forEach(getSteps().stepStream().collect(Collectors.toList()), step -> deleteStepOutputs(step)))
-    //          .mapEmpty());
+    return JobExecutor.getInstance()
+            //Delete StateMachine if still existing
+            .deleteExecution(getExecutionId())
+            //Delete the inputs of this job
+            .compose(b -> deleteInputs())
+            //Delete the outputs of this job
+            .compose(v -> hasRegisterDataReferencesStep()
+                    //Temporary deletion deactivation for jobs with RegisterDataReferences step(s).
+                    ? Future.succeededFuture()
+                    : Future.all(Job.forEach(getSteps().stepStream().toList(), Job::deleteStepOutputs)).mapEmpty());
   }
 
-  private static Future<Boolean> deleteStepOutputs(Step step) {
+  private boolean hasRegisterDataReferencesStep() {
+    return getSteps() != null
+        && getSteps().stepStream().anyMatch(step -> step != null
+            && "RegisterDataReferences".equals(step.getClass().getSimpleName()));
+  }
+
+  private static Future<Void> deleteStepOutputs(Step step) {
     return ASYNC.run(() -> {
       step.deleteOutputs();
       return null;

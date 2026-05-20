@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -72,9 +72,11 @@ public abstract class RemoteFunctionClient {
   private static int MEASUREMENT_INTERVAL = 1000; //1s
   private static final int MIN_CONNECTIONS_PER_NODE = 4;
 
-  private AuroraAcuMonitor acuMonitor;
+  private static final String WRITER = "WRITER";
+  private static final String READER = "READER";
   private static final double HIGH_THRESHOLD = 80.0;
   private String dbClusterId;
+  private Region region;
 
 //  /**
 //   * Tweaking constant for the percentage that the connection slots relevance should be used. The rest is the rateOfService relevance.
@@ -100,8 +102,8 @@ public abstract class RemoteFunctionClient {
   private final AtomicLong lastThroughputMeasurement = new AtomicLong(Core.currentTimeMillis());
   private final LimitedQueue<FunctionCall> queue = new LimitedQueue<>(0, 0);
   private final AtomicInteger usedConnections = new AtomicInteger(0);
-  private static final ConcurrentHashMap<String, AtomicInteger> usedConnectionsByRequester =  new ConcurrentHashMap<>();
-
+  private static final ConcurrentHashMap<String, AtomicInteger> usedConnectionsByRequesterAndClusterRole = new ConcurrentHashMap<>();
+  private static final ConcurrentHashMap<String, AuroraAcuMonitor> acuMonitorsByClusterRole = new ConcurrentHashMap<>();
 //  /**
 //   * Sliding average request execution time in seconds.
 //   */
@@ -181,8 +183,13 @@ public abstract class RemoteFunctionClient {
 
 
     if (!hasPriority){
-      if(checkRequesterThrottling(marker, callback, context)) {
-        return fc;
+      if (context.getRequesterId() != null) {
+        String role = resolveEffectiveRole(context);
+        String key = buildRequesterKey(role, context);
+        if (checkRequesterThrottling(marker, callback, context, key)) {
+          return fc;
+        }
+        fc.requesterKey = key;
       }
       if (!compareAndIncrementUpTo(getWeightedMaxConnections(), usedConnections)) {
         enqueue(fc);
@@ -216,18 +223,20 @@ public abstract class RemoteFunctionClient {
         return;
       }
 
-      Region region = Region.of(regionStr);
-      acuMonitor = AuroraAcuMonitorManager.get(dbClusterId, region);
-      logger.info("Throttling monitor initialized successfully - connectorId={}, dbClusterId={}, acuMonitorActive={}",
-          connectorConfig.id, dbClusterId, acuMonitor != null);
+      region = Region.of(regionStr);
+      addMonitor(WRITER);
+      addMonitor(READER);
+      logger.info("Throttling role monitors initialized successfully - connectorId={}, dbClusterId={}, writerMonitorActive={}, readerMonitorActive={}",
+          connectorConfig.id, dbClusterId, acuMonitorsByClusterRole.get(monitorKey(WRITER)) != null,
+          acuMonitorsByClusterRole.get(monitorKey(READER)) != null);
     } else {
       logger.debug("No ECPS configuration found for connector id={}, throttling monitor not started", connectorConfig.id);
     }
   }
 
-  private boolean checkRequesterThrottling(Marker marker, Handler<AsyncResult<byte[]>> callback, RpcContext context) {
-    if (context.getRequesterId() != null) {
-      AtomicInteger connectionCount = usedConnectionsByRequester.computeIfAbsent(context.getRequesterId(), (key) -> new AtomicInteger());
+  private boolean checkRequesterThrottling(Marker marker, Handler<AsyncResult<byte[]>> callback, RpcContext context, String key) {
+      AtomicInteger connectionCount = usedConnectionsByRequesterAndClusterRole.computeIfAbsent(key, k -> new AtomicInteger());
+      AuroraAcuMonitor acuMonitor = getEffectiveMonitor(context);
       int maxConnectionsPerRequester = (acuMonitor != null && acuMonitor.getUtilization() < HIGH_THRESHOLD)
           ? Integer.MAX_VALUE
           : context.getConnector().getMaxConnectionsPerRequester();
@@ -243,11 +252,45 @@ public abstract class RemoteFunctionClient {
                 + "Max concurrent connections: " + Math.round(maxConnectionsPerRequester * 0.6), QUOTA)));
         return true;
       }
-
       logger.debug(marker, "Requester request accepted - requesterId={}, currentConnections={}",
           context.getRequesterId(), connectionCount.get());
-    }
     return false;
+  }
+
+  private void addMonitor(String role) {
+    if (dbClusterId == null || region == null) {
+      return;
+    }
+    String key = monitorKey(role);
+    acuMonitorsByClusterRole.computeIfAbsent(key, k ->
+        AuroraAcuMonitorManager.getForClusterRole(dbClusterId, role, region)
+    );
+  }
+
+  private String buildRequesterKey(String role, RpcContext context) {
+    return monitorKey(role) + "-" + context.getRequesterId();
+  }
+
+  private AuroraAcuMonitor getEffectiveMonitor(RpcContext context) {
+    String requestedRole = resolveEffectiveRole(context);
+    if (READER.equals(requestedRole)) {
+      AuroraAcuMonitor readerMonitor = acuMonitorsByClusterRole.get(monitorKey(READER));
+      if (readerMonitor != null && readerMonitor.getUtilization() >= 0) {
+        return readerMonitor;
+      }
+    }
+    return acuMonitorsByClusterRole.get(monitorKey(WRITER));
+  }
+
+  private String monitorKey(String role) {
+    return dbClusterId + "-" + role;
+  }
+
+  private String resolveEffectiveRole(RpcContext context) {
+    if (!context.executeOnPrimary() && acuMonitorsByClusterRole.get(monitorKey(READER)) != null) {
+      return READER;
+    }
+    return WRITER;
   }
 
   /**
@@ -420,9 +463,10 @@ public abstract class RemoteFunctionClient {
       if (nextFc == null && !fc.hasPriority) {
         if(usedConnections.intValue() > 0) {
           usedConnections.getAndDecrement(); //Free the connection only in case it's not needed for the next invocation
-          Optional.ofNullable(context.getRequesterId())
-                  .map(usedConnectionsByRequester::get)
-                  .ifPresent(connectionCount -> compareAndDecrement(0, connectionCount));
+          if (fc.requesterKey != null) {
+            Optional.ofNullable(usedConnectionsByRequesterAndClusterRole.get(fc.requesterKey))
+                .ifPresent(connectionCount -> compareAndDecrement(0, connectionCount));
+          }
         }
       }
       try {
@@ -482,7 +526,7 @@ public abstract class RemoteFunctionClient {
   }
 
   public ConcurrentHashMap<String, AtomicInteger> getUsedConnectionsByRequester() {
-    return usedConnectionsByRequester;
+    return usedConnectionsByRequesterAndClusterRole;
   }
 
   public double getPriority() {
@@ -541,6 +585,7 @@ public abstract class RemoteFunctionClient {
     private final Handler<AsyncResult<byte[]>> callback;
     private Runnable cancelHandler;
     private volatile boolean cancelled;
+    private String requesterKey;
 
     public FunctionCall(Marker marker, byte[] bytes, boolean fireAndForget, boolean hasPriority, Handler<AsyncResult<byte[]>> callback) {
       this.marker = marker;
@@ -561,7 +606,7 @@ public abstract class RemoteFunctionClient {
       this.cancelHandler = cancelHandler;
     }
 
-    public void cancel(String requesterId) {
+    public void cancel() {
       cancelled = true;
       try {
         if (cancelHandler != null) {
@@ -574,9 +619,10 @@ public abstract class RemoteFunctionClient {
       finally {
         if(!hasPriority && usedConnections.intValue() > 0) {
           usedConnections.getAndDecrement(); //Free the connection
-          Optional.ofNullable(requesterId)
-                  .map(usedConnectionsByRequester::get)
-                  .ifPresent(connectionCount -> compareAndDecrement(0, connectionCount));
+          if (requesterKey != null) {
+            Optional.ofNullable(usedConnectionsByRequesterAndClusterRole.get(requesterKey))
+                .ifPresent(connectionCount -> compareAndDecrement(0, connectionCount));
+          }
         }
       }
     }
