@@ -25,6 +25,7 @@ import static com.here.xyz.jobs.RuntimeInfo.State.FAILED;
 import static com.here.xyz.jobs.RuntimeInfo.State.PENDING;
 import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
 import static com.here.xyz.jobs.RuntimeInfo.State.SUCCEEDED;
+import static com.here.xyz.jobs.steps.execution.JobExecutor.SchedulerState.SchedulerRuntimeState.PAUSED;
 import static com.here.xyz.jobs.steps.execution.GraphFusionTool.fuseGraphs;
 import static java.util.Comparator.comparingLong;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -43,6 +44,7 @@ import com.here.xyz.util.service.Initializable;
 import io.vertx.core.Future;
 import io.vertx.core.impl.ConcurrentHashSet;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Executors;
@@ -83,6 +85,17 @@ public abstract class JobExecutor implements Initializable {
       PAUSED
     }
   }
+
+  /**
+   * Partial update payload for {@link SchedulerState}. All fields are nullable; only non-null fields
+   * are applied to the current state. This allows callers to update a single flag without having to
+   * resend the complete state.
+   */
+  public record SchedulerStatePatch(
+          SchedulerState.SchedulerRuntimeState state,
+          Boolean singleJobAllowedPoliciesEnabled,
+          Boolean singleJobPerResourceEnabled
+  ) implements XyzSerializable {}
 
   {
     exec.scheduleWithFixedDelay(this::checkPendingJobs, 10, 60, SECONDS);
@@ -363,18 +376,28 @@ public abstract class JobExecutor implements Initializable {
    * @return true, if the job may be executed / enough resources are free
    */
   private Future<Boolean> mayExecute(Job job) {
-    //Check execution policies and resources
-    return executionPoliciesSatisfied(job)
+    Set<Predicate<Job>> policiesToApply = isSingleJobAllowedPoliciesEnabled() ? findMatchingJobPolicies(job) : Set.of();
+    boolean needRunningForPolicies = !policiesToApply.isEmpty();
+    boolean needRunningForResources = isSingleJobPerResourceEnabled()
+        && job.getResourceKeys() != null && !job.getResourceKeys().isEmpty();
+
+    //Load RUNNING-jobs list once - only if needed.
+    Future<List<Job>> runningJobsFuture = (needRunningForPolicies || needRunningForResources)
+        ? JobConfigClient.getInstance().loadJobs(RUNNING)
+        : Future.succeededFuture(List.of());
+
+    return runningJobsFuture
+        .compose(runningJobs -> executionPoliciesSatisfied(job, runningJobs, policiesToApply)
             .compose(policiesSatisfied -> {
               if (!policiesSatisfied)
                 return Future.succeededFuture(false);
-              return singleJobPerResourceSatisfied(job);
+              return singleJobPerResourceSatisfied(job, runningJobs);
             })
             .compose(singleJobCanGetStarted -> {
               if (!singleJobCanGetStarted)
                 return Future.succeededFuture(false);
               return enoughResourcesAvailable(job);
-            });
+            }));
   }
 
   /**
@@ -385,7 +408,7 @@ public abstract class JobExecutor implements Initializable {
    *         already occupies one of its resources or an older PENDING job exists for overlapping
    *         resources (in which case the job remains in PENDING and is re-checked later).
    */
-  private static Future<Boolean> singleJobPerResourceSatisfied(Job job) {
+  private static Future<Boolean> singleJobPerResourceSatisfied(Job job, List<Job> runningJobs) {
     if (!isSingleJobPerResourceEnabled())
       return Future.succeededFuture(true);
 
@@ -393,41 +416,40 @@ public abstract class JobExecutor implements Initializable {
     if (resourceKeys == null || resourceKeys.isEmpty())
       return Future.succeededFuture(true);
 
-    return JobConfigClient.getInstance().loadJobs(resourceKeys, RUNNING)
-        .compose(runningJobs -> {
-          //Filter the job itself in case its state is already RUNNING when this check runs
-          List<Job> conflictingRunning = runningJobs.stream()
+    //Filter the pre-loaded RUNNING jobs to those sharing at
+    //least one resource key (and excluding the job itself)
+    List<Job> conflictingRunning = runningJobs.stream()
+        .filter(other -> !job.getId().equals(other.getId()))
+        .filter(other -> other.getResourceKeys() != null && !Collections.disjoint(other.getResourceKeys(), resourceKeys))
+        .toList();
+
+    if (!conflictingRunning.isEmpty()) {
+      logger.info("[{}] Job can not be executed (yet) because the following RUNNING job(s) already occupy at least one of "
+              + "its source/target resources: {}",
+          job.getId(),
+          conflictingRunning.stream().map(Job::getId).collect(Collectors.joining(", ")));
+      return Future.succeededFuture(false);
+    }
+
+    //No RUNNING conflict exists. Enforce FIFO for pending jobs on overlapping resources.
+    //NOTE: This check is still needed even though checkPendingJobs() sorts by createdAt, because:
+    // 1. A job directly submitted via startExecution() (outside the poll loop) has no ordering guarantee.
+    // 2. An older job blocked by insufficient virtual units stays PENDING while a newer job could otherwise jump ahead.
+    return JobConfigClient.getInstance().loadJobs(resourceKeys, PENDING)
+        .map(pendingJobs -> {
+          List<Job> olderPendingConflicts = pendingJobs.stream()
               .filter(other -> !job.getId().equals(other.getId()))
+              .filter(other -> other.getCreatedAt() < job.getCreatedAt())
+              .sorted(comparingLong(Job::getCreatedAt))
               .toList();
 
-          if (!conflictingRunning.isEmpty()) {
-            logger.info("[{}] Job can not be executed (yet) because the following RUNNING job(s) already occupy at least one of "
-                    + "its source/target resources: {}",
-                job.getId(),
-                conflictingRunning.stream().map(Job::getId).collect(Collectors.joining(", ")));
-            return Future.succeededFuture(false);
-          }
+          if (olderPendingConflicts.isEmpty())
+            return true;
 
-          //No RUNNING conflict exists. Enforce FIFO for pending jobs on overlapping resources.
-          //NOTE: This check is still needed even though checkPendingJobs() sorts by createdAt, because:
-          // 1. A job directly submitted via startExecution() (outside the poll loop) has no ordering guarantee.
-          // 2. An older job blocked by insufficient virtual units stays PENDING while a newer job could otherwise jump ahead.
-          return JobConfigClient.getInstance().loadJobs(resourceKeys, PENDING)
-              .map(pendingJobs -> {
-                List<Job> olderPendingConflicts = pendingJobs.stream()
-                    .filter(other -> !job.getId().equals(other.getId()))
-                    .filter(other -> other.getCreatedAt() < job.getCreatedAt())
-                    .sorted(comparingLong(Job::getCreatedAt))
-                    .toList();
-
-                if (olderPendingConflicts.isEmpty())
-                  return true;
-
-                logger.info("[{}] Job can not be executed (yet) because older PENDING job(s) exist for overlapping resources: {}",
-                    job.getId(),
-                    olderPendingConflicts.stream().map(Job::getId).collect(Collectors.joining(", ")));
-                return false;
-              });
+          logger.info("[{}] Job can not be executed (yet) because older PENDING job(s) exist for overlapping resources: {}",
+              job.getId(),
+              olderPendingConflicts.stream().map(Job::getId).collect(Collectors.joining(", ")));
+          return false;
         });
   }
 
@@ -447,21 +469,15 @@ public abstract class JobExecutor implements Initializable {
             })));
   }
 
-  private Future<Boolean> executionPoliciesSatisfied(Job job) {
-    if (!isSingleJobAllowedPoliciesEnabled())
-      return Future.succeededFuture(true);
-
-    logger.info("[{}] Checking all execution policies prior to executing the job ...", job.getId());
-    Set<Predicate<Job>> policiesToApply = findMatchingJobPolicies(job);
+  private Future<Boolean> executionPoliciesSatisfied(Job job, List<Job> runningJobs, Set<Predicate<Job>> policiesToApply) {
     if (policiesToApply.isEmpty())
       return Future.succeededFuture(true);
 
+    logger.info("[{}] Checking all execution policies prior to executing the job ...", job.getId());
+
     //Check if there exists at least one other RUNNING job that matches one of the policies (if yes, the current job may not be executed)
-    return JobConfigClient.getInstance()
-        .loadJobs(RUNNING)
-        .compose(runningJobs ->
-            Future.succeededFuture(runningJobs.stream().noneMatch(runningJob ->
-                policiesToApply.stream().anyMatch(policy -> policy.test(runningJob)))));
+    return Future.succeededFuture(runningJobs.stream().noneMatch(runningJob ->
+        policiesToApply.stream().anyMatch(policy -> policy.test(runningJob))));
   }
 
   private Future<Boolean> needsExecution(Job job) {
@@ -528,7 +544,7 @@ public abstract class JobExecutor implements Initializable {
   }
 
   public static boolean isSchedulingPaused() {
-    return schedulerState.state() == SchedulerState.SchedulerRuntimeState.PAUSED;
+    return schedulerState.state() == PAUSED;
   }
 
   public static boolean isSingleJobAllowedPoliciesEnabled() {
@@ -539,11 +555,21 @@ public abstract class JobExecutor implements Initializable {
     return schedulerState.singleJobPerResourceEnabled();
   }
 
-  public static boolean applySchedulerState(SchedulerState patch) {
-    if (patch == null || patch.state() == null)
+  public static boolean applySchedulerState(SchedulerStatePatch patch) {
+    if (patch == null
+        || (patch.state() == null
+            && patch.singleJobAllowedPoliciesEnabled() == null
+            && patch.singleJobPerResourceEnabled() == null))
       return false;
 
-    schedulerState = patch;
+    SchedulerState current = schedulerState;
+    schedulerState = new SchedulerState(
+        patch.state() != null ? patch.state() : current.state(),
+        patch.singleJobAllowedPoliciesEnabled() != null
+            ? patch.singleJobAllowedPoliciesEnabled() : current.singleJobAllowedPoliciesEnabled(),
+        patch.singleJobPerResourceEnabled() != null
+            ? patch.singleJobPerResourceEnabled() : current.singleJobPerResourceEnabled()
+    );
     return true;
   }
 

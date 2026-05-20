@@ -36,6 +36,7 @@ import static io.vertx.core.http.HttpMethod.DELETE;
 import static io.vertx.core.http.HttpMethod.GET;
 import static io.vertx.core.http.HttpMethod.POST;
 import static io.vertx.core.http.HttpMethod.PUT;
+import static com.here.xyz.jobs.steps.execution.JobExecutor.SchedulerStatePatch;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
@@ -436,8 +437,8 @@ public class JobAdminApi extends JobApiBase {
     return deserializeFromBody(context, Job.class);
   }
 
-  private JobExecutor.SchedulerState getStateRequestFromBody(RoutingContext context) throws HttpException {
-    return deserializeFromBody(context, JobExecutor.SchedulerState.class);
+  private SchedulerStatePatch getStateRequestFromBody(RoutingContext context) throws HttpException {
+    return deserializeFromBody(context, SchedulerStatePatch.class);
   }
 
   private <T extends XyzSerializable> T deserializeFromBody(RoutingContext context, Class<T> type) throws HttpException {
@@ -458,7 +459,7 @@ public class JobAdminApi extends JobApiBase {
     if (body == null)
       throw new HttpException(BAD_REQUEST, "Request body must be a JSON object.");
 
-    JobExecutor.SchedulerState request = getStateRequestFromBody(context);
+    SchedulerStatePatch request = getStateRequestFromBody(context);
     boolean changeApplied = JobExecutor.applySchedulerState(request);
 
     if (!changeApplied)
