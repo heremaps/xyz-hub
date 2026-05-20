@@ -80,6 +80,7 @@ public class ImportFromFiles implements JobCompilationInterceptor {
     checkIfSpaceIsAccessible(spaceId);
 
     TaskedImportFilesToSpace importFilesStep = new TaskedImportFilesToSpace() //Perform import
+            .withFeatureWriterBatchSizeInMb(20)
             .withEntityPerLine(getEntityPerLine(sourceFormat))
             .withSpaceId(spaceId)
             .withVersionRef(new Ref(Ref.HEAD))

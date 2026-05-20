@@ -67,7 +67,7 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
   private List<String> positionalScriptParams = new ArrayList<>();
   private Map<String, String> namedScriptParams = new HashMap<>();
   private String sparkParams;
-  private Map<String, String> tags;
+  private Map<String, String> tags = new HashMap<>();
 
   @JsonIgnore
   public String getEmrJobName() {

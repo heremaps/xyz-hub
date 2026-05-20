@@ -18,6 +18,7 @@
  */
 package com.here.xyz.jobs.steps.impl.transport.tasks;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.here.xyz.Typed;
 import com.here.xyz.jobs.steps.impl.transport.tasks.inputs.CountInput;
@@ -27,6 +28,7 @@ import com.here.xyz.jobs.steps.impl.transport.tasks.inputs.ImportInput;
 import com.here.xyz.jobs.steps.impl.transport.tasks.outputs.ExportOutput;
 import com.here.xyz.jobs.steps.impl.transport.tasks.outputs.ImportOutput;
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 @JsonSubTypes({
         @JsonSubTypes.Type(value = CountInput.class, name = "CountInput"),
         @JsonSubTypes.Type(value = Empty.class, name = "Empty"),
