@@ -53,6 +53,7 @@ public abstract class TagConfigClient implements Initializable {
   public abstract Future<List<Tag>> getAllTags(Marker marker);
 
   public abstract Future<Void> storeTag(Marker marker, Tag tag);
+  public abstract Future<Void> storeSharedTags(Marker marker, List<Tag> sharedTags);
 
   public abstract Future<Tag> deleteTag(Marker marker, String id, String spaceId);
 
