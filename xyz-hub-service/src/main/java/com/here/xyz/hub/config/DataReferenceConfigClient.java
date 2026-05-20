@@ -112,21 +112,21 @@ public abstract class DataReferenceConfigClient implements Initializable {
    * Used to schedule expiry of references attached to a deleted space.
    */
   public final Future<Void> expireForEntity(@Nullable Marker marker, @Nonnull String entityId, long keepUntil) {
-    return loadByEntity(entityId)
-        .compose(references -> {
-          if (references == null || references.isEmpty()) {
-            logger.info(marker, "expireForEntity: no DataReferences found for entityId={}", entityId);
-            return Future.succeededFuture();
-          }
-          logger.info(marker, "expireForEntity: setting keepUntil={} on {} DataReferences for entityId={}",
-              keepUntil, references.size(), entityId);
-          List<Future<UUID>> updatedReferences = references.stream()
+    checkNotNull(entityId, "DataReference entityId cannot be null");
+    return loadByEntity(entityId).compose(references -> {
+      if (references == null || references.isEmpty()) {
+        logger.info(marker, "expireForEntity: no DataReferences found for entityId={}", entityId);
+        return Future.succeededFuture();
+      }
+      logger.info(marker, "expireForEntity: setting keepUntil={} on {} DataReferences for entityId={}",
+          keepUntil, references.size(), entityId);
+      return Future.all(references.stream()
               .map(reference -> doStore(reference.withKeepUntil(keepUntil))
                   .onFailure(t -> logger.warn(marker,
                       "expireForEntity: failed to update keepUntil for reference id={} entityId={}",
                       reference.getId(), entityId, t)))
-              .toList();
-          return Future.all(updatedReferences).mapEmpty();
-        });
+              .toList())
+          .mapEmpty();
+    });
   }
 }
