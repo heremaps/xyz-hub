@@ -35,6 +35,8 @@ import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.vertx.core.http.HttpMethod.DELETE;
 import static io.vertx.core.http.HttpMethod.GET;
 import static io.vertx.core.http.HttpMethod.POST;
+import static io.vertx.core.http.HttpMethod.PUT;
+import static com.here.xyz.jobs.steps.execution.JobExecutor.SchedulerStatePatch;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
@@ -59,6 +61,7 @@ public class JobAdminApi extends JobApiBase {
   private static final String ADMIN_JOB_STEP = ADMIN_JOB_STEPS + "/:stepId";
   private static final String ADMIN_JOB_STEP_STATUS = ADMIN_JOB_STEP + "/status";
   private static final String ADMIN_STATE_MACHINE_EVENTS = "/admin/state/events";
+  private static final String ADMIN_SERVICE_SCHEDULER_STATE = "/admin/service/scheduler/state";
 
   public JobAdminApi(Router router) {
     router.route(GET, ADMIN_JOBS).handler(handleErrors(this::getJobs));
@@ -68,6 +71,8 @@ public class JobAdminApi extends JobApiBase {
     router.route(GET, ADMIN_JOB_STEP).handler(handleErrors(this::getStep));
     router.route(POST, ADMIN_JOB_STEP_STATUS).handler(handleErrors(this::postStepStatus));
     router.route(POST, ADMIN_STATE_MACHINE_EVENTS).handler(handleErrors(this::postStateEvent));
+    router.route(GET, ADMIN_SERVICE_SCHEDULER_STATE).handler(handleErrors(this::getSchedulerState));
+    router.route(PUT, ADMIN_SERVICE_SCHEDULER_STATE).handler(handleErrors(this::putSchedulerState));
   }
 
   private void getJobs(RoutingContext context) {
@@ -432,6 +437,10 @@ public class JobAdminApi extends JobApiBase {
     return deserializeFromBody(context, Job.class);
   }
 
+  private SchedulerStatePatch getStateRequestFromBody(RoutingContext context) throws HttpException {
+    return deserializeFromBody(context, SchedulerStatePatch.class);
+  }
+
   private <T extends XyzSerializable> T deserializeFromBody(RoutingContext context, Class<T> type) throws HttpException {
     try {
       return XyzSerializable.deserialize(context.body().asString(), type);
@@ -443,5 +452,28 @@ public class JobAdminApi extends JobApiBase {
 
   private static String stepId(RoutingContext context) {
     return context.pathParam("stepId");
+  }
+
+  private void putSchedulerState(RoutingContext context) throws HttpException {
+    String body = context.body().asString();
+    if (body == null)
+      throw new HttpException(BAD_REQUEST, "Request body must be a JSON object.");
+
+    SchedulerStatePatch request = getStateRequestFromBody(context);
+    boolean changeApplied = JobExecutor.applySchedulerState(request);
+
+    if (!changeApplied)
+      throw new HttpException(BAD_REQUEST,
+          "Nothing to update. Provide 'state', 'singleJobAllowedPoliciesEnabled' and/or 'singleJobPerResourceEnabled'.");
+
+    JobExecutor.loadSchedulerState()
+        .onSuccess(state -> sendResponse(context, OK, state))
+        .onFailure(t -> sendErrorResponse(context, t));
+  }
+
+  private void getSchedulerState(RoutingContext context) {
+    JobExecutor.loadSchedulerState()
+        .onSuccess(state -> sendResponse(context, OK, state))
+        .onFailure(t -> sendErrorResponse(context, t));
   }
 }

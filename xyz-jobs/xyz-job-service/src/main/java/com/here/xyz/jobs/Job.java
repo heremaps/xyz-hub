@@ -538,8 +538,8 @@ public class Job implements XyzSerializable {
             //Delete the inputs of this job
             .compose(b -> deleteInputs())
             //Delete the outputs of this job
-            .compose(v -> hasRegisterDataReferencesStep()
-                    //Temporary deletion deactivation for jobs with RegisterDataReferences step(s).
+            .compose(v -> (hasRegisterDataReferencesStep() || isReleaseJob())
+                    //Temporary deletion deactivation for jobs with RegisterDataReferences step(s) or for release jobs.
                     ? Future.succeededFuture()
                     : Future.all(Job.forEach(getSteps().stepStream().toList(), Job::deleteStepOutputs)).mapEmpty());
   }
@@ -548,6 +548,10 @@ public class Job implements XyzSerializable {
     return getSteps() != null
         && getSteps().stepStream().anyMatch(step -> step != null
             && "RegisterDataReferences".equals(step.getClass().getSimpleName()));
+  }
+
+  private boolean isReleaseJob() {
+    return getProcess() != null && "Release".equalsIgnoreCase(getProcess().getClass().getSimpleName());
   }
 
   private static Future<Void> deleteStepOutputs(Step step) {
