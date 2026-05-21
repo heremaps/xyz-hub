@@ -437,6 +437,59 @@ class DynamoDataReferenceConfigClientIT extends DynamoDbIT {
       .containsExactlyElementsOf(expectedResults);
   }
 
+  @Test
+  void shouldLoadAllReferencesForEntityViaLoadByEntity() {
+    String entityA = "entity-A-" + UUID.randomUUID();
+    String entityB = "entity-B-" + UUID.randomUUID();
+
+    DataReference a1 = dataReference(UUID.randomUUID()).withEntityId(entityA).withEndVersion(1);
+    DataReference a2 = dataReference(UUID.randomUUID()).withEntityId(entityA).withEndVersion(2);
+    DataReference b1 = dataReference(UUID.randomUUID()).withEntityId(entityB).withEndVersion(1);
+    awaitResult(dataReferences.store(a1));
+    awaitResult(dataReferences.store(a2));
+    awaitResult(dataReferences.store(b1));
+
+    List<DataReference> result = awaitResult(dataReferences.loadByEntity(entityA));
+
+    assertThat(result)
+        .hasSize(2)
+        .extracting(DataReference::getEntityId)
+        .containsOnly(entityA);
+  }
+
+  @Test
+  void shouldExpireAllReferencesForEntityViaExpireForEntity() {
+    String entityA = "entity-A-" + UUID.randomUUID();
+    String entityB = "entity-B-" + UUID.randomUUID();
+
+    DataReference a1 = dataReference(UUID.randomUUID()).withEntityId(entityA).withEndVersion(1);
+    DataReference a2 = dataReference(UUID.randomUUID()).withEntityId(entityA).withEndVersion(2).withKeepUntil(1_000_000_000_000L);
+    DataReference b1 = dataReference(UUID.randomUUID()).withEntityId(entityB).withEndVersion(1);
+    awaitResult(dataReferences.store(a1));
+    awaitResult(dataReferences.store(a2));
+    awaitResult(dataReferences.store(b1));
+
+    long newKeepUntilMs = 2_000_000_000_000L;
+    awaitResult(dataReferences.expireForEntity(null, entityA, newKeepUntilMs));
+
+    DataReference a1Reloaded = awaitResult(dataReferences.load(a1.getId())).orElseThrow();
+    DataReference a2Reloaded = awaitResult(dataReferences.load(a2.getId())).orElseThrow();
+    DataReference b1Reloaded = awaitResult(dataReferences.load(b1.getId())).orElseThrow();
+
+    assertThat(a1Reloaded.getKeepUntil()).isEqualTo(newKeepUntilMs);
+    assertThat(a2Reloaded.getKeepUntil()).isEqualTo(newKeepUntilMs);
+    assertThat(b1Reloaded.getKeepUntil()).isNull();
+  }
+
+  @Test
+  void shouldCompleteSuccessfullyWhenExpireForEntityFindsNoReferences() {
+    String missingEntityId = "no-such-entity-" + UUID.randomUUID();
+
+    awaitResult(dataReferences.expireForEntity(null, missingEntityId, 1_000L));
+
+    assertThat(awaitResult(dataReferences.loadByEntity(missingEntityId))).isEmpty();
+  }
+
   private static <T> T awaitResult(Future<T> future) {
     return future.toCompletionStage().toCompletableFuture().join();
   }
