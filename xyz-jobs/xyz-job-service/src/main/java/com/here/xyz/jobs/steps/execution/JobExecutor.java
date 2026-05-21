@@ -65,10 +65,10 @@ public abstract class JobExecutor implements Initializable {
   /**
    * Live scheduler configuration.
    * <p>Defaults: state={@code RUNNING}, singleJobAllowedPoliciesEnabled={@code true},
-   * singleJobPerResourceEnabled={@code true}.
+   * singleJobPerResourceEnabled={@code false}.
    */
   private static volatile SchedulerState schedulerState = new SchedulerState(
-      SchedulerState.SchedulerRuntimeState.RUNNING, true, true
+      SchedulerState.SchedulerRuntimeState.RUNNING, true, false
   );
   private static final long CANCELLATION_TIMEOUT = 10 * 60 * 1_000; //10 min
   private static final long CANCELLATION_CHECK_RERUN_PERIOD = 10_000; //10 sec
