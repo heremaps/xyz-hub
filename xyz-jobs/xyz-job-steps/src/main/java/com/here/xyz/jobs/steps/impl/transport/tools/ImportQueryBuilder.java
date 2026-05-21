@@ -95,23 +95,20 @@ public class ImportQueryBuilder {
             .withVariable("table", getTemporaryDataTableName(taskId));
   }
 
-  public SQLQuery buildCleanUpStatement(){
-    return SQLQuery.batchOf(
-            //Delete trigger - if present
-            new SQLQuery("DROP TRIGGER IF EXISTS insertTrigger ON ${schema}.${table};")
-              .withVariable("schema", schema)
-              .withVariable("table", rootTable),
-            //Delete all existing temporary tables
-            buildDropAllTemporaryTablesByStepPrefixQuery());
+  public SQLQuery buildTriggerCleanUpStatement(){
+    //Delete trigger - if present
+   return new SQLQuery("DROP TRIGGER IF EXISTS insertTrigger ON ${schema}.${table};")
+      .withVariable("schema", schema)
+      .withVariable("table", rootTable);
   }
 
-  public SQLQuery buildDropAllTemporaryDataTablesForImportQuery(int taskCount) {
-    if (taskCount <= 0) {
+  public SQLQuery buildDropAllTemporaryTablesByTaskItemCount(int taskItemCount) {
+    if (taskItemCount <= 0) {
       return SQLQuery.batchOf(List.of());
     }
 
     List<SQLQuery> dropQueries = new java.util.ArrayList<>();
-    for (int taskId = 1; taskId <= taskCount; taskId++) {
+    for (int taskId = 1; taskId <= taskItemCount; taskId++) {
       dropQueries.add(dropTemporaryDataTableForImportQuery(taskId));
     }
     return SQLQuery.batchOf(dropQueries);

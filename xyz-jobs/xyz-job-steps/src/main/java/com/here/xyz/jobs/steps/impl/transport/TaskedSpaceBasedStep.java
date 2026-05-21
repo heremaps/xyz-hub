@@ -582,16 +582,14 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
 
   @Override
   protected void onAsyncSuccess() throws Exception {
-    infoLog(STEP_ON_ASYNC_SUCCESS, "Reached onAsyncSuccess!");
-    finalizeStep();
-  }
+    infoLog(STEP_ON_ASYNC_SUCCESS, "Reached onAsyncSuccess! Start collecting task outputs!");
 
-  private void finalizeStep() throws IOException, WebClientException, SQLException, TooManyResourcesClaimed {
     //Collect outputs and process them
     processFinalizedTasks(collectOutputs());
 
+    infoLog(STEP_ON_ASYNC_SUCCESS, "End collecting task outputs!");
     //Clean up temporary resources
-    cleanUpDbResources(STEP_ON_ASYNC_UPDATE);
+    cleanUpDbResources(STEP_ON_ASYNC_SUCCESS);
   }
 
   @Override
@@ -687,7 +685,8 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
 
   private AsyncExecutionState evaluateExecutionState(TaskProgress taskProgress) throws UnknownStateException {
     if (taskProgress.isComplete()) {
-      return AsyncExecutionState.SUCCEEDED;
+      //Only log and return RUNNING to avoid double success handling;
+      infoLog(STEP_ON_STATE_CHECK, "All tasks finalized!");
     }if (taskProgress.hasRunningTasks())
       // Check if the expected queries are still running.
       return super.getExecutionState();
