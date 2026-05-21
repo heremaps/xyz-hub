@@ -164,6 +164,7 @@ $BODY$;
  *   - 57P01 admin_shutdown
  *   - 22P02 invalid_text_representation (import only in practice)
  *   - 22P04 bad_copy_file_format        (import only in practice)
+ *   - 58000 system_error / could not upload to Amazon S3  (export)
  */
 CREATE OR REPLACE FUNCTION is_retryable_s3_sqlstate(state TEXT)
     RETURNS BOOLEAN
@@ -177,7 +178,8 @@ AS $BODY$
         '53300',
         '08000', '08001', '08003', '08006', '08004',
        -- '57P01', TBD: clarify
-        '22P02', '22P04'
+        '22P02', '22P04',
+        '58000'
     );
 $BODY$;
 
