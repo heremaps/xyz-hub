@@ -231,11 +231,13 @@ class FeatureWriter {
           }
         }
         else {
+          /* temp deactivation
           let baseFeature = existingFeature;
           if (!Object.keys(this.diff(baseFeature, this.inputFeature)).length)
             //If the diff is empty, no history row needs to be inserted
             return new FeatureModificationExecutionResult(ExecutionAction.NONE, this.inputFeature, this.version, this.author)
-
+          */
+          
           /*
           NOTE: Only do the transformation to an update operation if the target is not a composite
           or if it's a composite the existing feature must have come from the top-level table
