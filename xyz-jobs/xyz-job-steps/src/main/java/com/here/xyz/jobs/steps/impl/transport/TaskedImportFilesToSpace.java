@@ -246,7 +246,14 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
 
   @Override
   protected void finalCleanUp(boolean noTasksCreated) throws WebClientException, SQLException, TooManyResourcesClaimed {
-    runBatchWriteQuerySync(getQueryBuilder().buildCleanUpStatement(), db(), 0);
+    if(!useFeatureWriter())
+      runWriteQuerySync(getQueryBuilder().buildTriggerCleanUpStatement(), db(), 0);
+
+    //Currently the temporary tables are only used for the import into non-empty layers (feature writer).
+    //Only for failed steps there will be remaining tmp_tables. We keep the tables for a possible resume of the job.
+    //TODO: use the implementation below once the framework supports proper resource cleanups on jobDeletions
+    //else
+    //  runBatchWriteQuerySync(getQueryBuilder().buildDropAllTemporaryTablesByTaskItemCount(taskItemCount), db(), 0);
   }
 
   @Override

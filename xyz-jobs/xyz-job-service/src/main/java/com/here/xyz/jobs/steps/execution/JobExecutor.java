@@ -65,10 +65,10 @@ public abstract class JobExecutor implements Initializable {
   /**
    * Live scheduler configuration.
    * <p>Defaults: state={@code RUNNING}, singleJobAllowedPoliciesEnabled={@code true},
-   * singleJobPerResourceEnabled={@code true}.
+   * singleJobPerResourceEnabled={@code false}.
    */
   private static volatile SchedulerState schedulerState = new SchedulerState(
-      SchedulerState.SchedulerRuntimeState.RUNNING, true, true
+      SchedulerState.SchedulerRuntimeState.RUNNING, true, false
   );
   private static final long CANCELLATION_TIMEOUT = 10 * 60 * 1_000; //10 min
   private static final long CANCELLATION_CHECK_RERUN_PERIOD = 10_000; //10 sec
@@ -412,15 +412,15 @@ public abstract class JobExecutor implements Initializable {
     if (!isSingleJobPerResourceEnabled())
       return Future.succeededFuture(true);
 
-    Set<String> resourceKeys = job.getResourceKeys();
-    if (resourceKeys == null || resourceKeys.isEmpty())
+    String resourceKey = job.getResourceKey();
+    if (resourceKey == null || resourceKey.isEmpty())
       return Future.succeededFuture(true);
 
     //Filter the pre-loaded RUNNING jobs to those sharing at
     //least one resource key (and excluding the job itself)
     List<Job> conflictingRunning = runningJobs.stream()
         .filter(other -> !job.getId().equals(other.getId()))
-        .filter(other -> other.getResourceKeys() != null && !Collections.disjoint(other.getResourceKeys(), resourceKeys))
+        .filter(other -> resourceKey.equals(other.getResourceKey()))
         .toList();
 
     if (!conflictingRunning.isEmpty()) {
@@ -435,7 +435,7 @@ public abstract class JobExecutor implements Initializable {
     //NOTE: This check is still needed even though checkPendingJobs() sorts by createdAt, because:
     // 1. A job directly submitted via startExecution() (outside the poll loop) has no ordering guarantee.
     // 2. An older job blocked by insufficient virtual units stays PENDING while a newer job could otherwise jump ahead.
-    return JobConfigClient.getInstance().loadJobs(resourceKeys, PENDING)
+    return JobConfigClient.getInstance().loadJobs(resourceKey, PENDING)
         .map(pendingJobs -> {
           List<Job> olderPendingConflicts = pendingJobs.stream()
               .filter(other -> !job.getId().equals(other.getId()))
