@@ -531,7 +531,8 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
       }catch (SQLException e){
         if (e.getSQLState() != null && e.getSQLState().toUpperCase().equals("42P01")) {
           //if the job_data table is not present anymore during a resume, we expect that the last execution completed
-          //after der StateMaschnine was already canceled. In this case only have to report success.
+          //after der StateMaschnine was already canceled. In this case we only have to report success.
+          infoLog(STEP_EXECUTE, "Reset of taskItems failed - we assume a previous success!");
           reportAsyncSuccess();
           return;
         }else
