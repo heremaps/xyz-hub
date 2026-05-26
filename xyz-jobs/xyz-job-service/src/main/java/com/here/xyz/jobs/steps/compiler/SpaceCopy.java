@@ -112,10 +112,6 @@ public class SpaceCopy implements JobCompilationInterceptor {
         return null;
       }
 
-      // MMSUP-2568 in case startversion is 0 - remove "range"
-      if( resolvedVersionRef != null && resolvedVersionRef.isRange() && resolvedVersionRef.getStart().getVersion() == 0l )
-       resolvedVersionRef = resolvedVersionRef.getEnd();
-
       targetContext = hubWebClient().loadSpace(targetSpaceId).getExtension() != null ? EXTENSION : null;
       sourceStatistics = hubWebClient().loadSpaceStatistics(sourceSpaceId, sourceContext);
       targetStatistics = hubWebClient().loadSpaceStatistics(targetSpaceId, targetContext);
