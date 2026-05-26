@@ -1965,7 +1965,19 @@ $BODY$
                    'VALUES ($1, $2, $3, $4, $5, xyz_geoFromWkb($6))', schema, tableName)
             USING id, version, operation, author, jsondata, geo;
 
-        -- If the current history partition is nearly full, create the next one already
+        -- Create the next history partition proactively. Start once the current partition is half full,
+        -- then repeat at regular intervals (~100 attempts per second half for the default partition size).
+        IF version % partitionSize >= partitionSize / 2 AND version % greatest(partitionSize / 200, 1) = 0 THEN
+            BEGIN
+                EXECUTE xyz_create_history_partition(schema, tableName, (floor(version / partitionSize) + 1)::BIGINT, partitionSize);
+            EXCEPTION WHEN OTHERS THEN
+                RAISE WARNING 'Best-effort history partition creation failed for %.% at version %: %',
+                    schema, tableName, version, SQLERRM;
+            END;
+        END IF;
+
+        -- Keep the near-full safety net strict. At this point a failure must abort the write so the
+        -- application-level recovery path can create the partition and retry the whole modification.
         IF version % partitionSize > partitionSize - 50 THEN
             EXECUTE xyz_create_history_partition(schema, tableName, (floor(version / partitionSize) + 1)::BIGINT, partitionSize);
         END IF;
