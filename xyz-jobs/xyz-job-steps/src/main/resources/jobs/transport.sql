@@ -573,11 +573,11 @@ BEGIN
             task_item.task_id
        );
 
-       RETURN QUERY SELECT v_total, v_started, v_finalized, task_item.task_id, task_item.task_input;
+       RETURN QUERY SELECT v_total, v_started + 1, v_finalized, task_item.task_id, task_item.task_input;
        RETURN;
     END IF;
 
-    IF v_total > v_finalized + v_started THEN
+    IF v_total > v_started THEN
         -- There are unstarted tasks, but all are locked -> Wait & retry
         PERFORM pg_sleep(2);
         RETURN QUERY SELECT * FROM get_task_item_and_statistics();

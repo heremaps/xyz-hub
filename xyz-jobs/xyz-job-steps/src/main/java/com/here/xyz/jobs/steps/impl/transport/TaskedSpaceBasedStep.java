@@ -564,15 +564,22 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
         finalizeTaskQuery(update.taskId); //hook method
 
         TaskProgress taskProgressAndItem = finalizeCurrentTaskAndGetTaskProgressAndNextTaskItem(update);
+        //Calculate progress and set it on the step's status
+        getStatus().setEstimatedProgress((float) taskProgressAndItem.getFinalizedTasks() / (float) taskProgressAndItem.getTotalTasks());
+
         if (taskProgressAndItem.isComplete()) {
+          //All tasks are finalized - succeed!
           return true;
-        }else {
-          infoLog(STEP_ON_ASYNC_UPDATE, "Found existing tasks. Start new item:" + taskProgressAndItem);
-          //If we are not finished, start the next task
-          startTask(taskProgressAndItem);
-          //Calculate progress and set it on the step's status
-          getStatus().setEstimatedProgress((float) taskProgressAndItem.getFinalizedTasks() / (float) taskProgressAndItem.getTotalTasks());
         }
+
+        if (!taskProgressAndItem.hasTaskItem()) {
+          infoLog(STEP_ON_ASYNC_UPDATE,"No claimable task. Waiting for running tasks to finish: " + taskProgressAndItem);
+          return false;
+        }
+
+        infoLog(STEP_ON_ASYNC_UPDATE,"Found existing tasks. Start new item: " + taskProgressAndItem);
+        startTask(taskProgressAndItem);
+        return false;
       }
       return false;
     }catch (Exception e) {
@@ -871,6 +878,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
         .withNamedParameter("taskId", update.taskId)
         .withNamedParameter("taskOutput", XyzSerializable.serialize(update))
         .withNamedParameter("finalized", true)
+        .withLock(this.getId())
         .withContext(getQueryContext(schema))
         .withRetryableErrorCodes(RETRYABLE_SQL_CODES);
   }
