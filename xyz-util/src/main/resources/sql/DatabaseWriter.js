@@ -372,15 +372,32 @@ class DatabaseWriter {
   }
 
   /**
-   * If the current history partition is nearly full, create the next one already
+   * Create the next history partition proactively once the current partition is half full,
+   * then repeat at regular intervals. Early attempts are best-effort, while the near-full safety net is strict.
    * @param version The version that is about to be written
    * @private
    */
   _createHistoryPartition(version) {
     const PARTITION_SIZE = this._PARTITION_SIZE();
-    if (version % PARTITION_SIZE > PARTITION_SIZE - 50)
-      plv8.execute(`SELECT xyz_create_history_partition($1, $2, $3::BIGINT, $4::BIGINT);`,
-          [this.schema, this.table, Math.floor(version / PARTITION_SIZE) + 1, PARTITION_SIZE]);
+    const partitionOffset = version % PARTITION_SIZE;
+    const preCreationInterval = Math.max(Math.floor(PARTITION_SIZE / 200), 1);
+    const nearFull = partitionOffset > PARTITION_SIZE - 50;
+    const bestEffortPreCreation = partitionOffset >= Math.floor(PARTITION_SIZE / 2) && version % preCreationInterval === 0;
+    const parameters = [this.schema, this.table, Math.floor(version / PARTITION_SIZE) + 1, PARTITION_SIZE];
+
+    if (nearFull) {
+      plv8.execute(`SELECT xyz_create_history_partition($1, $2, $3::BIGINT, $4::BIGINT);`, parameters);
+      return;
+    }
+
+    if (bestEffortPreCreation) {
+      try {
+        plv8.execute(`SELECT xyz_create_history_partition($1, $2, $3::BIGINT, $4::BIGINT);`, parameters);
+      }
+      catch (e) {
+        plv8.elog(WARNING, `FW_LOG [${queryContext().queryId}] Best-effort history partition creation failed for ${this.schema}.${this.table} at version ${version}: ${e.message || e}`);
+      }
+    }
   }
 
   _purgeOldChangesets(version) {
