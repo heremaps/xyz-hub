@@ -26,6 +26,9 @@ import static com.here.xyz.psql.DatabaseWriter.ModificationType.INSERT;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE;
 import static com.here.xyz.psql.query.XyzEventBasedQueryRunner.readBranchTableFromEvent;
 import static com.here.xyz.responses.XyzError.NOT_IMPLEMENTED;
+import static com.here.xyz.util.db.pg.LockHelper.advisoryLock;
+import static com.here.xyz.util.db.pg.LockHelper.advisoryUnlock;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.PARTITION_SIZE;
 
 import com.amazonaws.services.lambda.runtime.Context;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -54,11 +57,13 @@ import com.here.xyz.util.db.datasource.CachedPooledDataSources;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import com.here.xyz.util.db.datasource.DatabaseSettings;
 import com.here.xyz.util.db.datasource.DatabaseSettings.ScriptResourcePath;
+import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
 import com.here.xyz.util.runtime.FunctionRuntime;
 import com.here.xyz.util.runtime.LambdaFunctionRuntime;
 import java.sql.BatchUpdateException;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -88,10 +93,13 @@ public abstract class DatabaseHandler extends StorageConnector {
     private static String INCLUDE_OLD_STATES = "includeOldStates"; // read from event params
 
     private boolean retryAttempted;
+    private boolean missingPartitionRecoveryAttempted;
 
     void reset() {
         //Clear the data sources cache
         CachedPooledDataSources.invalidateCache();
+        retryAttempted = false;
+        missingPartitionRecoveryAttempted = false;
     }
 
     protected DataSourceProvider dataSourceProvider;
@@ -126,6 +134,7 @@ public abstract class DatabaseHandler extends StorageConnector {
 
             dataSourceProvider = new CachedPooledDataSources(dbSettings);
             retryAttempted = false;
+            missingPartitionRecoveryAttempted = false;
             DataSourceProvider.setDefaultProvider(dataSourceProvider);
             this.dbSettings = dbSettings;
         }
@@ -322,6 +331,14 @@ public abstract class DatabaseHandler extends StorageConnector {
                 /** Add objects which are responsible for the failed operation */
                 event.setFailed(fails);
 
+                boolean missingHistoryPartition = DatabaseWriter.isMissingHistoryPartitionException(e);
+                boolean historyPartitionLockNotAvailable = DatabaseWriter.isLockNotAvailableException(e);
+                if ((missingHistoryPartition || historyPartitionLockNotAvailable)
+                    && recoverHistoryPartition(event, version, connection, historyPartitionLockNotAvailable)) {
+                    logger.warn("{} triggered retry after history partition recovery.", traceItem, e);
+                    return executeModifyFeatures(event);
+                }
+
                 if (retryCausedOnServerlessDB(e) && !retryAttempted) {
                     if(!connection.isClosed())
                     { connection.setAutoCommit(previousAutoCommitState);
@@ -335,10 +352,9 @@ public abstract class DatabaseHandler extends StorageConnector {
                 if (event.getTransaction()) {
                     connection.rollback();
 
-                    if (e instanceof SQLException sqlException && sqlException.getSQLState() != null
-                            && sqlException.getSQLState().equalsIgnoreCase("42P01"))
-                        ;//Table does not exist yet - create it!
-                    else {
+                    boolean tableDoesNotExist = e instanceof SQLException sqlException && sqlException.getSQLState() != null
+                            && sqlException.getSQLState().equalsIgnoreCase("42P01");
+                    if (!tableDoesNotExist) {
 
                         logger.warn("{} Transaction has failed. ", traceItem, e);
                         connection.close();
@@ -421,6 +437,47 @@ public abstract class DatabaseHandler extends StorageConnector {
 
             return collection;
         }
+    }
+
+    private boolean recoverHistoryPartition(ModifyFeaturesEvent event, long version, Connection connection, boolean createNextPartition)
+        throws SQLException {
+        if (missingPartitionRecoveryAttempted)
+            return false;
+
+        int remainingSeconds = FunctionRuntime.getInstance().getRemainingTime() / 1000;
+        if (!isRemainingTimeSufficient(remainingSeconds))
+            throw new SQLException("No time left to create missing history partition.", "54000");
+
+        missingPartitionRecoveryAttempted = true;
+        retryAttempted = true;
+
+        boolean previousAutoCommitState = connection.getAutoCommit();
+        if (!previousAutoCommitState)
+            connection.rollback();
+
+        String table = readBranchTableFromEvent(event);
+        long partitionNo = Math.floorDiv(version, PARTITION_SIZE) + (createNextPartition ? 1 : 0);
+        SQLQuery createPartitionQuery = XyzSpaceTableHelper.buildCreateHistoryPartitionQuery(dbSettings.getSchema(), table, partitionNo, true);
+
+        logger.warn("{} History partition recovery triggered for {}.{} and version {}. Creating partition no {} before retry.",
+            traceItem, dbSettings.getSchema(), table, version, partitionNo);
+
+        try {
+            connection.setAutoCommit(true);
+            advisoryLock(table, connection);
+            try (Statement statement = connection.createStatement()) {
+                statement.setQueryTimeout(calculateTimeout());
+                statement.execute(createPartitionQuery.toExecutableQueryString());
+            }
+            finally {
+                advisoryUnlock(table, connection);
+            }
+        }
+        finally {
+            connection.setAutoCommit(previousAutoCommitState);
+        }
+
+        return true;
     }
 
     private boolean checkUniqueTableConstraint(ModifyFeaturesEvent event) throws SQLException {
