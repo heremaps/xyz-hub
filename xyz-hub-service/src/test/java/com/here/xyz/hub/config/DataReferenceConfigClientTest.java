@@ -107,20 +107,20 @@ class DataReferenceConfigClientTest {
   }
 
   @Test
-  void expireForEntity_shouldUse24hFromNow_whenCalledWithDayMillis() {
+  void expireForEntity_shouldUse2hFromNow_whenCalled() {
     DataReference r = newRef(null);
     client.loadResult = Future.succeededFuture(List.of(r));
 
     long now = System.currentTimeMillis();
-    long target = now + ONE_DAY_MS;
+    long target = now + TimeUnit.HOURS.toMillis(2);
     await(client.expireForEntity(marker, ENTITY_ID, target));
 
     assertThat(client.storedRefs).hasSize(1);
     Long stored = client.storedRefs.get(0).getKeepUntil();
     assertThat(stored).isNotNull();
 
-    assertThat(stored - now).isEqualTo(ONE_DAY_MS);
-    assertThat(stored - now).isEqualTo(86_400_000L);
+    assertThat(stored - now).isEqualTo(TimeUnit.HOURS.toMillis(2));
+    assertThat(stored - now).isEqualTo(7200000L);
   }
 
   @Test
