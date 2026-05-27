@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -333,7 +333,7 @@ public class GraphFusionTool {
   private static String updateEmrScriptParamReferences(RunEmrJob runEmrJob, StepGraph containingStepGraph, String referenceIdentifier) {
     try {
       //Will throw an exception if the referenced inputSet is not found in the step
-      runEmrJob.fromReferenceIdentifier(referenceIdentifier);
+      runEmrJob.fromInputReferenceIdentifier(referenceIdentifier);
       //In case it was found, it means the reference is pointing to a "new" output, keep the reference as it is
       return null;
     }

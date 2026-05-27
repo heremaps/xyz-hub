@@ -811,13 +811,24 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
       this.stepId = other.stepId;
     }
 
-    public OutputSet(S3Uri s3Uri, String name) {
+    private OutputSet(S3Uri s3Uri, String name) {
       this.s3Uri = s3Uri;
       this.name = name;
       stepId = GENERIC_PROVIDER;
       visibility = SYSTEM;
       jobId = null;
       fileSuffix = "unknown";
+    }
+
+    /**
+     * NOTE: This factory method should only be used for already existing datasets (e.g. from references)
+     * Compilers *must not* use a generic OuputSet for the purpose of passing outputs from one step as inputs to the next step.
+     * @param s3Uri
+     * @param name
+     * @return
+     */
+    public static OutputSet newGenericOutputSet(S3Uri s3Uri, String name) {
+      return new OutputSet(s3Uri, name);
     }
 
     public String getJobId() {
