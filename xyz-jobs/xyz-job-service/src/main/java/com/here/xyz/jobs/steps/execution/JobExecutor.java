@@ -44,7 +44,6 @@ import com.here.xyz.util.service.Initializable;
 import io.vertx.core.Future;
 import io.vertx.core.impl.ConcurrentHashSet;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Executors;
@@ -68,7 +67,7 @@ public abstract class JobExecutor implements Initializable {
    * singleJobPerResourceEnabled={@code false}.
    */
   private static volatile SchedulerState schedulerState = new SchedulerState(
-      SchedulerState.SchedulerRuntimeState.RUNNING, true, false
+      SchedulerState.SchedulerRuntimeState.RUNNING, true, true
   );
   private static final long CANCELLATION_TIMEOUT = 10 * 60 * 1_000; //10 min
   private static final long CANCELLATION_CHECK_RERUN_PERIOD = 10_000; //10 sec
