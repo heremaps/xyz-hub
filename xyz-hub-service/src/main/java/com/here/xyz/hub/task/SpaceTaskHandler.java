@@ -846,8 +846,8 @@ public class SpaceTaskHandler {
         .map(Future::all)
         .mapEmpty();
 
-    //Schedule expiry of any DataReferences pointing to this space by setting keepUntil to now + 2h.
-    final long keepUntil = Core.currentTimeMillis() + TimeUnit.HOURS.toMillis(2);
+    //Schedule expiry of any DataReferences pointing to this space by setting keepUntil to now + 24h.
+    final long keepUntil = Core.currentTimeMillis() + TimeUnit.HOURS.toMillis(24);
     final Future<Void> expireReferencesFuture = DataReferenceConfigClient.getInstance()
         .expireForEntity(task.getMarker(), spaceId, keepUntil)
         .onFailure(e -> logger.error(task.getMarker(),

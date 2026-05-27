@@ -44,7 +44,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class DataReferenceConfigClientTest {
 
   private static final String ENTITY_ID = "space-id-test";
-  private static final long ONE_DAY_MS = TimeUnit.DAYS.toMillis(1);
+  private static final long TWENTY_FOUR_HOURS_MS = TimeUnit.HOURS.toMillis(24);
 
   @Mock
   private Marker marker;
@@ -60,7 +60,7 @@ class DataReferenceConfigClientTest {
   void expireForEntity_shouldComplete_whenNoReferencesExistForEntity() {
     client.loadResult = Future.succeededFuture(List.of());
 
-    Void result = await(client.expireForEntity(marker, ENTITY_ID, ONE_DAY_MS));
+    Void result = await(client.expireForEntity(marker, ENTITY_ID, TWENTY_FOUR_HOURS_MS));
 
     assertThat(result).isNull();
     assertThat(client.storedRefs).isEmpty();
@@ -71,7 +71,7 @@ class DataReferenceConfigClientTest {
   void expireForEntity_shouldComplete_whenLoadReturnsNullList() {
     client.loadResult = Future.succeededFuture(null);
 
-    Void result = await(client.expireForEntity(marker, ENTITY_ID, ONE_DAY_MS));
+    Void result = await(client.expireForEntity(marker, ENTITY_ID, TWENTY_FOUR_HOURS_MS));
 
     assertThat(result).isNull();
     assertThat(client.storedRefs).isEmpty();
@@ -84,7 +84,7 @@ class DataReferenceConfigClientTest {
     DataReference r3 = newRef(null);
     client.loadResult = Future.succeededFuture(List.of(r1, r2, r3));
 
-    long newKeepUntil = ONE_DAY_MS;
+    long newKeepUntil = TWENTY_FOUR_HOURS_MS;
     await(client.expireForEntity(marker, ENTITY_ID, newKeepUntil));
 
     assertThat(client.storedRefs).containsExactlyInAnyOrder(r1, r2, r3);
@@ -107,20 +107,20 @@ class DataReferenceConfigClientTest {
   }
 
   @Test
-  void expireForEntity_shouldUse2hFromNow_whenCalled() {
+  void expireForEntity_shouldUse24hFromNow_whenCalled() {
     DataReference r = newRef(null);
     client.loadResult = Future.succeededFuture(List.of(r));
 
     long now = System.currentTimeMillis();
-    long target = now + TimeUnit.HOURS.toMillis(2);
+    long target = now + TWENTY_FOUR_HOURS_MS;
     await(client.expireForEntity(marker, ENTITY_ID, target));
 
     assertThat(client.storedRefs).hasSize(1);
     Long stored = client.storedRefs.get(0).getKeepUntil();
     assertThat(stored).isNotNull();
 
-    assertThat(stored - now).isEqualTo(TimeUnit.HOURS.toMillis(2));
-    assertThat(stored - now).isEqualTo(7200000L);
+    assertThat(stored - now).isEqualTo(TWENTY_FOUR_HOURS_MS);
+    assertThat(stored - now).isEqualTo(86_400_000L);
   }
 
   @Test

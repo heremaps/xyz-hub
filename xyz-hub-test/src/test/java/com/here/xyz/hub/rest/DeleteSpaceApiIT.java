@@ -37,7 +37,7 @@ import org.junit.Test;
 
 public class DeleteSpaceApiIT extends TestSpaceWithFeature {
 
-  private static final long TWO_HOURS_EXPIRY = TimeUnit.HOURS.toMillis(2);
+  private static final long TWENTY_FOUR_HOURS_EXPIRY = TimeUnit.HOURS.toMillis(24);
   private static final long TOLERANCE_MS = TimeUnit.SECONDS.toMillis(5);
 
   private static String spaceName;
@@ -134,8 +134,8 @@ public class DeleteSpaceApiIT extends TestSpaceWithFeature {
           .then()
           .statusCode(OK.code())
           .body("keepUntil", allOf(
-              greaterThanOrEqualTo(beforeDeleteMs + TWO_HOURS_EXPIRY - TOLERANCE_MS),
-              lessThanOrEqualTo(afterDeleteMs + TWO_HOURS_EXPIRY + TOLERANCE_MS)
+              greaterThanOrEqualTo(beforeDeleteMs + TWENTY_FOUR_HOURS_EXPIRY - TOLERANCE_MS),
+              lessThanOrEqualTo(afterDeleteMs + TWENTY_FOUR_HOURS_EXPIRY + TOLERANCE_MS)
           ));
     } finally {
       deleteReference(referenceId);
