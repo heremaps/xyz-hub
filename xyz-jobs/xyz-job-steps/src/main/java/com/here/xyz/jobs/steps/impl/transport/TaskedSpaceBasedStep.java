@@ -64,6 +64,8 @@ import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_ON_ASYNC
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_ON_STATE_CHECK;
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.UNKNOWN;
 import static com.here.xyz.util.web.XyzWebClient.WebClientException;
+import static  com.here.xyz.util.db.pg.LockHelper.buildAdvisoryLockQuery;
+import static  com.here.xyz.util.db.pg.LockHelper.buildAdvisoryUnlockQuery;
 
 /**
  * Abstract base class for space-based job steps that execute tasks in parallel.
@@ -867,21 +869,32 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   }
 
   private SQLQuery retrieveTaskItemAndStatisticsAfterUpdateQuery(String schema, SpaceBasedTaskUpdate update)
-      throws WebClientException {
+          throws WebClientException {
     return new SQLQuery("""
-            SELECT total, started, finalized, task_id, task_input
-            FROM update_task_item_and_get_task_item_and_statistics(
-                #{taskId},
-                #{taskOutput}::JSONB,
-                #{finalized}
-            );
-        """)
-        .withNamedParameter("taskId", update.taskId)
-        .withNamedParameter("taskOutput", XyzSerializable.serialize(update))
-        .withNamedParameter("finalized", true)
-        .withLock(this.getId())
-        .withContext(getQueryContext(schema))
-        .withRetryableErrorCodes(RETRYABLE_SQL_CODES);
+          DO $$
+          BEGIN
+            ${{advisoryLock}}
+          END$$;
+
+          SELECT total, started, finalized, task_id, task_input
+          FROM update_task_item_and_get_task_item_and_statistics(
+              #{taskId},
+              #{taskOutput}::JSONB,
+              #{finalized}
+          );
+
+          DO $$
+          BEGIN
+            ${{advisoryUnlock}}
+          END$$;
+      """)
+            .withQueryFragment("advisoryLock", buildAdvisoryLockQuery(this.getId()))
+            .withQueryFragment("advisoryUnlock", buildAdvisoryUnlockQuery(this.getId()))
+            .withNamedParameter("taskId", update.taskId)
+            .withNamedParameter("taskOutput", XyzSerializable.serialize(update))
+            .withNamedParameter("finalized", true)
+            .withContext(getQueryContext(schema))
+            .withRetryableErrorCodes(RETRYABLE_SQL_CODES);
   }
 
   private SQLQuery retrieveTaskOutputsQuery() throws WebClientException {
