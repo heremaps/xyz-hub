@@ -64,8 +64,6 @@ import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_ON_ASYNC
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_ON_STATE_CHECK;
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.UNKNOWN;
 import static com.here.xyz.util.web.XyzWebClient.WebClientException;
-import static  com.here.xyz.util.db.pg.LockHelper.buildAdvisoryLockQuery;
-import static  com.here.xyz.util.db.pg.LockHelper.buildAdvisoryUnlockQuery;
 
 /**
  * Abstract base class for space-based job steps that execute tasks in parallel.
@@ -871,24 +869,13 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   private SQLQuery retrieveTaskItemAndStatisticsAfterUpdateQuery(String schema, SpaceBasedTaskUpdate update)
           throws WebClientException {
     return new SQLQuery("""
-          WITH lock AS (
-            SELECT pg_advisory_lock(hashtext(#{lockKey}))
-          ),
-          result AS (
-            SELECT total, started, finalized, task_id, task_input
-            FROM update_task_item_and_get_task_item_and_statistics(
-                #{taskId},
-                #{taskOutput}::JSONB,
-                #{finalized}
-            )
-          ),
-          unlock AS (
-            SELECT pg_advisory_unlock(hashtext(#{lockKey}))
-          )
-          SELECT total, started, finalized, task_id, task_input
-          FROM result;
-      """)
-            .withNamedParameter("lockKey", this.getId())
+        SELECT total, started, finalized, task_id, task_input
+        FROM update_task_item_and_get_task_item_and_statistics(
+            #{taskId},
+            #{taskOutput}::JSONB,
+            #{finalized}
+        );
+    """)
             .withNamedParameter("taskId", update.taskId)
             .withNamedParameter("taskOutput", XyzSerializable.serialize(update))
             .withNamedParameter("finalized", true)
