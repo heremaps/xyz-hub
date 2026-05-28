@@ -25,8 +25,8 @@ import static com.here.xyz.jobs.RuntimeInfo.State.FAILED;
 import static com.here.xyz.jobs.RuntimeInfo.State.PENDING;
 import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
 import static com.here.xyz.jobs.RuntimeInfo.State.SUCCEEDED;
-import static com.here.xyz.jobs.steps.execution.JobExecutor.SchedulerState.SchedulerRuntimeState.PAUSED;
 import static com.here.xyz.jobs.steps.execution.GraphFusionTool.fuseGraphs;
+import static com.here.xyz.jobs.steps.execution.JobExecutor.SchedulerState.SchedulerRuntimeState.PAUSED;
 import static java.util.Comparator.comparingLong;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -142,8 +142,11 @@ public abstract class JobExecutor implements Initializable {
         })
         .onFailure(e -> {
           //E.g.: Resource got deleted during lifetime of job!
-          logger.error("Start Execution of job '{}' is failed!", job.getId(), e);
-          job.getStatus().setState(FAILED);
+          logger.error("Error starting execution of job '{}'", job.getId(), e);
+          job.getStatus()
+              .withState(FAILED)
+              .withErrorMessage("Unexpected error while trying to start the execution of the job.")
+              .withErrorCause(e.getMessage());
           job.storeStatus(null);
         });
   }
