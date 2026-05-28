@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ package com.here.xyz.psql.query;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.COMPOSITE_EXTENSION;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.X;
 import static com.here.xyz.models.hub.Ref.HEAD;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.DELETE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.INSERT_HIDE_COMPOSITE;
@@ -131,7 +132,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
     String tableVariable = isL2 ? "intermediateExtensionTable" : "table";
     return new SQLQuery("WHERE ${{exists}} exists(SELECT 1 FROM ${schema}.${" + tableVariable + "} WHERE ${{idComparison}})")
-        .withQueryFragment("exists", event.getContext() == COMPOSITE_EXTENSION && !isL2 ? "" : "NOT")
+        .withQueryFragment("exists", (event.getContext() == COMPOSITE_EXTENSION || event.getContext() == X) && !isL2 ? "" : "NOT")
         .withQueryFragment("idComparison", idComparisonFragment);
   }
 
@@ -337,8 +338,9 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
   private SQLQuery buildIdComparisonFragment(E event, String prefix, SQLQuery versionCheckFragment) {
     return new SQLQuery("id = " + prefix + "id"
-        + (event instanceof SelectiveEvent ? " ${{versionCheck}} AND operation != 'D'" : ""))
-        .withQueryFragment("versionCheck", versionCheckFragment);
+        + (event instanceof SelectiveEvent ? " ${{versionCheck}} ${{deletionInclusionFragment}}" : ""))
+        .withQueryFragment("versionCheck", versionCheckFragment)
+        .withQueryFragment("deletionInclusionFragment", event.getContext() == X ? "AND operation = 'D'" : "AND operation != 'D'");
   }
 
   private SQLQuery buildDeletionCheckFragment(E event, boolean isExtension) {
@@ -358,7 +360,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   }
 
   protected boolean isCompositeQuery(E event) {
-    return isExtendedSpace(event) && (event.getContext() == DEFAULT || event.getContext() == COMPOSITE_EXTENSION);
+    return isExtendedSpace(event) && (event.getContext() == DEFAULT || event.getContext() == COMPOSITE_EXTENSION || event.getContext() == X);
   }
 
   /**

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -69,7 +69,8 @@ public abstract class ContextAwareEvent<T extends ContextAwareEvent> extends Eve
     EXTENSION,
     SUPER,
     DEFAULT,
-    COMPOSITE_EXTENSION;
+    COMPOSITE_EXTENSION,
+    X;
 
     public static SpaceContext of(String value) {
       if (value == null) {
