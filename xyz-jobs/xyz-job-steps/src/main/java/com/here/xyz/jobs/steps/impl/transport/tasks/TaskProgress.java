@@ -89,6 +89,10 @@ public class TaskProgress<I> {
     return totalTasks == finalizedTasks;
   }
 
+  public boolean hasTaskItem() {
+    return taskId != null && taskId > 0;
+  }
+
   public boolean hasRunningTasks() {
     return startedTasks > 0
             && startedTasks > finalizedTasks;

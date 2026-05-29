@@ -536,6 +536,8 @@ DECLARE
     ctx JSONB;
 BEGIN
     SELECT context() INTO ctx;
+    -- Use lock to serialize access to the critical section per step/job table
+    PERFORM pg_advisory_xact_lock(hashtext(ctx->>'stepId'));
 
     -- Get statistics
     EXECUTE format(
@@ -573,18 +575,20 @@ BEGIN
             task_item.task_id
        );
 
-       RETURN QUERY SELECT v_total, v_started, v_finalized, task_item.task_id, task_item.task_input;
+       RETURN QUERY SELECT v_total, v_started + 1, v_finalized, task_item.task_id, task_item.task_input;
        RETURN;
     END IF;
 
-    IF v_total > v_finalized + v_started THEN
-        -- There are unstarted tasks, but all are locked -> Wait & retry
-        PERFORM pg_sleep(2);
-        RETURN QUERY SELECT * FROM get_task_item_and_statistics();
-    ELSE
-        -- No unstarted tasks exist -> return no work
-        RETURN QUERY SELECT v_total, v_started, v_finalized, -1, '{"type" : "Empty"}'::JSONB;
-    END IF;
+    -- no unstarted tasks exist
+    -- some started tasks are still running
+    -- so return task_id = -1 and let running tasks finish.
+    RETURN QUERY
+        SELECT
+            v_total,
+            v_started,
+            v_finalized,
+            -1,
+            '{"type":"Empty"}'::JSONB;
 END;
 $$ LANGUAGE plpgsql VOLATILE;
 
@@ -592,22 +596,46 @@ $$ LANGUAGE plpgsql VOLATILE;
  * Function: update_task_item_and_get_task_item_and_statistics
  *
  * Purpose:
- *   Atomically finalizes a task item and fetches updated task statistics plus the next task item.
+ *   Finalizes a task item and returns the updated task statistics together with
+ *   the next task item to process, if one is available.
  *
- * Behavior:
- *   1. Updates task_output/finalized for the provided task_id.
- *   2. Computes total/started/finalized statistics.
- *   3. If work remains, claims the next unstarted task using FOR UPDATE SKIP LOCKED.
- *   4. Returns statistics + claimed task (or task_id=-1 if nothing claimable).
+ * Concurrency:
+ *   The function acquires a transaction-scoped advisory lock based on the current
+ *   stepId. This serializes all callbacks for the same step/job table across
+ *   sessions and database connections.
+ *
+ *   The lock protects the complete finalization decision path:
+ *     1. merge the task output and mark the current task as finalized
+ *     2. recompute total/started/finalized counters
+ *     3. determine whether all tasks are finalized
+ *     4. claim the next unstarted task, if any
+ *
+ *   The lock is released automatically when the surrounding transaction ends.
+ *
+ * Parameters:
+ *   p_task_id:
+ *     ID of the task item to finalize.
+ *
+ *   p_task_output:
+ *     JSONB payload to merge into the task item's task_output column.
+ *
+ *   p_finalized:
+ *     Value to write to the finalized flag. Defaults to true.
  *
  * Returns:
  *   TABLE (
- *     total INT,
- *     started INT,
- *     finalized INT,
- *     task_id INT,
- *     task_input JSONB
+ *     total INT,        -- Total number of task items
+ *     started INT,      -- Number of task items marked as started
+ *     finalized INT,    -- Number of task items marked as finalized
+ *     task_id INT,      -- Claimed next task ID, or -1 if no task is available
+ *     task_input JSONB  -- Input payload of the claimed task, or {"type":"Empty"}
  *   )
+ *
+ * Notes:
+ *   The actual statistics calculation and next-task claiming are delegated to
+ *   get_task_item_and_statistics(), which uses the same advisory lock key. Re-
+ *   acquiring the same transaction-level advisory lock in the same transaction
+ *   is safe and does not block.
  */
 CREATE OR REPLACE FUNCTION update_task_item_and_get_task_item_and_statistics(
     p_task_id INT,
@@ -624,6 +652,8 @@ DECLARE
 BEGIN
     SELECT context() INTO ctx;
     -- Set provided task as finalized and store output
+    PERFORM pg_advisory_xact_lock(hashtext(ctx->>'stepId'));
+
     EXECUTE format(
         'UPDATE %1$s t
             SET task_output = (

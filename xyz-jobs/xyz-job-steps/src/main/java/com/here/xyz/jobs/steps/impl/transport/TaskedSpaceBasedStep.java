@@ -531,7 +531,8 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
       }catch (SQLException e){
         if (e.getSQLState() != null && e.getSQLState().toUpperCase().equals("42P01")) {
           //if the job_data table is not present anymore during a resume, we expect that the last execution completed
-          //after der StateMaschnine was already canceled. In this case only have to report success.
+          //after der StateMaschnine was already canceled. In this case we only have to report success.
+          infoLog(STEP_EXECUTE, "Reset of taskItems failed - we assume a previous success!");
           reportAsyncSuccess();
           return;
         }else
@@ -564,15 +565,22 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
         finalizeTaskQuery(update.taskId); //hook method
 
         TaskProgress taskProgressAndItem = finalizeCurrentTaskAndGetTaskProgressAndNextTaskItem(update);
+        //Calculate progress and set it on the step's status
+        getStatus().setEstimatedProgress((float) taskProgressAndItem.getFinalizedTasks() / (float) taskProgressAndItem.getTotalTasks());
+
         if (taskProgressAndItem.isComplete()) {
+          //All tasks are finalized - succeed!
           return true;
-        }else {
-          infoLog(STEP_ON_ASYNC_UPDATE, "Found existing tasks. Start new item:" + taskProgressAndItem);
-          //If we are not finished, start the next task
-          startTask(taskProgressAndItem);
-          //Calculate progress and set it on the step's status
-          getStatus().setEstimatedProgress((float) taskProgressAndItem.getFinalizedTasks() / (float) taskProgressAndItem.getTotalTasks());
         }
+
+        if (!taskProgressAndItem.hasTaskItem()) {
+          infoLog(STEP_ON_ASYNC_UPDATE,"No claimable task. Waiting for running tasks to finish: " + taskProgressAndItem);
+          return false;
+        }
+
+        infoLog(STEP_ON_ASYNC_UPDATE,"Found existing tasks. Start new item: " + taskProgressAndItem);
+        startTask(taskProgressAndItem);
+        return false;
       }
       return false;
     }catch (Exception e) {
@@ -859,20 +867,20 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   }
 
   private SQLQuery retrieveTaskItemAndStatisticsAfterUpdateQuery(String schema, SpaceBasedTaskUpdate update)
-      throws WebClientException {
+          throws WebClientException {
     return new SQLQuery("""
-            SELECT total, started, finalized, task_id, task_input
-            FROM update_task_item_and_get_task_item_and_statistics(
-                #{taskId},
-                #{taskOutput}::JSONB,
-                #{finalized}
-            );
-        """)
-        .withNamedParameter("taskId", update.taskId)
-        .withNamedParameter("taskOutput", XyzSerializable.serialize(update))
-        .withNamedParameter("finalized", true)
-        .withContext(getQueryContext(schema))
-        .withRetryableErrorCodes(RETRYABLE_SQL_CODES);
+        SELECT total, started, finalized, task_id, task_input
+        FROM update_task_item_and_get_task_item_and_statistics(
+            #{taskId},
+            #{taskOutput}::JSONB,
+            #{finalized}
+        );
+    """)
+            .withNamedParameter("taskId", update.taskId)
+            .withNamedParameter("taskOutput", XyzSerializable.serialize(update))
+            .withNamedParameter("finalized", true)
+            .withContext(getQueryContext(schema))
+            .withRetryableErrorCodes(RETRYABLE_SQL_CODES);
   }
 
   private SQLQuery retrieveTaskOutputsQuery() throws WebClientException {

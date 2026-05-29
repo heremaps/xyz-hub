@@ -25,8 +25,8 @@ import static com.here.xyz.jobs.RuntimeInfo.State.FAILED;
 import static com.here.xyz.jobs.RuntimeInfo.State.PENDING;
 import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
 import static com.here.xyz.jobs.RuntimeInfo.State.SUCCEEDED;
-import static com.here.xyz.jobs.steps.execution.JobExecutor.SchedulerState.SchedulerRuntimeState.PAUSED;
 import static com.here.xyz.jobs.steps.execution.GraphFusionTool.fuseGraphs;
+import static com.here.xyz.jobs.steps.execution.JobExecutor.SchedulerState.SchedulerRuntimeState.PAUSED;
 import static java.util.Comparator.comparingLong;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -44,7 +44,6 @@ import com.here.xyz.util.service.Initializable;
 import io.vertx.core.Future;
 import io.vertx.core.impl.ConcurrentHashSet;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Executors;
@@ -68,7 +67,7 @@ public abstract class JobExecutor implements Initializable {
    * singleJobPerResourceEnabled={@code false}.
    */
   private static volatile SchedulerState schedulerState = new SchedulerState(
-      SchedulerState.SchedulerRuntimeState.RUNNING, true, false
+      SchedulerState.SchedulerRuntimeState.RUNNING, true, true
   );
   private static final long CANCELLATION_TIMEOUT = 10 * 60 * 1_000; //10 min
   private static final long CANCELLATION_CHECK_RERUN_PERIOD = 10_000; //10 sec
@@ -143,8 +142,11 @@ public abstract class JobExecutor implements Initializable {
         })
         .onFailure(e -> {
           //E.g.: Resource got deleted during lifetime of job!
-          logger.error("Start Execution of job '{}' is failed!", job.getId(), e);
-          job.getStatus().setState(FAILED);
+          logger.error("Error starting execution of job '{}'", job.getId(), e);
+          job.getStatus()
+              .withState(FAILED)
+              .withErrorMessage("Unexpected error while trying to start the execution of the job.")
+              .withErrorCause(e.getMessage());
           job.storeStatus(null);
         });
   }
