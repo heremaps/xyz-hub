@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2017-2026 HERE Europe B.V.
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -20,10 +21,10 @@ package com.here.xyz.jobs.steps.impl.export;
 
 import static com.here.xyz.jobs.steps.Step.Visibility.SYSTEM;
 import static com.here.xyz.jobs.steps.Step.Visibility.USER;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.PropertiesQuery;
-import com.here.xyz.models.filters.SpatialFilter;
 import com.here.xyz.jobs.steps.impl.StepTest;
 import com.here.xyz.jobs.steps.impl.transport.ExportChangedTiles;
 import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
@@ -31,12 +32,16 @@ import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
 import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.jobs.steps.outputs.TileInvalidations;
+import com.here.xyz.models.filters.SpatialFilter;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.hub.Ref;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.NoSuchElementException;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -69,27 +74,32 @@ public class ExportTestBase extends StepTest {
 
         //Send Lambda Requests
         sendLambdaStepRequestBlock(step, true);
-        checkOutputs(allExpectedFeatures, step.loadUserOutputs(), step.loadOutputs(SYSTEM));
+        checkOutputs(new HashSet<>(allExpectedFeatures.getFeatures()), step.loadUserOutputs(), step.loadOutputs(SYSTEM));
     }
 
-    protected void checkOutputs(FeatureCollection expectedFeatures, List<Output> userOutputs, List<Output> systemOutputs)
+    protected void checkOutputs(Set<Feature> expectedFeatures, List<Output> userOutputs, List<Output> systemOutputs)
             throws IOException {
         Assertions.assertNotEquals(0, userOutputs.size());
 
-        List<Feature>  exportedFeatures = new ArrayList<>();
+        Set<Feature> exportedFeatures = new HashSet<>();
+        Set<FeatureStatistics> statistics = new HashSet<>();
 
         for (Output output : userOutputs) {
             if (output instanceof DownloadUrl downloadUrl)
                 exportedFeatures.addAll(downloadFileAndSerializeFeatures(downloadUrl));
             //TODO: FeatureStatistics could get only checked if we also support during simulation "UPDATE_CALLBACK"
-            else if (output instanceof FeatureStatistics statistics)
-                Assertions.assertEquals(expectedFeatures.getFeatures().size(), statistics.getFeatureCount());
+            else if (output instanceof FeatureStatistics s)
+                statistics.add(s);
         }
 
-        List<String> existingFeaturesIdList = expectedFeatures.getFeatures().stream().map(Feature::getId).collect(Collectors.toList());
-        List<String> exportedFeaturesFeaturesIdList = exportedFeatures.stream().map(Feature::getId).collect(Collectors.toList());
+        for (Feature f : expectedFeatures)
+            assertEquals(exportedFeatures.stream().filter(feature -> feature.getId().equals(f.getId())).findFirst().orElseThrow(() -> new NoSuchElementException("Expected feature with id \"" + f.getId() + "\" was not exported.")), f);
 
-        Assertions.assertTrue(exportedFeaturesFeaturesIdList.containsAll(existingFeaturesIdList));
+        for (Feature f : exportedFeatures)
+            assertEquals(expectedFeatures.stream().filter(feature -> feature.getId().equals(f.getId())).findFirst().orElseThrow(() -> new NoSuchElementException("Exported feature with id \"" + f.getId() + "\" was not expected")), f);
+
+        for (FeatureStatistics s : statistics)
+            assertEquals(s.getFeatureCount(), expectedFeatures.size());
     }
 
     protected void executeExportChangedTilesStepAndCheckResults(String spaceId, int targetLevel,
