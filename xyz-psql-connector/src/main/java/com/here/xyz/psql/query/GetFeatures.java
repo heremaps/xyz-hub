@@ -73,7 +73,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
       query = new SQLQuery(
           "SELECT * FROM (SELECT * FROM ("
-          + "     (SELECT ${{selectClause}} FROM ${schema}.${table} WHERE ${{filters}} ${{versionCheck}} ${{orderBy}})"
+          + "     (SELECT ${{selectClause}} FROM ${schema}.${table} e WHERE ${{filters}} ${{versionCheck}} ${{orderBy}})"
           + "   ${{unionAll}} "
           + "     SELECT * FROM (${{baseQuery}}) a"
           + "       ${{compositionFilter}}"
@@ -344,6 +344,9 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   }
 
   private SQLQuery buildDeletionCheckFragment(E event, boolean isExtension) {
+    if (isExtension && event.getContext() == X)
+      return buildContextXDeletionCheckFragment(event);
+
     if (!historyEnabled && !isExtension
         || event instanceof SelectiveEvent selectiveEvent && selectiveEvent.getRef().isRange())
       return new SQLQuery("");
@@ -353,6 +356,20 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
         .withNamedParameter(operationsParamName, Arrays.stream(isExtension
             ? new ModificationType[]{DELETE, INSERT_HIDE_COMPOSITE, UPDATE_HIDE_COMPOSITE}
             : new ModificationType[]{DELETE}).map(ModificationType::toString).toArray(String[]::new));
+  }
+
+  private SQLQuery buildContextXDeletionCheckFragment(E event) {
+    return new SQLQuery("""
+        AND NOT (
+          operation = 'D'
+          AND EXISTS (
+            SELECT 1
+            FROM ${schema}.${extendedTable}
+            WHERE id = e.id
+          )
+        )
+        """)
+        .withVariable("extendedTable", getExtendedTable(event));
   }
 
   protected SQLQuery buildLimitFragment(E event) {
