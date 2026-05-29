@@ -80,7 +80,7 @@ public class ExportTestBase extends StepTest {
 
         for (Output output : userOutputs) {
             if (output instanceof DownloadUrl downloadUrl)
-                exportedFeatures.addAll(downloadFileAndSerializeFeatures(downloadUrl));
+                exportedFeatures.addAll(downloadFileAndDeSerializeFeatures(downloadUrl));
             //TODO: FeatureStatistics could get only checked if we also support during simulation "UPDATE_CALLBACK"
             else if (output instanceof FeatureStatistics statistics)
                 Assertions.assertEquals(expectedFeatures.getFeatures().size(), statistics.getFeatureCount());
@@ -130,7 +130,7 @@ public class ExportTestBase extends StepTest {
 
         for (Output output : allOutputs) {
             if (output instanceof DownloadUrl downloadUrl)
-                exportedFeatures.addAll(downloadFileAndSerializeFeatures(downloadUrl));
+                exportedFeatures.addAll(downloadFileAndDeSerializeFeatures(downloadUrl));
                 //TODO: FeatureStatistics could get only checked if we also support during simulation "UPDATE_CALLBACK"
             else if (output instanceof FeatureStatistics statistics) {
                 System.out.println(statistics.getFeatureCount());

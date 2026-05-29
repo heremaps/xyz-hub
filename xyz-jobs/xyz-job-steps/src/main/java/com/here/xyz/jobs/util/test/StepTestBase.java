@@ -23,6 +23,7 @@ import static com.google.common.net.HttpHeaders.CONTENT_TYPE;
 import static com.here.xyz.jobs.steps.Step.InputSet.DEFAULT_SET_NAME;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.START_EXECUTION;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.SUCCESS_CALLBACK;
+import static com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace.Format;
 import static com.here.xyz.jobs.steps.impl.transport.TaskedSpaceBasedStep.getTemporaryJobTableName;
 import static com.here.xyz.jobs.steps.inputs.Input.inputS3Prefix;
 import static com.here.xyz.psql.query.branching.BranchManager.branchTableName;
@@ -62,9 +63,9 @@ import com.here.xyz.util.db.datasource.DataSourceProvider;
 import com.here.xyz.util.db.datasource.DatabaseSettings;
 import com.here.xyz.util.db.datasource.DatabaseSettings.ScriptResourcePath;
 import com.here.xyz.util.db.datasource.PooledDataSources;
+import com.here.xyz.util.db.pg.IndexHelper.Index;
 import com.here.xyz.util.db.pg.IndexHelper.OnDemandIndex;
 import com.here.xyz.util.db.pg.IndexHelper.SystemIndex;
-import com.here.xyz.util.db.pg.IndexHelper.Index;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.service.aws.lambda.SimulatedContext;
 import com.here.xyz.util.web.HubWebClient;
@@ -101,8 +102,6 @@ import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.lambda.LambdaClient;
 import software.amazon.awssdk.services.lambda.model.InvokeRequest;
-
-import static com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace.Format;
 
 public class StepTestBase {
 
@@ -508,7 +507,7 @@ public class StepTestBase {
     uploadFileToS3(Output.stepOutputS3Prefix(jobId, stepId, outputSetName) + "/" + UUID.randomUUID(), contentType, bytes, false);
   }
 
-  protected List<Feature> downloadFileAndSerializeFeatures(DownloadUrl output) throws IOException {
+  protected List<Feature> downloadFileAndDeSerializeFeatures(DownloadUrl output) throws IOException {
     logger.info("Check file: {}", output.getS3Key());
     List<Feature> features = new ArrayList<>();
 
