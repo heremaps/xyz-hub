@@ -469,15 +469,17 @@ class DynamoDataReferenceConfigClientIT extends DynamoDbIT {
     awaitResult(dataReferences.store(a2));
     awaitResult(dataReferences.store(b1));
 
-    long newKeepUntilMs = 2_000_000_000_000L;
-    awaitResult(dataReferences.expireForEntity(null, entityA, newKeepUntilMs));
+    long before = System.currentTimeMillis();
+    awaitResult(dataReferences.expireForEntity(null, entityA));
+    long after = System.currentTimeMillis();
 
     DataReference a1Reloaded = awaitResult(dataReferences.load(a1.getId())).orElseThrow();
     DataReference a2Reloaded = awaitResult(dataReferences.load(a2.getId())).orElseThrow();
     DataReference b1Reloaded = awaitResult(dataReferences.load(b1.getId())).orElseThrow();
 
-    assertThat(a1Reloaded.getKeepUntil()).isEqualTo(newKeepUntilMs);
-    assertThat(a2Reloaded.getKeepUntil()).isEqualTo(newKeepUntilMs);
+    // Dynamo TTL stores seconds, so loaded keepUntil can be rounded to the lower second.
+    assertThat(a1Reloaded.getKeepUntil()).isBetween(before - 1_000L, after);
+    assertThat(a2Reloaded.getKeepUntil()).isBetween(before - 1_000L, after);
     assertThat(b1Reloaded.getKeepUntil()).isNull();
   }
 
@@ -485,7 +487,7 @@ class DynamoDataReferenceConfigClientIT extends DynamoDbIT {
   void shouldCompleteSuccessfullyWhenExpireForEntityFindsNoReferences() {
     String missingEntityId = "no-such-entity-" + UUID.randomUUID();
 
-    awaitResult(dataReferences.expireForEntity(null, missingEntityId, 1_000L));
+    awaitResult(dataReferences.expireForEntity(null, missingEntityId));
 
     assertThat(awaitResult(dataReferences.loadByEntity(missingEntityId))).isEmpty();
   }

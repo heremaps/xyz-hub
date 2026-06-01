@@ -846,9 +846,9 @@ public class SpaceTaskHandler {
         .map(Future::all)
         .mapEmpty();
 
-    //Schedule expiry of any DataReferences pointing to this space by setting keepUntil to now + 48h (grace period added by dynamo client).
+    //Expire all data references linked to the space
     final Future<Void> expireReferencesFuture = DataReferenceConfigClient.getInstance()
-        .expireForEntity(task.getMarker(), spaceId, Core.currentTimeMillis())
+        .expireForEntity(task.getMarker(), spaceId)
         .onFailure(e -> logger.error(task.getMarker(),
             "Failed to expire DataReferences for space {}", spaceId,  e));
 

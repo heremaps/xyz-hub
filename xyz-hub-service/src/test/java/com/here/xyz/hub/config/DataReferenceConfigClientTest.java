@@ -33,7 +33,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -44,7 +43,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class DataReferenceConfigClientTest {
 
   private static final String ENTITY_ID = "space-id-test";
-  private static final long TWENTY_FOUR_HOURS_MS = TimeUnit.HOURS.toMillis(24);
+  private static final long CLOCK_TOLERANCE_MS = 1_000L;
 
   @Mock
   private Marker marker;
@@ -60,7 +59,7 @@ class DataReferenceConfigClientTest {
   void expireForEntity_shouldComplete_whenNoReferencesExistForEntity() {
     client.loadResult = Future.succeededFuture(List.of());
 
-    Void result = await(client.expireForEntity(marker, ENTITY_ID, TWENTY_FOUR_HOURS_MS));
+    Void result = await(client.expireForEntity(marker, ENTITY_ID));
 
     assertThat(result).isNull();
     assertThat(client.storedRefs).isEmpty();
@@ -71,7 +70,7 @@ class DataReferenceConfigClientTest {
   void expireForEntity_shouldComplete_whenLoadReturnsNullList() {
     client.loadResult = Future.succeededFuture(null);
 
-    Void result = await(client.expireForEntity(marker, ENTITY_ID, TWENTY_FOUR_HOURS_MS));
+    Void result = await(client.expireForEntity(marker, ENTITY_ID));
 
     assertThat(result).isNull();
     assertThat(client.storedRefs).isEmpty();
@@ -84,13 +83,13 @@ class DataReferenceConfigClientTest {
     DataReference r3 = newRef(null);
     client.loadResult = Future.succeededFuture(List.of(r1, r2, r3));
 
-    long newKeepUntil = TWENTY_FOUR_HOURS_MS;
-    await(client.expireForEntity(marker, ENTITY_ID, newKeepUntil));
+    long before = System.currentTimeMillis();
+    await(client.expireForEntity(marker, ENTITY_ID));
+    long after = System.currentTimeMillis();
 
     assertThat(client.storedRefs).containsExactlyInAnyOrder(r1, r2, r3);
     assertThat(client.storedRefs)
-        .extracting(DataReference::getKeepUntil)
-        .containsOnly(newKeepUntil);
+        .allSatisfy(reference -> assertThat(reference.getKeepUntil()).isBetween(before - CLOCK_TOLERANCE_MS, after + CLOCK_TOLERANCE_MS));
   }
 
   @Test
@@ -99,28 +98,27 @@ class DataReferenceConfigClientTest {
     DataReference r = newRef(existingKeepUntil);
     client.loadResult = Future.succeededFuture(List.of(r));
 
-    long newKeepUntil = 2_000_000_000_000L;
-    await(client.expireForEntity(marker, ENTITY_ID, newKeepUntil));
+    long before = System.currentTimeMillis();
+    await(client.expireForEntity(marker, ENTITY_ID));
+    long after = System.currentTimeMillis();
 
     assertThat(client.storedRefs).hasSize(1);
-    assertThat(client.storedRefs.get(0).getKeepUntil()).isEqualTo(newKeepUntil);
+    assertThat(client.storedRefs.get(0).getKeepUntil()).isBetween(before - CLOCK_TOLERANCE_MS, after + CLOCK_TOLERANCE_MS);
   }
 
   @Test
-  void expireForEntity_shouldUseGivenTime() {
+  void expireForEntity_shouldUseCurrentTime() {
     DataReference r = newRef(null);
     client.loadResult = Future.succeededFuture(List.of(r));
 
-    long now = System.currentTimeMillis();
-    long target = now + TWENTY_FOUR_HOURS_MS;
-    await(client.expireForEntity(marker, ENTITY_ID, target));
+    long before = System.currentTimeMillis();
+    await(client.expireForEntity(marker, ENTITY_ID));
+    long after = System.currentTimeMillis();
 
     assertThat(client.storedRefs).hasSize(1);
     Long stored = client.storedRefs.get(0).getKeepUntil();
     assertThat(stored).isNotNull();
-
-    assertThat(stored - now).isEqualTo(TWENTY_FOUR_HOURS_MS);
-    assertThat(stored - now).isEqualTo(86_400_000L);
+    assertThat(stored).isBetween(before - CLOCK_TOLERANCE_MS, after + CLOCK_TOLERANCE_MS);
   }
 
   @Test
@@ -128,7 +126,7 @@ class DataReferenceConfigClientTest {
     RuntimeException failed = new RuntimeException("load failure");
     client.loadResult = Future.failedFuture(failed);
 
-    assertThatThrownBy(() -> await(client.expireForEntity(marker, ENTITY_ID, 1L)))
+    assertThatThrownBy(() -> await(client.expireForEntity(marker, ENTITY_ID)))
         .isInstanceOf(CompletionException.class)
         .hasCause(failed);
     assertThat(client.storedRefs).isEmpty();
@@ -143,7 +141,7 @@ class DataReferenceConfigClientTest {
     RuntimeException storeFailure = new RuntimeException("store failure");
     client.storeFunction = reference -> reference == r2 ? Future.failedFuture(storeFailure) : Future.succeededFuture(reference.getId());
 
-    assertThatThrownBy(() -> await(client.expireForEntity(marker, ENTITY_ID, 1L)))
+    assertThatThrownBy(() -> await(client.expireForEntity(marker, ENTITY_ID)))
         .isInstanceOf(CompletionException.class)
         .hasCause(storeFailure);
 
@@ -153,7 +151,7 @@ class DataReferenceConfigClientTest {
   @Test
   void expireForEntity_shouldRejectNullEntityId() {
     assertThatNullPointerException()
-        .isThrownBy(() -> client.expireForEntity(marker, null, 1L));
+        .isThrownBy(() -> client.expireForEntity(marker, null));
   }
 
 
