@@ -25,20 +25,13 @@ import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.restassured.RestAssured.given;
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-import java.util.concurrent.TimeUnit;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
 public class DeleteSpaceApiIT extends TestSpaceWithFeature {
-
-  private static final long TWENTY_FOUR_HOURS_EXPIRY = TimeUnit.HOURS.toMillis(24);
-  private static final long TOLERANCE_MS = TimeUnit.SECONDS.toMillis(5);
 
   private static String spaceName;
 
@@ -117,14 +110,12 @@ public class DeleteSpaceApiIT extends TestSpaceWithFeature {
     String referenceId = createReferenceForEntity(spaceName);
 
     try {
-      long beforeDeleteMs = System.currentTimeMillis();
-
       given()
           .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
           .when()
-          .delete("/spaces/" + spaceName);
-
-      long afterDeleteMs = System.currentTimeMillis();
+          .delete("/spaces/" + spaceName)
+          .then()
+          .statusCode(NO_CONTENT.code());
 
       given()
           .accept(APPLICATION_JSON)
@@ -132,11 +123,7 @@ public class DeleteSpaceApiIT extends TestSpaceWithFeature {
           .when()
           .get("/references/" + referenceId)
           .then()
-          .statusCode(OK.code())
-          .body("keepUntil", allOf(
-              greaterThanOrEqualTo(beforeDeleteMs + TWENTY_FOUR_HOURS_EXPIRY - TOLERANCE_MS),
-              lessThanOrEqualTo(afterDeleteMs + TWENTY_FOUR_HOURS_EXPIRY + TOLERANCE_MS)
-          ));
+          .statusCode(NOT_FOUND.code());
     } finally {
       deleteReference(referenceId);
     }

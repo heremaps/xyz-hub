@@ -107,7 +107,7 @@ class DataReferenceConfigClientTest {
   }
 
   @Test
-  void expireForEntity_shouldUse24hFromNow_whenCalled() {
+  void expireForEntity_shouldUseGivenTime() {
     DataReference r = newRef(null);
     client.loadResult = Future.succeededFuture(List.of(r));
 
