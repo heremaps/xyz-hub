@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -1046,32 +1046,21 @@ public class SQLQuery {
 
     final DataSource dataSource = executionContext.useReplica ? dataSourceProvider.getReader() : dataSourceProvider.getWriter();
     executionContext.attemptExecution();
+    try {
+      if (loggingEnabled)
+        logger.log(QUERY_LEVEL, "Sending query to database {} {}, substituted query-text: {}",
+            executionContext.useReplica ? "reader" : "writer",
+            dataSourceProvider.getDatabaseSettings() != null
+                ? dataSourceProvider.getDatabaseSettings().getId() : "unknown",
+            hidePwds(replaceUnnamedParametersForLogging(), dataSourceProvider));
 
-    try (Connection connection = dataSource.getConnection()) {
-      if (getLock() != null)
-        advisoryLock(getLock(), connection);
-
-      try {
-        if (loggingEnabled)
-          logger.log(QUERY_LEVEL, "Sending query to database {} {}, substituted query-text: {}",
-                  executionContext.useReplica ? "reader" : "writer",
-                  dataSourceProvider.getDatabaseSettings() != null
-                          ? dataSourceProvider.getDatabaseSettings().getId() : "unknown",
-                  hidePwds(replaceUnnamedParametersForLogging(), dataSourceProvider));
-
-        if (isAsync())
-          operation = ExecutionOperation.QUERY;
-
-        return switch (operation) {
-          case QUERY -> executeQuery(connection, executionContext, handler);
-          case UPDATE -> executeUpdate(connection, executionContext);
-          case UPDATE_BATCH -> executeBatchUpdate(connection, executionContext);
-        };
-      }
-      finally {
-        if (getLock() != null)
-          advisoryUnlock(getLock(), connection);
-      }
+      if (isAsync())
+        operation = ExecutionOperation.QUERY;
+      return switch (operation) {
+        case QUERY -> executeQuery0(dataSource, executionContext, handler);
+        case UPDATE -> executeUpdate0(dataSource, executionContext);
+        case UPDATE_BATCH -> executeBatchUpdate0(dataSource, executionContext);
+      };
     }
     catch (SQLException e) {
       if (executionContext.mayRetry(e)) {
@@ -1119,57 +1108,77 @@ public class SQLQuery {
     return this;
   }
 
-  private int executeUpdate(Connection connection, ExecutionContext executionContext) throws SQLException {
+  private int executeUpdate0(DataSource dataSource, ExecutionContext executionContext) throws SQLException {
     SQLQuery query = prepareFinalQuery(executionContext);
-    return getRunner(executionContext).update(connection, query.text(), query.parameters().toArray());
+    return exec0(dataSource, connection -> getRunner(executionContext).update(connection, query.text(), query.parameters().toArray()));
   }
 
-  private Object executeQuery(Connection connection, ExecutionContext executionContext, ResultSetHandler<?> handler) throws SQLException {
+  private Object executeQuery0(DataSource dataSource, ExecutionContext executionContext, ResultSetHandler<?> handler) throws SQLException {
     SQLQuery query = prepareFinalQuery(executionContext);
 
-    if (context != null)
-      handler = new Ignore1stResultSet(handler);
+    ResultSetHandler<?> finalHandler = context != null ? new Ignore1stResultSet(handler) : handler;
 
-    final List<?> results = getRunner(executionContext).execute(connection, query.text(), handler, query.parameters().toArray());
+    final List<?> results = exec0(dataSource, connection -> getRunner(executionContext).execute(connection, query.text(), finalHandler, query.parameters().toArray()));
 
     return results.size() == 0 ? null : results.get(results.size() - 1);
   }
 
   private static QueryRunner getRunner(ExecutionContext executionContext) {
     StatementConfiguration statementConfig = executionContext.remainingQueryTimeout > 0
-            ? new StatementConfiguration.Builder().queryTimeout(executionContext.remainingQueryTimeout).build()
-            : null;
+        ? new StatementConfiguration.Builder().queryTimeout(executionContext.remainingQueryTimeout).build()
+        : null;
     return new QueryRunner(statementConfig);
   }
 
-  private int[] executeBatchUpdate(Connection connection, ExecutionContext executionContext) throws SQLException {
-    boolean previousCommitState = connection.getAutoCommit();
-    try {
-      if (previousCommitState)
-        connection.setAutoCommit(false);
+  private int[] executeBatchUpdate0(DataSource dataSource, ExecutionContext executionContext) throws SQLException {
+    return exec0(dataSource, connection -> {
+      boolean previousCommitState = connection.getAutoCommit();
+      try {
+        if (previousCommitState)
+          connection.setAutoCommit(false);
 
-      List<String> queryTexts = batchTexts();
-      //List<List<Object>> params = batchParameters();
-      try (Statement stmt = connection.createStatement()) {
-        for (String queryText : queryTexts)
-          stmt.addBatch(queryText); //TODO: Use parameters
+        List<String> queryTexts = batchTexts();
+        List<List<Object>> params = batchParameters();
+        try (Statement stmt = connection.createStatement()) {
+          for (String queryText : queryTexts)
+            stmt.addBatch(queryText); //TODO: Use parameters
 
-        if (executionContext.remainingQueryTimeout > 0)
-          stmt.setQueryTimeout(executionContext.remainingQueryTimeout);
+          if (executionContext.remainingQueryTimeout > 0)
+            stmt.setQueryTimeout(executionContext.remainingQueryTimeout);
 
-        int[] batchResult = stmt.executeBatch();
-        connection.commit();
-        return batchResult;
+          int[] batchResult = stmt.executeBatch();
+          connection.commit();
+          return batchResult;
+        }
+      }
+      catch (SQLException e) {
+        connection.rollback();
+        throw e;
+      }
+      finally {
+        if (previousCommitState)
+          connection.setAutoCommit(true);
+      }
+    });
+  }
+
+  private <R> R exec0(DataSource dataSource, QueryExecution<R> execution) throws SQLException {
+    try (final Connection connection = dataSource.getConnection()) {
+      //NOTE: Advisory locks are only supported for sync queries for now.
+      if (!isAsync() && getLock() != null)
+        advisoryLock(getLock(), connection);
+      try {
+        return execution.execute(connection);
+      }
+      finally {
+        if (!isAsync() && getLock() != null)
+          advisoryUnlock(getLock(), connection);
       }
     }
-    catch (SQLException e) {
-      connection.rollback();
-      throw e;
-    }
-    finally {
-      if (previousCommitState)
-        connection.setAutoCommit(true);
-    }
+  }
+
+  private interface QueryExecution<R> {
+    R execute(Connection connection) throws SQLException;
   }
 
   protected class ExecutionContext {
