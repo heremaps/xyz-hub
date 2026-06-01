@@ -61,7 +61,9 @@ public class SFNInspector {
     }
 
     public boolean isResumable() {
-      return !isSucceeded() && this.ordinal() >= STARTED.ordinal();
+      // TASK_STARTED can occur although the worker did not effectively begin step logic.
+      // Require TASK_SUBMITTED to avoid resuming steps that never really executed.
+      return !isSucceeded() && hasBeenSubmitted();
     }
   }
 
