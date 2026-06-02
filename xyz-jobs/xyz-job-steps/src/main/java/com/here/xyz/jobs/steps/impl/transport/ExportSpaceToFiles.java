@@ -146,7 +146,7 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
   }
 
   {
-    setOutputSets(List.of(
+    addOutputSets(List.of(
         new OutputSet(STATISTICS, USER, true),
         new OutputSet(EXPORTED_DATA, USER, false)
     ));
@@ -440,6 +440,7 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
                     .withFeatureCount(transportStatistics.rowCount)
                     .withByteSize(transportStatistics.byteSize)
                     .withVersionRef(providedVersionRef)
+                    .withFileName(STATISTICS + ".json")
     ), STATISTICS);
   }
 

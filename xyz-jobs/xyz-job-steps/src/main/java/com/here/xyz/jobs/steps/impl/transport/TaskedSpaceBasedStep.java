@@ -32,6 +32,7 @@ import com.here.xyz.jobs.steps.execution.StepException;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.impl.transport.tasks.TaskPayload;
 import com.here.xyz.jobs.steps.impl.transport.tasks.TaskProgress;
+import com.here.xyz.jobs.steps.outputs.S3Marker;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
 import com.here.xyz.models.hub.Ref;
@@ -45,8 +46,6 @@ import com.here.xyz.util.web.XyzWebClient;
 import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import software.amazon.awssdk.services.sfn.model.ExecutionDoesNotExistException;
-import software.amazon.awssdk.services.sfn.model.ExecutionStatus;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -58,8 +57,8 @@ import java.util.Map;
 import java.util.Set;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
+import static com.here.xyz.jobs.steps.Step.Visibility.SYSTEM;
 import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
-import static com.here.xyz.jobs.steps.execution.SFNInspector.getSFNExecutionStatus;
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_EXECUTE;
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_ON_ASYNC_FAILURE;
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_ON_ASYNC_SUCCESS;
@@ -80,13 +79,19 @@ import static com.here.xyz.util.web.XyzWebClient.WebClientException;
  * </ul>
  *
  * @param <T> The concrete subclass type.
- * @param <I> The input payload type for each task.fail
+ * @param <I> The input payload type for each task.
  * @param <O> The output payload type for each task.
  */
 public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I extends TaskPayload, O extends TaskPayload>
         extends SpaceBasedStep<T> {
   private static final String JOB_DATA_PREFIX = "job_data_";
   private static final Logger logger = LogManager.getLogger();
+  public static final String FINALIZATION_MARKER = "finalized_marker";
+
+  {
+    setOutputSets(List.of(new OutputSet(FINALIZATION_MARKER, SYSTEM, true)));
+  }
+
   protected static final Set<String> RETRYABLE_SQL_CODES = Set.of(
           "40001", // serialization_failure
           "40P01", // deadlock_detected
@@ -533,9 +538,19 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
         runWriteQuerySyncUnkillable(resetTaskItemWhichAreNotFinalized(schema, this.getId()), db(WRITER), 0);
       }catch (SQLException e){
         if (e.getSQLState() != null && e.getSQLState().toUpperCase().equals("42P01")) {
-          infoLog(STEP_EXECUTE, "Reset of taskItems failed cause job_data table is missing! Recreating it!");
-          insertTaskItemsInTaskTable(schema, this, taskDataList);
-          initialSetup();
+          try{
+            getOutputSet(FINALIZATION_MARKER);
+            //if the job_data table is not present anymore during a resume and the finalizationMarker is present
+            //the step succeeded after der StateMaschnine was already canceled. In this case we only have to report success.
+            infoLog(STEP_EXECUTE, "Outputs are already present -> finalize");
+            reportAsyncSuccess();
+            return;
+          }catch(Exception t) {
+            //Can not retrieve output - start from scratch
+            infoLog(STEP_EXECUTE, "Reset of taskItems failed cause job_data table is missing! Recreating it!");
+            insertTaskItemsInTaskTable(schema, this, taskDataList);
+            initialSetup();
+          }
         }else
           throw e;
       }
@@ -623,14 +638,13 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
       infoLog(logPhase, "Executing cleanUp Hook");
       finalCleanUp(noTasksCreated);
 
-      if (shouldKeepTemporaryJobTableForResume(logPhase)) {
-        //Cleanup will be done by a resume and later on also by job deletion.
-        infoLog(logPhase, "Skip cleanup of temporary table as SFN execution is not RUNNING.");
-      }
-      else {
-        infoLog(logPhase, "Cleanup temporary table");
-        runWriteQuerySyncUnkillable(buildTemporaryJobTableDropStatement(getSchema(db()), getTemporaryJobTableName(getId())), db(WRITER), 0);
-      }
+      infoLog(logPhase, "Cleanup temporary table");
+      runWriteQuerySyncUnkillable(buildTemporaryJobTableDropStatement(getSchema(db()), getTemporaryJobTableName(getId())), db(WRITER), 0);
+
+      //TODO: remove if we have implemented propper solution
+      registerOutputs(List.of(new S3Marker()
+              .withFinalized(true)
+              .withFileName(FINALIZATION_MARKER + ".json")), FINALIZATION_MARKER);
     }catch (SQLException e){
       if (e.getSQLState() != null) {
         switch (e.getSQLState().toUpperCase()) {
@@ -650,25 +664,6 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
         errorLog(UNKNOWN, e);
         throw e;
       }
-    }
-  }
-
-  private boolean shouldKeepTemporaryJobTableForResume(LogPhase logPhase) {
-    String executionId = getExecutionId();
-    if (executionId == null || executionId.isBlank())
-      return false;
-
-    try {
-      return getSFNExecutionStatus(executionId) != ExecutionStatus.RUNNING;
-    }
-    catch (ExecutionDoesNotExistException e) {
-      infoLog(logPhase, "SFN execution does not exist anymore. Keep temporary table for resume.");
-      return true;
-    }
-    catch (Exception e) {
-      // Keep current behavior if SFN status lookup fails unexpectedly.
-      warnLog(logPhase, "Could not inspect SFN execution status. Continue with regular table cleanup.");
-      return false;
     }
   }
 

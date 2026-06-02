@@ -54,7 +54,7 @@ public class CountSpace extends TaskedSpaceBasedStep<CountSpace, CountInput, Exp
   public static final String FEATURECOUNT = "featurecount";
   {
     threadCount = 1;
-    setOutputSets(List.of(new OutputSet(FEATURECOUNT, USER, true)));
+    addOutputSets(List.of(new OutputSet(FEATURECOUNT, USER, true)));
   }
 
   @JsonView({Internal.class, Static.class})

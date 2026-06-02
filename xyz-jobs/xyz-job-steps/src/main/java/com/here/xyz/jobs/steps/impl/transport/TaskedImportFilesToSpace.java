@@ -33,6 +33,7 @@ import com.here.xyz.jobs.steps.inputs.InputFromOutput;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.CreatedVersion;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
+import com.here.xyz.jobs.steps.outputs.ModelBasedOutput;
 import com.here.xyz.jobs.steps.resources.IOResource;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
@@ -74,7 +75,7 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
   {
     //Use 11 Threads as default for import tasks
     threadCount = 11;
-    setOutputSets(List.of(new OutputSet(STATISTICS, USER, true)));
+    addOutputSets(List.of(new OutputSet(STATISTICS, USER, true)));
   }
 
   //TODO: Work with enriched files which have a custom format. Here we plan to import into empty layers without using Triggers.
@@ -440,7 +441,7 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
 
   @Override
   protected void processFinalizedTasks(List<FinalizedTaskItem<ImportInput, ImportOutput>> finalizedTaskItems)throws IOException, WebClientException {
-    FeatureStatistics statistics = new FeatureStatistics();
+    ModelBasedOutput statistics = new FeatureStatistics();
 
     if(!finalizedTaskItems.isEmpty()){
       long totalImportedRows = finalizedTaskItems.stream().mapToLong(item -> item.output().extractRowCount()).sum();
@@ -448,10 +449,11 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
 
       statistics = new FeatureStatistics()
               .withFeatureCount(totalImportedRows)
-              .withByteSize(totalImportedBytes);
+              .withByteSize(totalImportedBytes)
+              .withFileName(STATISTICS + ".json");
     }
 
-    infoLog(STEP_ON_ASYNC_SUCCESS, "Job Statistics: bytes=" + statistics.getByteSize() + " rows=" + statistics.getFeatureCount());
+    infoLog(STEP_ON_ASYNC_SUCCESS, "Job Statistics: bytes=" + ((FeatureStatistics)statistics).getByteSize() + " rows=" + ((FeatureStatistics)statistics).getFeatureCount());
     registerOutputs(List.of(statistics), STATISTICS);
 
     infoLog(STEP_ON_ASYNC_SUCCESS, "Set contentUpdatedAt on target space");
