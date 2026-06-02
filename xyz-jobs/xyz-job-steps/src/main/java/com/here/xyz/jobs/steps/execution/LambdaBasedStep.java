@@ -606,11 +606,6 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     return ownLambdaArn;
   }
 
-  @JsonIgnore
-  protected String getExecutionId() {
-    return executionId;
-  }
-
   protected void onRuntimeShutdown() {
     //Nothing to do here. Subclasses may override this method to implement some steps to be executed as a "shutdown-hook".
   }

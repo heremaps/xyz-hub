@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,17 @@
 
 package com.here.xyz.jobs.steps.impl.transport;
 
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
+import static com.here.xyz.events.UpdateStrategy.DEFAULT_UPDATE_STRATEGY;
+import static com.here.xyz.jobs.steps.Step.Visibility.USER;
+import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.JOB_EXECUTOR;
+import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.JOB_VALIDATE;
+import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_EXECUTE;
+import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_ON_ASYNC_SUCCESS;
+import static com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace.Format.FAST_IMPORT_INTO_EMPTY;
+import static com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace.Format.GEOJSON;
+import static com.here.xyz.util.web.XyzWebClient.WebClientException;
+
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.events.UpdateStrategy;
@@ -33,7 +44,6 @@ import com.here.xyz.jobs.steps.inputs.InputFromOutput;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.CreatedVersion;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
-import com.here.xyz.jobs.steps.outputs.ModelBasedOutput;
 import com.here.xyz.jobs.steps.resources.IOResource;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
@@ -41,10 +51,9 @@ import com.here.xyz.jobs.util.S3Client;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.SQLQuery;
+import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.service.Core;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
-
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -52,16 +61,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
-import static com.here.xyz.events.UpdateStrategy.DEFAULT_UPDATE_STRATEGY;
-import static com.here.xyz.jobs.steps.Step.Visibility.USER;
-import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.JOB_EXECUTOR;
-import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.JOB_VALIDATE;
-import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_EXECUTE;
-import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_ON_ASYNC_SUCCESS;
-import static com.here.xyz.util.web.XyzWebClient.WebClientException;
-import static com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace.Format.GEOJSON;
-import static com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace.Format.FAST_IMPORT_INTO_EMPTY;
 /**
  * This step imports a set of user provided inputs and imports their data into a specified space. This step produces exactly one output of
  * type {@link FeatureStatistics}.
@@ -441,7 +440,7 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
 
   @Override
   protected void processFinalizedTasks(List<FinalizedTaskItem<ImportInput, ImportOutput>> finalizedTaskItems)throws IOException, WebClientException {
-    ModelBasedOutput statistics = new FeatureStatistics();
+    FeatureStatistics statistics = new FeatureStatistics();
 
     if(!finalizedTaskItems.isEmpty()){
       long totalImportedRows = finalizedTaskItems.stream().mapToLong(item -> item.output().extractRowCount()).sum();
@@ -449,11 +448,11 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
 
       statistics = new FeatureStatistics()
               .withFeatureCount(totalImportedRows)
-              .withByteSize(totalImportedBytes)
-              .withFileName(STATISTICS + ".json");
+              .withByteSize(totalImportedBytes);
+      statistics.withFileName(STATISTICS + ".json");
     }
 
-    infoLog(STEP_ON_ASYNC_SUCCESS, "Job Statistics: bytes=" + ((FeatureStatistics)statistics).getByteSize() + " rows=" + ((FeatureStatistics)statistics).getFeatureCount());
+    infoLog(STEP_ON_ASYNC_SUCCESS, "Job Statistics: bytes=" + statistics.getByteSize() + " rows=" + statistics.getFeatureCount());
     registerOutputs(List.of(statistics), STATISTICS);
 
     infoLog(STEP_ON_ASYNC_SUCCESS, "Set contentUpdatedAt on target space");
