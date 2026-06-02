@@ -526,9 +526,10 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
   private Map<String, String> localInputRefMap = new HashMap<>();
   List<String> resolveLocalScriptParams() {
     return getScriptParams()
-            .stream()
-            .map(param -> mapInputReferencesIn(param, this::downloadInputReferenceData))
-            .collect(Collectors.toList());
+        .stream()
+        .map(param -> mapInputReferencesIn(param, this::downloadInputReferenceData))
+        .map(param -> mapInputReferencesIn(param, referenceIdentifier -> getLocalTmpPath(referenceIdentifier)))
+        .collect(Collectors.toList());
   }
 
   private String downloadInputReferenceData(String referenceIdentifier) {
