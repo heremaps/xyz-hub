@@ -48,7 +48,6 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import software.amazon.awssdk.services.s3.model.S3Exception;
@@ -528,13 +527,17 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
     return getScriptParams()
         .stream()
         .map(param -> mapInputReferencesIn(param, this::downloadInputReferenceData))
-        .map(param -> mapReferencesIn(OUTPUT_SET_REF_PATTERN, param, referenceIdentifier -> getLocalTmpPath(referenceIdentifier)))
-        .collect(Collectors.toList());
+        .map(param -> replaceOutputSetReferences(param))
+        .toList();
+  }
+
+  private String getLocalTmpOutputPath(OutputSet outputSet) {
+    String s3Path = S3Client.getKeyFromS3Uri(outputSet.toS3Uri(getJobId()).toString());
+    return getLocalTmpPath(s3Path);
   }
 
   private String downloadInputReferenceData(String referenceIdentifier) {
-
-    if(localInputRefMap.containsKey(referenceIdentifier))
+    if (localInputRefMap.containsKey(referenceIdentifier))
       return localInputRefMap.get(referenceIdentifier);
 
     String s3Uri = fromInputReferenceIdentifier(referenceIdentifier).toS3Uri(getJobId()).toString();
