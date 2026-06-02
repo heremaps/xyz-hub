@@ -528,7 +528,7 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
     return getScriptParams()
         .stream()
         .map(param -> mapInputReferencesIn(param, this::downloadInputReferenceData))
-        .map(param -> mapInputReferencesIn(param, referenceIdentifier -> getLocalTmpPath(referenceIdentifier)))
+        .map(param -> mapReferencesIn(OUTPUT_SET_REF_PATTERN, param, referenceIdentifier -> getLocalTmpPath(referenceIdentifier)))
         .collect(Collectors.toList());
   }
 
