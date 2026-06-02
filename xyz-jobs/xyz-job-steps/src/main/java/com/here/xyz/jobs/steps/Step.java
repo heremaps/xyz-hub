@@ -58,7 +58,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -636,34 +635,13 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   }
 
   /**
-   * Adds or replaces output sets by name while keeping already registered output sets.
+   * Adds {@link OutputSet}s while keeping already declared output sets.
+   * @param outputSets A list of {@link OutputSet}s
    */
-  @JsonIgnore
   protected void addOutputSets(List<OutputSet> outputSets) {
-    addOutputSets(outputSets, false);
-  }
-
-  @JsonIgnore
-  protected void addOutputSets(List<OutputSet> outputSets, boolean ignoreStepId) {
-    if (outputSets == null || outputSets.isEmpty())
-      return;
-
-    ensureOutputSetGroupDefinedIfUserFacing(outputSets.stream().anyMatch(outputSet -> outputSet.visibility == USER));
-
-    Map<String, OutputSet> mergedByName = new LinkedHashMap<>();
-
-    for (OutputSet existingOutputSet : this.outputSets) {
-      mergedByName.put(existingOutputSet.name, existingOutputSet);
-    }
-
-    for (OutputSet outputSet : outputSets) {
-      if (!ignoreStepId)
-        outputSet.setStepId(getId());
-
-      mergedByName.put(outputSet.name, outputSet);
-    }
-
-    this.outputSets = List.copyOf(mergedByName.values());
+    List<OutputSet> newOutputSets = new ArrayList<>(getOutputSets());
+    newOutputSets.addAll(outputSets);
+    setOutputSets(newOutputSets);
   }
 
   private void ensureOutputSetGroupDefinedIfUserFacing(boolean userFacing) {
