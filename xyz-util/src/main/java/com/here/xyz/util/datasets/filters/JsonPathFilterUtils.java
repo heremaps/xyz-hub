@@ -19,6 +19,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.here.xyz.models.geojson.implementation.Feature;
+import com.here.xyz.models.geojson.implementation.Properties;
 import com.jayway.jsonpath.Configuration;
 import com.jayway.jsonpath.JsonPath;
 import com.jayway.jsonpath.PathNotFoundException;
@@ -30,7 +31,7 @@ import org.apache.logging.log4j.Logger;
 
 public class JsonPathFilterUtils {
 
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(JsonPathFilterUtils.class);
   private static final Configuration JACKSON_CONFIG = Configuration.builder()
       .jsonProvider(new JacksonJsonNodeJsonProvider())
       .mappingProvider(new JacksonMappingProvider())
@@ -57,7 +58,7 @@ public class JsonPathFilterUtils {
         return false;
       }
     } catch (PathNotFoundException pathNotFoundException) {
-      logger.debug("Json path not found: {}", jsonPath);
+      logger.warn("Json path not found: {}", jsonPath);
       return false;
     }
     return true;
