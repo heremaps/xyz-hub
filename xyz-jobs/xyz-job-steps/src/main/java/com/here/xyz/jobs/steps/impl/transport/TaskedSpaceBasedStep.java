@@ -660,7 +660,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
       runWriteQuerySyncUnkillable(buildTemporaryJobTableDropStatement(getSchema(db()), getTemporaryJobTableName(getId())), db(WRITER), 0);
 
       //TODO: remove if we have implemented propper solution
-      if(!getId().equalsIgnoreCase("s_emhvah"))
+      if(!getId().equalsIgnoreCase("s_emhvah") && !getId().equalsIgnoreCase("s_gerprl") )
         registerOutputs(List.of(new S3Marker()
               .withFinalized(true)
               .withFileName(FINALIZATION_MARKER + ".json")), FINALIZATION_MARKER);
