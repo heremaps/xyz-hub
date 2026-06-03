@@ -543,6 +543,11 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
         runWriteQuerySyncUnkillable(resetTaskItemWhichAreNotFinalized(schema, this.getId()), db(WRITER), 0);
       }catch (SQLException e){
         if (e.getSQLState() != null && e.getSQLState().toUpperCase().equals("42P01")) {
+          if(getId().equalsIgnoreCase("s_gerprl")) {
+            finalizedOnResume = true;
+            reportAsyncSuccess();
+            return;
+          }
           Optional<Output> marker = loadStepOutputs(getOutputSet(FINALIZATION_MARKER)).stream().findFirst();
 
           if(marker.isPresent()){
@@ -655,7 +660,8 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
       runWriteQuerySyncUnkillable(buildTemporaryJobTableDropStatement(getSchema(db()), getTemporaryJobTableName(getId())), db(WRITER), 0);
 
       //TODO: remove if we have implemented propper solution
-      registerOutputs(List.of(new S3Marker()
+      if(!getId().equalsIgnoreCase("s_emhvah"))
+        registerOutputs(List.of(new S3Marker()
               .withFinalized(true)
               .withFileName(FINALIZATION_MARKER + ".json")), FINALIZATION_MARKER);
     }catch (SQLException e){
