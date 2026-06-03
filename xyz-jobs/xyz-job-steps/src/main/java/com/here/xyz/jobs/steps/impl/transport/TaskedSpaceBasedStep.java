@@ -32,6 +32,7 @@ import com.here.xyz.jobs.steps.execution.StepException;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.impl.transport.tasks.TaskPayload;
 import com.here.xyz.jobs.steps.impl.transport.tasks.TaskProgress;
+import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.jobs.steps.outputs.S3Marker;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
@@ -54,6 +55,7 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
@@ -112,6 +114,9 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
 
   @JsonView({Internal.class, Static.class})
   private boolean noTasksCreated = false;
+
+  @JsonIgnore
+  private boolean finalizedOnResume = false;
 
   @JsonView({Internal.class, Static.class})
   protected int taskItemCount = -1;
@@ -538,19 +543,21 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
         runWriteQuerySyncUnkillable(resetTaskItemWhichAreNotFinalized(schema, this.getId()), db(WRITER), 0);
       }catch (SQLException e){
         if (e.getSQLState() != null && e.getSQLState().toUpperCase().equals("42P01")) {
-          try{
-            getOutputSet(FINALIZATION_MARKER);
+          Optional<Output> marker = loadStepOutputs(getOutputSet(FINALIZATION_MARKER)).stream().findFirst();
+
+          if(marker.isPresent()){
             //if the job_data table is not present anymore during a resume and the finalizationMarker is present
             //the step succeeded after der StateMaschnine was already canceled. In this case we only have to report success.
             infoLog(STEP_EXECUTE, "Outputs are already present -> finalize");
+            finalizedOnResume = true;
             reportAsyncSuccess();
             return;
-          }catch(Exception t) {
-            //Can not retrieve output - start from scratch
-            infoLog(STEP_EXECUTE, "Reset of taskItems failed cause job_data table is missing! Recreating it!");
-            insertTaskItemsInTaskTable(schema, this, taskDataList);
-            initialSetup();
           }
+          //Can not retrieve output - start from scratch
+          infoLog(STEP_EXECUTE, "Reset of taskItems failed cause job_data table is missing! Recreating it!");
+          insertTaskItemsInTaskTable(schema, this, taskDataList);
+          initialSetup();
+
         }else
           throw e;
       }
@@ -606,6 +613,12 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
 
   @Override
   protected void onAsyncSuccess() throws Exception {
+    if (finalizedOnResume) {
+      infoLog(STEP_ON_ASYNC_SUCCESS, "Step was already finalized during resume. Skip output collection.");
+      cleanUpDbResources(STEP_ON_ASYNC_SUCCESS);
+      return;
+    }
+
     infoLog(STEP_ON_ASYNC_SUCCESS, "Reached onAsyncSuccess! Start collecting task outputs!");
 
     //Collect outputs and process them

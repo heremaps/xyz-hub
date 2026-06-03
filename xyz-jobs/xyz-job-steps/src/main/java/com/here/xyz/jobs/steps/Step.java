@@ -244,7 +244,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
    * @param outputSet The outputSet for which to load the outputs
    * @return The outputs that have been registered for the specified outputSet (so far).
    */
-  private List<Output> loadStepOutputs(OutputSet outputSet) {
+  protected List<Output> loadStepOutputs(OutputSet outputSet) {
     return loadOutputs(defaultBucket(), Set.of(toS3Path(outputSet)), outputSet.modelBased);
   }
 
