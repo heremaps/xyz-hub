@@ -19,6 +19,7 @@
 
 package com.here.xyz.jobs.steps.execution;
 
+import static com.here.xyz.jobs.steps.Step.Visibility.SYSTEM;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
 import static java.util.regex.Matcher.quoteReplacement;
 
@@ -507,6 +508,8 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
     if (!ref.stepId().equals(getId()))
       throw new IllegalArgumentException("Output set reference \"" + referenceIdentifier
           + "\" does not match the step ID of this EMR step.");
+    if ("".equals(ref.name()))
+      return new OutputSet(ref.name(), SYSTEM, false).withStepId(getId()).withJobId(getJobId());
     return getOutputSet(ref.name());
   }
 
