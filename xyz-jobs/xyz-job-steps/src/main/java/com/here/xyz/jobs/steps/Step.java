@@ -831,6 +831,20 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
     }
 
     /**
+     * This method can be used (e.g. in a SubFlow) to "pass through" an input set as an output set.
+     * @param inputSet
+     * @return
+     */
+    public static OutputSet fromInputSet(InputSet inputSet, Visibility visibility) {
+      if (GENERIC_PROVIDER.equals(inputSet.providerId))
+        return newGenericOutputSet(inputSet.s3Uri, inputSet.name);
+      OutputSet outputSet = new OutputSet(inputSet.name(), visibility, inputSet.modelBased);
+      outputSet.jobId = inputSet.jobId;
+      outputSet.stepId = inputSet.providerId();
+      return outputSet;
+    }
+
+    /**
      * NOTE: This factory method should only be used for already existing datasets (e.g. from references)
      * Compilers *must not* use a generic OuputSet for the purpose of passing outputs from one step as inputs to the next step.
      * @param s3Uri
