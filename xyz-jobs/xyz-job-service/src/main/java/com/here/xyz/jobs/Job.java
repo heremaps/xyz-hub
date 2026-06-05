@@ -513,6 +513,10 @@ public class Job implements XyzSerializable {
     return JobConfigClient.getInstance().loadJobsByPrimaryResourceKey(resourceKey);
   }
 
+  public static Future<Set<Job>> loadByResourceKey(String resourceKey, FilteredValues<State> states) {
+    return JobConfigClient.getInstance().loadJobsByPrimaryResourceKey(resourceKey, states);
+  }
+
   public static Future<List<Job>> loadAll() {
     return JobConfigClient.getInstance().loadJobs();
   }
