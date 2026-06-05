@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,11 +30,18 @@ import com.here.xyz.util.service.Initializable;
 import io.vertx.core.Future;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public abstract class JobConfigClient implements Initializable {
 
   public static JobConfigClient getInstance() {
     return Provider.provideInstance();
+  }
+
+  protected static <T> boolean matchesFilteredValues(FilteredValues<T> filter, T actualValue) {
+    if (filter == null || filter.values().isEmpty()) return true;
+    boolean match = filter.values().contains(actualValue);
+    return filter.include() ? match : !match;
   }
 
   public static abstract class Provider implements ImplementationProvider {
@@ -90,6 +97,12 @@ public abstract class JobConfigClient implements Initializable {
    * @return
    */
   public abstract Future<Set<Job>> loadJobsByPrimaryResourceKey(String resourceKey);
+
+  public Future<Set<Job>> loadJobsByPrimaryResourceKey(String resourceKey, FilteredValues<State> states) {
+    return loadJobsByPrimaryResourceKey(resourceKey).map(jobs -> jobs.stream()
+        .filter(job -> matchesFilteredValues(states, job.getStatus().getState()))
+        .collect(Collectors.toSet()));
+  }
 
   /**
    * Load all jobs related to a specified resourceKey (e.g., space ID) that are having the specified state.

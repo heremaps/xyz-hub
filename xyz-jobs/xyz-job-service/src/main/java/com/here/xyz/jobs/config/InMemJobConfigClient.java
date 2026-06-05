@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -88,12 +88,6 @@ public class InMemJobConfigClient extends JobConfigClient {
 
                     .toList()
     );
-  }
-
-  private static <T> boolean matchesFilteredValues(FilteredValues<T> filter, T actualValue) {
-    if (filter == null || filter.values().isEmpty()) return true;
-    boolean match = filter.values().contains(actualValue);
-    return filter.include() ? match : !match;
   }
 
   public Future<List<Job>> loadJobs(
