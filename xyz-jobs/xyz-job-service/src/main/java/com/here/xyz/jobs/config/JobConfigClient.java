@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -74,8 +74,9 @@ public abstract class JobConfigClient implements Initializable {
    *                     otherwise, excludes them.
    * @return a {@link Future} containing the filtered list of jobs
    */
-  public abstract Future<List<Job>> loadJobs(FilteredValues<Long> newerThan, FilteredValues<String> sourceTypes, FilteredValues<String> targetTypes,
-                                               FilteredValues<String> processTypes, FilteredValues<String> resourceKeys, FilteredValues<State> stateTypes);
+  public abstract Future<List<Job>> loadJobs(FilteredValues<Long> newerThan, FilteredValues<Long> olderThan,
+      FilteredValues<String> sourceTypes, FilteredValues<String> targetTypes, FilteredValues<String> processTypes,
+      FilteredValues<String> resourceKeys, FilteredValues<State> stateTypes);
 
   /**
    * Load all jobs that are having the specified state.

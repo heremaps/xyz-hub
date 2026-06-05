@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -113,9 +113,9 @@ public class DynamoJobConfigClient extends JobConfigClient {
   }
 
   @Override
-  public Future<List<Job>> loadJobs(FilteredValues<Long> newerThan, FilteredValues<String> sourceTypes,
-                                    FilteredValues<String> targetTypes, FilteredValues<String> processTypes,
-                                    FilteredValues<String> resourceKeys, FilteredValues<State> stateTypes) {
+  public Future<List<Job>> loadJobs(FilteredValues<Long> newerThan, FilteredValues<Long> olderThan, FilteredValues<String> sourceTypes,
+      FilteredValues<String> targetTypes, FilteredValues<String> processTypes, FilteredValues<String> resourceKeys,
+      FilteredValues<State> stateTypes) {
     List<Job> jobs = new LinkedList<>();
 
     List<String> filters = new ArrayList<>();
@@ -123,12 +123,10 @@ public class DynamoJobConfigClient extends JobConfigClient {
     Map<String, Object> attrValues = new HashMap<>();
 
     // --- createdAt special case ---
-    if (newerThan != null && !newerThan.values().isEmpty()) {
-      Long ts = newerThan.values().iterator().next(); // Only use one timestamp
-      filters.add("#createdAt " + (newerThan.include() ? ">" : "<=") + " :ts");
-      attrNames.put("#createdAt", "createdAt");
-      attrValues.put(":ts", ts);
-    }
+    if (newerThan != null && !newerThan.values().isEmpty())
+      addCreatedAtCondition(newerThan, filters, attrNames, attrValues);
+    if (olderThan != null && !olderThan.values().isEmpty())
+      addCreatedAtCondition(new FilteredValues<>(false, olderThan.values()), filters, attrNames, attrValues);
 
     // --- IN / NOT IN filters ---
     Optional.ofNullable(buildInFilter("source.type", sourceTypes, attrNames, attrValues)).ifPresent(filters::add);
@@ -149,24 +147,31 @@ public class DynamoJobConfigClient extends JobConfigClient {
 
       attrNames.put("#resourceKeys", "resourceKeys");
 
-      if (resourceKeys.include()) {
+      if (resourceKeys.include())
         filters.add("(" + String.join(" OR ", subFilters) + ")");
-      } else {
+      else
         filters.add("(" + subFilters.stream().map(f -> "NOT " + f).collect(Collectors.joining(" AND ")) + ")");
-      }
     }
 
     String filterExpr = filters.isEmpty() ? null : String.join(" AND ", filters);
-    if (attrNames.isEmpty()) attrNames = null;
-    if (attrValues.isEmpty()) attrValues = null;
+    if (attrNames.isEmpty())
+      attrNames = null;
+    if (attrValues.isEmpty())
+      attrValues = null;
 
     jobTable.scan(filterExpr, attrNames, attrValues)
-            .pages()
-            .forEach(page ->
-                    page.forEach(item -> jobs.add(XyzSerializable.fromMap(item.asMap(), Job.class)))
-            );
+        .pages()
+        .forEach(page -> page.forEach(item -> jobs.add(XyzSerializable.fromMap(item.asMap(), Job.class))));
 
     return Future.succeededFuture(jobs);
+  }
+
+  private static void addCreatedAtCondition(FilteredValues<Long> newerThan, List<String> filters, Map<String, String> attrNames,
+      Map<String, Object> attrValues) {
+    Long ts = newerThan.values().iterator().next(); // Only use one timestamp
+    filters.add("#createdAt " + (newerThan.include() ? ">" : "<=") + " :ts");
+    attrNames.put("#createdAt", "createdAt");
+    attrValues.put(":ts", ts);
   }
 
   private String buildInFilter(String fieldPath, FilteredValues<?> fv,
