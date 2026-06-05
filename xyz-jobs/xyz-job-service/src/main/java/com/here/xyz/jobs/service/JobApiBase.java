@@ -156,20 +156,20 @@ public class JobApiBase extends Api {
     }
 
     public static class Path {
-      static final String SPACE_ID = "spaceId";
-      static final String JOB_ID = "jobId";
-      static final String PAGE_TOKEN = "pageToken";
-      static final String LIMIT = "limit";
+      public static final String SPACE_ID = "spaceId";
+      public static final String JOB_ID = "jobId";
+      public static final String PAGE_TOKEN = "pageToken";
+      public static final String LIMIT = "limit";
     }
 
     public static class Query {
-      static final String STATE = "state";
-      static final String RESOURCE = "resource";
-      static final String NEWER_THAN = "newerThan";
-      static final String OLDER_THAN = "olderThan";
-      static final String SOURCE_TYPE = "sourceType";
-      static final String TARGET_TYPE = "targetType";
-      static final String PROCESS_TYPE = "processType";
+      public static final String STATE = "state";
+      public static final String RESOURCE = "resource";
+      public static final String NEWER_THAN = "newerThan";
+      public static final String OLDER_THAN = "olderThan";
+      public static final String SOURCE_TYPE = "sourceType";
+      public static final String TARGET_TYPE = "targetType";
+      public static final String PROCESS_TYPE = "processType";
     }
   }
 }
