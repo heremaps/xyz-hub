@@ -504,9 +504,10 @@ public class Job implements XyzSerializable {
       return JobConfigClient.getInstance().loadJobs(resourceKey, state);
   }
 
-  public static Future<List<Job>> load(FilteredValues<Long> newerThan, FilteredValues<String> sourceType, FilteredValues<String> targetType,
-                                               FilteredValues<String> processType, FilteredValues<String> resourceKeys, FilteredValues<State> stateTypes) {
-    return JobConfigClient.getInstance().loadJobs(newerThan, sourceType, targetType, processType, resourceKeys, stateTypes);
+  public static Future<List<Job>> load(FilteredValues<Long> newerThan, FilteredValues<Long> olderThan, FilteredValues<String> sourceType,
+      FilteredValues<String> targetType, FilteredValues<String> processType, FilteredValues<String> resourceKeys,
+      FilteredValues<State> stateTypes) {
+    return JobConfigClient.getInstance().loadJobs(newerThan, olderThan, sourceType, targetType, processType, resourceKeys, stateTypes);
   }
 
   public static Future<Set<Job>> loadByResourceKey(String resourceKey) {

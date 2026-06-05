@@ -81,8 +81,9 @@ public abstract class JobConfigClient implements Initializable {
    *                     otherwise, excludes them.
    * @return a {@link Future} containing the filtered list of jobs
    */
-  public abstract Future<List<Job>> loadJobs(FilteredValues<Long> newerThan, FilteredValues<String> sourceTypes, FilteredValues<String> targetTypes,
-                                               FilteredValues<String> processTypes, FilteredValues<String> resourceKeys, FilteredValues<State> stateTypes);
+  public abstract Future<List<Job>> loadJobs(FilteredValues<Long> newerThan, FilteredValues<Long> olderThan,
+      FilteredValues<String> sourceTypes, FilteredValues<String> targetTypes, FilteredValues<String> processTypes,
+      FilteredValues<String> resourceKeys, FilteredValues<State> stateTypes);
 
   /**
    * Load all jobs that are having the specified state.
