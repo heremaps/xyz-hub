@@ -169,9 +169,11 @@ public class DynamoJobConfigClient extends JobConfigClient {
   private static void addCreatedAtCondition(FilteredValues<Long> newerThan, List<String> filters, Map<String, String> attrNames,
       Map<String, Object> attrValues) {
     Long ts = newerThan.values().iterator().next(); // Only use one timestamp
-    filters.add("#createdAt " + (newerThan.include() ? ">" : "<=") + " :ts");
+    long createdAtFilterCounter = filters.stream().filter(f -> f.contains("#createdAt")).count();
+    String timestampPlaceholder = ":ts" + createdAtFilterCounter;
+    filters.add("#createdAt " + (newerThan.include() ? ">" : "<=") + " " + timestampPlaceholder);
     attrNames.put("#createdAt", "createdAt");
-    attrValues.put(":ts", ts);
+    attrValues.put(timestampPlaceholder, ts);
   }
 
   private String buildInFilter(String fieldPath, FilteredValues<?> fv,
