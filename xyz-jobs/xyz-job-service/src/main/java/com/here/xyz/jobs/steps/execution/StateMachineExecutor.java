@@ -51,7 +51,8 @@ class StateMachineExecutor extends JobExecutor {
   StateMachineExecutor() {}
 
   private GraphTransformer transformer(Job job) {
-    return new GraphTransformer(Config.instance.STEP_LAMBDA_ARN, Config.instance.STEP_LAMBDA_PIPELINE_ALIAS, job.isPipeline());
+    return new GraphTransformer(Config.instance.STEP_LAMBDA_ARN, Config.instance.STEP_LAMBDA_PIPELINE_ALIAS, job.isPipeline(),
+        Config.instance.getAlternativeStepLambdaMappings());
   }
 
   @Override
