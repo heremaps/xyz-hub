@@ -38,6 +38,7 @@ import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.jobs.JobClientInfo;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.ProcessUpdate;
 import com.here.xyz.jobs.steps.execution.StepException;
+import com.here.xyz.jobs.steps.execution.db.Database;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.impl.transport.tasks.TaskPayload;
 import com.here.xyz.jobs.steps.impl.transport.tasks.TaskProgress;
@@ -58,10 +59,16 @@ import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.sql.Array;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -696,7 +703,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
       return AsyncExecutionState.SUCCEEDED;
 
     try {
-      TaskProgress taskProgress = getTaskProgress();
+      TaskProgress<?> taskProgress = getTaskProgress();
       return evaluateExecutionState(taskProgress);
     }
     catch (SQLException e) {
@@ -709,13 +716,57 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
     }
   }
 
-  private AsyncExecutionState evaluateExecutionState(TaskProgress taskProgress) throws UnknownStateException {
+  private AsyncExecutionState evaluateExecutionState(TaskProgress<?> taskProgress)
+      throws UnknownStateException, SQLException, WebClientException, TooManyResourcesClaimed {
     if (taskProgress.isComplete()) {
       //Only log and return RUNNING to avoid double success handling;
       infoLog(STEP_ON_STATE_CHECK, "All tasks finalized!");
-    }if (taskProgress.hasRunningTasks())
-      // Check if the expected queries are still running.
-      return super.getExecutionState();
+    }
+    if (taskProgress.hasRunningTasks()) {
+      Set<Integer> expectedTaskIds = taskProgress.getStartedNotFinalizedTaskIds();
+      Set<String> expectedTaskIdStrings = expectedTaskIds.stream()
+          .map(String::valueOf)
+          .collect(Collectors.toSet());
+
+      if (expectedTaskIdStrings.isEmpty()) {
+        infoLog(STEP_ON_STATE_CHECK, "Started tasks are reported but started_not_finalized_task_ids is empty.");
+        throw new UnknownStateException("No started-not-finalized task ids available for step: " + getGlobalStepId() + " !");
+      }
+
+      boolean runsOnWriter = queryRunsOnWriter();
+      Database database = runsOnWriter ? dbWriter() : dbReader();
+      //Check if all expected TaskQueries areRunning. Collect all taskIds where we are not able
+      //to find a running query.
+      Set<String> runningTaskIds = SQLQuery.areRunning(
+          requestResource(database, 0d), database.getRole() != WRITER,
+              getId() + "#taskId", expectedTaskIdStrings
+      );
+
+      Set<Integer> unknownStateTaskIds = expectedTaskIds.stream()
+          .filter(taskId -> !runningTaskIds.contains(String.valueOf(taskId)))
+          .collect(Collectors.toSet());
+
+      if (unknownStateTaskIds.isEmpty())
+        return AsyncExecutionState.RUNNING;
+
+      Set<Integer> exceededTaskIds = incrementUnknownQueryStateForTasks(unknownStateTaskIds);
+      for(int exceededTaskId : exceededTaskIds){
+        infoLog(STEP_ON_STATE_CHECK, "Unknown queryState of taskId " + exceededTaskId + " has exceeded unknown query state threshold. Retry the task now!");
+        try {
+          TaskProgress<I> retryTaskProgress = resetTaskForRetry(exceededTaskId);
+          if (retryTaskProgress == null) {
+            throw new StepException("Retry threshold exceeded for taskId " + exceededTaskId + ".");
+          }
+          startTask(retryTaskProgress);
+        } catch (StepException e1){
+          throw e1;
+        } catch (Exception e2){
+          throw new StepException("Not able to retry taskId " + exceededTaskId, e2);
+        }
+      }
+
+      return AsyncExecutionState.RUNNING;
+    }
     if (taskProgress.hasNoRunningTasks()) {
       infoLog(STEP_ON_STATE_CHECK, "No running tasks detected. StartedTasks: " + taskProgress.getStartedTasks() + ","
           + " FinalizedTasks: " + taskProgress.getFinalizedTasks() + " !");
@@ -783,6 +834,72 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
             , db(WRITER), 0);
   }
 
+  private Set<Integer> incrementUnknownQueryStateForTasks(Set<Integer> unknownStateTaskIds)
+      throws WebClientException, SQLException, TooManyResourcesClaimed {
+    if (unknownStateTaskIds == null || unknownStateTaskIds.isEmpty())
+      return Set.of();
+
+    SQLQuery query = new SQLQuery("""
+            WITH updated AS (
+                UPDATE ${schema}.${table}
+                   SET unknown_query_state_occurrences = COALESCE(unknown_query_state_occurrences, 0) + 1,
+                   updated_at = now() AT TIME ZONE 'UTC'
+                 WHERE task_id IN (
+                     SELECT value::INT
+                       FROM jsonb_array_elements_text(#{missingTaskIds}::JSONB)
+                 )
+                RETURNING task_id, unknown_query_state_occurrences
+            )
+            SELECT task_id
+              FROM updated
+             WHERE unknown_query_state_occurrences >= #{maxUnknownTaskQueryChecks};
+        """)
+        .withVariable("schema", getSchema(db(WRITER)))
+        .withVariable("table", getTemporaryJobTableName(getId()))
+        .withNamedParameter("missingTaskIds", XyzSerializable.serialize(unknownStateTaskIds))
+        .withNamedParameter("maxUnknownTaskQueryChecks", MAX_UNKNOWN_TASK_QUERY_CHECKS)
+        .withRetryableErrorCodes(RETRYABLE_SQL_CODES);
+
+    return runReadQuerySync(query, db(WRITER), 0, rs -> {
+      Set<Integer> exceededTaskIds = new java.util.LinkedHashSet<>();
+      while (rs.next())
+        exceededTaskIds.add(rs.getInt("task_id"));
+      return exceededTaskIds;
+    });
+  }
+
+  private TaskProgress<I> resetTaskForRetry(int taskId) throws WebClientException, SQLException, TooManyResourcesClaimed {
+    SQLQuery query = new SQLQuery("""
+            UPDATE ${schema}.${table}
+               SET unknown_query_state_occurrences = 0,
+                   updated_at = now() AT TIME ZONE 'UTC',
+                   retry_attempts = retry_attempts + 1
+             WHERE task_id = #{taskId}
+             RETURNING task_id, task_input, retry_attempts;
+        """)
+        .withVariable("schema", getSchema(db(WRITER)))
+        .withVariable("table", getTemporaryJobTableName(getId()))
+        .withNamedParameter("taskId", taskId)
+        .withRetryableErrorCodes(RETRYABLE_SQL_CODES);
+
+    return runReadQuerySync(query, db(WRITER), 0, rs -> {
+      if (!rs.next())
+        throw new SQLException("Task for retry not found: taskId=" + taskId);
+
+      int retryAttempt = rs.getInt("retry_attempts");
+      if (retryAttempt > MAX_TASK_RETRY_ATTEMPS)
+        return null;
+
+      try {
+        return new TaskProgress<>(rs.getInt("task_id"),
+                XyzSerializable.deserialize(rs.getString("task_input"), new TypeReference<I>() {}));
+      }
+      catch (JsonProcessingException e) {
+        throw new StepException("Can not deserialize task_input for retry of taskId=" + taskId + "!", e);
+      }
+    });
+  }
+
   private TaskProgress executeTaskItemQuery(SQLQuery query) throws WebClientException, SQLException, TooManyResourcesClaimed {
     TaskProgress taskProgress;
     try {
@@ -816,8 +933,18 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
               rs -> {
                 if (!rs.next())
                   return null;
-                return new TaskProgress(rs.getInt("total"), rs.getInt("started"), rs.getInt("finalized"));
+                return new TaskProgress(rs.getInt("total"), rs.getInt("started"), rs.getInt("finalized"),getIntegerList(rs, "started_not_finalized_task_ids"));
               });
+  }
+
+  private Set<Integer> getIntegerList(ResultSet rs, String columnName) throws SQLException {
+    Array sqlArray = rs.getArray(columnName);
+
+    return sqlArray == null
+            ? Set.of()
+            : Arrays.stream((Object[]) sqlArray.getArray())
+            .map(value -> ((Number) value).intValue())
+            .collect(Collectors.toSet());
   }
 
   private SQLQuery resetTaskItemWhichAreNotFinalized() {
