@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ package com.here.xyz.psql.query;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.COMPOSITE_EXTENSION;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.X;
 import static com.here.xyz.models.hub.Ref.HEAD;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.DELETE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.INSERT_HIDE_COMPOSITE;
@@ -72,7 +73,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
       query = new SQLQuery(
           "SELECT * FROM (SELECT * FROM ("
-          + "     (SELECT ${{selectClause}} FROM ${schema}.${table} WHERE ${{filters}} ${{versionCheck}} ${{orderBy}})"
+          + "     (SELECT ${{selectClause}} FROM ${schema}.${table} e WHERE ${{filters}} ${{versionCheck}} ${{orderBy}})"
           + "   ${{unionAll}} "
           + "     SELECT * FROM (${{baseQuery}}) a"
           + "       ${{compositionFilter}}"
@@ -131,7 +132,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
     String tableVariable = isL2 ? "intermediateExtensionTable" : "table";
     return new SQLQuery("WHERE ${{exists}} exists(SELECT 1 FROM ${schema}.${" + tableVariable + "} WHERE ${{idComparison}})")
-        .withQueryFragment("exists", event.getContext() == COMPOSITE_EXTENSION && !isL2 ? "" : "NOT")
+        .withQueryFragment("exists", (event.getContext() == COMPOSITE_EXTENSION || event.getContext() == X) && !isL2 ? "" : "NOT")
         .withQueryFragment("idComparison", idComparisonFragment);
   }
 
@@ -337,11 +338,15 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
   private SQLQuery buildIdComparisonFragment(E event, String prefix, SQLQuery versionCheckFragment) {
     return new SQLQuery("id = " + prefix + "id"
-        + (event instanceof SelectiveEvent ? " ${{versionCheck}} AND operation != 'D'" : ""))
-        .withQueryFragment("versionCheck", versionCheckFragment);
+        + (event instanceof SelectiveEvent ? " ${{versionCheck}} ${{deletionInclusionFragment}}" : ""))
+        .withQueryFragment("versionCheck", versionCheckFragment)
+        .withQueryFragment("deletionInclusionFragment", event.getContext() == X ? "AND operation = 'D'" : "AND operation != 'D'");
   }
 
   private SQLQuery buildDeletionCheckFragment(E event, boolean isExtension) {
+    if (isExtension && event.getContext() == X)
+      return buildContextXDeletionCheckFragment(event);
+
     if (!historyEnabled && !isExtension
         || event instanceof SelectiveEvent selectiveEvent && selectiveEvent.getRef().isRange())
       return new SQLQuery("");
@@ -353,12 +358,26 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
             : new ModificationType[]{DELETE}).map(ModificationType::toString).toArray(String[]::new));
   }
 
+  private SQLQuery buildContextXDeletionCheckFragment(E event) {
+    return new SQLQuery("""
+        AND NOT (
+          operation = 'D'
+          AND EXISTS (
+            SELECT 1
+            FROM ${schema}.${extendedTable}
+            WHERE id = e.id
+          )
+        )
+        """)
+        .withVariable("extendedTable", getExtendedTable(event));
+  }
+
   protected SQLQuery buildLimitFragment(E event) {
     return new SQLQuery("");
   }
 
   protected boolean isCompositeQuery(E event) {
-    return isExtendedSpace(event) && (event.getContext() == DEFAULT || event.getContext() == COMPOSITE_EXTENSION);
+    return isExtendedSpace(event) && (event.getContext() == DEFAULT || event.getContext() == COMPOSITE_EXTENSION || event.getContext() == X);
   }
 
   /**

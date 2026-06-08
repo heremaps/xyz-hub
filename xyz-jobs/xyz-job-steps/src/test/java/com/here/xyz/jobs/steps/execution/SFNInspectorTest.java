@@ -125,6 +125,21 @@ class SFNInspectorTest {
   }
 
   @Test
+  void checkIfStepWasRunningBeforeShouldReturnFalseWhenOnlyStarted() throws Exception {
+    setAsyncSfnClient(createAsyncSfnClient(request -> GetExecutionHistoryResponse.builder()
+        .events(
+            entered(1L, "TaskedImportFilesToSpace.lgiateettp"),
+            event(2L, 1L, HistoryEventType.TASK_SCHEDULED),
+            event(3L, 2L, HistoryEventType.TASK_STARTED)
+        )
+        .build()));
+
+    Boolean resumable = await(SFNInspector.checkIfStepWasRunningBefore(EXECUTION_ARN, "TaskedImportFilesToSpace", "lgiateettp"));
+
+    assertFalse(resumable);
+  }
+
+  @Test
   void findStepProgressInHistoryShouldReturnNotReachedWhenChainIsBroken() throws Exception {
     setAsyncSfnClient(createAsyncSfnClient(request -> GetExecutionHistoryResponse.builder()
         .events(

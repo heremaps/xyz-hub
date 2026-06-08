@@ -19,6 +19,7 @@
 
 package com.here.xyz.jobs.steps.execution;
 
+import static com.here.xyz.jobs.steps.Step.Visibility.SYSTEM;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
 import static java.util.regex.Matcher.quoteReplacement;
 
@@ -48,7 +49,6 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import software.amazon.awssdk.services.s3.model.S3Exception;
@@ -508,6 +508,8 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
     if (!ref.stepId().equals(getId()))
       throw new IllegalArgumentException("Output set reference \"" + referenceIdentifier
           + "\" does not match the step ID of this EMR step.");
+    if ("".equals(ref.name()))
+      return new OutputSet(ref.name(), SYSTEM, false).withStepId(getId()).withJobId(getJobId());
     return getOutputSet(ref.name());
   }
 
@@ -526,14 +528,19 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
   private Map<String, String> localInputRefMap = new HashMap<>();
   List<String> resolveLocalScriptParams() {
     return getScriptParams()
-            .stream()
-            .map(param -> mapInputReferencesIn(param, this::downloadInputReferenceData))
-            .collect(Collectors.toList());
+        .stream()
+        .map(param -> mapInputReferencesIn(param, this::downloadInputReferenceData))
+        .map(param -> replaceOutputSetReferences(param))
+        .toList();
+  }
+
+  private String getLocalTmpOutputPath(OutputSet outputSet) {
+    String s3Path = S3Client.getKeyFromS3Uri(outputSet.toS3Uri(getJobId()).toString());
+    return getLocalTmpPath(s3Path);
   }
 
   private String downloadInputReferenceData(String referenceIdentifier) {
-
-    if(localInputRefMap.containsKey(referenceIdentifier))
+    if (localInputRefMap.containsKey(referenceIdentifier))
       return localInputRefMap.get(referenceIdentifier);
 
     String s3Uri = fromInputReferenceIdentifier(referenceIdentifier).toS3Uri(getJobId()).toString();

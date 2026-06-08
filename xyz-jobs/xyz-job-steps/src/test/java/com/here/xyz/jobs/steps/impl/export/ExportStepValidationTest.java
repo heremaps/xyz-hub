@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2017-2026 HERE Europe B.V.
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -18,13 +19,13 @@
 
 package com.here.xyz.jobs.steps.impl.export;
 
-import com.here.xyz.models.filters.SpatialFilter;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
 import com.here.xyz.jobs.steps.impl.StepTest;
 import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
 import com.here.xyz.jobs.steps.outputs.Output;
+import com.here.xyz.models.filters.SpatialFilter;
 import com.here.xyz.models.geojson.coordinates.LinearRingCoordinates;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.coordinates.PolygonCoordinates;
@@ -141,7 +142,7 @@ public class ExportStepValidationTest extends StepTest {
         //TODO: Deduplicate the following from ExportTestBase
         for (Output output : userOutputs) {
             if (output instanceof DownloadUrl downloadUrl)
-                exportedFeatures.addAll(downloadFileAndSerializeFeatures(downloadUrl));
+                exportedFeatures.addAll(downloadFileAndDeSerializeFeatures(downloadUrl));
             else if (output instanceof FeatureStatistics statistics)
                 Assertions.assertEquals(expectedFeatures.getFeatures().size(), statistics.getFeatureCount());
         }

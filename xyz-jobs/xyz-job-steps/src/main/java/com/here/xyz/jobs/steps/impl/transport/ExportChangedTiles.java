@@ -141,9 +141,7 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
 
   {
     threadCount = 8;
-    setOutputSets(List.of(
-        new OutputSet(STATISTICS, USER, true),
-        new OutputSet(EXPORTED_DATA, USER, false),
+    addOutputSets(List.of(
         new OutputSet(TILE_INVALIDATIONS, SYSTEM, true)
     ));
   }

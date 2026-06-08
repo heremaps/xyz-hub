@@ -32,6 +32,8 @@ import com.here.xyz.jobs.steps.execution.StepException;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.impl.transport.tasks.TaskPayload;
 import com.here.xyz.jobs.steps.impl.transport.tasks.TaskProgress;
+import com.here.xyz.jobs.steps.outputs.Output;
+import com.here.xyz.jobs.steps.outputs.S3Marker;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
 import com.here.xyz.models.hub.Ref;
@@ -53,9 +55,11 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
+import static com.here.xyz.jobs.steps.Step.Visibility.SYSTEM;
 import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_EXECUTE;
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_ON_ASYNC_FAILURE;
@@ -77,13 +81,19 @@ import static com.here.xyz.util.web.XyzWebClient.WebClientException;
  * </ul>
  *
  * @param <T> The concrete subclass type.
- * @param <I> The input payload type for each task.fail
+ * @param <I> The input payload type for each task.
  * @param <O> The output payload type for each task.
  */
 public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I extends TaskPayload, O extends TaskPayload>
         extends SpaceBasedStep<T> {
   private static final String JOB_DATA_PREFIX = "job_data_";
   private static final Logger logger = LogManager.getLogger();
+  public static final String FINALIZATION_MARKER = "finalized_marker";
+
+  {
+    setOutputSets(List.of(new OutputSet(FINALIZATION_MARKER, SYSTEM, true)));
+  }
+
   protected static final Set<String> RETRYABLE_SQL_CODES = Set.of(
           "40001", // serialization_failure
           "40P01", // deadlock_detected
@@ -104,6 +114,9 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
 
   @JsonView({Internal.class, Static.class})
   private boolean noTasksCreated = false;
+
+  @JsonIgnore
+  private boolean finalizedOnResume = false;
 
   @JsonView({Internal.class, Static.class})
   protected int taskItemCount = -1;
@@ -530,11 +543,21 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
         runWriteQuerySyncUnkillable(resetTaskItemWhichAreNotFinalized(schema, this.getId()), db(WRITER), 0);
       }catch (SQLException e){
         if (e.getSQLState() != null && e.getSQLState().toUpperCase().equals("42P01")) {
-          //if the job_data table is not present anymore during a resume, we expect that the last execution completed
-          //after der StateMaschnine was already canceled. In this case we only have to report success.
-          infoLog(STEP_EXECUTE, "Reset of taskItems failed - we assume a previous success!");
-          reportAsyncSuccess();
-          return;
+          Optional<Output> marker = loadStepOutputs(getOutputSet(FINALIZATION_MARKER)).stream().findFirst();
+
+          if(marker.isPresent()){
+            //if the job_data table is not present anymore during a resume and the finalizationMarker is present
+            //the step succeeded after der StateMaschnine was already canceled. In this case we only have to report success.
+            infoLog(STEP_EXECUTE, "Outputs are already present -> finalize");
+            finalizedOnResume = true;
+            reportAsyncSuccess();
+            return;
+          }
+          //Can not retrieve output - start from scratch
+          infoLog(STEP_EXECUTE, "Reset of taskItems failed cause job_data table is missing! Recreating it!");
+          insertTaskItemsInTaskTable(schema, this, taskDataList);
+          initialSetup();
+
         }else
           throw e;
       }
@@ -590,6 +613,12 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
 
   @Override
   protected void onAsyncSuccess() throws Exception {
+    if (finalizedOnResume) {
+      infoLog(STEP_ON_ASYNC_SUCCESS, "Step was already finalized during resume. Skip output collection.");
+      cleanUpDbResources(STEP_ON_ASYNC_SUCCESS);
+      return;
+    }
+
     infoLog(STEP_ON_ASYNC_SUCCESS, "Reached onAsyncSuccess! Start collecting task outputs!");
 
     //Collect outputs and process them
@@ -624,6 +653,10 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
 
       infoLog(logPhase, "Cleanup temporary table");
       runWriteQuerySyncUnkillable(buildTemporaryJobTableDropStatement(getSchema(db()), getTemporaryJobTableName(getId())), db(WRITER), 0);
+
+      registerOutputs(List.of(new S3Marker()
+              .withFinalized(true)
+              .withFileName(FINALIZATION_MARKER + ".json")), FINALIZATION_MARKER);
     }catch (SQLException e){
       if (e.getSQLState() != null) {
         switch (e.getSQLState().toUpperCase()) {

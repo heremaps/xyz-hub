@@ -244,7 +244,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
    * @param outputSet The outputSet for which to load the outputs
    * @return The outputs that have been registered for the specified outputSet (so far).
    */
-  private List<Output> loadStepOutputs(OutputSet outputSet) {
+  protected List<Output> loadStepOutputs(OutputSet outputSet) {
     return loadOutputs(defaultBucket(), Set.of(toS3Path(outputSet)), outputSet.modelBased);
   }
 
@@ -634,6 +634,16 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
     this.outputSets = outputSets;
   }
 
+  /**
+   * Adds {@link OutputSet}s while keeping already declared output sets.
+   * @param outputSets A list of {@link OutputSet}s
+   */
+  protected void addOutputSets(List<OutputSet> outputSets) {
+    List<OutputSet> newOutputSets = new ArrayList<>(getOutputSets());
+    newOutputSets.addAll(outputSets);
+    setOutputSets(newOutputSets);
+  }
+
   private void ensureOutputSetGroupDefinedIfUserFacing(boolean userFacing) {
     // temporary disable it for demo, as it fails on setting output sets in constructor
     return;
@@ -818,6 +828,20 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
       visibility = SYSTEM;
       jobId = null;
       fileSuffix = "unknown";
+    }
+
+    /**
+     * This method can be used (e.g. in a SubFlow) to "pass through" an input set as an output set.
+     * @param inputSet
+     * @return
+     */
+    public static OutputSet fromInputSet(InputSet inputSet, Visibility visibility) {
+      if (GENERIC_PROVIDER.equals(inputSet.providerId))
+        return newGenericOutputSet(inputSet.s3Uri, inputSet.name);
+      OutputSet outputSet = new OutputSet(inputSet.name(), visibility, inputSet.modelBased);
+      outputSet.jobId = inputSet.jobId;
+      outputSet.stepId = inputSet.providerId();
+      return outputSet;
     }
 
     /**

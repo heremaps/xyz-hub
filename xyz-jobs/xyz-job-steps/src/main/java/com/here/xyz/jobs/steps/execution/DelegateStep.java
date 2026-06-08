@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -68,7 +68,10 @@ public class DelegateStep extends Step<DelegateStep> {
      */
     setOutputSetGroup(delegator.getOutputSetGroup());
     setOutputSets(outputSets != null ? outputSets : delegator.getOutputSets().stream().map(compiledOutputSet -> {
-      OutputSet delegateOutputSet = this.delegate.getOutputSets().stream().filter(outputSet -> outputSet.name.equals(compiledOutputSet.name)).findFirst().get();
+      OutputSet delegateOutputSet = this.delegate.getOutputSets().stream().filter(outputSet -> outputSet.name.equals(compiledOutputSet.name)).findFirst().orElse(null);
+      //TODO: Remove this hotfix once the hotfix regarding FINALIZATION_MARKER in TaskedSpaceBasedStep is removed
+      if (delegateOutputSet == null)
+        return compiledOutputSet;
       return new OutputSet(delegateOutputSet, this.delegate.getJobId(), compiledOutputSet.visibility);
     }).toList(), true);
   }
