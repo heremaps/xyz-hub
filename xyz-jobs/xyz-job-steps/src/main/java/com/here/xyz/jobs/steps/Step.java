@@ -860,6 +860,13 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
       return new OutputSet(outputSet.s3Uri, outputSet.name, visibility);
     }
 
+    public static OutputSet copy(OutputSet outputSet, Visibility visibility) {
+      if (GENERIC_PROVIDER.equals(outputSet.stepId))
+        return newGenericOutputSet(outputSet, visibility);
+      else
+        return new OutputSet(outputSet, outputSet.jobId, visibility);
+    }
+
     public String getJobId() {
       return jobId;
     }
