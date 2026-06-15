@@ -59,7 +59,9 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
 
   private static final Logger logger = LogManager.getLogger();
   private static final long DEFAULT_CONTENT_UPDATED_AT_INTERVAL_MILLIS = TimeUnit.MINUTES.toMillis(1);
-  private static final long NO_CACHE_INTERVAL_MILLIS = DEFAULT_CONTENT_UPDATED_AT_INTERVAL_MILLIS * 2;
+  private static final long NO_CACHE_INTERVAL_MILLIS = DEFAULT_CONTENT_UPDATED_AT_INTERVAL_MILLIS + TimeUnit.SECONDS.toMillis(5);
+  //TODO: avergage replication lag is < 1s ,  clarify if a 15s window or less would be sufficent
+  //private static final long NO_CACHE_INTERVAL_MILLIS = TimeUnit.SECONDS.toMillis(15);
   private static final long MIN_SERVICE_CACHE_INTERVAL_MILLIS = TimeUnit.DAYS.toMillis(1);
   private Connector resolvedStorageConnector;
 
