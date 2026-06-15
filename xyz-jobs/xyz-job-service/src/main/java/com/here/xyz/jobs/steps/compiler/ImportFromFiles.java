@@ -19,16 +19,23 @@
 
 package com.here.xyz.jobs.steps.compiler;
 
+import static com.here.xyz.jobs.steps.Step.InputSet.USER_INPUTS;
+import static com.here.xyz.util.db.pg.IndexHelper.SystemIndex.NEXT_VERSION;
+import static com.here.xyz.util.db.pg.IndexHelper.SystemIndex.OPERATION;
+import static com.here.xyz.util.db.pg.IndexHelper.SystemIndex.VERSION_ID;
+
 import com.google.common.collect.Lists;
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.datasets.DatasetDescription.Space;
 import com.here.xyz.jobs.datasets.Files;
 import com.here.xyz.jobs.datasets.files.Csv;
 import com.here.xyz.jobs.datasets.files.FileFormat;
+import com.here.xyz.jobs.datasets.files.FileInputSettings;
 import com.here.xyz.jobs.datasets.files.GeoJson;
 import com.here.xyz.jobs.steps.CompilationStepGraph;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.JobCompiler.CompilationError;
+import com.here.xyz.jobs.steps.Step.InputSet;
 import com.here.xyz.jobs.steps.StepExecution;
 import com.here.xyz.jobs.steps.compiler.tools.IndexCompilerHelper;
 import com.here.xyz.jobs.steps.impl.AnalyzeSpaceTable;
@@ -41,17 +48,11 @@ import com.here.xyz.util.db.pg.IndexHelper.SystemIndex;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
-
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import static com.here.xyz.jobs.steps.Step.InputSet.USER_INPUTS;
-import static com.here.xyz.util.db.pg.IndexHelper.SystemIndex.NEXT_VERSION;
-import static com.here.xyz.util.db.pg.IndexHelper.SystemIndex.OPERATION;
-import static com.here.xyz.util.db.pg.IndexHelper.SystemIndex.VERSION_ID;
 
 public class ImportFromFiles implements JobCompilationInterceptor {
   public static Set<Class<? extends Space>> allowedTargetTypes = new HashSet<>(Set.of(Space.class));
@@ -68,10 +69,14 @@ public class ImportFromFiles implements JobCompilationInterceptor {
 
   @Override
   public CompilationStepGraph compile(Job job) {
-    Space target = (Space) job.getTarget();
-    String spaceId = target.getId();
+    Space targetSpace = (Space) job.getTarget();
+    FileInputSettings fileInputSettings = ((Files) job.getSource()).getInputSettings();
+    return compile(targetSpace, USER_INPUTS.get(), fileInputSettings);
+  }
 
-    final FileFormat sourceFormat = ((Files) job.getSource()).getInputSettings().getFormat();
+  public CompilationStepGraph compile(Space targetSpace, InputSet dataInputSet, FileInputSettings fileInputSettings) {
+    String spaceId = targetSpace.getId();
+    final FileFormat sourceFormat = fileInputSettings.getFormat();
 
     if (!(sourceFormat instanceof GeoJson))
       throw new CompilationError("Unsupported import file format: " + sourceFormat.getClass().getSimpleName());
@@ -80,18 +85,17 @@ public class ImportFromFiles implements JobCompilationInterceptor {
     checkIfSpaceIsAccessible(spaceId);
 
     TaskedImportFilesToSpace importFilesStep = new TaskedImportFilesToSpace() //Perform import
-            .withEntityPerLine(getEntityPerLine(sourceFormat))
-            .withSpaceId(spaceId)
-            .withVersionRef(new Ref(Ref.HEAD))
-            .withJobId(job.getId())
-            .withInputSets(List.of(USER_INPUTS.get()));
+        .withEntityPerLine(getEntityPerLine(sourceFormat))
+        .withSpaceId(spaceId)
+        .withVersionRef(new Ref(Ref.HEAD))
+        .withInputSets(List.of(dataInputSet));
 
     try {
       if (importFilesStep.useFeatureWriter())
         //Perform only the import Step
-        return (CompilationStepGraph) new CompilationStepGraph()
-                .addExecution(importFilesStep);
-    } catch (WebClientException e) {
+        return (CompilationStepGraph) new CompilationStepGraph().addExecution(importFilesStep);
+    }
+    catch (WebClientException e) {
       throw new CompilationError("Error retrieving statistics for target resource during compilation!", e);
     }
 
