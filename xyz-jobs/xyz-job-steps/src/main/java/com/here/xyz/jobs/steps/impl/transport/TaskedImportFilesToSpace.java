@@ -239,6 +239,7 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
     String rootTable = getRootTableName(space());
 
     runBatchWriteQuerySync(SQLQuery.batchOf(
+        XyzSpaceTableHelper.buildCreateHistoryPartitionQuery(schema, rootTable, currentPartitionNo, true),
         XyzSpaceTableHelper.buildCreateHistoryPartitionQuery(schema, rootTable, currentPartitionNo + 1, true),
         XyzSpaceTableHelper.buildCreateHistoryPartitionQuery(schema, rootTable, currentPartitionNo + 2, true)
     ), db(), 0);
