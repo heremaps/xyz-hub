@@ -74,7 +74,7 @@ public class ImportFromFiles implements JobCompilationInterceptor {
     return compile(targetSpace, USER_INPUTS.get(), fileInputSettings);
   }
 
-  public CompilationStepGraph compile(Space targetSpace, InputSet dataInputSet, FileInputSettings fileInputSettings) {
+  public static CompilationStepGraph compile(Space targetSpace, InputSet dataInputSet, FileInputSettings fileInputSettings) {
     String spaceId = targetSpace.getId();
     final FileFormat sourceFormat = fileInputSettings.getFormat();
 
@@ -147,7 +147,7 @@ public class ImportFromFiles implements JobCompilationInterceptor {
     }
   }
 
-  private TaskedImportFilesToSpace.EntityPerLine getEntityPerLine(FileFormat format) {
+  private static TaskedImportFilesToSpace.EntityPerLine getEntityPerLine(FileFormat format) {
     return TaskedImportFilesToSpace.EntityPerLine.valueOf((format instanceof GeoJson geoJson
             ? geoJson.getEntityPerLine()
             : ((Csv) format).getEntityPerLine()).toString());
@@ -157,7 +157,7 @@ public class ImportFromFiles implements JobCompilationInterceptor {
     return indices.stream().map(index -> new CreateIndex().withIndex(index).withSpaceId(spaceId)).collect(Collectors.toList());
   }
 
-  private void checkIfSpaceIsAccessible(String spaceId) throws CompilationError {
+  private static void checkIfSpaceIsAccessible(String spaceId) throws CompilationError {
     try {
       HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadSpaceStatistics(spaceId);
     }
