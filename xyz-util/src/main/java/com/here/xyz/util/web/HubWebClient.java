@@ -408,7 +408,8 @@ public class HubWebClient extends XyzWebClient {
               .map(component -> {
                 try {
                   Object value = component.getAccessor().invoke(this);
-                  return value != null ? component.getName() + "=" + value : null;
+                  return value != null ? component.getName() + "=" + URLEncoder.encode(value.toString(),
+                          StandardCharsets.UTF_8) : null;
                 } catch (Exception e) {
                   throw new RuntimeException(e);
                 }
