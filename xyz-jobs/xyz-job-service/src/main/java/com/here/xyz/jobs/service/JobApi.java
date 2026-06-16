@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,8 +26,8 @@ import static com.here.xyz.jobs.RuntimeStatus.Action.CANCEL;
 import static com.here.xyz.jobs.service.JobApiBase.ApiParam.Path.SPACE_ID;
 import static com.here.xyz.jobs.service.JobApiBase.ApiParam.getPathParam;
 import static com.here.xyz.jobs.steps.Step.InputSet.DEFAULT_SET_NAME;
-import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.ACCEPTED;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 
@@ -114,7 +114,7 @@ public class JobApi extends JobApiBase {
       return new DetailedHttpException("E319003", placeholdersFor(rootCause), errorDetails, rootCause);
 
     if (error instanceof IllegalArgumentException || error instanceof IllegalStateException)
-      return new HttpException(BAD_REQUEST, error.getMessage(), errorDetails);
+      return new HttpException(BAD_REQUEST, error.getMessage(), error, errorDetails);
 
     return error;
   }
