@@ -127,6 +127,8 @@ public class Job implements XyzSerializable {
   private Set<String> resourceKeys;
   @JsonView(Static.class)
   private List<StaticLoad> calculatedResourceLoads;
+  @JsonView({Internal.class, Static.class})
+  private boolean reusable = true;
 
   private static final Async ASYNC = new Async(100, Job.class);
   private static final Logger logger = LogManager.getLogger();
@@ -1000,6 +1002,19 @@ public class Job implements XyzSerializable {
   @JsonIgnore
   public boolean isPipeline() {
     return getSource() instanceof DynamicStream;
+  }
+
+  public boolean isReusable() {
+    return reusable;
+  }
+
+  public void setReusable(boolean reusable) {
+    this.reusable = reusable;
+  }
+
+  public Job withReusable(boolean reusable) {
+    setReusable(reusable);
+    return this;
   }
 
   public void registerFinalizeObserver(Runnable finalizationObserver) {

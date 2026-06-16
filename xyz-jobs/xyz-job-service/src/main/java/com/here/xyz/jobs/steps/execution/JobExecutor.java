@@ -516,6 +516,7 @@ public abstract class JobExecutor implements Initializable {
         .compose(candidates -> {
           Set<String> candidateIds = candidates.stream().map(candidate -> candidate.getId()).collect(Collectors.toSet());
           return Future.succeededFuture(candidates.stream()
+              .filter(candidate -> candidate.isReusable())
               .filter(candidate -> !job.getId().equals(candidate.getId())) //Do not try to compare the job to itself
               .filter(candidate -> filterByExistingReferees(candidate, candidateIds))
               .map(candidate -> fuseGraphs(job, candidate.getSteps()))
