@@ -129,6 +129,17 @@ public class Filters {
     return Hasher.getHash(input);
   }
 
+  @JsonIgnore
+  public boolean isEmpty() {
+    boolean hasPropertyFilter = propertyFilter != null && !propertyFilter.isEmpty();
+    boolean hasLegacyPropertyFilter = propertyFilterAsString != null && !propertyFilterAsString.isBlank();
+    boolean hasSpatialFilter = spatialFilter != null;
+    boolean hasJsonPath = jsonPath != null && !jsonPath.isBlank();
+    boolean hasContext = context != null && context != DEFAULT;
+
+    return !(hasContext || hasPropertyFilter || hasLegacyPropertyFilter || hasSpatialFilter || hasJsonPath);
+  }
+
   public Filters copy() {
     return new Filters()
         .withContext(getContext())
