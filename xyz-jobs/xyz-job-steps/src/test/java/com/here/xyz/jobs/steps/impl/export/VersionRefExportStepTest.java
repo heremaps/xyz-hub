@@ -138,13 +138,14 @@ public class VersionRefExportStepTest extends ExportTestBase {
 
   @Test
   public void exportWithVersionRange1_3() throws IOException, InterruptedException {
+
     Ref versionRef = new Ref("1..3");
 
     RuntimeException runtimeException = Assertions.assertThrowsExactly(RuntimeException.class, () ->
             executeExportStepAndCheckResults(SPACE_ID, null, null, null,
                     versionRef, "search?versionRef=" + versionRef)
     );
-    Assertions.assertEquals("Validation exception: Invalid VersionRef! StartVersion is smaller than min available version '2'!", runtimeException.getMessage());
+    Assertions.assertEquals("Validation exception: Invalid VersionRef(" + versionRef.toString() + ")! StartVersion is smaller than min available version '2'!", runtimeException.getMessage());
   }
 
   @Disabled //Enable if xyz-hub also delivers features starting from minVersion - without ignoring v2k
