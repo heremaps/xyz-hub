@@ -374,8 +374,11 @@ public class FeatureTaskHandler {
       }
     }
     else {
-      //If the request should is not cacheable, it should always use the primary data source of the connector.
-      task.getEvent().setPreferPrimaryDataSource(true);
+      //A non-cacheable response does not imply a need for read-after-write consistency. Only force the primary data source
+      //for events that cannot be served from a read replica (e.g. LoadFeaturesEvent). Replica-safe read events such as
+      //SearchForFeaturesEvent / GetFeaturesByGeometryEvent stay eligible for the reader to offload the writer.
+      if (!task.getEvent().canExecuteOnReplica())
+        task.getEvent().setPreferPrimaryDataSource(true);
       callback.call(task);
       return;
     }
