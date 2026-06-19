@@ -25,6 +25,7 @@ import static com.here.xyz.util.db.pg.IndexHelper.SystemIndex.OPERATION;
 import static com.here.xyz.util.db.pg.IndexHelper.SystemIndex.VERSION_ID;
 
 import com.google.common.collect.Lists;
+import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.datasets.DatasetDescription.Space;
 import com.here.xyz.jobs.datasets.Files;
@@ -84,9 +85,13 @@ public class ImportFromFiles implements JobCompilationInterceptor {
     //This validation check is necessary to deliver a constructive error to the user - otherwise keepIndices will throw a runtime error.
     checkIfSpaceIsAccessible(spaceId);
 
+    //Recognize a user-provided space context (e.g. context=EXTENSION) on the target and forward it to the FeatureWriter
+    SpaceContext targetContext = targetSpace.getFilters() != null ? targetSpace.getFilters().getContext() : null;
+
     TaskedImportFilesToSpace importFilesStep = new TaskedImportFilesToSpace() //Perform import
         .withEntityPerLine(getEntityPerLine(sourceFormat))
         .withSpaceId(spaceId)
+        .withContext(targetContext)
         .withVersionRef(new Ref(Ref.HEAD))
         .withInputSets(List.of(dataInputSet));
 

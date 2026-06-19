@@ -1023,7 +1023,8 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
     return new FeatureWriterQueryContextBuilder()
         .withSchema(schema)
         .withTables(tables)
-        .withSpaceContext(DEFAULT)
+        //Honor a user-provided space context (e.g. EXTENSION) and fall back to DEFAULT if none was set
+        .withSpaceContext(context != null ? context : DEFAULT)
         .withHistoryEnabled(space().getVersionsToKeep() > 1)
         .withBatchMode(true)
         .with("stepId", getId())
