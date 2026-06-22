@@ -39,6 +39,7 @@ import static io.vertx.core.http.HttpMethod.PUT;
 import static com.here.xyz.jobs.steps.execution.JobExecutor.SchedulerStatePatch;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.RuntimeInfo;
@@ -46,11 +47,13 @@ import com.here.xyz.jobs.RuntimeInfo.State;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.execution.JobExecutor;
 import com.here.xyz.jobs.steps.execution.SFNInspector;
+import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.util.service.HttpException;
 import io.vertx.core.Future;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
+import java.util.List;
 import software.amazon.awssdk.services.emrserverless.model.GetJobRunRequest;
 import software.amazon.awssdk.services.emrserverless.model.JobRun;
 
@@ -58,6 +61,7 @@ public class JobAdminApi extends JobApiBase {
   private static final String ADMIN_JOBS = "/admin/jobs";
   private static final String ADMIN_JOB = ADMIN_JOBS + "/:jobId";
   private static final String ADMIN_JOB_STEPS = ADMIN_JOB + "/steps";
+  private static final String ADMIN_JOB_OUTPUTS = ADMIN_JOB + "/outputs";
   private static final String ADMIN_JOB_STEP = ADMIN_JOB_STEPS + "/:stepId";
   private static final String ADMIN_JOB_STEP_STATUS = ADMIN_JOB_STEP + "/status";
   private static final String ADMIN_STATE_MACHINE_EVENTS = "/admin/state/events";
@@ -66,6 +70,7 @@ public class JobAdminApi extends JobApiBase {
   public JobAdminApi(Router router) {
     router.route(GET, ADMIN_JOBS).handler(handleErrors(this::getJobs));
     router.route(GET, ADMIN_JOB).handler(handleErrors(this::getJob));
+    router.route(GET, ADMIN_JOB_OUTPUTS).handler(handleErrors(this::getJobOutputs));
     router.route(DELETE, ADMIN_JOBS).handler(handleErrors(this::deleteJob));
     router.route(POST, ADMIN_JOB_STEPS).handler(handleErrors(this::postStep));
     router.route(GET, ADMIN_JOB_STEP).handler(handleErrors(this::getStep));
@@ -82,6 +87,13 @@ public class JobAdminApi extends JobApiBase {
   private void getJob(RoutingContext context) {
     loadJob(jobId(context))
         .onSuccess(job -> sendInternalResponse(context, OK.code(), job))
+        .onFailure(t -> sendErrorResponse(context, t));
+  }
+
+  private void getJobOutputs(RoutingContext context) {
+    loadJob(jobId(context))
+        .compose(Job::loadAllOutputs)
+        .onSuccess(outputs -> sendInternalResponse(context, OK.code(), outputs, new TypeReference<List<Output>>() {}))
         .onFailure(t -> sendErrorResponse(context, t));
   }
 
