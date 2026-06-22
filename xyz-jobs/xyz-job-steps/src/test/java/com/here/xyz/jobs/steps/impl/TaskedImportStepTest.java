@@ -20,6 +20,7 @@
 package com.here.xyz.jobs.steps.impl;
 
 import com.google.common.io.ByteStreams;
+import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
 import com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace;
 import com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace.EntityPerLine;
@@ -35,6 +36,7 @@ import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Tag;
 import com.here.xyz.responses.StatisticsResponse;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
@@ -47,10 +49,18 @@ import static com.here.xyz.jobs.steps.Step.InputSet.USER_INPUTS;
 
 public class TaskedImportStepTest extends StepTest {
 
+  private final String SPACE_ID_EXT = SPACE_ID + "_ext";
+
   @BeforeEach
   public void setup() throws SQLException {
     cleanup();
     createSpace(new Space().withId(SPACE_ID).withVersionsToKeep(1000).withStorage(new Space.ConnectorRef().withId("psql")), false);
+  }
+
+  @AfterEach
+  public void cleanup() throws SQLException {
+    deleteSpace(SPACE_ID_EXT);
+    super.cleanup();
   }
 
   //@Test
@@ -226,6 +236,63 @@ public class TaskedImportStepTest extends StepTest {
   }
 
 /****  */
+
+  /**
+   * Import into a composite (extension) space while the target carries the filter context=EXTENSION.
+   * The imported features must be written into the extension layer only and must NOT leak into the base
+   * (SUPER) layer. The composite (DEFAULT context) view must show the base features plus the imported ones.
+   */
+  @Test
+  public void testImport_intoExtension_with_contextEXTENSION() throws Exception {
+    //Pre-populate the base/super space with 3 features that are not part of the import files
+    putFeatureCollectionToSpace(SPACE_ID, new FeatureCollection().withFeatures(List.of(
+        simpleFeature("base1"),
+        simpleFeature("base2"),
+        simpleFeature("base3")
+    )));
+
+    //Create the composite space extending the base space
+    createSpace(new Space().withId(SPACE_ID_EXT).withVersionsToKeep(1000)
+        .withStorage(new Space.ConnectorRef().withId("psql"))
+        .withExtension(new Space.Extension().withSpaceId(SPACE_ID)), false);
+
+    long baseCountBefore = getStatistics(SPACE_ID).getCount().getValue();
+    Assertions.assertEquals(3L, baseCountBefore);
+
+    //Upload the two import files (40 features in total)
+    uploadInputFile(JOB_ID, ByteStreams.toByteArray(this.getClass().getResourceAsStream("/testFiles/file1.geojson")),
+        S3ContentType.APPLICATION_JSON);
+    uploadInputFile(JOB_ID, ByteStreams.toByteArray(this.getClass().getResourceAsStream("/testFiles/file2.geojson")),
+        S3ContentType.APPLICATION_JSON);
+
+    TaskedImportFilesToSpace step = new TaskedImportFilesToSpace()
+            .withJobId(JOB_ID)
+            .withVersionRef(new Ref(Ref.HEAD))
+            .withFormat(TaskedImportFilesToSpace.Format.GEOJSON)
+            .withSpaceId(SPACE_ID_EXT)
+            .withContext(SpaceContext.EXTENSION)
+            .withInputSets(List.of(USER_INPUTS.get()));
+
+    //The provided context has to be carried by the step so that it gets forwarded to the FeatureWriter
+    Assertions.assertEquals(SpaceContext.EXTENSION, step.getContext());
+    //Importing into a composite space always uses the FeatureWriter
+    Assertions.assertTrue(step.useFeatureWriter());
+
+    sendLambdaStepRequestBlock(step, true);
+
+    //The base/super space must remain untouched - the import only wrote into the extension layer
+    Assertions.assertEquals(3L, getStatistics(SPACE_ID).getCount().getValue());
+
+    //The extension layer must contain exactly the 40 imported features
+    Assertions.assertEquals(40, getFeaturesFromSmallSpace(SPACE_ID_EXT, SpaceContext.EXTENSION, null, false)
+        .getFeatures().size());
+
+    //The composite (DEFAULT) view must show the base features merged with the imported ones (3 + 40)
+    Assertions.assertEquals(43, getFeaturesFromSmallSpace(SPACE_ID_EXT, SpaceContext.DEFAULT, null, false)
+        .getFeatures().size());
+
+    checkStatistics(40, step.loadUserOutputs());
+  }
 
   protected void executeImportStep(Format format, int featureCountSource,
                                    EntityPerLine entityPerLine) throws IOException, InterruptedException {
