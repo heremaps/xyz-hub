@@ -93,7 +93,7 @@ public class ExportTestBase extends StepTest {
         }
 
         for (Feature f : expectedFeatures)
-            assertEquals(exportedFeatures.stream().filter(feature -> feature.getId().equals(f.getId())).findFirst().orElseThrow(() -> new NoSuchElementException("Expected feature with id \"" + f.getId() + "\" was not exported.")), f);
+            assertEquals(f, exportedFeatures.stream().filter(feature -> feature.getId().equals(f.getId())).findFirst().orElseThrow(() -> new NoSuchElementException("Expected feature with id \"" + f.getId() + "\" was not exported.")));
 
         for (Feature f : exportedFeatures)
             assertEquals(expectedFeatures.stream().filter(feature -> feature.getId().equals(f.getId())).findFirst().orElseThrow(() -> new NoSuchElementException("Exported feature with id \"" + f.getId() + "\" was not expected")), f);
