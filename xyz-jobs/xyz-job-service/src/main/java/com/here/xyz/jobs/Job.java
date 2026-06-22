@@ -660,6 +660,13 @@ public class Job implements XyzSerializable {
     return ASYNC.run(() -> createOutputsRetriever().getItems(new JobOutputsRetriever.OutputsParams()));
   }
 
+  public Future<List<Output>> loadAllOutputs() {
+    return ASYNC.run(() -> getSteps().stepStream()
+        .map(step -> (List<Output>) step.loadOutputs())
+        .flatMap(List::stream)
+        .collect(Collectors.toList()));
+  }
+
   public Future<Page<Output>> loadOutputs(String setName, String outputSetGroup, int limit, String nextPageToken) {
     JobOutputsRetriever.OutputsParams params = new JobOutputsRetriever.OutputsParams(outputSetGroup, setName);
     return ASYNC.run(() -> createOutputsRetriever().getPage(params, limit, nextPageToken));

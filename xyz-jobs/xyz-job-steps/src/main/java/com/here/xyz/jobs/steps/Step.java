@@ -218,6 +218,12 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
         .toList();
   }
 
+  public List<Output> loadOutputs() {
+    return outputSets.stream()
+        .flatMap(outputSet -> loadStepOutputs(outputSet).stream())
+        .toList();
+  }
+
   public OutputSet getOutputSet(String outputSetName) {
     try {
       return outputSets.stream().filter(set -> set.name.equals(outputSetName)).findFirst().get();
