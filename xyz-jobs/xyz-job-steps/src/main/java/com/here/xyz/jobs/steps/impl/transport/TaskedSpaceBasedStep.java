@@ -440,22 +440,6 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
     return true;
   }
 
-  private long resolveTag(String tag) throws ValidationException {
-    try {
-      return loadTag(getSpaceId(), tag).getVersion();
-    } catch (WebClientException e) {
-      throw handleWebClientException("Unable to resolve tag \"" + tag + "\" of " + getSpaceId(), e);
-    }
-  }
-
-  private long resolveHead() throws ValidationException {
-    try {
-      return spaceStatistics(context, true).getMaxVersion().getValue();
-    } catch (WebClientException e) {
-      throw handleWebClientException("Unable to resolve HEAD version of " + getSpaceId(), e);
-    }
-  }
-
   private ValidationException handleWebClientException(String message, WebClientException e) throws ValidationException {
     if (e instanceof XyzWebClient.ErrorResponseException err && err.getStatusCode() == 428)
       throw new ValidationException(getSpaceId() + " is deactivated!", e);
