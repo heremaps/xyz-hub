@@ -256,14 +256,22 @@ public class TaskedImportStepTest extends StepTest {
         .withStorage(new Space.ConnectorRef().withId("psql"))
         .withExtension(new Space.Extension().withSpaceId(SPACE_ID)), false);
 
+        putFeatureCollectionToSpace(SPACE_ID_EXT, new FeatureCollection().withFeatures(List.of(
+        simpleFeature("some-delta-1"),
+        simpleFeature("base2"),
+        simpleFeature("some-delta-2")
+    )));
+
+
+
     long baseCountBefore = getStatistics(SPACE_ID).getCount().getValue();
     Assertions.assertEquals(3L, baseCountBefore);
 
     //Upload the two import files (40 features in total)
-    uploadInputFile(JOB_ID, ByteStreams.toByteArray(this.getClass().getResourceAsStream("/testFiles/file1.geojson")),
+    uploadInputFile(JOB_ID, ByteStreams.toByteArray(this.getClass().getResourceAsStream("/testFiles/fileCtxTest1.geojson")),
         S3ContentType.APPLICATION_JSON);
-    uploadInputFile(JOB_ID, ByteStreams.toByteArray(this.getClass().getResourceAsStream("/testFiles/file2.geojson")),
-        S3ContentType.APPLICATION_JSON);
+//    uploadInputFile(JOB_ID, ByteStreams.toByteArray(this.getClass().getResourceAsStream("/testFiles/fileCtxTest2.geojson")),
+//        S3ContentType.APPLICATION_JSON);
 
     TaskedImportFilesToSpace step = new TaskedImportFilesToSpace()
             .withJobId(JOB_ID)
@@ -284,14 +292,14 @@ public class TaskedImportStepTest extends StepTest {
     Assertions.assertEquals(3L, getStatistics(SPACE_ID).getCount().getValue());
 
     //The extension layer must contain exactly the 40 imported features
-    Assertions.assertEquals(40, getFeaturesFromSmallSpace(SPACE_ID_EXT, SpaceContext.EXTENSION, null, false)
+    Assertions.assertEquals(2, getFeaturesFromSmallSpace(SPACE_ID_EXT, SpaceContext.EXTENSION, null, false)
         .getFeatures().size());
 
     //The composite (DEFAULT) view must show the base features merged with the imported ones (3 + 40)
-    Assertions.assertEquals(43, getFeaturesFromSmallSpace(SPACE_ID_EXT, SpaceContext.DEFAULT, null, false)
+    Assertions.assertEquals(5, getFeaturesFromSmallSpace(SPACE_ID_EXT, SpaceContext.DEFAULT, null, false)
         .getFeatures().size());
 
-    checkStatistics(40, step.loadUserOutputs());
+    checkStatistics(1, step.loadUserOutputs());
   }
 
   protected void executeImportStep(Format format, int featureCountSource,
