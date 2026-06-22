@@ -162,7 +162,7 @@ public class JobTestBase extends StepTestBase {
 
     public static List<Map> getJobOutputs(String jobId) throws IOException, InterruptedException {
         logger.info("Get job Outputs ...");
-        HttpResponse<byte[]> outputResponse = get("/jobs/" + jobId + "/outputs");
+        HttpResponse<byte[]> outputResponse = get("/admin/jobs/" + jobId + "/outputs");
         return XyzSerializable.deserialize(outputResponse.body(), new TypeReference<List<Map>>() {});
     }
 
