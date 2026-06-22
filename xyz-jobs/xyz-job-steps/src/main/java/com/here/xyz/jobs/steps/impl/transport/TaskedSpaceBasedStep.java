@@ -423,11 +423,11 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
       if (versionRef.getVersion() < minSpaceVersion)
         throw new ValidationException("Invalid VersionRef (" + versionRef + ")! Version is smaller than min available version '" +
             minSpaceVersion + "'!");
-      if (this.versionRef.getVersion() > maxSpaceVersion)
+      if (versionRef.getVersion() > maxSpaceVersion)
         throw new ValidationException("Invalid VersionRef (" + versionRef + ")! Version is higher than max available version '" +
             maxSpaceVersion + "'!");
     }
-    else if (this.versionRef.isRange()) {
+    else if (versionRef.isRange()) {
       if (versionRef.getStart().getVersion() < minSpaceVersion - 1)
         throw new ValidationException("Invalid VersionRef! The first referenced version (" + (versionRef.getStart().getVersion() + 1)
             + ") by version range (" + versionRef + ") is smaller than min available version '" + minSpaceVersion
