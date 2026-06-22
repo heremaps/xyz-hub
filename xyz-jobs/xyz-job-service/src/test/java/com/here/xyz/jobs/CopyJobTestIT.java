@@ -1,30 +1,20 @@
 package com.here.xyz.jobs;
 
 import com.here.xyz.jobs.datasets.DatasetDescription;
-import com.here.xyz.jobs.datasets.FileOutputSettings;
-import com.here.xyz.jobs.datasets.Files;
-import com.here.xyz.jobs.datasets.files.GeoJson;
-import com.here.xyz.jobs.steps.JobCompiler.CompilationError;
-import com.here.xyz.jobs.util.test.JobTestBase;
+import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
 import com.here.xyz.models.geojson.coordinates.LinearRingCoordinates;
 import com.here.xyz.models.geojson.coordinates.PolygonCoordinates;
 import com.here.xyz.models.geojson.coordinates.Position;
 import com.here.xyz.models.geojson.implementation.Polygon;
 import com.here.xyz.models.hub.Ref;
-import com.here.xyz.models.hub.Ref.InvalidRef;
 import com.here.xyz.models.hub.Space;
-import com.here.xyz.models.hub.Space.ConnectorRef;
 import com.here.xyz.models.hub.Tag;
-
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-
-import static com.here.xyz.jobs.datasets.files.FileFormat.EntityPerLine.Feature;
 
 import java.io.IOException;
 import java.sql.SQLException;
@@ -122,15 +112,16 @@ public class CopyJobTestIT extends JobTest {
           Assertions.assertThrowsExactly(RuntimeException.class, () -> createSelfRunningJob(copyJob));
           return;
         }
-           
+
         createSelfRunningJob(copyJob);
         checkSucceededJob(copyJob);
 
        List<Map> l =  getJobOutputs(copyJob.getId());
 
-       Assertions.assertEquals( 1, l.size() );
-
-       Assertions.assertEquals( expectedFeaturesCopied, l.get(0).get("featureCount") );
+       Assertions.assertEquals( 2, l.size() );
+       l.stream().filter(o -> o instanceof FeatureStatistics).forEach(o ->
+            Assertions.assertEquals(expectedFeaturesCopied, o.get("featureCount")
+       ));
  }
 
 }
