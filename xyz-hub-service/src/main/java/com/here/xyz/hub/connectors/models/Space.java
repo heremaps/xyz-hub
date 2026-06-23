@@ -64,10 +64,10 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
   private Connector resolvedStorageConnector;
 
   /**
-   * Add random 20 seconds offset to avoid all service nodes sending cache invalidation for the space at the same time
+   * Add random 10 seconds offset to avoid all service nodes sending cache invalidation for the space at the same time
    */
   public static final long CONTENT_UPDATED_AT_INTERVAL_MILLIS = DEFAULT_CONTENT_UPDATED_AT_INTERVAL_MILLIS
-      - TimeUnit.SECONDS.toMillis((long) (Math.random() * 20));
+      - TimeUnit.SECONDS.toMillis((long) (Math.random() * 10));
 
   private final static long MAX_SLIDING_WINDOW = TimeUnit.DAYS.toMillis(10);
 
