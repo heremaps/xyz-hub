@@ -74,7 +74,11 @@ public class ImportFromFiles implements JobCompilationInterceptor {
     return compile(targetSpace, USER_INPUTS.get(), fileInputSettings);
   }
 
-  public static CompilationStepGraph compile(Space targetSpace, InputSet dataInputSet, FileInputSettings fileInputSettings) {
+  public static CompilationStepGraph compile(Space<?> targetSpace, InputSet dataInputSet, FileInputSettings fileInputSettings) {
+    return compile(targetSpace, dataInputSet, fileInputSettings, HubWebClient.getInstance(Config.instance.HUB_ENDPOINT));
+  }
+
+  public static CompilationStepGraph compile(Space<?> targetSpace, InputSet dataInputSet, FileInputSettings fileInputSettings, HubWebClient hubWebClient) {
     String spaceId = targetSpace.getId();
     final FileFormat sourceFormat = fileInputSettings.getFormat();
 
@@ -82,7 +86,7 @@ public class ImportFromFiles implements JobCompilationInterceptor {
       throw new CompilationError("Unsupported import file format: " + sourceFormat.getClass().getSimpleName());
 
     //This validation check is necessary to deliver a constructive error to the user - otherwise keepIndices will throw a runtime error.
-    checkIfSpaceIsAccessible(spaceId);
+    checkIfSpaceIsAccessible(spaceId, hubWebClient);
 
     TaskedImportFilesToSpace importFilesStep = new TaskedImportFilesToSpace() //Perform import
         .withEntityPerLine(getEntityPerLine(sourceFormat))
@@ -157,9 +161,9 @@ public class ImportFromFiles implements JobCompilationInterceptor {
     return indices.stream().map(index -> new CreateIndex().withIndex(index).withSpaceId(spaceId)).collect(Collectors.toList());
   }
 
-  private static void checkIfSpaceIsAccessible(String spaceId) throws CompilationError {
+  private static void checkIfSpaceIsAccessible(String spaceId, HubWebClient hubWebClient) throws CompilationError {
     try {
-      HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadSpaceStatistics(spaceId);
+      hubWebClient.loadSpaceStatistics(spaceId);
     }
     catch (WebClientException e) {
       if (e instanceof ErrorResponseException err && err.getStatusCode() == 428)
