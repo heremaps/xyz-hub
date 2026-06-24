@@ -539,7 +539,11 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
     GetFeaturesByGeometryBuilder queryBuilder = new GetFeaturesByGeometryBuilder()
         .withDataSourceProvider(requestResource(dbReader(), 0));
 
-    GetFeaturesByGeometryInput input = createGetFeaturesByGeometryInput(context == null ? DEFAULT : context == EXTENSION ? X : context, spatialFilter, versionRef);
+    //TODO: The following is a workaround for the incorrectly implemented GetFeatures QR & GetFeaturesByGeometryBuilder with regards to start version of a range being inclusive while it should be exclusive
+    Ref versionRefForQueryBuilder = versionRef.isRange()
+        ? new Ref(versionRef.getStart().getVersion() + 1, versionRef.getEnd().getVersion())
+        : versionRef;
+    GetFeaturesByGeometryInput input = createGetFeaturesByGeometryInput(context == null ? DEFAULT : context == EXTENSION ? X : context, spatialFilter, versionRefForQueryBuilder);
 
     long minI = loadMinI();
     long maxI = loadMaxI();
