@@ -66,6 +66,7 @@ import com.here.xyz.util.db.datasource.PooledDataSources;
 import com.here.xyz.util.db.pg.IndexHelper.Index;
 import com.here.xyz.util.db.pg.IndexHelper.OnDemandIndex;
 import com.here.xyz.util.db.pg.IndexHelper.SystemIndex;
+import com.here.xyz.util.service.BaseConfig;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.service.aws.lambda.SimulatedContext;
 import com.here.xyz.util.web.HubWebClient;
@@ -126,7 +127,7 @@ public class StepTestBase {
       Config.instance.HUB_ENDPOINT = "http://" + System.getProperty("hub.host", "localhost") + ":8080/hub";
       Config.instance.JOB_API_ENDPOINT = new URL("http://" + System.getProperty("job.host", "localhost") + ":7070");
       Config.instance.LOCALSTACK_ENDPOINT = new URI("http://" + System.getProperty("localstack.host", "localhost") + ":4566");
-      HubWebClient.STATISTICS_CACHE_TTL_SECONDS = 0;
+      BaseConfig.instance.HUB_WEB_CLIENT_CACHE_TTL = 0;
       s3Client = S3Client.getInstance();
       lambdaClient = LambdaClient.builder()
           .region(Region.of(Config.instance.AWS_REGION))
