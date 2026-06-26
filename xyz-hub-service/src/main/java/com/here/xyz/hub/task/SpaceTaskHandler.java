@@ -41,6 +41,7 @@ import com.here.xyz.hub.Config;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.auth.Authorization;
 import com.here.xyz.hub.config.BranchConfigClient;
+import com.here.xyz.hub.config.DataReferenceConfigClient;
 import com.here.xyz.hub.config.SpaceConfigClient.SpaceSelectionCondition;
 import com.here.xyz.hub.config.settings.SpaceStorageMatchingMap;
 import com.here.xyz.hub.connectors.RpcClient;
@@ -844,7 +845,13 @@ public class SpaceTaskHandler {
         .map(Future::all)
         .mapEmpty();
 
-    Future.all(tagsFuture, deactivateFuture)
+    //Expire all data references linked to the space
+    final Future<Void> expireReferencesFuture = DataReferenceConfigClient.getInstance()
+        .expireForEntity(task.getMarker(), spaceId)
+        .onFailure(e -> logger.error(task.getMarker(),
+            "Failed to expire DataReferences for space {}", spaceId,  e));
+
+    Future.all(tagsFuture, deactivateFuture, expireReferencesFuture)
         .onComplete(v -> {
           if (v.failed())
             logger.error(task.getMarker(), "Failed to complete clean dependent resources for space {}", spaceId, v.cause());
