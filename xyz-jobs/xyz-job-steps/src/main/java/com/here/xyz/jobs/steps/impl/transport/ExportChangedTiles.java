@@ -217,8 +217,7 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
     }
 
     //Get affected Tiles from Delta in range [version.getStartVersion() + 1 : version.getEndVersion()]
-    runReadQuerySync(getAffectedTilesFromDelta(new Ref(versionRef.getStart().getVersion(),
-            versionRef.getEnd().getVersion())), db(), 0, rs -> {
+    runReadQuerySync(getAffectedTilesFromDelta(versionRef), db(), 0, rs -> {
       while (rs.next()){
         String tileID = rs.getString("tile");
         if(tileID != null)
@@ -238,7 +237,7 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
         int to = Math.min(from + MAX_ID_BLOCKSIZE, totalIdSize);
         List<String> idBlock = changedFeatureIds.subList(from, to);
 
-        runReadQuerySync(getAffectedTilesFromVersion(idBlock, new Ref(versionRef.getStart().getVersion())),
+        runReadQuerySync(getAffectedTilesFromVersion(idBlock, new Ref( versionRef.isRange() ? versionRef.getStart().getVersion() : 0l )),
                 db(), 0, rs -> {
                   while (rs.next()){
                     affectedTiles.add(rs.getString("tile"));
@@ -252,7 +251,7 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
       }
 
       infoLog(STEP_EXECUTE,  "Added affected tiles from base version "
-              + versionRef.getStart().getVersion() +". Final Result size: "+ affectedTiles.size());
+              + (versionRef.isRange() ? versionRef.getStart().getVersion() : 0l) +". Final Result size: "+ affectedTiles.size());
     }
 
     List<ExportInput> taskList = new ArrayList<>();
@@ -301,7 +300,7 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
             null, //no override needed - use default
             spatialFilter, //no spatial Filter is needed - we take Geometry from tile
             taskInput.tileId(), //tileId from task_item
-            new Ref(versionRef.getEnd().getVersion()) //export tiles from endVersion
+            new Ref( versionRef.isRange() ? versionRef.getEnd().getVersion() : versionRef.getVersion() ) //export tiles from endVersion
     ).toExecutableQueryString();
   }
 

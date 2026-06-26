@@ -512,9 +512,16 @@ public class HubWebClient extends XyzWebClient {
           throw httpError;
       }
     }
+
     if (ref.isRange())
-      //TODO: run start / end resolving in parallel
-      return new Ref(resolveRef(spaceId, context, ref.getStart()).getVersion(), resolveRef(spaceId, context, ref.getEnd()).getVersion());
+    { //TODO: run start / end resolving in parallel
+      Ref r = new Ref(resolveRef(spaceId, context, ref.getStart()).getVersion(), resolveRef(spaceId, context, ref.getEnd()).getVersion());
+
+      if( r.isRange() && r.getStart().getVersion() == 0l ) // MMSUP-2568 in case startversion is 0 - remove "range"
+       r = r.getEnd();
+
+      return r;
+    }
 
     //Unsupported ref type (should not happen)
     throw new IllegalArgumentException("Unable to resolve the provided ref: " + ref);
