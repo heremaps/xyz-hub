@@ -40,6 +40,8 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.NotImplementedException;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import software.amazon.awssdk.services.stepfunctions.builder.StateMachine;
 import software.amazon.awssdk.services.stepfunctions.builder.states.Branch;
 import software.amazon.awssdk.services.stepfunctions.builder.states.EndTransition;
@@ -50,6 +52,8 @@ import software.amazon.awssdk.services.stepfunctions.builder.states.State;
 import software.amazon.awssdk.services.stepfunctions.builder.states.TaskState;
 
 public class GraphTransformer {
+  private static final Logger logger = LogManager.getLogger();
+
   private static final String LAMBDA_INVOKE_RESOURCE = "arn:aws:states:::lambda:invoke";
   private static final String EMR_INVOKE_RESOURCE = "arn:aws:states:::emr-serverless:startJobRun.sync";
   private static final int STATE_MACHINE_EXECUTION_TIMEOUT_SECONDS = 36 * 3600; //36h
@@ -72,7 +76,28 @@ public class GraphTransformer {
   }
 
   public <S extends LambdaBasedStep> StepLambdaMapping getAlternativeStepLambdaMapping(Class<S> lambdaBasedStepClass) {
-    return alternativeStepLambdaMappings.get(lambdaBasedStepClass.getName());
+    List<StepLambdaMapping> matchedMappings = new ArrayList<>();
+    for (Entry<String, StepLambdaMapping> mapping : alternativeStepLambdaMappings.entrySet()) {
+      try {
+        if (Class.forName(mapping.getKey()).isAssignableFrom(lambdaBasedStepClass))
+          matchedMappings.add(mapping.getValue());
+      }
+      catch (ClassNotFoundException e) {
+        //NOTE: Silently ignoring this case, as if no mapping was defined, logging an error.
+        logger.error("Class not found for the specified full classified class name of an alternative StepLambdaMapping. "
+            + "Specified alternative step class: {}, Mapping: {}", mapping.getKey(), mapping.getValue(), e);
+      }
+    }
+
+    if (matchedMappings.isEmpty())
+      return null;
+    if (matchedMappings.size() > 1) {
+      //NOTE: Silently ignoring this case, as if no mapping was defined, logging an error.
+      logger.error("Ambiguous alternative StepLambdaMappings found for the step class {}. "
+          + "Matched mappings: {}", lambdaBasedStepClass.getName(), matchedMappings);
+      return null;
+    }
+    return matchedMappings.get(0);
   }
 
   //TODO: This is a workaround for an open issue with AWS SDK2 for StepFunctions
