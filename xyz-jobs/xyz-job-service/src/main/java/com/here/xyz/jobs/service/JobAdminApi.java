@@ -26,6 +26,7 @@ import static com.here.xyz.jobs.RuntimeInfo.State.PENDING;
 import static com.here.xyz.jobs.RuntimeInfo.State.RESUMING;
 import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
 import static com.here.xyz.jobs.RuntimeInfo.State.SUCCEEDED;
+import static com.here.xyz.jobs.steps.execution.JobExecutor.SchedulerStatePatch;
 import static com.here.xyz.jobs.steps.execution.RunEmrJob.globalStepIdFromEmrJobName;
 import static com.here.xyz.jobs.util.AwsClientFactory.emrServerlessClient;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
@@ -36,7 +37,6 @@ import static io.vertx.core.http.HttpMethod.DELETE;
 import static io.vertx.core.http.HttpMethod.GET;
 import static io.vertx.core.http.HttpMethod.POST;
 import static io.vertx.core.http.HttpMethod.PUT;
-import static com.here.xyz.jobs.steps.execution.JobExecutor.SchedulerStatePatch;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -251,10 +251,14 @@ public class JobAdminApi extends JobApiBase {
                 if ("TIMED_OUT".equals(sfnStatus))
                   future = failCausingStep(job, "Timeout was exceeded of step", future, executionArn);
                 else if ("States.Timeout".equals(detail.getString("error")))
-                  //In Localstack a SFN CANCEL gets not detected properly and results in a timeout of the execution.
-                  future = failCausingStep(job, "Async step timed out or no state-checks were received anymore (HeartBeat timeout)", future, executionArn);
-                else if (isEmrCancelledManually(detail))
+                  //In Localstack an SFN CANCEL gets not detected properly and results in a timeout of the execution.
+                  future = failCausingStep(job, "Async step timed out - No State-checks were received anymore (HeartBeat timeout)", future, executionArn);
+                else if (isEmrCancelledManually(detail)) //TODO: That should be handled by the according incoming EMR cancellation event (see: #processEmrJobStateChangeEvent())
                   future = failCausingStep(job, "EMR execution was cancelled manually", future, executionArn);
+                else if (isNativeEmrServiceError(detail)) {
+                  job.getStatus().setErrorMessage("An EMR step failed because of an issue with the AWSEMRServerless service.");
+                  future = failCausingStep(job, detail.getString("cause"), future, executionArn);
+                }
                 else {
                   /*
                   NOTE: This case handles any other failures of the SFN that are nothing unusual.
@@ -266,9 +270,9 @@ public class JobAdminApi extends JobApiBase {
                   logger.info("[{}] Received job failure from SFN. Cause: {}", job.getId(), detail.getString("cause"));
                 }
                 future = setStepsToCancelled(job, future);
-              }else if (newJobState == CANCELLED) {
-                future = setStepsToCancelled(job, future);
               }
+              else if (newJobState == CANCELLED) //TODO: We should normally not cancel the SFN directly, but when we do, then at least let's add at least a special status message
+                future = setStepsToCancelled(job, future);
 
               State oldState = job.getStatus().getState();
               if (oldState != newJobState && !oldState.isFinal())
@@ -285,6 +289,13 @@ public class JobAdminApi extends JobApiBase {
                 });
           })
           .onFailure(t -> logger.error("[{}] Error updating the state of the job after receiving an event from its state machine:", jobId, t));
+  }
+
+  private static boolean isNativeEmrServiceError(JsonObject detail) {
+    String cause = detail.getString("cause");
+    if (cause == null || cause.isBlank())
+      return false;
+    return cause.contains("AWSEMRServerless");
   }
 
   private static boolean isEmrCancelledManually(JsonObject detail) {
