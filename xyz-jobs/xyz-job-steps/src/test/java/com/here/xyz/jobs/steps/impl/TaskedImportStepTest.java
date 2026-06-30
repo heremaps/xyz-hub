@@ -87,12 +87,9 @@ public class TaskedImportStepTest extends StepTest {
     executeImportStepWithManyFiles(Format.GEOJSON, 100, 2 , false);
   }
 
-  //TODO: fix versionRef -1 issue
-  @Disabled
   @Test
   public void testEmptyImportWithEmptyUserInput() throws Exception {
     TaskedImportFilesToSpace step = new TaskedImportFilesToSpace()
-            .withVersionRef(new Ref(0))
             .withJobId(JOB_ID)
             .withSpaceId(SPACE_ID)
             .withInputSets(List.of(USER_INPUTS.get()));
@@ -100,14 +97,14 @@ public class TaskedImportStepTest extends StepTest {
     Assertions.assertFalse(step.validate());
   }
 
-  //TODO: fix versionRef -1 issue
-  @Disabled
   @Test
   public void testEmptyImportWithoutUserInput() throws Exception {
     TaskedImportFilesToSpace step = new TaskedImportFilesToSpace()
-            .withVersionRef(new Ref(0))
+            .withVersionRef(new Ref(Ref.HEAD))
             .withJobId(JOB_ID)
             .withSpaceId(SPACE_ID);
+    //required for resolving versionRef
+    step.prepare(null, null);
     step.validate();
     sendLambdaStepRequestBlock(step ,true);
   }
