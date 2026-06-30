@@ -58,16 +58,16 @@ import org.apache.logging.log4j.Marker;
 public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
 
   private static final Logger logger = LogManager.getLogger();
-  private static final long DEFAULT_CONTENT_UPDATED_AT_INTERVAL_MILLIS = TimeUnit.MINUTES.toMillis(1);
+  private static final long DEFAULT_CONTENT_UPDATED_AT_INTERVAL_MILLIS = TimeUnit.SECONDS.toMillis(30);
   private static final long NO_CACHE_INTERVAL_MILLIS = DEFAULT_CONTENT_UPDATED_AT_INTERVAL_MILLIS * 2;
   private static final long MIN_SERVICE_CACHE_INTERVAL_MILLIS = TimeUnit.DAYS.toMillis(1);
   private Connector resolvedStorageConnector;
 
   /**
-   * Add random 20 seconds offset to avoid all service nodes sending cache invalidation for the space at the same time
+   * Add random 10 seconds offset to avoid all service nodes sending cache invalidation for the space at the same time
    */
   public static final long CONTENT_UPDATED_AT_INTERVAL_MILLIS = DEFAULT_CONTENT_UPDATED_AT_INTERVAL_MILLIS
-      - TimeUnit.SECONDS.toMillis((long) (Math.random() * 20));
+      - TimeUnit.SECONDS.toMillis((long) (Math.random() * 10));
 
   private final static long MAX_SLIDING_WINDOW = TimeUnit.DAYS.toMillis(10);
 
