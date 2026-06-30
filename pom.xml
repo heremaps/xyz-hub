@@ -297,7 +297,7 @@
       <dependency>
         <groupId>io.netty</groupId>
         <artifactId>netty-transport-native-kqueue</artifactId>
-        <version>4.1.30.Final</version>
+        <version>4.1.135.Final</version>
         <classifier>osx-x86_64</classifier>
       </dependency>
       <dependency>
