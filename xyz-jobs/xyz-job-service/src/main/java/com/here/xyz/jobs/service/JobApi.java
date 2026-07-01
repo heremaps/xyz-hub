@@ -88,7 +88,8 @@ public class JobApi extends JobApiBase {
   }
 
   protected Future<Job> createNewJob(RoutingContext context, Job job) {
-    logger.info(getMarker(context), "Received job creation request: {}", job.serialize(true));
+    logger.info(getMarker(context), "Received job creation request: {} alongside the following inputs: {}"
+            , job.serialize(true), XyzSerializable.serialize(job.getInputs(), true));
     return job.create().submit()
         .compose(v -> applyInputReferences(job))
         .map(res -> job)
