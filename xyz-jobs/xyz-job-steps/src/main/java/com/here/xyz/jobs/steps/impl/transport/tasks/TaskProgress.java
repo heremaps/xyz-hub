@@ -18,17 +18,25 @@
  */
 package com.here.xyz.jobs.steps.impl.transport.tasks;
 
+import java.util.Set;
+
 public class TaskProgress<I> {
   private int totalTasks;
   private int startedTasks;
   private int finalizedTasks;
   private Integer taskId;
   private I taskInput;
+  private Set<Integer> startedNotFinalizedTaskIds = Set.of();
 
   public TaskProgress() {}
 
   public TaskProgress(Integer taskId) {
     this.taskId = taskId;
+  }
+
+  public TaskProgress(Integer taskId, I taskInput) {
+    this.taskId = taskId;
+    this.taskInput = taskInput;
   }
 
   public TaskProgress(int totalTasks, int startedTasks, int finalizedTasks) {
@@ -43,6 +51,13 @@ public class TaskProgress<I> {
     this.finalizedTasks = finalizedTasks;
     this.taskId = taskId;
     this.taskInput = taskInput;
+  }
+
+  public TaskProgress(int totalTasks, int startedTasks, int finalizedTasks, Set<Integer> startedNotFinalizedTaskIds) {
+    this.totalTasks = totalTasks;
+    this.startedTasks = startedTasks;
+    this.finalizedTasks = finalizedTasks;
+    this.startedNotFinalizedTaskIds = startedNotFinalizedTaskIds;
   }
 
   public int getTotalTasks() {
@@ -85,6 +100,14 @@ public class TaskProgress<I> {
     this.taskInput = taskInput;
   }
 
+  public Set<Integer> getStartedNotFinalizedTaskIds() {
+    return startedNotFinalizedTaskIds;
+  }
+
+  public void setStartedNotFinalizedTaskIds(Set<Integer> startedNotFinalizedTaskIds) {
+    this.startedNotFinalizedTaskIds = startedNotFinalizedTaskIds;
+  }
+
   public boolean isComplete() {
     return totalTasks == finalizedTasks;
   }
@@ -109,6 +132,7 @@ public class TaskProgress<I> {
             "totalTasks=" + totalTasks +
             ", startedTasks=" + startedTasks +
             ", finalizedTasks=" + finalizedTasks +
+            ", startedNotFinalizedTaskIds=" + startedNotFinalizedTaskIds +
             ", taskId=" + taskId +
             ", taskInput=" + taskInput +
             '}';

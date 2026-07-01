@@ -30,6 +30,7 @@ import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import java.sql.SQLException;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import org.junit.jupiter.api.Test;
 
@@ -65,6 +66,70 @@ public class SQLQueryIT extends SQLITBase {
 
       //Check that the original query is not running anymore
       assertFalse(SQLQuery.isRunning(dsp, false, longRunningQuery.getQueryId()));
+    }
+  }
+
+  @Test
+  public void areRunningCheckMultipleValuesForSameLabel() throws Exception {
+    try (DataSourceProvider dsp = getDataSourceProvider()) {
+      SQLQuery longRunningQuery1 = new SQLQuery("SELECT pg_sleep(500)")
+          .withLabel("taskId", "1");
+      SQLQuery longRunningQuery2 = new SQLQuery("SELECT pg_sleep(500)")
+          .withLabel("taskId", "2");
+
+      new Thread(() -> {
+        try {
+          longRunningQuery1.run(dsp);
+        }
+        catch (SQLException e) {
+          //Ignore
+        }
+      }).start();
+
+      new Thread(() -> {
+        try {
+          longRunningQuery2.run(dsp);
+        }
+        catch (SQLException e) {
+          //Ignore
+        }
+      }).start();
+
+      //Wait until both queries are visible in pg_stat_activity.
+      long deadline = System.currentTimeMillis() + 5_000;
+      while (System.currentTimeMillis() < deadline && SQLQuery.areRunning(dsp, false, "taskId", Set.of("1", "2")).size() < 2)
+        Thread.sleep(100);
+
+      //Check that both taskIds are currently running
+      assertEquals(Set.of(
+              "1",
+              "2"
+      ), SQLQuery.areRunning(dsp, false, "taskId", Set.of(
+              "1",
+              "2"
+      )));
+
+      assertEquals(Set.of(
+              "1"
+      ), SQLQuery.areRunning(dsp, false, "taskId", Set.of(
+              "1"
+      )));
+
+      assertEquals(Set.of(
+              "2"
+      ), SQLQuery.areRunning(dsp, false, "taskId", Set.of(
+              "2"
+      )));
+
+      //Kill the long-running queries
+      longRunningQuery1.kill();
+      longRunningQuery2.kill();
+
+      //Check that the original queries are not running anymore
+      assertFalse(SQLQuery.isRunning(dsp, false, longRunningQuery1.getQueryId()));
+      assertFalse(SQLQuery.isRunning(dsp, false, longRunningQuery2.getQueryId()));
+      assertEquals(Set.of(), SQLQuery.areRunning(dsp, false, "taskId", Set.of(
+             "1","2")));
     }
   }
 

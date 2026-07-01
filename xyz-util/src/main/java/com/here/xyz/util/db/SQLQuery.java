@@ -40,6 +40,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -921,6 +922,62 @@ public class SQLQuery {
         .withQueryFragment("labelMatching", buildLabelMatchQuery(labelIdentifier, labelValue))
         .withLoggingEnabled(false)
         .run(dataSourceProvider, rs -> rs.next(), useReplica);
+  }
+
+  /**
+   * Checks which of the provided values are currently running for one label identifier.
+   *
+   * @param labelIdentifier The label identifier to check (e.g. taskId).
+   * @param labelValues The set of values to check for the given label identifier.
+   * @return The subset of provided label values that are currently running.
+   */
+  public static Set<String> areRunning(DataSourceProvider dataSourceProvider, boolean useReplica,
+      String labelIdentifier, Set<String> labelValues) throws SQLException {
+    if (labelValues == null || labelValues.isEmpty())
+      return Set.of();
+
+    return new SQLQuery("""
+        WITH expected_values AS (${{expectedValues}}),
+             active_values AS (
+               SELECT substring(query,
+                        strpos(query, '/*labels(') + 9,
+                        strpos(query, ')*/') - 9 - strpos(query, '/*labels(')
+                      )::json->>#{labelIdentifier} AS label_value
+                 FROM pg_stat_activity
+                WHERE state = 'active'
+                  AND pid != pg_backend_pid()
+                  AND strpos(query, '/*labels(') > 0
+             )
+        SELECT DISTINCT e.label_value
+          FROM expected_values e
+          JOIN active_values a
+            ON a.label_value = e.label_value
+        """)
+        .withQueryFragment("expectedValues", buildLabelValuesQuery(labelValues))
+        .withNamedParameter("labelIdentifier", labelIdentifier)
+        .withLoggingEnabled(false)
+        .run(dataSourceProvider, rs -> {
+          Set<String> runningValues = new LinkedHashSet<>();
+          while (rs.next())
+            runningValues.add(rs.getString("label_value"));
+          return runningValues;
+        }, useReplica);
+  }
+
+  private static SQLQuery buildLabelValuesQuery(Set<String> labelValues) {
+    if (labelValues == null || labelValues.isEmpty())
+      return new SQLQuery("SELECT NULL::text AS label_value WHERE FALSE");
+
+    List<SQLQuery> values = new ArrayList<>();
+    int i = 0;
+    for (String labelValue : labelValues) {
+      String valueParam = "labelValue" + i;
+      values.add(new SQLQuery("SELECT #{" + valueParam + "} AS label_value")
+              .withNamedParameter(valueParam, labelValue));
+      i++;
+    }
+
+    return SQLQuery.join(values, " UNION ALL ");
   }
 
   private static String getClashing(Map<String, ?> map1, Map<String, ?> map2) {
