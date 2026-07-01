@@ -428,6 +428,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
           (
             ${{contentQuery}}
           ) idata
+        ON CONFLICT DO NOTHING
         RETURNING id
       ),
       count_data as
