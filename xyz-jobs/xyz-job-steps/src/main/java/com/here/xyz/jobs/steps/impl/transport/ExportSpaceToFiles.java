@@ -480,7 +480,9 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
     try {
       String table = getRootTableName(context == SUPER ? superSpace() : space());
       IRange iRange = loadIRange(table);
-      if (space().getExtension() != null && (context == DEFAULT || context == null)) {
+      if (space().getExtension() != null && (context == DEFAULT || context == null
+              //TODO: Hack because of internal usage of Context.X
+              || context == EXTENSION)) {
         IRange superIRange = loadIRange(getRootTableName(superSpace()));
         iRange = new IRange(Math.min(iRange.minI, superIRange.minI), Math.max(iRange.maxI, superIRange.maxI));
       }
