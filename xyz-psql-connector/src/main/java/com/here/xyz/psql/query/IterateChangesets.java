@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.psql.query.helpers.versioning.GetHeadVersion;
 import com.here.xyz.psql.query.helpers.versioning.GetMinVersion;
+import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.responses.changesets.Changeset;
 import com.here.xyz.responses.changesets.ChangesetCollection;
 import com.here.xyz.util.db.SQLQuery;
@@ -40,12 +41,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class IterateChangesets extends IterateFeatures<IterateChangesetsEvent, ChangesetCollection> {
+public class IterateChangesets<R  extends XyzResponse> extends IterateFeatures<IterateChangesetsEvent, R> {
   public static long DEFAULT_LIMIT = 1_000l;
   private long limit;
   private IterateChangesetsEvent event; //TODO: Do not store the whole event during the request phase
   private long nextTokenVersion;
   private String nextTokenId;
+
+  //TODO: use i for pagination in case of squashing
+
 
   public IterateChangesets(IterateChangesetsEvent event) throws SQLException, ErrorResponseException {
     super(event);
@@ -60,6 +64,10 @@ public class IterateChangesets extends IterateFeatures<IterateChangesetsEvent, C
 
   @Override
   protected String buildOrderByFragment(ContextAwareEvent event) {
+    if (this.event.isSquashed())
+      //No sorting by version is necessary when squashing
+      return super.buildOrderByFragment(event);
+
     if( event.getBranchPath() == null || event.getBranchPath().isEmpty() )
      return "ORDER BY ${schema}.${table}.version, id";
     else
@@ -103,7 +111,7 @@ public class IterateChangesets extends IterateFeatures<IterateChangesetsEvent, C
   }
 
   @Override
-  public ChangesetCollection run(DataSourceProvider dataSourceProvider) throws SQLException, ErrorResponseException {
+  public R run(DataSourceProvider dataSourceProvider) throws SQLException, ErrorResponseException {
     long headVersion = new GetHeadVersion<>(event).withDataSourceProvider(dataSourceProvider).run();
     long minAvailableVersion = headVersion - event.getVersionsToKeep() + 1;
 
@@ -140,6 +148,9 @@ public class IterateChangesets extends IterateFeatures<IterateChangesetsEvent, C
   }
 
   protected SQLQuery buildFilterWhereClause(IterateChangesetsEvent event) {
+
+    //TODO: Enhance filter clause to filter by specified operation
+
     SQLQuery authorsFilter = null, startTimeFilter = null, endTimeFilter = null;
 
     if (event.getAuthors() != null && !event.getAuthors().isEmpty())
@@ -186,6 +197,9 @@ public class IterateChangesets extends IterateFeatures<IterateChangesetsEvent, C
   //TODO: Check if that mechanism for preventing the last empty page (edge case) can be prevented also for IterateFeatures by pulling this up
   @Override
   protected SQLQuery buildLimitFragment(IterateChangesetsEvent event) {
+    if (event.ignoreLimit)
+      return new SQLQuery("");
+
     //Query one more feature as requested, to be able to determine if we need to include a nextPageToken
     return new SQLQuery("LIMIT #{limit}").withNamedParameter("limit", event.getLimit() + 1);
   }
@@ -196,7 +210,12 @@ public class IterateChangesets extends IterateFeatures<IterateChangesetsEvent, C
     return new SQLQuery("");
   }
 
-  public ChangesetCollection handle(ResultSet rs) throws SQLException {
+  @Override
+  public R handle(ResultSet rs) throws SQLException {
+    //Respond with a simple FeatureCollection for squashed changesets were requested for a single operation
+    if (event.isSquashed() && event.getOperation() != null)
+      return super.handle(rs);
+
     Map<Long, Changeset> versions = new HashMap<>();
 
     long numFeatures = 0;
@@ -217,7 +236,7 @@ public class IterateChangesets extends IterateFeatures<IterateChangesetsEvent, C
         break;
 
       String operation = rs.getString("operation");
-      long version = rs.getLong("version");
+      long version = event.isSquashed() ? -1 : rs.getLong("version");
 
       if (!writeStarted) {
         startVersion = version;
@@ -247,7 +266,8 @@ public class IterateChangesets extends IterateFeatures<IterateChangesetsEvent, C
           createdAt = firstFeature.getProperties().getXyzNamespace().getUpdatedAt();
         }
         catch (JsonProcessingException e) {
-          throw new SQLException("Can't read feature json from database!", e);
+          //TODO: Throw ErrorResponseException instead
+          throw new SQLException("Can't parse feature json from database!", e);
         }
       }
 
@@ -289,7 +309,10 @@ public class IterateChangesets extends IterateFeatures<IterateChangesetsEvent, C
     if (numFeatures > 0 && numFeatures == limit + 1 && numFeatures > limit)
       nextPageToken = createNextPageToken();
 
-    return new ChangesetCollection()
+    if (event.isSquashed())
+      return (R) versions.get(-1);
+
+    return (R) new ChangesetCollection()
         .withStartVersion(startVersion)
         .withEndVersion(prevVersion)
         .withVersions(versions)

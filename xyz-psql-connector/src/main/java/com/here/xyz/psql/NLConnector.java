@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,14 @@
  */
 
 package com.here.xyz.psql;
+
+import static com.here.xyz.events.UpdateStrategy.OnExists;
+import static com.here.xyz.events.UpdateStrategy.OnNotExists;
+import static com.here.xyz.responses.XyzError.NOT_IMPLEMENTED;
+import static com.here.xyz.util.db.ConnectorParameters.TableLayout.NEW_LAYOUT;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.GLOBAL_VERSION_PROPERTY_KEY;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.REFERENCES_PROPERTY_KEY;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.REF_QUAD_PROPERTY_KEY;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
@@ -43,16 +51,10 @@ import com.here.xyz.events.PropertyQueryList;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.events.UpdateStrategy;
 import com.here.xyz.events.WriteFeaturesEvent;
-import com.here.xyz.models.geojson.WebMercatorTile;
-import com.here.xyz.models.geojson.coordinates.BBox;
-import com.here.xyz.models.geojson.coordinates.LinearRingCoordinates;
-import com.here.xyz.models.geojson.coordinates.PolygonCoordinates;
-import com.here.xyz.models.geojson.coordinates.Position;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.FeatureCollection.ModificationFailure;
 import com.here.xyz.models.geojson.implementation.Geometry;
-import com.here.xyz.models.geojson.implementation.Polygon;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.psql.query.EraseSpace;
@@ -69,15 +71,9 @@ import com.here.xyz.responses.BinaryResponse;
 import com.here.xyz.responses.ChangesetsStatisticsResponse;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.SuccessResponse;
-import com.here.xyz.responses.changesets.ChangesetCollection;
+import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.Random;
 import io.vertx.core.json.JsonObject;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.locationtech.jts.geom.Coordinate;
-import org.locationtech.jts.io.WKBWriter;
-import org.postgresql.util.PGobject;
-
 import java.sql.Array;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -88,15 +84,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-
-import static com.here.xyz.util.db.ConnectorParameters.TableLayout.NEW_LAYOUT;
-import static com.here.xyz.events.UpdateStrategy.OnExists;
-import static com.here.xyz.events.UpdateStrategy.OnNotExists;
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.REF_QUAD_PROPERTY_KEY;
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.GLOBAL_VERSION_PROPERTY_KEY;
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.REFERENCES_PROPERTY_KEY;
-
-import static com.here.xyz.responses.XyzError.NOT_IMPLEMENTED;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.io.WKBWriter;
+import org.postgresql.util.PGobject;
 
 public class NLConnector extends PSQLXyzConnector {
   private static final Logger logger = LogManager.getLogger();
@@ -359,7 +351,7 @@ public class NLConnector extends PSQLXyzConnector {
   }
 
   @Override
-  protected ChangesetCollection processIterateChangesetsEvent(IterateChangesetsEvent event) throws Exception {
+  protected XyzResponse processIterateChangesetsEvent(IterateChangesetsEvent event) throws Exception {
     throw new ErrorResponseException(NOT_IMPLEMENTED, "Method not implemented in NLConnector!");
   }
 

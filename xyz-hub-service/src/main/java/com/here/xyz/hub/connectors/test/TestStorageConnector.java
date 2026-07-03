@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -53,7 +53,7 @@ import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.StorageStatistics;
 import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.XyzError;
-import com.here.xyz.responses.changesets.ChangesetCollection;
+import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.service.Core;
 import java.util.Arrays;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -176,7 +176,7 @@ public class TestStorageConnector extends StorageConnector {
   }
 
   @Override
-  protected ChangesetCollection processIterateChangesetsEvent(IterateChangesetsEvent event) throws Exception {
+  protected XyzResponse processIterateChangesetsEvent(IterateChangesetsEvent event) throws Exception {
     throw new ErrorResponseException(event.getStreamId(), XyzError.forValue(event.getSpace()), event.getSpace() + " message.");
   }
 

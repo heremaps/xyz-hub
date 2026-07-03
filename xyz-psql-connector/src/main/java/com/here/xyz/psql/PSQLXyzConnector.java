@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -79,7 +79,6 @@ import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.StorageStatistics;
 import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.XyzResponse;
-import com.here.xyz.responses.changesets.ChangesetCollection;
 import com.here.xyz.util.db.SQLQuery;
 import java.sql.SQLException;
 import java.util.List;
@@ -229,7 +228,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
   }
 
   @Override
-  protected ChangesetCollection processIterateChangesetsEvent(IterateChangesetsEvent event) throws Exception {
+  protected XyzResponse processIterateChangesetsEvent(IterateChangesetsEvent event) throws Exception {
     return run(new IterateChangesets(event));
   }
 
