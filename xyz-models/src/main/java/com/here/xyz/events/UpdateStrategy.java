@@ -19,8 +19,35 @@
 
 package com.here.xyz.events;
 
-public record UpdateStrategy(OnExists onExists, OnNotExists onNotExists, OnVersionConflict onVersionConflict,
-    OnMergeConflict onMergeConflict) {
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+public final class UpdateStrategy {
+  @JsonProperty
+  private OnExists onExists;
+  @JsonProperty
+  private OnNotExists onNotExists;
+  @JsonProperty
+  private OnVersionConflict onVersionConflict;
+  @JsonProperty
+  private OnMergeConflict onMergeConflict;
+
+  public UpdateStrategy(){}
+
+  public UpdateStrategy(OnExists onExists,
+                        OnNotExists onNotExists,
+                        OnVersionConflict onVersionConflict,
+                        OnMergeConflict onMergeConflict) {
+    this.onExists = onExists;
+    this.onNotExists = onNotExists;
+    this.onVersionConflict = onVersionConflict;
+    this.onMergeConflict = onMergeConflict;
+  }
+
+  public OnExists onExists() { return onExists; }
+  public OnNotExists onNotExists() { return onNotExists; }
+  public OnVersionConflict onVersionConflict() { return onVersionConflict; }
+  public OnMergeConflict onMergeConflict() { return onMergeConflict; }
+
   public static final UpdateStrategy DEFAULT_UPDATE_STRATEGY = new UpdateStrategy(OnExists.REPLACE, OnNotExists.CREATE, null,
       null);
   public static final UpdateStrategy DEFAULT_DELETE_STRATEGY = new UpdateStrategy(OnExists.DELETE, OnNotExists.RETAIN, null,

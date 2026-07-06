@@ -30,6 +30,7 @@ import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
+import com.here.xyz.hub.task.SubscriptionHandler;
 import com.here.xyz.models.hub.Subscription;
 import io.restassured.response.ValidatableResponse;
 import org.junit.After;
@@ -39,10 +40,10 @@ import org.junit.Test;
 
 public class SubscriptionApiIT extends TestSpaceWithFeature {
 
-  private static String cleanUpSpaceId = "space1";
-  private static String cleanUpSpaceId2 = "space2";
-  private static String cleanUpSpaceId3 = cleanUpSpaceId + "-ext";
-  private static String subscriptionId = "test-subscription-1";
+  private static final String cleanUpSpaceId = "space1";
+  private static final String cleanUpSpaceId2 = "space2";
+  private static final String cleanUpSpaceId3 = cleanUpSpaceId + "-ext";
+  private static final String subscriptionId = "test-subscription-1";
 
   @BeforeClass
   public static void setupClass() {
@@ -128,6 +129,28 @@ public class SubscriptionApiIT extends TestSpaceWithFeature {
   @Test
   public void createSubscriptionWithoutId() {
     addSubscription(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES, "/xyz/hub/createSubscriptionWithoutId.json")
+        .statusCode(BAD_REQUEST.code());
+  }
+
+  @Test
+  public void createSubscriptionWithFilters() {
+    addSubscription(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES, "/xyz/hub/createSubscriptionWithFilter.json")
+        .statusCode(CREATED.code())
+        .body("id", equalTo("test-subscription-1"))
+        .body("filters.jsonPath", equalTo("$[?(@.properties.type == 'building')]"))
+        .body("filters.spatialFilter.radius", equalTo(100))
+        .body("filters.spatialFilter.clip", equalTo(true));
+  }
+
+  @Test
+  public void createSubscriptionWithInvalidJsonPath() {
+    addSubscription(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES, "/xyz/hub/createSubscriptionWithInvalidJsonPath.json")
+        .statusCode(BAD_REQUEST.code());
+  }
+
+  @Test
+  public void createSubscriptionWithInvalidGeometry() {
+    addSubscription(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES, "/xyz/hub/createSubscriptionWithInvalidGeometry.json")
         .statusCode(BAD_REQUEST.code());
   }
 
@@ -321,7 +344,7 @@ public class SubscriptionApiIT extends TestSpaceWithFeature {
         .get("/spaces/" + cleanUpSpaceId)
         .then()
         .statusCode(OK.code())
-        .body("versionsToKeep", equalTo(2));
+        .body("versionsToKeep", equalTo(SubscriptionHandler.v2kForSubscribedNonHistoryLayers));
   }
 
   @Test

@@ -19,17 +19,17 @@
 
 package com.here.xyz.jobs.steps.impl;
 
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildLoadSpaceTableIndicesQuery;
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildSpaceTableDropIndexQueries;
+import static com.here.xyz.util.db.pg.IndexHelper.buildLoadSpaceTableIndicesQuery;
+import static com.here.xyz.util.db.pg.IndexHelper.buildSpaceTableDropIndexQueries;
 
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.jobs.steps.execution.StepException;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.util.db.SQLQuery;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper.OnDemandIndex;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper.SystemIndex;
+import com.here.xyz.util.db.pg.IndexHelper.Index;
+import com.here.xyz.util.db.pg.IndexHelper.OnDemandIndex;
+import com.here.xyz.util.db.pg.IndexHelper.SystemIndex;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -118,10 +118,11 @@ public class DropIndexes extends SpaceBasedStep<DropIndexes> {
   public void execute(boolean resume) throws SQLException, TooManyResourcesClaimed, WebClientException {
     try {
       logger.info("Gathering indices of space " + getSpaceId());
+      String tableName = getTableName(space(), getVersionRef());
 
       //Get the list of existing indexes from database.
       List<Index> indexes = runReadQuerySync(
-          buildLoadSpaceTableIndicesQuery(getSchema(db()), getRootTableName(space())), db(), calculateNeededAcus(),
+          buildLoadSpaceTableIndicesQuery(getSchema(db()), tableName), db(), calculateNeededAcus(),
           DropIndexes::getIndicesFromResultSet);
 
       if (indexes.isEmpty())
@@ -132,14 +133,13 @@ public class DropIndexes extends SpaceBasedStep<DropIndexes> {
           logger.info("[{}] Deactivating the space {} ...", getGlobalStepId(), getSpaceId());
           hubWebClient().patchSpace(getSpaceId(), Map.of("active", false));
         }
-        String rootTableName = getRootTableName(space());
 
         //List of all index names excluding whitelisted indexes
         //This will drop all the indexes (system and on-demand) except for the white-listed ones
         List<String> idxNames = indexes.stream()
             .filter(index -> index != null && (indexWhiteList == null || indexWhiteList.stream()
                 .noneMatch(excludedIndex -> isSameIndex(index, excludedIndex))))
-            .map(index -> index instanceof SystemIndex ? index.getIndexName(rootTableName) : index.getIndexName())
+            .map(index -> index instanceof SystemIndex ? index.getIndexName(tableName) : index.getIndexName())
             .toList();
         if (idxNames.isEmpty()) {
           noIndicesPresent();

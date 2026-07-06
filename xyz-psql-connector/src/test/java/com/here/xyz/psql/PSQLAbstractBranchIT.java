@@ -59,7 +59,7 @@ public abstract class PSQLAbstractBranchIT extends PSQLAbstractIT {
   }
 
   protected final String TEST_SPACE_ID() {
-    return getClass().getSimpleName();
+    return spaceId();
   }
 
   protected String writeFeature(String featureId) throws Exception {

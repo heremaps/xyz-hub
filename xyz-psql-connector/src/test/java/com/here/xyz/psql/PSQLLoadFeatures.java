@@ -18,8 +18,8 @@
  */
 package com.here.xyz.psql;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
@@ -29,19 +29,19 @@ import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import java.util.Arrays;
 import java.util.HashMap;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 public class PSQLLoadFeatures extends PSQLAbstractIT {
 
-  @Before
+  @BeforeEach
   public void createTable() throws Exception {
     invokeCreateTestSpace(defaultTestConnectorParams, TEST_SPACE_ID);
     writeFeatures();
   }
 
-  @After
+  @AfterEach
   public void shutdown() throws Exception {
     invokeDeleteTestSpace(null);
   }

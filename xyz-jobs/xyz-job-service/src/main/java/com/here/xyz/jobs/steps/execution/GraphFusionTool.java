@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 
 package com.here.xyz.jobs.steps.execution;
 
+import static com.here.xyz.jobs.steps.Step.InputSet.GENERIC_PROVIDER;
 import static com.here.xyz.jobs.steps.execution.RunEmrJob.toInputSetReference;
 
 import com.here.xyz.jobs.Job;
@@ -52,12 +53,12 @@ public class GraphFusionTool {
   }
 
   protected static StepGraph fuseGraphs(String newJobId, StepGraph newGraph, StepGraph oldGraph) {
-    newGraph = canonicalize(newGraph);
-    oldGraph = canonicalize(oldGraph);
-    CompilationStepGraph fusedGraph = replaceByDelegations(newGraph, oldGraph);
+    newGraph = canonicalize(newGraph, false);
+    oldGraph = canonicalize(oldGraph, true);
+    StepGraph fusedGraph = replaceByDelegations(newGraph, oldGraph);
 
     //Replace previous step relations (previousStepIds)
-    fusedGraph.enrich(newJobId);
+    CompilationStepGraph.enrich(fusedGraph, newJobId);
 
     //Replace InputSets accordingly for new steps that should re-use outputs of old steps as inputs
     resolveReusedInputs(fusedGraph);
@@ -65,13 +66,17 @@ public class GraphFusionTool {
   }
 
   protected static StepGraph canonicalize(StepGraph graph) {
+    return canonicalize(graph, true);
+  }
+
+  protected static StepGraph canonicalize(StepGraph graph, boolean removeNotReusableSteps) {
     /*
     1.) Remove all steps that are flagged as being "notReusable" (these should be basically hidden from the reusability process)
     2.) Then, remove empty sub-graphs (NOTE: The traversal is done in "bottom-up" manner so sub-graphs
       that became empty due to the removal of "notReusable" steps will be removed as well
      */
     traverse(graph, execution -> {
-      if (execution instanceof Step step && step.isNotReusable())
+      if (execution instanceof Step step && step.isNotReusable() && removeNotReusableSteps)
         return null;
       if (execution instanceof StepGraph subGraph) {
         if (subGraph.isEmpty())
@@ -127,14 +132,14 @@ public class GraphFusionTool {
    * @param oldStepGraph The old step graph of which to take the steps that can be re-used
    * @return A graph that is equivalent to the new step graph, but contains as many DelegateSteps as possible
    */
-  private static CompilationStepGraph replaceByDelegations(StepGraph newStepGraph, StepGraph oldStepGraph) {
+  private static StepGraph replaceByDelegations(StepGraph newStepGraph, StepGraph oldStepGraph) {
     if (newStepGraph.isParallel() != oldStepGraph.isParallel()) {
       if (newStepGraph.isParallel())
         //Wrap the sequential old graph into a parallel one and continue
         oldStepGraph = wrap(oldStepGraph, true);
       else
         //Wrap the sequential new graph into a parallel one, do replacements parallel, and unwrap the result again
-        return (CompilationStepGraph) unwrap(replaceByDelegationsParallelly(wrap(newStepGraph, true), oldStepGraph));
+        return (StepGraph) unwrap(replaceByDelegationsParallelly(wrap(newStepGraph, true), oldStepGraph));
     }
     return newStepGraph.isParallel()
         ? replaceByDelegationsParallelly(newStepGraph, oldStepGraph) : replaceByDelegationsSequentially(newStepGraph, oldStepGraph);
@@ -148,8 +153,8 @@ public class GraphFusionTool {
    * @param oldStepGraph
    * @return
    */
-  private static CompilationStepGraph replaceByDelegationsSequentially(StepGraph newStepGraph, StepGraph oldStepGraph) {
-    CompilationStepGraph result = new CompilationStepGraph();
+  private static StepGraph replaceByDelegationsSequentially(StepGraph newStepGraph, StepGraph oldStepGraph) {
+    StepGraph result = new CompilationStepGraph();
     for (int i = 0; i < Math.min(newStepGraph.getExecutions().size(), oldStepGraph.getExecutions().size()); i++) {
       StepExecution newExecution = newStepGraph.getExecutions().get(i);
       StepExecution oldExecution = oldStepGraph.getExecutions().get(i);
@@ -169,7 +174,7 @@ public class GraphFusionTool {
     return result;
   }
 
-  private static CompilationStepGraph replaceByDelegation(StepGraph newStepGraph, Step oldStep) {
+  private static StepGraph replaceByDelegation(StepGraph newStepGraph, Step oldStep) {
     if (newStepGraph.isParallel())
       return replaceByDelegationsParallelly(newStepGraph, wrap(oldStep, true));
     else
@@ -191,8 +196,8 @@ public class GraphFusionTool {
    * @param oldStepGraph
    * @return
    */
-  private static CompilationStepGraph replaceByDelegationsParallelly(StepGraph newStepGraph, StepGraph oldStepGraph) {
-    CompilationStepGraph result = (CompilationStepGraph) new CompilationStepGraph().withParallel(true);
+  private static StepGraph replaceByDelegationsParallelly(StepGraph newStepGraph, StepGraph oldStepGraph) {
+    StepGraph result = new CompilationStepGraph().withParallel(true);
     for (StepExecution newBranch : newStepGraph.getExecutions()) {
       //Each execution is one parallel branch. Calculate the match count with each old parallel branch
       int maxMatchCount = 0;
@@ -296,7 +301,8 @@ public class GraphFusionTool {
   private static void resolveReusedInputs(Step step, StepGraph containingStepGraph) {
     List<InputSet> newInputSets = new ArrayList<>();
     for (InputSet compiledInputSet : (List<InputSet>) step.getInputSets()) {
-      if (compiledInputSet.providerId() == null || !(containingStepGraph.getStep(compiledInputSet.providerId()) instanceof DelegateStep replacementStep))
+      if (compiledInputSet.providerId() == null || GENERIC_PROVIDER.equals(compiledInputSet.providerId())
+              || !(containingStepGraph.getStep(compiledInputSet.providerId()) instanceof DelegateStep replacementStep))
         //NOTE: stepId == null on an InputSet refers to the USER-inputs
         newInputSets.add(compiledInputSet);
       else
@@ -327,7 +333,7 @@ public class GraphFusionTool {
   private static String updateEmrScriptParamReferences(RunEmrJob runEmrJob, StepGraph containingStepGraph, String referenceIdentifier) {
     try {
       //Will throw an exception if the referenced inputSet is not found in the step
-      runEmrJob.fromReferenceIdentifier(referenceIdentifier);
+      runEmrJob.fromInputReferenceIdentifier(referenceIdentifier);
       //In case it was found, it means the reference is pointing to a "new" output, keep the reference as it is
       return null;
     }

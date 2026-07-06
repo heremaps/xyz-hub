@@ -26,17 +26,23 @@ import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_IMPLEMENTED;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 
+import com.here.xyz.filters.Filters;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.auth.Authorization;
 import com.here.xyz.hub.task.SubscriptionHandler;
+import com.here.xyz.models.filters.SpatialFilter;
 import com.here.xyz.models.hub.Subscription;
+import com.here.xyz.util.geo.GeometryValidator;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.service.HttpException;
+import com.jayway.jsonpath.InvalidPathException;
+import com.jayway.jsonpath.JsonPath;
 import io.vertx.core.Future;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.json.jackson.DatabindCodec;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.router.RouterBuilder;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
@@ -75,7 +81,7 @@ public class SubscriptionApi extends SpaceBasedApi {
       final Subscription subscription = getSubscriptionInput(context);
       subscription.setSource(spaceId);
 
-      logger.info(marker, "Registering subscription for space " + spaceId + ": " + JsonObject.mapFrom(subscription));
+      logger.info(marker, "Registering subscription for space {}: {}", spaceId, JsonObject.mapFrom(subscription));
       validateRequestBody(subscription);
 
       getAndValidateSpace(marker, spaceId)
@@ -170,6 +176,31 @@ public class SubscriptionApi extends SpaceBasedApi {
 
     if (subscription.getConfig() == null || subscription.getConfig().getType() == null)
       throw new HttpException(BAD_REQUEST, "Validation failed. The property config 'type' cannot be empty.");
+
+    validateFilter(subscription.getFilters());
+  }
+
+  private void validateFilter(Filters filters) throws HttpException {
+    if (filters == null)
+      return;
+
+    String jsonPath = filters.getJsonPath();
+    if (StringUtils.isNotBlank(jsonPath)) {
+        try {
+          JsonPath.compile(jsonPath);
+        } catch (InvalidPathException e) {
+          throw new HttpException(BAD_REQUEST, "Validation failed. Invalid JSON path '" + jsonPath + "': " + e.getMessage());
+        }
+      }
+
+    SpatialFilter spatialFilter = filters.getSpatialFilter();
+    if (spatialFilter != null) {
+      try {
+        GeometryValidator.validateSpatialFilter(spatialFilter);
+      } catch (ValidationException e) {
+        throw new HttpException(BAD_REQUEST, "Validation failed. Invalid spatial filter: " + e.getMessage());
+      }
+    }
   }
 
   private Future<Void> validateSubscriptionDestination(Subscription subscription) {

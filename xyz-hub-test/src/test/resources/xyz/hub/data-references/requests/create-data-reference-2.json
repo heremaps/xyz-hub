@@ -1,0 +1,10 @@
+{
+  "entityId": "entity-id-2",
+  "isPatch": false,
+  "endVersion": 134,
+  "objectType": "object-type-B",
+  "contentType": "content-type-B",
+  "location": "location-B",
+  "sourceSystem": "source-system-B",
+  "targetSystem": "target-system-B"
+}

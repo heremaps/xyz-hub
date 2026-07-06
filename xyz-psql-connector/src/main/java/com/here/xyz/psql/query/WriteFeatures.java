@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,6 +23,9 @@ import static com.here.xyz.psql.query.branching.CommitManager.branchPathToTableC
 import static com.here.xyz.responses.XyzError.CONFLICT;
 import static com.here.xyz.responses.XyzError.EXCEPTION;
 import static com.here.xyz.responses.XyzError.NOT_FOUND;
+import static com.here.xyz.util.db.pg.SQLError.FEATURE_EXISTS;
+import static com.here.xyz.util.db.pg.SQLError.FEATURE_NOT_EXISTS;
+import static com.here.xyz.util.db.pg.SQLError.RETRYABLE_VERSION_CONFLICT;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.PARTITION_SIZE;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -31,29 +34,35 @@ import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.WriteFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.psql.QueryRunner;
 import com.here.xyz.responses.XyzError;
+import com.here.xyz.util.NodeExecutableLocator;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import com.here.xyz.util.db.pg.FeatureWriterQueryBuilder.FeatureWriterQueryContextBuilder;
 import com.here.xyz.util.db.pg.SQLError;
 import com.here.xyz.util.runtime.FunctionRuntime;
+import java.io.IOException;
+import java.io.InputStream;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureCollection> {
   private static final Logger logger = LogManager.getLogger();
   boolean responseDataExpected;
-  private String rootTable;
-  private boolean uniqueConstraintExists = false;
+  boolean debug = "true".equalsIgnoreCase(System.getenv().get("DEBUG_FW"));
 
   public WriteFeatures(WriteFeaturesEvent event) throws SQLException, ErrorResponseException {
     super(event);
     responseDataExpected = event.isResponseDataExpected();
-    rootTable = getDefaultTable(event);
   }
 
   @Override
@@ -86,12 +95,12 @@ public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureColl
         .withSpaceContext(spaceContext)
         .withHistoryEnabled(event.getVersionsToKeep() > 1)
         .withBatchMode(true)
+        .with("tableLayout",getTableLayout())
         .with("debug", "true".equals(System.getenv("FW_DEBUG")))
         .with("queryId", FunctionRuntime.getInstance().getStreamId())
         .with("PARTITION_SIZE", PARTITION_SIZE)
         .with("minVersion", event.getMinVersion())
         .with("versionsToKeep", event.getVersionsToKeep())
-        .with("uniqueConstraintExists", uniqueConstraintExists)
         .with("pw", getDataSourceProvider().getDatabaseSettings().getPassword());
 
     if (event.getRef() != null && event.getRef().isSingleVersion() && !event.getRef().isHead())
@@ -102,36 +111,72 @@ public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureColl
         .withContext(queryContextBuilder.build())
         .withNamedParameter("modifications", XyzSerializable.serialize(event.getModifications()))
         .withNamedParameter("author", event.getAuthor())
-        .withNamedParameter("responseDataExpected", event.isResponseDataExpected());
+        .withNamedParameter("responseDataExpected", event.isResponseDataExpected())
+        .withRetryableErrorCodes(Set.of(RETRYABLE_VERSION_CONFLICT.errorCode));
   }
 
   @Override
   protected FeatureCollection run(DataSourceProvider dataSourceProvider) throws ErrorResponseException {
-    //TODO: Remove this workaround once all constraints have been adjusted accordingly
-    try {
-      uniqueConstraintExists = new SQLQuery("SELECT 1 FROM pg_catalog.pg_constraint "
-          + "WHERE connamespace::regnamespace::text = #{schema} AND conname = #{constraintName}")
-          .withNamedParameter("schema", getSchema())
-          .withNamedParameter("constraintName", rootTable + "_unique")
-          .run(dataSourceProvider, rs -> rs.next());
-    }
-    catch (SQLException e) {
-      logger.error("Error evaluating whether the table has a unique constraint");
-      //ignore and continue with uniqueConstraintExists = false
-    }
-
+    if (debug)
+      return runWithDebugging(dataSourceProvider);
     try {
       return super.run(dataSourceProvider);
     }
     catch (SQLException e) {
       final String message = e.getMessage();
       String cleanMessage = message.contains("\n") ? message.substring(0, message.indexOf("\n")) : message;
-      throw switch (SQLError.fromErrorCode(e.getSQLState())) {
-        case FEATURE_EXISTS, VERSION_CONFLICT_ERROR, MERGE_CONFLICT_ERROR -> new ErrorResponseException(CONFLICT, cleanMessage, e);
-        case FEATURE_NOT_EXISTS -> new ErrorResponseException(NOT_FOUND, cleanMessage, e);
-        case ILLEGAL_ARGUMENT -> new ErrorResponseException(XyzError.ILLEGAL_ARGUMENT, cleanMessage, e);
-        case XYZ_EXCEPTION, UNKNOWN -> new ErrorResponseException(EXCEPTION, e.getMessage(), e);
+      SQLError sqlError = SQLError.fromErrorCode(e.getSQLState());
+      String details = message.contains("\n") && sqlError != FEATURE_EXISTS && sqlError != FEATURE_NOT_EXISTS
+          ? message.substring(message.indexOf("\n") + 1)
+          : null;
+      throw switch (sqlError) {
+        case VERSION_CONFLICT_ERROR -> {
+          String[] detailLines = details.split("\n");
+          yield new ErrorResponseException(CONFLICT, cleanMessage, e)
+            .withInternalDetails(details)
+            .withErrorResponseDetails(Map.of("hint", detailLines[1].trim()));
+        }
+        case FEATURE_EXISTS, MERGE_CONFLICT_ERROR, RETRYABLE_VERSION_CONFLICT -> new ErrorResponseException(CONFLICT, cleanMessage, e).withInternalDetails(details);
+        case DUPLICATE_KEY -> new ErrorResponseException(CONFLICT, "Conflict while writing features.", e).withInternalDetails(details); //TODO: Handle all conflicts in FeatureWriter properly
+        case FEATURE_NOT_EXISTS -> new ErrorResponseException(NOT_FOUND, cleanMessage, e).withInternalDetails(details);
+        case ILLEGAL_ARGUMENT -> new ErrorResponseException(XyzError.ILLEGAL_ARGUMENT, cleanMessage, e).withInternalDetails(details);
+        case XYZ_EXCEPTION, UNKNOWN -> new ErrorResponseException(EXCEPTION, e.getMessage(), e).withInternalDetails(details);
       };
+    }
+  }
+
+  private FeatureCollection runWithDebugging(DataSourceProvider dataSourceProvider) {
+    final String START_MARKER = "###RESULT-START###";
+    final String END_MARKER = "###RESULT-END###";
+    try {
+      Method prepareQueryMethod = QueryRunner.class.getDeclaredMethod("prepareQuery");
+      prepareQueryMethod.setAccessible(true);
+      SQLQuery preparedQuery = (SQLQuery) prepareQueryMethod.invoke(this);
+
+      String queryJson = preparedQuery.toString();
+
+      ProcessBuilder pb = new ProcessBuilder(
+          NodeExecutableLocator.findNode(),
+          "--inspect-brk=9229",
+          "xyz-util/src/test/js/db/featurewriter/TestFeatureWriter.js",
+          dataSourceProvider.getDatabaseSettings().getJdbcUrl(false),
+          queryJson
+      );
+
+      Process process = pb.start();
+
+      try (InputStream is = process.getInputStream()) {
+        String stdout;
+        stdout = new String(is.readAllBytes());
+        int startIndex = stdout.indexOf(START_MARKER);
+        int endIndex = stdout.indexOf(END_MARKER);
+        String result = stdout.substring(startIndex + START_MARKER.length(), endIndex).trim();
+        //TODO: Parse errors into SQLErrors correctly
+        return XyzSerializable.deserialize(result);
+      }
+    }
+    catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException | InterruptedException | IOException e) {
+      throw new RuntimeException(e);
     }
   }
 

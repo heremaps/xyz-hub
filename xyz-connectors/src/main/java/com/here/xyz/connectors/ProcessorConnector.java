@@ -47,7 +47,7 @@ import com.here.xyz.responses.XyzResponse;
  * This class could be extended by any processor connector implementations.
  */
 @SuppressWarnings({"WeakerAccess", "unused", "rawtypes"})
-public abstract class ProcessorConnector extends AbstractConnectorHandler {
+public abstract class ProcessorConnector extends EntryConnectorHandler {
 
   public static final String REQUEST = ".request";
   public static final String RESPONSE = ".response";

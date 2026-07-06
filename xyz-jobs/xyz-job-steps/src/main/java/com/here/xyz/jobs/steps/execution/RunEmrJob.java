@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 
 package com.here.xyz.jobs.steps.execution;
 
+import static com.here.xyz.jobs.steps.Step.Visibility.SYSTEM;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
 import static java.util.regex.Matcher.quoteReplacement;
 
@@ -48,7 +49,6 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import software.amazon.awssdk.services.s3.model.S3Exception;
@@ -56,10 +56,13 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
   public static final String EMR_JOB_NAME_PREFIX = "step:";
   private static final Logger logger = LogManager.getLogger();
+  private static final String OUTPUT_SET_REF_PREFIX = "${outputSet:";
   private static final String INPUT_SET_REF_PREFIX = "${inputSet:";
-  private static final String INPUT_SET_REF_SUFFIX = "}";
+  private static final String DATA_SET_REF_SUFFIX = "}";
   private static final Pattern INPUT_SET_REF_PATTERN = Pattern.compile(
-      Pattern.quote(INPUT_SET_REF_PREFIX) + "([a-zA-Z0-9._=-]+)" + Pattern.quote(INPUT_SET_REF_SUFFIX));
+      Pattern.quote(INPUT_SET_REF_PREFIX) + "([a-zA-Z0-9._=-]+)" + Pattern.quote(DATA_SET_REF_SUFFIX));
+  private static final Pattern OUTPUT_SET_REF_PATTERN = Pattern.compile(
+      Pattern.quote(OUTPUT_SET_REF_PREFIX) + "([a-zA-Z0-9._=-]+)" + Pattern.quote(DATA_SET_REF_SUFFIX));
 
   private String applicationId;
   private String executionRoleArn;
@@ -67,6 +70,7 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
   private List<String> positionalScriptParams = new ArrayList<>();
   private Map<String, String> namedScriptParams = new HashMap<>();
   private String sparkParams;
+  private Map<String, String> tags = new HashMap<>();
 
   @JsonIgnore
   public String getEmrJobName() {
@@ -301,6 +305,19 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
     return this;
   }
 
+  public Map<String, String> getTags() {
+    return tags;
+  }
+
+  public void setTags(Map<String, String> tags) {
+    this.tags = tags;
+  }
+
+  public RunEmrJob withTags(Map<String, String> tags) {
+    setTags(tags);
+    return this;
+  }
+
   private String getLocalTmpPath(String s3Path) {
     final String localRootPath = "/tmp/";
     return localRootPath + s3Path;
@@ -459,16 +476,41 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
   }
 
   public static String toInputSetReference(InputSet inputSet) {
-    return INPUT_SET_REF_PREFIX + toReferenceIdentifier(inputSet) + INPUT_SET_REF_SUFFIX;
+    return INPUT_SET_REF_PREFIX + toInputReferenceIdentifier(inputSet) + DATA_SET_REF_SUFFIX;
   }
 
-  private static String toReferenceIdentifier(InputSet inputSet) {
+  private static String toInputReferenceIdentifier(InputSet inputSet) {
     return inputSet.providerId() + "." + inputSet.name();
   }
 
-  InputSet fromReferenceIdentifier(String referenceIdentifier) {
+  public String outputSetReference(OutputSet outputSet) {
+    if (!getOutputSets().contains(outputSet))
+      throw new IllegalArgumentException("The provided outputSet is not a part of this EMR step.");
+
+    return toOuputSetReference(outputSet);
+  }
+
+  public static String toOuputSetReference(OutputSet outputSet) {
+    return OUTPUT_SET_REF_PREFIX + toOutputReferenceIdentifier(outputSet) + DATA_SET_REF_SUFFIX;
+  }
+
+  private static String toOutputReferenceIdentifier(OutputSet outputSet) {
+    return outputSet.getStepId() + "." + outputSet.name;
+  }
+
+  InputSet fromInputReferenceIdentifier(String referenceIdentifier) {
     ReferenceIdentifier ref = ReferenceIdentifier.fromString(referenceIdentifier);
     return getInputSet(ref.stepId(), ref.name());
+  }
+
+  OutputSet fromOutputReferenceIdentifier(String referenceIdentifier) {
+    ReferenceIdentifier ref = ReferenceIdentifier.fromString(referenceIdentifier);
+    if (!ref.stepId().equals(getId()))
+      throw new IllegalArgumentException("Output set reference \"" + referenceIdentifier
+          + "\" does not match the step ID of this EMR step.");
+    if ("".equals(ref.name()))
+      return new OutputSet(ref.name(), SYSTEM, false).withStepId(getId()).withJobId(getJobId());
+    return getOutputSet(ref.name());
   }
 
   protected InputSet getInputSet(String providerId, String name) {
@@ -486,17 +528,22 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
   private Map<String, String> localInputRefMap = new HashMap<>();
   List<String> resolveLocalScriptParams() {
     return getScriptParams()
-            .stream()
-            .map(param -> mapInputReferencesIn(param, this::downloadInputReferenceData))
-            .collect(Collectors.toList());
+        .stream()
+        .map(param -> mapInputReferencesIn(param, this::downloadInputReferenceData))
+        .map(param -> replaceOutputSetReferences(param))
+        .toList();
+  }
+
+  private String getLocalTmpOutputPath(OutputSet outputSet) {
+    String s3Path = S3Client.getKeyFromS3Uri(outputSet.toS3Uri(getJobId()).toString());
+    return getLocalTmpPath(s3Path);
   }
 
   private String downloadInputReferenceData(String referenceIdentifier) {
-
-    if(localInputRefMap.containsKey(referenceIdentifier))
+    if (localInputRefMap.containsKey(referenceIdentifier))
       return localInputRefMap.get(referenceIdentifier);
 
-    String s3Uri = fromReferenceIdentifier(referenceIdentifier).toS3Uri(getJobId()).toString();
+    String s3Uri = fromInputReferenceIdentifier(referenceIdentifier).toS3Uri(getJobId()).toString();
     String tmpLocalDir = copyFolderFromS3ToLocal(S3Client.getKeyFromS3Uri(s3Uri));
     localInputRefMap.put(referenceIdentifier, tmpLocalDir);
     return tmpLocalDir;
@@ -504,18 +551,30 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
 
   List<String> getResolvedScriptParams() {
     //Replace potential inputSet references within the script params
-    return getScriptParams().stream().map(scriptParam -> replaceInputSetReferences(scriptParam)).toList();
+    return getScriptParams().stream()
+        .map(scriptParam -> replaceInputSetReferences(scriptParam))
+        .map(scriptParam -> replaceOutputSetReferences(scriptParam))
+        .toList();
   }
 
   private String replaceInputSetReferences(String scriptParam) {
-    return mapInputReferencesIn(scriptParam,
-        referenceIdentifier -> fromReferenceIdentifier(referenceIdentifier).toS3Uri(getJobId()).toString());
+    return mapReferencesIn(INPUT_SET_REF_PATTERN, scriptParam,
+        referenceIdentifier -> fromInputReferenceIdentifier(referenceIdentifier).toS3Uri(getJobId()).toString());
+  }
+
+  private String replaceOutputSetReferences(String scriptParam) {
+    return mapReferencesIn(OUTPUT_SET_REF_PATTERN, scriptParam,
+        referenceIdentifier -> fromOutputReferenceIdentifier(referenceIdentifier).toS3Uri(getJobId()).toString());
   }
 
   static String mapInputReferencesIn(String scriptParam, Function<String, String> mapper) {
+    return mapReferencesIn(INPUT_SET_REF_PATTERN, scriptParam, mapper);
+  }
+
+  private static String mapReferencesIn(Pattern placeholderPattern, String scriptParam, Function<String, String> mapper) {
     if (scriptParam == null)
       return null;
-    return INPUT_SET_REF_PATTERN.matcher(scriptParam)
+    return placeholderPattern.matcher(scriptParam)
         .replaceAll(match -> {
           String replacement = mapper.apply(match.group(1));
           if (replacement == null)

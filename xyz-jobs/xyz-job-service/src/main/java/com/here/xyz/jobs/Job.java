@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -50,8 +50,13 @@ import com.here.xyz.jobs.datasets.DatasetDescription;
 import com.here.xyz.jobs.datasets.Files;
 import com.here.xyz.jobs.datasets.streams.DynamicStream;
 import com.here.xyz.jobs.processes.ProcessDescription;
+import com.here.xyz.jobs.retriever.JobInputsRetriever;
+import com.here.xyz.jobs.retriever.JobOutputsRetriever;
 import com.here.xyz.jobs.service.JobService;
+import com.here.xyz.jobs.steps.GroupPayloads;
 import com.here.xyz.jobs.steps.JobCompiler;
+import com.here.xyz.jobs.steps.JobPayloads;
+import com.here.xyz.jobs.steps.SetPayloads;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.Step.Visibility;
 import com.here.xyz.jobs.steps.StepGraph;
@@ -59,16 +64,11 @@ import com.here.xyz.jobs.steps.execution.JobExecutor;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.inputs.ModelBasedInput;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
-import com.here.xyz.jobs.steps.JobPayloads;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.outputs.Output;
-import com.here.xyz.jobs.steps.GroupPayloads;
-import com.here.xyz.jobs.steps.SetPayloads;
 import com.here.xyz.jobs.steps.resources.ExecutionResource;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.ResourcesRegistry.StaticLoad;
-import com.here.xyz.jobs.retriever.JobInputsRetriever;
-import com.here.xyz.jobs.retriever.JobOutputsRetriever;
 import com.here.xyz.util.Async;
 import com.here.xyz.util.pagination.Page;
 import com.here.xyz.util.pagination.PagedDataRetriever;
@@ -127,6 +127,8 @@ public class Job implements XyzSerializable {
   private Set<String> resourceKeys;
   @JsonView(Static.class)
   private List<StaticLoad> calculatedResourceLoads;
+  @JsonView({Internal.class, Static.class})
+  private boolean reusable = true;
 
   private static final Async ASYNC = new Async(100, Job.class);
   private static final Logger logger = LogManager.getLogger();
@@ -345,15 +347,35 @@ public class Job implements XyzSerializable {
     if (existingStep == null)
       throw new IllegalArgumentException("The provided step with ID " + step.getGlobalStepId() + " was not found.");
 
-    return updateStep(step, existingStep.getStatus().getState(), true);
+    /*
+    NOTE: The following is a hotfix to prevent the system from overloading when there is an incoming burst of parallel step updates
+    for the same step.
+     */
+    //---------------------------
+    RuntimeInfo newStepStatus = step.getStatus();
+    RuntimeInfo existingStepStatus = existingStep.getStatus();
+    final long TIME_TOLERANCE = 5_000;
+
+    if (newStepStatus.getState() == existingStepStatus.getState()
+        && newStepStatus.getUpdatedAt() - TIME_TOLERANCE < existingStepStatus.getUpdatedAt())
+      return Future.succeededFuture();
+    //---------------------------
+
+    return updateStep(step, existingStepStatus.getState(), true);
   }
 
+  //NOTE: This method is currently only used to update a step by its ID from incoming events (e.g., from EMR) rather than using an incoming step payload
   public Future<Void> updateStepStatus(String stepId, RuntimeInfo status, boolean cancelOnFailure) {
     final Step step = getStepById(stepId);
     if (step == null)
       throw new IllegalArgumentException("The provided step with ID " + stepId + " was not found.");
 
     State existingStepState = step.getStatus().getState();
+
+    //NOTE: This is a workaround for incoming events which try to set a step directly to CANCELLED without going through CANCELLING
+    if (status.getState() == CANCELLED && !existingStepState.isValidSuccessor(status.getState())
+        && existingStepState.isValidSuccessor(CANCELLING))
+      step.getStatus().setState(CANCELLING);
 
     step.getStatus()
         .withState(status.getState())
@@ -365,6 +387,7 @@ public class Job implements XyzSerializable {
   }
 
   private Future<Void> updateStep(Step step, State previousStepState, boolean cancelOnFailure) {
+    State previousJobState = getStatus().getState();
     //TODO: Once the state was SUCCEEDED it should not be mutable at all anymore
     if (previousStepState != null && !step.getStatus().getState().isFinal() && previousStepState.isFinal())
       //In case the step was already marked to have a final state, ignore any subsequent non-final updates to it
@@ -398,7 +421,7 @@ public class Job implements XyzSerializable {
     }
 
     return storeUpdatedStep(step)
-        .compose(v -> storeStatus(null))
+        .compose(v -> storeStatus(previousJobState)) //TODO: Retry on IllegalStateTransitions after re-loading the status?
         .compose(v -> getStatus().getState() == FAILED && cancelOnFailure ?
             JobExecutor.getInstance().cancel(getExecutionId(), "Cancelled due to failed step \"" + step.getId() + "\"")
                 .recover(t -> {
@@ -421,6 +444,7 @@ public class Job implements XyzSerializable {
   public Future<Boolean> resume() {
     logger.info("[{}] Resuming job ...", getId());
     if (isResumable()) {
+      clearErrors();
       getStatus().setState(RESUMING);
       getSteps().stepStream().forEach(step -> {
         if (step.getStatus().getState().isValidSuccessor(RESUMING)) //NOTE: Steps with e.g. state SUCCEEDED must not be resumed
@@ -442,18 +466,32 @@ public class Job implements XyzSerializable {
       return Future.failedFuture(new IllegalStateException("Job " + getId() + " is not resumable."));
   }
 
+  /**
+   * Clears all runtime error fields on the global job status and all step statuses.
+   */
+  private void clearErrors() {
+    if (getStatus() != null)
+      getStatus().clearErrors();
+
+    if (getSteps() != null)
+      getSteps().stepStream().forEach(step -> {
+        if (step.getStatus() != null)
+          step.getStatus().clearErrors();
+      });
+  }
+
   public Future<Void> store() {
     //TODO: Validate changes on the job and make sure the job may be stored in the current state
     return JobConfigClient.getInstance().storeJob(this);
   }
 
   public Future<Void> storeStatus(State expectedPreviousState) {
-    logger.info("{}: Store Job-Status:{}", getId(), getStatus().getState());
+    logger.info("[{}] Store Job-Status: {}", getId(), getStatus().getState());
     return JobConfigClient.getInstance().updateStatus(this, expectedPreviousState);
   }
 
   public Future<Void> storeUpdatedStep(Step<?> step) {
-    logger.info("{} StoreUpdatedStep: {}", step.getGlobalStepId(), getStatus().getState());
+    logger.info("[{}] StoreUpdatedStep: {}", step.getGlobalStepId(), step.getStatus().getState());
     return JobConfigClient.getInstance().updateStep(this, step);
   }
 
@@ -468,13 +506,18 @@ public class Job implements XyzSerializable {
       return JobConfigClient.getInstance().loadJobs(resourceKey, state);
   }
 
-  public static Future<List<Job>> load(FilteredValues<Long> newerThan, FilteredValues<String> sourceType, FilteredValues<String> targetType,
-                                               FilteredValues<String> processType, FilteredValues<String> resourceKeys, FilteredValues<State> stateTypes) {
-    return JobConfigClient.getInstance().loadJobs(newerThan, sourceType, targetType, processType, resourceKeys, stateTypes);
+  public static Future<List<Job>> load(FilteredValues<Long> newerThan, FilteredValues<Long> olderThan, FilteredValues<String> sourceType,
+      FilteredValues<String> targetType, FilteredValues<String> processType, FilteredValues<String> resourceKeys,
+      FilteredValues<State> stateTypes) {
+    return JobConfigClient.getInstance().loadJobs(newerThan, olderThan, sourceType, targetType, processType, resourceKeys, stateTypes);
   }
 
   public static Future<Set<Job>> loadByResourceKey(String resourceKey) {
     return JobConfigClient.getInstance().loadJobsByPrimaryResourceKey(resourceKey);
+  }
+
+  public static Future<Set<Job>> loadByResourceKey(String resourceKey, FilteredValues<State> states) {
+    return JobConfigClient.getInstance().loadJobsByPrimaryResourceKey(resourceKey, states);
   }
 
   public static Future<List<Job>> loadAll() {
@@ -496,16 +539,29 @@ public class Job implements XyzSerializable {
   E.g., when a job config was deleted due to a Dynamo TTL
    */
   public Future<Void> deleteJobResources() {
-    //Delete StateMachine if still existing
-    return JobExecutor.getInstance().deleteExecution(getExecutionId())
-        //Delete the inputs of this job
-        .compose(b -> deleteInputs())
-        //Delete the outputs of all involved steps
-        .compose(v -> Future.all(Job.forEach(getSteps().stepStream().collect(Collectors.toList()), step -> deleteStepOutputs(step)))
-            .mapEmpty());
+    return JobExecutor.getInstance()
+            //Delete StateMachine if still existing
+            .deleteExecution(getExecutionId())
+            //Delete the inputs of this job
+            .compose(b -> deleteInputs())
+            //Delete the outputs of this job
+            .compose(v -> (hasRegisterDataReferencesStep() || isReleaseJob())
+                    //Temporary deletion deactivation for jobs with RegisterDataReferences step(s) or for release jobs.
+                    ? Future.succeededFuture()
+                    : Future.all(Job.forEach(getSteps().stepStream().toList(), Job::deleteStepOutputs)).mapEmpty());
   }
 
-  private static Future<Boolean> deleteStepOutputs(Step step) {
+  private boolean hasRegisterDataReferencesStep() {
+    return getSteps() != null
+        && getSteps().stepStream().anyMatch(step -> step != null
+            && "RegisterDataReferences".equals(step.getClass().getSimpleName()));
+  }
+
+  private boolean isReleaseJob() {
+    return getProcess() != null && "Release".equalsIgnoreCase(getProcess().getClass().getSimpleName());
+  }
+
+  private static Future<Void> deleteStepOutputs(Step step) {
     return ASYNC.run(() -> {
       step.deleteOutputs();
       return null;
@@ -602,6 +658,13 @@ public class Job implements XyzSerializable {
 
   public Future<List<Output>> loadOutputs() {
     return ASYNC.run(() -> createOutputsRetriever().getItems(new JobOutputsRetriever.OutputsParams()));
+  }
+
+  public Future<List<Output>> loadAllOutputs() {
+    return ASYNC.run(() -> getSteps().stepStream()
+        .map(step -> (List<Output>) step.loadOutputs())
+        .flatMap(List::stream)
+        .collect(Collectors.toList()));
   }
 
   public Future<Page<Output>> loadOutputs(String setName, String outputSetGroup, int limit, String nextPageToken) {
@@ -946,6 +1009,19 @@ public class Job implements XyzSerializable {
   @JsonIgnore
   public boolean isPipeline() {
     return getSource() instanceof DynamicStream;
+  }
+
+  public boolean isReusable() {
+    return reusable;
+  }
+
+  public void setReusable(boolean reusable) {
+    this.reusable = reusable;
+  }
+
+  public Job withReusable(boolean reusable) {
+    setReusable(reusable);
+    return this;
   }
 
   public void registerFinalizeObserver(Runnable finalizationObserver) {

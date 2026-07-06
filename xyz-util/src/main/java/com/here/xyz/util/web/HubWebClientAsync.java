@@ -32,7 +32,7 @@ import java.util.Map;
 
 public class HubWebClientAsync extends HubWebClient {
   private static Map<String, HubWebClientAsync> instances = new HashMap<>();
-  private static final Async ASYNC = new Async(20, HubWebClientAsync.class);
+  private static final Async ASYNC = new Async(40, HubWebClientAsync.class);
 
   protected HubWebClientAsync(String baseUrl) {
     super(baseUrl);

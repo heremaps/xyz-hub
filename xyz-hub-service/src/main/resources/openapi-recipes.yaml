@@ -218,3 +218,9 @@ recipes:
       - type: value
         path: components.parameters.VersionLowerThan.required
         replace: false
+      - type: key
+        path: paths.'/references'
+        replace: paths.'/hub/references'
+      - type: key
+        path: paths.'/references/{referenceId}'
+        replace: paths.'/hub/references/{referenceId}'

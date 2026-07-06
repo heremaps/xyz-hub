@@ -21,9 +21,8 @@ package com.here.xyz.jobs.steps.impl.transport;
 
 import static com.here.xyz.jobs.steps.Step.Visibility.USER;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_RESUME;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
+import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_EXECUTE;
+import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_RESUME;
 
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
@@ -52,6 +51,11 @@ import org.apache.logging.log4j.Logger;
 public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
   public static final String STATISTICS = "statistics";
   private static final Logger logger = LogManager.getLogger();
+
+  private static final int STATEMENT_TIMEOUT = 895;
+
+  @JsonView({Internal.class, Static.class})
+  private boolean skipCounts = false;
 
   @JsonView({Internal.class, Static.class})
   private long copiedByteSize = 0;
@@ -89,6 +93,12 @@ public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
     this.copiedByteSize = copiedByteSize;
   }
 
+  public CopySpacePost withSkipCounts(boolean skipCounts)
+  {
+    this.skipCounts = skipCounts;
+    return this;
+  }
+
   @Override
   public int getTimeoutSeconds() {
     return 15 * 60;
@@ -112,18 +122,19 @@ public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
   @Override
   public void execute(boolean resume) throws Exception {
     if (resume)
-      infoLog(STEP_RESUME, this, "resume was called");
+      infoLog(STEP_RESUME,  "resume was called");
     long fetchedVersion = _getCreatedVersion();
 
-    infoLog(STEP_EXECUTE, this, String.format("Get stats for version %d - %s", fetchedVersion, getSpaceId()));
+    infoLog(STEP_EXECUTE,  String.format("Get stats for version %d - %s", fetchedVersion, getSpaceId()));
 
-    FeatureStatistics statistics = getCopiedFeatures(fetchedVersion);
+    FeatureStatistics statistics = skipCounts ? new FeatureStatistics().withFeatureCount(-1).withByteSize(-1)
+                                              : getCopiedFeatures(fetchedVersion);
 
-    infoLog(STEP_EXECUTE, this, "Job Statistics: bytes=" + statistics.getByteSize() + " rows=" + statistics.getFeatureCount());
+    infoLog(STEP_EXECUTE,  "Job Statistics: bytes=" + statistics.getByteSize() + " rows=" + statistics.getFeatureCount());
     registerOutputs(List.of(statistics), STATISTICS);
 
     setCopiedByteSize(statistics.getByteSize());
-    if (statistics.getFeatureCount() > 0)
+    if (statistics.getFeatureCount() != 0) // -> FeatureCount = -1 on (skipCounts)
       writeContentUpdatedAtTs();
   }
 
@@ -142,11 +153,12 @@ public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
     SQLQuery incVersionSql = new SQLQuery(
         """
          select count(1), coalesce( sum( (coalesce(pg_column_size(jsondata),0) + coalesce(pg_column_size(geo),0))::bigint ), 0::bigint )
-         from ${schema}.${table} 
-         where version = ${{fetchedVersion}} 
+         from ${schema}.${table}
+         where version = ${{fetchedVersion}}
         """)
         .withVariable("schema", targetSchema)
         .withVariable("table", targetTable)
+        .withTimeout(STATEMENT_TIMEOUT)
         .withQueryFragment("fetchedVersion", "" + fetchedVersion);
 
     FeatureStatistics statistics = runReadQuerySync(incVersionSql, db(), 0, rs -> rs.next()

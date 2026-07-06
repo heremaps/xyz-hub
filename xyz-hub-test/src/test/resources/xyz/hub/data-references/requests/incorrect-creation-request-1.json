@@ -1,0 +1,11 @@
+{
+  "id": "ffffffff-ffff-ffff-ffff-ffffffffffff",
+  "entityId": "entity-id-1",
+  "isPatch": true,
+  "startVersion": 123,
+  "endVersion": 135,
+  "objectType": "object-type-C",
+  "contentType": "content-type-C",
+  "sourceSystem": "source-system-C",
+  "targetSystem": "target-system-C"
+}

@@ -1,6 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
- *
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -29,8 +28,7 @@ import static org.junit.Assert.assertTrue;
 
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.PropertiesQuery;
-import com.here.xyz.jobs.datasets.filters.SpatialFilter;
-import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
+import com.here.xyz.models.filters.SpatialFilter;
 import com.here.xyz.jobs.steps.impl.StepTest;
 import com.here.xyz.jobs.steps.impl.transport.CopySpace;
 import com.here.xyz.jobs.steps.impl.transport.CopySpacePost;
@@ -291,10 +289,9 @@ public class CopySpaceStepsTest extends StepTest {
         .withSpaceId(sourceSpaceId)
         .withSpatialFilter( geo == null ? null : new SpatialFilter().withGeometry(geo) )
         .withPropertyFilter(PropertiesQuery.fromString(propertyFilter))
+        .withVersionRef(resolvedRef)
+        .withContext(ctx != null ? ctx : DEFAULT )
         .withJobId(JOB_ID);
-
-    step.setVersionRef(resolvedRef);
-    step.setContext( ctx != null ? ctx : DEFAULT );
 
     sendLambdaStepRequestBlock(step, true);
 

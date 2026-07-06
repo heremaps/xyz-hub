@@ -150,15 +150,7 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
           logger.info(marker, "Space ID: {} has been decoded to null", spaceId);
         return space;
       }
-    })
-        //TODO: Do the following on SpaceConfigClient level rather than inside the specific Dynamo implementation
-        .compose(space -> space == null ? Future.succeededFuture(null): branchConfigClient.load(space.getId())
-        .compose(branches -> {
-          Map<String, Branch> spaceBranches = new HashMap<>();
-          space.setBranches(spaceBranches);
-          branches.forEach(branch -> spaceBranches.put(branch.getId(), branch));
-          return Future.succeededFuture(space);
-        }));
+    });
   }
 
   @Override

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,10 +20,12 @@
 package com.here.xyz.jobs.steps.impl;
 
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
+import com.here.xyz.models.hub.Branch;
+import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper.OnDemandIndex;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper.SystemIndex;
+import com.here.xyz.util.db.pg.IndexHelper.Index;
+import com.here.xyz.util.db.pg.IndexHelper.OnDemandIndex;
+import com.here.xyz.util.db.pg.IndexHelper.SystemIndex;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -110,6 +112,22 @@ public class DropIndexStepTest extends StepTest {
 
     Assertions.assertTrue(getOnDemandIndices(SPACE_ID).isEmpty(), "only system indices should remain");
     Assertions.assertFalse(getSystemIndices(SPACE_ID).isEmpty(),"system indices should remain");
+  }
+
+  @Test
+  public void testDropIndexesStepOnBranch() throws Exception {
+    createTestSpace(true);
+    createBranch(SPACE_ID, new Branch().withId(BRANCH_ID));
+
+    String tableName = getBranchTableName(SPACE_ID, BRANCH_ID);
+
+    Assertions.assertFalse(getAllExistingIndices(tableName).isEmpty());
+
+    LambdaBasedStep step = new DropIndexes().withSpaceId(SPACE_ID).withVersionRef(new Ref(BRANCH_ID));
+    sendLambdaStepRequestBlock(step, true);
+
+    //no indexes should remain
+    Assertions.assertEquals(0, getAllExistingIndices(tableName).size());
   }
 
   private void createTestSpace(boolean withOnDemandIndices) {

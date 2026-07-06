@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,10 +26,12 @@ import static com.here.xyz.jobs.RuntimeInfo.State.PENDING;
 import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
 import static com.here.xyz.jobs.RuntimeInfo.State.SUCCEEDED;
 import static com.here.xyz.jobs.steps.execution.GraphFusionTool.fuseGraphs;
+import static com.here.xyz.jobs.steps.execution.JobExecutor.SchedulerState.SchedulerRuntimeState.PAUSED;
 import static java.util.Comparator.comparingLong;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.RuntimeInfo.State;
 import com.here.xyz.jobs.config.JobConfigClient;
@@ -40,12 +42,14 @@ import com.here.xyz.jobs.steps.resources.ResourcesRegistry;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.Initializable;
 import io.vertx.core.Future;
+import io.vertx.core.impl.ConcurrentHashSet;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -57,9 +61,40 @@ public abstract class JobExecutor implements Initializable {
   private static volatile boolean running;
   private static volatile boolean stopRequested;
   private static AtomicBoolean cancellationCheckRunning = new AtomicBoolean();
+  /**
+   * Live scheduler configuration.
+   * <p>Defaults: state={@code RUNNING}, singleJobAllowedPoliciesEnabled={@code true},
+   * singleJobPerResourceEnabled={@code false}.
+   */
+  private static volatile SchedulerState schedulerState = new SchedulerState(
+      SchedulerState.SchedulerRuntimeState.RUNNING, true, true
+  );
   private static final long CANCELLATION_TIMEOUT = 10 * 60 * 1_000; //10 min
   private static final long CANCELLATION_CHECK_RERUN_PERIOD = 10_000; //10 sec
   private static final long JOB_START_TIMEOUT = 60_000;
+  private static Set<Predicate<Job>> singleJobAllowedPolicies = new ConcurrentHashSet<>();
+
+  public record SchedulerState(
+          SchedulerRuntimeState state,
+          boolean singleJobAllowedPoliciesEnabled,
+          boolean singleJobPerResourceEnabled
+  ) implements XyzSerializable {
+    public enum SchedulerRuntimeState {
+      RUNNING,
+      PAUSED
+    }
+  }
+
+  /**
+   * Partial update payload for {@link SchedulerState}. All fields are nullable; only non-null fields
+   * are applied to the current state. This allows callers to update a single flag without having to
+   * resend the complete state.
+   */
+  public record SchedulerStatePatch(
+          SchedulerState.SchedulerRuntimeState state,
+          Boolean singleJobAllowedPoliciesEnabled,
+          Boolean singleJobPerResourceEnabled
+  ) implements XyzSerializable {}
 
   {
     exec.scheduleWithFixedDelay(this::checkPendingJobs, 10, 60, SECONDS);
@@ -72,6 +107,11 @@ public abstract class JobExecutor implements Initializable {
   }
 
   public final Future<Void> startExecution(Job job, String formerExecutionId) {
+    if (isSchedulingPaused()) {
+      logger.info("[{}] Scheduler is paused. Job remains in PENDING and will not be started.", job.getId());
+      return Future.succeededFuture();
+    }
+
     //TODO: Care about concurrency between nodes when it comes to resource-load calculation within this thread
     return Future.succeededFuture()
         .compose(v -> formerExecutionId == null ? reuseExistingJobIfPossible(job) : Future.succeededFuture())
@@ -102,8 +142,11 @@ public abstract class JobExecutor implements Initializable {
         })
         .onFailure(e -> {
           //E.g.: Resource got deleted during lifetime of job!
-          logger.error("Start Execution of job '{}' is failed!", job.getId(), e);
-          job.getStatus().setState(FAILED);
+          logger.error("Error starting execution of job '{}'", job.getId(), e);
+          job.getStatus()
+              .withState(FAILED)
+              .withErrorMessage("Unexpected error while trying to start the execution of the job.")
+              .withErrorCause(e.getMessage());
           job.storeStatus(null);
         });
   }
@@ -121,6 +164,12 @@ public abstract class JobExecutor implements Initializable {
     if (stopRequested) {
       //Do not start an execution if a stop was requested
       running = false;
+      return;
+    }
+
+    if (isSchedulingPaused()) {
+      running = false;
+      logger.info("[checkPendingJobs] Scheduler is paused. Skipping check of pending jobs...");
       return;
     }
 
@@ -216,7 +265,7 @@ public abstract class JobExecutor implements Initializable {
 
   @Override
   public Future<Void> init() {
-    checkCancellations();
+    exec.scheduleWithFixedDelay(JobExecutor::checkCancellations, 10, 60, SECONDS);
     return Initializable.super.init();
   }
 
@@ -232,24 +281,40 @@ public abstract class JobExecutor implements Initializable {
    *    - Throw an exception to stop the process
    */
   protected static void checkCancellations() {
-    if (cancellationCheckRunning.compareAndSet(false, true))
+    if (cancellationCheckRunning.compareAndSet(false, true)) {
+      logger.info("[checkCancellations] Starting process to check active cancellations ...");
       JobConfigClient.getInstance().loadJobs(CANCELLING)
-          .compose(jobs -> Future.all(jobs.stream().map(job -> {
-            if (job.getSteps().stepStream().map(step -> cancelNonRunningStep(job, step)).allMatch(step -> step.getStatus().getState().isFinal())) {
-              job.getStatus().withState(CANCELLED).withDesiredAction(null);
-              return job.storeStatus(CANCELLING);
-            }
-            return Future.succeededFuture();
-          }).collect(Collectors.toList())).map(jobs.stream().filter(job -> job.getStatus().getState() != CANCELLED).collect(Collectors.toList())))
+          .compose(cancellingJobs -> {
+            logger.info("[checkCancellations] The following jobs are currently in state CANCELLING:\n{}",
+                cancellingJobs.stream().map(job -> "- " + job.getId()).collect(Collectors.joining("\n")));
+            return Future.succeededFuture(cancellingJobs);
+          })
+          .compose(cancellingJobs -> Future.all(cancellingJobs.stream().map(job -> {
+                if (job.getSteps().stepStream().map(step -> cancelNonRunningStep(job, step))
+                    .allMatch(step -> step.getStatus().getState().isFinal())) {
+                  job.getStatus().withState(CANCELLED).withDesiredAction(null);
+                  return job.storeStatus(CANCELLING);
+                }
+                return Future.succeededFuture();
+              }).toList())
+              .map(cancellingJobs.stream().filter(job -> job.getStatus().getState() != CANCELLED).toList()))
           .compose(remainingJobs -> {
             if (remainingJobs.isEmpty())
               return Future.succeededFuture(false);
+
+            logger.info("[checkCancellations] The following jobs remained in state CANCELLING:\n{}",
+                remainingJobs.stream().map(job -> "- " + job.getId()).collect(Collectors.joining("\n")));
 
             //Fail all jobs of which the cancellation did not work within <CANCELLATION_TIMEOUT> ms
             List<Job> jobsToFail = remainingJobs
                 .stream()
                 .filter(job -> job.getStatus().getUpdatedAt() + CANCELLATION_TIMEOUT < Core.currentTimeMillis())
-                .collect(Collectors.toList());
+                .toList();
+
+            logger.info("[checkCancellations] The following jobs could not be cancelled within {} ms and will be marked as FAILED:\n{}",
+                CANCELLATION_TIMEOUT,
+                jobsToFail.stream().map(job -> "- " + job.getId()).collect(Collectors.joining("\n")));
+
             jobsToFail.forEach(job -> {
               job.getStatus()
                   .withState(FAILED)
@@ -264,12 +329,20 @@ public abstract class JobExecutor implements Initializable {
             //If there are still remaining jobs, run the cancellation check again
             return Future.succeededFuture(jobsToFail.size() < remainingJobs.size());
           })
-          .onFailure(t -> logger.error("Error in checkCancellations process:", t))
+          .onFailure(t -> logger.error("[checkCancellations] Error during the process:", t))
           .onSuccess(runAgain -> {
-            if (runAgain)
+            if (runAgain) {
+              logger.info("[checkCancellations] Starting another run of the process in {} ms ...", CANCELLATION_CHECK_RERUN_PERIOD);
               exec.schedule(() -> checkCancellations(), CANCELLATION_CHECK_RERUN_PERIOD, MILLISECONDS);
+            }
           })
-          .onComplete(ar -> cancellationCheckRunning.set(false));
+          .onComplete(ar -> {
+            cancellationCheckRunning.set(false);
+            logger.info("[checkCancellations] process completed.");
+          });
+    }
+    else
+      logger.info("[checkCancellations] Not starting the process again, as there is already one running.");
   }
 
   private static Step cancelNonRunningStep(Job job, Step step) {
@@ -305,8 +378,86 @@ public abstract class JobExecutor implements Initializable {
    * @return true, if the job may be executed / enough resources are free
    */
   private Future<Boolean> mayExecute(Job job) {
-    logger.info("[{}] Checking whether there are enough resources to execute the job ...", job.getId());
+    Set<Predicate<Job>> policiesToApply = isSingleJobAllowedPoliciesEnabled() ? findMatchingJobPolicies(job) : Set.of();
+    boolean needRunningForPolicies = !policiesToApply.isEmpty();
+    boolean needRunningForResources = isSingleJobPerResourceEnabled()
+        && job.getResourceKeys() != null && !job.getResourceKeys().isEmpty();
+
+    //Load RUNNING-jobs list once - only if needed.
+    Future<List<Job>> runningJobsFuture = (needRunningForPolicies || needRunningForResources)
+        ? JobConfigClient.getInstance().loadJobs(RUNNING)
+        : Future.succeededFuture(List.of());
+
+    return runningJobsFuture
+        .compose(runningJobs -> executionPoliciesSatisfied(job, runningJobs, policiesToApply)
+            .compose(policiesSatisfied -> {
+              if (!policiesSatisfied)
+                return Future.succeededFuture(false);
+              return singleJobPerResourceSatisfied(job, runningJobs);
+            })
+            .compose(singleJobCanGetStarted -> {
+              if (!singleJobCanGetStarted)
+                return Future.succeededFuture(false);
+              return enoughResourcesAvailable(job);
+            }));
+  }
+
+  /**
+   * If the {@code singleJobPerResourceEnabled} flag is on, ensures no other RUNNING job shares any
+   * resource key (source/target) with the given job.
+   *
+   * @return A future that resolves to true if the job may execute, false if another RUNNING job
+   *         already occupies one of its resources or an older PENDING job exists for overlapping
+   *         resources (in which case the job remains in PENDING and is re-checked later).
+   */
+  private static Future<Boolean> singleJobPerResourceSatisfied(Job job, List<Job> runningJobs) {
+    if (!isSingleJobPerResourceEnabled())
+      return Future.succeededFuture(true);
+
+    String resourceKey = job.getResourceKey();
+    if (resourceKey == null || resourceKey.isEmpty())
+      return Future.succeededFuture(true);
+
+    //Filter the pre-loaded RUNNING jobs to those sharing at
+    //least one resource key (and excluding the job itself)
+    List<Job> conflictingRunning = runningJobs.stream()
+        .filter(other -> !job.getId().equals(other.getId()))
+        .filter(other -> resourceKey.equals(other.getResourceKey()))
+        .toList();
+
+    if (!conflictingRunning.isEmpty()) {
+      logger.info("[{}] Job can not be executed (yet) because the following RUNNING job(s) already occupy at least one of "
+              + "its source/target resources: {}",
+          job.getId(),
+          conflictingRunning.stream().map(Job::getId).collect(Collectors.joining(", ")));
+      return Future.succeededFuture(false);
+    }
+
+    //No RUNNING conflict exists. Enforce FIFO for pending jobs on overlapping resources.
+    //NOTE: This check is still needed even though checkPendingJobs() sorts by createdAt, because:
+    // 1. A job directly submitted via startExecution() (outside the poll loop) has no ordering guarantee.
+    // 2. An older job blocked by insufficient virtual units stays PENDING while a newer job could otherwise jump ahead.
+    return JobConfigClient.getInstance().loadJobs(resourceKey, PENDING)
+        .map(pendingJobs -> {
+          List<Job> olderPendingConflicts = pendingJobs.stream()
+              .filter(other -> !job.getId().equals(other.getId()))
+              .filter(other -> other.getCreatedAt() < job.getCreatedAt())
+              .sorted(comparingLong(Job::getCreatedAt))
+              .toList();
+
+          if (olderPendingConflicts.isEmpty())
+            return true;
+
+          logger.info("[{}] Job can not be executed (yet) because older PENDING job(s) exist for overlapping resources: {}",
+              job.getId(),
+              olderPendingConflicts.stream().map(Job::getId).collect(Collectors.joining(", ")));
+          return false;
+        });
+  }
+
+  private static Future<Boolean> enoughResourcesAvailable(Job job) {
     //Check for all necessary resource loads whether they can be fulfilled
+    logger.info("[{}] Checking whether there are enough resources to execute the job ...", job.getId());
     return ResourcesRegistry.getFreeVirtualUnits()
         .compose(freeVirtualUnits -> job.calculateResourceLoads()
             .map(neededResources -> neededResources.stream().allMatch(load -> {
@@ -318,6 +469,17 @@ public abstract class JobExecutor implements Initializable {
                     job.getId(), load.getResource(), load.getEstimatedVirtualUnits(), freeVirtualUnits.get(load.getResource()));
               return sufficientFreeUnits;
             })));
+  }
+
+  private Future<Boolean> executionPoliciesSatisfied(Job job, List<Job> runningJobs, Set<Predicate<Job>> policiesToApply) {
+    if (policiesToApply.isEmpty())
+      return Future.succeededFuture(true);
+
+    logger.info("[{}] Checking all execution policies prior to executing the job ...", job.getId());
+
+    //Check if there exists at least one other RUNNING job that matches one of the policies (if yes, the current job may not be executed)
+    return Future.succeededFuture(runningJobs.stream().noneMatch(runningJob ->
+        policiesToApply.stream().anyMatch(policy -> policy.test(runningJob))));
   }
 
   private Future<Boolean> needsExecution(Job job) {
@@ -354,6 +516,7 @@ public abstract class JobExecutor implements Initializable {
         .compose(candidates -> {
           Set<String> candidateIds = candidates.stream().map(candidate -> candidate.getId()).collect(Collectors.toSet());
           return Future.succeededFuture(candidates.stream()
+              .filter(candidate -> candidate.isReusable())
               .filter(candidate -> !job.getId().equals(candidate.getId())) //Do not try to compare the job to itself
               .filter(candidate -> filterByExistingReferees(candidate, candidateIds))
               .map(candidate -> fuseGraphs(job, candidate.getSteps()))
@@ -377,6 +540,48 @@ public abstract class JobExecutor implements Initializable {
     //Make sure to defer system shutdown until a potential run of #checkPendingJobs() is completed
     while (running)
       Thread.sleep(100);
+  }
+
+  public static void registerSingleJobAllowedPolicy(Predicate<Job> policy) {
+    singleJobAllowedPolicies.add(policy);
+  }
+
+  public static boolean isSchedulingPaused() {
+    return schedulerState.state() == PAUSED;
+  }
+
+  public static boolean isSingleJobAllowedPoliciesEnabled() {
+    return schedulerState.singleJobAllowedPoliciesEnabled();
+  }
+
+  public static boolean isSingleJobPerResourceEnabled() {
+    return schedulerState.singleJobPerResourceEnabled();
+  }
+
+  public static boolean applySchedulerState(SchedulerStatePatch patch) {
+    if (patch == null
+        || (patch.state() == null
+            && patch.singleJobAllowedPoliciesEnabled() == null
+            && patch.singleJobPerResourceEnabled() == null))
+      return false;
+
+    SchedulerState current = schedulerState;
+    schedulerState = new SchedulerState(
+        patch.state() != null ? patch.state() : current.state(),
+        patch.singleJobAllowedPoliciesEnabled() != null
+            ? patch.singleJobAllowedPoliciesEnabled() : current.singleJobAllowedPoliciesEnabled(),
+        patch.singleJobPerResourceEnabled() != null
+            ? patch.singleJobPerResourceEnabled() : current.singleJobPerResourceEnabled()
+    );
+    return true;
+  }
+
+  public static Future<SchedulerState> loadSchedulerState() {
+    return Future.succeededFuture(schedulerState);
+  }
+
+  private static Set<Predicate<Job>> findMatchingJobPolicies(Job job) {
+    return singleJobAllowedPolicies.stream().filter(policy -> policy.test(job)).collect(Collectors.toSet());
   }
 
   static {

@@ -19,19 +19,12 @@
 
 package com.here.xyz.psql.query.branching;
 
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 
 public abstract class BMBase extends QueryTestBase {
-
-  protected static final int MAIN_NODE_ID = 0;
-  protected static final String REF_MAIN = "~" + MAIN_NODE_ID;
-  protected static final Ref REF_MAIN_HEAD = new Ref(REF_MAIN + ":HEAD");
 
   @BeforeEach
   public void prepare() throws Exception {
@@ -44,21 +37,9 @@ public abstract class BMBase extends QueryTestBase {
     dropSpaceTables(PG_SCHEMA, spaceId());
   }
 
-  protected final String spaceId() {
-    return getClass().getSimpleName();
-  }
-
   protected Ref createBranch(Ref baseRef) throws Exception {
     try (DataSourceProvider dsp = getDataSourceProvider()) {
       return branchManager(dsp).createBranch(baseRef);
     }
-  }
-
-  protected void assertFeatureExists(String id, Ref ref) throws Exception {
-    assertNotNull(readFeatureById(id, ref), "Feature " + id + " should exist in ref " + ref);
-  }
-
-  protected void assertFeatureNotExists(String id, Ref ref) throws Exception {
-    assertNull(readFeatureById(id, ref), "Feature " + id + " should not exist in ref " + ref);
   }
 }

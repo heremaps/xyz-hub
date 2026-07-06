@@ -19,13 +19,16 @@
 
 package com.here.xyz.hub.rest;
 
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 import static com.here.xyz.hub.auth.TestAuthenticator.AuthProfile.ACCESS_ALL;
+import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static org.hamcrest.Matchers.equalTo;
 
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.geojson.implementation.Properties;
+import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.FixMethodOrder;
@@ -166,5 +169,58 @@ public class VersioningCompositeGetFeaturesIT extends VersioningGetFeaturesIT {
         .body("features[1].id", equalTo(fId))
         .body("features[0].properties.@ns:com:here:xyz.version", equalTo(0))
         .body("features[1].properties.@ns:com:here:xyz.version", equalTo(3));
+  }
+
+  @Test
+  public void testWriteFeatureWithConflictDetectionPositive() {
+    postFeature(BASE, newFeature().withId("f2"), ACCESS_ALL);
+    postFeature(DELTA, newFeature()
+        .withId("f2")
+        .withProperties(new Properties()
+            .withXyzNamespace(new XyzNamespace().withVersion(0))
+            .with("otherKey", "otherValue")), ACCESS_ALL, true);
+  }
+
+  @Test
+  public void testWriteFeatureWithConflictDetectionNegative() {
+    postFeature(BASE, newFeature().withId("f2"), ACCESS_ALL);
+    postFeature(DELTA, newFeature()
+        .withId("f2")
+        .withProperties(new Properties()
+            .withXyzNamespace(new XyzNamespace().withVersion(0))
+            .with("otherKey", "otherValue")), ACCESS_ALL, true);
+    postFeature(DELTA, newFeature()
+        .withId("f2")
+        .withProperties(new Properties()
+            .withXyzNamespace(new XyzNamespace().withVersion(0))
+            .with("otherKey", "newValue")), ACCESS_ALL, true, CONFLICT);
+  }
+
+  @Test
+  public void testWriteFeatureToExtensionWithConflictDetectionPositive() {
+    postFeature(BASE, newFeature().withId("f2"), ACCESS_ALL);
+    postFeature(DELTA, newFeature()
+        .withId("f2")
+        .withProperties(new Properties()
+            .with("otherKey", "otherValue")), ACCESS_ALL, true, EXTENSION);
+    postFeature(DELTA, newFeature()
+        .withId("f2")
+        .withProperties(new Properties()
+            .withXyzNamespace(new XyzNamespace().withVersion(3))
+            .with("otherKey", "newValue")), ACCESS_ALL, true, EXTENSION);
+  }
+
+  @Test
+  public void testWriteFeatureToExtensionWithConflictDetectionNegative() {
+    postFeature(BASE, newFeature().withId("f2"), ACCESS_ALL);
+    postFeature(DELTA, newFeature()
+        .withId("f2")
+        .withProperties(new Properties()
+            .with("otherKey", "otherValue")), ACCESS_ALL, true, EXTENSION);
+    postFeature(DELTA, newFeature()
+        .withId("f2")
+        .withProperties(new Properties()
+            .withXyzNamespace(new XyzNamespace().withVersion(0))
+            .with("otherKey", "newValue")), ACCESS_ALL, true, EXTENSION, CONFLICT);
   }
 }

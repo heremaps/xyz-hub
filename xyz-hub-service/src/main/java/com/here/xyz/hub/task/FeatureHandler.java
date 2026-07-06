@@ -97,26 +97,29 @@ public class FeatureHandler {
           .withResponseDataExpected(responseDataExpected)
           .withRef(baseRef);
 
-      injectMinVersion(marker, space.getId(), event);
+      return Future.all(injectMinVersion(marker, space.getId(), event), injectSpaceParams(event, space))
+          .compose(v -> {
 
-      //Enrich event with properties from the space
-      injectSpaceParams(event, space);
-
-      Promise<FeatureCollection> promise = Promise.promise();
-      RpcContext rpcContext = getRpcClient(space.getResolvedStorageConnector())
-          .execute(marker, event, ar -> {
-            if (ar.failed())
-              promise.fail(ar.cause());
-            else if (ar.result() instanceof FeatureCollection featureCollection)
-              promise.complete(featureCollection);
-            else
-              promise.fail(new RuntimeException("Received unexpected response from storage connector: " + ar.result().getClass().getSimpleName()));
-          });
-      return promise.future()
-          .compose(response -> {
-            if (!isNullOrEmpty(response.getInserted()) || !isNullOrEmpty(response.getUpdated()) || !isNullOrEmpty(response.getDeleted()))
-              space.updateContentUpdatedAt(marker);
-            return Future.succeededFuture(response);
+            try {
+              Promise<FeatureCollection> promise = Promise.promise();
+              RpcContext rpcContext = getRpcClient(space.getResolvedStorageConnector())
+                  .execute(marker, event, ar -> {
+                    if (ar.failed())
+                      promise.fail(ar.cause());
+                    else if (ar.result() instanceof FeatureCollection featureCollection)
+                      promise.complete(featureCollection);
+                    else
+                      promise.fail(new RuntimeException("Received unexpected response from storage connector: " + ar.result().getClass().getSimpleName()));
+                  });
+              return promise.future()
+                  .compose(response -> {
+                    if (!isNullOrEmpty(response.getInserted()) || !isNullOrEmpty(response.getUpdated()) || !isNullOrEmpty(response.getDeleted()))
+                      space.updateContentUpdatedAt(marker);
+                    return Future.succeededFuture(response);
+                  });
+            } catch (HttpException e) {
+              return Future.failedFuture(e);
+            }
           });
 
       //TODO: (For later) In FeatureWriter (also return unmodified features?)
@@ -152,26 +155,27 @@ public class FeatureHandler {
     }
   }
 
-  public static void injectSpaceParams(ContextAwareEvent event, Space space) throws HttpException {
+  public static Future<Void> injectSpaceParams(ContextAwareEvent event, Space space) throws HttpException {
     //Resolve a potential branch
-    resolveBranchFor(event, space);
+    return resolveBranchFor(event, space).compose(v -> {
+      event.setSpace(space.getId());
+      event.setVersionsToKeep(space.getVersionsToKeep());
 
-    event.setSpace(space.getId());
-    event.setVersionsToKeep(space.getVersionsToKeep());
+      Map<String, Object> storageParams = new HashMap<>();
+      if (space.getStorage().getParams() != null)
+        storageParams.putAll(space.getStorage().getParams());
 
-    Map<String, Object> storageParams = new HashMap<>();
-    if (space.getStorage().getParams() != null)
-      storageParams.putAll(space.getStorage().getParams());
+      if (space.getExtension() != null) {
+        Map<String, Object> extendsMap = space.getExtension().toMap();
+        //Check if the extended space itself is extending some other space (2-level extension)
+        if (space.getExtension().resolvedSpace.getExtension() != null)
+          extendsMap.put("extends", space.getExtension().resolvedSpace.getExtension().toMap());
+        storageParams.putAll(Map.of("extends", extendsMap));
+      }
 
-    if (space.getExtension() != null) {
-      Map<String, Object> extendsMap = space.getExtension().toMap();
-      //Check if the extended space itself is extending some other space (2-level extension)
-      if (space.getExtension().resolvedSpace.getExtension() != null)
-        extendsMap.put("extends", space.getExtension().resolvedSpace.getExtension().toMap());
-      storageParams.putAll(Map.of("extends", extendsMap));
-    }
-
-    event.setParams(storageParams);
+      event.setParams(storageParams);
+      return Future.succeededFuture();
+    });
   }
 
   public static Future<Long> getCountForSpace(Marker marker, Space space, SpaceContext spaceContext, String requesterId,

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ package com.here.xyz.psql.query;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.COMPOSITE_EXTENSION;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.X;
 import static com.here.xyz.models.hub.Ref.HEAD;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.DELETE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.INSERT_HIDE_COMPOSITE;
@@ -39,6 +40,7 @@ import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.psql.DatabaseWriter.ModificationType;
 import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.util.db.ConnectorParameters;
 import com.here.xyz.util.db.SQLQuery;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -71,7 +73,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
       query = new SQLQuery(
           "SELECT * FROM (SELECT * FROM ("
-          + "     (SELECT ${{selectClause}} FROM ${schema}.${table} WHERE ${{filters}} ${{versionCheck}} ${{orderBy}})"
+          + "     (SELECT ${{selectClause}} FROM ${schema}.${table} e WHERE ${{filters}} ${{versionCheck}} ${{orderBy}})"
           + "   ${{unionAll}} "
           + "     SELECT * FROM (${{baseQuery}}) a"
           + "       ${{compositionFilter}}"
@@ -130,7 +132,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
     String tableVariable = isL2 ? "intermediateExtensionTable" : "table";
     return new SQLQuery("WHERE ${{exists}} exists(SELECT 1 FROM ${schema}.${" + tableVariable + "} WHERE ${{idComparison}})")
-        .withQueryFragment("exists", event.getContext() == COMPOSITE_EXTENSION && !isL2 ? "" : "NOT")
+        .withQueryFragment("exists", (event.getContext() == COMPOSITE_EXTENSION || event.getContext() == X) && !isL2 ? "" : "NOT")
         .withQueryFragment("idComparison", idComparisonFragment);
   }
 
@@ -146,7 +148,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     int baseNodeId = getNodeId(baseRef);
     String branchTable = branchTableName(rootTableName, baseRef, nodeId);
 
-    SQLQuery branchDataQuery = new SQLQuery("SELECT ${{selectClause}} FROM ${schema}.${table} WHERE ${{filters}} ${{versionCheck}}")
+    SQLQuery branchDataQuery = new SQLQuery("SELECT ${{selectClause}} FROM ${schema}.${table} WHERE ${{filters}} ${{versionCheck}} ${{limit}}")
         .withVariable(TABLE, branchTable)
         .withQueryFragment("selectClause", buildSelectClause(event, nodeId, baseRef.getVersion()))
         .withQueryFragment("filters", buildFiltersFragment(event, false, filterWhereClause, nodeId))
@@ -156,7 +158,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
         (${{branchData}})
         UNION ALL
         (
-          SELECT * FROM (${{base}}) ${{datasetId}} ${{branchCompositionFilter}}
+          SELECT * FROM (${{base}}) ${{datasetId}} ${{branchCompositionFilter}} ${{limit}}
         )
         """)
         .withQueryFragment("branchData", branchDataQuery)
@@ -188,6 +190,14 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
         .withQueryFragment("innerJsonData", buildJsonDataFragment(event))
         .withQueryFragment("baseVersion", "" + baseVersion) //TODO: That's a workaround for a minor bug in SQLQuery
         .withQueryFragment("featureVersion", isCompositeQuery(event) ? getFeatureVersion(event, dataset) : "version");
+
+
+    if(getTableLayout().equals(ConnectorParameters.TableLayout.NEW_LAYOUT)) {
+      jsonDataWithVersion = new SQLQuery("author, ${{innerJsonData}} AS jsondata")
+              .withQueryFragment("innerJsonData", buildJsonDataFragment(event))
+              .withQueryFragment("baseVersion", "" + baseVersion) //TODO: That's a workaround for a minor bug in SQLQuery
+              .withQueryFragment("featureVersion", isCompositeQuery(event) ? getFeatureVersion(event, dataset) : "version");
+    }
 
     return new SQLQuery("id, ${{version}}, ${{jsonData}}, ${{geo}}, ${{dataset}}")
         .withQueryFragment("jsonData", jsonDataWithVersion)
@@ -272,7 +282,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     return buildNextVersionFragment(new Ref(HEAD), true, versionParamName, 0);
   }
 
-  private SQLQuery buildMinVersionFragment(SelectiveEvent event, long baseVersion) {
+  protected SQLQuery buildMinVersionFragment(SelectiveEvent event, long baseVersion) {
     Ref ref = event.getRef();
     boolean isHeadOrAllVersions = ref.isHead() || ref.isAllVersions() || ref.isRange() && ref.getEnd().isHead();
     long requestedVersion = isHeadOrAllVersions ? Long.MAX_VALUE : ref.isRange() ? ref.getEnd().getVersion() : ref.getVersion();
@@ -328,11 +338,15 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
   private SQLQuery buildIdComparisonFragment(E event, String prefix, SQLQuery versionCheckFragment) {
     return new SQLQuery("id = " + prefix + "id"
-        + (event instanceof SelectiveEvent ? " ${{versionCheck}} AND operation != 'D'" : ""))
-        .withQueryFragment("versionCheck", versionCheckFragment);
+        + (event instanceof SelectiveEvent ? " ${{versionCheck}} ${{deletionInclusionFragment}}" : ""))
+        .withQueryFragment("versionCheck", versionCheckFragment)
+        .withQueryFragment("deletionInclusionFragment", event.getContext() == X ? "AND operation = 'D'" : "AND operation != 'D'");
   }
 
   private SQLQuery buildDeletionCheckFragment(E event, boolean isExtension) {
+    if (isExtension && event.getContext() == X)
+      return buildContextXDeletionCheckFragment(event);
+
     if (!historyEnabled && !isExtension
         || event instanceof SelectiveEvent selectiveEvent && selectiveEvent.getRef().isRange())
       return new SQLQuery("");
@@ -344,12 +358,26 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
             : new ModificationType[]{DELETE}).map(ModificationType::toString).toArray(String[]::new));
   }
 
+  private SQLQuery buildContextXDeletionCheckFragment(E event) {
+    return new SQLQuery("""
+        AND NOT (
+          operation = 'D'
+          AND EXISTS (
+            SELECT 1
+            FROM ${schema}.${extendedTable}
+            WHERE id = e.id
+          )
+        )
+        """)
+        .withVariable("extendedTable", getExtendedTable(event));
+  }
+
   protected SQLQuery buildLimitFragment(E event) {
     return new SQLQuery("");
   }
 
   protected boolean isCompositeQuery(E event) {
-    return isExtendedSpace(event) && (event.getContext() == DEFAULT || event.getContext() == COMPOSITE_EXTENSION);
+    return isExtendedSpace(event) && (event.getContext() == DEFAULT || event.getContext() == COMPOSITE_EXTENSION || event.getContext() == X);
   }
 
   /**
@@ -378,11 +406,22 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
   protected void handleFeature(ResultSet rs, StringBuilder result) throws SQLException {
     String geom = rs.getString("geo");
-    result.append(rs.getString("jsondata"));
+    if(getTableLayout().equals(ConnectorParameters.TableLayout.OLD_LAYOUT))
+      result.append(rs.getString("jsondata"));
+    else if(getTableLayout().equals(ConnectorParameters.TableLayout.NEW_LAYOUT))
+      result.append(injectValuesIntoNameSpace(rs.getString("jsondata"), rs.getLong("version"), rs.getString("author")));
     result.setLength(result.length() - 1);
     result.append(",\"geometry\":");
     result.append(geom == null ? "null" : geom);
     result.append("}");
+  }
+
+  private String injectValuesIntoNameSpace(String jsonData, long version, String author) {
+    String namespacePattern = "(\"@ns:com:here:xyz\"\\s*:\\s*\\{)";
+    //The NS always contains the updatedAt property, so we need a trailing comma.
+    String versionAuthor = "$1\"version\":" + version + ",\"author\":\"" + author + "\",";
+
+    return jsonData.replaceAll(namespacePattern, versionAuthor);
   }
 
   protected static class LazyParsableFeatureCollection {
@@ -434,7 +473,6 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
           + "FROM prj_build(#{selection}, jsondata))")
           .withNamedParameter("selection", selection.toArray(new String[0]));
     }
-
     return jsonData;
   }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,32 +32,36 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.models.hub.Branch;
+import com.here.xyz.models.hub.Branch.DeletedBranch;
 import com.here.xyz.models.hub.Connector;
+import com.here.xyz.models.hub.DataReference;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Tag;
 import com.here.xyz.responses.ChangesetsStatisticsResponse;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.responses.changesets.Changeset;
+import com.here.xyz.responses.changesets.ChangesetCollection;
+import com.here.xyz.util.KeyValue;
+import com.here.xyz.util.service.BaseConfig;
 import java.net.URLEncoder;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-
-import com.here.xyz.responses.changesets.Changeset;
-import com.here.xyz.responses.changesets.ChangesetCollection;
 import net.jodah.expiringmap.ExpirationPolicy;
 import net.jodah.expiringmap.ExpiringMap;
 
 public class HubWebClient extends XyzWebClient {
-  public static int STATISTICS_CACHE_TTL_SECONDS = 30;
-  public static int SPACE_CACHE_TTL_SECONDS = 30;
   public static String userAgent = DEFAULT_USER_AGENT;
   private static Map<InstanceKey, HubWebClient> instances = new ConcurrentHashMap<>();
   private ExpiringMap<String, Connector> connectorCache = ExpiringMap.builder()
@@ -66,12 +70,17 @@ public class HubWebClient extends XyzWebClient {
       .build();
   private ExpiringMap<String, StatisticsResponse> statisticsCache = ExpiringMap.builder()
       .expirationPolicy(ExpirationPolicy.CREATED)
-      .expiration(STATISTICS_CACHE_TTL_SECONDS, TimeUnit.SECONDS)
+      .expiration(cacheTTLSeconds(), TimeUnit.SECONDS)
       .build();
   private ExpiringMap<String, Space> spaceCache = ExpiringMap.builder()
       .expirationPolicy(ExpirationPolicy.CREATED)
-      .expiration(SPACE_CACHE_TTL_SECONDS, TimeUnit.SECONDS)
+      .expiration(cacheTTLSeconds(), TimeUnit.SECONDS)
       .build();
+
+  private ExpiringMap<String, Branch> branchCache = ExpiringMap.builder()
+          .expirationPolicy(ExpirationPolicy.CREATED)
+          .expiration(cacheTTLSeconds(), TimeUnit.MINUTES)
+          .build();
 
   protected HubWebClient(String baseUrl) {
     super(baseUrl, userAgent);
@@ -125,6 +134,22 @@ public class HubWebClient extends XyzWebClient {
     catch (JsonProcessingException e) {
       throw new WebClientException("Error deserializing response", e);
     }
+  }
+
+  public Set<DeletedBranch> loadAllDeletedBranches() throws WebClientException {
+    try {
+      return deserialize(request(HttpRequest.newBuilder()
+          .uri(uri("/admin/branches?deleted=true"))).body(), new TypeReference<Set<DeletedBranch>>() {});
+    }
+    catch (JsonProcessingException e) {
+      throw new WebClientException("Error deserializing response", e);
+    }
+  }
+
+  public void eraseDeletedBranch(String uuid) throws WebClientException {
+    request(HttpRequest.newBuilder()
+        .DELETE()
+        .uri(uri("/admin/branches?deleted=true&uuid=" + uuid)));
   }
 
   public String loadExtendedSpace(String spaceId) throws WebClientException {
@@ -219,6 +244,10 @@ public class HubWebClient extends XyzWebClient {
   }
 
   public StatisticsResponse loadSpaceStatistics(String spaceId, SpaceContext context, boolean skipCache, boolean fastMode) throws WebClientException {
+    return loadSpaceStatistics(spaceId, context, null, skipCache, fastMode);
+  }
+
+  public StatisticsResponse loadSpaceStatistics(String spaceId, SpaceContext context, Ref versionRef, boolean skipCache, boolean fastMode) throws WebClientException {
     try {
       String cacheKey = spaceId + ":" + context + "_" + loadSpace(spaceId).getContentUpdatedAt();
       StatisticsResponse statistics = statisticsCache.get(cacheKey);
@@ -226,8 +255,12 @@ public class HubWebClient extends XyzWebClient {
         return statistics;
 
       statistics = deserialize(request(HttpRequest.newBuilder()
-          .uri(uri("/spaces/" + spaceId + "/statistics?fastMode="+fastMode+"&skipCache="+skipCache
-                  + (context == null ? "" : "&context=" + context)))).body(), StatisticsResponse.class);
+          .uri(uri("/spaces/" + spaceId + "/statistics",
+                  new KeyValue<>("fastMode", fastMode),
+                  new KeyValue<>("skipCache", skipCache),
+                  new KeyValue<>("context", context),
+                  new KeyValue<>("versionRef", versionRef))
+          )).body(), StatisticsResponse.class);
       statisticsCache.put(cacheKey, statistics);
       return statistics;
     }
@@ -324,6 +357,67 @@ public class HubWebClient extends XyzWebClient {
     }
   }
 
+  public void postDataReference(DataReference dataReference) throws WebClientException {
+    request(HttpRequest.newBuilder()
+            .uri(uri("/references"))
+            .header(CONTENT_TYPE, JSON_UTF_8.toString())
+            .method("POST", BodyPublishers.ofByteArray(dataReference.serialize().getBytes()))).body();
+  }
+
+  public List<DataReference> loadDataReferences(DataReferenceQuery dataReferenceQuery) throws WebClientException {
+    try {
+      return deserialize(request(HttpRequest.newBuilder()
+              .GET()
+              .uri(uri("/references" + dataReferenceQuery.toQueryParamString()))).body(), new TypeReference<>() {});
+    }
+    catch (JsonProcessingException e) {
+      throw new WebClientException("Error deserializing response", e);
+    }
+  }
+
+  public record DataReferenceQuery(String entityId, Long startVersion, Long endVersion, String sourceSystem,
+                                   String targetSystem, String objectType, String contentType) {
+    public static class Builder {
+      private String entityId;
+      private Long startVersion;
+      private Long endVersion;
+      private String sourceSystem;
+      private String targetSystem;
+      private String objectType;
+      private String contentType;
+
+      public Builder entityId(String entityId) { this.entityId = entityId; return this;}
+      public Builder startVersion(Long startVersion) { this.startVersion = startVersion; return this;}
+      public Builder endVersion(Long endVersion) { this.endVersion = endVersion; return this;}
+      public Builder sourceSystem(String sourceSystem) { this.sourceSystem = sourceSystem; return this;}
+      public Builder targetSystem(String targetSystem) { this.targetSystem = targetSystem; return this;}
+      public Builder objectType(String objectType) { this.objectType = objectType; return this;}
+      public Builder contentType(String contentType) { this.contentType = contentType; return this;}
+      public DataReferenceQuery build() {
+        return new DataReferenceQuery(entityId, startVersion, endVersion, sourceSystem, targetSystem, objectType, contentType);
+      }
+    }
+
+    public static Builder builder() {
+      return new Builder();
+    }
+
+    public String toQueryParamString() {
+      return "?" + Arrays.stream(this.getClass().getRecordComponents())
+              .map(component -> {
+                try {
+                  Object value = component.getAccessor().invoke(this);
+                  return value != null ? component.getName() + "=" + URLEncoder.encode(value.toString(),
+                          StandardCharsets.UTF_8) : null;
+                } catch (Exception e) {
+                  throw new RuntimeException(e);
+                }
+              }).filter(param -> param != null)
+              .collect(Collectors.joining("&"));
+    }
+
+  }
+
   public Tag postTag(String spaceId, Tag tag) throws WebClientException {
     try {
       return deserialize(request(HttpRequest.newBuilder()
@@ -354,6 +448,46 @@ public class HubWebClient extends XyzWebClient {
     }
   }
 
+  public Branch createBranch(String spaceId, Branch branch) throws WebClientException {
+    try {
+      return deserialize(request(HttpRequest.newBuilder()
+              .uri(uri("/spaces/" + spaceId + "/branches"))
+              .header(CONTENT_TYPE, JSON_UTF_8.toString())
+              .method("POST", BodyPublishers.ofByteArray(branch.serialize().getBytes()))).body(), Branch.class);
+    }
+    catch (JsonProcessingException e) {
+      throw new WebClientException("Error deserializing response", e);
+    }
+  }
+
+  public void deleteBranch(String spaceId, String branchId) throws WebClientException {
+    request(HttpRequest.newBuilder()
+            .DELETE()
+            .uri(uri("/spaces/" + spaceId + "/branches/" + branchId ))
+            .header(CONTENT_TYPE, JSON_UTF_8.toString()));
+  }
+
+  public Branch loadBranch(String spaceId, Ref versionRef, boolean internal) throws WebClientException {
+    String branchId = versionRef.isTag() ? versionRef.getTag() : versionRef.getBranch();
+    return loadBranch(spaceId, branchId, internal);
+  }
+
+  public Branch loadBranch(String spaceId, String branchId, boolean internal) throws WebClientException {
+    String cacheKey = spaceId + "_" + branchId;
+    if (branchCache.containsKey(cacheKey))
+      return branchCache.get(cacheKey);
+    try {
+      Branch branch = deserialize(request(HttpRequest.newBuilder()
+              .GET()
+              .uri(uri((internal ? "/admin" : "") + "/spaces/" + spaceId + "/branches/" + branchId))).body(), Branch.class);
+      branchCache.put(cacheKey, branch);
+      return branch;
+    }
+    catch (JsonProcessingException e) {
+      throw new WebClientException("Error deserializing response", e);
+    }
+  }
+
   public Ref resolveRef(String spaceId, Ref ref) throws WebClientException {
     return resolveRef(spaceId, loadSpace(spaceId).getExtension() != null ? EXTENSION : null, ref);
   }
@@ -364,14 +498,29 @@ public class HubWebClient extends XyzWebClient {
     if (ref.isOnlyNumeric())
       return ref;
     if (ref.isHead())
-      return new Ref(loadSpaceStatistics(spaceId, context).getMaxVersion().getValue());
-    if (ref.isTag())
-      return new Ref(loadTag(spaceId, ref.getTag()).getVersion());
+      return new Ref(ref.getBranch() + ":" + loadSpaceStatistics(spaceId, context, ref, false, true).getMaxVersion().getValue());
+    if (ref.isTag()) {
+      try {
+        //Check if it's a branch
+        Branch branch = loadBranch(spaceId, ref, true);
+        return new Ref(branch.getId() + ":" + loadSpaceStatistics(spaceId, context, ref, false, true).getMaxVersion().getValue());
+      } catch (ErrorResponseException httpError) {
+        if (httpError.getStatusCode() == 404)
+          //If the branch is not found, then the ref could actually be a tag
+          return new Ref(loadTag(spaceId, ref.getTag()).getVersion());
+        else
+          throw httpError;
+      }
+    }
     if (ref.isRange())
       //TODO: run start / end resolving in parallel
       return new Ref(resolveRef(spaceId, context, ref.getStart()).getVersion(), resolveRef(spaceId, context, ref.getEnd()).getVersion());
 
     //Unsupported ref type (should not happen)
     throw new IllegalArgumentException("Unable to resolve the provided ref: " + ref);
+  }
+
+  private static long cacheTTLSeconds() {
+    return BaseConfig.instance.HUB_WEB_CLIENT_CACHE_TTL;
   }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,12 +20,12 @@
 package com.here.xyz.psql.query;
 
 import static com.here.xyz.models.hub.Ref.HEAD;
-import static com.here.xyz.psql.query.GetFeaturesByBBox.buildGeoFilterFromBbox;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.PropertiesQuery;
+import com.here.xyz.events.SelectiveEvent;
 import com.here.xyz.models.geojson.coordinates.WKTHelper;
 import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.models.hub.Ref;
@@ -53,6 +53,7 @@ public class GetFeaturesByGeometryBuilder extends XyzQueryBuilder<GetFeaturesByG
           .withPropertiesQuery(input.propertiesQuery)
           .withGeometry(input.geometry)
           .withRadius(input.radius)
+          .withMinVersion(input.minVersion)
           .withClip(input.clip);
 
       event.ignoreLimit = true;
@@ -87,6 +88,7 @@ public class GetFeaturesByGeometryBuilder extends XyzQueryBuilder<GetFeaturesByG
       Map<String, Object> spaceParams,
       SpaceContext context,
       int versionsToKeep,
+      long minVersion,
       Ref ref,
       Geometry geometry,
       int radius,
@@ -121,6 +123,23 @@ public class GetFeaturesByGeometryBuilder extends XyzQueryBuilder<GetFeaturesByG
     @Override
     protected SQLQuery buildRawGeoExpression(GetFeaturesByGeometryEvent event) {
       return overrideRawGeoExpression(super.buildRawGeoExpression(event), clippingGeometry, event.getGeometry());
+    }
+
+    //TODO: Remove this override, if we have solved this in xyz-hub. Goal is to inject the minVersion also for
+    // readEvents and ignore in this case versionsToKeep - to have a consistent behavior between xyz-hub and xyz-jobs.
+    @Override
+    protected SQLQuery buildMinVersionFragment(SelectiveEvent event, long baseVersion) {
+      Ref ref = event.getRef();
+      boolean isHeadOrAllVersions = ref.isHead() || ref.isAllVersions() || ref.isRange() && ref.getEnd().isHead();
+      long requestedVersion = isHeadOrAllVersions ? Long.MAX_VALUE : ref.isRange() ? ref.getStart().getVersion() + 1 : ref.getVersion();
+
+      if (event.getVersionsToKeep() > 1)
+        //TODO: Review Branching
+        return new SQLQuery("AND #{minVersion} <= ${{requestedVersion}}")
+                .withNamedParameter("minVersion", event.getMinVersion())
+                .withQueryFragment("requestedVersion", requestedVersion + "::BIGINT");
+      else
+        return super.buildMinVersionFragment(event, baseVersion);
     }
 
     //TODO: Check why this patch is necessary

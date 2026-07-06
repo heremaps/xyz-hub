@@ -20,6 +20,7 @@
 package com.here.xyz.util.runtime;
 
 public abstract class FunctionRuntime {
+  private volatile static FunctionRuntime mainInstance;
   private static FunctionRuntime instance;
   private static final ThreadLocal<FunctionRuntime> threadLocalInstanceHolder = new ThreadLocal<>();
 
@@ -52,14 +53,19 @@ public abstract class FunctionRuntime {
     if (instance != null)
       return instance;
     //NOTE: Running locally there can be multiple instances of a connector running at the same time. See #setInstance(ConnectorRuntime)
-    return threadLocalInstanceHolder.get();
+    if(threadLocalInstanceHolder.get() != null)
+      return threadLocalInstanceHolder.get();
+    return mainInstance;
   }
 
   static void setInstance(FunctionRuntime instance) {
+    if(mainInstance == null)
+      mainInstance = instance;
+
     //NOTE: Running locally there can be multiple instances of a connector running at the same time.
-    if (instance.isRunningLocally())
+    if (instance.isRunningLocally()) {
       FunctionRuntime.threadLocalInstanceHolder.set(instance);
-    else
+    }else
       FunctionRuntime.instance = instance;
   }
 }

@@ -27,8 +27,7 @@ import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.XyzError;
-import com.here.xyz.util.db.pg.IndexHelper;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
+import com.here.xyz.util.db.pg.IndexHelper.OnDemandIndex;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -48,6 +47,8 @@ import java.util.Map;
 import static com.here.xyz.events.ModifySpaceEvent.Operation.CREATE;
 import static com.here.xyz.events.ModifySpaceEvent.Operation.UPDATE;
 import static org.junit.Assert.assertEquals;
+import static com.here.xyz.util.db.pg.IndexHelper.getActivatedSearchableProperties;
+import static com.here.xyz.util.db.pg.IndexHelper.buildOnDemandIndexCreationQuery;
 
 public class PSQLIndexIT extends PSQLAbstractIT {
 
@@ -178,10 +179,10 @@ public class PSQLIndexIT extends PSQLAbstractIT {
             String sqlSpaceSchema = "(select schema_name::text from information_schema.schemata where schema_name in ('xyz','public') order by 1 desc limit 1)";
 
             Statement stmt = connection.createStatement();
-            List<XyzSpaceTableHelper.OnDemandIndex> activatedSearchableProperties = IndexHelper.getActivatedSearchableProperties(searchableProperties);
+            List<OnDemandIndex> activatedSearchableProperties = getActivatedSearchableProperties(searchableProperties);
 
-            for(XyzSpaceTableHelper.OnDemandIndex onDemandIndex : activatedSearchableProperties)
-                stmt.execute(IndexHelper.buildOnDemandIndexCreationQuery("public", "foo", onDemandIndex.getPropertyPath(), false).toExecutableQueryString());
+            for(OnDemandIndex onDemandIndex : activatedSearchableProperties)
+                stmt.execute(buildOnDemandIndexCreationQuery("public", "foo", onDemandIndex.getPropertyPath(), false).toExecutableQueryString());
 
             // Check which Indices are available
             ResultSet resultSet = stmt.executeQuery( DhString.format("select idx_property, src from xyz_index_list_all_available(%s, 'foo');",sqlSpaceSchema));

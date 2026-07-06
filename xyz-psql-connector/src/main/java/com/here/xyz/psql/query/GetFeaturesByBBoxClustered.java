@@ -347,12 +347,14 @@ public class GetFeaturesByBBoxClustered<E extends GetFeaturesByBBoxEvent, R exte
 
         if (event.getPropertiesQuery() != null) {
           pureEstimation =
-              "  SELECT xyz_count_estimation(concat(" +
+              " select case when (est_cnt >= 6000000) and (inner_cond_est_cnt <= 1) then 0 else inner_cond_est_cnt end " +
+				      " from " +
+				      " ( SELECT xyz_count_estimation(concat(" +
                   "      'select 1 from ${schema}.${headTable}"+
                   "       WHERE ST_Intersects(geo, xyz_qk_qk2bbox(''',qk,''')) "+
                   " AND "+
                   substituteCompletely(generatePropertiesQuery(event)).replaceAll("'","''")+
-                  "'))";
+                  "')) as inner_cond_est_cnt ) ";
         }
         else
           pureEstimation = _pureEstimation;

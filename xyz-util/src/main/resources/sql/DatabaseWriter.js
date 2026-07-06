@@ -23,6 +23,7 @@ class DatabaseWriter {
   table;
   tableBaseVersion;
 
+  tableLayout;
   /**
    * @type {boolean}
    */
@@ -39,12 +40,22 @@ class DatabaseWriter {
    * @type {{<string>: (function(object[]) : FeatureModificationExecutionResult)[]}}
    */
   resultParsers = {};
+  /**
+   * @type {{<string>: object[]}}
+   */
+  queryOptions = {};
 
-  constructor(schema, table, tableBaseVersion, batchMode = false) {
+  /**
+   * @type {number} The timestamp of when the transaction started
+   */
+  TX_START = Date.now();
+
+  constructor(schema, table, tableBaseVersion, batchMode = false, tableLayout) {
     this.schema = schema;
     this.table = table;
     this.tableBaseVersion = tableBaseVersion;
     this.batchMode = batchMode;
+    this.tableLayout = tableLayout;
   }
 
   /**
@@ -54,7 +65,7 @@ class DatabaseWriter {
   execute() {
     let results = [];
     for (let method in this.plans)
-      results = results.concat(this._executePlan(this.plans[method], this.parameterSets[method], this.resultParsers[method]));
+      results = results.concat(this._executePlan(this.plans[method], this.parameterSets[method], this.resultParsers[method], this.queryOptions[method]));
 
     this.clear();
     return results;
@@ -63,27 +74,81 @@ class DatabaseWriter {
   clear() {
     this.plans = {};
     this.parameterSets = {};
-    this.resultParsers = {}
+    this.resultParsers = {};
+    this.queryOptions = {};
   }
 
   /**
    * Executes a prepared query using the specified parameterSet and returns the results after parsing them using the
    * specified resultParser.
    * @param {PreparedPlan} plan
-   * @param {object[][]} parameterSet
+   * @param {object[][]} parameterSets
    * @param {(function(object[]) : FeatureModificationExecutionResult)[]} resultParsers
+   * @param {object} queryOptions
    * @returns {FeatureModificationExecutionResult[]}
    * @private
    */
-  _executePlan(plan, parameterSet, resultParsers) {
+  _executePlan(plan, parameterSets, resultParsers, queryOptions) {
     let results = [];
-    for (let index in parameterSet) {
-      let result = resultParsers[index](plan.execute(parameterSet[index]));
-      if (result != null)
-        results.push(result);
+    for (let index in parameterSets) {
+      const parameters = parameterSets[index];
+      const options = queryOptions?.[index];
+      try {
+        let result = resultParsers[index](plan.execute(parameters), parameters);
+        if (result != null)
+          results.push(result);
+      }
+      catch (e) {
+        if (e.sqlerrcode === SQLErrors.CONFLICT) {
+          //TODO: Implement a robust solution with recursive retries by using a callbackFunction
+          let onVersionConflict = options?.onVersionConflict;
+
+          //TODO: handle different Strategies separately
+          if (onVersionConflict == null || onVersionConflict !== "ERROR") {
+            const versionParameterIndex = options?.versionParameterIndex ?? 1;
+            const originalVersion = parameters[versionParameterIndex];
+            parameters[versionParameterIndex] = FeatureWriter.getNextVersion(false);
+            this._markSplitFromVersion(parameters, originalVersion);
+
+            try {
+              const retryResult = resultParsers[index](plan.execute(parameters), parameters);
+              if (retryResult != null)
+                results.push(retryResult);
+              continue;
+            }
+            catch (retryError) {
+              if (retryError.sqlerrcode !== SQLErrors.CONFLICT)
+                throw retryError;
+            }
+          }
+
+          let exceptionToThrow;
+
+          //TODO: Distinguish better different Strategies
+          if (onVersionConflict === "ERROR")
+            exceptionToThrow = new VersionConflictError(`Version conflict while trying to write feature with ID ${parameters[0]} in version ${parameters[1]}.`);
+          else
+            exceptionToThrow = new RetryableVersionConflictError(`Retryable version conflict while trying to write feature with ID ${parameters[0]} in version ${parameters[1]}.`);
+          throw exceptionToThrow.withHint("The feature has been modified in the meantime.");
+        }
+        else
+          throw e;
+      }
     }
     plan.free();
     return results;
+  }
+
+  _markSplitFromVersion(parameters, originalVersion) {
+    for (const parameter of parameters) {
+      if (parameter && typeof parameter === "object" && parameter.properties) {
+        parameter.properties[XYZ_NS] = {
+          ...parameter.properties[XYZ_NS],
+          splitFromVersion: originalVersion
+        };
+        return;
+      }
+    }
   }
 
   /**
@@ -104,9 +169,8 @@ class DatabaseWriter {
    * @returns {FeatureModificationExecutionResult}
    */
   upsertRow(inputFeature, version, operation, author, onExists, resultHandler) {
-    let uniqueConstraintExists = queryContext().uniqueConstraintExists !== false;
     this.enrichTimestamps(inputFeature, true);
-    let onConflict = onExists == "REPLACE" && uniqueConstraintExists
+    let onConflict = onExists == "REPLACE"
         ? ` ON CONFLICT (id, next_version) DO UPDATE SET
           version = greatest(tbl.version, EXCLUDED.version),
           operation = CASE WHEN $3 = 'H' THEN 'J' ELSE 'U' END,
@@ -114,7 +178,10 @@ class DatabaseWriter {
           jsondata = jsonb_set(EXCLUDED.jsondata, '{properties, ${XYZ_NS}, createdAt}',
                  tbl.jsondata->'properties'->'${XYZ_NS}'->'createdAt'),
           geo = EXCLUDED.geo
-          WHERE EXCLUDED.jsondata #- ARRAY['properties', '${XYZ_NS}'] IS DISTINCT FROM tbl.jsondata #- ARRAY['properties', '${XYZ_NS}']`
+          WHERE
+            EXCLUDED.jsondata #- ARRAY['properties', '${XYZ_NS}'] IS DISTINCT FROM tbl.jsondata #- ARRAY['properties', '${XYZ_NS}']
+            OR
+            EXCLUDED.geo IS DISTINCT FROM tbl.geo`
         : onExists == "RETAIN" ? " ON CONFLICT(id, next_version) DO NOTHING" : "";
 
     let sql = `INSERT INTO "${this.schema}"."${this.table}" AS tbl
@@ -130,6 +197,7 @@ class DatabaseWriter {
       this.plans[method] = this._preparePlan(sql, ["TEXT", "BIGINT", "CHAR", "TEXT", "JSONB", "JSONB"]);
       this.parameterSets[method] = [];
       this.resultParsers[method] = [];
+      this.queryOptions[method] = [];
     }
 
     if (inputFeature == null) {
@@ -145,13 +213,16 @@ class DatabaseWriter {
       inputFeature,
       inputFeature.geometry //TODO: Use TEXT
     ]);
-    this.resultParsers[method].push(result => {
+    this.resultParsers[method].push((result, usedParameters) => {
       //TODO: In future return null here, if actually no update was taking place (due to non-changed content) - keeping status quo for BWC for now
       let executedAction = !result.length ? ExecutionAction.NONE : ExecutionAction.fromOperation[result[0].operation];
       if (result.length && executedAction == ExecutionAction.UPDATED)
         //Inject createdAt
         inputFeature.properties[XYZ_NS].createdAt = result[0].created_at;
-      return resultHandler(new FeatureModificationExecutionResult(executedAction, inputFeature, version, author));
+      return resultHandler(new FeatureModificationExecutionResult(executedAction, inputFeature, usedParameters[1], author));
+    });
+    this.queryOptions[method].push({
+      versionParameterIndex: 1
     });
 
     if (!this.batchMode)
@@ -173,13 +244,14 @@ class DatabaseWriter {
                              geo       = CASE WHEN $5::JSONB IS NULL THEN NULL ELSE xyz_reduce_precision(ST_Force3D(ST_GeomFromGeoJSON($5::JSONB)), false) END
                          WHERE id = $6
                            AND version = $7
-                         RETURNING (jsondata -> 'properties' -> '${XYZ_NS}' -> 'createdAt') as created_at, operation`;
+                         RETURNING 1`;
 
     let method = "updateRow";
     if (!this.plans[method]) {
       this.plans[method] = this._preparePlan(sql, ["BIGINT", "CHAR", "TEXT", "JSONB", "JSONB", "TEXT", "BIGINT"]);
       this.parameterSets[method] = [];
       this.resultParsers[method] = [];
+      this.queryOptions[method] = [];
     }
 
     if (inputFeature == null) {
@@ -196,8 +268,11 @@ class DatabaseWriter {
       inputFeature.id,
       baseVersion
     ]);
-    this.resultParsers[method].push(result => {
-      return resultHandler(!result.length ? null : new FeatureModificationExecutionResult(ExecutionAction.UPDATED, inputFeature, version, author));
+    this.resultParsers[method].push((result, usedParameters) => {
+      return resultHandler(!result.length ? null : new FeatureModificationExecutionResult(ExecutionAction.UPDATED, inputFeature, usedParameters[0], author));
+    });
+    this.queryOptions[method].push({
+      versionParameterIndex: 0
     });
 
     if (!this.batchMode)
@@ -208,27 +283,49 @@ class DatabaseWriter {
    * @param {function(FeatureModificationExecutionResult) : FeatureModificationExecutionResult} resultHandler
    * @returns {FeatureModificationExecutionResult}
    */
-  insertHistoryRow(inputFeature, baseFeature, version, operation, author, resultHandler) {
+  insertHistoryRow(inputFeature, onVersionConflict, baseVersion, baseFeature, version, operation, author, resultHandler) {
     //TODO: Improve performance by reading geo inside JS and then pass it separately and use TEXT / WKB / BYTEA
     this.enrichTimestamps(inputFeature, operation == "I" || operation == "H", baseFeature);
-    let sql = `INSERT INTO "${this.schema}"."${this.table}"
-                      (id, version, operation, author, jsondata, geo)
-                  VALUES ($1, $2, $3, $4,
-                          $5::JSONB - 'geometry',
-                          CASE WHEN $6::JSONB IS NULL THEN
-                              NULL
-                          ELSE
-                              xyz_reduce_precision(ST_Force3D(ST_GeomFromGeoJSON($6::JSONB)), false)
-                          END)`;
+    let extraCols = '';
+    let extraVals = '';
+
+    if (this.tableLayout === 'NEW_LAYOUT') {
+      extraCols = ', searchable';
+      extraVals = ', $9::JSONB ';
+    }
+
+    const sql = `UPDATE "${this.schema}"."${this.table}"
+                 SET next_version = $2
+                 WHERE id = $1
+                   AND next_version = $7::BIGINT
+                   AND CASE WHEN $8 = -1 THEN version < $2 ELSE (version = $8 OR operation = 'D' AND version < $2) END;
+
+                INSERT INTO "${this.schema}"."${this.table}"
+                (id, version, operation, author, jsondata, geo ${extraCols})
+                 VALUES ($1, $2, $3, $4,
+                         $5::JSONB - 'geometry',
+                         CASE WHEN $6::JSONB IS NULL THEN
+                            NULL
+                        ELSE
+                            xyz_reduce_precision(ST_Force3D(ST_GeomFromGeoJSON($6::JSONB)), false)
+                        END ${extraVals}
+            )`;
 
     this._createHistoryPartition(version);
     this._purgeOldChangesets(version);
 
     let method = "insertHistoryRow";
     if (!this.plans[method]) {
-      this.plans[method] = this._preparePlan(sql, ["TEXT", "BIGINT", "CHAR", "TEXT", "JSONB", "JSONB"]);
+      const paramTypes = ["TEXT", "BIGINT", "CHAR", "TEXT", "JSONB", "JSONB", "BIGINT", "BIGINT"];
+
+      if (this.tableLayout === 'NEW_LAYOUT') {
+        paramTypes.push("JSONB");
+      }
+
+      this.plans[method] = this._preparePlan(sql, paramTypes);
       this.parameterSets[method] = [];
       this.resultParsers[method] = [];
+      this.queryOptions[method] = [];
     }
 
     if (inputFeature == null) {
@@ -236,17 +333,34 @@ class DatabaseWriter {
       throw new XyzException("Can not write a feature that is null");
     }
 
-    this.parameterSets[method].push([
+    const params = [
       inputFeature.id,
       version,
       operation,
       author,
       inputFeature,
-      inputFeature.geometry
-    ]);
-    this.resultParsers[method].push(result => {
+      inputFeature.geometry,
+      MAX_BIG_INT,
+      onVersionConflict != null ? baseVersion : -1
+    ];
+
+    if (this.tableLayout === 'NEW_LAYOUT') {
+      const searchable = {
+        refQuad: inputFeature.properties.refQuad,
+        globalVersion: inputFeature.properties.globalVersion,
+        references: inputFeature.properties.references
+      };
+      params.push(searchable);
+    }
+
+    this.parameterSets[method].push(params);
+    this.resultParsers[method].push((result, usedParameters) => {
       let executedAction = inputFeature.properties[XYZ_NS].deleted ? ExecutionAction.DELETED : ExecutionAction.fromOperation[operation];
-      return resultHandler(new FeatureModificationExecutionResult(executedAction, inputFeature, version + this.tableBaseVersion, author));
+      return resultHandler(new FeatureModificationExecutionResult(executedAction, inputFeature, usedParameters[1] + this.tableBaseVersion, author));
+    });
+    this.queryOptions[method].push({
+      onVersionConflict: onVersionConflict,
+      versionParameterIndex: 1
     });
 
     if (!this.batchMode)
@@ -328,15 +442,7 @@ class DatabaseWriter {
 
     this.parameterSets[method].push(parameters);
     this.resultParsers[method].push(deletedRows => {
-      if (deletedRows == 0) {
-        if (onVersionConflict != null) {
-          plv8.elog(NOTICE, "FW_LOG HandleConflict for deletion of id: " + inputFeature.id);
-          //handleDeleteVersionConflict //TODO: throw some conflict error here that can be caught & handled by FeatureWriter
-          return null;
-        }
-        this._throwFeatureNotExistsError(inputFeature.id);
-      }
-      return resultHandler(new FeatureModificationExecutionResult(ExecutionAction.DELETED, inputFeature, version, author));
+      return resultHandler(new FeatureModificationExecutionResult(deletedRows == 0 ? ExecutionAction.NONE : ExecutionAction.DELETED, inputFeature, version, author));
     });
 
     if (!this.batchMode)
@@ -344,7 +450,7 @@ class DatabaseWriter {
   }
 
   enrichTimestamps(feature, isCreation = false, baseFeature = null) {
-    let now = TX_START;
+    let now = this.TX_START;
     feature.properties = {
       ...feature.properties,
       [XYZ_NS]: {

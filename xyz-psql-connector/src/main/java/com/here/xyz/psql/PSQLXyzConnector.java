@@ -19,6 +19,7 @@
 
 package com.here.xyz.psql;
 
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.psql.query.branching.BranchManager.getNodeId;
 import static com.here.xyz.responses.XyzError.EXCEPTION;
 import static com.here.xyz.responses.XyzError.ILLEGAL_ARGUMENT;
@@ -47,6 +48,7 @@ import com.here.xyz.events.ModifySubscriptionEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.events.WriteFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.models.hub.Ref;
 import com.here.xyz.psql.query.DeleteChangesets;
 import com.here.xyz.psql.query.EraseSpace;
 import com.here.xyz.psql.query.GetChangesetStatistics;
@@ -80,6 +82,7 @@ import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.responses.changesets.ChangesetCollection;
 import com.here.xyz.util.db.SQLQuery;
 import java.sql.SQLException;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.logging.log4j.LogManager;
@@ -87,7 +90,7 @@ import org.apache.logging.log4j.Logger;
 
 public class PSQLXyzConnector extends DatabaseHandler {
   private static final Logger logger = LogManager.getLogger();
-  private static final Pattern ERRVALUE_22P02 = Pattern.compile("invalid input syntax for type numeric:\\s+\"([^\"]*)\"\\s+Query:"),
+  protected static final Pattern ERRVALUE_22P02 = Pattern.compile("invalid input syntax for type numeric:\\s+\"([^\"]*)\"\\s+Query:"),
       ERRVALUE_22P05 = Pattern.compile("ERROR:\\s+(.*)\\s+Detail:\\s+(.*)\\s+Where:");
 
   @Override
@@ -104,8 +107,32 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
   @Override
   protected StatisticsResponse processGetStatistics(GetStatisticsEvent event) throws Exception {
-    if(event.isFastMode())
-      return run(new GetFastStatistics(event));
+
+    //For branches, always use fastMode with DEFAULT context
+    if (event.getBranchPath().size() > 0)
+      event.withFastMode(true).withContext(DEFAULT);
+
+    if(event.isFastMode()) {
+      List<Ref> providedBranchPath = event.getBranchPath();
+      int providedNodeId = event.getNodeId();
+
+      //Statistics for main table
+      StatisticsResponse statisticsResponse = run(new GetFastStatistics(event.withBranchPath(List.of()).withNodeId(0)));
+
+      //Statistics for branches
+      for (int i = 0; i < providedBranchPath.size(); i++) {
+        Ref baseRef = providedBranchPath.get(i);
+        int nodeId = i == providedBranchPath.size() - 1 ? providedNodeId : BranchManager.getNodeId(providedBranchPath.get(i + 1));
+
+        StatisticsResponse branchStats = run(new GetFastStatistics(event.withBranchPath(List.of(baseRef)).withNodeId(nodeId)));
+        statisticsResponse.getCount().withValue(statisticsResponse.getCount().getValue() + branchStats.getCount().getValue()).withEstimated(true);
+        statisticsResponse.getDataSize().withValue(statisticsResponse.getDataSize().getValue() + branchStats.getDataSize().getValue()).withEstimated(true);
+        statisticsResponse.withMaxVersion(branchStats.getMaxVersion());
+        statisticsResponse.withByteSize(statisticsResponse.getDataSize());
+      }
+      return statisticsResponse;
+    }
+
     return run(new GetStatistics(event));
   }
 
@@ -135,7 +162,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
     return run(getBBoxBasedQueryRunner(event));
   }
 
-  private static void checkForInvalidHereTileClustering(GetFeaturesByTileEvent event) throws ErrorResponseException {
+  protected static void checkForInvalidHereTileClustering(GetFeaturesByTileEvent event) throws ErrorResponseException {
     if (event.getHereTileFlag() && event.getClusteringType() != null)
       throw new ErrorResponseException(ILLEGAL_ARGUMENT,
           "clustering=[hexbin,quadbin] is not supported for 'here' tile type. Use Web Mercator projection (quadkey, web, tms).");
@@ -228,7 +255,9 @@ public class PSQLXyzConnector extends DatabaseHandler {
               .withConflicting(result.conflicting());
         }
         case DELETE -> {
-          branchManager.deleteBranch(event.getNodeId());
+          //NOTE: Actual branch table deletion will be one by the "prune" process asynchronously
+          //TODO: Do not even send an event anymore in this case?
+          //branchManager.deleteBranch(event.getNodeId());
           yield new ModifiedBranchResponse()
               .withNodeId(-1);
         }
@@ -281,7 +310,8 @@ public class PSQLXyzConnector extends DatabaseHandler {
           throw new ErrorResponseException(ILLEGAL_ARGUMENT, "dataset contains invalid geometries");
         if (e.getMessage().indexOf("ERROR: can not mix dimensionality in a geometry") != -1)
           throw new ErrorResponseException(ILLEGAL_ARGUMENT, "can not mix dimensionality in a geometry");
-        //fall thru - timeout assuming timeout
+        else
+          throw new ErrorResponseException(EXCEPTION, "Unexpected database error occurred: " + e.getMessage(), e);
 
       case "57014": //57014 - query_canceled
       case "57P01": //57P01 - admin_shutdown
@@ -315,7 +345,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
       }
 
       case "42P01":
-        
+
         throw new ErrorResponseException(NOT_FOUND, "Space not found in backend" ); //"Table not found in database"
 
       case

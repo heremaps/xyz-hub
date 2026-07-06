@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -55,6 +55,12 @@ import org.apache.logging.log4j.Logger;
 import software.amazon.awssdk.services.rds.model.DBCluster;
 
 public class Database extends ExecutionResource {
+  private static final int STATEMENT_TIMEOUT = 895; //seconds - has to be greater than the query timeout
+  private static final int DB_CHECKOUT_TIMEOUT_MS = 20_000;
+  private static final int DB_ACQUIRE_RETRY_DELAY_MS = 5_000;
+  private static final int DB_ACQUIRE_RETRY_ATTEMPTS = 10;
+  private static final int DB_ACQUIRE_INCREMENT = 3;
+  private static final int DB_MAX_POOL_SIZE = 10;
   private static final List<ScriptResourcePath> SCRIPT_RESOURCE_PATHS = List.of(new ScriptResourcePath("/sql", "jobs", "common"), new ScriptResourcePath("/jobs", "jobs"));
   private static final Logger logger = LogManager.getLogger();
   private static final float DB_MAX_JOB_UTILIZATION_PERCENTAGE = 0.6f;
@@ -106,11 +112,21 @@ public class Database extends ExecutionResource {
 
   DatabaseSettings getDatabaseSettings() {
     if (dbSettings == null)
-      dbSettings = new RestrictedDatabaseSettings(getName(), connectorDbSettingsMap)
-          .withApplicationName("JobFramework")
-          .withScriptResourcePaths(SCRIPT_RESOURCE_PATHS);
-    dbSettings.setStatementTimeoutSeconds(600);
+      dbSettings = applyRuntimeDbSettings(new RestrictedDatabaseSettings(getName(), connectorDbSettingsMap));
     return dbSettings;
+  }
+
+  private static DatabaseSettings applyRuntimeDbSettings(DatabaseSettings settings) {
+    settings
+        .withStatementTimeoutSeconds(STATEMENT_TIMEOUT)
+        .withDbCheckoutTimeout(DB_CHECKOUT_TIMEOUT_MS)
+        .withDbAcquireRetryDelay(DB_ACQUIRE_RETRY_DELAY_MS)
+        .withDbAcquireRetryAttempts(DB_ACQUIRE_RETRY_ATTEMPTS)
+        .withDbAcquireIncrement(DB_ACQUIRE_INCREMENT)
+        .withDbMaxPoolSize(DB_MAX_POOL_SIZE)
+        .withScriptResourcePaths(SCRIPT_RESOURCE_PATHS)
+        .withApplicationName("JobFramework");
+    return settings;
   }
 
   public static Future<List<Database>> getAll() {
@@ -202,9 +218,7 @@ public class Database extends ExecutionResource {
             connectorParameters.getEcps());
         fixLocalDbHosts(connectorDbSettingsMap);
 
-        DatabaseSettings connectorDbSettings = new DatabaseSettings(connector.id, connectorDbSettingsMap)
-            .withDbMaxPoolSize(10)
-            .withScriptResourcePaths(SCRIPT_RESOURCE_PATHS);
+        DatabaseSettings connectorDbSettings = applyRuntimeDbSettings(new DatabaseSettings(connector.id, connectorDbSettingsMap));
 
         String rdsClusterId = DBClusterResolver.getClusterIdFromHostname(connectorDbSettings.getHost());
 

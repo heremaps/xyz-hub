@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,7 +27,9 @@ public enum SQLError {
   FEATURE_NOT_EXISTS("XYZ44"),
   MERGE_CONFLICT_ERROR("XYZ48"),
   VERSION_CONFLICT_ERROR("XYZ49"),
+  RETRYABLE_VERSION_CONFLICT("XYZ33"),
   XYZ_EXCEPTION("XYZ50"),
+  DUPLICATE_KEY("23505"),
   UNKNOWN("");
 
   public final String errorCode;

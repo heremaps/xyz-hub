@@ -19,9 +19,15 @@
 
 package com.here.xyz.hub;
 
-import com.here.xyz.hub.cache.*;
+import com.here.xyz.hub.cache.CacheClient;
+import com.here.xyz.hub.cache.InMemoryCacheClient;
+import com.here.xyz.hub.cache.MultiLevelCacheClient;
+import com.here.xyz.hub.cache.RedisCacheClient;
+import com.here.xyz.hub.cache.S3CacheClient;
 import com.here.xyz.hub.config.BranchConfigClient;
 import com.here.xyz.hub.config.ConnectorConfigClient;
+import com.here.xyz.hub.config.DataReferenceConfigClient;
+import com.here.xyz.hub.config.EntityConfigClient;
 import com.here.xyz.hub.config.SettingsConfigClient;
 import com.here.xyz.hub.config.SpaceConfigClient;
 import com.here.xyz.hub.config.SubscriptionConfigClient;
@@ -53,6 +59,11 @@ import io.vertx.core.metrics.MetricsOptions;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.client.WebClient;
 import io.vertx.ext.web.client.WebClientOptions;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.config.Configurator;
+
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
 import java.net.InetAddress;
@@ -69,10 +80,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.apache.commons.lang3.StringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.core.config.Configurator;
 
 public class Service extends Core {
 
@@ -233,6 +240,8 @@ public class Service extends Core {
         .compose(v -> Future.fromCompletionStage(connectorConfigClient.insertLocalConnectors()))
         .compose(v -> subscriptionConfigClient.init())
         .compose(v -> tagConfigClient.init())
+        .compose(v -> EntityConfigClient.getInstance().init())
+        .compose(v -> DataReferenceConfigClient.getInstance().init())
         .map(config)
         .onFailure(t -> logger.error("initializeClients failed", t))
         .onSuccess(v -> logger.info("initializeClients succeeded"));

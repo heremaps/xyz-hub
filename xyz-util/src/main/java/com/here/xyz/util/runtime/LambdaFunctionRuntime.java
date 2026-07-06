@@ -29,7 +29,15 @@ public class LambdaFunctionRuntime extends FunctionRuntime {
   private Context context;
   private String streamId;
 
+  public LambdaFunctionRuntime(LambdaFunctionRuntime runtime, String streamId) {
+    init(runtime.context , streamId);
+  }
+
   public LambdaFunctionRuntime(Context context, String streamId) {
+    init(context, streamId);
+  }
+
+  private void init(Context context, String streamId) {
     if (context == null)
       throw new NullPointerException("Context is missing for LambdaConnectorRuntime.");
     this.context = context;
@@ -66,6 +74,12 @@ public class LambdaFunctionRuntime extends FunctionRuntime {
     String version = getVersionFromArn(context.getInvokedFunctionArn());
     String functionVersion = "$LATEST".equals(context.getFunctionVersion()) ? "0" : context.getFunctionVersion();
     return isValidVersion(version) ? version : ("0.0." + functionVersion);
+  }
+
+  public boolean isRecreateLambdaEnvForEachEvent() {
+    if(context instanceof SimulatedContext)
+      return ((SimulatedContext) context).isRecreateLambdaEnvForEachEvent();
+    return false;
   }
 
   private static String getVersionFromArn(String arn) {

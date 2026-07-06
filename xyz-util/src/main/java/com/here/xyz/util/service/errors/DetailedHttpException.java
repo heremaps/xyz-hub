@@ -63,4 +63,16 @@ public class DetailedHttpException extends HttpException {
         putAll(placeholders);
     }};
   }
+
+  public DetailedHttpException(String errorCode, Map<String, String> placeholders, Map<String, Object> errorDetails, Throwable cause) {
+    super(HttpResponseStatus.valueOf(getErrorDefinition(errorCode).getStatus()), getErrorDefinition(errorCode).composeMessage(placeholders), cause,
+        errorDetails);
+    this.errorDefinition = getErrorDefinition(errorCode);
+    this.placeholders = new HashMap<>() {{
+      if (placeholders != null)
+        putAll(placeholders);
+      if (cause != null && cause.getMessage() != null)
+        put("cause", cause.getMessage());
+    }};
+  }
 }

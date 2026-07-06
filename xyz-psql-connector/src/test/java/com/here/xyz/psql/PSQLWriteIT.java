@@ -19,10 +19,10 @@
 package com.here.xyz.psql;
 
 import static io.restassured.path.json.JsonPath.with;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.amazonaws.util.IOUtils;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -35,24 +35,24 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 public class PSQLWriteIT extends PSQLAbstractIT {
 
-    @Before
+    @BeforeEach
     public void createTable() throws Exception {
         invokeCreateTestSpace(defaultTestConnectorParams, TEST_SPACE_ID);
     }
 
-    @After
+    @AfterEach
     public void shutdown() throws Exception { invokeDeleteTestSpace(null); }
 
     @Test
     public void testTableCreated() throws Exception {
         String response = invokeLambdaFromFile("/events/TestCreateTable.json");
-        assertEquals("Check response status", "FeatureCollection", with(response).get("type"));
+        assertEquals( "FeatureCollection", with(response).get("type"),"Check response status");
     }
 
     @Test
@@ -219,24 +219,24 @@ public class PSQLWriteIT extends PSQLAbstractIT {
         for (int i = 0; i < gsModifyFeaturesEvent.getUpdateFeatures().size(); i++) {
             Feature expectedFeature = gsModifyFeaturesEvent.getUpdateFeatures().get(i);
             Feature actualFeature = featureCollection.getFeatures().get(i);
-            assertTrue("Check geometry", jsonCompare(expectedFeature.getGeometry(), actualFeature.getGeometry()));
-            assertEquals("Check name", (String) expectedFeature.getProperties().get("name"), actualFeature.getProperties().get("name"));
-            assertNotNull("Check id", actualFeature.getId());
+            assertTrue( jsonCompare(expectedFeature.getGeometry(), actualFeature.getGeometry()),"Check geometry");
+            assertEquals((String) expectedFeature.getProperties().get("name"), actualFeature.getProperties().get("name"),"Check name");
+            assertNotNull( actualFeature.getId(),"Check id");
 
-            assertTrue("Check tags", jsonCompare(expectedFeature.getProperties().getXyzNamespace().getTags(),
-                    actualFeature.getProperties().getXyzNamespace().getTags()));
-            assertEquals("Check space", gsModifyFeaturesEvent.getSpace(), actualFeature.getProperties().getXyzNamespace().getSpace());
-            assertNotEquals("Check createdAt", 0L, actualFeature.getProperties().getXyzNamespace().getCreatedAt());
-            assertNotEquals("Check updatedAt", 0L, actualFeature.getProperties().getXyzNamespace().getUpdatedAt());
-            assertNotEquals("Check version", -1, actualFeature.getProperties().getXyzNamespace().getVersion());
+            assertTrue( jsonCompare(expectedFeature.getProperties().getXyzNamespace().getTags(),
+                    actualFeature.getProperties().getXyzNamespace().getTags()), "Check tags");
+            assertEquals( gsModifyFeaturesEvent.getSpace(), actualFeature.getProperties().getXyzNamespace().getSpace(), "Check space");
+            assertNotEquals( 0L, actualFeature.getProperties().getXyzNamespace().getCreatedAt(),"Check createdAt");
+            assertNotEquals( 0L, actualFeature.getProperties().getXyzNamespace().getUpdatedAt(), "Check updatedAt");
+            assertNotEquals( -1, actualFeature.getProperties().getXyzNamespace().getVersion(), "Check version");
         }
     }
 
     protected void assertCount(String insertRequest, String countResponse) {
         if (!with(countResponse).getBoolean("count.estimated")) {
-            assertEquals("Check inserted feature count vs fetched count",
+            assertEquals(
                 with(insertRequest).getString("$.insertFeatures.length()"),
-                with(countResponse).getString("$.count.value"));
+                with(countResponse).getString("$.count.value"), "Check inserted feature count vs fetched count");
         }
     }
 
@@ -267,16 +267,16 @@ public class PSQLWriteIT extends PSQLAbstractIT {
         assertNoErrorInResponse(updateFeaturesResponse);
 
         List features = with(updateFeaturesResponse).get("features");
-        assertNotNull("'features' element in ModifyFeaturesResponse is missing", features);
-        assertTrue("'features' element in ModifyFeaturesResponse is empty", features.size() > 0);
+        assertNotNull( features, "'features' element in ModifyFeaturesResponse is missing");
+        assertTrue( features.size() > 0,"'features' element in ModifyFeaturesResponse is empty");
 
         List existingFeatures = with(updateFeaturesResponse).get("oldFeatures");
         if (includeOldStates) {
-            assertNotNull("'oldFeatures' element in ModifyFeaturesResponse is missing", existingFeatures);
-            assertTrue("'oldFeatures' element in ModifyFeaturesResponse is empty", existingFeatures.size() > 0);
+            assertNotNull( existingFeatures,"'oldFeatures' element in ModifyFeaturesResponse is missing");
+            assertTrue( existingFeatures.size() > 0,"'oldFeatures' element in ModifyFeaturesResponse is empty");
             assertEquals(existingFeatures, originalFeatures);
         } else if (existingFeatures != null) {
-            assertEquals("unexpected oldFeatures in ModifyFeaturesResponse", 0, existingFeatures.size());
+            assertEquals( 0, existingFeatures.size(), "unexpected oldFeatures in ModifyFeaturesResponse");
         }
 
         // =========== DELETE ==========
@@ -292,12 +292,12 @@ public class PSQLWriteIT extends PSQLAbstractIT {
         assertNoErrorInResponse(deleteResponse);
         existingFeatures = with(deleteResponse).get("oldFeatures");
         if (includeOldStates) {
-            assertNotNull("'oldFeatures' element in ModifyFeaturesResponse is missing", existingFeatures);
-            assertTrue("'oldFeatures' element in ModifyFeaturesResponse is empty", existingFeatures.size() > 0);
+            assertNotNull( existingFeatures, "'oldFeatures' element in ModifyFeaturesResponse is missing");
+            assertTrue( existingFeatures.size() > 0, "'oldFeatures' element in ModifyFeaturesResponse is empty");
 //            existingFeatures.forEach(f -> f.);
             assertEquals(existingFeatures, features);
         } else if (existingFeatures != null) {
-            assertEquals("unexpected oldFeatures in ModifyFeaturesResponse", 0, existingFeatures.size());
+            assertEquals( 0, existingFeatures.size(), "unexpected oldFeatures in ModifyFeaturesResponse");
         }
 
         LOGGER.info("Modify features tested successfully");

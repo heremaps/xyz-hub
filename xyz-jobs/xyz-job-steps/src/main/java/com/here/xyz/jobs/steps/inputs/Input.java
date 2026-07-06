@@ -521,7 +521,13 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
          */
         deleteInputs(metadata.referencedJob(), owningJobId);
 
-      S3Client.getInstance().deleteFolder(inputS3Prefix(owningJobId, setName));
+      S3Client.getInstance().deleteFolder(inputS3Prefix(owningJobId, setName))
+              .whenComplete((v, ex) -> {
+                if(ex != null)
+                  logger.error("[{}:{}] Error while deleting inputs", owningJobId, referencingJob, ex);
+                else
+                  logger.info("[{}:{}] End deleting inputs.", owningJobId, referencingJob);
+              });
     }
     else if (metadata != null)
       storeMetadata(owningJobId, metadata, setName, DEFAULT_SET_GROUP);

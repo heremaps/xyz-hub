@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,10 +23,11 @@ import static com.here.xyz.jobs.RuntimeInfo.State.CANCELLED;
 import static com.here.xyz.jobs.RuntimeInfo.State.CANCELLING;
 import static com.here.xyz.jobs.RuntimeInfo.State.FAILED;
 import static com.here.xyz.jobs.RuntimeInfo.State.PENDING;
+import static com.here.xyz.jobs.RuntimeInfo.State.RESUMING;
 import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
 import static com.here.xyz.jobs.RuntimeInfo.State.SUCCEEDED;
+import static com.here.xyz.jobs.steps.execution.JobExecutor.SchedulerStatePatch;
 import static com.here.xyz.jobs.steps.execution.RunEmrJob.globalStepIdFromEmrJobName;
-import static com.here.xyz.jobs.util.AwsClientFactory.asyncSfnClient;
 import static com.here.xyz.jobs.util.AwsClientFactory.emrServerlessClient;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
@@ -35,14 +36,18 @@ import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.vertx.core.http.HttpMethod.DELETE;
 import static io.vertx.core.http.HttpMethod.GET;
 import static io.vertx.core.http.HttpMethod.POST;
+import static io.vertx.core.http.HttpMethod.PUT;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.RuntimeInfo;
 import com.here.xyz.jobs.RuntimeInfo.State;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.execution.JobExecutor;
+import com.here.xyz.jobs.steps.execution.SFNInspector;
+import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.util.service.HttpException;
 import io.vertx.core.Future;
 import io.vertx.core.json.JsonObject;
@@ -51,23 +56,28 @@ import io.vertx.ext.web.RoutingContext;
 import java.util.List;
 import software.amazon.awssdk.services.emrserverless.model.GetJobRunRequest;
 import software.amazon.awssdk.services.emrserverless.model.JobRun;
-import software.amazon.awssdk.services.sfn.model.GetExecutionHistoryRequest;
-import software.amazon.awssdk.services.sfn.model.HistoryEvent;
 
 public class JobAdminApi extends JobApiBase {
   private static final String ADMIN_JOBS = "/admin/jobs";
   private static final String ADMIN_JOB = ADMIN_JOBS + "/:jobId";
   private static final String ADMIN_JOB_STEPS = ADMIN_JOB + "/steps";
+  private static final String ADMIN_JOB_OUTPUTS = ADMIN_JOB + "/outputs";
   private static final String ADMIN_JOB_STEP = ADMIN_JOB_STEPS + "/:stepId";
+  private static final String ADMIN_JOB_STEP_STATUS = ADMIN_JOB_STEP + "/status";
   private static final String ADMIN_STATE_MACHINE_EVENTS = "/admin/state/events";
+  private static final String ADMIN_SERVICE_SCHEDULER_STATE = "/admin/service/scheduler/state";
 
   public JobAdminApi(Router router) {
     router.route(GET, ADMIN_JOBS).handler(handleErrors(this::getJobs));
     router.route(GET, ADMIN_JOB).handler(handleErrors(this::getJob));
+    router.route(GET, ADMIN_JOB_OUTPUTS).handler(handleErrors(this::getJobOutputs));
     router.route(DELETE, ADMIN_JOBS).handler(handleErrors(this::deleteJob));
     router.route(POST, ADMIN_JOB_STEPS).handler(handleErrors(this::postStep));
     router.route(GET, ADMIN_JOB_STEP).handler(handleErrors(this::getStep));
+    router.route(POST, ADMIN_JOB_STEP_STATUS).handler(handleErrors(this::postStepStatus));
     router.route(POST, ADMIN_STATE_MACHINE_EVENTS).handler(handleErrors(this::postStateEvent));
+    router.route(GET, ADMIN_SERVICE_SCHEDULER_STATE).handler(handleErrors(this::getSchedulerState));
+    router.route(PUT, ADMIN_SERVICE_SCHEDULER_STATE).handler(handleErrors(this::putSchedulerState));
   }
 
   private void getJobs(RoutingContext context) {
@@ -77,6 +87,13 @@ public class JobAdminApi extends JobApiBase {
   private void getJob(RoutingContext context) {
     loadJob(jobId(context))
         .onSuccess(job -> sendInternalResponse(context, OK.code(), job))
+        .onFailure(t -> sendErrorResponse(context, t));
+  }
+
+  private void getJobOutputs(RoutingContext context) {
+    loadJob(jobId(context))
+        .compose(Job::loadAllOutputs)
+        .onSuccess(outputs -> sendInternalResponse(context, OK.code(), outputs, new TypeReference<List<Output>>() {}))
         .onFailure(t -> sendErrorResponse(context, t));
   }
 
@@ -93,8 +110,27 @@ public class JobAdminApi extends JobApiBase {
 
   private void postStep(RoutingContext context) throws HttpException {
     Step step = getStepFromBody(context);
-    loadJob(jobId(context))
-        .compose(job -> job.updateStep(step).mapEmpty())
+    Future<Void> future = Future.succeededFuture();
+    if (step.isPipeline()) {
+      if (step.getStatus().getState() == FAILED) {
+        future = loadJob(jobId(context))
+            .onSuccess(job -> {
+              job.getStatus()
+                  .withState(step.getStatus().getState())
+                  .withUpdatedAt(step.getStatus().getUpdatedAt())
+                  .withErrorMessage(step.getStatus().getErrorMessage())
+                  .withErrorCause(step.getStatus().getErrorCause())
+                  .withErrorCode(step.getStatus().getErrorCode());
+              JobService.callFinalizeObservers(job);
+            })
+            .mapEmpty();
+      }
+    }
+    else
+      future = loadJob(jobId(context))
+          .compose(job -> job.updateStep(step).mapEmpty());
+
+    future
         .onSuccess(v -> sendResponse(context, OK.code(), null))
         .onFailure(t -> sendErrorResponse(context, t));
   }
@@ -111,6 +147,13 @@ public class JobAdminApi extends JobApiBase {
         .onFailure(t -> sendErrorResponse(context, t));
   }
 
+  private void postStepStatus(RoutingContext context) throws HttpException {
+    RuntimeInfo status = deserializeFromBody(context, RuntimeInfo.class);
+    loadJob(jobId(context))
+        .compose(job -> job.updateStepStatus(stepId(context), status, true))
+        .onSuccess(v -> sendResponse(context, OK.code(), null))
+        .onFailure(t -> sendErrorResponse(context, t));
+  }
 
   /**
    * The sample event format in the request:
@@ -195,6 +238,7 @@ public class JobAdminApi extends JobApiBase {
           .compose(job -> {
             State newJobState = switch (sfnStatus) {
               case "SUCCEEDED" -> SUCCEEDED;
+              case "ABORTED" -> CANCELLED;
               case "FAILED", "TIMED_OUT" -> FAILED;
               default -> null;
             };
@@ -207,8 +251,14 @@ public class JobAdminApi extends JobApiBase {
                 if ("TIMED_OUT".equals(sfnStatus))
                   future = failCausingStep(job, "Timeout was exceeded of step", future, executionArn);
                 else if ("States.Timeout".equals(detail.getString("error")))
-                  future = failCausingStep(job, "Unknown error - No State-checks were received anymore (HeartBeat timeout) "
-                      + "from the async step", future, executionArn);
+                  //In Localstack an SFN CANCEL gets not detected properly and results in a timeout of the execution.
+                  future = failCausingStep(job, "Async step timed out - No State-checks were received anymore (HeartBeat timeout)", future, executionArn);
+                else if (isEmrCancelledManually(detail)) //TODO: That should be handled by the according incoming EMR cancellation event (see: #processEmrJobStateChangeEvent())
+                  future = failCausingStep(job, "EMR execution was cancelled manually", future, executionArn);
+                else if (isNativeEmrServiceError(detail)) {
+                  job.getStatus().setErrorMessage("An EMR step failed because of an issue with the AWSEMRServerless service.");
+                  future = failCausingStep(job, detail.getString("cause"), future, executionArn);
+                }
                 else {
                   /*
                   NOTE: This case handles any other failures of the SFN that are nothing unusual.
@@ -219,9 +269,10 @@ public class JobAdminApi extends JobApiBase {
                   future = failCausingStep(job, null, future, executionArn);
                   logger.info("[{}] Received job failure from SFN. Cause: {}", job.getId(), detail.getString("cause"));
                 }
-                //Set all PENDING steps to CANCELLED
-                future = future.compose(v -> cancelSteps(job, PENDING));
+                future = setStepsToCancelled(job, future);
               }
+              else if (newJobState == CANCELLED) //TODO: We should normally not cancel the SFN directly, but when we do, then at least let's add at least a special status message
+                future = setStepsToCancelled(job, future);
 
               State oldState = job.getStatus().getState();
               if (oldState != newJobState && !oldState.isFinal())
@@ -240,9 +291,41 @@ public class JobAdminApi extends JobApiBase {
           .onFailure(t -> logger.error("[{}] Error updating the state of the job after receiving an event from its state machine:", jobId, t));
   }
 
+  private static boolean isNativeEmrServiceError(JsonObject detail) {
+    String cause = detail.getString("cause");
+    if (cause == null || cause.isBlank())
+      return false;
+    return cause.contains("AWSEMRServerless");
+  }
+
+  private static boolean isEmrCancelledManually(JsonObject detail) {
+    String cause = detail.getString("cause");
+    if (cause == null || cause.isBlank())
+      return false;
+
+    try {
+      JsonObject causeJson = new JsonObject(cause);
+      String emrState = causeJson.getString("State");
+      String jobRunName = causeJson.getString("JobRunName");
+
+      return "CANCELLED".equals(emrState) && jobRunName != null && !jobRunName.isBlank();
+    }
+    catch (Exception e) {
+      return false;
+    }
+  }
+
+  private static Future<Void> setStepsToCancelled(Job job, Future<Void> future) {
+    //Set all PENDING steps to CANCELLED
+    future = future.compose(v -> cancelSteps(job, PENDING));
+    //Set all RESUMING steps to CANCELLED
+    future = future.compose(v -> cancelSteps(job, RESUMING));
+    return future;
+  }
+
   private static Future<Void> failCausingStep(Job job, String errCausePrefixText, Future<Void> future, String executionArn) {
     //Find the causing step within the SFN ...
-    future = future.compose(v -> loadCausingStepId(executionArn))
+    future = future.compose(v -> SFNInspector.findCausingStepIdInHistory(executionArn))
         .compose(causingStepId -> {
           //Patch the error cause on the *job* status
           patchErrorCause(job.getStatus(), errCausePrefixText == null ? null :  errCausePrefixText + " \"" + causingStepId + "\"");
@@ -255,35 +338,6 @@ public class JobAdminApi extends JobApiBase {
         //Set all RUNNING steps to CANCELLED, because the steps themselves might not have been informed
         .compose(v -> cancelSteps(job, RUNNING));
     return future;
-  }
-
-  /**
-   * Fetches the execution history for the provided executionArn and goes back in the event history
-   * until hitting "TaskStateEntered".
-   * Then extracts the causing step ID from stateEnteredEventDetails.name field.
-   *
-   * @param executionArn The execution ARN of the state machine
-   * @return The ID of the causing step if found, `null` otherwise
-   */
-  private static Future<String> loadCausingStepId(String executionArn) {
-    return Future.fromCompletionStage(asyncSfnClient().getExecutionHistory(GetExecutionHistoryRequest.builder()
-            .executionArn(executionArn)
-            .build()))
-        .compose(executionHistory -> {
-          List<HistoryEvent> events = executionHistory.events();
-          HistoryEvent failingEvent = events.get(events.size() - 1);
-          while (failingEvent != null && failingEvent.previousEventId() > 0 && !"TaskStateEntered".equals(failingEvent.type().toString())) {
-            long causingEventId = failingEvent.previousEventId();
-            failingEvent = events.stream().filter(event -> event.id().equals(causingEventId)).findAny().orElse(null);
-          }
-          String causingStepName = failingEvent != null && "TaskStateEntered".equals(failingEvent.type().toString())
-                  && failingEvent.stateEnteredEventDetails() != null && failingEvent.stateEnteredEventDetails().name().contains(".")
-                  ? failingEvent.stateEnteredEventDetails().name() : null;
-          if (causingStepName == null)
-            return Future.failedFuture(new RuntimeException("Causing stepId not found in SFN execution with ARN: " + executionArn));
-          String causingStepId = causingStepName.substring(causingStepName.indexOf(".") + 1);
-          return Future.succeededFuture(causingStepId);
-        });
   }
 
   private static Future<Void> cancelSteps(Job job, State currentState) {
@@ -406,6 +460,10 @@ public class JobAdminApi extends JobApiBase {
     return deserializeFromBody(context, Job.class);
   }
 
+  private SchedulerStatePatch getStateRequestFromBody(RoutingContext context) throws HttpException {
+    return deserializeFromBody(context, SchedulerStatePatch.class);
+  }
+
   private <T extends XyzSerializable> T deserializeFromBody(RoutingContext context, Class<T> type) throws HttpException {
     try {
       return XyzSerializable.deserialize(context.body().asString(), type);
@@ -417,5 +475,28 @@ public class JobAdminApi extends JobApiBase {
 
   private static String stepId(RoutingContext context) {
     return context.pathParam("stepId");
+  }
+
+  private void putSchedulerState(RoutingContext context) throws HttpException {
+    String body = context.body().asString();
+    if (body == null)
+      throw new HttpException(BAD_REQUEST, "Request body must be a JSON object.");
+
+    SchedulerStatePatch request = getStateRequestFromBody(context);
+    boolean changeApplied = JobExecutor.applySchedulerState(request);
+
+    if (!changeApplied)
+      throw new HttpException(BAD_REQUEST,
+          "Nothing to update. Provide 'state', 'singleJobAllowedPoliciesEnabled' and/or 'singleJobPerResourceEnabled'.");
+
+    JobExecutor.loadSchedulerState()
+        .onSuccess(state -> sendResponse(context, OK, state))
+        .onFailure(t -> sendErrorResponse(context, t));
+  }
+
+  private void getSchedulerState(RoutingContext context) {
+    JobExecutor.loadSchedulerState()
+        .onSuccess(state -> sendResponse(context, OK, state))
+        .onFailure(t -> sendErrorResponse(context, t));
   }
 }

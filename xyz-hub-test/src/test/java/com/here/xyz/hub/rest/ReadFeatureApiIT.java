@@ -382,16 +382,23 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
 
   @Test
   public void testFeatureByIdWithSelection() {
-    given()
-        .accept(APPLICATION_GEO_JSON)
-        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
-        .when()
-        .get(getSpacesPath() + "/x-psql-test/features/Q2838923?selection=p.name").
-        then()
-        .statusCode(OK.code())
-        .body("id", equalTo("Q2838923"))
-        .body("properties.name", equalTo("Estadio Universidad San Marcos"))
-        .body("properties.sport", equalTo(null));
+    given().
+        urlEncodingEnabled(false).
+        accept(APPLICATION_GEO_JSON).
+        headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+         when().
+          get(getSpacesPath() + "/x-psql-test/features/Q2838923?selection=p.name,p.selectionTest.a,p.selectionTest.b.1,p.selectionTest.d.d1").
+         then().
+          statusCode(OK.code()).
+           body("id", equalTo("Q2838923")).
+           body("properties.name", equalTo("Estadio Universidad San Marcos")).
+           body("properties.sport", equalTo(null)).
+           body("properties.selectionTest.a", equalTo("aString")).
+           body("properties.selectionTest.b.size()", equalTo(1)).
+           body("properties.selectionTest.b[0]", equalTo("bval2")).
+           body("properties.selectionTest.c", equalTo(null)).
+           body("properties.selectionTest.d.d1", equalTo("d1val")).
+           body("properties.selectionTest.d.d2", equalTo(null));
   }
 
   @Test

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -84,7 +84,15 @@ class TestFeatureWriter {
   runFromSqlQueryJson() {
     TestFeatureWriter.queryContext = this.sqlQueryJson.context;
     let result = FeatureWriter.writeFeatureModifications(JSON.parse(this.sqlQueryJson.namedParameters.modifications || this.sqlQueryJson.namedParameters.featureModificationList || this.sqlQueryJson.namedParameters.jsonInput), this.sqlQueryJson.namedParameters.author, this.sqlQueryJson.namedParameters.version);
-    console.log("Returned result from FeatureWriter: ", result);
+    return result;
+  }
+
+  runFromCommandLine(pgUri, sqlQueryJson) {
+    this.sqlQueryJson = JSON.parse(sqlQueryJson);
+    let result = this.runFromSqlQueryJson();
+    console.log("###RESULT-START###");
+    console.log(JSON.stringify(result));
+    console.log("###RESULT-END###");
   }
 
   run() {
@@ -95,4 +103,9 @@ class TestFeatureWriter {
 }
 
 // new TestFeatureWriter().run();
-new TestFeatureWriter().runFromSqlQueryJson();
+if (process.argv.length > 2)
+  new TestFeatureWriter().runFromCommandLine(process.argv[2], process.argv[3])
+else
+  console.log("Returned result from FeatureWriter: ", new TestFeatureWriter().runFromSqlQueryJson());
+
+process.exit(0);

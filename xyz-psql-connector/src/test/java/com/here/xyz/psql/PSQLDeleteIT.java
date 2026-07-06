@@ -25,18 +25,19 @@ import com.here.xyz.events.ModifyFeaturesEvent;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 public class PSQLDeleteIT extends PSQLAbstractIT {
 
-    @Before
+    @BeforeEach
     public void createTable() throws Exception {
         invokeCreateTestSpace(defaultTestConnectorParams, TEST_SPACE_ID);
     }
 
-    @After
+    @AfterEach
     public void shutdown() throws Exception { invokeDeleteTestSpace(null); }
 
     @Test

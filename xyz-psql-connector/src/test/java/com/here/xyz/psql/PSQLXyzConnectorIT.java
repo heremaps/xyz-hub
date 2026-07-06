@@ -20,7 +20,7 @@
 package com.here.xyz.psql;
 
 import static com.here.xyz.psql.DatabaseHandler.ECPS_PHRASE;
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.XyzSerializable;
@@ -31,7 +31,7 @@ import com.here.xyz.util.db.datasource.DatabaseSettings;
 import com.here.xyz.util.runtime.FunctionRuntime;
 import java.util.HashMap;
 import java.util.Map;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 @SuppressWarnings("unused")
 public class PSQLXyzConnectorIT extends PSQLAbstractIT {
@@ -52,8 +52,8 @@ public class PSQLXyzConnectorIT extends PSQLAbstractIT {
         ECPSTool.decryptToMap(phrase, XyzSerializable.fromMap(connectorParams, ConnectorParameters.class).getEcps()));
 
     ConnectorParameters connectorParameters = XyzSerializable.fromMap(event.getConnectorParams(), ConnectorParameters.class);
-    assertEquals(dbSettings.getHost(), "example.com");
-    assertEquals(dbSettings.getPort(), 1234);
-    assertEquals(dbSettings.getPassword(), "1234password");
+    assertEquals("example.com", dbSettings.getHost());
+    assertEquals(1234, dbSettings.getPort());
+    assertEquals("1234password", dbSettings.getPassword());
   }
 }

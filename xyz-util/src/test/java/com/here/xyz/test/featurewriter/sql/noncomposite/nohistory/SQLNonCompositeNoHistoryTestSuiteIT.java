@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -44,6 +44,10 @@ public class SQLNonCompositeNoHistoryTestSuiteIT extends SQLTestSuite {
     return Stream.of(
         /** Feature not exists */
         new TestArgs("1", false, false, false, true,  null, null, UserIntent.WRITE, OnNotExists.CREATE, null, null, null, null,
+            /* Expected content of newly created Feature */
+            new TestAssertions(INSERT, I)
+        ),
+        new TestArgs("1 (with conflict detection)", false, false, false, true,  null, null, UserIntent.WRITE, OnNotExists.CREATE, null, OnVersionConflict.ERROR, null, null,
             /* Expected content of newly created Feature */
             new TestAssertions(INSERT, I)
         ),

@@ -19,7 +19,7 @@
 
 package com.here.xyz.hub.task;
 
-import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.events.ModifyBranchEvent.Operation.CREATE;
 import static com.here.xyz.events.ModifyBranchEvent.Operation.DELETE;
 import static com.here.xyz.events.ModifyBranchEvent.Operation.MERGE;
@@ -32,6 +32,7 @@ import static com.here.xyz.models.hub.Ref.HEAD;
 import com.here.xyz.events.ModifyBranchEvent;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.config.BranchConfigClient;
+import com.here.xyz.hub.config.TagConfigClient;
 import com.here.xyz.hub.connectors.RpcClient;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Space;
@@ -42,7 +43,7 @@ import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.MergedBranchResponse;
 import com.here.xyz.responses.ModifiedBranchResponse;
 import com.here.xyz.responses.XyzResponse;
-import com.here.xyz.util.service.HttpException;
+import com.here.xyz.util.service.Core;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import java.util.ArrayList;
@@ -96,7 +97,7 @@ public class BranchHandler {
           Future<Void> stored;
           if (existingBranch != null && existingBranch.getBaseRef().equals(branchUpdate.getBaseRef()))
             //BaseRef was not changed, so no connector call is necessary, store the updated branch
-            stored = Service.branchConfigClient.store(spaceId, branchUpdate, branchId);
+            stored = storeBranch(spaceId, branchUpdate, branchId, false);
           else
             stored = Space.resolveSpace(marker, spaceId)
                 .compose(space -> space == null ? Future.failedFuture("Branch " + branchId + " cannot be created as resource "
@@ -174,32 +175,36 @@ public class BranchHandler {
 
   private static Future<Ref> resolveRef(Marker marker, String spaceId, Ref ref) {
     if (ref.isTag()) {
-      //TODO: Also support tags
-      //The ref was parsed as a tag, but it still could be depicting a branch ID, trying to resolve it ...
-      return Space.resolveSpace(marker, spaceId)
-          .compose(space -> {
-            try {
-              Ref branchRef = Ref.fromBranchId(ref.getTag());
-              getReferencedBranch(space, branchRef);
-              return resolveRefHeadVersion(marker, spaceId, branchRef);
-            }
-            catch (HttpException e) {
-              return Future.failedFuture(e);
-            }
+      return TagConfigClient.getInstance().getTag(marker, ref.getTag(), spaceId)
+          .compose(tag -> {
+            Ref branchRef = tag != null ? tag.getVersionRef() : Ref.fromBranchId(ref.getTag());
+
+            Future<Void> future = Future.succeededFuture();
+            if (tag == null)
+              // If tag is not found, check if branch exists
+              future = getReferencedBranch(spaceId, branchRef).mapEmpty();
+
+            return future.compose(branch -> resolveRefHeadVersion(marker, spaceId, branchRef));
           });
     }
     return resolveRefHeadVersion(marker, spaceId, ref);
   }
 
-  private static Future<Ref> resolveRefHeadVersion(Marker marker, String spaceId, Ref ref) {
+  public static Future<Ref> resolveRefHeadVersion(Marker marker, String spaceId, Ref ref) {
     if (ref.isHead())
-      return FeatureQueryApi.getStatistics(marker, spaceId, EXTENSION, ref, true, false)
+      return FeatureQueryApi.getStatistics(marker, spaceId, DEFAULT, ref, true, false)
               .map(statistics -> new Ref(ref.getBranch() + ":" + statistics.getMaxVersion().getValue()));
     else
       return Future.succeededFuture(ref);
   }
 
   private static Future<Void> storeBranch(String spaceId, Branch branch, String branchId, boolean resolvePath) {
+    long currentTs = Core.currentTimeMillis();
+    if (branch.getCreatedAt() == 0) {
+      branch.setCreatedAt(currentTs);
+      branch.setContentUpdatedAt(currentTs);
+    }
+    branch.setUpdatedAt(currentTs);
     return (resolvePath ? resolveBranchPath(spaceId, branch) : Future.succeededFuture(branch))
             .compose(resolvedBranch -> BranchConfigClient.getInstance().store(spaceId, resolvedBranch, branchId));
   }
@@ -213,7 +218,7 @@ public class BranchHandler {
     else
       branchPath = BranchConfigClient.getInstance().load(spaceId, branch.getBaseRef().getBranch())
               .compose(baseBranch -> {
-                List<Ref> resolvedBranchPath = baseBranch.getBranchPath();
+                List<Ref> resolvedBranchPath = new ArrayList<>(baseBranch.getBranchPath());
                 resolvedBranchPath.add(resolveToNodeIdRef(baseBranch, branch.getBaseRef()));
                 return Future.succeededFuture(resolvedBranchPath);
               });
@@ -235,7 +240,7 @@ public class BranchHandler {
             //Nothing to delete as the branch does not exist
             return Future.succeededFuture();
 
-          return Service.branchConfigClient.delete(spaceId, branchId)
+          return Service.branchConfigClient.delete(spaceId, branchId, false)
               .onSuccess(v -> {
                 //Invalidate the space to ensure the deleted branch will not be listed inside anymore
                 Service.spaceConfigClient.invalidateCache(spaceId);

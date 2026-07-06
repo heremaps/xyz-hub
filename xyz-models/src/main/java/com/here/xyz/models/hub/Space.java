@@ -244,9 +244,6 @@ public class Space {
   @JsonView({Public.class, Static.class})
   private String mimeType;
 
-  @JsonIgnore
-  private Map<String, Branch> branches = Collections.emptyMap();
-
   public String getId() {
     return id;
   }
@@ -583,19 +580,6 @@ public class Space {
 
   public Space withActive(final boolean active) {
     setActive(active);
-    return this;
-  }
-
-  public Map<String, Branch> getBranches() {
-    return branches;
-  }
-
-  public void setBranches(Map<String, Branch> branches) {
-    this.branches = branches;
-  }
-
-  public Space withBranches(Map<String, Branch> branches) {
-    setBranches(branches);
     return this;
   }
 

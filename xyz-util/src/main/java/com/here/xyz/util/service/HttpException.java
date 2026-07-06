@@ -45,4 +45,10 @@ public class HttpException extends Exception {
 		this.status = status;
 		this.errorDetails = null;
 	}
+
+	public HttpException(HttpResponseStatus status, String errorText, Throwable cause, Map<String, Object> errorDetails) {
+		super(errorText, cause);
+		this.status = status;
+		this.errorDetails = errorDetails;
+	}
 }

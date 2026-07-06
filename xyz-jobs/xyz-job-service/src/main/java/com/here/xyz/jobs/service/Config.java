@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -48,6 +48,11 @@ public class Config extends com.here.xyz.jobs.steps.Config {
    * The ARN of the step lambda being called by the step functions
    */
   public ARN STEP_LAMBDA_ARN;
+
+  /**
+   * The lambda alias of the step lambda to be used for steps belonging to a pipeline job
+   */
+  public String STEP_LAMBDA_PIPELINE_ALIAS;
 
   /**
    * The ARN of the role needed for step function

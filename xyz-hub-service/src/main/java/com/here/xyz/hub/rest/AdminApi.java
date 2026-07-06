@@ -22,17 +22,23 @@ package com.here.xyz.hub.rest;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.createBodyHandler;
 import static io.netty.handler.codec.http.HttpHeaderValues.TEXT_PLAIN;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
 
+import com.google.common.base.Strings;
+import com.here.xyz.XyzSerializable;
+import com.here.xyz.XyzSerializable.Internal;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.auth.Authorization;
 import com.here.xyz.hub.auth.XyzHubActionMatrix;
 import com.here.xyz.hub.auth.XyzHubAttributeMap;
+import com.here.xyz.hub.config.BranchConfigClient;
 import com.here.xyz.hub.connectors.RemoteFunctionClient;
 import com.here.xyz.hub.connectors.statistics.StorageStatisticsProvider;
 import com.here.xyz.hub.rest.ApiParam.Query;
+import com.here.xyz.models.hub.Branch.DeletedBranch;
 import com.here.xyz.models.hub.jwt.ActionMatrix;
 import com.here.xyz.util.service.BaseHttpServerVerticle;
 import com.here.xyz.util.service.HttpException;
@@ -42,6 +48,8 @@ import io.vertx.core.http.HttpMethod;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.AuthenticationHandler;
+import java.util.ArrayList;
+import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
@@ -52,6 +60,7 @@ public class AdminApi extends Api {
   public static final String MAIN_ADMIN_ENDPOINT = "/hub/admin/";
   public static final String ADMIN_MESSAGES_ENDPOINT = MAIN_ADMIN_ENDPOINT + "messages";
   public static final String ADMIN_STORAGE_STATISTICS = MAIN_ADMIN_ENDPOINT + "statistics/spaces/storage";
+  public static final String ADMIN_BRANCHES = MAIN_ADMIN_ENDPOINT + "branches";
   public static final String ADMIN_METRICS_ENDPOINT = MAIN_ADMIN_ENDPOINT + "metrics";
 
   private static final String ADMIN_CAPABILITY_MESSAGING = "messaging";
@@ -68,6 +77,14 @@ public class AdminApi extends Api {
     router.route(HttpMethod.GET, ADMIN_STORAGE_STATISTICS)
         .handler(auth)
         .handler(this::onStorageStatistics);
+
+    router.route(HttpMethod.GET, ADMIN_BRANCHES)
+        .handler(auth)
+        .handler(this::onLoadDeletedBranches);
+
+    router.route(HttpMethod.DELETE, ADMIN_BRANCHES)
+        .handler(auth)
+        .handler(this::onEraseDeletedBranch);
 
     router.route(HttpMethod.GET, ADMIN_METRICS_ENDPOINT)
         .handler(auth)
@@ -101,6 +118,56 @@ public class AdminApi extends Api {
               .setStatusCode(OK.code())
               .setStatusMessage(OK.reasonPhrase())
               .end(storageStatistics.serialize()));
+    }
+    catch (Exception e) {
+      sendErrorResponse(context, e);
+    }
+  }
+
+  private void onLoadDeletedBranches(final RoutingContext context) {
+    try {
+      if (!"true".equals(context.request().getParam("deleted")))
+        throw new HttpException(BAD_REQUEST, "Invalid request.");
+
+      //AdminAuthorization.authorizeAdminCapability(context, ADMIN_CAPABILITY_STATISTICS);
+      BranchConfigClient.getInstance().loadDeletedBranches()
+          .onFailure(t -> sendErrorResponse(context, t))
+          .onSuccess(branches -> context
+              .response()
+              .putHeader(CONTENT_TYPE, APPLICATION_JSON)
+              .setStatusCode(OK.code())
+              .setStatusMessage(OK.reasonPhrase())
+              .end(XyzSerializable.serialize(new DeletedBranchList(branches), Internal.class)));
+    }
+    catch (Exception e) {
+      sendErrorResponse(context, e);
+    }
+  }
+
+  //NOTE: That's a hack to force jackson to write the "type" info
+  private static class DeletedBranchList extends ArrayList<DeletedBranch> {
+    public DeletedBranchList(List<DeletedBranch> branches) {
+      super(branches);
+    }
+  }
+
+  private void onEraseDeletedBranch(final RoutingContext context) {
+    try {
+      if (!"true".equals(context.request().getParam("deleted")))
+        throw new HttpException(BAD_REQUEST, "Invalid request.");
+
+      String uuid = context.request().getParam("uuid");
+      if (Strings.isNullOrEmpty(uuid))
+        throw new HttpException(BAD_REQUEST, "A UUID must be provided.");
+
+      //AdminAuthorization.authorizeAdminCapability(context, ADMIN_CAPABILITY_STATISTICS);
+      BranchConfigClient.getInstance().eraseDeletedBranch(uuid)
+          .onFailure(t -> sendErrorResponse(context, t))
+          .onSuccess(branches -> context
+              .response()
+              .setStatusCode(NO_CONTENT.code())
+              .setStatusMessage(NO_CONTENT.reasonPhrase())
+              .end());
     }
     catch (Exception e) {
       sendErrorResponse(context, e);

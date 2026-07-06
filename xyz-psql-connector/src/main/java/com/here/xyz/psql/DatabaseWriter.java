@@ -414,7 +414,10 @@ public class DatabaseWriter {
         }
         catch (Exception e) {
             if (e instanceof SQLException sqlException && sqlException.getSQLState() != null
-                && sqlException.getSQLState().equalsIgnoreCase("42P01"))
+                && (sqlException.getSQLState().equalsIgnoreCase("42P01") ||
+                    //Lock not available - e.g.: happens if a long-running query blocks the
+                    //history partition creation
+                    sqlException.getSQLState().equalsIgnoreCase("55P03")))
                 //Re-throw, as a missing table will be handled by DatabaseHandler.
                 throw e;
 

@@ -18,11 +18,11 @@
  */
 package com.here.xyz.psql;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.amazonaws.util.IOUtils;
 import com.here.xyz.XyzSerializable;
@@ -37,18 +37,19 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 public class PSQLConcurrencyIT extends PSQLAbstractIT {
 
-    @Before
+    @BeforeEach
     public void createTable() throws Exception {
         invokeCreateTestSpace(defaultTestConnectorParams, TEST_SPACE_ID);
     }
 
-    @After
+    @AfterEach
     public void shutdown() throws Exception { invokeDeleteTestSpace(null); }
 
     @Test
@@ -130,6 +131,7 @@ public class PSQLConcurrencyIT extends PSQLAbstractIT {
         Feature existing = insertRequestCollection.getFeatures().get(0);
         existing.getProperties().getXyzNamespace().setVersion(existing.getProperties().getXyzNamespace().getVersion());;
         mfevent.setDeleteFeatures(Collections.emptyMap());
+        mfevent.setFailed(new ArrayList<>());
 
         // =========== INSERT EXISTING FEATURE ==========
         //Stream
@@ -155,6 +157,7 @@ public class PSQLConcurrencyIT extends PSQLAbstractIT {
         assertNull(responseCollection.getDeleted());
 
         //Transactional
+        mfevent.setFailed(new ArrayList<>());
         mfevent.setTransaction(true);
         response = invokeLambda(mfevent);
 
@@ -181,6 +184,7 @@ public class PSQLConcurrencyIT extends PSQLAbstractIT {
         existing.setId("doesnotexist");
         mfevent.setInsertFeatures(Collections.emptyList());
         mfevent.setUpdateFeatures(Collections.singletonList(existing));
+        mfevent.setFailed(new ArrayList<>());
         mfevent.setTransaction(false);
 
         response = invokeLambda(mfevent);
@@ -198,6 +202,7 @@ public class PSQLConcurrencyIT extends PSQLAbstractIT {
 
         //Transactional
         mfevent.setTransaction(true);
+        mfevent.setFailed(new ArrayList<>());
         response = invokeLambda(mfevent);
 
         ErrorResponse errorResponse = XyzSerializable.deserialize(response);

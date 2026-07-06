@@ -54,7 +54,7 @@ public class DecompressedSizeIT extends TestSpaceWithFeature {
         .get(getSpacesPath() + "/x-psql-test/tile/quadkey/2100300120310022")
         .then()
         .header("X-Decompressed-Input-Size", "0")
-        .header("X-Decompressed-Output-Size", "469");
+        .header("X-Decompressed-Output-Size", "591");
   }
 
   @Test

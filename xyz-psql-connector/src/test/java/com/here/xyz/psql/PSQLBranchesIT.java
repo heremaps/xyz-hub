@@ -20,7 +20,6 @@
 package com.here.xyz.psql;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import com.here.xyz.events.ModifyBranchEvent;
@@ -56,7 +55,7 @@ public class PSQLBranchesIT extends PSQLAbstractBranchIT {
     assertTrue(checkIfBranchTableExists(1, 0, 0));
 
     invokeLambda(eventForDelete(1, getBaseRef(0)));
-    assertFalse(checkIfBranchTableExists(1, 0, 0));
+    assertTrue(checkIfBranchTableExists(1, 0, 0)); //NOTE: Branch table will be deleted by "prune"
   }
 
   @Test

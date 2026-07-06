@@ -19,8 +19,6 @@
 
 package com.here.xyz.jobs.steps.impl;
 
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildSpaceTableIndexQuery;
-
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.jobs.steps.execution.StepException;
 import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
@@ -28,9 +26,9 @@ import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.pg.IndexHelper;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper.OnDemandIndex;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper.SystemIndex;
+import com.here.xyz.util.db.pg.IndexHelper.Index;
+import com.here.xyz.util.db.pg.IndexHelper.OnDemandIndex;
+import com.here.xyz.util.db.pg.IndexHelper.SystemIndex;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import java.sql.SQLException;
@@ -39,6 +37,8 @@ import java.util.Collections;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import static com.here.xyz.util.db.pg.IndexHelper.buildSpaceTableIndexQuery;
 
 public class CreateIndex extends SpaceBasedStep<CreateIndex> {
   private static final Logger logger = LogManager.getLogger();
@@ -102,7 +102,7 @@ public class CreateIndex extends SpaceBasedStep<CreateIndex> {
       logger.info("[{}] Creating the index {} for space {} ...", getGlobalStepId(), index, getSpaceId());
       SQLQuery indexCreationQuery = null;
       if (index instanceof SystemIndex)
-        indexCreationQuery = buildSpaceTableIndexQuery(getSchema(db()), getRootTableName(space()), index);
+        indexCreationQuery = buildSpaceTableIndexQuery(getSchema(db()), getTableName(space(), getVersionRef()), index);
       else if (index instanceof OnDemandIndex onDemandIndex)
         indexCreationQuery = buildOnDemandIndexCreationQuery(onDemandIndex);
 
@@ -126,14 +126,14 @@ public class CreateIndex extends SpaceBasedStep<CreateIndex> {
     TODO: Remove the following workaround once the following PostgreSQL bug was fixed:
      https://postgrespro.com/list/id/18959-f63b53b864bb1417@postgresql.org
      */
-    String rootTableName = getRootTableName(space());
+    String rootTableName = getTableName(space(), getVersionRef());
     String schema = getSchema(db());
     List<SQLQuery> indexCreationQueries = new ArrayList<>();
 
     indexCreationQueries.addAll(loadPartitionNamesOf(rootTableName).stream()
         .map(partitionTableName -> new SQLQuery(IndexHelper.buildOnDemandIndexCreationQuery(schema, partitionTableName, onDemandIndex.getPropertyPath(), true).toExecutableQueryString()))
         .toList());
-    indexCreationQueries.add(new SQLQuery(IndexHelper.buildOnDemandIndexCreationQuery(schema, rootTableName, onDemandIndex.getPropertyPath(), true).toExecutableQueryString()));
+    indexCreationQueries.add(new SQLQuery(IndexHelper.buildOnDemandIndexCreationQuery(schema, rootTableName, onDemandIndex.getPropertyPath(),true).toExecutableQueryString()));
 
     return SQLQuery.join(indexCreationQueries, ";");
   }

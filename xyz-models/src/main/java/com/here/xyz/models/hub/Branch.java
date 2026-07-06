@@ -25,7 +25,9 @@ import static com.here.xyz.models.hub.Ref.MAIN;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.annotation.JsonView;
+import com.here.xyz.Typed;
 import com.here.xyz.XyzSerializable;
 import java.util.HashMap;
 import java.util.List;
@@ -45,7 +47,7 @@ public class Branch implements XyzSerializable {
   private List<Ref> branchPath;
   @JsonView({Public.class, Static.class})
   private String description;
-  @JsonView({Static.class})
+  @JsonView({Internal.class, Static.class})
   private int nodeId = -1;
   @JsonView({Public.class, Static.class})
   private State state;
@@ -53,6 +55,12 @@ public class Branch implements XyzSerializable {
   private Map<Long, Ref> merges;
   @JsonView({Public.class, Static.class})
   private String conflictSolvingBranch;
+  @JsonView({Public.class, Static.class})
+  private long createdAt;
+  @JsonView({Public.class, Static.class})
+  private long updatedAt;
+  @JsonView({Public.class, Static.class})
+  private long contentUpdatedAt;
 
   public String getId() {
     return id;
@@ -100,7 +108,7 @@ public class Branch implements XyzSerializable {
   }
 
   public void setBranchPath(List<Ref> branchPath) {
-    this.branchPath = branchPath;
+    this.branchPath = List.copyOf(branchPath);
   }
 
   public Branch withBranchPath(List<Ref> branchPath) {
@@ -181,7 +189,82 @@ public class Branch implements XyzSerializable {
     return this;
   }
 
+  public long getCreatedAt() {
+    return createdAt;
+  }
+
+  public void setCreatedAt(long createdAt) {
+    this.createdAt = createdAt;
+  }
+
+  public Branch withCreatedAt(long createdAt) {
+    setCreatedAt(createdAt);
+    return this;
+  }
+
+  public long getUpdatedAt() {
+    return updatedAt;
+  }
+
+  public void setUpdatedAt(long updatedAt) {
+    this.updatedAt = updatedAt;
+  }
+
+  public Branch withUpdatedAt(long updatedAt) {
+    setUpdatedAt(updatedAt);
+    return this;
+  }
+
+  public long getContentUpdatedAt() {
+    return contentUpdatedAt;
+  }
+
+  public void setContentUpdatedAt(long contentUpdatedAt) {
+    this.contentUpdatedAt = contentUpdatedAt;
+  }
+
+  public Branch withContentUpdatedAt(long contentUpdatedAt) {
+    setContentUpdatedAt(contentUpdatedAt);
+    return this;
+  }
+
   public enum State {
     IN_CONFLICT
+  }
+
+  @JsonTypeName("DeletedBranch")
+  public static class DeletedBranch extends Branch implements Typed {
+    @JsonView({Internal.class, Static.class})
+    private String uuid;
+
+    private DeletedBranch() {}
+
+    public DeletedBranch(Branch branch) {
+      withId(branch.getId());
+      withSpaceId(branch.getSpaceId());
+      withBaseRef(branch.getBaseRef());
+      withBranchPath(branch.getBranchPath());
+      withDescription(branch.getDescription());
+      withNodeId(branch.getNodeId());
+      withState(branch.getState());
+      withMerges(branch.getMerges());
+      withConflictSolvingBranch(branch.getConflictSolvingBranch());
+      withCreatedAt(branch.getCreatedAt());
+      withUpdatedAt(branch.getUpdatedAt());
+      withContentUpdatedAt(branch.getContentUpdatedAt());
+    }
+
+    public String getUuid() {
+      return uuid;
+    }
+
+    public void setUuid(String uuid) {
+      this.uuid = uuid;
+    }
+
+    public DeletedBranch withUuid(String uuid) {
+      setUuid(uuid);
+      return this;
+    }
   }
 }

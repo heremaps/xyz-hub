@@ -33,7 +33,7 @@ import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.datasets.DatasetDescription.Map;
 import com.here.xyz.jobs.datasets.DatasetDescription.Space;
 import com.here.xyz.jobs.datasets.filters.FilteringSource;
-import com.here.xyz.jobs.datasets.filters.Filters;
+import com.here.xyz.filters.Filters;
 import com.here.xyz.jobs.datasets.streams.Notifications;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.models.hub.Ref;
@@ -56,7 +56,8 @@ import java.util.Set;
     @JsonSubTypes.Type(value = Spaces.class, name = "Spaces"),
     @JsonSubTypes.Type(value = Files.class, name = "Files"),
     @JsonSubTypes.Type(value = Notifications.class, name = "Notifications"),
-    @JsonSubTypes.Type(value = Datasets.class, name = "Datasets")
+    @JsonSubTypes.Type(value = Datasets.class, name = "Datasets"),
+    @JsonSubTypes.Type(value = System.class, name = "System")
 })
 @JsonInclude(NON_DEFAULT)
 public abstract class DatasetDescription implements Typed {
@@ -111,7 +112,7 @@ public abstract class DatasetDescription implements Typed {
     private Ref versionRef = new Ref(Ref.HEAD);
     @JsonIgnore
     private Optional<String> extendedSpaceId;
-    private static final Async ASYNC = new Async(5, Job.class);
+    private static final Async ASYNC = new Async(10, Job.class);
 
     @Override
     public Filters getFilters() {

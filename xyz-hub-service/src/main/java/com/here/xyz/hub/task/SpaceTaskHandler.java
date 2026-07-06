@@ -40,6 +40,7 @@ import com.here.xyz.events.ModifySpaceEvent.Operation;
 import com.here.xyz.hub.Config;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.auth.Authorization;
+import com.here.xyz.hub.config.BranchConfigClient;
 import com.here.xyz.hub.config.SpaceConfigClient.SpaceSelectionCondition;
 import com.here.xyz.hub.config.settings.SpaceStorageMatchingMap;
 import com.here.xyz.hub.connectors.RpcClient;
@@ -466,7 +467,7 @@ public class SpaceTaskHandler {
     // If the searchable properties were modified, trigger the OnDemand Index Creation Job
     logger.info(marker, "Trigger OnDemand Index Creation Job");
 
-    JsonObject maintenanceJob = new JsonObject("""              
+    JsonObject maintenanceJob = new JsonObject("""
             {
                 "description": "Maintain indices for the space $SPACE_ID",
                 "source": {
@@ -563,15 +564,17 @@ public class SpaceTaskHandler {
       return;
     }
 
-    Future.all(task.modifyOp.entries.get(0).head.getBranches().keySet().stream()
-        .map(branchId -> BranchHandler.deleteBranch(task.getMarker(), task.modifyOp.entries.get(0).head.getId(), branchId))
-        .toList())
-        .onComplete(ar -> {
-          if (ar.failed())
-            callback.exception(ar.cause());
-          else
-            callback.call(task);
-        });
+    Space space = task.modifyOp.entries.get(0).head;
+    BranchConfigClient.getInstance().load(space.getId())
+        .compose(branches -> Future.all(branches.stream()
+            .map(branch -> BranchHandler.deleteBranch(task.getMarker(), space.getId(), branch.getId()))
+            .toList())
+            .onComplete(ar -> {
+              if (ar.failed())
+                callback.exception(ar.cause());
+              else
+                callback.call(task);
+        }));
   }
 
   static void resolveExtensions(ConditionalOperation task, Callback<ConditionalOperation> callback) {
@@ -861,11 +864,11 @@ public class SpaceTaskHandler {
             Future<Void> spaceFuture = Future.succeededFuture();
 
             if (task.responseSpaces.get(0).getVersionsToKeep() == 1) {
-              task.responseSpaces.get(0).setVersionsToKeep(2);
+              task.responseSpaces.get(0).setVersionsToKeep( SubscriptionHandler.v2kForSubscribedNonHistoryLayers );
               spaceFuture = Service
                   .spaceConfigClient
                   .get(task.getMarker(), spaceId)
-                  .map(space -> (Space) space.withVersionsToKeep(2))
+                  .map(space -> (Space) space.withVersionsToKeep(SubscriptionHandler.v2kForSubscribedNonHistoryLayers))
                   .compose(space -> Service.spaceConfigClient.store(task.getMarker(), space));
             }
 

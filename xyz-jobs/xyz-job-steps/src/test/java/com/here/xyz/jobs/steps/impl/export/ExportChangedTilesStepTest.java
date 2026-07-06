@@ -1,6 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
- *
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -21,7 +20,7 @@ package com.here.xyz.jobs.steps.impl.export;
 
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.PropertiesQuery;
-import com.here.xyz.jobs.datasets.filters.SpatialFilter;
+import com.here.xyz.models.filters.SpatialFilter;
 import com.here.xyz.jobs.steps.impl.transport.ExportChangedTiles.QuadType;
 import com.here.xyz.models.geojson.coordinates.LinearRingCoordinates;
 import com.here.xyz.models.geojson.coordinates.PolygonCoordinates;
@@ -34,14 +33,12 @@ import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.List;
 
-@Disabled
 public class ExportChangedTilesStepTest extends ExportTestBase {
     private final static int VERSIONS_TO_KEEP = 100;
     private final String SPACE_ID_EXT = SPACE_ID + "_ext";
@@ -279,7 +276,7 @@ public class ExportChangedTilesStepTest extends ExportTestBase {
     public void Export_Version2to4WithPropertyFilter() throws IOException, InterruptedException {
         executeExportChangedTilesStepAndCheckResults(SPACE_ID_EXT, 5, QuadType.HERE_QUAD,
                 new Ref("1..2") ,null, PropertiesQuery.fromString("p.value=Africa"),
-                List.of("1269", "1423"), new FeatureCollection().withFeatures(
+                List.of(), new FeatureCollection().withFeatures(
                         List.of(
                                 new Feature().withId("point3_delta")
                         )
@@ -306,7 +303,7 @@ public class ExportChangedTilesStepTest extends ExportTestBase {
                 new SpatialFilter()
                         .withGeometry(new Polygon().withCoordinates(polygonCoordinates))
                         .withClip(true), null,
-                List.of("1269"), new FeatureCollection().withFeatures(
+                List.of(), new FeatureCollection().withFeatures(
                         //spatialFilter crosses two tiles
                         List.of(
                                 new Feature().withId("line4_delta"),
@@ -335,7 +332,7 @@ public class ExportChangedTilesStepTest extends ExportTestBase {
                 new SpatialFilter()
                         .withGeometry(new Polygon().withCoordinates(polygonCoordinates))
                         .withClip(false), null,
-                List.of("1269"), new FeatureCollection().withFeatures(
+                List.of(), new FeatureCollection().withFeatures(
                         //spatialFilter crosses two tiles
                         List.of(
                                 new Feature().withId("line4_delta"),

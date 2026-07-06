@@ -240,6 +240,27 @@ paths:
         '404':
           $ref: '#/components/responses/ErrorResponse404'
   '/spaces/{spaceId}/branches/{branchId}':
+    get:
+      tags:
+        - Manage Branches
+      summary: Get a Branch by ID
+      description: >-
+        Get Branch by ID for the specified space
+      operationId: getBranch
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/BranchId'
+      responses:
+        '200':
+          $ref: '#/components/responses/BranchResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
     patch:
       tags:
         - Manage Branches
@@ -328,11 +349,11 @@ paths:
         The subset can be defined either by a "startVersion" and an "endVersion"
         or by providing a version ref that references a version range of
         a specific branch: e.g., "main:5..6" or "myBranch:0..HEAD".
-        
+
 
         The version range can be specified using the `versionRef` query-parameter as follows:
         `<start>..<end>`
-        
+
         Where `<start>` is the start of the range (exclusive) and `<end>` is the end of the range
         (inclusive).
 
@@ -458,7 +479,7 @@ paths:
       summary: List tags
       description: >-
         List tags available in the space.
-        
+
         List can include system tags when includeSystemTags parameter is set to true.
       operationId: listTags
       parameters:
@@ -1365,6 +1386,111 @@ paths:
           $ref: '#/components/responses/ErrorResponse404'
         '409':
           $ref: '#/components/responses/ErrorResponse409'
+  '/references':
+    post:
+      tags:
+        - Manage Data References
+      summary: Create a Data Reference
+      description: Creates a Data Reference
+      operationId: createDataReference
+      requestBody:
+        $ref: '#/components/requestBodies/CreateDataReferenceRequest'
+      responses:
+        '201':
+          $ref: "#/components/responses/DataReferenceResponse"
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+    get:
+      tags:
+        - Manage Data References
+      summary: Query Data References
+      description: Queries for Data References
+      operationId: queryDataReferences
+      parameters:
+        - name: entityId
+          in: query
+          required: true
+          schema:
+            type: string
+            example: 'hrn:here:data::olp-here:CATALOG_ID:LAYER_ID'
+        - $ref: '#/components/parameters/OnlyStale'
+        - name: startVersion
+          in: query
+          required: false
+          schema:
+            type: integer
+            example: 123
+        - name: endVersion
+          in: query
+          required: false
+          schema:
+            type: integer
+            example: 456
+        - name: sourceSystem
+          in: query
+          required: false
+          schema:
+            type: string
+            example: IML
+        - name: targetSystem
+          in: query
+          required: false
+          schema:
+            type: string
+            example: S3
+        - name: contentType
+          in: query
+          required: false
+          schema:
+            type: string
+            example: 'application/geo+json-seq'
+        - name: objectType
+          in: query
+          required: false
+          schema:
+            type: string
+            example: features
+      responses:
+        '200':
+          $ref: "#/components/responses/DataReferenceListResponse"
+  '/references/{referenceId}':
+    get:
+      tags:
+        - Manage Data References
+      summary: Get a Data Reference
+      description: Gets a single Data Reference
+      operationId: getDataReference
+      parameters:
+        - name: referenceId
+          in: path
+          description: The unique identifier of the Data Reference.
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          $ref: "#/components/responses/DataReferenceResponse"
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+    delete:
+      tags:
+        - Manage Data References
+      summary: Delete a Data Reference
+      description: Deletes a single Data Reference
+      operationId: deleteDataReference
+      parameters:
+        - name: referenceId
+          in: path
+          description: The unique identifier of the Data Reference.
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          $ref: '#/components/responses/EmptyResponse'
+
 components:
   securitySchemes:
     AccessToken:
@@ -1376,6 +1502,16 @@ components:
       scheme: bearer
       bearerFormat: JWT
   parameters:
+    OnlyStale:
+      name: onlyStale
+      in: query
+      description: >-
+        If set to true, only stale Data References are returned.
+        Default is false.
+      required: false
+      schema:
+        type: boolean
+        default: false
     Author:
       name: author
       in: query
@@ -1546,8 +1682,8 @@ components:
       in: query
       description: |
         `[Deprecated]` Please define the version range using the versionRef query parameter.
-        
-        
+
+
         Defines the end of the version-range [version <= endVersion].
       required: false
       schema:
@@ -1600,7 +1736,7 @@ components:
         A comma separated list of unique feature identifiers. These are the acceptable formats
         for this field:
           * id=value1,value2
-          * id=value1,id=value2
+          * id=value1&id=value2
 
 
         not required when eraseContent=true is used.
@@ -1923,8 +2059,8 @@ components:
       in: query
       description: |
         `[Deprecated]` Please define the version range using the versionRef query parameter.
-        
-        
+
+
         Defines the start of the version-range [version >= startVersion].
       required: false
       schema:
@@ -2039,7 +2175,7 @@ components:
       description: |
         The query parameter used to specify the target version reference when reading or writing features.
         A reference describes a target tag or a branch and/or a version within that target branch.
-        
+
         Default is: `main:HEAD`
 
         <br>
@@ -2060,7 +2196,7 @@ components:
 
         Where `<start>` is the start of the range (exclusive) and `<end>` is the end of the range
         (inclusive).
-        
+
         Another way of specifying a version range is using the star-symbol: `*`
 
         Using `*` refers to "all available versions" in the space or branch and is only
@@ -2098,15 +2234,15 @@ components:
       in: query
       description: >-
         The query parameter used to specify the version of a feature or feature collection to be loaded.
-        
-        
+
+
         Multiple versions of the same feature can be loaded when the value star '*' is used. Example:
-        
-        
+
+
         /features?id=F1,F2&version=*
-        
+
         or
-        
+
         /features/F1?version=*
       required: false
       schema:
@@ -2198,8 +2334,8 @@ components:
       in: query
       description: >-
         The number of upload URLs need to be created. It is only applicable when command=createUploadUrl.
-        
-        
+
+
         *Allowed range* : 1-1000
       required: false
       schema:
@@ -2498,6 +2634,20 @@ components:
             type: array
             items:
               $ref: '#/components/schemas/Job'
+    DataReferenceResponse:
+      description: A Data Reference
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DataReference'
+    DataReferenceListResponse:
+      description: Data Reference list
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/DataReference'
   requestBodies:
     ConnectorConfig:
       required: true
@@ -2582,6 +2732,12 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Job'
+    CreateDataReferenceRequest:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DataReference'
   schemas:
     # TODO add Typed and Iterable schemas
     AWSLambda:
@@ -3491,8 +3647,8 @@ components:
         A branch is like a separate space, which is based on a specific version of the space
         or on a specific version of some other branch of the space. Reading & writing features
         to a branch does not have an effect on the main branch or any other branch of the space.
-        
-        
+
+
         A branch can be created by pointing to a base ref. A base ref consists of the base branch
         (e.g, "main") and the base version of that base branch. New write transactions to the
         created branch will continue to increase the version counter starting from the
@@ -3508,18 +3664,18 @@ components:
             The reference onto which the branch has been created.
             A reference describes a target branch and a version within that target branch.
             References have the following syntax:
-            
-            
+
+
             `[<branchName (optional, default: main)>:][<version (optional, default: HEAD)>]`
-            
-            
+
+
             The "main"-branch is the space itself as it has been created in the first place.
             Defining the branch as part of the reference only becomes necessary if further
             branches have been created for the space, which should be addressed by the ref.
-            
-            
+
+
             Samples:
-              - `main:42` points to version 42 of the "main"-branch 
+              - `main:42` points to version 42 of the "main"-branch
               - `myBranch:37` Points to version 37 of the branch with ID "myBranch"
               - `42` points to version 42 of the "main"-branch
               - `myBranch:HEAD` points to the latest version of the branch with ID "myBranch"
@@ -3531,25 +3687,25 @@ components:
         This operation performs a merge of the branch into another specified branch.
         Merging a branch into another one means to add all changes of this branch
         into the specified target branch as a new single commit.
-        
-        
+
+
         During a merge operation conflicts may occur. That will be indicated within the branch
         response with `state = IN_CONFLICT`. In such a case the conflicts can be solved by the
         client using the `conflictSolvingBranch` that points to `!<originalBranchId>`.
-        
+
         The `merges` property of the branch response depicts all merges that have been executed
         and/or attempted. The most recent merge attempt is the one with the highest version number.
         There may be only one merge attempt that is in progress at any time. All other / older
         entries in the `merges` map depict merge operations that have been executed successfully
         in the past.
-        
-        
+
+
         Sample:
-        
+
         If a merge operation was started on branch `myBranch` and ends up in `state = IN_CONFLICT`
         the resulting branch response could look like follows:
-        
-        
+
+
         ```json
         {
           "id": "myBranch",
@@ -3562,17 +3718,17 @@ components:
           "conflictSolvingBranch": "!myBranch"
         }
         ```
-        
-        
+
+
         Here `"myBranch"` is the ID of the branch that was attempted to be merged into branch
         `"main"`. It was attempted to merge version `27` of `myBranch`
         as new commit (with version `42`) into the branch `"main"`.
-        
+
         Conflicts occurred during that operation, that is why `state = "IN_CONFLICT"` and
         the ID of a `"conflictSolvingBranch"` with ID `"!myBranch"` was provided.
-        
+
         That conflict solving branch can be used like any other branch to solve the conflicts
-        by writing to it. All conflicting features in there are marked as such having set 
+        by writing to it. All conflicting features in there are marked as such having set
         `conflicting = true` in their XYZ namespace.
       discriminator:
         propertyName: type
@@ -4043,6 +4199,37 @@ components:
               description: "The reason for the current state."
               type: string
               example: ""
+        filter:
+          $ref: '#/components/schemas/SubscriptionFilters'
+    SubscriptionFilters:
+      type: object
+      description: Filter criteria for subscription notifications.
+      properties:
+        jsonPath:
+          description: >-
+            The JSON path expression to filter features on.
+          type: string
+          example: "$[?(@.properties.type == 'building')]"
+        spatialFilter:
+          $ref: '#/components/schemas/SpatialFilter'
+    SpatialFilter:
+      type: object
+      description: >-
+        A spatial filter to filter features based on their geometric properties.
+      properties:
+        geometry:
+          $ref: '#/components/schemas/Geometry'
+        radius:
+          description: >-
+            Radius in meters which defines the diameter of the search request.
+          type: integer
+          default: 0
+        clip:
+          description: >-
+            If set to true the features' geometries are clipped to the geometry of
+            the tile, bounding box or input geometry. Default is false.
+          type: boolean
+          default: false
     SubscriptionConfig:
       type: object
       description: The subscription configuration.
@@ -4104,3 +4291,64 @@ components:
             - Space
             - Spaces
             - Files
+    DataReference:
+      type: object
+      description: Reference to a dataset stored in an external system
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique identifier. If not provided, it will be generated automatically.
+          example: '308a8ebd-de83-42ac-a5ce-e83bf5c60def'
+        entityId:
+          type: string
+          description: HERE entity identifier (HRN format)
+          example: 'hrn:here:data::olp-here:CATALOG_ID:LAYER_ID'
+        isPatch:
+          type: boolean
+          description: Indicates whether this reference represents a patch dataset
+          example: true
+        startVersion:
+          type: integer
+          format: int64
+          description: Starting version of data (optional)
+          example: 123
+        endVersion:
+          type: integer
+          format: int64
+          description: Ending version of data
+          example: 134
+        objectType:
+          type: string
+          description: Type of stored objects
+          example: features
+        contentType:
+          type: string
+          description: MIME type of stored content
+          example: 'application/geo+json-seq'
+        location:
+          type: string
+          description: Storage location URI
+          example: 's3://bucket/prefix/to/files'
+        sourceSystem:
+          type: string
+          description: Source system name
+          example: IML
+        targetSystem:
+          type: string
+          description: Target system name
+          example: S3
+      required:
+        - entityId
+        - isPatch
+        - endVersion
+        - objectType
+        - contentType
+        - location
+        - sourceSystem
+        - targetSystem
+    DataReferenceList:
+      type: array
+      description: List of DataReference objects
+      items:
+        $ref: '#/components/schemas/DataReference'

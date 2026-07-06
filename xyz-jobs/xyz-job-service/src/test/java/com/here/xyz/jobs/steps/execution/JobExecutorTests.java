@@ -21,7 +21,6 @@ package com.here.xyz.jobs.steps.execution;
 
 import static com.here.xyz.jobs.steps.Step.Visibility.SYSTEM;
 import static com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles.EXPORTED_DATA;
-import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.GEOJSON;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -34,7 +33,6 @@ import com.here.xyz.jobs.steps.Step.InputSet;
 import com.here.xyz.jobs.steps.StepExecution;
 import com.here.xyz.jobs.steps.StepGraph;
 import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
-import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
@@ -43,6 +41,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
@@ -119,7 +119,7 @@ public class JobExecutorTests {
     StepGraph graph1 = new CompilationStepGraph()
         .withExecutions(List.of(
             exportStep1,
-            stepGenerator(ImportFilesToSpace.class, JOB_ID1, SOURCE_ID2, Set.of(exportStep1.getId()))
+            stepGenerator(TaskedImportFilesToSpace.class, JOB_ID1, SOURCE_ID2, Set.of(exportStep1.getId()))
         ))
         .withParallel(false);
     ((CompilationStepGraph) graph1).enrich(JOB_ID1);
@@ -129,7 +129,7 @@ public class JobExecutorTests {
     StepGraph graph2 = new CompilationStepGraph()
         .withExecutions(List.of(
             exportStep2,
-            stepGenerator(ImportFilesToSpace.class, JOB_ID2, SOURCE_ID2, Set.of(exportStep2.getId())) //not reusable
+            stepGenerator(TaskedImportFilesToSpace.class, JOB_ID2, SOURCE_ID2, Set.of(exportStep2.getId())) //not reusable
         ))
         .withParallel(false);
     ((CompilationStepGraph) graph2).enrich(JOB_ID1);
@@ -147,7 +147,7 @@ public class JobExecutorTests {
     Step execution2 = (Step) graph.getExecutions().get(1);
 
     assertInstanceOf(DelegateStep.class, execution1);
-    assertInstanceOf(ImportFilesToSpace.class, execution2);
+    assertInstanceOf(TaskedImportFilesToSpace.class, execution2);
 
     //Check if previousStepIds are set correct
     assertEquals(Set.of(execution1.getId()), execution2.getPreviousStepIds());
@@ -417,9 +417,8 @@ public class JobExecutorTests {
           .withJobId(jobId)
           .withOutputSetVisibility(EXPORTED_DATA, SYSTEM);
 
-      case "ImportFilesToSpace" -> {
-        ImportFilesToSpace importFilesToSpace = new ImportFilesToSpace()
-            .withFormat(GEOJSON)
+      case "TaskedImportFilesToSpace" -> {
+        TaskedImportFilesToSpace importFilesToSpace = new TaskedImportFilesToSpace()
             .withSpaceId(sourceId)
             .withJobId(jobId);
         if (inputStepIds != null)

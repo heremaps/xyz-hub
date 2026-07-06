@@ -1,6 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
- *
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -22,13 +21,12 @@ package com.here.xyz.jobs.steps.impl.transport;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
 import static com.here.xyz.jobs.steps.execution.db.Database.loadDatabase;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_RESUME;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
+import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_EXECUTE;
+import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_RESUME;
 
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.events.PropertiesQuery;
-import com.here.xyz.jobs.datasets.filters.SpatialFilter;
+import com.here.xyz.models.filters.SpatialFilter;
 import com.here.xyz.jobs.steps.execution.StepException;
 import com.here.xyz.jobs.steps.execution.db.Database;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
@@ -43,12 +41,12 @@ import com.here.xyz.models.hub.Space;
 import com.here.xyz.psql.query.GetFeaturesByGeometryBuilder;
 import com.here.xyz.psql.query.GetFeaturesByGeometryBuilder.GetFeaturesByGeometryInput;
 import com.here.xyz.psql.query.QueryBuilder.QueryBuildingException;
+import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.pg.FeatureWriterQueryBuilder.FeatureWriterQueryContextBuilder;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
-import java.io.IOException;
-import java.sql.SQLException;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -61,6 +59,7 @@ import org.apache.logging.log4j.Logger;
  * only copy a dataset subset from the source space.
  */
 //TODO: Merge version creation step into this step again (basically both: pre- & post-step)
+//TODO: implement TaskedSpaceBasedStep
 public class CopySpace extends SpaceBasedStep<CopySpace> {
   private static final Logger logger = LogManager.getLogger();
 
@@ -73,6 +72,8 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
   private PropertiesQuery propertyFilter;
   @JsonView({Internal.class, Static.class})
   private Ref sourceVersionRef;
+  @JsonView({Internal.class, Static.class}) //TODO: Remove static
+  private long minSpaceVersion = -1;
   @JsonView({Internal.class, Static.class})
   private int[] threadInfo = {0,1};  // [threadId, threadCount]
 
@@ -94,7 +95,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
 
     double neededAcus = (nrFeatureSource <= ftBlock ? 1.0 : (nrFeatureSource / ftBlock) * 0.5 + 0.5);
 
-    return Math.min(neededAcus, maxAcus);
+    return Math.min(neededAcus, maxAcus) / 2.0;
   }
 
   public static int calculateCopyTimeInSeconds(long nrFeatureSource, long featureCountInTarget) {
@@ -221,7 +222,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
 
   @Override
   public int getTimeoutSeconds() {
-    return 2 * 3600; //TODO: Calculate using #getEstimatedExecutionSeconds()
+    return 12 * 3600; //TODO: Calculate using #getEstimatedExecutionSeconds()
   }
 
   private int getThreadPartitions() {
@@ -290,8 +291,9 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
   private long loadSourceFeatureCount() {
     if (estimatedSourceFeatureCount < 0) {
       try {
-        estimatedSourceFeatureCount = loadSpaceStatistics(getSpaceId(), space().getExtension() != null ? EXTENSION : null)
-            .getCount().getValue();
+        StatisticsResponse statisticsResponse = loadSpaceStatistics(getSpaceId(), space().getExtension() != null ? EXTENSION : null);
+        estimatedSourceFeatureCount = statisticsResponse.getCount().getValue();
+        minSpaceVersion = statisticsResponse.getMinVersion().getValue();
       }
       catch (WebClientException e) {
         throw new StepException("Error loading the source feature count", e).withRetryable(true);
@@ -333,7 +335,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
       int threadId = getThreadInfo()[0],
           threadCount = getThreadInfo()[1];
 
-      infoLog(resume ? STEP_RESUME : STEP_EXECUTE, this, "Start ImlCopy thread number: " + threadId + " / " + threadCount
+      infoLog(resume ? STEP_RESUME : STEP_EXECUTE,  "Start ImlCopy thread number: " + threadId + " / " + threadCount
           + "; target version: " + getTargetVersion());
 
       Space targetSpace = targetSpace();
@@ -348,7 +350,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
   }
 
   @Override
-  protected void onAsyncSuccess() throws WebClientException, SQLException, TooManyResourcesClaimed, IOException {
+  protected void onAsyncSuccess(){
     logger.info("[{}] AsyncSuccess Copy {} -> {}", getGlobalStepId(), getSpaceId() , getTargetSpaceId());
   }
 
@@ -401,8 +403,8 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
               ) as wfresult
             from
             (
-             select ((row_number() over ())-1)/${{maxBatchSize}} as rn, 
-                    idata.jsondata#>>'{properties,@ns:com:here:xyz,author}' as author, 
+             select ((row_number() over ())-1)/${{maxBatchSize}} as rn,
+                    idata.jsondata#>>'{properties,@ns:com:here:xyz,author}' as author,
                     idata.jsondata || jsonb_build_object('geometry', (idata.geo)::json) as feature
              from
              ( ${{contentQuery}} ) idata
@@ -423,14 +425,14 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
         INSERT INTO ${schema}.${table} (jsondata, operation, author, geo, id, version, next_version )
           SELECT idata.jsondata, case when idata.operation = 'U' then 'I' else idata.operation end AS operation, idata.author, idata.geo, idata.id, ${{versionToBeUsed}} as version, max_bigint() as next_version
           FROM
-          ( 
-            ${{contentQuery}} 
+          (
+            ${{contentQuery}}
           ) idata
         RETURNING id
       ),
-      count_data as 
-      ( SELECT count(1) AS rows_uploaded FROM ins_data )
-      select rows_uploaded into dummy_output from count_data
+      count_data as
+      ( SELECT count(1) AS rows FROM ins_data )
+      select rows into dummy_output from count_data
     """)
     .withVariable("schema", targetSchema)
     .withVariable("table", targetTable)
@@ -512,6 +514,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
         space().getExtension() != null ? space().resolveCompositeParams(superSpace()) : null,
         EXTENSION,
         space().getVersionsToKeep(),
+        minSpaceVersion,
         sourceVersionRef,
         spatialFilter != null ? spatialFilter.getGeometry() : null,
         spatialFilter != null ? spatialFilter.getRadius() : 0,

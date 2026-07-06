@@ -19,18 +19,6 @@
 
 package com.here.xyz.util.service.rest;
 
-import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
-import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
-import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
-import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
-import static io.netty.handler.codec.http.HttpResponseStatus.GATEWAY_TIMEOUT;
-import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
-import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
-import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
-import static io.netty.handler.codec.http.HttpResponseStatus.OK;
-import static io.vertx.core.http.HttpHeaders.ACCEPT_ENCODING;
-import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
-
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.XyzSerializable.Internal;
@@ -56,11 +44,25 @@ import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.json.EncodeException;
 import io.vertx.core.json.Json;
 import io.vertx.ext.web.RoutingContext;
-import java.io.ByteArrayOutputStream;
-import java.util.List;
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
+
+import java.io.ByteArrayOutputStream;
+import java.util.List;
+
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
+import static io.netty.handler.codec.http.HttpResponseStatus.GATEWAY_TIMEOUT;
+import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
+import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
+import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
+import static io.netty.handler.codec.http.HttpResponseStatus.OK;
+import static io.vertx.core.http.HttpHeaders.ACCEPT_ENCODING;
+import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
 
 public class Api {
     public static final int MAX_SERVICE_RESPONSE_SIZE = (BaseConfig.instance == null ? 0 : BaseConfig.instance.MAX_SERVICE_RESPONSE_SIZE);
@@ -87,80 +89,77 @@ public class Api {
         return LogUtil.getMarker(context);
     }
 
-    private void sendInternalServerError(RoutingContext context, Throwable t) {
-        logger.error("Handling as internal server error:", t);
-        sendErrorResponse(context, new HttpException(INTERNAL_SERVER_ERROR, "Server error!", t));
-    }
-
     protected Handler<RoutingContext> handleErrors(ThrowingHandler<RoutingContext> handler) {
-        return context -> {
-            try {
-                handler.handle(context);
-            }
-            catch (HttpException | IllegalArgumentException | ValidationException | AccessDeniedException | RequestCancelledException e) {
-                sendErrorResponse(context, e);
-            }
-            catch (Exception e) {
-                sendInternalServerError(context, e);
-            }
-        };
-    }
-
-    protected <R> Handler<RoutingContext> handle(ThrowingTask<R, RoutingContext> taskHandler) {
-        return handleErrors(context -> {
-            taskHandler.execute(context)
-                    .onSuccess(response -> sendResponse(context, OK.code(), response))
-                    .onFailure(t -> {
-                        if (t instanceof HttpException httpException)
-                            sendErrorResponse(context, httpException);
-                        else
-                            sendInternalServerError(context, t);
-                    });
-        });
-    }
-
-    /**
-     * Send an error response to the client when an exception occurred while processing a task.
-     *
-     * @param context the context for which to return an error response.
-     * @param e       the exception that should be used to generate an {@link ErrorResponse}, if null an internal server error is returned.
-     */
-    protected void sendErrorResponse(final RoutingContext context, Throwable e) {
-        if (e instanceof RequestCancelledException)
-            return;
-
-        if (e instanceof ValidationException || e instanceof IllegalArgumentException || e instanceof IllegalStateException)
-            e = new HttpException(BAD_REQUEST, e.getMessage(), e);
-        else if (e instanceof AccessDeniedException)
-            e = new HttpException(FORBIDDEN, e.getMessage(), e);
-
-        if (e instanceof HttpException httpException) {
-
-            if (INTERNAL_SERVER_ERROR.code() != httpException.status.code()) {
-                XyzError error;
-                if (BAD_GATEWAY.code() == httpException.status.code())
-                    error = XyzError.BAD_GATEWAY;
-                else if (GATEWAY_TIMEOUT.code() == httpException.status.code())
-                    error = XyzError.TIMEOUT;
-                else if (BAD_REQUEST.code() == httpException.status.code())
-                    error = XyzError.ILLEGAL_ARGUMENT;
-                else if (NOT_FOUND.code() == httpException.status.code())
-                    error = XyzError.NOT_FOUND;
-                else
-                    error = XyzError.EXCEPTION;
-
-                //This is an exception sent by intention and nothing special, no need for stacktrace logging.
-                logger.warn(Api.getMarker(context), "Error was handled by Api and will be sent as response: {}", httpException.status.code());
-                logger.info(Api.getMarker(context), "Handled exception was:", httpException);
-                sendErrorResponse(context, httpException, error);
-                return;
-            }
+      return context -> {
+        try {
+          handler.handle(context);
         }
-
-        //This is an exception that is not done by intention.
-        logger.error(Api.getMarker(context), "Unintentional Error:", e);
-        BaseHttpServerVerticle.sendErrorResponse(context, e);
+        catch (Exception e) {
+          sendErrorResponse(context, e);
+        }
+      };
     }
+
+  protected <R> Handler<RoutingContext> handle(ThrowingTask<R, RoutingContext> taskHandler, HttpResponseStatus successfulStatus) {
+    return handleErrors(context ->
+      taskHandler.execute(context)
+        .onSuccess(response -> sendResponse(context, successfulStatus.code(), response))
+        .onFailure(t -> sendErrorResponse(context, t))
+    );
+  }
+
+  protected <R> Handler<RoutingContext> handle(ThrowingTask<R, RoutingContext> taskHandler) {
+    return handle(taskHandler, OK);
+  }
+
+  protected <R> Handler<RoutingContext> handleInternal(ThrowingTask<R, RoutingContext> taskHandler) {
+    return handleErrors(context -> {
+      taskHandler.execute(context)
+              .onSuccess(response -> sendInternalResponse(context, OK.code(), response))
+              .onFailure(t -> sendErrorResponse(context, t));
+    });
+  }
+
+  /**
+   * Send an error response to the client when an exception occurred while processing a task.
+   *
+   * @param context the context for which to return an error response.
+   * @param e the exception that should be used to generate an {@link ErrorResponse}, if null an internal server error is returned.
+   */
+  protected void sendErrorResponse(final RoutingContext context, Throwable e) {
+    if (e instanceof RequestCancelledException)
+      return;
+
+    if (e instanceof ValidationException || e instanceof IllegalArgumentException || e instanceof IllegalStateException)
+      e = new HttpException(BAD_REQUEST, e.getMessage(), e);
+    else if (e instanceof AccessDeniedException)
+      e = new HttpException(FORBIDDEN, e.getMessage(), e);
+
+    if (e instanceof HttpException httpException && httpException.status.code() != INTERNAL_SERVER_ERROR.code()) {
+      XyzError error;
+      if (BAD_GATEWAY.code() == httpException.status.code())
+        error = XyzError.BAD_GATEWAY;
+      else if (GATEWAY_TIMEOUT.code() == httpException.status.code())
+        error = XyzError.TIMEOUT;
+      else if (BAD_REQUEST.code() == httpException.status.code())
+        error = XyzError.ILLEGAL_ARGUMENT;
+      else if (NOT_FOUND.code() == httpException.status.code())
+        error = XyzError.NOT_FOUND;
+      else
+        error = XyzError.EXCEPTION;
+
+      //This is an exception sent by intention and nothing special, no need for stacktrace logging.
+      logger.log(httpException.status.code() >= 500 ? Level.ERROR : Level.WARN, Api.getMarker(context),
+          "Error was handled by Api and will be sent as response: {}", httpException.status.code());
+      logger.info(Api.getMarker(context), "Handled exception was:", httpException);
+      sendErrorResponse(context, httpException, error);
+    }
+    else {
+      //This is an exception that is not done by intention.
+      logger.error(Api.getMarker(context), "Unintentional Error:", e);
+      BaseHttpServerVerticle.sendErrorResponse(context, e);
+    }
+  }
 
     /**
      * Send an error response to the client.
@@ -273,6 +272,13 @@ public class Api {
         TypeReference listItemTypeReference) {
         serializeAndSendResponse(context, statusCode, list, listItemTypeReference, Public.class);
     }
+
+  protected void sendInternalResponse(RoutingContext context, int statusCode, Object object) {
+    if (object == null || object instanceof XyzSerializable)
+      sendInternalResponse(context, statusCode, (XyzSerializable) object);
+    else if (object instanceof List)
+      sendInternalResponse(context, statusCode, (List<? extends XyzSerializable>) object);
+  }
 
     protected void sendInternalResponse(RoutingContext context, int statusCode, XyzSerializable object) {
         serializeAndSendResponse(context, statusCode, object, null, Internal.class);

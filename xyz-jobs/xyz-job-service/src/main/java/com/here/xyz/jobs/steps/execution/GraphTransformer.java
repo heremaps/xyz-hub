@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -52,16 +52,18 @@ public class GraphTransformer {
   private static final String LAMBDA_INVOKE_RESOURCE = "arn:aws:states:::lambda:invoke";
   private static final String EMR_INVOKE_RESOURCE = "arn:aws:states:::emr-serverless:startJobRun.sync";
   private static final int STATE_MACHINE_EXECUTION_TIMEOUT_SECONDS = 36 * 3600; //36h
-  private static final int EMR_EXECUTION_TIMEOUT_MINUTES = 4 * 60; //6h
+  private static final int EMR_EXECUTION_TIMEOUT_MINUTES = 12 * 60; //6h
   private static final int MIN_STEP_TIMEOUT_SECONDS = 5 * 60;
   private static final int STEP_EXECUTION_HEARTBEAT_TIMEOUT_SECONDS = 3 * 60; //3min
   private Map<String, LambdaTaskParameters> lambdaTaskParametersLookup = new HashMap<>(); //TODO: This is a workaround for an open issue with AWS SDK2 for StepFunctions
   private Map<String, Map<String, Object>> taskParametersLookup = new HashMap<>(); //TODO: This is a workaround for an open issue with AWS SDK2 for StepFunctions
   private final ARN stepLambdaArn;
+  private final String stepLambdaPipelineAlias;
   private boolean isPipeline;
 
-  GraphTransformer(ARN stepLambdaArn, boolean isPipeline) {
+  GraphTransformer(ARN stepLambdaArn, String stepLambdaPipelineAlias, boolean isPipeline) {
     this.stepLambdaArn = stepLambdaArn;
+    this.stepLambdaPipelineAlias = stepLambdaPipelineAlias;
     this.isPipeline = isPipeline;
   }
 
@@ -286,7 +288,8 @@ public class GraphTransformer {
         .withStep(lambdaStep);
 
     //TODO: This is a workaround for an open issue with AWS SDK2 for StepFunctions
-    lambdaTaskParametersLookup.put(state.stateName, new LambdaTaskParameters(stepLambdaArn.toString(), payload.toMap()));
+    lambdaTaskParametersLookup.put(state.stateName, new LambdaTaskParameters(stepLambdaArn.toString()
+        + (isPipeline && stepLambdaPipelineAlias != null ? ":" + stepLambdaPipelineAlias : ""), payload.toMap()));
 
     state.stateBuilder.resource(taskResource);
     if (executionMode == ASYNC)
@@ -305,6 +308,18 @@ public class GraphTransformer {
         "ApplicationId", emrStep.getApplicationId(),
         "ExecutionRoleArn", emrStep.getExecutionRoleArn(),
         "ExecutionTimeoutMinutes", EMR_EXECUTION_TIMEOUT_MINUTES,
+        "Tags", emrStep.getTags(),
+        "ConfigurationOverrides", Map.of(
+            "MonitoringConfiguration", Map.of(
+                "CloudWatchLoggingConfiguration", Map.of(
+                    "Enabled", true,
+                    "LogTypes", Map.of(
+                        "SPARK_DRIVER", List.of("STDERR", "STDOUT"),
+                        "SPARK_EXECUTOR", List.of("STDERR", "STDOUT")
+                    )
+                )
+            )
+        ),
         "JobDriver", Map.of(
             "SparkSubmit", Map.of(
                 "EntryPoint", emrStep.getJarUrl(),

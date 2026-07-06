@@ -19,40 +19,26 @@
 
 package com.here.xyz.connectors;
 
-import static com.here.xyz.events.BinaryEvent.isXyzBinaryPayload;
 import static com.here.xyz.responses.XyzError.EXCEPTION;
 import static com.here.xyz.responses.XyzError.FORBIDDEN;
 
 import com.amazonaws.services.lambda.AWSLambda;
 import com.amazonaws.services.lambda.AWSLambdaClientBuilder;
 import com.amazonaws.services.lambda.model.InvokeRequest;
-import com.amazonaws.services.lambda.runtime.Context;
-import com.amazonaws.services.lambda.runtime.RequestStreamHandler;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JsonMappingException;
-import com.here.xyz.Payload;
 import com.here.xyz.Typed;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.connectors.decryptors.EventDecryptor;
 import com.here.xyz.connectors.decryptors.EventDecryptor.Decryptors;
-import com.here.xyz.events.BinaryEvent;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.EventNotification;
 import com.here.xyz.events.HealthCheckEvent;
-import com.here.xyz.events.RelocatedEvent;
-import com.here.xyz.responses.BinaryResponse;
-import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.HealthStatus;
-import com.here.xyz.responses.NotModifiedResponse;
 import com.here.xyz.responses.XyzError;
-import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.util.Random;
 import com.here.xyz.util.runtime.FunctionRuntime;
 import com.here.xyz.util.runtime.LambdaFunctionRuntime;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
@@ -65,7 +51,7 @@ import org.apache.logging.log4j.util.Strings;
 /**
  * A default implementation of a request handler that can be reused. It supports out of the box caching via e-tag.
  */
-public abstract class AbstractConnectorHandler implements RequestStreamHandler {
+public abstract class AbstractConnectorHandler {
   private static final Logger logger = LogManager.getLogger();
 
   /**
@@ -80,48 +66,16 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
   protected static final String REQUEST = ".request";
 
   /**
-   * The relocation client
-   */
-  private static final RelocationClient relocationClient = new RelocationClient(System.getenv("S3_BUCKET"));
-
-  /**
    * The lambda client, used for warmup.
    * Only used when running in AWS Lambda environment.
    */
   private static AWSLambda lambdaClient;
 
   /**
-   * The number of the bytes to read from an input stream and preview as a String in the logs.
-   */
-  private static final int INPUT_PREVIEW_BYTE_SIZE = 4 * 1024; // 4K
-
-  /**
-   * The etag string, which is used to inject the etag value into JSON strings without the need of deserializing & re-serializing them.
-   */
-  private static final String ETAG_STRING = ",\"etag\":\"_\"}";
-
-  /**
    * Environment variable for setting the custom event decryptor. Currently only KMS, PRIVATE_KEY, or DUMMY is supported
    */
   @Deprecated
   public static final String ENV_DECRYPTOR = "EVENT_DECRYPTOR";
-
-  /**
-   * Environment variable or connector param for setting the max uncompressed response size which can be written out of the connector.
-   */
-  public static final String MAX_UNCOMPRESSED_RESPONSE_SIZE = "MAX_UNCOMPRESSED_RESPONSE_SIZE";
-
-  /**
-   * The maximal response size in bytes that can be sent back without relocating the response.
-   */
-  @SuppressWarnings("WeakerAccess")
-  private static int RELOCATION_THRESHOLD_SIZE = 6 * 1024 * 1024;
-
-  /**
-   * The maximal size of uncompressed bytes. Exceeding that limit leads to the response getting gzipped.
-   */
-  @SuppressWarnings("WeakerAccess")
-  private static int GZIP_THRESHOLD_SIZE = 1024 * 1024; // 1MB
 
   /**
    * The stream-id that should be added to every log output.
@@ -148,11 +102,6 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
    * {@link EventDecryptor} used for decrypting the parameters.
    */
   protected final EventDecryptor eventDecryptor;
-
-  /**
-   * The max uncompressed response size in bytes read from connector params or environment variables
-   */
-  private long maxUncompressedResponseSize = Long.MAX_VALUE;
 
   private static final String DEFAULT_STORAGE_REGION_MAPPING = "DEFAULT_STORAGE_REGION_MAPPING";
   private static final Map<String, Set<String>> allowedEventTypes;
@@ -193,170 +142,35 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
     return System.currentTimeMillis() - start;
   }
 
-  /**
-   * The entry point for processing an event.
-   *
-   * @param input The Lambda function input stream
-   * @param output The Lambda function output stream
-   * @param context The Lambda execution environment context object
-   */
-  @Override
-  public void handleRequest(InputStream input, OutputStream output, Context context) {
-    handleRequest(input, output, context, null);
-  }
-
-  public void handleRequest(InputStream input, OutputStream output, Context context, String streamId) {
-    try {
-      start = System.currentTimeMillis();
-      Typed dataOut;
-      String ifNoneMatch = null;
-      try {
-        Event event = readEvent(input);
-
-        String connectorId = null;
-        this.streamId = streamId != null ? streamId : event.getStreamId();
-        new LambdaFunctionRuntime(context, this.streamId);
-
-        if (event.getConnectorParams() != null  && event.getConnectorParams().get("connectorId") != null)
-          connectorId = (String) event.getConnectorParams().get("connectorId");
-
-        maxUncompressedResponseSize = getMaxUncompressedResponseSize(event);
-        traceItem = new TraceItem(this.streamId, connectorId);
-
-        ifNoneMatch = event.getIfNoneMatch();
-
-        if (event instanceof RelocatedEvent) {
-          handleRequest(Payload.prepareInputStream(relocationClient.processRelocatedEvent((RelocatedEvent) event)), output, context);
-          return;
-        }
-        checkEventTypeAllowed(event);
-        initialize(event);
-        dataOut = processEvent(event);
-      }
-      catch (ErrorResponseException e) {
-        e.getErrorResponse().setStreamId(this.streamId);
-        dataOut = e.getErrorResponse();
-      }
-      catch (Exception e) {
-        logger.error("{} Unexpected exception occurred:", traceItem, e);
-        dataOut = new ErrorResponse()
-            .withStreamId(this.streamId)
-            .withError(EXCEPTION)
-            .withErrorMessage("Unexpected exception occurred: " + e.getMessage());
-      }
-      catch (OutOfMemoryError e) {
-       throw e;
-      }
-      writeDataOut(output, dataOut, ifNoneMatch);
-    }
-    catch (Exception e) {
-      logger.error("{} Unexpected exception occurred:", traceItem, e);
-    }
-    catch (OutOfMemoryError e) {
-      logger.error("{} Unexpected exception occurred (heap space):", traceItem, e);
-    }
-  }
-
-  /**
-   * Read the connector event from the provided input stream
-   *
-   * @param input the input stream
-   * @return the event
-   */
-  private Event readEvent(InputStream input) throws ErrorResponseException {
-    String streamPreview = null;
-    try {
-      input = Payload.prepareInputStream(input);
-      streamPreview = previewInput(input);
-
-      Event receivedEvent = isXyzBinaryPayload(streamPreview.substring(4, 8))
-          ? BinaryEvent.fromByteArray(input.readAllBytes())
-          : XyzSerializable.deserialize(input);
-      logger.debug("{} [{} ms] - Parsed event: {}", receivedEvent.getStreamId(), ms(), streamPreview);
-      return receivedEvent;
-    }
-    catch (JsonMappingException e) {
-      logger.error("{} [{} ms] - Exception {} occurred while reading the event: {}", "FATAL", ms(), e.getMessage(), streamPreview, e);
-      throw new ErrorResponseException(XyzError.ILLEGAL_ARGUMENT, "Unknown event type");
-    }
-    catch (ClassCastException e) {
-      logger.error("{} [{} ms] - Exception {} occurred while reading the event: {}", "FATAL", ms(), e.getMessage(), streamPreview, e);
-      throw new ErrorResponseException(XyzError.ILLEGAL_ARGUMENT, "The input should be of type Event");
-    }
-    catch (Exception e) {
-      logger.error("{} [{} ms] - Exception {} occurred while reading the event: {}", "FATAL", ms(), e.getMessage(), streamPreview, e);
-      throw new ErrorResponseException(e);
-    }
-  }
-
-  /**
-   * Write the output object to the output stream.
-   *
-   * If the serialized object is too large it will be relocated and a RelocatedEvent will be written instead.
-   */
-  private void writeDataOut(OutputStream output, Typed dataOut, String ifNoneMatch) {
-    try {
-      byte[] bytes = dataOut == null ? null : dataOut.toByteArray();
-
-      if (bytes == null)
-        return;
-
-      logger.debug("{} Writing data out for response with type: {}", traceItem, dataOut.getClass().getSimpleName());
-
-      if (bytes.length > maxUncompressedResponseSize) {
-        logger.warn("{} Response payload was too large to send. ({} bytes)", traceItem, bytes.length);
-        bytes = new ErrorResponse()
-            .withStreamId(streamId)
-            .withError(XyzError.PAYLOAD_TO_LARGE)
-            .withErrorMessage("Response size is too large")
-            .toByteArray();
-      }
-
-      final boolean runningLocally = FunctionRuntime.getInstance().isRunningLocally();
-      if (dataOut instanceof BinaryResponse) {
-        //NOTE: BinaryResponses contain an ETag automatically, nothing to calculate here
-        String etag = ((BinaryResponse) dataOut).getEtag();
-        if (XyzResponse.etagMatches(ifNoneMatch, etag))
-          bytes = new NotModifiedResponse().withEtag(etag).toByteArray();
-        else if (!runningLocally && bytes.length > GZIP_THRESHOLD_SIZE)
-          bytes = Payload.compress(bytes);
-      }
-      else {
-        //Calculate ETag
-        String etag = XyzResponse.calculateEtagFor(bytes);
-        if (XyzResponse.etagMatches(ifNoneMatch, etag))
-          bytes = new NotModifiedResponse().withEtag(etag).toByteArray();
-        else {
-          //Handle compression and ETag injection
-          byte[] etagBytes = ETAG_STRING.replace("_", etag.replace("\"", "\\\"")).getBytes();
-          try (ByteArrayOutputStream os = new ByteArrayOutputStream(bytes.length - 1 + etagBytes.length)) {
-            OutputStream targetOs = (!runningLocally && bytes.length > GZIP_THRESHOLD_SIZE ? Payload.gzip(os) : os);
-            targetOs.write(bytes, 0, bytes.length - 1);
-            targetOs.write(etagBytes);
-            os.close();
-            targetOs.close();
-            bytes = os.toByteArray();
-          }
-        }
-      }
-
-      //Relocate
-      if (!runningLocally && bytes.length > RELOCATION_THRESHOLD_SIZE)
-        bytes = relocationClient.relocate(streamId, Payload.isGzipped(bytes) ? bytes : Payload.compress(bytes));
-
-      //Write result
-      output.write(bytes);
-    }
-    catch (Exception e) {
-      logger.error("{} Unexpected exception occurred:", traceItem, e);
-    }
-  }
-
   private static void checkEventTypeAllowed(Event event) throws ErrorResponseException {
     if (event.getSourceRegion() != null && allowedEventTypes != null
         && !Event.isAllowedEventType(allowedEventTypes, event.getClass().getSimpleName(), event.getSourceRegion()))
       throw new ErrorResponseException(FORBIDDEN, "Calls from source-region \"" + event.getSourceRegion() + "\" are not allowed to this"
           + " connector.");
+  }
+
+  public Typed handleEvent(Event event) throws Exception {
+      String connectorId = null;
+      boolean skipInit = false;
+
+      start = System.currentTimeMillis();
+
+      streamId = event.getStreamId() != null ? event.getStreamId() : Random.randomAlpha(6);
+      if(LambdaFunctionRuntime.getInstance() instanceof LambdaFunctionRuntime runtime && runtime.isRecreateLambdaEnvForEachEvent()) {
+        skipInit = true;
+        new LambdaFunctionRuntime(runtime, streamId);
+      }
+
+      if (event.getConnectorParams() != null  && event.getConnectorParams().get("connectorId") != null)
+          connectorId = (String) event.getConnectorParams().get("connectorId");
+
+      traceItem = new TraceItem(streamId, connectorId);
+
+      checkEventTypeAllowed(event);
+      if(!skipInit)
+        initialize(event);
+
+      return processEvent(event);
   }
 
   /**
@@ -410,16 +224,6 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
    */
   protected abstract void initialize(Event event) throws Exception;
 
-  private String previewInput(InputStream input) throws IOException {
-    input.mark(INPUT_PREVIEW_BYTE_SIZE);
-    byte[] bytes = new byte[INPUT_PREVIEW_BYTE_SIZE];
-    int limit = input.read(bytes);
-
-    input.reset();
-
-    return new String(bytes, 0, limit);
-  }
-
   /**
    * Can be used for Log-Entries: "streamId - (cid=connector -)"
    */
@@ -443,20 +247,6 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
 
     public String getConnectorId() {
       return connectorId;
-    }
-  }
-
-  private long getMaxUncompressedResponseSize(Event event) {
-    String size = System.getenv(MAX_UNCOMPRESSED_RESPONSE_SIZE);
-
-    if (event.getConnectorParams() != null && event.getConnectorParams().containsKey(MAX_UNCOMPRESSED_RESPONSE_SIZE))
-      size = event.getConnectorParams().get(MAX_UNCOMPRESSED_RESPONSE_SIZE).toString();
-
-    try {
-      long lSize = Long.parseLong(size);
-      return lSize > 0 ? lSize : Long.MAX_VALUE;
-    } catch (NumberFormatException e) {
-      return Long.MAX_VALUE;
     }
   }
 

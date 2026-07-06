@@ -21,6 +21,7 @@ package com.here.xyz.jobs.datasets.files;
 
 import static com.here.xyz.jobs.datasets.files.Partitioning.TileMatchMode.INTERSECTION;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.here.xyz.Typed;
 import com.here.xyz.jobs.datasets.files.Partitioning.FeatureKey;
@@ -30,6 +31,7 @@ import com.here.xyz.jobs.datasets.files.Partitioning.Tiles;
     @JsonSubTypes.Type(value = Tiles.class, name = "Tiles"),
     @JsonSubTypes.Type(value = FeatureKey.class, name = "FeatureKey")
 })
+@JsonIgnoreProperties(ignoreUnknown = true)
 public abstract class Partitioning implements Typed {
 
   public abstract String toBWCPartitionKey();

@@ -67,6 +67,7 @@ public class PooledDataSources extends DataSourceProvider {
     cpds.setMinPoolSize(dbSettings.getDbMinPoolSize());
     cpds.setMaxPoolSize(dbSettings.getDbMaxPoolSize());
     cpds.setAcquireRetryAttempts(dbSettings.getDbAcquireRetryAttempts());
+    cpds.setAcquireRetryDelay(dbSettings.getDbAcquireRetryDelay());
     cpds.setAcquireIncrement(dbSettings.getDbAcquireIncrement());
     cpds.setCheckoutTimeout(dbSettings.getDbCheckoutTimeout());
     cpds.setMaxIdleTime(dbSettings.getDbMaxIdleTime());
