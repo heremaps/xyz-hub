@@ -24,7 +24,6 @@ import static com.here.xyz.jobs.steps.Step.InputSet.DEFAULT_SET_NAME;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.START_EXECUTION;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.SUCCESS_CALLBACK;
 import static com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace.Format;
-import static com.here.xyz.jobs.steps.impl.transport.TaskedSpaceBasedStep.getTemporaryJobTableName;
 import static com.here.xyz.jobs.steps.inputs.Input.inputS3Prefix;
 import static com.here.xyz.psql.query.branching.BranchManager.branchTableName;
 import static com.here.xyz.util.Random.randomAlpha;
@@ -46,6 +45,7 @@ import com.here.xyz.jobs.steps.impl.DropIndexes;
 import com.here.xyz.jobs.steps.impl.transport.CountSpace;
 import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
 import com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace;
+import com.here.xyz.jobs.steps.impl.transport.tools.DatabaseStepQueryBuilder;
 import com.here.xyz.jobs.steps.impl.transport.tools.ImportQueryBuilder;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.outputs.Output;
@@ -59,6 +59,7 @@ import com.here.xyz.models.hub.Branch;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Tag;
+import com.here.xyz.psql.query.QueryBuilder;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
@@ -381,12 +382,7 @@ public class StepTestBase {
   protected void deleteAllJobTables(List<String> stepIds) throws SQLException {
     List<SQLQuery> dropQueries = new ArrayList<>();
     for (String stepId : stepIds) {
-      dropQueries.add(new SQLQuery("DROP TABLE IF EXISTS ${schema}.${table};")
-          .withVariable("schema", SCHEMA)
-          .withVariable("table", getTemporaryJobTableName(stepId))
-      );
-
-      dropQueries.add(new ImportQueryBuilder(stepId, SCHEMA)
+      dropQueries.add(new TestQueryBuilder(stepId, SCHEMA)
               .buildDropAllTemporaryTablesByStepPrefixQuery());
     }
     SQLQuery.join(dropQueries, ";").write(getDataSourceProvider());
@@ -432,7 +428,7 @@ public class StepTestBase {
       Integer i = -1;
       while (i != 0) {
         Thread.sleep(1000);
-        SQLQuery query = retrieveNumberOfNotFinalizedTasks("public", step);
+        SQLQuery query = new TestQueryBuilder(step.getId(), SCHEMA).buildRetrieveNumberOfNotFinalizedTasksQuery();
         i = query.run(getDataSourceProvider(), rs -> rs.next() ? rs.getInt(1) : null);
         logger.info("{} Threads are not finished!", i);
       }
@@ -440,8 +436,6 @@ public class StepTestBase {
       //42P01 = relation does not exist - happens if the step is already finalized
       if(!e.getSQLState().equals("42P01"))
         throw new RuntimeException(e);
-    }catch (XyzWebClient.WebClientException e) {
-      throw new RuntimeException(e);
     }
   }
 
@@ -457,12 +451,6 @@ public class StepTestBase {
         break;
       }
     }
-  }
-
-  protected SQLQuery retrieveNumberOfNotFinalizedTasks(String schema, Step step) throws XyzWebClient.WebClientException {
-    return new SQLQuery("SELECT count(1) from ${schema}.${table} WHERE finalized = false;")
-            .withVariable("schema", schema)
-            .withVariable("table", getTemporaryJobTableName(step.getId()));
   }
 
   protected void sendLambdaStepRequest(LambdaBasedStep step, LambdaBasedStep.LambdaStepRequest.RequestType requestType, boolean simulate)
@@ -676,5 +664,38 @@ public class StepTestBase {
             .map(f -> XyzSerializable.serialize(f))
             .collect(Collectors.joining("\n"))
             .getBytes();
+  }
+
+  private class TestQueryBuilder extends ImportQueryBuilder {
+    public TestQueryBuilder(String stepId, String schema) {
+      super(null, null, stepId, schema, null, null, 10);
+    }
+
+    public SQLQuery buildRetrieveNumberOfNotFinalizedTasksQuery(){
+      return new SQLQuery("SELECT count(1) from ${schema}.${table} WHERE finalized = false;")
+              .withVariable("schema", schema)
+              .withVariable("table", getTemporaryJobTableName());
+    }
+
+    public SQLQuery buildDropAllTemporaryTablesByStepPrefixQuery() {
+      return new SQLQuery("""
+            DO $$
+            DECLARE
+              r RECORD;
+            BEGIN
+              FOR r IN
+                SELECT tablename
+                  FROM pg_tables
+                 WHERE schemaname = #{schema}
+                   AND left(tablename, length(#{tablePrefix})) = #{tablePrefix}
+              LOOP
+                EXECUTE format('DROP TABLE IF EXISTS %I.%I;', #{schema}, r.tablename);
+              END LOOP;
+            END
+            $$;
+        """)
+              .withNamedParameter("schema", schema)
+              .withNamedParameter("tablePrefix", getTemporaryJobTableName());
+    }
   }
 }

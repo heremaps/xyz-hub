@@ -19,7 +19,6 @@
 
 package com.here.xyz.jobs.steps.impl.transport;
 
-import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.jobs.steps.Step.Visibility.SYSTEM;
 import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_EXECUTE;
@@ -37,12 +36,13 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.jobs.JobClientInfo;
-import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.ProcessUpdate;
 import com.here.xyz.jobs.steps.execution.StepException;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.impl.transport.tasks.TaskPayload;
 import com.here.xyz.jobs.steps.impl.transport.tasks.TaskProgress;
+import com.here.xyz.jobs.steps.impl.transport.tools.DatabaseStepQueryBuilder;
+import com.here.xyz.jobs.steps.impl.transport.tools.TaskedSpaceBasedQueryBuilder;
 import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.jobs.steps.outputs.S3Marker;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
@@ -52,7 +52,6 @@ import com.here.xyz.models.hub.Space;
 import com.here.xyz.psql.query.QueryBuilder.QueryBuildingException;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.SQLQuery;
-import com.here.xyz.util.db.pg.FeatureWriterQueryBuilder.FeatureWriterQueryContextBuilder;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.web.XyzWebClient;
 import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
@@ -62,11 +61,11 @@ import java.math.RoundingMode;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import static com.here.xyz.jobs.steps.impl.transport.tools.DatabaseStepQueryBuilder.RETRYABLE_SQL_CODES;
 
 /**
  * Abstract base class for space-based job steps that execute tasks in parallel.
@@ -88,25 +87,11 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   private static final String JOB_DATA_PREFIX = "job_data_";
   private static final Logger logger = LogManager.getLogger();
   public static final String FINALIZATION_MARKER = "finalized_marker";
+  private TaskedSpaceBasedQueryBuilder taskedSpaceBasedQueryBuilder;
 
   {
     setOutputSets(List.of(new OutputSet(FINALIZATION_MARKER, SYSTEM, true)));
   }
-
-  protected static final Set<String> RETRYABLE_SQL_CODES = Set.of(
-          "40001", // serialization_failure
-          "40P01", // deadlock_detected
-          "55P03", // lock_not_available
-          "23505", // unique_violation
-          "23P01", // exclusion_violation, same caveat
-          "53300", // too_many_connections
-          "08000", // connection_exception
-          "08001", // sqlclient_unable_to_establish_sqlconnection
-          "08003", // connection_does_not_exist
-          "08006", // connection_failure
-          "08004", // sqlserver_rejected_establishment_of_sqlconnection
-          "57P01"  // admin_shutdown
-          );
 
   @JsonView({Internal.class, Static.class})
   protected int threadCount = 8;
@@ -520,12 +505,12 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
     taskItemCount = taskDataList.size();
 
     if (!resume) {
-      insertTaskItemsInTaskTable(schema, this, taskDataList);
+      insertTaskItemsInTaskTable(taskDataList);
       initialSetup();
     }else{
       try {
         //Reset all items which are not finalized to be able to restart them
-        runWriteQuerySyncUnkillable(resetTaskItemWhichAreNotFinalized(schema, this.getId()), db(WRITER), 0);
+        runWriteQuerySyncUnkillable(resetTaskItemWhichAreNotFinalized(), db(WRITER), 0);
       }catch (SQLException e){
         if (e.getSQLState() != null && e.getSQLState().toUpperCase().equals("42P01")) {
           Optional<Output> marker = loadStepOutputs(getOutputSet(FINALIZATION_MARKER)).stream().findFirst();
@@ -540,7 +525,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
           }
           //Can not retrieve output - start from scratch
           infoLog(STEP_EXECUTE, "Reset of taskItems failed cause job_data table is missing! Recreating it!");
-          insertTaskItemsInTaskTable(schema, this, taskDataList);
+          insertTaskItemsInTaskTable(taskDataList);
           initialSetup();
 
         }else
@@ -637,7 +622,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
       finalCleanUp(noTasksCreated);
 
       infoLog(logPhase, "Cleanup temporary table");
-      runWriteQuerySyncUnkillable(buildTemporaryJobTableDropStatement(getSchema(db()), getTemporaryJobTableName(getId())), db(WRITER), 0);
+      runWriteQuerySyncUnkillable(getQueryBuilder().buildTemporaryJobTableDropStatement(), db(WRITER), 0);
 
       registerOutputs(List.of(new S3Marker()
               .withFinalized(true)
@@ -665,7 +650,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   }
 
   private List<FinalizedTaskItem<I,O>> collectOutputs() throws SQLException, TooManyResourcesClaimed, WebClientException {
-    return runReadQuerySync(retrieveTaskOutputsQuery(), db(WRITER), 0, rs -> {
+    return runReadQuerySync(getQueryBuilder().buildRetrieveTaskOutputsQuery(), db(WRITER), 0, rs -> {
       try {
         List<FinalizedTaskItem<I,O>> finalizedTaskItems = new ArrayList<>();
 
@@ -743,7 +728,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
    * @throws TooManyResourcesClaimed If too many resources are claimed during the process.
    */
   private TaskProgress getTaskProgressAndNextTaskItem() throws WebClientException, SQLException, TooManyResourcesClaimed {
-    return executeTaskItemQuery(retrieveTaskItemAndStatisticsQuery(getSchema(db(WRITER))));
+    return executeTaskItemQuery(getQueryBuilder().retrieveTaskItemAndStatisticsQuery());
   }
 
   /**
@@ -764,7 +749,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   private TaskProgress finalizeCurrentTaskAndGetTaskProgressAndNextTaskItem(SpaceBasedTaskUpdate update)
           throws WebClientException, SQLException, TooManyResourcesClaimed {
     infoLog(STEP_ON_ASYNC_UPDATE, "Update process table and claim next task with: " + update.serialize());
-    return  executeTaskItemQuery(retrieveTaskItemAndStatisticsAfterUpdateQuery(getSchema(db(WRITER)), update));
+    return  executeTaskItemQuery(getQueryBuilder().buildRetrieveTaskItemAndStatisticsAfterUpdateQuery(update));
   }
 
   /**
@@ -779,25 +764,8 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
    * @param update The in-progress task update carrying the complete payload.
    */
   private void updateQueryTaskItemOutput(SpaceBasedTaskUpdate update) throws WebClientException, SQLException, TooManyResourcesClaimed {
-    String schema = getSchema(db(WRITER));
-    SQLQuery query = new SQLQuery("""
-            UPDATE ${schema}.${table}
-            SET task_output = (
-                COALESCE(task_output, '{}'::JSONB) || #{taskUpdate}::JSONB
-            ) || jsonb_build_object(
-                'taskOutput',
-                COALESCE(task_output->'taskOutput', '{}'::JSONB)
-                || COALESCE((#{taskUpdate}::JSONB)->'taskOutput', '{}'::JSONB)
-            )
-            WHERE task_id = #{taskId};
-        """)
-        .withVariable("schema", schema)
-        .withVariable("table", getTemporaryJobTableName(getId()))
-        .withNamedParameter("taskId", update.taskId)
-        .withNamedParameter("taskUpdate", XyzSerializable.serialize(update))
-        .withRetryableErrorCodes(RETRYABLE_SQL_CODES);
-
-    runWriteQuerySyncUnkillable(query, db(WRITER), 0);
+    runWriteQuerySyncUnkillable(getQueryBuilder().buildUpdateTaskItemOutputStatement(update)
+            , db(WRITER), 0);
   }
 
   private TaskProgress executeTaskItemQuery(SQLQuery query) throws WebClientException, SQLException, TooManyResourcesClaimed {
@@ -829,7 +797,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   }
 
   private TaskProgress getTaskProgress() throws WebClientException, SQLException, TooManyResourcesClaimed {
-    return runReadQuerySync(retrieveTaskStatisticsQuery(getSchema(db(WRITER)), this.getId()), db(WRITER), 0,
+    return runReadQuerySync(getQueryBuilder().retrieveTaskStatisticsQuery(), db(WRITER), 0,
               rs -> {
                 if (!rs.next())
                   return null;
@@ -837,75 +805,9 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
               });
   }
 
-  private static SQLQuery buildTaskTableStatement(String schema, Step step) {
-    return new SQLQuery("""
-            CREATE TABLE ${schema}.${table}
-            (
-            	task_id SERIAL,
-            	task_input JSONB,
-            	task_output JSONB,
-            	started BOOLEAN DEFAULT false,
-            	finalized BOOLEAN DEFAULT false,
-            	CONSTRAINT ${primaryKey} PRIMARY KEY (task_id)
-            );
-        """)
-            //TODO: CHECK CONSTRAINT!!
-            .withVariable("table", getTemporaryJobTableName(step.getId()))
-            .withVariable("schema", schema)
-            .withVariable("primaryKey", getTemporaryJobTableName(step.getId()) + "_primKey");
-  }
-
-  private SQLQuery resetTaskItemWhichAreNotFinalized(String schema, String stepId) {
+  private SQLQuery resetTaskItemWhichAreNotFinalized() {
     infoLog(STEP_EXECUTE, "Reset task items for restart.");
-    return new SQLQuery("""
-            UPDATE ${schema}.${table} t
-                SET started = false
-                WHERE started = true AND finalized = false;
-        """)
-            .withVariable("schema", schema)
-            .withVariable("table", getTemporaryJobTableName(stepId));
-  }
-
-  private SQLQuery retrieveTaskStatisticsQuery(String schema, String stepId) {
-    return new SQLQuery("""
-            SELECT COUNT(1) as total,
-                SUM((started = true)::int) as started,
-                SUM((finalized = true)::int) as finalized
-                FROM ${schema}.${table};
-        """)
-            .withVariable("schema", schema)
-            .withVariable("table", getTemporaryJobTableName(stepId))
-            .withRetryableErrorCodes(RETRYABLE_SQL_CODES);
-  }
-
-  private SQLQuery retrieveTaskItemAndStatisticsQuery(String schema) throws WebClientException {
-    return new SQLQuery("SELECT total, started, finalized, task_id, task_input from get_task_item_and_statistics();")
-            .withContext(getQueryContext(schema))
-            .withRetryableErrorCodes(RETRYABLE_SQL_CODES);
-  }
-
-  private SQLQuery retrieveTaskItemAndStatisticsAfterUpdateQuery(String schema, SpaceBasedTaskUpdate update)
-          throws WebClientException {
-    return new SQLQuery("""
-        SELECT total, started, finalized, task_id, task_input
-        FROM update_task_item_and_get_task_item_and_statistics(
-            #{taskId},
-            #{taskOutput}::JSONB,
-            #{finalized}
-        );
-    """)
-            .withNamedParameter("taskId", update.taskId)
-            .withNamedParameter("taskOutput", XyzSerializable.serialize(update))
-            .withNamedParameter("finalized", true)
-            .withContext(getQueryContext(schema))
-            .withRetryableErrorCodes(RETRYABLE_SQL_CODES);
-  }
-
-  private SQLQuery retrieveTaskOutputsQuery() throws WebClientException {
-    return new SQLQuery("SELECT task_id, task_input, task_output->'taskOutput' as task_output FROM ${schema}.${tmpTable};")
-            .withVariable("schema", getSchema(db()))
-            .withVariable("tmpTable", getTemporaryJobTableName(getId()))
-            .withRetryableErrorCodes(RETRYABLE_SQL_CODES);
+    return getQueryBuilder().buildResetTaskItemWhichAreNotFinalizedStatement();
   }
 
   /**
@@ -920,17 +822,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
    * @return The deserialized output payload of type {@code O}, or {@code null} if not available.
    */
   protected O loadTaskOutput(int taskId) throws WebClientException, SQLException, TooManyResourcesClaimed {
-    SQLQuery query = new SQLQuery("""
-              SELECT task_output->'taskOutput' AS task_output
-                FROM ${schema}.${tmpTable}
-               WHERE task_id = #{taskId};
-        """)
-            .withVariable("schema", getSchema(db()))
-            .withVariable("tmpTable", getTemporaryJobTableName(getId()))
-            .withNamedParameter("taskId", taskId)
-            .withRetryableErrorCodes(RETRYABLE_SQL_CODES);
-
-    return runReadQuerySync(query, db(WRITER), 0, rs -> {
+    return runReadQuerySync(getQueryBuilder().buildLoadOutputsQuery(taskId), db(WRITER), 0, rs -> {
       try {
         if (!rs.next()) return null;
         String taskOutput = rs.getString("task_output");
@@ -942,7 +834,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
     });
   }
 
-  private boolean insertTaskItemsInTaskTable(String schema, Step step, List<I> taskInputs)
+  private boolean insertTaskItemsInTaskTable(List<I> taskInputs)
           throws WebClientException, SQLException, TooManyResourcesClaimed {
     List<SQLQuery> insertQueries = new ArrayList<>();
 
@@ -950,7 +842,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
     boolean tableAlreadyExists = false;
     try{
       //Create process table
-      runWriteQuerySyncUnkillable(buildTaskTableStatement(schema, this), db(WRITER), 0);
+      runWriteQuerySyncUnkillable(getQueryBuilder().buildTaskTableStatement(), db(WRITER), 0);
     }catch (SQLException e){
       if(e.getSQLState() != null && e.getSQLState().equalsIgnoreCase("42P07")) {
         infoLog(UNKNOWN,  "Task table already exists. Assume it was created in a failed attempt and continue.");
@@ -962,22 +854,12 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
 
     if(tableAlreadyExists) {
       //Reset all items which are not finalized to be able to restart them
-      runWriteQuerySyncUnkillable(resetTaskItemWhichAreNotFinalized(schema, this.getId()), db(WRITER), 0);
+      runWriteQuerySyncUnkillable(resetTaskItemWhichAreNotFinalized(), db(WRITER), 0);
     }else{
       infoLog(STEP_EXECUTE, "Add initial entries in process_table for " + taskInputs.size() + " tasks.");
-      for (I taskInput : taskInputs) {
-        String taskItem = taskInput.serialize();
+      for (I taskInput : taskInputs)
+        insertQueries.add(getQueryBuilder().buildInsertTaskItemStatement(taskInput.serialize()));
 
-        insertQueries.add(new SQLQuery("""
-            INSERT INTO  ${schema}.${table} AS t (task_input)
-                VALUES (#{taskItem}::JSONB);
-        """)
-                .withVariable("schema", schema)
-                .withVariable("table", getTemporaryJobTableName(step.getId()))
-                .withNamedParameter("taskItem", taskItem)
-                .withLoggingEnabled(false)
-        );
-      }
       if(!insertQueries.isEmpty()) {
         //Insert TaskItem into process table
         runBatchWriteQuerySyncUnkillable(SQLQuery.batchOf(insertQueries), db(WRITER), 0);
@@ -986,34 +868,36 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
     return tableAlreadyExists;
   }
 
-  public static String getTemporaryJobTableName(String stepId) {
-    return JOB_DATA_PREFIX + stepId;
+  private TaskedSpaceBasedQueryBuilder getQueryBuilder() {
+    if (taskedSpaceBasedQueryBuilder == null)
+      taskedSpaceBasedQueryBuilder = initQueryBuilder(TaskedSpaceBasedQueryBuilder::new);
+    return taskedSpaceBasedQueryBuilder;
   }
 
-  //TODO: if ImportSpaceToFilesStep is removed make it private
-  protected static SQLQuery buildTemporaryJobTableDropStatement(String schema, String tableName) {
-    return new SQLQuery("DROP TABLE IF EXISTS ${schema}.${table};")
-            .withVariable("table", tableName)
-            .withVariable("schema", schema);
+  /**
+   * Creates a {@link DatabaseStepQueryBuilder} using the resources of this step. It centralizes the resolution of the
+   * step's schema, root table and (optional) super root table so that the concrete step implementations only have to
+   * provide the actual builder instantiation.
+   *
+   * @param factory the factory instantiating the concrete query builder
+   * @param <B> the concrete query builder type
+   * @return the newly created query builder
+   */
+  protected <B extends DatabaseStepQueryBuilder> B initQueryBuilder(QueryBuilderFactory<B> factory) {
+    try {
+      Space superSpace = superSpace();
+      return factory.create(space(), context, getId(), getSchema(db()), getRootTableName(space()),
+              superSpace == null ? null : getRootTableName(superSpace));
+    }
+    catch (WebClientException e) {
+      throw new StepException("Unable to load resource.", e.getCause());
+    }
   }
 
-  @JsonIgnore
-  protected Map<String, Object> getQueryContext(String schema) throws WebClientException {
-    Space superSpace = superSpace();
-    List<String> tables = new ArrayList<>();
-    if (superSpace != null)
-      tables.add(getRootTableName(superSpace));
-    tables.add(getRootTableName(space()));
-
-    return new FeatureWriterQueryContextBuilder()
-        .withSchema(schema)
-        .withTables(tables)
-        //Honor a user-provided space context (e.g. EXTENSION) and fall back to DEFAULT if none was set
-        .withSpaceContext(context != null ? context : DEFAULT)
-        .withHistoryEnabled(space().getVersionsToKeep() > 1)
-        .withBatchMode(true)
-        .with("stepId", getId())
-        .build();
+  @FunctionalInterface
+  protected interface QueryBuilderFactory<B extends DatabaseStepQueryBuilder> {
+    B create(Space space, SpaceContext context, String stepId, String schema, String rootTable, String superRootTable)
+            throws WebClientException;
   }
 
   public record FinalizedTaskItem<In extends TaskPayload, Out extends TaskPayload>(int taskId, In input, Out output) {}
