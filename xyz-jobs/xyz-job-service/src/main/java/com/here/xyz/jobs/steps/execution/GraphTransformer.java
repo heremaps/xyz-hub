@@ -26,6 +26,7 @@ import static com.here.xyz.util.Random.randomAlpha;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.service.Config;
+import com.here.xyz.jobs.service.Config.StepLambdaMapping;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.StepExecution;
 import com.here.xyz.jobs.steps.StepGraph;
@@ -39,6 +40,8 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.NotImplementedException;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import software.amazon.awssdk.services.stepfunctions.builder.StateMachine;
 import software.amazon.awssdk.services.stepfunctions.builder.states.Branch;
 import software.amazon.awssdk.services.stepfunctions.builder.states.EndTransition;
@@ -49,6 +52,8 @@ import software.amazon.awssdk.services.stepfunctions.builder.states.State;
 import software.amazon.awssdk.services.stepfunctions.builder.states.TaskState;
 
 public class GraphTransformer {
+  private static final Logger logger = LogManager.getLogger();
+
   private static final String LAMBDA_INVOKE_RESOURCE = "arn:aws:states:::lambda:invoke";
   private static final String EMR_INVOKE_RESOURCE = "arn:aws:states:::emr-serverless:startJobRun.sync";
   private static final int STATE_MACHINE_EXECUTION_TIMEOUT_SECONDS = 36 * 3600; //36h
@@ -59,12 +64,40 @@ public class GraphTransformer {
   private Map<String, Map<String, Object>> taskParametersLookup = new HashMap<>(); //TODO: This is a workaround for an open issue with AWS SDK2 for StepFunctions
   private final ARN stepLambdaArn;
   private final String stepLambdaPipelineAlias;
+  private Map<String, StepLambdaMapping> alternativeStepLambdaMappings;
   private boolean isPipeline;
 
-  GraphTransformer(ARN stepLambdaArn, String stepLambdaPipelineAlias, boolean isPipeline) {
+  GraphTransformer(ARN stepLambdaArn, String stepLambdaPipelineAlias, boolean isPipeline,
+      Map<String, StepLambdaMapping> alternativeStepLambdaMappings) {
     this.stepLambdaArn = stepLambdaArn;
     this.stepLambdaPipelineAlias = stepLambdaPipelineAlias;
     this.isPipeline = isPipeline;
+    this.alternativeStepLambdaMappings = alternativeStepLambdaMappings;
+  }
+
+  public <S extends LambdaBasedStep> StepLambdaMapping getAlternativeStepLambdaMapping(Class<S> lambdaBasedStepClass) {
+    List<StepLambdaMapping> matchedMappings = new ArrayList<>();
+    for (Entry<String, StepLambdaMapping> mapping : alternativeStepLambdaMappings.entrySet()) {
+      try {
+        if (Class.forName(mapping.getKey()).isAssignableFrom(lambdaBasedStepClass))
+          matchedMappings.add(mapping.getValue());
+      }
+      catch (ClassNotFoundException e) {
+        //NOTE: Silently ignoring this case, as if no mapping was defined, logging an error.
+        logger.error("Class not found for the specified full classified class name of an alternative StepLambdaMapping. "
+            + "Specified alternative step class: {}, Mapping: {}", mapping.getKey(), mapping.getValue(), e);
+      }
+    }
+
+    if (matchedMappings.isEmpty())
+      return null;
+    if (matchedMappings.size() > 1) {
+      //NOTE: Silently ignoring this case, as if no mapping was defined, logging an error.
+      logger.error("Ambiguous alternative StepLambdaMappings found for the step class {}. "
+          + "Matched mappings: {}", lambdaBasedStepClass.getName(), matchedMappings);
+      return null;
+    }
+    return matchedMappings.get(0);
   }
 
   //TODO: This is a workaround for an open issue with AWS SDK2 for StepFunctions
@@ -108,6 +141,8 @@ public class GraphTransformer {
       if (resource.contains(LAMBDA_INVOKE_RESOURCE)) {
         LambdaTaskParameters lambdaParameters = lambdaTaskParametersLookup.get(taskName);
         taskState.put("Parameters", Map.of("FunctionName", lambdaParameters.lambdaArn, "Payload", lambdaParameters.payload));
+        if (lambdaParameters.invocationRoleArn != null)
+          taskState.put("Credentials", Map.of("RoleArn", lambdaParameters.invocationRoleArn));
       }
       else if (resource.equals(EMR_INVOKE_RESOURCE))
         taskState.put("Parameters", taskParametersLookup.get(taskName));
@@ -287,9 +322,18 @@ public class GraphTransformer {
         .withType(START_EXECUTION)
         .withStep(lambdaStep);
 
+    StepLambdaMapping lambdaMapping = getAlternativeStepLambdaMapping(lambdaStep.getClass());
+
+    LambdaTaskParameters lambdaTaskParameters;
+    if (lambdaMapping != null)
+      lambdaTaskParameters = new LambdaTaskParameters(lambdaMapping.stepLambdaArn().toString(),
+          lambdaMapping.stepLambdaInvocationRoleArn().toString(), payload.toMap());
+    else
+      lambdaTaskParameters = new LambdaTaskParameters(stepLambdaArn.toString()
+          + (isPipeline && stepLambdaPipelineAlias != null ? ":" + stepLambdaPipelineAlias : ""), null, payload.toMap());
+
     //TODO: This is a workaround for an open issue with AWS SDK2 for StepFunctions
-    lambdaTaskParametersLookup.put(state.stateName, new LambdaTaskParameters(stepLambdaArn.toString()
-        + (isPipeline && stepLambdaPipelineAlias != null ? ":" + stepLambdaPipelineAlias : ""), payload.toMap()));
+    lambdaTaskParametersLookup.put(state.stateName, lambdaTaskParameters);
 
     state.stateBuilder.resource(taskResource);
     if (executionMode == ASYNC)
@@ -333,5 +377,5 @@ public class GraphTransformer {
 
   private record NamedState<SB extends State.Builder>(String stateName, SB stateBuilder) {}
 
-  private record LambdaTaskParameters(String lambdaArn, Map<String, Object> payload) {}
+  private record LambdaTaskParameters(String lambdaArn, String invocationRoleArn, Map<String, Object> payload) {}
 }

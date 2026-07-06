@@ -33,6 +33,7 @@ import static java.net.http.HttpClient.Redirect.NORMAL;
 
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.util.IOUtils;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.io.ByteStreams;
 import com.google.common.net.MediaType;
 import com.here.xyz.XyzSerializable;
@@ -53,6 +54,7 @@ import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Point;
+import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.hub.Branch;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
@@ -66,6 +68,7 @@ import com.here.xyz.util.db.datasource.PooledDataSources;
 import com.here.xyz.util.db.pg.IndexHelper.Index;
 import com.here.xyz.util.db.pg.IndexHelper.OnDemandIndex;
 import com.here.xyz.util.db.pg.IndexHelper.SystemIndex;
+import com.here.xyz.util.service.BaseConfig;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.service.aws.lambda.SimulatedContext;
 import com.here.xyz.util.web.HubWebClient;
@@ -91,6 +94,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -126,7 +130,7 @@ public class StepTestBase {
       Config.instance.HUB_ENDPOINT = "http://" + System.getProperty("hub.host", "localhost") + ":8080/hub";
       Config.instance.JOB_API_ENDPOINT = new URL("http://" + System.getProperty("job.host", "localhost") + ":7070");
       Config.instance.LOCALSTACK_ENDPOINT = new URI("http://" + System.getProperty("localstack.host", "localhost") + ":4566");
-      HubWebClient.STATISTICS_CACHE_TTL_SECONDS = 0;
+      BaseConfig.instance.HUB_WEB_CLIENT_CACHE_TTL = 0;
       s3Client = S3Client.getInstance();
       lambdaClient = LambdaClient.builder()
           .region(Region.of(Config.instance.AWS_REGION))
@@ -653,5 +657,24 @@ public class StepTestBase {
   protected String getBranchTableName(String spaceId, String branchId) {
     Branch branch = loadBranch(spaceId, branchId);
     return branchTableName(spaceId, branch.getBranchPath().get(branch.getBranchPath().size() - 1), branch.getNodeId());
+  }
+
+  protected static FeatureCollection createKnownFeatures(String prefix, int count) {
+    List<Feature> features = new ArrayList<>();
+
+    for (int i = 0; i < count; i++)
+      features.add(new Feature()
+              .withId(prefix + "-" + i)
+              .withGeometry(new Point().withCoordinates(new PointCoordinates(8, 50, 0)))
+              .withProperties(new Properties().with("test", prefix + "-" + i)));
+
+    return new FeatureCollection().withFeatures(features);
+  }
+
+  protected static byte[] toGeoJsonLines(FeatureCollection fc) throws JsonProcessingException {
+    return fc.getFeatures().stream()
+            .map(f -> XyzSerializable.serialize(f))
+            .collect(Collectors.joining("\n"))
+            .getBytes();
   }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,6 @@
 package com.here.xyz.psql.query;
 
 import static com.here.xyz.models.hub.Ref.HEAD;
-import static com.here.xyz.psql.query.GetFeaturesByBBox.buildGeoFilterFromBbox;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
@@ -132,7 +131,7 @@ public class GetFeaturesByGeometryBuilder extends XyzQueryBuilder<GetFeaturesByG
     protected SQLQuery buildMinVersionFragment(SelectiveEvent event, long baseVersion) {
       Ref ref = event.getRef();
       boolean isHeadOrAllVersions = ref.isHead() || ref.isAllVersions() || ref.isRange() && ref.getEnd().isHead();
-      long requestedVersion = isHeadOrAllVersions ? Long.MAX_VALUE : ref.isRange() ? ref.getStart().getVersion() : ref.getVersion();
+      long requestedVersion = isHeadOrAllVersions ? Long.MAX_VALUE : ref.isRange() ? ref.getStart().getVersion() + 1 : ref.getVersion();
 
       if (event.getVersionsToKeep() > 1)
         //TODO: Review Branching

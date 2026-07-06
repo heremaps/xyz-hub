@@ -31,6 +31,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonView;
@@ -213,6 +214,12 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   public List<Output> loadOutputs(Visibility visibility) {
     return outputSets.stream()
         .filter(outputSet -> outputSet.visibility == visibility)
+        .flatMap(outputSet -> loadStepOutputs(outputSet).stream())
+        .toList();
+  }
+
+  public List<Output> loadOutputs() {
+    return outputSets.stream()
         .flatMap(outputSet -> loadStepOutputs(outputSet).stream())
         .toList();
   }
@@ -821,11 +828,11 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
       this.stepId = other.stepId;
     }
 
-    private OutputSet(S3Uri s3Uri, String name) {
+    private OutputSet(S3Uri s3Uri, String name, Visibility visibility) {
       this.s3Uri = s3Uri;
       this.name = name;
+      this.visibility = visibility;
       stepId = GENERIC_PROVIDER;
-      visibility = SYSTEM;
       jobId = null;
       fileSuffix = "unknown";
     }
@@ -852,7 +859,18 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
      * @return
      */
     public static OutputSet newGenericOutputSet(S3Uri s3Uri, String name) {
-      return new OutputSet(s3Uri, name);
+      return new OutputSet(s3Uri, name, SYSTEM);
+    }
+
+    public static OutputSet newGenericOutputSet(OutputSet outputSet, Visibility visibility) {
+      return new OutputSet(outputSet.s3Uri, outputSet.name, visibility);
+    }
+
+    public static OutputSet copy(OutputSet outputSet, Visibility visibility) {
+      if (GENERIC_PROVIDER.equals(outputSet.stepId))
+        return newGenericOutputSet(outputSet, visibility);
+      else
+        return new OutputSet(outputSet, outputSet.jobId, visibility);
     }
 
     public String getJobId() {
@@ -890,7 +908,14 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
           && visibility == that.visibility && fileSuffix.equals(that.fileSuffix);
     }
 
+    @JsonProperty("s3Uri")
+    private S3Uri getS3Uri() {
+      return (GENERIC_PROVIDER.equals(stepId)) ? s3Uri : null;
+    }
+
     String toS3Path(String consumerJobId, String providerId) {
+      if (GENERIC_PROVIDER.equals(stepId))
+        return s3Uri.key();
       return Output.stepOutputS3Prefix(jobId != null ? jobId : consumerJobId, stepId != null ? stepId : providerId, name);
     }
 

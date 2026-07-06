@@ -23,6 +23,7 @@ public interface MediaType extends OpenAPIObject {
       "application/geo+json",
       "application/vnd.mapbox-vector-tile",
       "application/vnd.here.feature-modification-list",
+      "application/vnd.here.map-changeset",
       "application/x-empty",
       "text/plain");
 

@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2017-2026 HERE Europe B.V.
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -31,8 +32,8 @@ import com.here.xyz.XyzSerializable.Public;
 import com.here.xyz.XyzSerializable.Static;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.PropertiesQuery;
-import com.here.xyz.util.Hasher;
 import com.here.xyz.models.filters.SpatialFilter;
+import com.here.xyz.util.Hasher;
 import java.util.ArrayList;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -68,6 +69,9 @@ public class Filters {
       this.propertyFilter = PropertiesQuery.fromString(propFilter);
       this.propertyFilterAsString = propFilter;
     }
+
+    if (this.propertyFilter != null && jsonPath == null)
+      jsonPath = this.propertyFilter.toJsonPath();
   }
 
   public Filters withPropertyFilter(Object propertyFilter) {
@@ -127,6 +131,17 @@ public class Filters {
         + "#";
 
     return Hasher.getHash(input);
+  }
+
+  @JsonIgnore
+  public boolean isEmpty() {
+    boolean hasPropertyFilter = propertyFilter != null && !propertyFilter.isEmpty();
+    boolean hasLegacyPropertyFilter = propertyFilterAsString != null && !propertyFilterAsString.isBlank();
+    boolean hasSpatialFilter = spatialFilter != null;
+    boolean hasJsonPath = jsonPath != null && !jsonPath.isBlank();
+    boolean hasContext = context != null && context != DEFAULT;
+
+    return !(hasContext || hasPropertyFilter || hasLegacyPropertyFilter || hasSpatialFilter || hasJsonPath);
   }
 
   public Filters copy() {

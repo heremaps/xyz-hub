@@ -74,17 +74,17 @@ public class ExportTestBase extends StepTest {
 
         //Send Lambda Requests
         sendLambdaStepRequestBlock(step, true);
-        checkOutputs(new HashSet<>(allExpectedFeatures.getFeatures()), step.loadUserOutputs(), step.loadOutputs(SYSTEM));
+        checkOutputs(new HashSet<>(allExpectedFeatures.getFeatures()), step.loadOutputs());
     }
 
-    protected void checkOutputs(Set<Feature> expectedFeatures, List<Output> userOutputs, List<Output> systemOutputs)
+    protected void checkOutputs(Set<Feature> expectedFeatures, List<Output> allOutputs)
             throws IOException {
-        Assertions.assertNotEquals(0, userOutputs.size());
+        Assertions.assertNotEquals(0, allOutputs.size());
 
         Set<Feature> exportedFeatures = new HashSet<>();
         Set<FeatureStatistics> statistics = new HashSet<>();
 
-        for (Output output : userOutputs) {
+        for (Output output : allOutputs) {
             if (output instanceof DownloadUrl downloadUrl)
                 exportedFeatures.addAll(downloadFileAndDeSerializeFeatures(downloadUrl));
             //TODO: FeatureStatistics could get only checked if we also support during simulation "UPDATE_CALLBACK"
@@ -93,7 +93,7 @@ public class ExportTestBase extends StepTest {
         }
 
         for (Feature f : expectedFeatures)
-            assertEquals(exportedFeatures.stream().filter(feature -> feature.getId().equals(f.getId())).findFirst().orElseThrow(() -> new NoSuchElementException("Expected feature with id \"" + f.getId() + "\" was not exported.")), f);
+            assertEquals(f, exportedFeatures.stream().filter(feature -> feature.getId().equals(f.getId())).findFirst().orElseThrow(() -> new NoSuchElementException("Expected feature with id \"" + f.getId() + "\" was not exported.")));
 
         for (Feature f : exportedFeatures)
             assertEquals(expectedFeatures.stream().filter(feature -> feature.getId().equals(f.getId())).findFirst().orElseThrow(() -> new NoSuchElementException("Exported feature with id \"" + f.getId() + "\" was not expected")), f);

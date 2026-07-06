@@ -41,7 +41,7 @@ public class JobTestBase extends StepTestBase {
 
     /** Use {@link JobTestBase#createJob(JsonObject)} instead*/
     @Deprecated
-    public static String createJob(Job job) throws IOException, InterruptedException {
+    public String createJob(Job job) throws IOException, InterruptedException {
         logger.info("Creating job ...");
         HttpResponse<byte[]> jobResponse = post("/jobs", job);
 
@@ -50,11 +50,12 @@ public class JobTestBase extends StepTestBase {
         Job createdJob = XyzSerializable.deserialize(jobResponse.body(), Job.class);
 
         logger.info("Internal Job config:\n{}", toPrettyJson(get("/admin/jobs/" + createdJob.getId()).body()));
+        createdJobs.add(job.getId());
 
         return createdJob.getId();
     }
 
-    protected static String createJob(JsonObject job) throws IOException, InterruptedException {
+    protected String createJob(JsonObject job) throws IOException, InterruptedException {
         logger.info("Creating job ...");
         HttpResponse<byte[]> jobResponse = post("/jobs", job.mapTo(Map.class));
 
@@ -63,6 +64,7 @@ public class JobTestBase extends StepTestBase {
         String jobId = new JsonObject(new String(jobResponse.body())).getString("id");
 
         logger.info("Internal Job config:\n{}", toPrettyJson(get("/admin/jobs/" + jobId).body()));
+        createdJobs.add(jobId);
 
         return jobId;
     }
@@ -84,7 +86,6 @@ public class JobTestBase extends StepTestBase {
     protected String createJobAndPollStatus(JsonObject job, byte[] fileContent, int timeoutSeconds) throws Exception {
         //Create Job
         String jobId = createJob(job);
-        createdJobs.add(jobId);
 
         //Upload content if provided
         if(fileContent != null) {
@@ -125,6 +126,13 @@ public class JobTestBase extends StepTestBase {
         uploadInputFile(fileContent, getLocalizedUrl(uploadUrl));
     }
 
+    public static void addS3InputToJob(String jobId, String bucket, String prefix) throws IOException, InterruptedException {
+        post("/jobs/" + jobId + "/inputs", Map.of(
+                "type", "InputsFromS3",
+                "bucket", bucket,
+                "prefix", prefix));
+    }
+
     public static void uploadFilesToJob(String jobId, List<byte[]> fileContents) throws IOException, InterruptedException {
         //Generate N Files with M features
         for(byte[] fileContent :fileContents) {
@@ -162,7 +170,7 @@ public class JobTestBase extends StepTestBase {
 
     public static List<Map> getJobOutputs(String jobId) throws IOException, InterruptedException {
         logger.info("Get job Outputs ...");
-        HttpResponse<byte[]> outputResponse = get("/jobs/" + jobId + "/outputs");
+        HttpResponse<byte[]> outputResponse = get("/admin/jobs/" + jobId + "/outputs");
         return XyzSerializable.deserialize(outputResponse.body(), new TypeReference<List<Map>>() {});
     }
 
@@ -263,7 +271,6 @@ public class JobTestBase extends StepTestBase {
     protected void createSelfRunningJob(Job job) throws Exception {
         //Create Job - expect autostart
         createJob(job);
-        createdJobs.add(job.getId());
 
         //Wait till Job reached final state
         pollJobStatus(job.getId());
@@ -274,7 +281,6 @@ public class JobTestBase extends StepTestBase {
     protected void createAndStartJob(Job job, byte[] fileContent) throws Exception {
         //Create Job
         createJob(job);
-        createdJobs.add(job.getId());
 
         //Upload content if provided
         if(fileContent != null)

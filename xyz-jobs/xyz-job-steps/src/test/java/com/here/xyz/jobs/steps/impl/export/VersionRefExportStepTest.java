@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,11 +23,9 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
-
+import com.here.xyz.models.hub.Tag;
 import java.io.IOException;
 import java.util.List;
-
-import com.here.xyz.models.hub.Tag;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
@@ -137,14 +135,16 @@ public class VersionRefExportStepTest extends ExportTestBase {
   }
 
   @Test
-  public void exportWithVersionRange1_3() throws IOException, InterruptedException {
-    Ref versionRef = new Ref("1..3");
+  public void exportWithVersionRange0_3() throws IOException, InterruptedException {
+    Ref versionRef = new Ref("0..3");
 
     RuntimeException runtimeException = Assertions.assertThrowsExactly(RuntimeException.class, () ->
             executeExportStepAndCheckResults(SPACE_ID, null, null, null,
                     versionRef, "search?versionRef=" + versionRef)
     );
-    Assertions.assertEquals("Validation exception: Invalid VersionRef! StartVersion is smaller than min available version '2'!", runtimeException.getMessage());
+    Assertions.assertEquals("Validation exception: Invalid VersionRef! The first referenced version (1) "
+        + "by version range (0..3) is smaller than min available version '2'! "
+        + "[NOTE: The start version of a version range is exclusive, the end version however is inclusive]", runtimeException.getMessage());
   }
 
   @Disabled //Enable if xyz-hub also delivers features starting from minVersion - without ignoring v2k

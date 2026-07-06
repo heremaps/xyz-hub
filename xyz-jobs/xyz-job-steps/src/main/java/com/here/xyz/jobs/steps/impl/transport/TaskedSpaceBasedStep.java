@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,17 @@
  */
 
 package com.here.xyz.jobs.steps.impl.transport;
+
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
+import static com.here.xyz.jobs.steps.Step.Visibility.SYSTEM;
+import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
+import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_EXECUTE;
+import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_ON_ASYNC_FAILURE;
+import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_ON_ASYNC_SUCCESS;
+import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_ON_ASYNC_UPDATE;
+import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_ON_STATE_CHECK;
+import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.UNKNOWN;
+import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonView;
@@ -45,9 +56,6 @@ import com.here.xyz.util.db.pg.FeatureWriterQueryBuilder.FeatureWriterQueryConte
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.web.XyzWebClient;
 import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -57,17 +65,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-
-import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
-import static com.here.xyz.jobs.steps.Step.Visibility.SYSTEM;
-import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
-import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_EXECUTE;
-import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_ON_ASYNC_FAILURE;
-import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_ON_ASYNC_SUCCESS;
-import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_ON_ASYNC_UPDATE;
-import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_ON_STATE_CHECK;
-import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.UNKNOWN;
-import static com.here.xyz.util.web.XyzWebClient.WebClientException;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Abstract base class for space-based job steps that execute tasks in parallel.
@@ -417,42 +416,28 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   public boolean validate() throws ValidationException {
     super.validate();
     //Validate versionRef
-    if (this.versionRef == null)
+    if (versionRef == null)
       return true;
 
-    if (this.versionRef.isSingleVersion()) {
-      if (this.versionRef.getVersion() < minSpaceVersion)
-        throw new ValidationException("Invalid VersionRef! Version is smaller than min available version '" +
-                minSpaceVersion + "'!");
-      if (this.versionRef.getVersion() > maxSpaceVersion)
-        throw new ValidationException("Invalid VersionRef! Version is higher than max available version '" +
-                maxSpaceVersion + "'!");
-    } else if (this.versionRef.isRange()) {
-      if (this.versionRef.getStart().getVersion() < minSpaceVersion)
-        throw new ValidationException("Invalid VersionRef! StartVersion is smaller than min available version '" +
-                minSpaceVersion + "'!");
-      if (this.versionRef.getEnd().getVersion() > maxSpaceVersion)
-        throw new ValidationException("Invalid VersionRef! EndVersion is higher than max available version '" +
-                maxSpaceVersion + "'!");
+    if (versionRef.isSingleVersion()) {
+      if (versionRef.getVersion() < minSpaceVersion)
+        throw new ValidationException("Invalid VersionRef (" + versionRef + ")! Version is smaller than min available version '" +
+            minSpaceVersion + "'!");
+      if (versionRef.getVersion() > maxSpaceVersion)
+        throw new ValidationException("Invalid VersionRef (" + versionRef + ")! Version is higher than max available version '" +
+            maxSpaceVersion + "'!");
+    }
+    else if (versionRef.isRange()) {
+      if (versionRef.getStart().getVersion() < minSpaceVersion - 1)
+        throw new ValidationException("Invalid VersionRef! The first referenced version (" + (versionRef.getStart().getVersion() + 1)
+            + ") by version range (" + versionRef + ") is smaller than min available version '" + minSpaceVersion
+            + "'! [NOTE: The start version of a version range is exclusive, the end version however is inclusive]");
+      if (versionRef.getEnd().getVersion() > maxSpaceVersion)
+        throw new ValidationException("Invalid VersionRef (" + versionRef + ")! EndVersion is higher than max available version '"
+            + maxSpaceVersion + "'!");
     }
 
     return true;
-  }
-
-  private long resolveTag(String tag) throws ValidationException {
-    try {
-      return loadTag(getSpaceId(), tag).getVersion();
-    } catch (WebClientException e) {
-      throw handleWebClientException("Unable to resolve tag \"" + tag + "\" of " + getSpaceId(), e);
-    }
-  }
-
-  private long resolveHead() throws ValidationException {
-    try {
-      return spaceStatistics(context, true).getMaxVersion().getValue();
-    } catch (WebClientException e) {
-      throw handleWebClientException("Unable to resolve HEAD version of " + getSpaceId(), e);
-    }
   }
 
   private ValidationException handleWebClientException(String message, WebClientException e) throws ValidationException {
@@ -1023,7 +1008,8 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
     return new FeatureWriterQueryContextBuilder()
         .withSchema(schema)
         .withTables(tables)
-        .withSpaceContext(DEFAULT)
+        //Honor a user-provided space context (e.g. EXTENSION) and fall back to DEFAULT if none was set
+        .withSpaceContext(context != null ? context : DEFAULT)
         .withHistoryEnabled(space().getVersionsToKeep() > 1)
         .withBatchMode(true)
         .with("stepId", getId())

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -58,16 +58,16 @@ import org.apache.logging.log4j.Marker;
 public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
 
   private static final Logger logger = LogManager.getLogger();
-  private static final long DEFAULT_CONTENT_UPDATED_AT_INTERVAL_MILLIS = TimeUnit.MINUTES.toMillis(1);
+  private static final long DEFAULT_CONTENT_UPDATED_AT_INTERVAL_MILLIS = TimeUnit.SECONDS.toMillis(30);
   private static final long NO_CACHE_INTERVAL_MILLIS = DEFAULT_CONTENT_UPDATED_AT_INTERVAL_MILLIS * 2;
   private static final long MIN_SERVICE_CACHE_INTERVAL_MILLIS = TimeUnit.DAYS.toMillis(1);
   private Connector resolvedStorageConnector;
 
   /**
-   * Add random 20 seconds offset to avoid all service nodes sending cache invalidation for the space at the same time
+   * Add random 10 seconds offset to avoid all service nodes sending cache invalidation for the space at the same time
    */
   public static final long CONTENT_UPDATED_AT_INTERVAL_MILLIS = DEFAULT_CONTENT_UPDATED_AT_INTERVAL_MILLIS
-      - TimeUnit.SECONDS.toMillis((long) (Math.random() * 20));
+      - TimeUnit.SECONDS.toMillis((long) (Math.random() * 10));
 
   private final static long MAX_SLIDING_WINDOW = TimeUnit.DAYS.toMillis(10);
 
@@ -95,11 +95,23 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
     if (now - getContentUpdatedAt() > CONTENT_UPDATED_AT_INTERVAL_MILLIS) {
       setContentUpdatedAt(Core.currentTimeMillis());
       volatilityAtLastContentUpdate = getVolatility();
-      //NOTE: Storing / updating the space-config is done asynchronously here by intention to prevent adding latency in the response phase
-      Service.spaceConfigClient.store(marker, this)
-          .onSuccess(v -> logger.info(marker, "Updated contentUpdatedAt for space {}", getId()))
-          .onFailure(t -> logger.error(marker, "Error while updating contentUpdatedAt for space {}", getId(), t));
+      storeUpdatedSpace(marker);
     }
+  }
+
+  private void storeUpdatedSpace(Marker marker) {
+    //NOTE: Storing / updating the space-config is done asynchronously here by intention to prevent adding latency in the response phase
+    Service.spaceConfigClient.store(marker, this)
+        .onSuccess(v -> logger.info(marker, "Updated contentUpdatedAt for space {}", getId()))
+        .onFailure(t -> logger.error(marker, "Error while updating contentUpdatedAt for space {}", getId(), t));
+  }
+
+  public void resetTimestamps(Marker marker) {
+    long now = Core.currentTimeMillis();
+    setCreatedAt(now);
+    setUpdatedAt(now);
+    setContentUpdatedAt(now);
+    storeUpdatedSpace(marker);
   }
 
   @JsonIgnore

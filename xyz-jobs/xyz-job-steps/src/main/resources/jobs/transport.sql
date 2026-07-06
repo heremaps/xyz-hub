@@ -192,7 +192,7 @@ $BODY$;
 CREATE OR REPLACE FUNCTION s3_retry_backoff_ms(
         attempts INT,
         base_delay_ms INT DEFAULT 10000,
-        max_ms INT DEFAULT 60000
+        max_ms INT DEFAULT 600000
     )
     RETURNS INT
     LANGUAGE 'sql'
@@ -362,7 +362,7 @@ CREATE OR REPLACE FUNCTION execute_import_from_s3(
         target_tbl REGCLASS,
         format TEXT,
         s3_bucket TEXT, s3_key TEXT, s3_region TEXT,
-        max_attempts INT DEFAULT 3,
+        max_attempts INT DEFAULT 6,
         attempts INT DEFAULT 0
 	)
 RETURNS TEXT
@@ -441,7 +441,7 @@ $BODY$;
 CREATE OR REPLACE FUNCTION execute_export_to_s3(
         s3_bucket TEXT, s3_path TEXT, s3_region TEXT,
         content_query TEXT,
-        max_attempts INT DEFAULT 3,
+        max_attempts INT DEFAULT 6,
         attempts INT DEFAULT 0
     )
 RETURNS TABLE(rows_uploaded BIGINT, files_uploaded BIGINT, bytes_uploaded BIGINT)
@@ -483,7 +483,7 @@ BEGIN
                     USING ERRCODE = SQLSTATE;
         END IF;
 
-        -- Exponential backoff: 10 s, 20 s, 40 s .. capped at 60 s
+        -- Exponential backoff: 10 s, 20 s, 40 s .. capped at 600 s
         PERFORM pg_sleep(s3_retry_backoff_ms(attempts) / 1000.0);
 
         RETURN QUERY SELECT * FROM execute_export_to_s3(

@@ -335,6 +335,9 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
       int threadId = getThreadInfo()[0],
           threadCount = getThreadInfo()[1];
 
+      if( threadCount > 1 )
+       Thread.sleep( 30_000); // MMSUP-2840 - consistency, wait on multiple thread to assure "old" versions written by rest persists in db
+
       infoLog(resume ? STEP_RESUME : STEP_EXECUTE,  "Start ImlCopy thread number: " + threadId + " / " + threadCount
           + "; target version: " + getTargetVersion());
 
@@ -422,12 +425,19 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
       return new SQLQuery("""
       WITH ins_data as
       (
-        INSERT INTO ${schema}.${table} (jsondata, operation, author, geo, id, version, next_version )
+        INSERT INTO ${schema}.${table} AS tbl (jsondata, operation, author, geo, id, version, next_version )
           SELECT idata.jsondata, case when idata.operation = 'U' then 'I' else idata.operation end AS operation, idata.author, idata.geo, idata.id, ${{versionToBeUsed}} as version, max_bigint() as next_version
           FROM
           (
             ${{contentQuery}}
           ) idata
+        ON CONFLICT (id, version, next_version) DO UPDATE SET
+          jsondata  = EXCLUDED.jsondata,
+          author    = EXCLUDED.author,
+          operation = EXCLUDED.operation,
+          geo       = EXCLUDED.geo
+          WHERE (EXCLUDED.jsondata#>>'{properties,@ns:com:here:xyz,updatedAt}')::bigint
+              > (tbl.jsondata#>>'{properties,@ns:com:here:xyz,updatedAt}')::bigint
         RETURNING id
       ),
       count_data as

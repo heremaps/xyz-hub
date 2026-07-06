@@ -23,6 +23,7 @@ import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.X;
+import static com.here.xyz.jobs.steps.Step.Visibility.SYSTEM;
 import static com.here.xyz.jobs.steps.Step.Visibility.USER;
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.JOB_EXECUTOR;
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.JOB_VALIDATE;
@@ -149,7 +150,7 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
 
   {
     addOutputSets(List.of(
-        new OutputSet(STATISTICS, USER, true),
+        new OutputSet(STATISTICS, SYSTEM, true),
         new OutputSet(EXPORTED_DATA, USER, false)
     ));
   }
@@ -479,7 +480,9 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
     try {
       String table = getRootTableName(context == SUPER ? superSpace() : space());
       IRange iRange = loadIRange(table);
-      if (space().getExtension() != null && (context == DEFAULT || context == null)) {
+      if (space().getExtension() != null && (context == DEFAULT || context == null
+              //TODO: Hack because of internal usage of Context.X
+              || context == EXTENSION)) {
         IRange superIRange = loadIRange(getRootTableName(superSpace()));
         iRange = new IRange(Math.min(iRange.minI, superIRange.minI), Math.max(iRange.maxI, superIRange.maxI));
       }

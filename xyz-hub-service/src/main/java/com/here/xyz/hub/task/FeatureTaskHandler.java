@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -59,7 +59,6 @@ import com.here.xyz.events.SelectiveEvent;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.XYZHubRESTVerticle;
 import com.here.xyz.hub.cache.CacheClient;
-import com.here.xyz.hub.config.TagConfigClient;
 import com.here.xyz.hub.connectors.RpcClient;
 import com.here.xyz.hub.connectors.RpcClient.RpcContext;
 import com.here.xyz.hub.connectors.models.Connector;
@@ -90,7 +89,6 @@ import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.FeatureCollection.ModificationFailure;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.models.hub.Ref;
-import com.here.xyz.models.hub.Ref.InvalidRef;
 import com.here.xyz.models.hub.Space.Extension;
 import com.here.xyz.models.hub.Tag;
 import com.here.xyz.models.hub.jwt.JWTPayload;
@@ -203,6 +201,7 @@ public class FeatureTaskHandler {
      * @see Task#consumeEvent()
      */
     Event event = task.consumeEvent();
+    boolean isErase = event instanceof ModifyFeaturesEvent mfe && mfe.isEraseContent();
 
     if (!task.storage.active) {
       if (event instanceof ModifySpaceEvent && ((ModifySpaceEvent) event).getOperation() == ModifySpaceEvent.Operation.DELETE) {
@@ -308,8 +307,12 @@ public class FeatureTaskHandler {
       }
 
       //Update the contentUpdatedAt timestamp to indicate that the data in this space was modified
-      if (task instanceof FeatureTask.ConditionalOperation)
-        task.space.updateContentUpdatedAt(task.getMarker());
+      if (task instanceof FeatureTask.ConditionalOperation) {
+        if (isErase)
+          task.space.resetTimestamps(task.getMarker());
+        else
+          task.space.updateContentUpdatedAt(task.getMarker());
+      }
       //Send event to potentially registered request-listeners
       if (requestListenerPayload != null)
         notifyListeners(task, eventType, requestListenerPayload);

@@ -127,6 +127,8 @@ public class Job implements XyzSerializable {
   private Set<String> resourceKeys;
   @JsonView(Static.class)
   private List<StaticLoad> calculatedResourceLoads;
+  @JsonView({Internal.class, Static.class})
+  private boolean reusable = true;
 
   private static final Async ASYNC = new Async(100, Job.class);
   private static final Logger logger = LogManager.getLogger();
@@ -658,6 +660,13 @@ public class Job implements XyzSerializable {
     return ASYNC.run(() -> createOutputsRetriever().getItems(new JobOutputsRetriever.OutputsParams()));
   }
 
+  public Future<List<Output>> loadAllOutputs() {
+    return ASYNC.run(() -> getSteps().stepStream()
+        .map(step -> (List<Output>) step.loadOutputs())
+        .flatMap(List::stream)
+        .collect(Collectors.toList()));
+  }
+
   public Future<Page<Output>> loadOutputs(String setName, String outputSetGroup, int limit, String nextPageToken) {
     JobOutputsRetriever.OutputsParams params = new JobOutputsRetriever.OutputsParams(outputSetGroup, setName);
     return ASYNC.run(() -> createOutputsRetriever().getPage(params, limit, nextPageToken));
@@ -1000,6 +1009,19 @@ public class Job implements XyzSerializable {
   @JsonIgnore
   public boolean isPipeline() {
     return getSource() instanceof DynamicStream;
+  }
+
+  public boolean isReusable() {
+    return reusable;
+  }
+
+  public void setReusable(boolean reusable) {
+    this.reusable = reusable;
+  }
+
+  public Job withReusable(boolean reusable) {
+    setReusable(reusable);
+    return this;
   }
 
   public void registerFinalizeObserver(Runnable finalizationObserver) {

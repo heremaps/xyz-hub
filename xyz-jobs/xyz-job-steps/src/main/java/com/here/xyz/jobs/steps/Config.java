@@ -51,6 +51,16 @@ public class Config extends BaseConfig {
   public String JOBS_S3_BUCKET;
 
   /**
+   * The S3 bucket that registered data references are copied into.
+   */
+  public String REFERENCES_BUCKET;
+
+  /**
+   * The IAM role ARN assumed by S3 Batch Operations for the references copy job.
+   */
+  public String S3_BATCH_OPS_ROLE_ARN;
+
+  /**
    * The DB hostname to be used inside the step lambda when running locally
    */
   public String LOCAL_DB_HOST_OVERRIDE;

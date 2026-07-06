@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -45,6 +45,7 @@ import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.responses.changesets.Changeset;
 import com.here.xyz.responses.changesets.ChangesetCollection;
 import com.here.xyz.util.KeyValue;
+import com.here.xyz.util.service.BaseConfig;
 import java.net.URLEncoder;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
@@ -61,8 +62,6 @@ import net.jodah.expiringmap.ExpirationPolicy;
 import net.jodah.expiringmap.ExpiringMap;
 
 public class HubWebClient extends XyzWebClient {
-  public static int STATISTICS_CACHE_TTL_SECONDS = 30;
-  public static int SPACE_CACHE_TTL_SECONDS = 30;
   public static String userAgent = DEFAULT_USER_AGENT;
   private static Map<InstanceKey, HubWebClient> instances = new ConcurrentHashMap<>();
   private ExpiringMap<String, Connector> connectorCache = ExpiringMap.builder()
@@ -71,16 +70,16 @@ public class HubWebClient extends XyzWebClient {
       .build();
   private ExpiringMap<String, StatisticsResponse> statisticsCache = ExpiringMap.builder()
       .expirationPolicy(ExpirationPolicy.CREATED)
-      .expiration(STATISTICS_CACHE_TTL_SECONDS, TimeUnit.SECONDS)
+      .expiration(cacheTTLSeconds(), TimeUnit.SECONDS)
       .build();
   private ExpiringMap<String, Space> spaceCache = ExpiringMap.builder()
       .expirationPolicy(ExpirationPolicy.CREATED)
-      .expiration(SPACE_CACHE_TTL_SECONDS, TimeUnit.SECONDS)
+      .expiration(cacheTTLSeconds(), TimeUnit.SECONDS)
       .build();
 
   private ExpiringMap<String, Branch> branchCache = ExpiringMap.builder()
           .expirationPolicy(ExpirationPolicy.CREATED)
-          .expiration(1, TimeUnit.MINUTES)
+          .expiration(cacheTTLSeconds(), TimeUnit.MINUTES)
           .build();
 
   protected HubWebClient(String baseUrl) {
@@ -408,7 +407,8 @@ public class HubWebClient extends XyzWebClient {
               .map(component -> {
                 try {
                   Object value = component.getAccessor().invoke(this);
-                  return value != null ? component.getName() + "=" + value : null;
+                  return value != null ? component.getName() + "=" + URLEncoder.encode(value.toString(),
+                          StandardCharsets.UTF_8) : null;
                 } catch (Exception e) {
                   throw new RuntimeException(e);
                 }
@@ -518,5 +518,9 @@ public class HubWebClient extends XyzWebClient {
 
     //Unsupported ref type (should not happen)
     throw new IllegalArgumentException("Unable to resolve the provided ref: " + ref);
+  }
+
+  private static long cacheTTLSeconds() {
+    return BaseConfig.instance.HUB_WEB_CLIENT_CACHE_TTL;
   }
 }
