@@ -65,6 +65,14 @@ import org.apache.logging.log4j.Logger;
 public class SQLQuery {
   private static final Logger logger = LogManager.getLogger();
   private static final Level QUERY_LEVEL = Level.forName("QUERY", 60);
+  /**
+   * Base delay for the exponential backoff performed between query retries.
+   * The first retry (i.e. the 2nd execution attempt) is always performed immediately without any delay to keep the
+   * previous behavior backwards compatible. Every following retry waits {@code RETRY_BACKOFF_BASE_MS * 2^n} milliseconds,
+   * capped at {@link #RETRY_BACKOFF_MAX_MS}.
+   */
+  private static final long RETRY_BACKOFF_BASE_MS = 5_000;
+  private static final long RETRY_BACKOFF_MAX_MS = 300_000;
   private static final String VAR_PREFIX = "\\$\\{";
   private static final String VAR_SUFFIX = "\\}";
   private static final String FRAGMENT_PREFIX = "${{";
@@ -1058,6 +1066,7 @@ public class SQLQuery {
       if (executionContext.mayRetry(e)) {
         logger.info("{} Retry Query permitted.", getQueryId());
         executionContext.addRetriedException(e);
+        executionContext.awaitRetryBackoff();
         return execute(dataSourceProvider, handler, operation, executionContext);
       }
       else
@@ -1203,6 +1212,44 @@ public class SQLQuery {
     public boolean mayRetry(Exception e) {
       int usedTimeForAttempt = (int) (System.currentTimeMillis() - lastAttemptTime) / 1000;
       return remainingQueryTimeout > usedTimeForAttempt / 1000 && isRecoverable(e);
+    }
+
+    /**
+     * Waits for the exponential backoff delay before the upcoming retry is performed. The first retry (the 2nd execution
+     * attempt) is executed immediately without any delay to stay backwards compatible; every following retry waits an
+     * exponentially growing amount of time, capped at {@link SQLQuery#RETRY_BACKOFF_MAX_MS}.
+     */
+    public void awaitRetryBackoff() {
+      long delay = retryBackoffDelay();
+      if (delay <= 0)
+        return;
+      logger.info("{} Waiting {} ms before retrying the query.", getQueryId(), delay);
+      try {
+        Thread.sleep(delay);
+      }
+      catch (InterruptedException ie) {
+        Thread.currentThread().interrupt();
+      }
+    }
+
+    /**
+     * @return the backoff delay in milliseconds for the upcoming retry, or {@code 0} for the first retry. If a query
+     *   timeout is set, the delay is additionally capped at the remaining query time so the backoff can never wait
+     *   longer than the query is still allowed to run.
+     */
+    long retryBackoffDelay() {
+      //At this point executionAttempts was already incremented for the attempt that just failed.
+      //executionAttempts == 1 means the upcoming execution is the 1st retry, which stays immediate.
+      if (executionAttempts <= 1)
+        return 0;
+
+      //Exponential backoff, base * 2^n, capped at the maximum.
+      long delay = (long) Math.min(RETRY_BACKOFF_BASE_MS * Math.pow(2, executionAttempts - 2), RETRY_BACKOFF_MAX_MS);
+
+      //remainingQueryTimeout is measured in seconds; a value <= 0 for queryTimeout means "no timeout".
+      if (queryTimeout > 0)
+        delay = Math.min(delay, remainingQueryTimeout * 1000L);
+      return delay;
     }
 
     private boolean isRecoverable(Exception e) {
