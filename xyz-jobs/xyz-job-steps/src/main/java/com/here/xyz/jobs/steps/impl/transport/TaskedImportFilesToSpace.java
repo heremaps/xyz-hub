@@ -354,21 +354,10 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
     //TODO: CHECK
     //String superRootTable = space().getExtension() != null ? getRootTableName(superSpace()) : null;
 
-    runReadQueryAsync(getQueryBuilder().buildImportFromTmpTableTaskQuery(
-            taskId,
-            output.progress() == null ? 1 : output.progress().endI() + 1, //TBD check
-            space().getOwner(),
-            targetVersion,
-            false,
-            updateStrategy,
-            new LambdaStepRequest().withStep(this).serialize(),
-            getwOwnLambdaArn().toString(),
-            getwOwnLambdaArn().getRegion(),
-            getQueryContext(getSchema(db())),
-            buildFailureCallbackQuery().substitute().text()
-                    .replaceAll("'", "''")
-    ).withRetryableErrorCodes(RETRYABLE_SQL_CODES)
-            ,dbWriter(), 0, false);
+    long rangeStart = output.progress() == null ? 1 : output.progress().endI() + 1; //TBD check
+    String failureCallback = buildFailureCallbackQuery().substitute().text().replaceAll("'", "''");
+    runReadQueryAsync(buildImportFromTmpTableTaskQuery(taskId, rangeStart, failureCallback)
+            , dbWriter(), 0, false);
   }
 
   @Override
@@ -414,18 +403,7 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
           infoLog(STEP_EXECUTE, "Resume task " + taskId + " - skipping phase 1, " +
                   "starting phase 2 at startI=" + resumeStartI);
 
-          return getQueryBuilder().buildImportFromTmpTableTaskQuery(
-                  taskId,
-                  resumeStartI,
-                  space().getOwner(),
-                  targetVersion,
-                  false,
-                  updateStrategy,
-                  new LambdaStepRequest().withStep(this).serialize(),
-                  getwOwnLambdaArn().toString(),
-                  getwOwnLambdaArn().getRegion(),
-                  getQueryContext(getSchema(db())),
-                  failureCallback);
+          return buildImportFromTmpTableTaskQuery(taskId, resumeStartI, failureCallback);
         }
       } catch (SQLException | TooManyResourcesClaimed e) {
         //Resume detection failed -> fall back to normal phase 1 start
@@ -435,8 +413,23 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
     }
 
     return getQueryBuilder().buildImportTaskQuery(format, taskId, taskInput, new LambdaStepRequest().withStep(this).serialize(),
-                    getwOwnLambdaArn().toString(), getwOwnLambdaArn().getRegion(), getQueryContext(getSchema(db())),
+                    getwOwnLambdaArn().toString(), getwOwnLambdaArn().getRegion(),
                     useFeatureWriter(), failureCallback);
+  }
+
+  private SQLQuery buildImportFromTmpTableTaskQuery(int taskId, long rangeStart, String failureCallback)
+          throws WebClientException {
+    return getQueryBuilder().buildImportFromTmpTableTaskQuery(
+            taskId,
+            rangeStart,
+            space().getOwner(),
+            targetVersion,
+            false,
+            updateStrategy,
+            new LambdaStepRequest().withStep(this).serialize(),
+            getwOwnLambdaArn().toString(),
+            getwOwnLambdaArn().getRegion(),
+            failureCallback);
   }
 
   @Override
@@ -517,11 +510,10 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
     return targetTableFeatureCount;
   }
 
-  private ImportQueryBuilder getQueryBuilder() throws WebClientException {
-    if(importQueryBuilder == null){
-      importQueryBuilder = new ImportQueryBuilder(getId(), getSchema(db()), getRootTableName(space()),
-              space().getVersionsToKeep(), featureWriterBatchSizeInMb);
-    }
+  private ImportQueryBuilder getQueryBuilder() {
+    if (importQueryBuilder == null)
+      importQueryBuilder = initQueryBuilder((space, context, stepId, schema, rootTable, superRootTable) ->
+              new ImportQueryBuilder(space, context, stepId, schema, rootTable, superRootTable, featureWriterBatchSizeInMb));
     return importQueryBuilder;
   }
 

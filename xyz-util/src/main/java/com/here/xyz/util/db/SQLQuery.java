@@ -766,6 +766,13 @@ public class SQLQuery {
     return this;
   }
 
+  public SQLQuery withRetryableErrorCodesAndMaximumRetries(Set<String> retryableErrorCodes,
+      int maximumRetries) {
+    setRetryableErrorCodes(retryableErrorCodes);
+    setMaximumRetries(maximumRetries);
+    return this;
+  }
+
   public String getQueryId() {
     //TODO: Call initQueryId() here?
     return queryId;

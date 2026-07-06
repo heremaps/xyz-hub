@@ -39,6 +39,7 @@ import com.here.xyz.jobs.steps.execution.db.Database;
 import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
 import com.here.xyz.jobs.steps.impl.transport.tasks.inputs.ExportInput;
 import com.here.xyz.jobs.steps.impl.transport.tasks.outputs.ExportOutput;
+import com.here.xyz.jobs.steps.impl.transport.tools.ExportQueryBuilder;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
 import com.here.xyz.jobs.steps.resources.IOResource;
@@ -86,13 +87,15 @@ import org.locationtech.jts.geom.Geometry;
  * <p>This step produces outputs of type {@link FeatureStatistics} and {@link DownloadUrl}.</p>
  */
 public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles, ExportInput, ExportOutput> {
+  private ExportQueryBuilder exportQueryBuilder;
+
   public static final String STATISTICS = "statistics";
   public static final String EXPORTED_DATA = "exportedData";
 
   //Defines how many features a source layer need to have to start parallelization.
-  public static final int PARALLELIZATION_MIN_THRESHOLD = 100_000;
+  private static final int PARALLELIZATION_MIN_THRESHOLD = 100_000;
   //Defines how many threads are getting used
-  public static final int PARALLELIZATION_THREAD_COUNT = 8;
+  private static final int PARALLELIZATION_THREAD_COUNT = 8;
 
   //Defines how large the area of a defined spatialFilter can be
   //If a point is defined - the maximum radius can be 17898 meters
@@ -100,8 +103,8 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
   //Currently only used if there is no filter set
   private static final long MAX_TASK_COUNT = 1_000;
   private static final long MAX_BYTES_PER_TASK = 200L * 1024 * 1024; // 200MB in bytes
-  public static final double ESTIMATED_SPATIAL_FILTERED_PEAK_ACUS = 0.05;
-  public static final int ESTIMATED_SPATIAL_FILTERED_IO_BYTES = 100 * 1024 * 1024;
+  private static final double ESTIMATED_SPATIAL_FILTERED_PEAK_ACUS = 0.05;
+  protected static final int ESTIMATED_SPATIAL_FILTERED_IO_BYTES = 100 * 1024 * 1024;
 
   @JsonView({Internal.class, Static.class})
   private int estimatedSeconds = -1;
@@ -460,20 +463,16 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
   private SQLQuery buildExportToS3PluginQuery(String schema, int taskId, String contentQuery, String failureCallback) throws WebClientException {
     //TODO Group by threadId
     DownloadUrl downloadUrl = new DownloadUrl().withS3Key(toS3Path(getOutputSet(EXPORTED_DATA)) + "/" + taskId + "/" + UUID.randomUUID() + ".json");
-    return new SQLQuery(
-            "SELECT export_to_s3_perform(#{taskId},  #{s3_bucket}, #{s3_path}, #{s3_region}, #{step_payload}::JSON->'step', " +
-                    "#{lambda_function_arn}, #{lambda_region}, #{contentQuery}, '${{failureCallback}}');")
-            .withContext(getQueryContext(schema))
-            .withAsyncProcedure(false)
-            .withNamedParameter("taskId", taskId)
-            .withNamedParameter("s3_bucket", downloadUrl.getS3Bucket())
-            .withNamedParameter("s3_path", downloadUrl.getS3Key())
-            .withNamedParameter("s3_region", bucketRegion())
-            .withNamedParameter("step_payload", new LambdaStepRequest().withStep(this).serialize())
-            .withNamedParameter("lambda_function_arn", getwOwnLambdaArn().toString())
-            .withNamedParameter("lambda_region", getwOwnLambdaArn().getRegion())
-            .withNamedParameter("contentQuery", contentQuery)
-            .withQueryFragment("failureCallback",  failureCallback);
+
+    return getQueryBuilder().buildExportToS3PluginQuery(
+            taskId,
+            downloadUrl,
+            bucketRegion(),
+            new LambdaStepRequest().withStep(this).serialize(),
+            getwOwnLambdaArn().toString(),
+            getwOwnLambdaArn().getRegion(),
+            contentQuery,
+            failureCallback);
   }
 
   private void loadIRange() {
@@ -496,9 +495,7 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
 
   private IRange loadIRange(String table) throws WebClientException, SQLException, TooManyResourcesClaimed {
     Database dbReader = dbReader();
-    return runReadQuerySync(new SQLQuery("SELECT min(i) AS min_i, max(i) AS max_i FROM ${schema}.${table}")
-        .withVariable("schema", getSchema(dbReader))
-        .withVariable("table", table), dbReader, 0d, rs -> {
+    return runReadQuerySync(getQueryBuilder().buildIRangeQuery(table), dbReader, 0d, rs -> {
       if (!rs.next())
         throw new StepException("Error while loading min / max i values.");
       return new IRange(rs.getLong("min_i"), rs.getLong("max_i"));
@@ -556,6 +553,12 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
         .withAdditionalFilterFragment(threadCondition)
         .buildQuery(input)
         .toExecutableQueryString();
+  }
+
+  private ExportQueryBuilder getQueryBuilder() {
+    if (exportQueryBuilder == null)
+      exportQueryBuilder = initQueryBuilder(ExportQueryBuilder::new);
+    return exportQueryBuilder;
   }
 
   private record TransportStatistics(long rowCount, long byteSize, int fileCount) {}
