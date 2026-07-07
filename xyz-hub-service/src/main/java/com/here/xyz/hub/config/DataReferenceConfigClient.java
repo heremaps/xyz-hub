@@ -22,6 +22,7 @@ package com.here.xyz.hub.config;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.config.dynamo.DynamoDataReferenceConfigClient;
 import com.here.xyz.models.hub.DataReference;
+import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.Initializable;
 import io.vertx.core.Future;
 import javax.annotation.Nonnull;
@@ -31,9 +32,15 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Marker;
+
 import static com.google.common.base.Preconditions.checkNotNull;
 
 public abstract class DataReferenceConfigClient implements Initializable {
+
+  private static final Logger logger = LogManager.getLogger();
 
   private static final class InstanceHolder {
     private static final DataReferenceConfigClient instance = new DynamoDataReferenceConfigClient(
@@ -97,4 +104,30 @@ public abstract class DataReferenceConfigClient implements Initializable {
     return doDelete(id);
   }
 
+  public final Future<List<DataReference>> loadByEntity(@Nonnull String entityId) {
+    return load(entityId, null, null, null, null, null, null);
+  }
+
+  /**
+   * Sets the keepUntil timestamp to the current time for all DataReferences of the given entity, effectively expiring them.
+   * Dynamo client will expire them after 48H grace period
+   */
+  public final Future<Void> expireForEntity(@Nullable Marker marker, @Nonnull String entityId) {
+    checkNotNull(entityId, "DataReference entityId cannot be null");
+    return loadByEntity(entityId).compose(references -> {
+      if (references == null || references.isEmpty()) {
+        logger.info(marker, "expireForEntity: no DataReferences found for entityId={}", entityId);
+        return Future.succeededFuture();
+      }
+      logger.info(marker, "expireForEntity: setting on {} DataReferences for entityId={}",
+           references.size(), entityId);
+      return Future.all(references.stream()
+              .map(reference -> doStore(reference.withKeepUntil(Core.currentTimeMillis()))
+                  .onFailure(t -> logger.warn(marker,
+                      "expireForEntity: failed to update keepUntil for reference id={} entityId={}",
+                      reference.getId(), entityId, t)))
+              .toList())
+          .mapEmpty();
+    });
+  }
 }
