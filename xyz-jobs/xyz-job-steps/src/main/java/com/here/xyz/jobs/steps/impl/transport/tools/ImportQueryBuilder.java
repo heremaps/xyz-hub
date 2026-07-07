@@ -54,7 +54,7 @@ public class ImportQueryBuilder extends DatabaseStepQueryBuilder {
 
     return new SQLQuery(
             "SELECT perform_import_from_s3_task(#{taskId}, #{schema}, to_regclass(#{targetTable}), #{format}, " +
-                    "#{s3Bucket}, #{s3Key}, #{s3Region}, #{filesize}, #{stepPayload}::JSON->'step', " +
+                    "#{s3Bucket}, #{s3Key}, #{s3Region}, #{filesize}, #{targetVersion}, #{stepPayload}::JSON->'step', " +
                     "#{lambdaFunctionArn}, #{lambdaRegion}, '${{failureCallback}}')")
             .withContext(getQueryContext())
             .withAsync(true)
@@ -66,6 +66,7 @@ public class ImportQueryBuilder extends DatabaseStepQueryBuilder {
             .withNamedParameter("s3Key", taskInput.s3Key())
             .withNamedParameter("s3Region", taskInput.s3Region())
             .withNamedParameter("filesize", taskInput.fileByteSize())
+            .withNamedParameter("targetVersion",taskInput.targetVersion())
             .withNamedParameter("stepPayload", serializedImportStep)
             .withNamedParameter("lambdaFunctionArn", lambdaArn)
             .withNamedParameter("lambdaRegion", ownLambdaRegion)

@@ -226,7 +226,7 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
 
       if(format.equals(FAST_IMPORT_INTO_EMPTY))
         return;
-      //import into an empty, non-composite, layer
+      //import into an empty, non-composite, layer - targetVersion got persisted in trigger
       runWriteQuerySync(getQueryBuilder().buildCreateImportTriggerForEmptyLayers(space().getOwner(), targetVersion, retainMetadata),
               db(), 0);
     }
@@ -268,7 +268,7 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
       if (input instanceof S3DataFile) {
         taskItems.add(
                 new ImportInput(input.getS3Bucket(), input.getS3Key(), bucketRegion(input.getS3Bucket()),
-                        input.getByteSize())
+                        input.getByteSize(), targetVersion)
         );
       }
     }
@@ -351,12 +351,9 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
 
   @Override
   protected void onTaskProgress(int taskId, ImportOutput output) throws WebClientException, SQLException, TooManyResourcesClaimed {
-    //TODO: CHECK
-    //String superRootTable = space().getExtension() != null ? getRootTableName(superSpace()) : null;
-
-    long rangeStart = output.progress() == null ? 1 : output.progress().endI() + 1; //TBD check
+    long rangeStart = output.progress() == null ? 1 : output.progress().endI() + 1;
     String failureCallback = buildFailureCallbackQuery().substitute().text().replaceAll("'", "''");
-    runReadQueryAsync(buildImportFromTmpTableTaskQuery(taskId, rangeStart, failureCallback)
+    runReadQueryAsync(buildImportFromTmpTableTaskQuery(taskId, rangeStart, output.targetVersion(), failureCallback)
             , dbWriter(), 0, false);
   }
 
@@ -403,7 +400,7 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
           infoLog(STEP_EXECUTE, "Resume task " + taskId + " - skipping phase 1, " +
                   "starting phase 2 at startI=" + resumeStartI);
 
-          return buildImportFromTmpTableTaskQuery(taskId, resumeStartI, failureCallback);
+          return buildImportFromTmpTableTaskQuery(taskId, resumeStartI, taskInput.targetVersion(), failureCallback);
         }
       } catch (SQLException | TooManyResourcesClaimed e) {
         //Resume detection failed -> fall back to normal phase 1 start
@@ -417,7 +414,7 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
                     useFeatureWriter(), failureCallback);
   }
 
-  private SQLQuery buildImportFromTmpTableTaskQuery(int taskId, long rangeStart, String failureCallback)
+  private SQLQuery buildImportFromTmpTableTaskQuery(int taskId, long rangeStart, long targetVersion, String failureCallback)
           throws WebClientException {
     return getQueryBuilder().buildImportFromTmpTableTaskQuery(
             taskId,
@@ -483,6 +480,7 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
 
     if(versionInput.isPresent()) {
       CreatedVersion version = (CreatedVersion) ((InputFromOutput) versionInput.get()).getDelegate();
+      infoLog(STEP_EXECUTE, "Using provided version from input: " + version.getVersion());
       return version.getVersion();
     }
 

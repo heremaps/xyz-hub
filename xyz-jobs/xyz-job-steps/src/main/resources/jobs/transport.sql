@@ -851,6 +851,7 @@ CREATE OR REPLACE FUNCTION perform_import_from_s3_task(
         format TEXT,
         s3_bucket TEXT, s3_key TEXT, s3_region TEXT,
         file_bytes BIGINT,
+        target_version BIGINT,
         step_payload JSON,
         lambda_function_arn TEXT,
         lambda_region TEXT,
@@ -876,6 +877,7 @@ BEGIN
 		s3_key TEXT := '$wrappedouter$||s3_key||$wrappedouter$'::TEXT;
 		s3_region TEXT := '$wrappedouter$||s3_region||$wrappedouter$'::TEXT;
         file_bytes BIGINT := '$wrappedouter$||file_bytes||$wrappedouter$'::BIGINT;
+        target_version BIGINT := '$wrappedouter$||target_version||$wrappedouter$'::BIGINT;
 		step_payload JSON := '$wrappedouter$||(step_payload::TEXT)||$wrappedouter$'::JSON;
 		lambda_function_arn TEXT := '$wrappedouter$||lambda_function_arn||$wrappedouter$'::TEXT;
 		lambda_region TEXT := '$wrappedouter$||lambda_region||$wrappedouter$'::TEXT;
@@ -897,6 +899,7 @@ BEGIN
 		     jsonb_build_object(
                 'importStatistics', import_statistics,
                 'fileBytes', file_bytes,
+		        'targetVersion', target_version,
                 'type', 'ImportOutput'
             )
 		);

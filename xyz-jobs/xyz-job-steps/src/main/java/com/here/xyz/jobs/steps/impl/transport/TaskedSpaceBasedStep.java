@@ -82,7 +82,6 @@ import org.apache.logging.log4j.Logger;
  */
 public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I extends TaskPayload, O extends TaskPayload>
         extends SpaceBasedStep<T> {
-  private static final String JOB_DATA_PREFIX = "job_data_";
   private static final Logger logger = LogManager.getLogger();
   public static final String FINALIZATION_MARKER = "finalized_marker";
   private TaskedSpaceBasedQueryBuilder taskedSpaceBasedQueryBuilder;
@@ -497,13 +496,10 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   @Override
   public void execute(boolean resume) throws Exception {
     //The following code is running synchronously till the first task is getting started.
-    String schema = getSchema(db());
-    List<I> taskDataList = createTaskItems();
-    taskItemCount = taskDataList.size();
 
     if (!resume) {
-      insertTaskItemsInTaskTable(taskDataList);
       initialSetup();
+      createAndInsertTaskItems();
     }else{
       try {
         //Reset all items which are not finalized to be able to restart them
@@ -522,15 +518,20 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
           }
           //Can not retrieve output - start from scratch
           infoLog(STEP_EXECUTE, "Reset of taskItems failed cause job_data table is missing! Recreating it!");
-          insertTaskItemsInTaskTable(taskDataList);
           initialSetup();
-
+          createAndInsertTaskItems();
         }else
           throw e;
       }
     }
     startInitialTasks();
     noTasksCreated = taskItemCount == 0;
+  }
+
+  private void createAndInsertTaskItems() throws SQLException, TooManyResourcesClaimed, QueryBuildingException, WebClientException {
+    List<I> taskDataList = createTaskItems();
+    taskItemCount = taskDataList.size();
+    insertTaskItemsInTaskTable(taskDataList);
   }
 
   /**
