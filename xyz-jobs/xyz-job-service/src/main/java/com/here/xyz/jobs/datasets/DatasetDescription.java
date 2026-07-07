@@ -45,6 +45,7 @@ import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import io.vertx.core.Future;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
@@ -86,6 +87,8 @@ public abstract class DatasetDescription implements Typed {
 
   public static class Map extends Identifiable implements VersionedSource<Map> {
     private Ref versionRef = new Ref(Ref.HEAD);
+    @JsonView({Public.class, Static.class})
+    private List<String> layerIds;
 
     @Override
     public Ref getVersionRef() {
@@ -101,6 +104,30 @@ public abstract class DatasetDescription implements Typed {
     public Map withVersionRef(Ref versionRef) {
       setVersionRef(versionRef);
       return this;
+    }
+
+    public List<String> getLayerIds() {
+      return layerIds;
+    }
+
+    public void setLayerIds(List<String> layerIds) {
+      this.layerIds = layerIds;
+    }
+
+    public Map withLayerIds(List<String> layerIds) {
+      setLayerIds(layerIds);
+      return this;
+    }
+
+    @Override
+    public Set<String> getResourceKeys() {
+      Set<String> resourceKeys = new HashSet<>(super.getResourceKeys());
+      //Add individual space-level resource keys derived from the catalog HRN + layer IDs
+      if (layerIds != null && getId() != null) {
+        for (String layerId : layerIds)
+          resourceKeys.add(getId() + ":" + layerId);
+      }
+      return resourceKeys;
     }
   }
 
