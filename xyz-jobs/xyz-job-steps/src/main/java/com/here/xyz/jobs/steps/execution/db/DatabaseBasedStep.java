@@ -56,6 +56,22 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
   @JsonView(Internal.class)
   private List<RunningQuery> runningQueries = new ArrayList<>();
 
+  private static final int MAXIMUM_RETRIES = 10;
+  private static final Set<String> RETRYABLE_SQL_CODES = Set.of(
+          "40001", // serialization_failure
+          "40P01", // deadlock_detected
+          "55P03", // lock_not_available
+          "23505", // unique_violation
+          "23P01", // exclusion_violation, same caveat
+          "53300", // too_many_connections
+          "08000", // connection_exception
+          "08001", // sqlclient_unable_to_establish_sqlconnection
+          "08003", // connection_does_not_exist
+          "08006", // connection_failure
+          "08004", // sqlserver_rejected_establishment_of_sqlconnection
+          "57P01"  // admin_shutdown
+  );
+
   @Override
   protected final void onRuntimeShutdown() {
     super.onRuntimeShutdown();
@@ -126,6 +142,9 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
     }
     else if (query.getTimeout() == Integer.MAX_VALUE)
       query.setTimeout(300);
+
+    //add retry settings
+    query.withRetryableErrorCodesAndMaximumRetries(RETRYABLE_SQL_CODES, MAXIMUM_RETRIES);
 
     Object result;
     if (query.isBatch() && isWriteQuery)

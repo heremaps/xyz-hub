@@ -34,7 +34,7 @@ public class TaskedSpaceBasedQueryBuilder extends DatabaseStepQueryBuilder {
   }
 
   public SQLQuery buildTaskTableStatement() {
-    return withRetryPolicy(new SQLQuery("""
+    return new SQLQuery("""
             CREATE TABLE ${schema}.${table}
             (
             	task_id SERIAL,
@@ -48,11 +48,11 @@ public class TaskedSpaceBasedQueryBuilder extends DatabaseStepQueryBuilder {
             //TODO: CHECK CONSTRAINT!!
             .withVariable("table", getTemporaryJobTableName())
             .withVariable("schema", schema)
-            .withVariable("primaryKey", getTemporaryJobTableName() + "_primKey"));
+            .withVariable("primaryKey", getTemporaryJobTableName() + "_primKey");
   }
 
   public SQLQuery buildUpdateTaskItemOutputStatement(SpaceBasedTaskUpdate update) {
-    return withRetryPolicy(new SQLQuery("""
+    return new SQLQuery("""
             UPDATE ${schema}.${table}
             SET task_output = (
                 COALESCE(task_output, '{}'::JSONB) || #{taskUpdate}::JSONB
@@ -66,43 +66,43 @@ public class TaskedSpaceBasedQueryBuilder extends DatabaseStepQueryBuilder {
             .withVariable("schema", schema)
             .withVariable("table", getTemporaryJobTableName())
             .withNamedParameter("taskId", update.taskId)
-            .withNamedParameter("taskUpdate", XyzSerializable.serialize(update)));
+            .withNamedParameter("taskUpdate", XyzSerializable.serialize(update));
   }
 
   public SQLQuery buildResetTaskItemWhichAreNotFinalizedStatement() {
-    return withRetryPolicy(new SQLQuery("""
+    return new SQLQuery("""
             UPDATE ${schema}.${table} t
                 SET started = false
                 WHERE started = true AND finalized = false;
         """)
             .withVariable("schema", schema)
-            .withVariable("table", getTemporaryJobTableName(stepId)));
+            .withVariable("table", getTemporaryJobTableName(stepId));
   }
 
   public SQLQuery buildRetrieveTaskOutputsQuery() {
-    return withRetryPolicy(new SQLQuery("SELECT task_id, task_input, task_output->'taskOutput' as task_output FROM ${schema}.${tmpTable};")
+    return new SQLQuery("SELECT task_id, task_input, task_output->'taskOutput' as task_output FROM ${schema}.${tmpTable};")
             .withVariable("schema", schema)
-            .withVariable("tmpTable", getTemporaryJobTableName()));
+            .withVariable("tmpTable", getTemporaryJobTableName());
   }
 
   public SQLQuery retrieveTaskStatisticsQuery() {
-    return withRetryPolicy(new SQLQuery("""
+    return new SQLQuery("""
             SELECT COUNT(1) as total,
                 SUM((started = true)::int) as started,
                 SUM((finalized = true)::int) as finalized
                 FROM ${schema}.${table};
         """)
             .withVariable("schema", schema)
-            .withVariable("table", getTemporaryJobTableName(stepId)));
+            .withVariable("table", getTemporaryJobTableName(stepId));
   }
 
   public SQLQuery retrieveTaskItemAndStatisticsQuery() {
-    return withRetryPolicy(new SQLQuery("SELECT total, started, finalized, task_id, task_input from get_task_item_and_statistics();")
-            .withContext(getQueryContext()));
+    return new SQLQuery("SELECT total, started, finalized, task_id, task_input from get_task_item_and_statistics();")
+            .withContext(getQueryContext());
   }
 
   public SQLQuery buildRetrieveTaskItemAndStatisticsAfterUpdateQuery(SpaceBasedTaskUpdate update) {
-    return withRetryPolicy(new SQLQuery("""
+    return new SQLQuery("""
         SELECT total, started, finalized, task_id, task_input
           FROM update_task_item_and_get_task_item_and_statistics(
             #{taskId},
@@ -113,35 +113,35 @@ public class TaskedSpaceBasedQueryBuilder extends DatabaseStepQueryBuilder {
       .withNamedParameter("taskId", update.taskId)
       .withNamedParameter("taskOutput", XyzSerializable.serialize(update))
       .withNamedParameter("finalized", true)
-      .withContext(getQueryContext()));
+      .withContext(getQueryContext());
   }
 
   public SQLQuery buildLoadOutputsQuery(int taskId) {
-    return withRetryPolicy(new SQLQuery("""
+    return new SQLQuery("""
               SELECT task_output->'taskOutput' AS task_output
                 FROM ${schema}.${tmpTable}
                WHERE task_id = #{taskId};
         """)
           .withVariable("schema", schema)
-          .withVariable("tmpTable", getTemporaryJobTableName()))
+          .withVariable("tmpTable", getTemporaryJobTableName())
           .withNamedParameter("taskId", taskId);
   }
 
   public SQLQuery buildInsertTaskItemStatement(String serializedTaskItem){
-    return withRetryPolicy(new SQLQuery("""
+    return new SQLQuery("""
             INSERT INTO  ${schema}.${table} AS t (task_input)
                 VALUES (#{taskItem}::JSONB);
         """)
             .withVariable("schema", schema)
             .withVariable("table", getTemporaryJobTableName())
             .withNamedParameter("taskItem", serializedTaskItem)
-            .withLoggingEnabled(false));
+            .withLoggingEnabled(false);
   }
 
   public SQLQuery buildTemporaryJobTableDropStatement() {
-    return withRetryPolicy(new SQLQuery("DROP TABLE IF EXISTS ${schema}.${table};")
+    return new SQLQuery("DROP TABLE IF EXISTS ${schema}.${table};")
             .withVariable("table", getTemporaryJobTableName())
-            .withVariable("schema", schema));
+            .withVariable("schema", schema);
   }
 
   private String getTemporaryJobTableName(String stepId) {

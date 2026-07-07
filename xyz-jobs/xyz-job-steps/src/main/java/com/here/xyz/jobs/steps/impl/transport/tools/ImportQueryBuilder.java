@@ -39,9 +39,9 @@ public class ImportQueryBuilder extends DatabaseStepQueryBuilder {
   }
 
   public SQLQuery buildNextVersionQuery(){
-    return withRetryPolicy(new SQLQuery("SELECT nextval('${schema}.${sequence}')")
+    return new SQLQuery("SELECT nextval('${schema}.${sequence}')")
             .withVariable("schema", schema)
-            .withVariable("sequence", rootTable + "_version_seq"));
+            .withVariable("sequence", rootTable + "_version_seq");
   }
 
   public SQLQuery buildImportTaskQuery(Format format, Integer taskId, ImportInput taskInput, String serializedImportStep,
@@ -52,7 +52,7 @@ public class ImportQueryBuilder extends DatabaseStepQueryBuilder {
             schema+".\"" + getTemporaryDataTableName(taskId) + "\""
             : schema+".\"" + rootTable + "\"";
 
-    return withRetryPolicy(new SQLQuery(
+    return new SQLQuery(
             "SELECT perform_import_from_s3_task(#{taskId}, #{schema}, to_regclass(#{targetTable}), #{format}, " +
                     "#{s3Bucket}, #{s3Key}, #{s3Region}, #{filesize}, #{stepPayload}::JSON->'step', " +
                     "#{lambdaFunctionArn}, #{lambdaRegion}, '${{failureCallback}}')")
@@ -69,41 +69,42 @@ public class ImportQueryBuilder extends DatabaseStepQueryBuilder {
             .withNamedParameter("stepPayload", serializedImportStep)
             .withNamedParameter("lambdaFunctionArn", lambdaArn)
             .withNamedParameter("lambdaRegion", ownLambdaRegion)
-            .withQueryFragment("failureCallback", failureCallback));
+            .withQueryFragment("failureCallback", failureCallback);
   }
 
   public SQLQuery buildCreateImportTriggerForEmptyLayers(String targetAuthor, long targetSpaceVersion, boolean retainMetadata){
-    return withRetryPolicy(new SQLQuery("CREATE OR REPLACE TRIGGER insertTrigger BEFORE INSERT ON ${schema}.${table} "
+    return new SQLQuery("CREATE OR REPLACE TRIGGER insertTrigger BEFORE INSERT ON ${schema}.${table} "
             + "FOR EACH ROW EXECUTE PROCEDURE ${triggerFunction}('${{author}}', ${{spaceVersion}}, ${{retainMetadata}});")
             .withQueryFragment("spaceVersion", "" + targetSpaceVersion)
             .withQueryFragment("author", targetAuthor)
             .withQueryFragment("retainMetadata", "" + retainMetadata)
             .withVariable("triggerFunction", "tasked_import_from_s3_trigger_for_empty_layer")
             .withVariable("schema", schema)
-            .withVariable("table", rootTable));
+            .withVariable("table", rootTable);
   }
 
   public SQLQuery buildTemporaryDataTableForImportQuery(int taskId){
     String tableFields ="  jsondata TEXT, i BIGSERIAL PRIMARY KEY";
-    return withRetryPolicy(new SQLQuery("CREATE TABLE IF NOT EXISTS ${schema}.${table} (${{tableFields}} )")
+    return new SQLQuery("CREATE TABLE IF NOT EXISTS ${schema}.${table} (${{tableFields}} )")
             .withQueryFragment("tableFields", tableFields)
             .withVariable("schema", schema )
-            .withVariable("table", getTemporaryDataTableName(taskId)));
+            .withVariable("table", getTemporaryDataTableName(taskId));
   }
 
   public SQLQuery dropTemporaryDataTableForImportQuery(int taskId){
-    return withRetryPolicy(new SQLQuery("DROP TABLE IF EXISTS ${schema}.${table} ;")
+    return new SQLQuery("DROP TABLE IF EXISTS ${schema}.${table} ;")
             .withVariable("schema", schema )
-            .withVariable("table", getTemporaryDataTableName(taskId)));
+            .withVariable("table", getTemporaryDataTableName(taskId));
   }
 
   public SQLQuery buildTriggerCleanUpStatement(){
     //Delete trigger - if present
-   return withRetryPolicy(new SQLQuery("DROP TRIGGER IF EXISTS insertTrigger ON ${schema}.${table};")
+   return new SQLQuery("DROP TRIGGER IF EXISTS insertTrigger ON ${schema}.${table};")
       .withVariable("schema", schema)
-      .withVariable("table", rootTable));
+      .withVariable("table", rootTable);
   }
 
+  //perpetration for finalCleanUp
   public SQLQuery buildDropAllTemporaryTablesByTaskItemCount(int taskItemCount) {
     if (taskItemCount <= 0) {
       return SQLQuery.batchOf(List.of());
@@ -128,7 +129,7 @@ public class ImportQueryBuilder extends DatabaseStepQueryBuilder {
                                                    String serializedImportStep, String lambdaArn, String ownLambdaRegion,
                                                    String failureCallback) {
 
-    return withRetryPolicy(new SQLQuery(
+    return new SQLQuery(
             "SELECT perform_import_from_tmp_table_task(#{taskId}, to_regclass(#{sourceTable}), #{rangeStart}, #{targetMb}, "
                     + "#{author}, #{currentVersion}, #{isPartial}, #{onExists}, #{onNotExists}, #{onVersionConflict}, "
                     + "#{onMergeConflict}, #{stepPayload}::JSON->'step', #{lambdaFunctionArn}, #{lambdaRegion}, '${{failureCallback}}')")
@@ -148,6 +149,6 @@ public class ImportQueryBuilder extends DatabaseStepQueryBuilder {
             .withNamedParameter("stepPayload", serializedImportStep)
             .withNamedParameter("lambdaFunctionArn", lambdaArn)
             .withNamedParameter("lambdaRegion", ownLambdaRegion)
-            .withQueryFragment("failureCallback", failureCallback));
+            .withQueryFragment("failureCallback", failureCallback);
   }
 }

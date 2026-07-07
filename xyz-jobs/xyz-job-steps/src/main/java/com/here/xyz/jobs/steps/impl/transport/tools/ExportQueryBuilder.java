@@ -32,15 +32,15 @@ public class ExportQueryBuilder extends DatabaseStepQueryBuilder{
   }
 
   public SQLQuery buildIRangeQuery(String table) {
-    return withRetryPolicy(withRetryPolicy(new SQLQuery("SELECT min(i) AS min_i, max(i) AS max_i FROM ${schema}.${table}")
+    return new SQLQuery("SELECT min(i) AS min_i, max(i) AS max_i FROM ${schema}.${table}")
             .withVariable("schema",schema)
-            .withVariable("table", table)));
+            .withVariable("table", table);
   }
 
   public SQLQuery buildExportToS3PluginQuery(int taskId, DownloadUrl downloadUrl,
           String bucketRegion, String serializedStep, String lambda_function_arn, String lambda_region,
           String contentQuery, String failureCallback) {
-    return withRetryPolicy(new SQLQuery(
+    return new SQLQuery(
             "SELECT export_to_s3_perform(#{taskId},  #{s3_bucket}, #{s3_path}, #{s3_region}, #{step_payload}::JSON->'step', " +
                     "#{lambda_function_arn}, #{lambda_region}, #{contentQuery}, '${{failureCallback}}');")
             .withContext(getQueryContext())
@@ -53,6 +53,6 @@ public class ExportQueryBuilder extends DatabaseStepQueryBuilder{
             .withNamedParameter("lambda_function_arn", lambda_function_arn)
             .withNamedParameter("lambda_region", lambda_region)
             .withNamedParameter("contentQuery", contentQuery)
-            .withQueryFragment("failureCallback",  failureCallback));
+            .withQueryFragment("failureCallback",  failureCallback);
   }
 }

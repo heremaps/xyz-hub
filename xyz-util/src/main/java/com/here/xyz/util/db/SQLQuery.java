@@ -71,7 +71,7 @@ public class SQLQuery {
    * previous behavior backwards compatible. Every following retry waits {@code RETRY_BACKOFF_BASE_MS * 2^n} milliseconds,
    * capped at {@link #RETRY_BACKOFF_MAX_MS}.
    */
-  private static final long RETRY_BACKOFF_BASE_MS = 5_000;
+  private static final long RETRY_BACKOFF_BASE_MS = 1_000;
   private static final long RETRY_BACKOFF_MAX_MS = 300_000;
   private static final String VAR_PREFIX = "\\$\\{";
   private static final String VAR_SUFFIX = "\\}";
@@ -1066,7 +1066,12 @@ public class SQLQuery {
       if (executionContext.mayRetry(e)) {
         logger.info("{} Retry Query permitted.", getQueryId());
         executionContext.addRetriedException(e);
-        executionContext.awaitRetryBackoff();
+        try {
+          executionContext.awaitRetryBackoff();
+        } catch (InterruptedException ex) {
+          logger.warn("{} Retry Query permitted due to interrupt", getQueryId());
+          throw e;
+        }
         return execute(dataSourceProvider, handler, operation, executionContext);
       }
       else
@@ -1219,17 +1224,12 @@ public class SQLQuery {
      * attempt) is executed immediately without any delay to stay backwards compatible; every following retry waits an
      * exponentially growing amount of time, capped at {@link SQLQuery#RETRY_BACKOFF_MAX_MS}.
      */
-    public void awaitRetryBackoff() {
+    public void awaitRetryBackoff() throws InterruptedException {
       long delay = retryBackoffDelay();
       if (delay <= 0)
         return;
       logger.info("{} Waiting {} ms before retrying the query.", getQueryId(), delay);
-      try {
-        Thread.sleep(delay);
-      }
-      catch (InterruptedException ie) {
-        Thread.currentThread().interrupt();
-      }
+      Thread.sleep(delay);
     }
 
     /**
@@ -1243,13 +1243,8 @@ public class SQLQuery {
       if (executionAttempts <= 1)
         return 0;
 
-      //Exponential backoff, base * 2^n, capped at the maximum.
-      long delay = (long) Math.min(RETRY_BACKOFF_BASE_MS * Math.pow(2, executionAttempts - 2), RETRY_BACKOFF_MAX_MS);
-
-      //remainingQueryTimeout is measured in seconds; a value <= 0 for queryTimeout means "no timeout".
-      if (queryTimeout > 0)
-        delay = Math.min(delay, remainingQueryTimeout * 1000L);
-      return delay;
+      //Return Delay with exponential backoff, base * 2^n, capped at the maximum.
+      return  (long) Math.min(RETRY_BACKOFF_BASE_MS * Math.pow(2, executionAttempts - 2), RETRY_BACKOFF_MAX_MS);
     }
 
     private boolean isRecoverable(Exception e) {
