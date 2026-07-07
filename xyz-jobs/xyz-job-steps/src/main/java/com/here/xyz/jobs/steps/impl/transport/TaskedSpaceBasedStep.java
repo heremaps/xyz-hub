@@ -65,8 +65,6 @@ import java.util.Optional;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import static com.here.xyz.jobs.steps.impl.transport.tools.DatabaseStepQueryBuilder.RETRYABLE_SQL_CODES;
-
 /**
  * Abstract base class for space-based job steps that execute tasks in parallel.
  * <p>
@@ -491,8 +489,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
 
       prepareTaskQuery(taskProgressAndItem.getTaskId());
 
-      runReadQueryAsync(buildTaskQuery(taskProgressAndItem.getTaskId(), (I) taskProgressAndItem.getTaskInput(), failureCallback)
-                         .withRetryableErrorCodes(RETRYABLE_SQL_CODES),
+      runReadQueryAsync(buildTaskQuery(taskProgressAndItem.getTaskId(), (I) taskProgressAndItem.getTaskInput(), failureCallback),
                 queryRunsOnWriter() ? dbWriter() : dbReader(), 0d/*perItemAcus.doubleValue()*/,  false);
     }
   }
