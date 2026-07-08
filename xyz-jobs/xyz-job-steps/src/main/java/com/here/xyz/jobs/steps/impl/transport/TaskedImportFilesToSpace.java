@@ -416,6 +416,10 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
 
   private SQLQuery buildImportFromTmpTableTaskQuery(int taskId, long rangeStart, long targetVersion, String failureCallback)
           throws WebClientException {
+
+    if(targetVersion < 0)
+      throw new StepException("Invalid targetVersion: " + targetVersion + "!");
+
     return getQueryBuilder().buildImportFromTmpTableTaskQuery(
             taskId,
             rangeStart,
