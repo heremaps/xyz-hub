@@ -360,12 +360,15 @@ public class DynamoJobConfigClient extends JobConfigClient {
         ))))
         .toList();
 
+    executeInBatches(writeRequests);
+  }
+
+  private void executeInBatches(List<WriteRequest> writeRequests) {
     for (int i = 0; i < writeRequests.size(); i += DYNAMODB_BATCH_WRITE_LIMIT) {
       List<WriteRequest> batch = writeRequests.subList(
           i,
           Math.min(i + DYNAMODB_BATCH_WRITE_LIMIT, writeRequests.size())
       );
-
       executeBatchWriteRequest(
           Map.of(resourceKeyTable.getTableName(), batch)
       );
@@ -512,7 +515,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
         ))))
         .toList();
 
-    executeBatchWriteRequest(Map.of(resourceKeyTable.getTableName(), writeRequests));
+    executeInBatches(writeRequests);
   }
 
   @Override
