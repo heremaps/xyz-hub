@@ -418,12 +418,13 @@ public abstract class JobExecutor implements Initializable {
     Set<String> resourceKeys = job.getResourceKeys();
     if (resourceKeys == null || resourceKeys.isEmpty())
       return Future.succeededFuture(true);
+    Set<String> nonBaseResourceKeys =  filterNonBaseResourceKeys(resourceKeys);
 
     //Filter the pre-loaded RUNNING jobs to those sharing at
     //least one resource key (and excluding the job itself)
     List<Job> conflictingRunning = runningJobs.stream()
         .filter(other -> !job.getId().equals(other.getId()))
-        .filter(other -> other.getResourceKeys() != null && !Collections.disjoint(other.getResourceKeys(), resourceKeys))
+        .filter(other -> other.getResourceKeys() != null && !Collections.disjoint(filterNonBaseResourceKeys(other.getResourceKeys()), nonBaseResourceKeys))
         .toList();
 
     if (!conflictingRunning.isEmpty()) {
@@ -454,6 +455,15 @@ public abstract class JobExecutor implements Initializable {
               olderPendingConflicts.stream().map(Job::getId).collect(Collectors.joining(", ")));
           return false;
         });
+  }
+
+  private static Set<String> filterNonBaseResourceKeys(Set<String> resourceKeys) {
+    return resourceKeys.stream().filter(resourceKey -> !isBaseResource(resourceKey)).collect(Collectors.toSet());
+  }
+
+  private static boolean isBaseResource(String resourceKey) {
+    //TODO: Remove this hotfix, once the base resource-keys were separated from the rest of the resource-keys
+    return resourceKey.contains("-stable-");
   }
 
   private static Future<Boolean> enoughResourcesAvailable(Job job) {
