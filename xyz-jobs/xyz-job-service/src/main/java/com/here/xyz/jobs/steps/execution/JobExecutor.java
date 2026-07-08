@@ -44,6 +44,7 @@ import com.here.xyz.util.service.Initializable;
 import io.vertx.core.Future;
 import io.vertx.core.impl.ConcurrentHashSet;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Executors;
@@ -414,15 +415,15 @@ public abstract class JobExecutor implements Initializable {
     if (!isSingleJobPerResourceEnabled())
       return Future.succeededFuture(true);
 
-    String resourceKey = job.getResourceKey();
-    if (resourceKey == null || resourceKey.isEmpty())
+    Set<String> resourceKeys = job.getResourceKeys();
+    if (resourceKeys == null || resourceKeys.isEmpty())
       return Future.succeededFuture(true);
 
     //Filter the pre-loaded RUNNING jobs to those sharing at
     //least one resource key (and excluding the job itself)
     List<Job> conflictingRunning = runningJobs.stream()
         .filter(other -> !job.getId().equals(other.getId()))
-        .filter(other -> resourceKey.equals(other.getResourceKey()))
+        .filter(other -> other.getResourceKeys() != null && !Collections.disjoint(other.getResourceKeys(), resourceKeys))
         .toList();
 
     if (!conflictingRunning.isEmpty()) {
@@ -437,7 +438,7 @@ public abstract class JobExecutor implements Initializable {
     //NOTE: This check is still needed even though checkPendingJobs() sorts by createdAt, because:
     // 1. A job directly submitted via startExecution() (outside the poll loop) has no ordering guarantee.
     // 2. An older job blocked by insufficient virtual units stays PENDING while a newer job could otherwise jump ahead.
-    return JobConfigClient.getInstance().loadJobs(resourceKey, PENDING)
+    return JobConfigClient.getInstance().loadJobs(resourceKeys, PENDING)
         .map(pendingJobs -> {
           List<Job> olderPendingConflicts = pendingJobs.stream()
               .filter(other -> !job.getId().equals(other.getId()))
