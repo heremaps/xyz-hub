@@ -346,6 +346,8 @@ public class DynamoJobConfigClient extends JobConfigClient {
     });
   }
 
+  private static final int DYNAMODB_BATCH_WRITE_LIMIT = 25;
+
   private void batchWriteResourceKeys(String jobId, Set<String> resourceKeys, long keepUntil) {
     if (resourceKeys.size() > MAX_RESOURCE_KEYS)
       throw new RuntimeException("Resource keys exceeds maximum allowed size of " + MAX_RESOURCE_KEYS);
@@ -358,14 +360,47 @@ public class DynamoJobConfigClient extends JobConfigClient {
         ))))
         .toList();
 
-    executeBatchWriteRequest(Map.of(resourceKeyTable.getTableName(), writeRequests));
+    for (int i = 0; i < writeRequests.size(); i += DYNAMODB_BATCH_WRITE_LIMIT) {
+      List<WriteRequest> batch = writeRequests.subList(
+          i,
+          Math.min(i + DYNAMODB_BATCH_WRITE_LIMIT, writeRequests.size())
+      );
+
+      executeBatchWriteRequest(
+          Map.of(resourceKeyTable.getTableName(), batch)
+      );
+    }
   }
 
-  private void executeBatchWriteRequest(Map<String, List<WriteRequest>> requestItems) {
-    BatchWriteItemResult result = dynamoClient.client.batchWriteItem(new BatchWriteItemRequest().withRequestItems(requestItems));
+  private static final int MAX_RETRIES = 10;
+  private static final long RETRY_DELAY_MS = 100;
 
-    if (!result.getUnprocessedItems().isEmpty())
-      executeBatchWriteRequest(result.getUnprocessedItems());
+  private void executeBatchWriteRequest(Map<String, List<WriteRequest>> requestItems) {
+    Map<String, List<WriteRequest>> unprocessed = requestItems;
+    int retries = 0;
+
+    while (!unprocessed.isEmpty()) {
+      BatchWriteItemResult result = dynamoClient.client.batchWriteItem(
+          new BatchWriteItemRequest().withRequestItems(unprocessed)
+      );
+
+      unprocessed = result.getUnprocessedItems();
+
+      if (!unprocessed.isEmpty()) {
+        if (++retries > MAX_RETRIES) {
+          throw new RuntimeException(
+              "Failed to process all DynamoDB batch write requests after "
+                  + MAX_RETRIES + " retries."
+          );
+        }
+
+        try {
+          Thread.sleep(RETRY_DELAY_MS);
+        } catch (InterruptedException e) {
+          //ignore
+        }
+      }
+    }
   }
 
   @Override
