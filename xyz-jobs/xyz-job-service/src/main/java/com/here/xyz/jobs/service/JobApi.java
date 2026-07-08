@@ -65,6 +65,10 @@ public class JobApi extends JobApiBase {
   protected JobApi() {}
 
   public JobApi(RouterBuilder rb) {
+    initApi(rb);
+  }
+
+  protected void initApi(RouterBuilder rb) {
     rb.getRoute("postJob").setDoValidation(false).addHandler(handleErrors(this::postJob));
     rb.getRoute("getJobs").setDoValidation(false).addHandler(handleErrors(this::getJobs));
     rb.getRoute("getJob").setDoValidation(false).addHandler(handleErrors(this::getJob));
