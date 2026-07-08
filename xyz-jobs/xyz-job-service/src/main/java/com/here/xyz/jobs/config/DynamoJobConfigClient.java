@@ -64,6 +64,9 @@ public class DynamoJobConfigClient extends JobConfigClient {
 
   private static final Logger logger = LogManager.getLogger();
   public static final int MAX_RESOURCE_KEYS = 256;
+  private static final int DYNAMODB_BATCH_WRITE_LIMIT = 25;
+  private static final int MAX_RETRIES_ON_THROTTLE = 5;
+  private static final long THROTTLE_RETRY_DELAY_MS = 100;
   public static final IndexDefinition JOB_ID_GSI = new IndexDefinition("jobId");
   public static final IndexDefinition STATE_GSI = new IndexDefinition("state");
   public static final IndexDefinition RESOURCE_KEY_GSI = new IndexDefinition("resourceKey");
@@ -346,8 +349,6 @@ public class DynamoJobConfigClient extends JobConfigClient {
     });
   }
 
-  private static final int DYNAMODB_BATCH_WRITE_LIMIT = 25;
-
   private void batchWriteResourceKeys(String jobId, Set<String> resourceKeys, long keepUntil) {
     if (resourceKeys.size() > MAX_RESOURCE_KEYS)
       throw new RuntimeException("Resource keys exceeds maximum allowed size of " + MAX_RESOURCE_KEYS);
@@ -365,41 +366,28 @@ public class DynamoJobConfigClient extends JobConfigClient {
 
   private void executeInBatches(List<WriteRequest> writeRequests) {
     for (int i = 0; i < writeRequests.size(); i += DYNAMODB_BATCH_WRITE_LIMIT) {
-      List<WriteRequest> batch = writeRequests.subList(
-          i,
-          Math.min(i + DYNAMODB_BATCH_WRITE_LIMIT, writeRequests.size())
-      );
-      executeBatchWriteRequest(
-          Map.of(resourceKeyTable.getTableName(), batch)
-      );
+      List<WriteRequest> batch = writeRequests.subList(i, Math.min(i + DYNAMODB_BATCH_WRITE_LIMIT, writeRequests.size()));
+      executeBatchWriteRequest(Map.of(resourceKeyTable.getTableName(), batch));
     }
   }
-
-  private static final int MAX_RETRIES = 10;
-  private static final long RETRY_DELAY_MS = 100;
 
   private void executeBatchWriteRequest(Map<String, List<WriteRequest>> requestItems) {
     Map<String, List<WriteRequest>> unprocessed = requestItems;
     int retries = 0;
 
     while (!unprocessed.isEmpty()) {
-      BatchWriteItemResult result = dynamoClient.client.batchWriteItem(
-          new BatchWriteItemRequest().withRequestItems(unprocessed)
-      );
-
+      BatchWriteItemResult result = dynamoClient
+          .client.batchWriteItem(new BatchWriteItemRequest().withRequestItems(unprocessed));
       unprocessed = result.getUnprocessedItems();
 
       if (!unprocessed.isEmpty()) {
-        if (++retries > MAX_RETRIES) {
-          throw new RuntimeException(
-              "Failed to process all DynamoDB batch write requests after "
-                  + MAX_RETRIES + " retries."
-          );
-        }
+        if (++retries > MAX_RETRIES_ON_THROTTLE)
+          throw new RuntimeException("Failed to process all DynamoDB batch write requests after " + MAX_RETRIES_ON_THROTTLE + " retries.");
 
         try {
-          Thread.sleep(RETRY_DELAY_MS);
-        } catch (InterruptedException e) {
+          Thread.sleep((long) (THROTTLE_RETRY_DELAY_MS * Math.pow(2, retries - 1)));
+        }
+        catch (InterruptedException e) {
           //ignore
         }
       }
