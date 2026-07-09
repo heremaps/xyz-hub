@@ -273,13 +273,16 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
    * <p>
    * This method can be overridden by subclasses to implement any required initialization logic,
    * such as preparing resources, validating prerequisites, or configuring the environment.
+   * The hook is invoked for both fresh executions and resumed executions.
    * </p>
    *
+   * @param resume {@code true} when the step is resumed after a previous attempt and should restore
+   *               or rebuild any required state accordingly; {@code false} for a fresh execution.
    * @throws SQLException If a database access error occurs.
    * @throws TooManyResourcesClaimed If too many resources are claimed during setup.
    * @throws WebClientException If an error occurs while interacting with the web client.
    */
-  protected void initialSetup() throws SQLException, TooManyResourcesClaimed, WebClientException {};
+  protected void initialSetup(boolean resume) throws SQLException, TooManyResourcesClaimed, WebClientException {};
 
   /**
    * Performs final cleanup after all tasks have completed.
@@ -496,12 +499,13 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   @Override
   public void execute(boolean resume) throws Exception {
     //The following code is running synchronously till the first task is getting started.
-
     if (!resume) {
-      initialSetup();
+      initialSetup(false);
       createAndInsertTaskItems();
     }else{
       try {
+        //we need to do the initialSetup here to be able to cover the case that the table does not already exists.
+        initialSetup(true);
         //Reset all items which are not finalized to be able to restart them
         runWriteQuerySyncUnkillable(resetTaskItemWhichAreNotFinalized(), db(WRITER), 0);
       }catch (SQLException e){
@@ -518,7 +522,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
           }
           //Can not retrieve output - start from scratch
           infoLog(STEP_EXECUTE, "Reset of taskItems failed cause job_data table is missing! Recreating it!");
-          initialSetup();
+          initialSetup(false);
           createAndInsertTaskItems();
         }else
           throw e;
