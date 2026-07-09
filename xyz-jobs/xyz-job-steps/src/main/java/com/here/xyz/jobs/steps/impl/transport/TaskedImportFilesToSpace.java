@@ -213,19 +213,37 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
   }
 
   @Override
-  protected void initialSetup() throws SQLException, TooManyResourcesClaimed, WebClientException {
-    targetVersion = getOrIncreaseVersionSequence();
+  protected void initialSetup(boolean resume) throws SQLException, TooManyResourcesClaimed, WebClientException {
 
-    if(useFeatureWriter()) {
+    if(useFeatureWriter()){
       infoLog(STEP_EXECUTE,  "initialSetup - Using FeatureWriter for import!");
-
-      //Pre-create two spare history partitions to avoid concurrency issue with hub requests.
+      //Pre-create two spare history partitions to avoid concurrency issue with hub requests. (also for resumes)
       createSpareHistoryPartitions(targetVersion);
-    }else{
-      infoLog(STEP_EXECUTE,  "initialSetup - Import into empty layer detected!");
+    }
 
-      if(format.equals(FAST_IMPORT_INTO_EMPTY))
-        return;
+    if(resume){
+      long persistedVersion = loadTargetVersionFromTaskInput();
+      long maxVersion = loadSpaceMaxVersion();
+      //check if the targetVersion is outdated
+      boolean versionIsOutdated = maxVersion > persistedVersion;
+
+      if(versionIsOutdated) {
+        //we need to get a new version to ensure consistency
+        targetVersion = increaseVersionSequence();
+        infoLog(STEP_EXECUTE, "initialSetup - resume: maxVersion (" + maxVersion + ") is higher than persisted "
+                + "targetVersion (" + persistedVersion + "). Allocated new targetVersion " + targetVersion
+                + " and resetting the task inputs.");
+        runWriteQuerySync(getQueryBuilder().buildUpdateTaskItemsTargetVersionStatement(targetVersion), db(), 0);
+      }else
+        infoLog(STEP_EXECUTE, "initialSetup - resume: reusing persisted targetVersion " + targetVersion
+                + " (maxVersion=" + maxVersion + ").");
+    }else{
+      //resume=false => retrieve new version
+      targetVersion = getOrIncreaseVersionSequence();
+    }
+
+    if(!useFeatureWriter() && !format.equals(FAST_IMPORT_INTO_EMPTY)) {
+      infoLog(STEP_EXECUTE,  "initialSetup(" + resume + ") - Import into empty layer detected! Create Trigger.");
       //import into an empty, non-composite, layer - targetVersion got persisted in trigger
       runWriteQuerySync(getQueryBuilder().buildCreateImportTriggerForEmptyLayers(space().getOwner(), targetVersion, retainMetadata),
               db(), 0);
@@ -488,10 +506,29 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
       return version.getVersion();
     }
 
+    return increaseVersionSequence();
+  }
+
+  private long increaseVersionSequence() throws SQLException, TooManyResourcesClaimed, WebClientException {
     return runReadQuerySync(getQueryBuilder().buildNextVersionQuery(), db(), 0, rs -> {
       rs.next();
       return rs.getLong(1);
     });
+  }
+
+  private long loadTargetVersionFromTaskInput() throws SQLException, TooManyResourcesClaimed, WebClientException {
+    return runReadQuerySync(getQueryBuilder().buildLoadTargetVersionFromTaskInputStatement(), db(), 0, rs -> {
+      if (!rs.next())
+        return -1L;
+      long version = rs.getLong(1);
+      return rs.wasNull() ? -1L : version;
+    });
+  }
+
+  private long loadSpaceMaxVersion() throws WebClientException {
+    StatisticsResponse statistics = loadSpaceStatistics(getSpaceId(), EXTENSION, true);
+    return statistics.getMaxVersion() != null && statistics.getMaxVersion().getValue() != null
+            ? statistics.getMaxVersion().getValue() : -1;
   }
 
   public boolean useFeatureWriter() throws WebClientException {

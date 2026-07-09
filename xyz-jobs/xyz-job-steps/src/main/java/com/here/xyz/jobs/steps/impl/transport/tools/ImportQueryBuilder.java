@@ -152,4 +152,44 @@ public class ImportQueryBuilder extends DatabaseStepQueryBuilder {
             .withNamedParameter("lambdaRegion", ownLambdaRegion)
             .withQueryFragment("failureCallback", failureCallback);
   }
+
+  /**
+   * Builds a query to load the target version from one non-finalized task item.
+   * <p>
+   * During resume, non-finalized task items may have a newer target version than finalized ones.
+   * Restricting the lookup to pending work ensures that resumed tasks keep writing with a consistent version.
+   * </p>
+   *
+   * @return The SQL query selecting a single pending task item's {@code targetVersion}.
+   */
+  public SQLQuery buildLoadTargetVersionFromTaskInputStatement() {
+    return withRetryPolicy(new SQLQuery("""
+            SELECT (task_input->>'targetVersion')::BIGINT AS target_version
+                FROM ${schema}.${table}
+            WHERE finalized = false
+                LIMIT 1;
+        """)
+            .withVariable("schema", schema)
+            .withVariable("table", getTemporaryJobTableName()));
+  }
+
+  /**
+   * Builds a query to update the target version in task inputs of all non-finalized task items.
+   * <p>
+   * Finalized items are intentionally excluded because their data was already written with their original version.
+   * </p>
+   *
+   * @param targetVersion The new target version to store in pending task inputs.
+   * @return The SQL query updating pending task items.
+   */
+  public SQLQuery buildUpdateTaskItemsTargetVersionStatement(long targetVersion) {
+    return withRetryPolicy(new SQLQuery("""
+            UPDATE ${schema}.${table}
+                SET task_input = jsonb_set(task_input, '{targetVersion}', to_jsonb(#{targetVersion}::BIGINT))
+                WHERE finalized = false;
+        """)
+            .withVariable("schema", schema)
+            .withVariable("table", getTemporaryJobTableName())
+            .withNamedParameter("targetVersion", targetVersion));
+  }
 }
