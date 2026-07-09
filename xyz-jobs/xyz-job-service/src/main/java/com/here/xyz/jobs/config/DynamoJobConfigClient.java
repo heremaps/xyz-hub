@@ -380,6 +380,8 @@ public class DynamoJobConfigClient extends JobConfigClient {
           .client.batchWriteItem(new BatchWriteItemRequest().withRequestItems(unprocessed));
       unprocessed = result.getUnprocessedItems();
 
+      logger.warn("There were some unprocessed items during the batch write execution. Was there some DynamoDB throttling? "
+          + "Retry attempts so far: {}", retries);
       if (!unprocessed.isEmpty()) {
         if (++retries > MAX_RETRIES_ON_THROTTLE)
           throw new RuntimeException("Failed to process all DynamoDB batch write requests after " + MAX_RETRIES_ON_THROTTLE + " retries.");
