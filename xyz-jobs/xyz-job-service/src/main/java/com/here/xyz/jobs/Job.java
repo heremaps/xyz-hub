@@ -542,6 +542,10 @@ public class Job implements XyzSerializable {
     return JobExecutor.getInstance()
             //Delete StateMachine if still existing
             .deleteExecution(getExecutionId())
+            .mapEmpty();
+
+
+/*
             //Delete the inputs of this job
             .compose(b -> deleteInputs())
             //Delete the outputs of this job
@@ -549,6 +553,7 @@ public class Job implements XyzSerializable {
                     //Temporary deletion deactivation for jobs with RegisterDataReferences step(s) or for release jobs.
                     ? Future.succeededFuture()
                     : Future.all(Job.forEach(getSteps().stepStream().toList(), Job::deleteStepOutputs)).mapEmpty());
+ */
   }
 
   private boolean hasRegisterDataReferencesStep() {
