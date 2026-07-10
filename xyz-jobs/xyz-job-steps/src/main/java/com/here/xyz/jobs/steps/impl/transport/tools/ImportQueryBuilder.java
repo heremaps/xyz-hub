@@ -163,14 +163,14 @@ public class ImportQueryBuilder extends DatabaseStepQueryBuilder {
    * @return The SQL query selecting a single pending task item's {@code targetVersion}.
    */
   public SQLQuery buildLoadTargetVersionFromTaskInputStatement() {
-    return withRetryPolicy(new SQLQuery("""
+    return new SQLQuery("""
             SELECT (task_input->>'targetVersion')::BIGINT AS target_version
                 FROM ${schema}.${table}
             WHERE finalized = false
                 LIMIT 1;
         """)
             .withVariable("schema", schema)
-            .withVariable("table", getTemporaryJobTableName()));
+            .withVariable("table", getTemporaryJobTableName());
   }
 
   /**
@@ -183,13 +183,13 @@ public class ImportQueryBuilder extends DatabaseStepQueryBuilder {
    * @return The SQL query updating pending task items.
    */
   public SQLQuery buildUpdateTaskItemsTargetVersionStatement(long targetVersion) {
-    return withRetryPolicy(new SQLQuery("""
+    return new SQLQuery("""
             UPDATE ${schema}.${table}
                 SET task_input = jsonb_set(task_input, '{targetVersion}', to_jsonb(#{targetVersion}::BIGINT))
                 WHERE finalized = false;
         """)
             .withVariable("schema", schema)
             .withVariable("table", getTemporaryJobTableName())
-            .withNamedParameter("targetVersion", targetVersion));
+            .withNamedParameter("targetVersion", targetVersion);
   }
 }
