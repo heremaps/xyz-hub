@@ -1216,7 +1216,7 @@ public class SQLQuery {
 
     public boolean mayRetry(Exception e) {
       int usedTimeForAttempt = (int) (System.currentTimeMillis() - lastAttemptTime) / 1000;
-      return remainingQueryTimeout > usedTimeForAttempt / 1000 && isRecoverable(e);
+      return remainingQueryTimeout > usedTimeForAttempt && isRecoverable(e);
     }
 
     /**
