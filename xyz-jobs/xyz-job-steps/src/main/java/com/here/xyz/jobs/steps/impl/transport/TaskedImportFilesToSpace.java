@@ -222,6 +222,11 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
     }
 
     if(resume){
+      //If we are not using the featureWriter, we are disabling the space before we start the import.
+      //In case of a resume the space is still inactive - so nobody is able to write in between => we are done here.
+      if(!useFeatureWriter())
+        return;
+
       long persistedVersion = loadTargetVersionFromTaskInput();
       long maxVersion = loadSpaceMaxVersion();
       //check if the targetVersion is outdated
@@ -416,7 +421,7 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
           long resumeStartI = previous.progress() != null && previous.progress().endI() > 0
                   ? previous.progress().endI() + 1 : 1;
           infoLog(STEP_EXECUTE, "Resume task " + taskId + " - skipping phase 1, " +
-                  "starting phase 2 at startI=" + resumeStartI);
+                  "starting phase 2 at startI=" + resumeStartI + " with targetVersion "+taskInput.targetVersion());
 
           return buildImportFromTmpTableTaskQuery(taskId, resumeStartI, taskInput.targetVersion(), failureCallback);
         }

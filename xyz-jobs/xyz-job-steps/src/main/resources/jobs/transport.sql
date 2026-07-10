@@ -1096,6 +1096,7 @@ BEGIN
                     'startI', selected_range_start,
                     'endI', selected_range_end
                 ),
+		        'targetVersion', currentVersion,
                 'type', 'ImportOutput'
             )
 		);
