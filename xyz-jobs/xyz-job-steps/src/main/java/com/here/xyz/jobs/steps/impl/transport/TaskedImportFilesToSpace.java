@@ -109,7 +109,7 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
   private long targetVersion = -1;
 
   @JsonView({Internal.class, Static.class})
-  private double featureWriterBatchSizeInMb = 20;
+  private double featureWriterBatchSizeInMb = 70;
 
   //Compilers can decide max allowed import size. Set default to 200G for normal use-case
   @JsonIgnore
