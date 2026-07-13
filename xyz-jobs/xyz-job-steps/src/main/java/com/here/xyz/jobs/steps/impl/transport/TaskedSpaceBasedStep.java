@@ -506,8 +506,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
       try {
         //we need to do the initialSetup here to be able to cover the case that the table does not already exists.
         initialSetup(true);
-        //Reset all items which are not finalized to be able to restart them
-        runWriteQuerySyncUnkillable(resetTaskItemWhichAreNotFinalized(), db(WRITER), 0);
+        if (resetTaskItems()) return;
       }catch (SQLException e){
         if (e.getSQLState() != null && e.getSQLState().toUpperCase().equals("42P01")) {
           Optional<Output> marker = loadStepOutputs(getOutputSet(FINALIZATION_MARKER)).stream().findFirst();
@@ -530,6 +529,20 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
     }
     startInitialTasks();
     noTasksCreated = taskItemCount == 0;
+  }
+
+  private boolean resetTaskItems() throws TooManyResourcesClaimed, SQLException, WebClientException {
+    //Reset all items which are not finalized to be able to restart them
+    int resetItemCount = runWriteQuerySyncUnkillable(resetTaskItemWhichAreNotFinalized(), db(WRITER), 0);
+
+    //If no item got reset, there is no restartable work left. If additionally all task items are already
+    //finalized, nothing needs to be (re)started - just collect the produced outputs and succeed directly.
+    if (resetItemCount == 0 && getTaskProgress().isComplete()) {
+      infoLog(STEP_EXECUTE, "All task items are already finalized on resume -> collect outputs and finalize.");
+      reportAsyncSuccess();
+      return true;
+    }
+    return false;
   }
 
   private void createAndInsertTaskItems() throws SQLException, TooManyResourcesClaimed, QueryBuildingException, WebClientException {
@@ -856,7 +869,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
 
     if(tableAlreadyExists) {
       //Reset all items which are not finalized to be able to restart them
-      runWriteQuerySyncUnkillable(resetTaskItemWhichAreNotFinalized(), db(WRITER), 0);
+      resetTaskItems();
     }else{
       infoLog(STEP_EXECUTE, "Add initial entries in process_table for " + taskInputs.size() + " tasks.");
       for (I taskInput : taskInputs)
