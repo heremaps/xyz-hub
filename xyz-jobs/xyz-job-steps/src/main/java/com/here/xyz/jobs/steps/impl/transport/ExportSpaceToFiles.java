@@ -401,9 +401,15 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
       taskListCount = (int) Math.min(calculatedTaskCount, MAX_TASK_COUNT);
     }
 
+    //Resolve the i-range once and persist it - together with the task count - into each task input. This keeps the
+    //thread partitioning stable across resumes, even if writes happened in between, instead of recomputing minI/maxI
+    //against a changed table state (see generateContentQueryForExportPlugin).
+    IRange iRange = resolveIRange();
+
     List<ExportInput> taskDataList = new ArrayList<>();
     for (int i = 0; i < taskListCount; i++) {
-      taskDataList.add(new ExportInput(i));
+      //TODO: write only minI and maxI for each task
+      taskDataList.add(new ExportInput(i, iRange.minI(), iRange.maxI(), taskListCount));
     }
     return taskDataList;
   }
@@ -475,7 +481,7 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
             failureCallback);
   }
 
-  private void loadIRange() {
+  private IRange resolveIRange() {
     try {
       String table = getRootTableName(context == SUPER ? superSpace() : space());
       IRange iRange = loadIRange(table);
@@ -485,8 +491,10 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
         IRange superIRange = loadIRange(getRootTableName(superSpace()));
         iRange = new IRange(Math.min(iRange.minI, superIRange.minI), Math.max(iRange.maxI, superIRange.maxI));
       }
+      //just to display calculated ranges in admin view.
       this.minI = iRange.minI;
       this.maxI = iRange.maxI;
+      return iRange;
     }
     catch (Exception e) {
       throw new StepException(e.getMessage(), e);
@@ -503,18 +511,6 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
   }
 
   private record IRange(long minI, long maxI) {}
-
-  private long loadMinI() {
-    if (minI == -1)
-      loadIRange();
-    return minI;
-  }
-
-  private long loadMaxI() {
-    if (maxI == -1)
-      loadIRange();
-    return maxI;
-  }
 
 
   /**
@@ -540,9 +536,11 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
 
     GetFeaturesByGeometryInput input = createGetFeaturesByGeometryInput(context == null ? DEFAULT : context == EXTENSION ? X : context, spatialFilter, versionRef);
 
-    long minI = loadMinI();
-    long maxI = loadMaxI();
-    long iRangeSize = (long) Math.ceil((double) (maxI - minI + 1) / (double) taskItemCount);
+    minI = taskInput.minI();
+    maxI = taskInput.maxI();
+    final int itemCount = taskInput.taskItemCount();
+
+    long iRangeSize = (long) Math.ceil((double) (maxI - minI + 1) / (double) itemCount);
 
     SQLQuery threadCondition = new SQLQuery("i >= #{minI} + #{taskNumber} * #{iRangeSize} AND i < #{minI} + (#{taskNumber} + 1) * #{iRangeSize}")
         .withNamedParameter("minI", minI)
