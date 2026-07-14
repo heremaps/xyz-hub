@@ -23,6 +23,8 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.util.db.SQLQuery;
 
+import java.util.Set;
+
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import static com.here.xyz.jobs.steps.impl.transport.TaskedSpaceBasedStep.SpaceBasedTaskUpdate;
 
@@ -42,10 +44,13 @@ public class TaskedSpaceBasedQueryBuilder extends DatabaseStepQueryBuilder {
             	task_output JSONB,
             	started BOOLEAN DEFAULT false,
             	finalized BOOLEAN DEFAULT false,
+            	unknown_query_state_occurrences INTEGER DEFAULT 0,
+            	retry_attempts INTEGER DEFAULT 0,
+              started_at TIMESTAMP DEFAULT NULL,
+              updated_at TIMESTAMP DEFAULT NULL,
             	CONSTRAINT ${primaryKey} PRIMARY KEY (task_id)
             );
         """)
-            //TODO: CHECK CONSTRAINT!!
             .withVariable("table", getTemporaryJobTableName())
             .withVariable("schema", schema)
             .withVariable("primaryKey", getTemporaryJobTableName() + "_primKey");
@@ -54,15 +59,17 @@ public class TaskedSpaceBasedQueryBuilder extends DatabaseStepQueryBuilder {
   public SQLQuery buildUpdateTaskItemOutputStatement(SpaceBasedTaskUpdate update) {
     return new SQLQuery("""
             UPDATE ${schema}.${table}
-            SET task_output = (
-                COALESCE(task_output, '{}'::JSONB) || #{taskUpdate}::JSONB
-            ) || jsonb_build_object(
-                'taskOutput',
-                COALESCE(task_output->'taskOutput', '{}'::JSONB)
-                || COALESCE((#{taskUpdate}::JSONB)->'taskOutput', '{}'::JSONB)
-            )
-            WHERE task_id = #{taskId};
-        """)
+                  SET
+                    updated_at = now() AT TIME ZONE 'UTC',
+                    task_output = (
+                      COALESCE(task_output, '{}'::JSONB) || #{taskUpdate}::JSONB
+                  ) || jsonb_build_object(
+                      'taskOutput',
+                      COALESCE(task_output->'taskOutput', '{}'::JSONB)
+                      || COALESCE((#{taskUpdate}::JSONB)->'taskOutput', '{}'::JSONB)
+                  )
+                  WHERE task_id = #{taskId};
+            """)
             .withVariable("schema", schema)
             .withVariable("table", getTemporaryJobTableName())
             .withNamedParameter("taskId", update.taskId)
@@ -72,7 +79,8 @@ public class TaskedSpaceBasedQueryBuilder extends DatabaseStepQueryBuilder {
   public SQLQuery buildResetTaskItemWhichAreNotFinalizedStatement() {
     return new SQLQuery("""
             UPDATE ${schema}.${table} t
-                SET started = false
+                SET started = false,
+                updated_at = now() AT TIME ZONE 'UTC'
                 WHERE started = true AND finalized = false;
         """)
             .withVariable("schema", schema)
@@ -89,7 +97,8 @@ public class TaskedSpaceBasedQueryBuilder extends DatabaseStepQueryBuilder {
     return new SQLQuery("""
             SELECT COUNT(1) as total,
                 SUM((started = true)::int) as started,
-                SUM((finalized = true)::int) as finalized
+                SUM((finalized = true)::int) as finalized,
+                ARRAY_AGG(task_id) FILTER (WHERE started = true AND finalized = false) as started_not_finalized_task_ids
                 FROM ${schema}.${table};
         """)
             .withVariable("schema", schema)
@@ -142,6 +151,42 @@ public class TaskedSpaceBasedQueryBuilder extends DatabaseStepQueryBuilder {
     return new SQLQuery("DROP TABLE IF EXISTS ${schema}.${table};")
             .withVariable("table", getTemporaryJobTableName())
             .withVariable("schema", schema);
+  }
+
+  public SQLQuery buildIncrementUnknownQueryStateStatement(Set<Integer> unknownStateTaskIds, int maxUnknownTaskQueryChecks) {
+    return new SQLQuery("""
+            WITH updated AS (
+                UPDATE ${schema}.${table}
+                   SET unknown_query_state_occurrences = COALESCE(unknown_query_state_occurrences, 0) + 1,
+                   updated_at = now() AT TIME ZONE 'UTC'
+                 WHERE task_id IN (
+                     SELECT value::INT
+                       FROM jsonb_array_elements_text(#{missingTaskIds}::JSONB)
+                 )
+                RETURNING task_id, unknown_query_state_occurrences
+            )
+            SELECT task_id
+              FROM updated
+             WHERE unknown_query_state_occurrences >= #{maxUnknownTaskQueryChecks};
+        """)
+            .withVariable("schema", schema)
+            .withVariable("table", getTemporaryJobTableName())
+            .withNamedParameter("missingTaskIds", XyzSerializable.serialize(unknownStateTaskIds))
+            .withNamedParameter("maxUnknownTaskQueryChecks", maxUnknownTaskQueryChecks);
+  }
+
+  public SQLQuery buildResetTaskForRetryStatement(int taskId) {
+    return new SQLQuery("""
+                UPDATE ${schema}.${table}
+                   SET unknown_query_state_occurrences = 0,
+                       updated_at = now() AT TIME ZONE 'UTC',
+                       retry_attempts = retry_attempts + 1
+                 WHERE task_id = #{taskId}
+                 RETURNING task_id, task_input, retry_attempts;
+            """)
+            .withVariable("schema", schema)
+            .withVariable("table", getTemporaryJobTableName())
+            .withNamedParameter("taskId", taskId);
   }
 
   private String getTemporaryJobTableName(String stepId) {
