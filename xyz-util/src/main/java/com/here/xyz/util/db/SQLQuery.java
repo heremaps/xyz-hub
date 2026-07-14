@@ -1248,6 +1248,16 @@ public class SQLQuery {
     }
 
     private boolean isRecoverable(Exception e) {
+      /*
+      A connection-pool checkout timeout is wrapped into a plain SQLException that carries no SQLState. This typically
+      happens under short-lived connection pressure (e.g. serverless Aurora scaling), so it should be retried.
+      Match it by message, since there is no SQLState.
+       */
+      if (e instanceof SQLException && e.getMessage() != null && e.getMessage().contains("checkout a Connection has timed out")) {
+        logger.warn("{} Retryable connection acquisition timeout detected! RemainingTime: {}", getQueryId(),
+            remainingQueryTimeout, e);
+        return true;
+      }
       if (e instanceof SQLException sqlEx && sqlEx.getSQLState() != null && (
           /*
           If a timeout occurs right after the invocation, it could be caused

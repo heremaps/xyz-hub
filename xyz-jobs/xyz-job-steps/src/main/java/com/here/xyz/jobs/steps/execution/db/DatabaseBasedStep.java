@@ -140,8 +140,13 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
           .withTimeout(10)
           .withLabel(ASYNC_STEP_ID, getId());
     }
-    else if (query.getTimeout() == Integer.MAX_VALUE)
-      query.setTimeout(300);
+    else {
+      if (query.getTimeout() == Integer.MAX_VALUE)
+        query.setTimeout(300);
+
+      //Add retry settings for synchronous queries.
+      query.withRetryableErrorCodesAndMaximumRetries(RETRYABLE_SQL_CODES, MAXIMUM_RETRIES);
+    }
 
     Object result;
     if (query.isBatch() && isWriteQuery)
@@ -153,9 +158,6 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
 
     if (async)
       runningQueries.add(new RunningQuery(query.getQueryId(), db.getName(), db.getId()));
-    else
-      //add retry settings
-      query.withRetryableErrorCodesAndMaximumRetries(RETRYABLE_SQL_CODES, MAXIMUM_RETRIES);
 
     return result;
   }
