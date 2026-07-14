@@ -91,6 +91,8 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
         extends SpaceBasedStep<T> {
   private static final Logger logger = LogManager.getLogger();
   public static final String FINALIZATION_MARKER = "finalized_marker";
+  public static final Integer MAX_UNKNOWN_TASK_QUERY_CHECKS = 3;
+  public static final Integer MAX_TASK_RETRY_ATTEMPTS = 1;
   private TaskedSpaceBasedQueryBuilder taskedSpaceBasedQueryBuilder;
 
   {
@@ -839,26 +841,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
     if (unknownStateTaskIds == null || unknownStateTaskIds.isEmpty())
       return Set.of();
 
-    SQLQuery query = new SQLQuery("""
-            WITH updated AS (
-                UPDATE ${schema}.${table}
-                   SET unknown_query_state_occurrences = COALESCE(unknown_query_state_occurrences, 0) + 1,
-                   updated_at = now() AT TIME ZONE 'UTC'
-                 WHERE task_id IN (
-                     SELECT value::INT
-                       FROM jsonb_array_elements_text(#{missingTaskIds}::JSONB)
-                 )
-                RETURNING task_id, unknown_query_state_occurrences
-            )
-            SELECT task_id
-              FROM updated
-             WHERE unknown_query_state_occurrences >= #{maxUnknownTaskQueryChecks};
-        """)
-        .withVariable("schema", getSchema(db(WRITER)))
-        .withVariable("table", getTemporaryJobTableName(getId()))
-        .withNamedParameter("missingTaskIds", XyzSerializable.serialize(unknownStateTaskIds))
-        .withNamedParameter("maxUnknownTaskQueryChecks", MAX_UNKNOWN_TASK_QUERY_CHECKS)
-        .withRetryableErrorCodes(RETRYABLE_SQL_CODES);
+    SQLQuery query = getQueryBuilder().buildIncrementUnknownQueryStateStatement(unknownStateTaskIds, MAX_UNKNOWN_TASK_QUERY_CHECKS);
 
     return runReadQuerySync(query, db(WRITER), 0, rs -> {
       Set<Integer> exceededTaskIds = new java.util.LinkedHashSet<>();
@@ -869,25 +852,12 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   }
 
   private TaskProgress<I> resetTaskForRetry(int taskId) throws WebClientException, SQLException, TooManyResourcesClaimed {
-    SQLQuery query = new SQLQuery("""
-            UPDATE ${schema}.${table}
-               SET unknown_query_state_occurrences = 0,
-                   updated_at = now() AT TIME ZONE 'UTC',
-                   retry_attempts = retry_attempts + 1
-             WHERE task_id = #{taskId}
-             RETURNING task_id, task_input, retry_attempts;
-        """)
-        .withVariable("schema", getSchema(db(WRITER)))
-        .withVariable("table", getTemporaryJobTableName(getId()))
-        .withNamedParameter("taskId", taskId)
-        .withRetryableErrorCodes(RETRYABLE_SQL_CODES);
-
-    return runReadQuerySync(query, db(WRITER), 0, rs -> {
+    return runReadQuerySync(getQueryBuilder().buildResetTaskForRetryStatement(taskId), db(WRITER), 0, rs -> {
       if (!rs.next())
         throw new SQLException("Task for retry not found: taskId=" + taskId);
 
       int retryAttempt = rs.getInt("retry_attempts");
-      if (retryAttempt > MAX_TASK_RETRY_ATTEMPS)
+      if (retryAttempt > MAX_TASK_RETRY_ATTEMPTS)
         return null;
 
       try {
