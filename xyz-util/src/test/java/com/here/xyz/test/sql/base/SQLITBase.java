@@ -19,6 +19,9 @@
 
 package com.here.xyz.test.sql.base;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
+
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import com.here.xyz.util.db.datasource.DatabaseSettings;
@@ -26,6 +29,7 @@ import com.here.xyz.util.db.datasource.DatabaseSettings.ScriptResourcePath;
 import com.here.xyz.util.db.datasource.PooledDataSources;
 import java.sql.SQLException;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 public class SQLITBase {
   protected static final String PG_HOST = "localhost";
@@ -40,6 +44,12 @@ public class SQLITBase {
       .withPassword(PG_PW)
       .withDbMaxPoolSize(2)
       .withScriptResourcePaths(List.of(new ScriptResourcePath("/sql", "hub", "common")));
+
+  protected String getDefaultTmpTableName() {
+    return getClass().getSimpleName();
+  }
+
+  //NOTE: The following are convenience methods to be used by subclasses
 
   protected static DataSourceProvider getDataSourceProvider() {
     return new PooledDataSources(DB_SETTINGS);
@@ -57,5 +67,80 @@ public class SQLITBase {
         .withQueryFragment("queryId", queryId)
         .withLoggingEnabled(false)
         .run(dsp, rs -> rs.next());
+  }
+
+  protected int dropTmpTable(DataSourceProvider dsp) throws SQLException {
+    return dropTmpTable(dsp, getDefaultTmpTableName());
+  }
+
+  protected int dropTmpTable(DataSourceProvider dsp, String tableName) throws SQLException {
+    return new SQLQuery("DROP TABLE IF EXISTS ${tableName};")
+        .withVariable("tableName", tableName)
+        .write(dsp);
+  }
+
+  protected int createTmpTable(DataSourceProvider dsp) throws SQLException {
+    return createTmpTable(dsp, getDefaultTmpTableName());
+  }
+
+  protected int createTmpTable(DataSourceProvider dsp, String tableName) throws SQLException {
+    return buildTableCreationQuery(tableName).write(dsp);
+  }
+
+  protected SQLQuery buildTableCreationQuery() {
+    return buildTableCreationQuery(getDefaultTmpTableName());
+  }
+
+  private SQLQuery buildTableCreationQuery(String tableName) {
+    return new SQLQuery("CREATE TABLE ${tableName} (col TEXT);")
+        .withVariable("tableName", tableName);
+  }
+
+  protected void assertTmpTableSize(DataSourceProvider dsp, int itemCount) throws SQLException {
+    assertTmpTableSize(dsp, getDefaultTmpTableName(), itemCount);
+  }
+
+  protected void assertTmpTableSize(DataSourceProvider dsp, String tableName, int itemCount) throws SQLException {
+    assertEquals("The expected table count did not match the actual count.", itemCount,
+        countTmpTableRows(dsp, tableName));
+  }
+
+  protected int countTmpTableRows(DataSourceProvider dsp) throws SQLException {
+    return countTmpTableRows(dsp, getDefaultTmpTableName());
+  }
+
+  private static int countTmpTableRows(DataSourceProvider dsp, String tableName) throws SQLException {
+    return (int) new SQLQuery("SELECT count(1) as count FROM ${tableName}")
+        .withVariable("tableName", tableName)
+        .run(dsp, rs -> rs.next() ? rs.getInt("count") : null);
+  }
+
+  protected enum QueryType {
+    WRITE,
+    READ,
+    BATCH_WRITE
+  }
+
+  protected static CompletableFuture runQueryInThread(SQLQuery query, DataSourceProvider dsp, QueryType queryType) {
+    CompletableFuture future = new CompletableFuture();
+    new Thread(() -> {
+      try {
+        switch (queryType) {
+          case WRITE -> query.write(dsp);
+          case READ -> query.run(dsp, rs -> rs.next() ? rs.getString(1) : null);
+          case BATCH_WRITE -> query.writeBatch(dsp);
+        }
+        future.complete(null);
+      }
+      catch (SQLException e) {
+        if (e.getCause() != null) {
+          e.getCause().printStackTrace();
+          if (e.getCause() instanceof SQLException sqlException)
+            System.out.println("Code: " + sqlException.getSQLState());
+        }
+        fail(e.getMessage());
+      }
+    }).start();
+    return future;
   }
 }
