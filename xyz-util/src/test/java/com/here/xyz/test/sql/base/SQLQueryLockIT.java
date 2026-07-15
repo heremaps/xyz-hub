@@ -19,37 +19,74 @@
 
 package com.here.xyz.test.sql.base;
 
+
+import static com.here.xyz.test.sql.base.SQLITBase.QueryType.BATCH_WRITE;
+import static com.here.xyz.test.sql.base.SQLITBase.QueryType.READ;
+import static com.here.xyz.test.sql.base.SQLITBase.QueryType.WRITE;
+import static com.here.xyz.util.db.pg.LockHelper.buildAdvisoryLockQuery;
+import static com.here.xyz.util.db.pg.LockHelper.buildAdvisoryUnlockQuery;
 import static org.junit.Assert.assertEquals;
 
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
-import java.sql.SQLException;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
-import java.util.function.Supplier;
 import org.junit.jupiter.api.Test;
 
 public class SQLQueryLockIT extends SQLITBase {
 
-  private static final String TABLE_NAME = "SQLQueryLockIT";
-  private static final String LOCK_KEY = "SQLQueryLockIT_lock";
+  private static final String LOCK_KEY = "someKey";
+
+  //TODO: Remove that test, once #buildAdvisoryLockQuery() is not used in SQLScript anymore (also then, move that method into SQLQuery)
+  @Test
+  public void runConcurrentQueriesWithLock() throws Exception {
+    SQLQuery concurrentQuery = new SQLQuery("""
+        DO $$
+        BEGIN
+          ${{advisoryLock}}
+          PERFORM pg_sleep(1);
+          IF (SELECT count(1) FROM ${tableName}) = 0 THEN
+            INSERT INTO ${tableName} VALUES ('test');
+          END IF;
+          ${{advisoryUnlock}}
+        END$$;
+        """)
+        .withVariable("tableName", getDefaultTmpTableName())
+        .withQueryFragment("advisoryLock", buildAdvisoryLockQuery(LOCK_KEY))
+        .withQueryFragment("advisoryUnlock", buildAdvisoryUnlockQuery(LOCK_KEY));
+
+    try (DataSourceProvider dsp = getDataSourceProvider()) {
+      try {
+        dropTmpTable(dsp);
+        createTmpTable(dsp);
+        CompletableFuture f1 = runQueryInThread(concurrentQuery, dsp, WRITE);
+        CompletableFuture f2 = runQueryInThread(concurrentQuery, dsp, WRITE);
+
+        CompletableFuture.allOf(f1, f2).get();
+
+        assertTmpTableSize(dsp, 1);
+      }
+      finally {
+        dropTmpTable(dsp);
+      }
+    }
+  }
 
   @Test
   public void runConcurrentUpdateQueriesWithLock() throws Exception {
     try (DataSourceProvider dsp = getDataSourceProvider()) {
       try {
-        dropLockTestTable(dsp);
-        createLockTestTable(dsp);
+        dropTmpTable(dsp);
+        createTmpTable(dsp);
 
-        CompletableFuture<Void> f1 = runWriteInThread(SQLQueryLockIT::buildLockedUpdateQuery, dsp);
-        CompletableFuture<Void> f2 = runWriteInThread(SQLQueryLockIT::buildLockedUpdateQuery, dsp);
+        CompletableFuture f1 = runQueryInThread(buildLockedUpdateQuery(), dsp, WRITE);
+        CompletableFuture f2 = runQueryInThread(buildLockedUpdateQuery(), dsp, WRITE);
 
         CompletableFuture.allOf(f1, f2).get();
 
-        assertEquals(1, countRows(dsp));
+        assertEquals(1, countTmpTableRows(dsp));
       }
       finally {
-        dropLockTestTable(dsp);
+        dropTmpTable(dsp);
       }
     }
   }
@@ -58,18 +95,18 @@ public class SQLQueryLockIT extends SQLITBase {
   public void runConcurrentReadQueriesWithLock() throws Exception {
     try (DataSourceProvider dsp = getDataSourceProvider()) {
       try {
-        dropLockTestTable(dsp);
-        createLockTestTable(dsp);
+        dropTmpTable(dsp);
+        createTmpTable(dsp);
 
-        CompletableFuture<Void> f1 = runReadInThread(SQLQueryLockIT::buildLockedReadQuery, dsp);
-        CompletableFuture<Void> f2 = runReadInThread(SQLQueryLockIT::buildLockedReadQuery, dsp);
+        CompletableFuture f1 = runQueryInThread(buildLockedReadQuery(), dsp, READ);
+        CompletableFuture f2 = runQueryInThread(buildLockedReadQuery(), dsp, READ);
 
         CompletableFuture.allOf(f1, f2).get();
 
-        assertEquals(1, countRows(dsp));
+        assertEquals(1, countTmpTableRows(dsp));
       }
       finally {
-        dropLockTestTable(dsp);
+        dropTmpTable(dsp);
       }
     }
   }
@@ -78,23 +115,23 @@ public class SQLQueryLockIT extends SQLITBase {
   public void runConcurrentBatchUpdateQueriesWithLock() throws Exception {
     try (DataSourceProvider dsp = getDataSourceProvider()) {
       try {
-        dropLockTestTable(dsp);
-        createLockTestTable(dsp);
+        dropTmpTable(dsp);
+        createTmpTable(dsp);
 
-        CompletableFuture<Void> f1 = runBatchWriteInThread(SQLQueryLockIT::buildLockedBatchUpdateQuery, dsp);
-        CompletableFuture<Void> f2 = runBatchWriteInThread(SQLQueryLockIT::buildLockedBatchUpdateQuery, dsp);
+        CompletableFuture f1 = runQueryInThread(buildLockedBatchUpdateQuery(), dsp, BATCH_WRITE);
+        CompletableFuture f2 = runQueryInThread(buildLockedBatchUpdateQuery(), dsp, BATCH_WRITE);
 
         CompletableFuture.allOf(f1, f2).get();
 
-        assertEquals(1, countRows(dsp));
+        assertEquals(1, countTmpTableRows(dsp));
       }
       finally {
-        dropLockTestTable(dsp);
+        dropTmpTable(dsp);
       }
     }
   }
 
-  private static SQLQuery buildLockedUpdateQuery() {
+  private SQLQuery buildLockedUpdateQuery() {
     return new SQLQuery("""
         DO $$
         BEGIN
@@ -105,11 +142,11 @@ public class SQLQueryLockIT extends SQLITBase {
           END IF;
         END$$;
         """)
-            .withVariable("tableName", TABLE_NAME)
-            .withLock(LOCK_KEY);
+        .withVariable("tableName", getDefaultTmpTableName())
+        .withLock(LOCK_KEY);
   }
 
-  private static SQLQuery buildLockedReadQuery() {
+  private SQLQuery buildLockedReadQuery() {
     return new SQLQuery("""
         WITH wait AS (
           SELECT pg_sleep(1)
@@ -128,13 +165,13 @@ public class SQLQueryLockIT extends SQLITBase {
         )
         FROM wait;
         """)
-            .withVariable("tableName", TABLE_NAME)
-            .withLock(LOCK_KEY);
+        .withVariable("tableName", getDefaultTmpTableName())
+        .withLock(LOCK_KEY);
   }
 
-  private static SQLQuery buildLockedBatchUpdateQuery() {
+  private SQLQuery buildLockedBatchUpdateQuery() {
     SQLQuery query = new SQLQuery("SELECT pg_sleep(1);")
-            .withLock(LOCK_KEY);
+        .withLock(LOCK_KEY);
 
     query.addBatch(new SQLQuery("""
         INSERT INTO ${tableName} (col)
@@ -143,59 +180,8 @@ public class SQLQueryLockIT extends SQLITBase {
           SELECT 1 FROM ${tableName}
         );
         """)
-            .withVariable("tableName", TABLE_NAME));
+        .withVariable("tableName", getDefaultTmpTableName()));
 
     return query;
-  }
-
-  private static CompletableFuture<Void> runWriteInThread(Supplier<SQLQuery> querySupplier, DataSourceProvider dsp) {
-    return CompletableFuture.runAsync(() -> {
-      try {
-        querySupplier.get().write(dsp);
-      }
-      catch (SQLException e) {
-        throw new CompletionException(e);
-      }
-    });
-  }
-
-  private static CompletableFuture<Void> runReadInThread(Supplier<SQLQuery> querySupplier, DataSourceProvider dsp) {
-    return CompletableFuture.runAsync(() -> {
-      try {
-        querySupplier.get().run(dsp, rs -> rs.next() ? rs.getString(1) : null);
-      }
-      catch (SQLException e) {
-        throw new CompletionException(e);
-      }
-    });
-  }
-
-  private static CompletableFuture<Void> runBatchWriteInThread(Supplier<SQLQuery> querySupplier, DataSourceProvider dsp) {
-    return CompletableFuture.runAsync(() -> {
-      try {
-        querySupplier.get().writeBatch(dsp);
-      }
-      catch (SQLException e) {
-        throw new CompletionException(e);
-      }
-    });
-  }
-
-  private static int countRows(DataSourceProvider dsp) throws SQLException {
-    return new SQLQuery("SELECT count(1) FROM ${tableName}")
-            .withVariable("tableName", TABLE_NAME)
-            .run(dsp, rs -> rs.next() ? rs.getInt(1) : 0);
-  }
-
-  private static void createLockTestTable(DataSourceProvider dsp) throws SQLException {
-    new SQLQuery("CREATE TABLE ${tableName} (col TEXT);")
-            .withVariable("tableName", TABLE_NAME)
-            .write(dsp);
-  }
-
-  private static void dropLockTestTable(DataSourceProvider dsp) throws SQLException {
-    new SQLQuery("DROP TABLE IF EXISTS ${tableName};")
-            .withVariable("tableName", TABLE_NAME)
-            .write(dsp);
   }
 }
