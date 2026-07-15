@@ -17,7 +17,7 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.test;
+package com.here.xyz.test.sql.base;
 
 import static org.junit.Assert.assertEquals;
 
