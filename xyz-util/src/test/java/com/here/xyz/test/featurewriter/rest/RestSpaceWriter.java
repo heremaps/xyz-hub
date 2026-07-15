@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,18 +27,19 @@ import static com.here.xyz.util.db.pg.SQLError.MERGE_CONFLICT_ERROR;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
+import com.here.xyz.events.UpdateStrategy.OnExists;
+import com.here.xyz.events.UpdateStrategy.OnMergeConflict;
+import com.here.xyz.events.UpdateStrategy.OnNotExists;
+import com.here.xyz.events.UpdateStrategy.OnVersionConflict;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.test.featurewriter.SpaceWriter;
 import com.here.xyz.util.db.pg.SQLError;
+import com.here.xyz.util.service.BaseConfig;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
-import com.here.xyz.events.UpdateStrategy.OnExists;
-import com.here.xyz.events.UpdateStrategy.OnNotExists;
-import com.here.xyz.events.UpdateStrategy.OnVersionConflict;
-import com.here.xyz.events.UpdateStrategy.OnMergeConflict;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.List;
@@ -46,6 +47,10 @@ import java.util.Map;
 
 public class RestSpaceWriter extends SpaceWriter {
   private boolean history;
+
+  static {
+    new BaseConfig();
+  }
 
   public RestSpaceWriter(boolean composite, boolean history, String testSuiteName) {
     super(composite, testSuiteName);
