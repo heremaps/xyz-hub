@@ -467,10 +467,10 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
       selection.add("type");
 
       jsonData = selection.isEmpty() ? new SQLQuery("jsondata") : new SQLQuery("(SELECT "
-          + "CASE WHEN prj_build->'properties' IS NOT NULL THEN prj_build "
-          + "ELSE jsonb_set(prj_build, '{properties}', '{}'::jsonb) "
+          + "CASE WHEN projected::JSONB->'properties' IS NOT NULL THEN projected::JSONB "
+          + "ELSE jsonb_set(projected::JSONB, '{properties}', '{}'::jsonb) "
           + "END "
-          + "FROM prj_build(#{selection}, jsondata))")
+          + "FROM prj_build(#{selection}, jsondata::TEXT) AS projected)")
           .withNamedParameter("selection", selection.toArray(new String[0]));
     }
     return jsonData;
