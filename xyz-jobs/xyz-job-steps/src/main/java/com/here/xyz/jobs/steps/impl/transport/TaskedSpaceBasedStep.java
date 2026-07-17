@@ -90,9 +90,12 @@ import org.apache.logging.log4j.Logger;
 public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I extends TaskPayload, O extends TaskPayload>
         extends SpaceBasedStep<T> {
   private static final Logger logger = LogManager.getLogger();
+  /** Marker output-set key/file prefix used to indicate successful step finalization. */
   public static final String FINALIZATION_MARKER = "finalized_marker";
+  /** Number of consecutive unknown running-query checks before a task is considered retryable. */
   public static final Integer MAX_UNKNOWN_TASK_QUERY_CHECKS = 3;
-  public static final Integer MAX_TASK_RETRY_ATTEMPTS = 1;
+  /** Maximum number of retry attempts, for a server side killed single, before failing retry handling. */
+  public static final Integer MAX_TASK_RETRY_ATTEMPTS = 3;
   private TaskedSpaceBasedQueryBuilder taskedSpaceBasedQueryBuilder;
 
   {
