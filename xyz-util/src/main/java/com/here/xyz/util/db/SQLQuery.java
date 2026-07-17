@@ -911,11 +911,22 @@ public class SQLQuery {
   }
 
   private static SQLQuery buildLabelMatchQuery(String labelIdentifier, String labelValue) {
-    return new SQLQuery("strpos(query, '/*labels(') > 0 AND substring(query, "
-        + "strpos(query, '/*labels(') + 9, "
-        + "strpos(query, ')*/') - 9 - strpos(query, '/*labels('))::json->>#{labelIdentifier} = #{labelValue}")
-        .withNamedParameter("labelIdentifier", labelIdentifier)
+    return new SQLQuery("strpos(query, '/*labels(') > 0 AND ${{extractedLabelValue}} = #{labelValue}")
+        .withQueryFragment("extractedLabelValue", buildLabelValueExtraction(labelIdentifier))
         .withNamedParameter("labelValue", labelValue);
+  }
+
+  /**
+   * Builds the SQL fragment that extracts the value of the label with the specified identifier from the {@code /*labels(...)*}{@code /}
+   * comment prefix of a query in {@code pg_stat_activity}.
+   * @param labelIdentifier The label identifier whose value should be extracted (e.g. taskId).
+   * @return The SQL fragment resolving to the label value as text.
+   */
+  private static SQLQuery buildLabelValueExtraction(String labelIdentifier) {
+    return new SQLQuery("substring(query, "
+        + "strpos(query, '/*labels(') + 9, "
+        + "strpos(query, ')*/') - 9 - strpos(query, '/*labels('))::json->>#{labelIdentifier}")
+        .withNamedParameter("labelIdentifier", labelIdentifier);
   }
 
   public static boolean isRunning(DataSourceProvider dataSourceProvider, boolean useReplica, String queryId) throws SQLException {
@@ -954,10 +965,7 @@ public class SQLQuery {
     return new SQLQuery("""
         WITH expected_values AS (${{expectedValues}}),
              active_values AS (
-               SELECT substring(query,
-                        strpos(query, '/*labels(') + 9,
-                        strpos(query, ')*/') - 9 - strpos(query, '/*labels(')
-                      )::json->>#{labelIdentifier} AS label_value
+               SELECT ${{labelValue}} AS label_value
                  FROM pg_stat_activity
                 WHERE state = 'active'
                   AND pid != pg_backend_pid()
@@ -969,7 +977,7 @@ public class SQLQuery {
             ON a.label_value = e.label_value
         """)
         .withQueryFragment("expectedValues", buildLabelValuesQuery(labelValues))
-        .withNamedParameter("labelIdentifier", labelIdentifier)
+        .withQueryFragment("labelValue", buildLabelValueExtraction(labelIdentifier))
         .withLoggingEnabled(false)
         .run(dataSourceProvider, rs -> {
           Set<String> runningValues = new LinkedHashSet<>();
