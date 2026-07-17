@@ -252,7 +252,9 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
    * @return The outputs that have been registered for the specified outputSet (so far).
    */
   protected List<Output> loadStepOutputs(OutputSet outputSet) {
-    return loadOutputs(defaultBucket(), Set.of(toS3Path(outputSet)), outputSet.modelBased);
+    //TODO: Refactor S3Client to be bucket-agnostic
+    S3Uri s3Uri = outputSet.toS3Uri(getJobId());
+    return loadOutputs(s3Uri.bucket(), Set.of(s3Uri.key()), outputSet.modelBased);
   }
 
   private List<Output> loadOutputs(String bucketName, Set<String> s3Prefixes, boolean modelBased) {
@@ -355,6 +357,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
    * @return All outputs for the specified InputSet
    */
   private List<Output> loadOutputsFor(InputSet inputSet) {
+    //TODO: Refactor S3Client to be bucket-agnostic
     S3Uri s3Uri = inputSet.toS3Uri(jobId);
     return loadOutputs(s3Uri.bucket(), Set.of(s3Uri.key()), inputSet.modelBased());
   }
