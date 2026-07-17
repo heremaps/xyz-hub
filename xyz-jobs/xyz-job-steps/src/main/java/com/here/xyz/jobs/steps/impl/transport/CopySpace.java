@@ -305,7 +305,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
   private long loadTargetFeatureCount() {
     if (estimatedTargetFeatureCount < 0) {
       try {
-        estimatedTargetFeatureCount = loadSpaceStatistics(getTargetSpaceId(), space().getExtension() != null ? EXTENSION : null)
+        estimatedTargetFeatureCount = loadSpaceStatistics(getTargetSpaceId(), targetSpace().getExtension() != null ? EXTENSION : null)
             .getCount().getValue();
       }
       catch (WebClientException e) {
