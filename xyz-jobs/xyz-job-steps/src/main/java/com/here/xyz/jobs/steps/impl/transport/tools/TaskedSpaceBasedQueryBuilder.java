@@ -60,7 +60,7 @@ public class TaskedSpaceBasedQueryBuilder extends DatabaseStepQueryBuilder {
     return new SQLQuery("""
             UPDATE ${schema}.${table}
                   SET
-                    updated_at = now() AT TIME ZONE 'UTC',
+                    updated_at = now(),
                     task_output = (
                       COALESCE(task_output, '{}'::JSONB) || #{taskUpdate}::JSONB
                   ) || jsonb_build_object(
@@ -80,7 +80,7 @@ public class TaskedSpaceBasedQueryBuilder extends DatabaseStepQueryBuilder {
     return new SQLQuery("""
             UPDATE ${schema}.${table} t
                 SET started = false,
-                updated_at = now() AT TIME ZONE 'UTC'
+                updated_at = now()
                 WHERE started = true AND finalized = false;
         """)
             .withVariable("schema", schema)
@@ -158,7 +158,7 @@ public class TaskedSpaceBasedQueryBuilder extends DatabaseStepQueryBuilder {
             WITH updated AS (
                 UPDATE ${schema}.${table}
                    SET unknown_query_state_occurrences = COALESCE(unknown_query_state_occurrences, 0) + 1,
-                   updated_at = now() AT TIME ZONE 'UTC'
+                   updated_at = now()
                  WHERE task_id IN (
                      SELECT value::INT
                        FROM jsonb_array_elements_text(#{missingTaskIds}::JSONB)
@@ -179,7 +179,7 @@ public class TaskedSpaceBasedQueryBuilder extends DatabaseStepQueryBuilder {
     return new SQLQuery("""
                 UPDATE ${schema}.${table}
                    SET unknown_query_state_occurrences = 0,
-                       updated_at = now() AT TIME ZONE 'UTC',
+                       updated_at = now(),
                        retry_attempts = retry_attempts + 1
                  WHERE task_id = #{taskId}
                  RETURNING task_id, task_input, retry_attempts;
