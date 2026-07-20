@@ -30,36 +30,36 @@ public final class ContentPartitioning {
   private ContentPartitioning() {}
 
   /**
-   * Builds a filter fragment that assigns each feature to exactly one of {@code threadCount} disjoint
-   * partitions based on a hash of the internal {@code i} column, so the work can be split across
+   * Builds a filter fragment that assigns each feature to exactly one of {@code bucketCount} disjoint
+   * buckets based on a hash of the internal {@code i} column, so the work can be split across
    * multiple parallel tasks whose partial results together cover every feature exactly once.
    *
-   * @param threadCount The total number of partitions.
-   * @param threadId    The zero-based index of the partition to build the filter for.
+   * @param bucketCount The total number of buckets.
+   * @param bucketId    The zero-based index of the bucket to build the filter for.
    * @return A filter {@link SQLQuery} fragment, or {@code null} if no restriction is needed
-   *         (i.e. a single partition covering everything).
+   *         (i.e. a single bucket covering everything).
    */
-  public static SQLQuery buildThreadIdFilter(int threadCount, int threadId) {
-    if (threadCount <= 1)
+  public static SQLQuery buildBucketIdFilter(int bucketCount, int bucketId) {
+    if (bucketCount <= 1)
       return null;
 
     final long VIZ_ID_COUNT = 0xfffffL + 1,
-               blockRange = (long) Math.ceil((double) VIZ_ID_COUNT / (double) threadCount);
+               blockRange = (long) Math.ceil((double) VIZ_ID_COUNT / (double) bucketCount);
 
     final String VIZ_IDX_FKT = "left(md5((''::text || i)), 5)";
 
     SQLQuery lowerBoundCondition = null,
              upperBoundCondition = null;
 
-    if (threadId > 0)
+    if (bucketId > 0)
       lowerBoundCondition = new SQLQuery("${{vizIdxFkt1}} >= #{vizLowerBound}")
           .withQueryFragment("vizIdxFkt1", VIZ_IDX_FKT)
-          .withNamedParameter("vizLowerBound", String.format("%05x", threadId * blockRange));
+          .withNamedParameter("vizLowerBound", String.format("%05x", bucketId * blockRange));
 
-    if (threadId < threadCount - 1)
+    if (bucketId < bucketCount - 1)
       upperBoundCondition = new SQLQuery("${{vizIdxFkt2}} < #{vizUpperBound}")
           .withQueryFragment("vizIdxFkt2", VIZ_IDX_FKT)
-          .withNamedParameter("vizUpperBound", String.format("%05x", (threadId + 1) * blockRange));
+          .withNamedParameter("vizUpperBound", String.format("%05x", (bucketId + 1) * blockRange));
 
     if (lowerBoundCondition == null && upperBoundCondition == null)
       return null;

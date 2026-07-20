@@ -495,10 +495,10 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
         propertyFilter
     );
 
-    SQLQuery threadIdFilter = ContentPartitioning.buildThreadIdFilter(threadCount, threadId);
+    SQLQuery bucketIdFilter = ContentPartitioning.buildBucketIdFilter(threadCount, threadId);
 
-    if( threadIdFilter != null )
-     queryBuilder.withAdditionalFilterFragment(threadIdFilter);
+    if( bucketIdFilter != null )
+     queryBuilder.withAdditionalFilterFragment(bucketIdFilter);
 
     if(! useTableCopy() )
      return queryBuilder.buildQuery(input); //TODO: with author, operation provided in selection the parsing of those values in buildCopySpaceQuery would be obsolete

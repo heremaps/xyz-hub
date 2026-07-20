@@ -146,8 +146,8 @@ public class CountSpace extends TaskedSpaceBasedStep<CountSpace, CountInput, Exp
 
   private SQLQuery buildCountSpaceQuery(Integer taskId, CountInput taskData) throws WebClientException, QueryBuildingException, TooManyResourcesClaimed {
 
-    //The content query performs the exact COUNT for this partition and yields a single "nr_features" row.
-    SQLQuery contentQuery = buildCountContentQuery(taskData.threadCount(), taskData.threadId());
+    //The content query performs the exact COUNT for this bucket and yields a single "nr_features" row.
+    SQLQuery contentQuery = buildCountContentQuery(taskData.bucketCount(), taskData.bucketId());
 
     return new SQLQuery(
         """
@@ -176,7 +176,7 @@ public class CountSpace extends TaskedSpaceBasedStep<CountSpace, CountInput, Exp
         ;
   }
 
-  private SQLQuery buildCountContentQuery(int threadCount, int threadId) throws WebClientException, QueryBuildingException, TooManyResourcesClaimed {
+  private SQLQuery buildCountContentQuery(int bucketCount, int bucketId) throws WebClientException, QueryBuildingException, TooManyResourcesClaimed {
 
     Database db = dbReader();
 
@@ -197,11 +197,11 @@ public class CountSpace extends TaskedSpaceBasedStep<CountSpace, CountInput, Exp
         propertyFilter
     );
 
-    //Restrict this partition to its disjoint slice of the feature id space, so all partitions
+    //Restrict this bucket to its disjoint slice of the feature id space, so all buckets
     //together cover every feature exactly once and their partial counts can simply be summed.
-    SQLQuery threadIdFilter = ContentPartitioning.buildThreadIdFilter(threadCount, threadId);
-    if (threadIdFilter != null)
-      queryBuilder.withAdditionalFilterFragment(threadIdFilter);
+    SQLQuery bucketIdFilter = ContentPartitioning.buildBucketIdFilter(bucketCount, bucketId);
+    if (bucketIdFilter != null)
+      queryBuilder.withAdditionalFilterFragment(bucketIdFilter);
 
     String selectClause = space().getExtension() != null && context != EXTENSION ? "id" : "1::integer as id";
 
@@ -215,10 +215,11 @@ public class CountSpace extends TaskedSpaceBasedStep<CountSpace, CountInput, Exp
 
   @Override
   protected List<CountInput> createTaskItems(){
-    //Split the count into #threadCount disjoint partitions that are processed in parallel.
+    //Split the count into #threadCount disjoint buckets that are processed in parallel.
+    //TODO: estimate nr of tasks from load
     List<CountInput> tasks = new ArrayList<>();
-    for (int threadId = 0; threadId < threadCount; threadId++)
-      tasks.add(new CountInput("CountSpace", threadId, threadCount));
+    for (int bucketId = 0; bucketId < threadCount; bucketId++)
+      tasks.add(new CountInput("CountSpace", bucketId, threadCount));
     return tasks;
   }
 
