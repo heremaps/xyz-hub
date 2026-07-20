@@ -33,7 +33,7 @@ public class IterateChangesetsBuilder extends XyzQueryBuilder<IterateChangesetsI
 
 
   @Override
-  protected SQLQuery buildQuery(IterateChangesetsInput input) throws QueryBuildingException {
+  public SQLQuery buildQuery(IterateChangesetsInput input) throws QueryBuildingException {
     /*
     TODO: Provide the possibility to specify the following via the input:
     - the parts of the page token separately & in plain form
