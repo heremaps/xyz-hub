@@ -152,7 +152,7 @@ public class CountSpace extends TaskedSpaceBasedStep<CountSpace, CountInput, Exp
                  'rows', c.nr_features,
                  'files', 0,
                  'type', 'ExportOutput'
-             )) from idata c 
+             )) from idata c
         """
         )
         //???.withContext(getQueryContext(schema))
@@ -187,7 +187,7 @@ public class CountSpace extends TaskedSpaceBasedStep<CountSpace, CountInput, Exp
         propertyFilter
     );
 
-    return queryBuilder.buildQuery(input);
+    return queryBuilder.withSelectClauseOverride(new SQLQuery("id")).buildQuery(input);
   }
 
   @Override
