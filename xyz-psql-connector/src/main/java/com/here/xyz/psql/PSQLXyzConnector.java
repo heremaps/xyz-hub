@@ -229,7 +229,8 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
   @Override
   protected XyzResponse processIterateChangesetsEvent(IterateChangesetsEvent event) throws Exception {
-    return run(new IterateChangesets(event));
+    //TBD: check why this is needed
+    return (XyzResponse) run(new IterateChangesets(event));
   }
 
   @Override
