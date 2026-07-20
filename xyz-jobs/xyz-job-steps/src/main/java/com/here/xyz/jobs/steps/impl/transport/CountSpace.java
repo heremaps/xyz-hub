@@ -28,6 +28,7 @@ import com.here.xyz.models.filters.SpatialFilter;
 import com.here.xyz.jobs.steps.execution.db.Database;
 import com.here.xyz.jobs.steps.impl.transport.tasks.inputs.CountInput;
 import com.here.xyz.jobs.steps.impl.transport.tasks.outputs.ExportOutput;
+import com.here.xyz.jobs.steps.impl.transport.tools.ContentPartitioning;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
@@ -40,6 +41,7 @@ import com.here.xyz.util.web.XyzWebClient.WebClientException;
 
 import java.io.IOException;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -53,6 +55,7 @@ public class CountSpace extends TaskedSpaceBasedStep<CountSpace, CountInput, Exp
   private static final Logger logger = LogManager.getLogger();
 
   public static final String FEATURECOUNT = "featurecount";
+  public static final int MAX_THREAD_COUNT = 8;
   {
     threadCount = 1;
     addOutputSets(List.of(new OutputSet(FEATURECOUNT, USER, true)));
@@ -62,8 +65,6 @@ public class CountSpace extends TaskedSpaceBasedStep<CountSpace, CountInput, Exp
   private SpatialFilter spatialFilter;
   @JsonView({Internal.class, Static.class})
   private PropertiesQuery propertyFilter;
-
-  private boolean realCount = true;
 
   public SpatialFilter getSpatialFilter() {
     return spatialFilter;
@@ -89,6 +90,15 @@ public class CountSpace extends TaskedSpaceBasedStep<CountSpace, CountInput, Exp
   public CountSpace withPropertyFilter(PropertiesQuery propertyFilter){
     setPropertyFilter(propertyFilter);
     return this;
+  }
+
+  /**
+   * The number of parallel partitions the count is split into.
+   * Configurable in the range [1, {@value #MAX_THREAD_COUNT}]; values outside are clamped.
+   */
+  @Override
+  public void setThreadCount(int threadCount) {
+    super.setThreadCount(Math.max(1, Math.min(MAX_THREAD_COUNT, threadCount)));
   }
 
   @Override
@@ -134,15 +144,14 @@ public class CountSpace extends TaskedSpaceBasedStep<CountSpace, CountInput, Exp
   }
 */
 
-  private SQLQuery buildCountSpaceQuery(Integer taskId) throws WebClientException, QueryBuildingException, TooManyResourcesClaimed {
+  private SQLQuery buildCountSpaceQuery(Integer taskId, CountInput taskData) throws WebClientException, QueryBuildingException, TooManyResourcesClaimed {
 
-    SQLQuery contentQuery = buildCountContentQuery();
-
-    //TODO: contentQuery only needs to return ids, not the full feature
+    //The content query performs the exact COUNT for this partition and yields a single "nr_features" row.
+    SQLQuery contentQuery = buildCountContentQuery(taskData.threadCount(), taskData.threadId());
 
     return new SQLQuery(
         """
-          with idata as ( select count(1) as nr_features from ( ${{contentQuery}} ) ctable )
+          with idata as ( ${{contentQuery}} )
           select report_task_progress(
              #{lambda_function_arn},
              #{lambda_region},
@@ -167,7 +176,7 @@ public class CountSpace extends TaskedSpaceBasedStep<CountSpace, CountInput, Exp
         ;
   }
 
-  private SQLQuery buildCountContentQuery() throws WebClientException, QueryBuildingException, TooManyResourcesClaimed {
+  private SQLQuery buildCountContentQuery(int threadCount, int threadId) throws WebClientException, QueryBuildingException, TooManyResourcesClaimed {
 
     Database db = dbReader();
 
@@ -188,20 +197,35 @@ public class CountSpace extends TaskedSpaceBasedStep<CountSpace, CountInput, Exp
         propertyFilter
     );
 
+    //Restrict this partition to its disjoint slice of the feature id space, so all partitions
+    //together cover every feature exactly once and their partial counts can simply be summed.
+    SQLQuery threadIdFilter = ContentPartitioning.buildThreadIdFilter(threadCount, threadId);
+    if (threadIdFilter != null)
+      queryBuilder.withAdditionalFilterFragment(threadIdFilter);
+
     String selectClause = space().getExtension() != null && context != EXTENSION ? "id" : "1::integer as id";
 
-    return queryBuilder.withSelectClauseOverride(new SQLQuery(selectClause)).buildQuery(input);
+    //Only a minimal per-row projection (id / constant) is selected, so the exact COUNT does not
+    //materialize full features. The COUNT is folded directly into the content query.
+    SQLQuery featureQuery = queryBuilder.withSelectClauseOverride(new SQLQuery(selectClause)).buildQuery(input);
+
+    return new SQLQuery("select count(1)::bigint as nr_features from ( ${{featureQuery}} ) ctable")
+        .withQueryFragment("featureQuery", featureQuery);
   }
 
   @Override
   protected List<CountInput> createTaskItems(){
-    return List.of(new CountInput("CountSpace"));
+    //Split the count into #threadCount disjoint partitions that are processed in parallel.
+    List<CountInput> tasks = new ArrayList<>();
+    for (int threadId = 0; threadId < threadCount; threadId++)
+      tasks.add(new CountInput("CountSpace", threadId, threadCount));
+    return tasks;
   }
 
   @Override
   protected SQLQuery buildTaskQuery(Integer taskId, CountInput taskData, String failureCallback)
       throws QueryBuildingException, TooManyResourcesClaimed, WebClientException {
-    return buildCountSpaceQuery( taskId );
+    return buildCountSpaceQuery( taskId, taskData );
   }
 
   @Override

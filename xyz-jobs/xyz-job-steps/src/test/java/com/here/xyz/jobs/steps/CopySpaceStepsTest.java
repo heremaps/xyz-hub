@@ -291,7 +291,8 @@ public class CopySpaceStepsTest extends StepTest {
         .withPropertyFilter(PropertiesQuery.fromString(propertyFilter))
         .withVersionRef(resolvedRef)
         .withContext(ctx != null ? ctx : DEFAULT )
-        .withJobId(JOB_ID);
+        .withJobId(JOB_ID)
+        .withThreadCount(3);
 
     sendLambdaStepRequestBlock(step, true);
 

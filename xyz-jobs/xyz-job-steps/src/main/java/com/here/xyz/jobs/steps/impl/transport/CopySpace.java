@@ -38,6 +38,7 @@ import com.here.xyz.models.geojson.coordinates.WKTHelper;
 import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
+import com.here.xyz.jobs.steps.impl.transport.tools.ContentPartitioning;
 import com.here.xyz.psql.query.GetFeaturesByGeometryBuilder;
 import com.here.xyz.psql.query.GetFeaturesByGeometryBuilder.GetFeaturesByGeometryInput;
 import com.here.xyz.psql.query.QueryBuilder.QueryBuildingException;
@@ -451,44 +452,6 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     }
   }
 
-  private SQLQuery buildThreadIdFilter( int threadCount, int threadId )
-  {
-    final long VIZ_ID_COUNT = 0xfffffL + 1,
-               blockRange = (long) Math.ceil((double) VIZ_ID_COUNT / (double) threadCount);
-
-    final String VIZ_IDX_FKT   = "left(md5((''::text || i)), 5)";
-
-    SQLQuery lowerBoundCondition = null,
-             upperBoundCondition = null;
-
-    if( threadId > 0)
-     lowerBoundCondition =
-      new SQLQuery("${{vizIdxFkt1}} >= #{vizLowerBound}")
-          .withQueryFragment("vizIdxFkt1", VIZ_IDX_FKT)
-          .withNamedParameter("vizLowerBound", String.format("%05x", threadId * blockRange));
-
-    if( threadId < threadCount - 1)
-     upperBoundCondition =
-       new SQLQuery("${{vizIdxFkt2}} < #{vizUpperBound}")
-           .withQueryFragment("vizIdxFkt2", VIZ_IDX_FKT)
-           .withNamedParameter("vizUpperBound", String.format("%05x", (threadId + 1) * blockRange));
-
-    if(lowerBoundCondition != null || upperBoundCondition != null)
-    {
-     SQLQuery additionalFilterFragment = new SQLQuery( (lowerBoundCondition != null && upperBoundCondition != null) ? "${{Bound1}} AND ${{Bound2}}" : "${{Bound1}}" );
-
-     if(lowerBoundCondition != null)
-      additionalFilterFragment.withQueryFragment("Bound1", lowerBoundCondition);
-
-     if(upperBoundCondition != null)
-      additionalFilterFragment.withQueryFragment(lowerBoundCondition != null ? "Bound2" : "Bound1", upperBoundCondition);
-
-     return additionalFilterFragment;
-    }
-
-    return null;
-  }
-
   private SQLQuery buildGeoFragment() {
 
     Geometry geometry =  spatialFilter != null ? spatialFilter.getGeometry() : null;
@@ -532,7 +495,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
         propertyFilter
     );
 
-    SQLQuery threadIdFilter = buildThreadIdFilter(threadCount, threadId);
+    SQLQuery threadIdFilter = ContentPartitioning.buildThreadIdFilter(threadCount, threadId);
 
     if( threadIdFilter != null )
      queryBuilder.withAdditionalFilterFragment(threadIdFilter);
