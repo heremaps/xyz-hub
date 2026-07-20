@@ -18,6 +18,7 @@
 
 package com.here.xyz.jobs.steps.impl.transport;
 
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 import static com.here.xyz.jobs.steps.Step.Visibility.USER;
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_ON_ASYNC_SUCCESS;
 
@@ -187,7 +188,9 @@ public class CountSpace extends TaskedSpaceBasedStep<CountSpace, CountInput, Exp
         propertyFilter
     );
 
-    return queryBuilder.withSelectClauseOverride(new SQLQuery("id")).buildQuery(input);
+    String selectClause = space().getExtension() != null && context != EXTENSION ? "id" : "1::integer as id";
+
+    return queryBuilder.withSelectClauseOverride(new SQLQuery(selectClause)).buildQuery(input);
   }
 
   @Override
