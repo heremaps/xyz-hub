@@ -1,4 +1,23 @@
 /*
+ * Copyright (C) 2017-2026 HERE Europe B.V.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ * License-Filename: LICENSE
+ */
+
+/*
  * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -1941,7 +1960,19 @@ $BODY$
             format('INSERT INTO %I.%I (id, version, operation, author, jsondata, geo) VALUES (%L, %L, %L, %L, %L, %L)',
                    schema, tableName, id, version, operation, author, jsondata, xyz_geoFromWkb(geo) );
 
-        -- If the current history partition is nearly full, create the next one already
+        -- Create the next history partition proactively. Start once the current partition is half full,
+        -- then repeat at regular intervals (~100 attempts per second half for the default partition size).
+        IF version % partitionSize >= partitionSize / 2 AND version % greatest(partitionSize / 200, 1) = 0 THEN
+            BEGIN
+                EXECUTE xyz_create_history_partition(schema, tableName, (floor(version / partitionSize) + 1)::BIGINT, partitionSize);
+            EXCEPTION WHEN OTHERS THEN
+                RAISE WARNING 'Best-effort history partition creation failed for %.% at version %: %',
+                    schema, tableName, version, SQLERRM;
+            END;
+        END IF;
+
+        -- Keep the near-full safety net strict. At this point a failure must abort the write so the
+        -- application-level recovery path can create the partition and retry the whole modification.
         IF version % partitionSize > partitionSize - 50 THEN
             EXECUTE xyz_create_history_partition(schema, tableName, (floor(version / partitionSize) + 1)::BIGINT, partitionSize);
         END IF;

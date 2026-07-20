@@ -48,6 +48,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map.Entry;
+import java.util.function.Predicate;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.locationtech.jts.geom.Coordinate;
@@ -136,6 +137,10 @@ public class DatabaseWriter {
     public static final String INSERT_ERROR_CONCURRENCY = INSERT_ERROR_GENERAL + " - Feature was already inserted in the meantime";
 
     protected static final String TRANSACTION_ERROR_GENERAL = "Transaction has failed";
+
+    private static final String UNDEFINED_TABLE_SQL_STATE = "42P01";
+    private static final String LOCK_NOT_AVAILABLE_SQL_STATE = "55P03";
+    private static final String CHECK_VIOLATION_SQL_STATE = "23514";
 
     private static PGobject featureToPGobject(ModifyFeaturesEvent event, final Feature feature, long version) throws SQLException {
         final Geometry geometry = feature.getGeometry();
@@ -280,8 +285,9 @@ public class DatabaseWriter {
                     if (transactional)
                         throw e;
 
-                    if (e instanceof SQLException sqlException && "42P01".equalsIgnoreCase(sqlException.getSQLState()))
-                        throw (SQLException) e;
+                    SQLException retryableException = getRetryableTableMaintenanceException(e);
+                    if (retryableException != null)
+                        throw retryableException;
 
                     fails.add(new FeatureCollection.ModificationFailure().withId(getIdFromInput(action, inputDatum))
                         .withMessage(e instanceof WriteFeatureException ? e.getMessage() : getFailedRowErrorMsg(action, event)));
@@ -413,11 +419,7 @@ public class DatabaseWriter {
             }
         }
         catch (Exception e) {
-            if (e instanceof SQLException sqlException && sqlException.getSQLState() != null
-                && (sqlException.getSQLState().equalsIgnoreCase("42P01") ||
-                    //Lock not available - e.g.: happens if a long-running query blocks the
-                    //history partition creation
-                    sqlException.getSQLState().equalsIgnoreCase("55P03")))
+            if (getRetryableTableMaintenanceException(e) != null)
                 //Re-throw, as a missing table will be handled by DatabaseHandler.
                 throw e;
 
@@ -442,5 +444,53 @@ public class DatabaseWriter {
         for (int i = 0; i < batchResult.length; i++)
             if (batchResult[i] == 0)
                 fails.add(new FeatureCollection.ModificationFailure().withId(idList.get(i)).withMessage(getFailedRowErrorMsg(action, event)));
+    }
+
+    static boolean isMissingHistoryPartitionException(Throwable e) {
+        return anySqlExceptionMatches(e, sqlException -> CHECK_VIOLATION_SQL_STATE.equalsIgnoreCase(sqlException.getSQLState())
+            && sqlException.getMessage() != null
+            && sqlException.getMessage().toLowerCase().contains("no partition of relation"));
+    }
+
+    static boolean isLockNotAvailableException(Throwable e) {
+        return anySqlExceptionMatches(e, sqlException -> LOCK_NOT_AVAILABLE_SQL_STATE.equalsIgnoreCase(sqlException.getSQLState()));
+    }
+
+    private static SQLException getRetryableTableMaintenanceException(Throwable e) {
+        return findSqlException(e, sqlException ->
+            UNDEFINED_TABLE_SQL_STATE.equalsIgnoreCase(sqlException.getSQLState())
+                || isLockNotAvailableException(sqlException)
+                || isMissingHistoryPartitionException(sqlException));
+    }
+
+    private static boolean anySqlExceptionMatches(Throwable e, Predicate<SQLException> matcher) {
+        return findSqlException(e, matcher) != null;
+    }
+
+    private static SQLException findSqlException(Throwable e, Predicate<SQLException> matcher) {
+        while (e != null) {
+            if (e instanceof SQLException sqlException) {
+                SQLException matchingException = findMatchingSqlException(sqlException, matcher);
+                if (matchingException != null)
+                    return matchingException;
+            }
+            e = e.getCause();
+        }
+        return null;
+    }
+
+    private static SQLException findMatchingSqlException(SQLException e, Predicate<SQLException> matcher) {
+        while (e != null) {
+            if (matcher.test(e))
+                return e;
+            Throwable cause = e.getCause();
+            if (cause != null && cause != e) {
+                SQLException matchingException = findSqlException(cause, matcher);
+                if (matchingException != null)
+                    return matchingException;
+            }
+            e = e.getNextException();
+        }
+        return null;
     }
 }
