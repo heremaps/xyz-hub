@@ -68,6 +68,8 @@ import javax.xml.crypto.dsig.TransformException;
 import org.geotools.api.referencing.FactoryException;
 import org.locationtech.jts.geom.Geometry;
 
+import static com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles.OutputType.FolderPatch;
+
 
 /**
  * The {@code ExportSpaceToFiles} class represents a step in a data processing workflow that exports data
@@ -108,6 +110,11 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
 
   @JsonView({Internal.class, Static.class})
   private int estimatedSeconds = -1;
+
+  @JsonView({Internal.class, Static.class})
+  protected boolean squashedData;
+  @JsonView({Internal.class, Static.class})
+  protected OutputType outputType = FolderPatch;
 
   @JsonView({Internal.class, Static.class})
   protected SpatialFilter spatialFilter;
@@ -187,6 +194,19 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
   @Override
   protected boolean queryRunsOnWriter() throws WebClientException, SQLException, TooManyResourcesClaimed {
     return false;
+  }
+
+  public OutputType getOutputType() {
+    return outputType;
+  }
+
+  public void setOutputType(OutputType outputType) {
+    this.outputType = outputType;
+  }
+
+  public ExportSpaceToFiles withOutputType(OutputType outputType) {
+    setOutputType(outputType);
+    return this;
   }
 
   /**
@@ -401,15 +421,17 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
       taskListCount = (int) Math.min(calculatedTaskCount, MAX_TASK_COUNT);
     }
 
-    //Resolve the i-range once and persist it - together with the task count - into each task input. This keeps the
-    //thread partitioning stable across resumes, even if writes happened in between, instead of recomputing minI/maxI
-    //against a changed table state (see generateContentQueryForExportPlugin).
+    //Resolve the i-range once and pre-calculate the i-range boundaries per task, persisting startI / endI into each task
+    //input. This keeps the thread partitioning stable across resumes, even if writes happened in between, instead of
+    //recomputing it against a changed table state (see generateContentQueryForExportPlugin).
     IRange iRange = resolveIRange();
+    long iRangeSize = (long) Math.ceil((double) (iRange.maxI() - iRange.minI() + 1) / (double) taskListCount);
 
     List<ExportInput> taskDataList = new ArrayList<>();
     for (int i = 0; i < taskListCount; i++) {
-      //TODO: write only minI and maxI for each task
-      taskDataList.add(new ExportInput(i, iRange.minI(), iRange.maxI(), taskListCount));
+      long startI = iRange.minI() + i * iRangeSize;
+      long endI = startI + iRangeSize - 1;
+      taskDataList.add(new ExportInput(i, startI, endI));
     }
     return taskDataList;
   }
@@ -528,24 +550,14 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
   protected String generateContentQueryForExportPlugin(ExportInput taskInput) throws WebClientException, TooManyResourcesClaimed,
       QueryBuildingException, InvalidGeometryException {
 
-    //We use the thread number as a condition for the query
-    int taskNumber = taskInput.threadId();
-
     GetFeaturesByGeometryBuilder queryBuilder = new GetFeaturesByGeometryBuilder()
         .withDataSourceProvider(requestResource(dbReader(), 0));
 
     GetFeaturesByGeometryInput input = createGetFeaturesByGeometryInput(context == null ? DEFAULT : context == EXTENSION ? X : context, spatialFilter, versionRef);
 
-    minI = taskInput.minI();
-    maxI = taskInput.maxI();
-    final int itemCount = taskInput.taskItemCount();
-
-    long iRangeSize = (long) Math.ceil((double) (maxI - minI + 1) / (double) itemCount);
-
-    SQLQuery threadCondition = new SQLQuery("i >= #{minI} + #{taskNumber} * #{iRangeSize} AND i < #{minI} + (#{taskNumber} + 1) * #{iRangeSize}")
-        .withNamedParameter("minI", minI)
-        .withNamedParameter("taskNumber", taskNumber)
-        .withNamedParameter("iRangeSize", iRangeSize);
+    SQLQuery threadCondition = new SQLQuery("i >= #{startI} AND i <= #{endI}")
+        .withNamedParameter("startI", taskInput.startI())
+        .withNamedParameter("endI", taskInput.endI());
 
     return queryBuilder
         .withAdditionalFilterFragment(threadCondition)
@@ -560,4 +572,9 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
   }
 
   private record TransportStatistics(long rowCount, long byteSize, int fileCount) {}
+
+  public enum OutputType {
+    FolderPatch,
+    FlatPatch
+  }
 }

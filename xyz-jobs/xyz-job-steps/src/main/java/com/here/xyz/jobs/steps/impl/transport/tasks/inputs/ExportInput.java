@@ -26,23 +26,23 @@ import com.here.xyz.jobs.steps.impl.transport.tasks.TaskPayload;
 import com.here.xyz.jobs.steps.impl.transport.tasks.outputs.ExportOutput;
 
 @JsonTypeName("ExportInput")
-public record ExportInput(Integer threadId, String tileId, Long minI, Long maxI, Integer taskItemCount) implements TaskPayload {
+public record ExportInput(Integer threadId, String tileId, Long startI, Long endI) implements TaskPayload {
   public ExportInput(){
-    this(null, null, null, null, null);
+    this(null, null, null, null);
   }
   public ExportInput(Integer threadId) {
-    this(threadId, null, null, null, null);
+    this(threadId, null, null, null);
   }
   public ExportInput(String tileId) {
-    this(null, tileId, null, null, null);
+    this(null, tileId, null, null);
   }
 
   /**
-   * Persists the i-range partitioning parameters together with the task input. Storing them here ensures they are kept
-   * inside the {@code task_input} column of the job data table and therefore stay stable across resumes - even if writes
-   * happened in between - instead of being recomputed against a changed table state.
+   * Persists the pre-calculated i-range boundaries of this task together with the task input. Storing them here ensures
+   * they are kept inside the {@code task_input} column of the job data table and therefore stay stable across resumes -
+   * even if writes happened in between - instead of being recomputed against a changed table state.
    */
-  public ExportInput(Integer threadId, long minI, long maxI, int taskItemCount) {
-    this(threadId, null, minI, maxI, taskItemCount);
+  public ExportInput(Integer threadId, long startI, long endI) {
+    this(threadId, null, startI, endI);
   }
 }
