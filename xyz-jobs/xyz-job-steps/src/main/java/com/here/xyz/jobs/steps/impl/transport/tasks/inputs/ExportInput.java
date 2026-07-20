@@ -19,22 +19,13 @@
 package com.here.xyz.jobs.steps.impl.transport.tasks.inputs;
 
 import com.fasterxml.jackson.annotation.JsonTypeName;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.here.xyz.XyzSerializable;
-import com.here.xyz.jobs.steps.impl.transport.TaskedSpaceBasedStep;
 import com.here.xyz.jobs.steps.impl.transport.tasks.TaskPayload;
-import com.here.xyz.jobs.steps.impl.transport.tasks.outputs.ExportOutput;
+import static com.here.xyz.FeatureChange.Operation;
 
 @JsonTypeName("ExportInput")
-public record ExportInput(Integer threadId, String tileId, Long startI, Long endI) implements TaskPayload {
-  public ExportInput(){
-    this(null, null, null, null);
-  }
-  public ExportInput(Integer threadId) {
-    this(threadId, null, null, null);
-  }
+public record ExportInput(Integer threadId, String tileId, Long startI, Long endI, Operation operation) implements TaskPayload {
   public ExportInput(String tileId) {
-    this(null, tileId, null, null);
+    this(null, tileId, null, null, null);
   }
 
   /**
@@ -43,6 +34,10 @@ public record ExportInput(Integer threadId, String tileId, Long startI, Long end
    * even if writes happened in between - instead of being recomputed against a changed table state.
    */
   public ExportInput(Integer threadId, long startI, long endI) {
-    this(threadId, null, startI, endI);
+    this(threadId, null, startI, endI, null);
+  }
+
+  public ExportInput(Integer threadId, long startI, long endI,  Operation operation) {
+    this(threadId, null, startI, endI, operation);
   }
 }
