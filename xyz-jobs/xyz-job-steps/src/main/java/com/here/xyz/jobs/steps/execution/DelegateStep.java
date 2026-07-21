@@ -147,11 +147,6 @@ public class DelegateStep extends Step<DelegateStep> {
   }
 
   @Override
-  public void deleteOutputs() {
-    //TODO: Implement logic for checking the reference counter here?
-  }
-
-  @Override
   public boolean isEquivalentTo(StepExecution other) {
     return getDelegate().isEquivalentTo(other);
   }
