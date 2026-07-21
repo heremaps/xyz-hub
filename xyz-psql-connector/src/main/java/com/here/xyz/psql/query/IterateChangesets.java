@@ -21,6 +21,7 @@ package com.here.xyz.psql.query;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.collect.Lists;
+import com.here.xyz.FeatureChange;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ContextAwareEvent;
@@ -148,14 +149,15 @@ public class IterateChangesets<R  extends XyzResponse> extends IterateFeatures<I
   }
 
   protected SQLQuery buildFilterWhereClause(IterateChangesetsEvent event) {
-
-    //TODO: Enhance filter clause to filter by specified operation
-
-    SQLQuery authorsFilter = null, startTimeFilter = null, endTimeFilter = null;
+    SQLQuery authorsFilter = null, operationFilter = null, startTimeFilter = null, endTimeFilter = null;
 
     if (event.getAuthors() != null && !event.getAuthors().isEmpty())
       authorsFilter = new SQLQuery("author = ANY(#{authors})")
           .withNamedParameter("authors", event.getAuthors().toArray(String[]::new));
+
+    if (event.getOperation() != null)
+      operationFilter = new SQLQuery("operation = ANY(#{operations})")
+          .withNamedParameter("operations", toDbOperations(event.getOperation()));
 
     if (event.getStartTime() > 0)
       startTimeFilter = buildTimeFilter()
@@ -173,13 +175,22 @@ public class IterateChangesets<R  extends XyzResponse> extends IterateFeatures<I
           .withQueryFragment("versionOperand", "0")
           .withQueryFragment("timeOperand", "" + event.getEndTime());
 
-    List<SQLQuery> filters = Lists.newArrayList(authorsFilter, startTimeFilter, endTimeFilter).stream()
+    List<SQLQuery> filters = Lists.newArrayList(authorsFilter, operationFilter, startTimeFilter, endTimeFilter).stream()
         .filter(q -> q != null)
         .toList();
 
     return filters.isEmpty()
         ? super.buildFilterWhereClause(event)
         : SQLQuery.join(filters, " AND ");
+  }
+
+  //Maps a logical FeatureChange.Operation to its corresponding database operation codes
+  private static String[] toDbOperations(FeatureChange.Operation operation) {
+    return switch (operation) {
+      case INSERT -> new String[] {"I", "H"};
+      case UPDATE -> new String[] {"U", "J"};
+      case DELETE -> new String[] {"D"};
+    };
   }
 
   private static SQLQuery buildTimeFilter() {
