@@ -66,7 +66,7 @@ public class IterateChangesets<R  extends XyzResponse> extends IterateFeatures<I
   protected String buildOrderByFragment(ContextAwareEvent event) {
     if (this.event.isSquashed())
       //No sorting by version is necessary when squashing
-      return super.buildOrderByFragment(event);
+      return ""; //TODO: Activate again, once i is used for iteration
 
     if( event.getBranchPath() == null || event.getBranchPath().isEmpty() )
      return "ORDER BY ${schema}.${table}.version, id";
