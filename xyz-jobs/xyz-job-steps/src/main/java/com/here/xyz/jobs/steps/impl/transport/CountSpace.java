@@ -57,7 +57,7 @@ public class CountSpace extends TaskedSpaceBasedStep<CountSpace, CountInput, Exp
   public static final String FEATURECOUNT = "featurecount";
   public static final int MAX_THREAD_COUNT = 8;
   {
-    threadCount = 1;
+    threadCount = 4;
     addOutputSets(List.of(new OutputSet(FEATURECOUNT, USER, true)));
   }
 
@@ -216,10 +216,11 @@ public class CountSpace extends TaskedSpaceBasedStep<CountSpace, CountInput, Exp
   @Override
   protected List<CountInput> createTaskItems(){
     //Split the count into #threadCount disjoint buckets that are processed in parallel.
-    //TODO: estimate nr of tasks from load
+
     List<CountInput> tasks = new ArrayList<>();
-    for (int bucketId = 0; bucketId < threadCount; bucketId++)
-      tasks.add(new CountInput("CountSpace", bucketId, threadCount));
+    int bucketCount = 2 * threadCount; //TODO: estimate nr of tasks from estimated load, if possible.
+    for (int bucketId = 0; bucketId < bucketCount; bucketId++)
+      tasks.add(new CountInput("CountSpace", bucketId, bucketCount));
     return tasks;
   }
 

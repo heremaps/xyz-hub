@@ -262,7 +262,7 @@ public class CopySpaceStepsTest extends StepTest {
   private static Stream<Arguments> provideCountParameters() {
     return Stream.of(
         Arguments.of( DEFAULT, null, null, null),
-        Arguments.of( DEFAULT, null, null, null),
+        Arguments.of( EXTENSION, null, null, null),
         Arguments.of( EXTENSION, null, propertyFilter,null),
         Arguments.of( DEFAULT, null, propertyFilter,null),
         Arguments.of( EXTENSION, spatialSearchGeom, null,null),
