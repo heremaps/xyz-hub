@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,20 +17,18 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.test;
+package com.here.xyz.test.sql.base;
 
-import static com.here.xyz.util.db.pg.LockHelper.buildAdvisoryLockQuery;
-import static com.here.xyz.util.db.pg.LockHelper.buildAdvisoryUnlockQuery;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import java.sql.SQLException;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
+import java.util.Set;
+
 import org.junit.jupiter.api.Test;
 
 public class SQLQueryIT extends SQLITBase {
@@ -65,6 +63,70 @@ public class SQLQueryIT extends SQLITBase {
 
       //Check that the original query is not running anymore
       assertFalse(SQLQuery.isRunning(dsp, false, longRunningQuery.getQueryId()));
+    }
+  }
+
+  @Test
+  public void areRunningCheckMultipleValuesForSameLabel() throws Exception {
+    try (DataSourceProvider dsp = getDataSourceProvider()) {
+      SQLQuery longRunningQuery1 = new SQLQuery("SELECT pg_sleep(500)")
+          .withLabel("taskId", "1");
+      SQLQuery longRunningQuery2 = new SQLQuery("SELECT pg_sleep(500)")
+          .withLabel("taskId", "2");
+
+      new Thread(() -> {
+        try {
+          longRunningQuery1.run(dsp);
+        }
+        catch (SQLException e) {
+          //Ignore
+        }
+      }).start();
+
+      new Thread(() -> {
+        try {
+          longRunningQuery2.run(dsp);
+        }
+        catch (SQLException e) {
+          //Ignore
+        }
+      }).start();
+
+      //Wait until both queries are visible in pg_stat_activity.
+      long deadline = System.currentTimeMillis() + 5_000;
+      while (System.currentTimeMillis() < deadline && SQLQuery.areRunning(dsp, false, "taskId", Set.of("1", "2")).size() < 2)
+        Thread.sleep(100);
+
+      //Check that both taskIds are currently running
+      assertEquals(Set.of(
+              "1",
+              "2"
+      ), SQLQuery.areRunning(dsp, false, "taskId", Set.of(
+              "1",
+              "2"
+      )));
+
+      assertEquals(Set.of(
+              "1"
+      ), SQLQuery.areRunning(dsp, false, "taskId", Set.of(
+              "1"
+      )));
+
+      assertEquals(Set.of(
+              "2"
+      ), SQLQuery.areRunning(dsp, false, "taskId", Set.of(
+              "2"
+      )));
+
+      //Kill the long-running queries
+      longRunningQuery1.kill();
+      longRunningQuery2.kill();
+
+      //Check that the original queries are not running anymore
+      assertFalse(SQLQuery.isRunning(dsp, false, longRunningQuery1.getQueryId()));
+      assertFalse(SQLQuery.isRunning(dsp, false, longRunningQuery2.getQueryId()));
+      assertEquals(Set.of(), SQLQuery.areRunning(dsp, false, "taskId", Set.of(
+             "1","2")));
     }
   }
 
@@ -134,11 +196,16 @@ public class SQLQueryIT extends SQLITBase {
             so''meF'ancy"String
             """;
 
-        new SQLQuery("INSERT INTO \"SQLQueryIT\" VALUES (#{param});").withNamedParameter("param", fancyString).withAsync(true).write(dsp);
+        new SQLQuery("INSERT INTO ${tableName} VALUES (#{param});")
+            .withVariable("tableName", getDefaultTmpTableName())
+            .withNamedParameter("param", fancyString)
+            .withAsync(true)
+            .write(dsp);
 
         Thread.sleep(1_000);
 
-        assertEquals(fancyString, new SQLQuery("SELECT col FROM \"SQLQueryIT\"")
+        assertEquals(fancyString, new SQLQuery("SELECT col FROM ${tableName}")
+            .withVariable("tableName", getDefaultTmpTableName())
             .run(dsp, rs -> rs.next() ? rs.getString("col") : null));
       }
       finally {
@@ -146,30 +213,6 @@ public class SQLQueryIT extends SQLITBase {
         dropTmpTable(dsp);
       }
     }
-  }
-
-  private static int dropTmpTable(DataSourceProvider dsp) throws SQLException {
-    return dropTmpTable(dsp, "SQLQueryIT");
-  }
-
-  private static int dropTmpTable(DataSourceProvider dsp, String tableName) throws SQLException {
-    return new SQLQuery("DROP TABLE IF EXISTS ${tableName};").withVariable("tableName", tableName).write(dsp);
-  }
-
-  private static int createTmpTable(DataSourceProvider dsp) throws SQLException {
-    return createTmpTable(dsp, "SQLQueryIT");
-  }
-
-  private static int createTmpTable(DataSourceProvider dsp, String tableName) throws SQLException {
-    return buildTableCreationQuery(tableName).write(dsp);
-  }
-
-  private static SQLQuery buildTableCreationQuery() {
-    return buildTableCreationQuery("SQLQueryIT");
-  }
-
-  private static SQLQuery buildTableCreationQuery(String tableName) {
-    return new SQLQuery("CREATE TABLE ${tableName} (col TEXT);").withVariable("tableName", tableName);
   }
 
   @Test
@@ -186,7 +229,7 @@ public class SQLQueryIT extends SQLITBase {
     try (DataSourceProvider dsp = getDataSourceProvider()) {
       try {
         for (int i = 0; i < chainCount; i++)
-          assertTableSize(dsp, "chain_" + i, chainLength);
+          assertTmpTableSize(dsp, "chain_" + i, chainLength);
       }
       finally {
         for (int i = 0; i < chainCount; i++)
@@ -195,13 +238,7 @@ public class SQLQueryIT extends SQLITBase {
     }
   }
 
-  private static void assertTableSize(DataSourceProvider dsp, String chainATableName, int itemCount) throws SQLException {
-    assertEquals(itemCount, (int) new SQLQuery("SELECT count(1) as count FROM ${tableName}")
-        .withVariable("tableName", chainATableName)
-        .run(dsp, rs -> rs.next() ? rs.getInt("count") : null));
-  }
-
-  private static void startThreadChain(String tableName, int waitTime, int chainLength) throws Exception {
+  private void startThreadChain(String tableName, int waitTime, int chainLength) throws Exception {
     try (DataSourceProvider dsp = getDataSourceProvider()) {
       try {
         dropTmpTable(dsp, tableName);
@@ -258,11 +295,14 @@ public class SQLQueryIT extends SQLITBase {
         dropTmpTable(dsp);
 
         SQLQuery tableCreationQuery = buildTableCreationQuery();
-        SQLQuery insertQuery = new SQLQuery("INSERT INTO \"SQLQueryIT\" VALUES ('test')");
+        SQLQuery insertQuery = new SQLQuery("INSERT INTO ${tableName} VALUES ('test')")
+            .withVariable("tableName", getDefaultTmpTableName());
 
         SQLQuery.batchOf(tableCreationQuery, insertQuery).writeBatch(dsp);
 
-        assertEquals("test", new SQLQuery("SELECT col FROM \"SQLQueryIT\"").run(dsp, rs -> rs.next() ? rs.getString("col") : null));
+        assertEquals("test", new SQLQuery("SELECT col FROM ${tableName}")
+            .withVariable("tableName", getDefaultTmpTableName())
+            .run(dsp, rs -> rs.next() ? rs.getString("col") : null));
       }
       finally {
         dropTmpTable(dsp);
@@ -277,11 +317,14 @@ public class SQLQueryIT extends SQLITBase {
         dropTmpTable(dsp);
         createTmpTable(dsp);
 
-        SQLQuery insertQuery = new SQLQuery("INSERT INTO \"SQLQueryIT\" VALUES ('test')");
+        SQLQuery insertQuery = new SQLQuery("INSERT INTO ${tableName} VALUES ('test')")
+            .withVariable("tableName", getDefaultTmpTableName());
 
         SQLQuery.batchOf(insertQuery).writeBatch(dsp);
 
-        assertEquals("test", new SQLQuery("SELECT col FROM \"SQLQueryIT\"").run(dsp, rs -> rs.next() ? rs.getString("col") : null));
+        assertEquals("test", new SQLQuery("SELECT col FROM ${tableName}")
+            .withVariable("tableName", getDefaultTmpTableName())
+            .run(dsp, rs -> rs.next() ? rs.getString("col") : null));
       }
       finally {
         dropTmpTable(dsp);
@@ -301,57 +344,5 @@ public class SQLQueryIT extends SQLITBase {
 
       assertEquals(value, query.run(dsp, rs -> rs.next() ? rs.getString(1) : null));
     }
-  }
-
-  @Test
-  public void runConcurrentQueriesWithLock() throws Exception {
-    SQLQuery concurrentQuery = new SQLQuery("""
-        DO $$
-        BEGIN
-          ${{advisoryLock}}
-          PERFORM pg_sleep(1);
-          IF (SELECT count(1) FROM "SQLQueryIT") = 0 THEN
-            INSERT INTO "SQLQueryIT" VALUES ('test');
-          END IF;
-          ${{advisoryUnlock}}
-        END$$;
-        """)
-        .withQueryFragment("advisoryLock", buildAdvisoryLockQuery("someKey"))
-        .withQueryFragment("advisoryUnlock", buildAdvisoryUnlockQuery("someKey"));
-
-    try (DataSourceProvider dsp = getDataSourceProvider()) {
-      try {
-        dropTmpTable(dsp);
-        createTmpTable(dsp);
-        CompletableFuture f1 = runQueryInThread(concurrentQuery, dsp);
-        CompletableFuture f2 = runQueryInThread(concurrentQuery, dsp);
-
-        CompletableFuture.allOf(f1, f2).get();
-
-        assertEquals(1, (int) new SQLQuery("SELECT count(1) FROM \"SQLQueryIT\"").run(dsp, rs -> rs.next() ? rs.getInt(1) : 0));
-      }
-      finally {
-        dropTmpTable(dsp);
-      }
-    }
-  }
-
-  private static CompletableFuture runQueryInThread(SQLQuery query, DataSourceProvider dsp) {
-    CompletableFuture future = new CompletableFuture();
-    new Thread(() -> {
-      try {
-        query.write(dsp);
-        future.complete(null);
-      }
-      catch (SQLException e) {
-        if (e.getCause() != null) {
-          e.getCause().printStackTrace();
-          if (e.getCause() instanceof SQLException sqlException)
-            System.out.println("Code: " + sqlException.getSQLState());
-        }
-        fail(e.getMessage());
-      }
-    }).start();
-    return future;
   }
 }

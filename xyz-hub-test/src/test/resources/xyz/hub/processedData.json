@@ -1456,9 +1456,10 @@
                 "sport": "association football",
                 "capacity": 67469,
                 "selectionTest" : { "a": "aString",
-                                    "b" : ["bval1","bval2","bval3"],
-                                    "c" : "cString",
-                                    "d" : { "d1": "d1val", "d2": "d2val" }
+                                    "b": ["bval1","bval2","bval3"],
+                                    "c": "cString",
+                                    "d": { "d1": "d1val", "d2": "d2val" },
+                                    "e": [{"v1":  "test0.0", "v2": "test0.1"}, {"v1":  "test1.0", "v2": "test1.1"}]
                                   }
             }
         },
