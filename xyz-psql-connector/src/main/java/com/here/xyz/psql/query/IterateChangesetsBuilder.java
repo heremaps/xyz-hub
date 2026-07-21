@@ -22,11 +22,15 @@ package com.here.xyz.psql.query;
 import static com.here.xyz.models.hub.Ref.HEAD;
 
 import com.here.xyz.FeatureChange.Operation;
+import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.IterateChangesetsEvent;
+import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.psql.query.IterateChangesetsBuilder.IterateChangesetsInput;
+import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.db.SQLQuery;
+import java.sql.SQLException;
 import java.util.Map;
 
 public class IterateChangesetsBuilder extends XyzQueryBuilder<IterateChangesetsInput>{
@@ -59,7 +63,27 @@ public class IterateChangesetsBuilder extends XyzQueryBuilder<IterateChangesetsI
 
     event.ignoreLimit = true;
 
-    return null;
+    try {
+      return ((IterateChangesetsQR) new IterateChangesetsQR<FeatureCollection>(event)
+          .withDataSourceProvider(getDataSourceProvider()))
+          .buildQuery(event);
+    }
+    catch (SQLException | ErrorResponseException e) {
+      throw new QueryBuildingException(e);
+    }
+  }
+
+  protected static class IterateChangesetsQR<R extends XyzResponse> extends IterateChangesets<R> {
+
+
+    public IterateChangesetsQR(IterateChangesetsEvent event) throws SQLException, ErrorResponseException {
+      super(event);
+    }
+
+    @Override
+    protected SQLQuery buildQuery(IterateChangesetsEvent event) throws SQLException, ErrorResponseException {
+      return super.buildQuery(event);
+    }
   }
 
   public record IterateChangesetsInput(

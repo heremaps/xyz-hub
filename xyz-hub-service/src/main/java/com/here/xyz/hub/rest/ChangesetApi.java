@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import static com.here.xyz.models.hub.Ref.HEAD;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 
+import com.here.xyz.FeatureChange.Operation;
 import com.here.xyz.events.DeleteChangesetsEvent;
 import com.here.xyz.events.GetChangesetStatisticsEvent;
 import com.here.xyz.events.IterateChangesetsEvent;
@@ -54,6 +55,9 @@ import org.apache.logging.log4j.Marker;
 
 public class ChangesetApi extends SpaceBasedApi {
 
+  public static final String SQUASHED = "squashed";
+  public static final String OPERATION = "operation";
+
   public ChangesetApi(RouterBuilder rb) {
     rb.getRoute("getChangesets").setDoValidation(false).addHandler(handleErrors(this::getChangesets));
     rb.getRoute("getChangeset").setDoValidation(false).addHandler(handleErrors(this::getChangeset));
@@ -76,7 +80,11 @@ public class ChangesetApi extends SpaceBasedApi {
     if (endVersion != -1 && startVersion > endVersion)
       throw new IllegalArgumentException("The parameter \"" + START_VERSION + "\" needs to be smaller than or equal to \"" + END_VERSION + "\".");
 
-    IterateChangesetsEvent event = buildIterateChangesetsEvent(context, ref);
+    boolean squashed = isSquashed(context);
+
+    IterateChangesetsEvent event = buildIterateChangesetsEvent(context, ref)
+        .withSquashed(squashed)
+        .withOperation(getOperation(context));
     //TODO: Add static caching to this endpoint, once the execution pipelines have been refactored.
     SpaceConnectorBasedHandler.execute(getMarker(context),
             space -> Authorization.authorizeManageSpacesRights(context, space.getId(), space.getOwner()).map(space), event)
@@ -247,5 +255,16 @@ public class ChangesetApi extends SpaceBasedApi {
   public static Future<ChangesetsStatisticsResponse> getChangesetStatistics(Marker marker,
       Function<Space, Future<Space>> authorizationFunction, String spaceId) {
     return SpaceConnectorBasedHandler.execute(marker, authorizationFunction, new GetChangesetStatisticsEvent().withSpace(spaceId));
+  }
+
+  protected boolean isSquashed(RoutingContext context) {
+    return Query.getBoolean(context, SQUASHED, false);
+  }
+
+  protected Operation getOperation(RoutingContext context) {
+    String operation = Query.getString(context, OPERATION, null);
+    if (operation == null)
+      return null;
+    return Operation.valueOf(operation.toUpperCase());
   }
 }
