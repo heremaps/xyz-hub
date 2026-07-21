@@ -117,15 +117,15 @@ public final class S3BatchOperations {
     //S3 Batch Operations rejects a quoted ETag, but S3 returns the ETag with quotes. Strip them before passing to CreateJob.
     String manifestETag = stripETagQuotes(s3Client.loadMetadata(manifestKey).eTag());
 
-    CreateJobRequest request = buildCreateJobRequest(bucket, Config.instance.S3_BATCH_OPS_ROLE_ARN, operation, manifestKey,
-        manifestETag, description, clientRequestToken, jobTags);
-
-    if (AwsClientFactoryBase.isLocal()) {
-      logger.info("Running locally - skipping S3 Batch Operations CreateJob ({} objects in bucket {}, {}). Manifest at s3://{}/{}",
-          keys.size(), bucket, description, bucket, manifestKey);
+    String roleArn = Config.instance.S3_BATCH_OPS_ROLE_ARN;
+    if (AwsClientFactoryBase.isLocal() || roleArn == null || roleArn.isBlank()) {
+      logger.info("Skipping S3 Batch Operations CreateJob (local={}, batchOpsRoleConfigured={}) - manifest written to s3://{}/{} ({}).",
+          AwsClientFactoryBase.isLocal(), roleArn != null && !roleArn.isBlank(), bucket, manifestKey, description);
       return Optional.empty();
     }
 
+    CreateJobRequest request = buildCreateJobRequest(bucket, roleArn, operation, manifestKey, manifestETag, description,
+        clientRequestToken, jobTags);
     CreateJobResponse response = AwsClientFactory.s3ControlClient().createJob(request);
 
     logger.info("Created S3 Batch Operations job {} over {} objects in bucket {} ({}).", response.jobId(), keys.size(),
