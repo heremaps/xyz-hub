@@ -343,8 +343,10 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
   }
 
   static List<String> loadAllInputSetNames(String jobId) {
+    String metaPrefix = inputMetaS3Prefix(jobId) + "/";
     return S3Client.getInstance().scanFolder(inputMetaS3Prefix(jobId)).stream()
-        .map(s3ObjectSummary -> s3ObjectSummary.key().substring(0, s3ObjectSummary.key().lastIndexOf(".json")))
+        //Keys look like "<jobId>/meta/<setName>.json" - return just the "<setName>" (callers re-derive the full key/prefix).
+        .map(s3ObjectSummary -> s3ObjectSummary.key().substring(metaPrefix.length(), s3ObjectSummary.key().lastIndexOf(".json")))
         .toList();
   }
 
@@ -508,6 +510,13 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
    */
   public static List<String> collectInputPrefixesForDeletion(String jobId) {
     List<String> prefixes = Collections.synchronizedList(new ArrayList<>());
+    if (loadAllInputSetNames(jobId).isEmpty()) {
+      //No input metadata for this job (e.g. inputs were uploaded but the job was never submitted, so no metadata was
+      //written). Such inputs cannot be referenced by another job, so schedule the whole inputs prefix directly to avoid
+      //leaking them. This is a no-op if the job genuinely has no inputs (the prefix simply lists nothing).
+      prefixes.add(inputS3Prefix(jobId));
+      return prefixes;
+    }
     collectInputPrefixesForDeletion(jobId, jobId, prefixes);
     return prefixes;
   }
