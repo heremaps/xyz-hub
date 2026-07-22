@@ -345,8 +345,9 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
   static List<String> loadAllInputSetNames(String jobId) {
     String metaPrefix = inputMetaS3Prefix(jobId) + "/";
     return S3Client.getInstance().scanFolder(inputMetaS3Prefix(jobId)).stream()
-        //Keys look like "<jobId>/meta/<setName>.json" - return just the "<setName>" (callers re-derive the full key/prefix).
-        .map(s3ObjectSummary -> s3ObjectSummary.key().substring(metaPrefix.length(), s3ObjectSummary.key().lastIndexOf(".json")))
+        .map(S3ObjectSummary::key)
+        .filter(key -> key.startsWith(metaPrefix) && key.endsWith(".json"))
+        .map(key -> key.substring(metaPrefix.length(), key.length() - ".json".length()))
         .toList();
   }
 
