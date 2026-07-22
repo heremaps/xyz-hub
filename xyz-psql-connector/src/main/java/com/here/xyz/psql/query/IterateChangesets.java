@@ -49,9 +49,6 @@ public class IterateChangesets<R  extends XyzResponse> extends IterateFeatures<I
   private long nextTokenVersion;
   private String nextTokenId;
 
-  //TODO: use i for pagination in case of squashing
-
-
   public IterateChangesets(IterateChangesetsEvent event) throws SQLException, ErrorResponseException {
     super(event);
     this.event = event;
@@ -77,6 +74,9 @@ public class IterateChangesets<R  extends XyzResponse> extends IterateFeatures<I
 
   @Override
   protected SQLQuery buildOffsetFilterFragment(IterateFeaturesEvent event, int dataset) {
+    if (event instanceof IterateChangesetsEvent ice && ice.isSquashed() && (ice.getStartI() >= 0 || event.getEndI() >= 0))
+      return super.buildOffsetFilterFragment(event, dataset);
+
     if (event.getNextPageToken() == null)
       return new SQLQuery("");
 

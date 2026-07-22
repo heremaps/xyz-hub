@@ -19,6 +19,10 @@
 
 package com.here.xyz.jobs.steps.impl.transport;
 
+import static com.here.xyz.FeatureChange.Operation;
+import static com.here.xyz.FeatureChange.Operation.DELETE;
+import static com.here.xyz.FeatureChange.Operation.INSERT;
+import static com.here.xyz.FeatureChange.Operation.UPDATE;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
@@ -29,6 +33,9 @@ import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.JOB_EXECUTOR;
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.JOB_VALIDATE;
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_EXECUTE;
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_ON_ASYNC_SUCCESS;
+import static com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles.OutputType.FLAT_PATCH;
+import static com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles.OutputType.FOLDER_PATCH;
+import static com.here.xyz.psql.query.IterateChangesetsBuilder.IterateChangesetsInput;
 
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
@@ -66,17 +73,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import javax.xml.crypto.dsig.TransformException;
-
 import org.geotools.api.referencing.FactoryException;
 import org.locationtech.jts.geom.Geometry;
-
-import static com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles.OutputType.FLAT_PATCH;
-import static com.here.xyz.psql.query.IterateChangesetsBuilder.IterateChangesetsInput;
-import static com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles.OutputType.FOLDER_PATCH;
-import static com.here.xyz.FeatureChange.Operation;
-import static com.here.xyz.FeatureChange.Operation.INSERT;
-import static com.here.xyz.FeatureChange.Operation.UPDATE;
-import static com.here.xyz.FeatureChange.Operation.DELETE;
 
 /**
  * The {@code ExportSpaceToFiles} class represents a step in a data processing workflow that exports data
@@ -439,7 +437,7 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
 
   private List<ExportInput> createExportInputs(int taskListCount, IRange iRange, long iRangeSize) {
     List<ExportInput> taskDataList = new ArrayList<>();
-    
+
     for (int i = 0; i < taskListCount; i++) {
       long startI = iRange.minI() + i * iRangeSize;
       long endI = startI + iRangeSize - 1;
@@ -590,33 +588,35 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
             .toExecutableQueryString();
   }
 
-  private String getFolderPatchQuery(Space space, SpaceContext targetContext, ExportInput taskInput) throws TooManyResourcesClaimed, WebClientException, QueryBuildingException {
+  private String getFolderPatchQuery(Space space, SpaceContext targetContext, ExportInput taskInput)
+      throws TooManyResourcesClaimed, WebClientException, QueryBuildingException {
     IterateChangesetsBuilder queryBuilder = new IterateChangesetsBuilder()
-            .withDataSourceProvider(requestResource(dbReader(), 0));
+        .withDataSourceProvider(requestResource(dbReader(), 0));
 
-    IterateChangesetsInput input = createIterateChangesetsInput(space, targetContext, versionRef, taskInput.operation());
+    IterateChangesetsInput input = createIterateChangesetsInput(space, targetContext, versionRef, taskInput.operation(), taskInput.startI(),
+        taskInput.endI());
 
     return queryBuilder
-            //TDB
-            //.withAdditionalFilterFragment(getQueryBuilder().buildIRangeFragment(taskInput.startI(), taskInput.endI()))
-            .buildQuery(input)
-            .toExecutableQueryString();
+        .buildQuery(input)
+        .toExecutableQueryString();
   }
 
-  protected IterateChangesetsInput createIterateChangesetsInput(Space space, SpaceContext targetContext, Ref versionRef, Operation operation)
-          throws WebClientException {
+  private IterateChangesetsInput createIterateChangesetsInput(Space space, SpaceContext targetContext, Ref versionRef, Operation operation,
+      long startI, long endI) throws WebClientException {
     return new IterateChangesetsInput(
-            space.getId(),
-            hubWebClient().loadConnector(space.getStorage().getId()).params,
-            space().getExtension() != null ? space().resolveCompositeParams(superSpace()) : null,
-            targetContext,
-            space.getVersionsToKeep(),
-            minSpaceVersion,
-            versionRef,
-            -1L, //startTime TBD
-            -1L, //endTime TBD
-            squashedData,
-            operation);
+        space.getId(),
+        hubWebClient().loadConnector(space.getStorage().getId()).params,
+        space().getExtension() != null ? space().resolveCompositeParams(superSpace()) : null,
+        targetContext,
+        space.getVersionsToKeep(),
+        minSpaceVersion,
+        versionRef,
+        -1L, //startTime TBD
+        -1L, //endTime TBD
+        squashedData,
+        operation,
+        startI,
+        endI);
   }
 
   private ExportQueryBuilder getQueryBuilder() {

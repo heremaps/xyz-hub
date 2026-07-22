@@ -40,8 +40,7 @@ public class IterateChangesetsBuilder extends XyzQueryBuilder<IterateChangesetsI
   public SQLQuery buildQuery(IterateChangesetsInput input) throws QueryBuildingException {
     /*
     TODO: Provide the possibility to specify the following via the input:
-    - the parts of the page token separately & in plain form
-    - the desired operation (e.g. inserted, updated, deleted) to be returned
+    - the parts of the page token separately & in plain form (dataset still missing, for the time being the I-range is calculated "globally" outside - in the step impl)
      */
 
     //TODO: Remove that workaround when refactoring is complete
@@ -56,10 +55,9 @@ public class IterateChangesetsBuilder extends XyzQueryBuilder<IterateChangesetsI
         .withStartTime(input.startTime)
         .withEndTime(input.endTime)
         .withOperation(input.operation)
-        .withSquashed(input.squashed);
-
-    //TODO: Use nextPageToken once it supports also an upper I-bound instead of a limit
-
+        .withSquashed(input.squashed)
+        .withStartI(input.startI)
+        .withEndI(input.endI);
 
     event.ignoreLimit = true;
 
@@ -99,7 +97,10 @@ public class IterateChangesetsBuilder extends XyzQueryBuilder<IterateChangesetsI
       long endTime, //optional instead of ref
       boolean squashed,
 
-      Operation operation //Optional: Only return changes with the specified operation
+      Operation operation, //Optional: Only return changes with the specified operation
+
+      long startI, //Optional: Only return changes with i >= startI
+      long endI //Optional: Only return changes with i <= endI
   ) {
     public IterateChangesetsInput {
       if (ref == null)
