@@ -92,6 +92,8 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   private static final Logger logger = LogManager.getLogger();
   /** Marker output-set key/file prefix used to indicate successful step finalization. */
   public static final String FINALIZATION_MARKER = "finalized_marker";
+  /** Suffix of the label identifier used to tag task queries with their taskId in {@code pg_stat_activity}. */
+  private static final String TASK_ID_LABEL_SUFFIX = "#taskId";
   /** Number of consecutive unknown running-query checks before a task is considered retryable. */
   public static final Integer MAX_UNKNOWN_TASK_QUERY_CHECKS = 3;
   /** Maximum number of retry attempts, for a server side killed single, before failing retry handling. */
@@ -332,6 +334,12 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
    * This is the place to trigger follow-up async work (for example the next chunk query).
    * If a new async query is started here, it should use callback=false to avoid duplicate callback chains.
    * </p>
+   * <p>
+   * <b>Important:</b> Any new async query started here that represents the ongoing work of the task must be
+   * labeled with the taskId via {@link #withTaskIdLabel(SQLQuery, int)} (or {@link #taskIdLabelIdentifier()}).
+   * Otherwise the execution-state check ({@link SQLQuery#areRunning}) cannot find the running query in
+   * {@code pg_stat_activity} and would wrongly consider the task to be in an unknown state and retry it.
+   * </p>
    *
    * @param taskId The id of the task that reported progress.
    * @param output The current task output payload from the callback.
@@ -504,9 +512,38 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
       prepareTaskQuery(taskProgressAndItem.getTaskId());
 
       runReadQueryAsync(buildTaskQuery(taskProgressAndItem.getTaskId(), (I) taskProgressAndItem.getTaskInput(), failureCallback)
-              .withLabel(getId() + "#taskId", String.valueOf(taskProgressAndItem.getTaskId())),
+              .withLabel(taskIdLabelIdentifier(), String.valueOf(taskProgressAndItem.getTaskId())),
               queryRunsOnWriter() ? dbWriter() : dbReader(), 0d/*perItemAcus.doubleValue()*/,  false);
     }
+  }
+
+  /**
+   * The label identifier used to tag task queries with their {@code taskId}, so that running task queries can be
+   * discovered in {@code pg_stat_activity} (see {@link SQLQuery#areRunning}).
+   * <p>
+   * Every asynchronous query that represents the ongoing work of a task - including follow-up queries started from
+   * hook methods such as {@link #onTaskProgress(int, TaskPayload)} - must be labeled with this identifier and the
+   * according taskId. Otherwise the state check would not be able to find the running query and would wrongly
+   * consider the task to be in an unknown state and retry it.
+   * </p>
+   *
+   * @return The label identifier for the taskId label of this step.
+   */
+  protected final String taskIdLabelIdentifier() {
+    return getId() + TASK_ID_LABEL_SUFFIX;
+  }
+
+  /**
+   * Attaches the taskId label (see {@link #taskIdLabelIdentifier()}) for the given taskId to the provided query.
+   * This must be used for every asynchronous query that represents the ongoing work of a task, so that the query
+   * can be discovered as running during the execution-state check.
+   *
+   * @param query The query representing (part of) the work of a task.
+   * @param taskId The id of the task the query belongs to.
+   * @return The same query instance, for chaining.
+   */
+  protected final SQLQuery withTaskIdLabel(SQLQuery query, int taskId) {
+    return query.withLabel(taskIdLabelIdentifier(), String.valueOf(taskId));
   }
 
   @Override
@@ -745,7 +782,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
       //to find a running query.
       Set<String> runningTaskIds = SQLQuery.areRunning(
           requestResource(database, 0d), database.getRole() != WRITER,
-              getId() + "#taskId", expectedTaskIdStrings
+              taskIdLabelIdentifier(), expectedTaskIdStrings
       );
 
       Set<Integer> unknownStateTaskIds = expectedTaskIds.stream()
