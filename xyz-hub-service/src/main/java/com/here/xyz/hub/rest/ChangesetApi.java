@@ -88,7 +88,7 @@ public class ChangesetApi extends SpaceBasedApi {
     //TODO: Add static caching to this endpoint, once the execution pipelines have been refactored.
     SpaceConnectorBasedHandler.execute(getMarker(context),
             space -> Authorization.authorizeManageSpacesRights(context, space.getId(), space.getOwner()).map(space), event)
-        .onSuccess(result -> sendResponse(context, result))
+        .onSuccess(result -> sendResponse(context, result, squashed))
         .onFailure(t -> sendErrorResponse(context, t));
   }
 
@@ -109,7 +109,7 @@ public class ChangesetApi extends SpaceBasedApi {
           if (changesets.getVersions().isEmpty())
             sendErrorResponse(context, new HttpException(NOT_FOUND, "No changeset was found for version " + version));
           else
-            sendResponse(context, changesets.getVersions().get(version).withNextPageToken(changesets.getNextPageToken()));
+            sendResponse(context, changesets.getVersions().get(version).withNextPageToken(changesets.getNextPageToken()), false);
         })
         .onFailure(t -> sendErrorResponse(context, t));
   }
@@ -229,8 +229,8 @@ public class ChangesetApi extends SpaceBasedApi {
     }
   }
 
-  private void sendResponse(final RoutingContext context, Object result) {
-    if (result instanceof Changeset && ((Changeset) result).getVersion() == -1)
+  private void sendResponse(final RoutingContext context, Object result, boolean squashed) {
+    if (!squashed && result instanceof Changeset && ((Changeset) result).getVersion() == -1)
       sendErrorResponse(context, new HttpException(NOT_FOUND, "The requested resource does not exist."));
     else if (result instanceof ChangesetCollection && ((ChangesetCollection) result).getStartVersion() == -1 &&
         ((ChangesetCollection) result).getEndVersion() == -1)
