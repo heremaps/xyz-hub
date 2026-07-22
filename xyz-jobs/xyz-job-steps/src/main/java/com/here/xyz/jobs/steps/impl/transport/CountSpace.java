@@ -218,7 +218,7 @@ public class CountSpace extends TaskedSpaceBasedStep<CountSpace, CountInput, Exp
     //Split the count into #threadCount disjoint buckets that are processed in parallel.
 
     List<CountInput> tasks = new ArrayList<>();
-    int bucketCount = 2 * threadCount; //TODO: estimate nr of tasks from estimated load, if possible.
+    int bucketCount = 8 * threadCount; //TODO: estimate nr of tasks from estimated load, if possible.
     for (int bucketId = 0; bucketId < bucketCount; bucketId++)
       tasks.add(new CountInput("CountSpace", bucketId, bucketCount));
     return tasks;
