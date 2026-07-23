@@ -94,8 +94,24 @@ public class IndexHelper {
         case NEXT_VERSION -> List.of("next_version");
         case OPERATION -> List.of("operation");
         case SERIAL -> List.of("i");
-        case VIZ -> List.of("(left(md5('' || i), 5))");
+        //Bucket expression first (drives the parallel count buckets), followed by the range
+        //predicates so an Index-Only Scan can satisfy the whole COUNT without touching the heap.
+        case VIZ -> List.of("(left(md5('' || i), 5))", "next_version", "version");
         case AUTHOR -> List.of("author");
+      };
+    }
+
+    /**
+     * Non-key (covering) columns stored in the index leaf pages via an {@code INCLUDE} clause.
+     * These let predicates be evaluated directly from the index (keeping the scan index-only)
+     * without making them part of the ordered B-tree key.
+     */
+    public List<String> getIndexInclude() {
+      return switch (this) {
+        //"operation" is only ever tested via NOT IN, which cannot drive a B-tree seek, so it is
+        //stored as an INCLUDE column to enable an Index-Only Scan for the feature COUNT.
+        case VIZ -> List.of("operation");
+        default -> List.of();
       };
     }
 
@@ -161,7 +177,8 @@ public class IndexHelper {
   }
 
   public static SQLQuery buildCreateIndexQuery(String schema, String table, Index index) {
-    return buildCreateIndexQuery(schema, table, ((SystemIndex)index).getIndexContent(), ((SystemIndex)index).getIndexType(), index.getIndexName(table));
+    return buildCreateIndexQuery(schema, table, ((SystemIndex)index).getIndexContent(), ((SystemIndex)index).getIndexType(),
+        index.getIndexName(table), null, includeOf(index));
   }
 
   public static SQLQuery buildCreateIndexQuery(String schema, String table, List<String> columnNames, String method) {
@@ -178,7 +195,8 @@ public class IndexHelper {
   }
 
   public static SQLQuery buildSpaceTableIndexQuery(String schema, String table, Index index) {
-    return buildCreateIndexQuery(schema, table, ((SystemIndex)index).getIndexContent(), ((SystemIndex)index).getIndexType(), index.getIndexName(table));
+    return buildCreateIndexQuery(schema, table, ((SystemIndex)index).getIndexContent(), ((SystemIndex)index).getIndexType(),
+        index.getIndexName(table), null, includeOf(index));
   }
 
   public static SQLQuery buildCreateIndexQuery(String schema, String table, List<String> columnNamesOrExpressions, String method,
@@ -188,13 +206,27 @@ public class IndexHelper {
 
   private static SQLQuery buildCreateIndexQuery(String schema, String table, List<String> columnNamesOrExpressions, String method,
       String indexName, String predicate) {
+    return buildCreateIndexQuery(schema, table, columnNamesOrExpressions, method, indexName, predicate, null);
+  }
+
+  private static SQLQuery buildCreateIndexQuery(String schema, String table, List<String> columnNamesOrExpressions, String method,
+      String indexName, String predicate, List<String> includeColumns) {
+    String includeClause = includeColumns != null && !includeColumns.isEmpty()
+        ? " INCLUDE (" + String.join(", ", includeColumns) + ")" : "";
     return new SQLQuery("CREATE INDEX ${{queryComment}} IF NOT EXISTS ${indexName} ON ${schema}.${table} USING " + method
-        + " (" + String.join(", ", columnNamesOrExpressions) + ") ${{predicate}}")
+        + " (" + String.join(", ", columnNamesOrExpressions) + ")" + includeClause + " ${{predicate}}")
         .withVariable("schema", schema)
         .withVariable("table", table)
         .withVariable("indexName", indexName)
         .withQueryFragment("predicate", predicate != null ? "WHERE " + predicate : "")
         .withQueryFragment("queryComment", "");
+  }
+
+  /**
+   * Returns the {@code INCLUDE} (covering) columns for the given index, or an empty list if none.
+   */
+  private static List<String> includeOf(Index index) {
+    return index instanceof SystemIndex systemIndex ? systemIndex.getIndexInclude() : List.of();
   }
 
   public static SQLQuery buildDropIndexQuery(String schema, String indexName) {
@@ -262,7 +294,8 @@ public class IndexHelper {
   public static List<SQLQuery> buildSpaceTableIndexQueries(String schema, String table, TableLayout layout) {
     if(layout == OLD_LAYOUT)
       return Arrays.asList(SystemIndex.values()).stream()
-              .map(index -> buildCreateIndexQuery(schema, table, index.getIndexContent(), index.getIndexType(), index.getIndexName(table)))
+              .map(index -> buildCreateIndexQuery(schema, table, index.getIndexContent(), index.getIndexType(),
+                      index.getIndexName(table), null, includeOf(index)))
               .toList();
     else if (layout == NEW_LAYOUT)
       return Stream.of(SystemIndex.GEO,
@@ -270,7 +303,7 @@ public class IndexHelper {
                       SystemIndex.VERSION_ID)
               .map(index -> buildCreateIndexQuery(
                       schema, table, index.getIndexContent(),
-                      index.getIndexType(), index.getIndexName(table))
+                      index.getIndexType(), index.getIndexName(table), null, includeOf(index))
               ).toList();
 
     throw new IllegalArgumentException("Unsupported layout " + layout);
