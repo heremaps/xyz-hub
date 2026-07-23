@@ -73,7 +73,7 @@ public class IterateFeatures<E extends IterateFeaturesEvent, R extends XyzRespon
 
   protected SQLQuery buildOffsetFilterFragment(IterateFeaturesEvent event, int dataset) {
     if (event.getStartI() >= 0 || event.getEndI() >= 0) {
-      SQLQuery iPagingFragment = new SQLQuery("${{pagingStartI}} ${{pagingEndI}} ")
+      return new SQLQuery("${{pagingStartI}} ${{pagingEndI}} ")
           .withQueryFragment("pagingStartI", event.getStartI() >= 0
               ? new SQLQuery("AND i >= #{startI}")
               .withNamedParameter("startI", event.getStartI())
