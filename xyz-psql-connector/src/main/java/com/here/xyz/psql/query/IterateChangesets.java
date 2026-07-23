@@ -321,7 +321,8 @@ public class IterateChangesets<R  extends XyzResponse> extends IterateFeatures<I
       nextPageToken = createNextPageToken();
 
     if (event.isSquashed())
-      return (R) versions.get(-1l);
+      return (R) versions.get(-1l)
+          .withVersionRef(event.getRef());
 
     return (R) new ChangesetCollection()
         .withStartVersion(startVersion)

@@ -80,15 +80,13 @@ public class ChangesetApi extends SpaceBasedApi {
     if (endVersion != -1 && startVersion > endVersion)
       throw new IllegalArgumentException("The parameter \"" + START_VERSION + "\" needs to be smaller than or equal to \"" + END_VERSION + "\".");
 
-    boolean squashed = isSquashed(context);
-
     IterateChangesetsEvent event = buildIterateChangesetsEvent(context, ref)
-        .withSquashed(squashed)
+        .withSquashed(isSquashed(context))
         .withOperation(getOperation(context));
     //TODO: Add static caching to this endpoint, once the execution pipelines have been refactored.
     SpaceConnectorBasedHandler.execute(getMarker(context),
             space -> Authorization.authorizeManageSpacesRights(context, space.getId(), space.getOwner()).map(space), event)
-        .onSuccess(result -> sendResponse(context, result, squashed))
+        .onSuccess(result -> sendResponse(context, result))
         .onFailure(t -> sendErrorResponse(context, t));
   }
 
@@ -109,7 +107,7 @@ public class ChangesetApi extends SpaceBasedApi {
           if (changesets.getVersions().isEmpty())
             sendErrorResponse(context, new HttpException(NOT_FOUND, "No changeset was found for version " + version));
           else
-            sendResponse(context, changesets.getVersions().get(version).withNextPageToken(changesets.getNextPageToken()), false);
+            sendResponse(context, changesets.getVersions().get(version).withNextPageToken(changesets.getNextPageToken()));
         })
         .onFailure(t -> sendErrorResponse(context, t));
   }
@@ -229,11 +227,11 @@ public class ChangesetApi extends SpaceBasedApi {
     }
   }
 
-  private void sendResponse(final RoutingContext context, Object result, boolean squashed) {
-    if (!squashed && result instanceof Changeset && ((Changeset) result).getVersion() == -1)
+  private void sendResponse(final RoutingContext context, Object result) {
+    if (result instanceof Changeset cs && cs.getVersion() == -1 && cs.getVersionRef() == null)
       sendErrorResponse(context, new HttpException(NOT_FOUND, "The requested resource does not exist."));
-    else if (result instanceof ChangesetCollection && ((ChangesetCollection) result).getStartVersion() == -1 &&
-        ((ChangesetCollection) result).getEndVersion() == -1)
+    else if (result instanceof ChangesetCollection csc && csc.getStartVersion() == -1 &&
+        csc.getEndVersion() == -1)
       sendErrorResponse(context, new HttpException(NOT_FOUND, "The requested resource does not exist."));
     else
       sendResponse(context, OK.code(), result);
