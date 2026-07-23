@@ -19,6 +19,10 @@
 
 package com.here.xyz.jobs.steps.impl.transport;
 
+import static com.here.xyz.FeatureChange.Operation;
+import static com.here.xyz.FeatureChange.Operation.DELETE;
+import static com.here.xyz.FeatureChange.Operation.INSERT;
+import static com.here.xyz.FeatureChange.Operation.UPDATE;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
@@ -29,6 +33,9 @@ import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.JOB_EXECUTOR;
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.JOB_VALIDATE;
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_EXECUTE;
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_ON_ASYNC_SUCCESS;
+import static com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles.OutputType.FLAT_PATCH;
+import static com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles.OutputType.FOLDER_PATCH;
+import static com.here.xyz.psql.query.IterateChangesetsBuilder.IterateChangesetsInput;
 
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
@@ -51,6 +58,7 @@ import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.psql.query.GetFeaturesByGeometryBuilder;
 import com.here.xyz.psql.query.GetFeaturesByGeometryBuilder.GetFeaturesByGeometryInput;
+import com.here.xyz.psql.query.IterateChangesetsBuilder;
 import com.here.xyz.psql.query.QueryBuilder.QueryBuildingException;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.SQLQuery;
@@ -67,7 +75,6 @@ import java.util.UUID;
 import javax.xml.crypto.dsig.TransformException;
 import org.geotools.api.referencing.FactoryException;
 import org.locationtech.jts.geom.Geometry;
-
 
 /**
  * The {@code ExportSpaceToFiles} class represents a step in a data processing workflow that exports data
@@ -108,6 +115,11 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
 
   @JsonView({Internal.class, Static.class})
   private int estimatedSeconds = -1;
+
+  @JsonView({Internal.class, Static.class})
+  protected boolean squashedData = true;
+  @JsonView({Internal.class, Static.class})
+  protected OutputType outputType = FLAT_PATCH;
 
   @JsonView({Internal.class, Static.class})
   protected SpatialFilter spatialFilter;
@@ -187,6 +199,19 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
   @Override
   protected boolean queryRunsOnWriter() throws WebClientException, SQLException, TooManyResourcesClaimed {
     return false;
+  }
+
+  public OutputType getOutputType() {
+    return outputType;
+  }
+
+  public void setOutputType(OutputType outputType) {
+    this.outputType = outputType;
+  }
+
+  public ExportSpaceToFiles withOutputType(OutputType outputType) {
+    setOutputType(outputType);
+    return this;
   }
 
   /**
@@ -401,15 +426,27 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
       taskListCount = (int) Math.min(calculatedTaskCount, MAX_TASK_COUNT);
     }
 
-    //Resolve the i-range once and persist it - together with the task count - into each task input. This keeps the
-    //thread partitioning stable across resumes, even if writes happened in between, instead of recomputing minI/maxI
-    //against a changed table state (see generateContentQueryForExportPlugin).
+    //Resolve the i-range once and pre-calculate the i-range boundaries per task, persisting startI / endI into each task
+    //input. This keeps the thread partitioning stable across resumes, even if writes happened in between, instead of
+    //recomputing it against a changed table state (see generateContentQueryForExportPlugin).
     IRange iRange = resolveIRange();
+    long iRangeSize = (long) Math.ceil((double) (iRange.maxI() - iRange.minI() + 1) / (double) taskListCount);
 
+    return createExportInputs(taskListCount, iRange, iRangeSize);
+  }
+
+  private List<ExportInput> createExportInputs(int taskListCount, IRange iRange, long iRangeSize) {
     List<ExportInput> taskDataList = new ArrayList<>();
+
     for (int i = 0; i < taskListCount; i++) {
-      //TODO: write only minI and maxI for each task
-      taskDataList.add(new ExportInput(i, iRange.minI(), iRange.maxI(), taskListCount));
+      long startI = iRange.minI() + i * iRangeSize;
+      long endI = startI + iRangeSize - 1;
+      if(outputType.equals(FOLDER_PATCH)) {
+        taskDataList.add(new ExportInput(i, startI, endI, INSERT));
+        taskDataList.add(new ExportInput(i, startI, endI, UPDATE));
+        taskDataList.add(new ExportInput(i, startI, endI, DELETE));
+      }else
+        taskDataList.add(new ExportInput(i, startI, endI));
     }
     return taskDataList;
   }
@@ -429,8 +466,19 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
   @Override
   protected SQLQuery buildTaskQuery(Integer taskId, ExportInput taskInput, String failureCallback)
           throws QueryBuildingException, TooManyResourcesClaimed, WebClientException, InvalidGeometryException {
-    return buildExportToS3PluginQuery(getSchema(db()), taskId,
+    return buildExportToS3PluginQuery(
+            buildDownloadUrlForTaskInput(taskInput),
+            taskId,
             generateContentQueryForExportPlugin(taskInput), failureCallback);
+  }
+
+  private DownloadUrl buildDownloadUrlForTaskInput(ExportInput taskInput) {
+    if(outputType.equals(FLAT_PATCH))
+      return new DownloadUrl().withS3Key(toS3Path(getOutputSet(EXPORTED_DATA)) + "/" + taskInput.threadId() + "/" + UUID.randomUUID() + ".json");
+    else if(outputType.equals(FOLDER_PATCH))
+      return new DownloadUrl().withS3Key(toS3Path(getOutputSet(EXPORTED_DATA)) + "/" + taskInput.operation() + "/" + taskInput.threadId() + "/"  + UUID.randomUUID() + ".json");
+    else
+      throw new StepException("Invalid outputType: " + outputType);
   }
 
   @Override
@@ -456,20 +504,16 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
     ), STATISTICS);
   }
 
-  protected GetFeaturesByGeometryInput createGetFeaturesByGeometryInput(SpaceContext context, SpatialFilter spatialFilter, Ref versionRef)
+  protected GetFeaturesByGeometryInput createGetFeaturesByGeometryInput(Space space, SpaceContext targetContext, SpatialFilter spatialFilter, Ref versionRef)
       throws WebClientException {
-    Space space = context == SUPER ? superSpace() : space();
 
     return new GetFeaturesByGeometryInput(space.getId(), hubWebClient().loadConnector(space.getStorage().getId()).params,
-        space().getExtension() != null ? space().resolveCompositeParams(superSpace()) : null, context, space.getVersionsToKeep(), minSpaceVersion,
+        space().getExtension() != null ? space().resolveCompositeParams(superSpace()) : null, targetContext, space.getVersionsToKeep(), minSpaceVersion,
         versionRef, spatialFilter != null ? spatialFilter.getGeometry() : null, spatialFilter != null ? spatialFilter.getRadius() : 0,
         spatialFilter != null && spatialFilter.isClip(), propertyFilter);
   }
 
-  private SQLQuery buildExportToS3PluginQuery(String schema, int taskId, String contentQuery, String failureCallback) throws WebClientException {
-    //TODO Group by threadId
-    DownloadUrl downloadUrl = new DownloadUrl().withS3Key(toS3Path(getOutputSet(EXPORTED_DATA)) + "/" + taskId + "/" + UUID.randomUUID() + ".json");
-
+  private SQLQuery buildExportToS3PluginQuery(DownloadUrl downloadUrl, int taskId, String contentQuery, String failureCallback) {
     return getQueryBuilder().buildExportToS3PluginQuery(
             taskId,
             downloadUrl,
@@ -512,7 +556,6 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
 
   private record IRange(long minI, long maxI) {}
 
-
   /**
    * Generates a content query for the export plugin based on the task data and context. This method
    * can get overridden easily from other ExportProcesses.
@@ -527,30 +570,53 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
    */
   protected String generateContentQueryForExportPlugin(ExportInput taskInput) throws WebClientException, TooManyResourcesClaimed,
       QueryBuildingException, InvalidGeometryException {
+    Space space = context == SUPER ? superSpace() : space();
+    SpaceContext targetContext = context == null ? DEFAULT : context == EXTENSION ? X : context;
 
-    //We use the thread number as a condition for the query
-    int taskNumber = taskInput.threadId();
+    return outputType.equals(FOLDER_PATCH) ? getFolderPatchQuery(space, targetContext, taskInput) : getFlatPatchQuery(space, targetContext, taskInput);
+  }
 
+  private String getFlatPatchQuery(Space space, SpaceContext targetContext, ExportInput taskInput) throws TooManyResourcesClaimed, WebClientException, QueryBuildingException {
     GetFeaturesByGeometryBuilder queryBuilder = new GetFeaturesByGeometryBuilder()
         .withDataSourceProvider(requestResource(dbReader(), 0));
 
-    GetFeaturesByGeometryInput input = createGetFeaturesByGeometryInput(context == null ? DEFAULT : context == EXTENSION ? X : context, spatialFilter, versionRef);
+    GetFeaturesByGeometryInput input = createGetFeaturesByGeometryInput(space, targetContext, spatialFilter, versionRef);
+    return queryBuilder
+            //Thread Condition (based on I)
+            .withAdditionalFilterFragment(getQueryBuilder().buildIRangeFragment(taskInput.startI(), taskInput.endI()))
+            .buildQuery(input)
+            .toExecutableQueryString();
+  }
 
-    minI = taskInput.minI();
-    maxI = taskInput.maxI();
-    final int itemCount = taskInput.taskItemCount();
+  private String getFolderPatchQuery(Space space, SpaceContext targetContext, ExportInput taskInput)
+      throws TooManyResourcesClaimed, WebClientException, QueryBuildingException {
+    IterateChangesetsBuilder queryBuilder = new IterateChangesetsBuilder()
+        .withDataSourceProvider(requestResource(dbReader(), 0));
 
-    long iRangeSize = (long) Math.ceil((double) (maxI - minI + 1) / (double) itemCount);
-
-    SQLQuery threadCondition = new SQLQuery("i >= #{minI} + #{taskNumber} * #{iRangeSize} AND i < #{minI} + (#{taskNumber} + 1) * #{iRangeSize}")
-        .withNamedParameter("minI", minI)
-        .withNamedParameter("taskNumber", taskNumber)
-        .withNamedParameter("iRangeSize", iRangeSize);
+    IterateChangesetsInput input = createIterateChangesetsInput(space, targetContext, versionRef, taskInput.operation(), taskInput.startI(),
+        taskInput.endI());
 
     return queryBuilder
-        .withAdditionalFilterFragment(threadCondition)
         .buildQuery(input)
         .toExecutableQueryString();
+  }
+
+  private IterateChangesetsInput createIterateChangesetsInput(Space space, SpaceContext targetContext, Ref versionRef, Operation operation,
+      long startI, long endI) throws WebClientException {
+    return new IterateChangesetsInput(
+        space.getId(),
+        hubWebClient().loadConnector(space.getStorage().getId()).params,
+        space().getExtension() != null ? space().resolveCompositeParams(superSpace()) : null,
+        targetContext,
+        space.getVersionsToKeep(),
+        minSpaceVersion,
+        versionRef,
+        -1L, //startTime TBD
+        -1L, //endTime TBD
+        squashedData,
+        operation,
+        startI,
+        endI);
   }
 
   private ExportQueryBuilder getQueryBuilder() {
@@ -560,4 +626,9 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
   }
 
   private record TransportStatistics(long rowCount, long byteSize, int fileCount) {}
+
+  public enum OutputType {
+    FOLDER_PATCH,
+    FLAT_PATCH
+  }
 }

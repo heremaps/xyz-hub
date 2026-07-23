@@ -45,7 +45,6 @@ import com.here.xyz.jobs.steps.impl.DropIndexes;
 import com.here.xyz.jobs.steps.impl.transport.CountSpace;
 import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
 import com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace;
-import com.here.xyz.jobs.steps.impl.transport.tools.DatabaseStepQueryBuilder;
 import com.here.xyz.jobs.steps.impl.transport.tools.ImportQueryBuilder;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.outputs.Output;
@@ -59,7 +58,6 @@ import com.here.xyz.models.hub.Branch;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Tag;
-import com.here.xyz.psql.query.QueryBuilder;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
@@ -499,7 +497,7 @@ public class StepTestBase {
     uploadFileToS3(Output.stepOutputS3Prefix(jobId, stepId, outputSetName) + "/" + UUID.randomUUID(), contentType, bytes, false);
   }
 
-  protected List<Feature> downloadFileAndDeSerializeFeatures(DownloadUrl output) throws IOException {
+  protected List<Feature> downloadFileAndDeserializeFeatures(DownloadUrl output) throws IOException {
     logger.info("Check file: {}", output.getS3Key());
     List<Feature> features = new ArrayList<>();
 

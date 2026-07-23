@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -51,12 +51,11 @@ import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.responses.BinaryResponse;
 import com.here.xyz.responses.ChangesetsStatisticsResponse;
 import com.here.xyz.responses.ErrorResponse;
+import com.here.xyz.responses.ModifiedBranchResponse;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.StorageStatistics;
-import com.here.xyz.responses.ModifiedBranchResponse;
 import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.XyzResponse;
-import com.here.xyz.responses.changesets.ChangesetCollection;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -245,7 +244,7 @@ public abstract class StorageConnector extends EntryConnectorHandler {
 
   protected abstract SuccessResponse processDeleteChangesetsEvent(DeleteChangesetsEvent event) throws Exception;
 
-  protected abstract ChangesetCollection processIterateChangesetsEvent(IterateChangesetsEvent event) throws Exception;
+  protected abstract XyzResponse processIterateChangesetsEvent(IterateChangesetsEvent event) throws Exception;
 
   protected abstract ChangesetsStatisticsResponse processGetChangesetsStatisticsEvent(GetChangesetStatisticsEvent event) throws Exception;
 

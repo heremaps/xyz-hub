@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ package com.here.xyz.psql.query;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.collect.Lists;
+import com.here.xyz.FeatureChange;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ContextAwareEvent;
@@ -30,6 +31,7 @@ import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.psql.query.helpers.versioning.GetHeadVersion;
 import com.here.xyz.psql.query.helpers.versioning.GetMinVersion;
+import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.responses.changesets.Changeset;
 import com.here.xyz.responses.changesets.ChangesetCollection;
 import com.here.xyz.util.db.SQLQuery;
@@ -40,7 +42,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class IterateChangesets extends IterateFeatures<IterateChangesetsEvent, ChangesetCollection> {
+public class IterateChangesets<R  extends XyzResponse> extends IterateFeatures<IterateChangesetsEvent, R> {
   public static long DEFAULT_LIMIT = 1_000l;
   private long limit;
   private IterateChangesetsEvent event; //TODO: Do not store the whole event during the request phase
@@ -60,6 +62,10 @@ public class IterateChangesets extends IterateFeatures<IterateChangesetsEvent, C
 
   @Override
   protected String buildOrderByFragment(ContextAwareEvent event) {
+    if (this.event.isSquashed())
+      //No sorting by version is necessary when squashing
+      return ""; //TODO: Activate again, once i is used for iteration
+
     if( event.getBranchPath() == null || event.getBranchPath().isEmpty() )
      return "ORDER BY ${schema}.${table}.version, id";
     else
@@ -68,6 +74,9 @@ public class IterateChangesets extends IterateFeatures<IterateChangesetsEvent, C
 
   @Override
   protected SQLQuery buildOffsetFilterFragment(IterateFeaturesEvent event, int dataset) {
+    if (event instanceof IterateChangesetsEvent ice && ice.isSquashed() && (ice.getStartI() >= 0 || event.getEndI() >= 0))
+      return super.buildOffsetFilterFragment(event, dataset);
+
     if (event.getNextPageToken() == null)
       return new SQLQuery("");
 
@@ -103,7 +112,7 @@ public class IterateChangesets extends IterateFeatures<IterateChangesetsEvent, C
   }
 
   @Override
-  public ChangesetCollection run(DataSourceProvider dataSourceProvider) throws SQLException, ErrorResponseException {
+  public R run(DataSourceProvider dataSourceProvider) throws SQLException, ErrorResponseException {
     long headVersion = new GetHeadVersion<>(event).withDataSourceProvider(dataSourceProvider).run();
     long minAvailableVersion = headVersion - event.getVersionsToKeep() + 1;
 
@@ -140,11 +149,15 @@ public class IterateChangesets extends IterateFeatures<IterateChangesetsEvent, C
   }
 
   protected SQLQuery buildFilterWhereClause(IterateChangesetsEvent event) {
-    SQLQuery authorsFilter = null, startTimeFilter = null, endTimeFilter = null;
+    SQLQuery authorsFilter = null, operationFilter = null, startTimeFilter = null, endTimeFilter = null;
 
     if (event.getAuthors() != null && !event.getAuthors().isEmpty())
       authorsFilter = new SQLQuery("author = ANY(#{authors})")
           .withNamedParameter("authors", event.getAuthors().toArray(String[]::new));
+
+    if (event.getOperation() != null)
+      operationFilter = new SQLQuery("operation = ANY(#{operations})")
+          .withNamedParameter("operations", toDbOperations(event.getOperation()));
 
     if (event.getStartTime() > 0)
       startTimeFilter = buildTimeFilter()
@@ -162,13 +175,22 @@ public class IterateChangesets extends IterateFeatures<IterateChangesetsEvent, C
           .withQueryFragment("versionOperand", "0")
           .withQueryFragment("timeOperand", "" + event.getEndTime());
 
-    List<SQLQuery> filters = Lists.newArrayList(authorsFilter, startTimeFilter, endTimeFilter).stream()
+    List<SQLQuery> filters = Lists.newArrayList(authorsFilter, operationFilter, startTimeFilter, endTimeFilter).stream()
         .filter(q -> q != null)
         .toList();
 
     return filters.isEmpty()
         ? super.buildFilterWhereClause(event)
         : SQLQuery.join(filters, " AND ");
+  }
+
+  //Maps a logical FeatureChange.Operation to its corresponding database operation codes
+  private static String[] toDbOperations(FeatureChange.Operation operation) {
+    return switch (operation) {
+      case INSERT -> new String[] {"I", "H"};
+      case UPDATE -> new String[] {"U", "J"};
+      case DELETE -> new String[] {"D"};
+    };
   }
 
   private static SQLQuery buildTimeFilter() {
@@ -186,6 +208,9 @@ public class IterateChangesets extends IterateFeatures<IterateChangesetsEvent, C
   //TODO: Check if that mechanism for preventing the last empty page (edge case) can be prevented also for IterateFeatures by pulling this up
   @Override
   protected SQLQuery buildLimitFragment(IterateChangesetsEvent event) {
+    if (event.ignoreLimit)
+      return new SQLQuery("");
+
     //Query one more feature as requested, to be able to determine if we need to include a nextPageToken
     return new SQLQuery("LIMIT #{limit}").withNamedParameter("limit", event.getLimit() + 1);
   }
@@ -196,7 +221,12 @@ public class IterateChangesets extends IterateFeatures<IterateChangesetsEvent, C
     return new SQLQuery("");
   }
 
-  public ChangesetCollection handle(ResultSet rs) throws SQLException {
+  @Override
+  public R handle(ResultSet rs) throws SQLException {
+    //Respond with a simple FeatureCollection for squashed changesets were requested for a single operation
+    if (event.isSquashed() && event.getOperation() != null)
+      return super.handle(rs);
+
     Map<Long, Changeset> versions = new HashMap<>();
 
     long numFeatures = 0;
@@ -217,7 +247,7 @@ public class IterateChangesets extends IterateFeatures<IterateChangesetsEvent, C
         break;
 
       String operation = rs.getString("operation");
-      long version = rs.getLong("version");
+      long version = event.isSquashed() ? -1 : rs.getLong("version");
 
       if (!writeStarted) {
         startVersion = version;
@@ -247,7 +277,8 @@ public class IterateChangesets extends IterateFeatures<IterateChangesetsEvent, C
           createdAt = firstFeature.getProperties().getXyzNamespace().getUpdatedAt();
         }
         catch (JsonProcessingException e) {
-          throw new SQLException("Can't read feature json from database!", e);
+          //TODO: Throw ErrorResponseException instead
+          throw new SQLException("Can't parse feature json from database!", e);
         }
       }
 
@@ -289,7 +320,11 @@ public class IterateChangesets extends IterateFeatures<IterateChangesetsEvent, C
     if (numFeatures > 0 && numFeatures == limit + 1 && numFeatures > limit)
       nextPageToken = createNextPageToken();
 
-    return new ChangesetCollection()
+    if (event.isSquashed())
+      return (R) versions.get(-1l)
+          .withVersionRef(event.getRef());
+
+    return (R) new ChangesetCollection()
         .withStartVersion(startVersion)
         .withEndVersion(prevVersion)
         .withVersions(versions)

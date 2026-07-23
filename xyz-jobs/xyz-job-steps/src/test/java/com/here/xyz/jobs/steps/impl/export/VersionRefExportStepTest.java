@@ -19,109 +19,19 @@
 
 package com.here.xyz.jobs.steps.impl.export;
 
-import com.here.xyz.XyzSerializable;
-import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.hub.Ref;
-import com.here.xyz.models.hub.Space;
-import com.here.xyz.models.hub.Tag;
-import java.io.IOException;
-import java.util.List;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
+
 public class VersionRefExportStepTest extends ExportTestBase {
 
   @BeforeEach
   public void setUp() throws Exception {
-    createSpace(new Space().withId(SPACE_ID).withVersionsToKeep(2), false);
-    //Add two new Features //TODO: Do not create FeatureCollections out of a String, create them using the Model instead
-    FeatureCollection fc1 = XyzSerializable.deserialize("""
-            {
-                 "type": "FeatureCollection",
-                 "features": [
-                     {
-                         "type": "Feature",
-                         "id": "point1",
-                         "properties": {
-                            "value" : "1"
-                         },
-                         "geometry": {
-                             "coordinates": [
-                                 8.43,
-                                 50.06
-                             ],
-                             "type": "Point"
-                         }
-                     },
-                     {
-                         "type": "Feature",
-                         "id": "point2",
-                         "properties": {
-                            "value" : "2"
-                         },
-                         "geometry": {
-                             "coordinates": [
-                                 8.49,
-                                 50.07
-                             ],
-                             "type": "Point"
-                         }
-                     }
-                 ]
-             }
-            """, FeatureCollection.class);
-
-    FeatureCollection fc2 = XyzSerializable.deserialize("""
-            {
-                 "type": "FeatureCollection",
-                 "features": [
-                     {
-                         "type": "Feature",
-                         "id": "point1",
-                         "properties": {
-                            "value" : "new"
-                         },
-                         "geometry": {
-                             "coordinates": [
-                                 8.43,
-                                 50.06
-                             ],
-                             "type": "Point"
-                         }
-                     },
-                     {
-                         "type": "Feature",
-                         "id": "point3",
-                         "properties": {
-                            "value" : "3"
-                         },
-                         "geometry": {
-                             "coordinates": [
-                                 8.49,
-                                 50.07
-                             ],
-                             "type": "Point"
-                         }
-                     }
-                 ]
-             }
-            """, FeatureCollection.class);
-
-    putFeatureCollectionToSpace(SPACE_ID, fc1);
-    //=> Version 1
-    deleteFeaturesInSpace(SPACE_ID, List.of("point2"));
-    //=> Version 2
-    putFeatureCollectionToSpace(SPACE_ID, fc2);
-    //=> Version 3
-    for (int i = 0; i < 10 ; i++) {
-      putRandomFeatureCollectionToSpace(SPACE_ID, 2);
-    }
-    //=> Version 4-13
-
-    //Tag prevents deletion of versions >=2
-    createTag(SPACE_ID, new Tag().withId("tag1").withVersion(2));
+    createTestData(2,true);
   }
 
   @Test
