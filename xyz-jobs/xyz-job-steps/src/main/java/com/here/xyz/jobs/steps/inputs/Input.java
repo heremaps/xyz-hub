@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -43,6 +43,7 @@ import com.here.xyz.util.service.aws.s3.S3Uri;
 import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -342,8 +343,11 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
   }
 
   static List<String> loadAllInputSetNames(String jobId) {
+    String metaPrefix = inputMetaS3Prefix(jobId) + "/";
     return S3Client.getInstance().scanFolder(inputMetaS3Prefix(jobId)).stream()
-        .map(s3ObjectSummary -> s3ObjectSummary.key().substring(0, s3ObjectSummary.key().lastIndexOf(".json")))
+        .map(S3ObjectSummary::key)
+        .filter(key -> key.startsWith(metaPrefix) && key.endsWith(".json"))
+        .map(key -> key.substring(metaPrefix.length(), key.length() - ".json".length()))
         .toList();
   }
 
@@ -495,16 +499,35 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
     return XyzSerializable.fromMap(rawInput, ModelBasedInput.class);
   }
 
-  public static void deleteInputs(String jobId) {
-    deleteInputs(jobId, jobId);
+  /**
+   * Collects the S3 prefixes of all input sets that may be scheduled for deletion for the given job, i.e. inputs that are
+   * no longer referenced by any other job.
+   *
+   * <p>The returned prefixes are handed to {@link com.here.xyz.jobs.util.S3BatchOperations} so a single S3 Batch
+   * Operations job tags all of their objects for deletion.
+   *
+   * @param jobId The job whose input prefixes should be collected.
+   * @return The input S3 prefixes eligible for deletion.
+   */
+  public static List<String> collectInputPrefixesForDeletion(String jobId) {
+    List<String> prefixes = Collections.synchronizedList(new ArrayList<>());
+    if (loadAllInputSetNames(jobId).isEmpty()) {
+      //No input metadata for this job (e.g. inputs were uploaded but the job was never submitted, so no metadata was
+      //written). Such inputs cannot be referenced by another job, so schedule the whole inputs prefix directly to avoid
+      //leaking them. This is a no-op if the job genuinely has no inputs (the prefix simply lists nothing).
+      prefixes.add(inputS3Prefix(jobId));
+      return prefixes;
+    }
+    collectInputPrefixesForDeletion(jobId, jobId, prefixes);
+    return prefixes;
   }
 
-  private static void deleteInputs(String owningJobId, String referencingJob) {
-    //TODO: Parallelize
-    loadAllInputSetNames(owningJobId).forEach(setName -> deleteInputs(owningJobId, referencingJob, setName));
+  private static void collectInputPrefixesForDeletion(String owningJobId, String referencingJob, List<String> prefixes) {
+    loadAllInputSetNames(owningJobId).parallelStream()
+        .forEach(setName -> collectInputPrefixForDeletion(owningJobId, referencingJob, setName, prefixes));
   }
 
-  private static void deleteInputs(String owningJobId, String referencingJob, String setName) {
+  private static void collectInputPrefixForDeletion(String owningJobId, String referencingJob, String setName, List<String> prefixes) {
     InputsMetadata metadata = null;
     try {
       metadata = loadMetadata(owningJobId, setName);
@@ -519,15 +542,9 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
         The owning job referenced the inputs of another job, remove the owning job from the list of referencing jobs
         and check whether the referenced inputs may be deleted now.
          */
-        deleteInputs(metadata.referencedJob(), owningJobId);
+        collectInputPrefixesForDeletion(metadata.referencedJob(), owningJobId, prefixes);
 
-      S3Client.getInstance().deleteFolder(inputS3Prefix(owningJobId, setName))
-              .whenComplete((v, ex) -> {
-                if(ex != null)
-                  logger.error("[{}:{}] Error while deleting inputs", owningJobId, referencingJob, ex);
-                else
-                  logger.info("[{}:{}] End deleting inputs.", owningJobId, referencingJob);
-              });
+      prefixes.add(inputS3Prefix(owningJobId, setName));
     }
     else if (metadata != null)
       storeMetadata(owningJobId, metadata, setName, DEFAULT_SET_GROUP);
