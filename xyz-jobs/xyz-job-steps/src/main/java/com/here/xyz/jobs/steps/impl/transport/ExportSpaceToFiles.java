@@ -476,9 +476,17 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
     if(outputType.equals(FLAT_PATCH))
       return new DownloadUrl().withS3Key(toS3Path(getOutputSet(EXPORTED_DATA)) + "/" + taskInput.threadId() + "/" + UUID.randomUUID() + ".json");
     else if(outputType.equals(FOLDER_PATCH))
-      return new DownloadUrl().withS3Key(toS3Path(getOutputSet(EXPORTED_DATA)) + "/" + taskInput.operation() + "/" + taskInput.threadId() + "/"  + UUID.randomUUID() + ".json");
+      return new DownloadUrl().withS3Key(toS3Path(getOutputSet(EXPORTED_DATA)) + "/" + toFolderName(taskInput.operation()) + "/" + taskInput.threadId() + "/"  + UUID.randomUUID() + ".json");
     else
       throw new StepException("Invalid outputType: " + outputType);
+  }
+
+  private static String toFolderName(Operation operation) {
+    return switch (operation) {
+      case INSERT -> "inserted";
+      case UPDATE -> "updated";
+      case DELETE -> "deleted";
+    };
   }
 
   @Override

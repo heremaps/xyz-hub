@@ -19,28 +19,26 @@
 
 package com.here.xyz.jobs.steps.impl.export;
 
-import com.here.xyz.FeatureChange;
-import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
-import com.here.xyz.jobs.steps.outputs.DownloadUrl;
-import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
-import com.here.xyz.jobs.steps.outputs.Output;
-import com.here.xyz.models.geojson.implementation.Feature;
-import com.here.xyz.models.hub.Ref;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-
-import java.io.IOException;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-
 import static com.here.xyz.FeatureChange.Operation.DELETE;
 import static com.here.xyz.FeatureChange.Operation.INSERT;
 import static com.here.xyz.FeatureChange.Operation.UPDATE;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import static com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles.OutputType;
 import static com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles.OutputType.FOLDER_PATCH;
+
+import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
+import com.here.xyz.jobs.steps.outputs.DownloadUrl;
+import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
+import com.here.xyz.jobs.steps.outputs.Output;
+import com.here.xyz.models.geojson.implementation.Feature;
+import com.here.xyz.models.hub.Ref;
+import java.io.IOException;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 public class VersionRangeExportStepTest extends ExportTestBase {
 
@@ -80,9 +78,9 @@ public class VersionRangeExportStepTest extends ExportTestBase {
           throws IOException {
 
     //Retrieve all Features from Space
-    Set<Feature> allExpectedInsertedFeatures = new HashSet<>(customReadFeaturesQuery(SPACE_ID, hubPathAndQuery + "&operation="+ FeatureChange.Operation.INSERT).getFeatures());
-    Set<Feature> allExpectedUpdatedFeatures = new HashSet<>(customReadFeaturesQuery(SPACE_ID, hubPathAndQuery  + "&operation="+ FeatureChange.Operation.UPDATE).getFeatures());
-    Set<Feature> allExpectedDeletedFeatures = new HashSet<>(customReadFeaturesQuery(SPACE_ID, hubPathAndQuery  + "&operation="+ FeatureChange.Operation.DELETE).getFeatures());
+    Set<Feature> allExpectedInsertedFeatures = new HashSet<>(customReadFeaturesQuery(SPACE_ID, hubPathAndQuery + "&operation="+ INSERT).getFeatures());
+    Set<Feature> allExpectedUpdatedFeatures = new HashSet<>(customReadFeaturesQuery(SPACE_ID, hubPathAndQuery  + "&operation="+ UPDATE).getFeatures());
+    Set<Feature> allExpectedDeletedFeatures = new HashSet<>(customReadFeaturesQuery(SPACE_ID, hubPathAndQuery  + "&operation="+ DELETE).getFeatures());
 
     Assertions.assertNotEquals(0, allOutputs.size());
     Set<Feature> exportedInsertedFeatures = new HashSet<>();
@@ -93,13 +91,13 @@ public class VersionRangeExportStepTest extends ExportTestBase {
 
     for (Output output : allOutputs) {
       if (output instanceof DownloadUrl downloadUrl) {
-        if(downloadUrl.getUrl().toString().contains(INSERT.toString())) {
+        if (downloadUrl.getUrl().toString().contains("inserted")) {
           exportedInsertedFeatures.addAll(downloadFileAndDeserializeFeatures(downloadUrl));
         }
-        if(downloadUrl.getUrl().toString().contains(UPDATE.toString())) {
+        if (downloadUrl.getUrl().toString().contains("updated")) {
           exportedUpdatedFeatures.addAll(downloadFileAndDeserializeFeatures(downloadUrl));
         }
-        if(downloadUrl.getUrl().toString().contains(DELETE.toString())) {
+        if (downloadUrl.getUrl().toString().contains("deleted")) {
           exportedDeletedFeatures.addAll(downloadFileAndDeserializeFeatures(downloadUrl));
         }
       }
