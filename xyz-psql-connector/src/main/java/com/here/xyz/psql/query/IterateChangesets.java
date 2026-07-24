@@ -136,7 +136,7 @@ public class IterateChangesets<R  extends XyzResponse> extends IterateFeatures<I
   @Override
   protected SQLQuery buildNextVersionFragment(Ref ref, boolean historyEnabled, String versionParamName, long baseVersion) {
     //TODO: Check if this check could be pulled up, because when requesting history versions from a range, the next-version anyways should not play any role
-    if (ref.isRange())
+    if (ref.isRange() && !event.isSquashed())
       return new SQLQuery("");
     return super.buildNextVersionFragment(ref, historyEnabled, versionParamName, baseVersion);
   }
