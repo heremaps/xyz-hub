@@ -57,14 +57,18 @@ public class IterateChangesets<R  extends XyzResponse> extends IterateFeatures<I
 
   @Override
   protected String buildOuterOrderByFragment(ContextAwareEvent event) {
-    return this.buildOrderByFragment(event);
+    return buildOrderByFragment(event);
   }
 
   @Override
   protected String buildOrderByFragment(ContextAwareEvent event) {
     if (this.event.isSquashed())
-      //No sorting by version is necessary when squashing
-      return ""; //TODO: Activate again, once i is used for iteration
+      /*
+      NOTE:
+      No sorting by version is necessary when squashing. Also sorting by i is not necessary in that case, because startI / endI are
+      used instead of a start offset & limit.
+       */
+      return ""; //TODO: Ensure proper paging when nextPageToken is being used
 
     if( event.getBranchPath() == null || event.getBranchPath().isEmpty() )
      return "ORDER BY ${schema}.${table}.version, id";
