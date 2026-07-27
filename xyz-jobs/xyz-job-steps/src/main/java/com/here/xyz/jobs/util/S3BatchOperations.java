@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -85,11 +86,29 @@ public final class S3BatchOperations {
   public static Optional<String> scheduleForDeletion(String jobId, List<String> prefixes) {
     final String bucket = Config.instance.JOBS_S3_BUCKET;
     List<String> keys = listKeys(bucket, prefixes);
-    return createBatchJob(bucket, jobId, keys,
+    Optional<String> batchJobId = createBatchJob(bucket, jobId, keys,
         tagObjects(Map.of(SCHEDULED_FOR_DELETION_TAG_KEY, SCHEDULED_FOR_DELETION_TAG_VALUE)),
         "Schedule " + keys.size() + " objects of job " + jobId + " for deletion",
         clientRequestToken("ScheduleForDeletion-" + jobId),
         List.of(S3Tag.builder().key("jobId").value(jobId).build()));
+
+    if (AwsClientFactoryBase.isLocal()) {
+      deleteOutputs(bucket, jobId, prefixes);
+      S3Client.getInstance(bucket).deleteFolder(MANIFEST_PREFIX + jobId + "/").join();
+    }
+
+    return batchJobId;
+  }
+
+  /**
+   * Directly deletes every object under the given prefixes. Used only in local environments, which have no S3 Batch Operations support.
+   */
+  private static void deleteOutputs(String bucket, String jobId, List<String> prefixes) {
+    final S3Client s3Client = S3Client.getInstance(bucket);
+    CompletableFuture.allOf(prefixes.stream()
+        .map(s3Client::deleteFolder)
+        .toArray(CompletableFuture[]::new)).join();
+    logger.info("[{}] Deleted job resources directly under prefixes {} (local - S3 Batch Operations unavailable).", jobId, prefixes);
   }
 
   /**
