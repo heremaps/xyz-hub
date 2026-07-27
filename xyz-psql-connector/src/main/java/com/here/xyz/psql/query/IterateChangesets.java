@@ -321,7 +321,7 @@ public class IterateChangesets<R  extends XyzResponse> extends IterateFeatures<I
 
     //Only create a nextPageToken if there are further results
     String nextPageToken = null;
-    if (numFeatures > 0 && numFeatures == limit + 1 && numFeatures > limit)
+    if (!event.ignoreLimit && numFeatures > 0 && numFeatures == limit + 1 && numFeatures > limit)
       nextPageToken = createNextPageToken();
 
     if (event.isSquashed())
