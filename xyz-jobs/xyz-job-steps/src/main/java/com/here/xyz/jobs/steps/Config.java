@@ -61,6 +61,13 @@ public class Config extends BaseConfig {
   public String S3_BATCH_OPS_ROLE_ARN;
 
   /**
+   * ARN of the Lambda that S3 Batch Operations invokes per manifest object to copy it into
+   * {@link #REFERENCES_BUCKET}. The Lambda performs a managed, multipart server-side copy, which
+   * lifts the 5 GB copy-source limit of the native {@code S3PutObjectCopy} batch operation.
+   */
+  public String S3_BATCH_COPY_LAMBDA_ARN;
+
+  /**
    * The DB hostname to be used inside the step lambda when running locally
    */
   public String LOCAL_DB_HOST_OVERRIDE;
