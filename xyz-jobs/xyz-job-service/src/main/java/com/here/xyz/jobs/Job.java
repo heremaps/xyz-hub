@@ -550,14 +550,23 @@ public class Job implements XyzSerializable {
 
   private Future<Void> scheduleResourcesForDeletion() {
     return ASYNC.run(() -> {
-      List<String> prefixes = new ArrayList<>(Input.collectInputPrefixesForDeletion(getId()));
+      boolean plainJob = !hasRegisterDataReferencesStep() && !isReleaseJob();
 
-      if (!hasRegisterDataReferencesStep() && !isReleaseJob())
-        getSteps().stepStream().forEach(step -> prefixes.add(step.getOutputS3Prefix()));
+      List<String> prefixes;
+      if (plainJob && !Input.hasInputReferences(getId()))
+        //If nothing under the job is shared with another job delete the whole job folder in one batch job.
+        prefixes = List.of(getId() + "/");
+      else {
+        //If the job has registered references or is a release job, delete each input/output separately as they are shared across jobs.
+        prefixes = new ArrayList<>(Input.collectInputPrefixesForDeletion(getId()));
+        //Outputs are never shared across jobs; delete each step's outputs (unless registered references / a release job).
+        if (plainJob)
+          getSteps().stepStream().forEach(step -> prefixes.add(step.getOutputS3Prefix()));
+      }
 
-      S3BatchOperations.scheduleForDeletion(getId(), prefixes)
-          .ifPresent(batchJobId -> logger.info("[{}] Created S3 Batch Operations job {} to schedule resources for deletion.",
-              getId(), batchJobId));
+      List<String> batchJobIds = S3BatchOperations.scheduleForDeletion(getId(), prefixes);
+      if (!batchJobIds.isEmpty())
+        logger.info("[{}] Created S3 Batch Operations job(s) {} to schedule resources for deletion.", getId(), batchJobIds);
       return null;
     });
   }

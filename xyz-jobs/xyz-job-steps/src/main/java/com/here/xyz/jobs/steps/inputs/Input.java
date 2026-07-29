@@ -522,6 +522,20 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
     return prefixes;
   }
 
+  /**
+   * Checks whether the given job has any input sets that are referenced by another job.
+   */
+  public static boolean hasInputReferences(String jobId) {
+    return loadAllInputSetNames(jobId).stream().anyMatch(setName -> {
+      InputsMetadata metadata = loadMetadataIfExists(jobId, setName).orElse(null);
+      if (metadata == null)
+        return false;
+      boolean referencedByOtherJob = metadata.referencingJobs() != null
+          && metadata.referencingJobs().stream().anyMatch(ref -> !ref.equals(jobId));
+      return referencedByOtherJob || metadata.referencedJob() != null;
+    });
+  }
+
   private static void collectInputPrefixesForDeletion(String owningJobId, String referencingJob, List<String> prefixes) {
     loadAllInputSetNames(owningJobId).parallelStream()
         .forEach(setName -> collectInputPrefixForDeletion(owningJobId, referencingJob, setName, prefixes));

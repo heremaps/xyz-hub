@@ -31,7 +31,6 @@ import com.here.xyz.jobs.steps.inputs.Input;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 
@@ -52,8 +51,8 @@ public class S3BatchOperationsTest extends StepTest {
     List<String> prefixes = List.of(JOB_ID + "/");
     assertEquals(3, S3Client.getInstance().listObjects(JOB_ID + "/").size(), "test setup should have created 3 objects");
 
-    Optional<String> batchJobId = S3BatchOperations.scheduleForDeletion(JOB_ID, prefixes);
-    assertTrue(batchJobId.isEmpty(), "S3 Batch Operations CreateJob is skipped when running locally");
+    List<String> batchJobIds = S3BatchOperations.scheduleForDeletion(JOB_ID, prefixes);
+    assertTrue(batchJobIds.isEmpty(), "S3 Batch Operations CreateJob is skipped when running locally");
 
     assertTrue(S3Client.getInstance().listObjects(JOB_ID + "/").isEmpty(),
         "every object under the prefix should have been deleted locally");
@@ -61,9 +60,9 @@ public class S3BatchOperationsTest extends StepTest {
 
   @Test
   public void scheduleForDeletionWithNoPrefixesDoesNothing() {
-    Optional<String> batchJobId = S3BatchOperations.scheduleForDeletion(JOB_ID, List.of());
+    List<String> batchJobIds = S3BatchOperations.scheduleForDeletion(JOB_ID, List.of());
 
-    assertTrue(batchJobId.isEmpty(), "no batch job should be created when there is nothing to schedule");
+    assertTrue(batchJobIds.isEmpty(), "no batch job should be created when there is nothing to schedule");
     assertFalse(S3Client.getInstance().isFolder(JOB_ID + "/"), "nothing should exist for the job");
   }
 
@@ -123,5 +122,21 @@ public class S3BatchOperationsTest extends StepTest {
 
     assertTrue(S3Client.getInstance().listObjects(JOB_ID + "/" + stepId).isEmpty(),
         "the step outputs should have been deleted");
+  }
+
+  @Test
+  public void jobWithoutInputReferencesReportsNone() throws IOException {
+    uploadInputFile(JOB_ID, "a".getBytes(), S3ContentType.APPLICATION_JSON);
+    writeInputMetadata(Set.of(JOB_ID));
+
+    assertFalse(Input.hasInputReferences(JOB_ID), "a job that only references itself has no cross-job input references");
+  }
+
+  @Test
+  public void jobReferencedByAnotherJobReportsReferences() throws IOException {
+    uploadInputFile(JOB_ID, "a".getBytes(), S3ContentType.APPLICATION_JSON);
+    writeInputMetadata(Set.of(JOB_ID, "some-other-live-job"));
+
+    assertTrue(Input.hasInputReferences(JOB_ID), "an input set referenced by another job is a cross-job reference");
   }
 }
