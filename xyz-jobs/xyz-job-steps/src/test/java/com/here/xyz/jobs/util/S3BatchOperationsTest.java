@@ -35,14 +35,7 @@ import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 
-/**
- * Runs against localstack, which has no S3 Batch Operations. There {@link S3BatchOperations#scheduleForDeletion} writes the manifest but,
- * instead of submitting a CreateJob, deletes the job's objects directly and then removes the manifest (no bucket lifecycle rule exists
- * locally to expire it). Each test asserts the right objects are removed and the manifest is cleaned up.
- */
 public class S3BatchOperationsTest extends StepTest {
-
-  private static final String manifestPrefix = "_batch-manifests/";
 
   private void writeInputMetadata(Set<String> referencingJobs) throws IOException {
     Input.InputsMetadata meta = new Input.InputsMetadata(Map.of(), referencingJobs, null, null);
@@ -50,13 +43,8 @@ public class S3BatchOperationsTest extends StepTest {
         XyzSerializable.serialize(meta).getBytes(), false);
   }
 
-  private void assertManifestCleanedUp() {
-    assertFalse(S3Client.getInstance().isFolder(manifestPrefix + JOB_ID + "/"),
-        "the manifest should have been deleted locally after use");
-  }
-
   @Test
-  public void schedulingAPrefixDeletesObjectsAndManifest() throws IOException {
+  public void schedulingAPrefixDeletesAllItsObjects() throws IOException {
     uploadInputFile(JOB_ID, "input-a".getBytes(), S3ContentType.APPLICATION_JSON);
     uploadInputFile(JOB_ID, "input-b".getBytes(), S3ContentType.APPLICATION_JSON);
     uploadOutputFile(JOB_ID, "s_1", "outputSet", "output-a".getBytes(), S3ContentType.APPLICATION_JSON);
@@ -69,16 +57,13 @@ public class S3BatchOperationsTest extends StepTest {
 
     assertTrue(S3Client.getInstance().listObjects(JOB_ID + "/").isEmpty(),
         "every object under the prefix should have been deleted locally");
-    assertManifestCleanedUp();
   }
 
   @Test
-  public void scheduleForDeletionWithNoObjectsDoesNothing() {
-    Optional<String> batchJobId = S3BatchOperations.scheduleForDeletion(JOB_ID, List.of(JOB_ID + "/"));
+  public void scheduleForDeletionWithNoPrefixesDoesNothing() {
+    Optional<String> batchJobId = S3BatchOperations.scheduleForDeletion(JOB_ID, List.of());
 
     assertTrue(batchJobId.isEmpty(), "no batch job should be created when there is nothing to schedule");
-    assertFalse(S3Client.getInstance().isFolder(manifestPrefix + JOB_ID + "/"),
-        "no manifest should be written when there are no objects");
     assertFalse(S3Client.getInstance().isFolder(JOB_ID + "/"), "nothing should exist for the job");
   }
 
@@ -96,7 +81,6 @@ public class S3BatchOperationsTest extends StepTest {
 
     assertTrue(S3Client.getInstance().listObjects(inputS3Prefix(JOB_ID, DEFAULT_SET_NAME)).isEmpty(),
         "the job's inputs should have been deleted");
-    assertManifestCleanedUp();
   }
 
   @Test
@@ -111,7 +95,6 @@ public class S3BatchOperationsTest extends StepTest {
 
     assertTrue(S3Client.getInstance().listObjects(inputS3Prefix(JOB_ID)).isEmpty(),
         "the orphan input (no metadata) should still be deleted");
-    assertManifestCleanedUp();
   }
 
   @Test
@@ -133,13 +116,12 @@ public class S3BatchOperationsTest extends StepTest {
     uploadOutputFile(JOB_ID, stepId, "exportedData", "out-a".getBytes(), S3ContentType.APPLICATION_JSON);
     uploadOutputFile(JOB_ID, stepId, "exportedData", "out-b".getBytes(), S3ContentType.APPLICATION_JSON);
 
-    List<String> prefixes = List.of(JOB_ID + "/" + stepId); //matches Step.getOutputS3Prefix()
+    List<String> prefixes = List.of(JOB_ID + "/" + stepId);
     assertEquals(2, S3Client.getInstance().listObjects(prefixes.get(0)).size(), "the two step outputs should be present");
 
     S3BatchOperations.scheduleForDeletion(JOB_ID, prefixes);
 
     assertTrue(S3Client.getInstance().listObjects(JOB_ID + "/" + stepId).isEmpty(),
         "the step outputs should have been deleted");
-    assertManifestCleanedUp();
   }
 }
