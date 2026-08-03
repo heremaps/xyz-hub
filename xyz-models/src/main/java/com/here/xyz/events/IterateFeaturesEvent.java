@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,6 +27,8 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 public class IterateFeaturesEvent<T extends IterateFeaturesEvent> extends SearchForFeaturesEvent<T> {
 
   private String nextPageToken;
+  private long startI = -1; //NOTE: Not to be used in combination with nextPageToken
+  private long endI = -1; //NOTE: Not to be used in combination with nextPageToken
 
   @SuppressWarnings("unused")
   public String getNextPageToken() {
@@ -41,6 +43,32 @@ public class IterateFeaturesEvent<T extends IterateFeaturesEvent> extends Search
   @SuppressWarnings("unused")
   public T withNextPageToken(String nextPageToken) {
     setNextPageToken(nextPageToken);
+    return (T) this;
+  }
+
+  public long getStartI() {
+    return startI;
+  }
+
+  public void setStartI(long startI) {
+    this.startI = startI;
+  }
+
+  public T withStartI(long startI) {
+    setStartI(startI);
+    return (T) this;
+  }
+
+  public long getEndI() {
+    return endI;
+  }
+
+  public void setEndI(long endI) {
+    this.endI = endI;
+  }
+
+  public T withEndI(long endI) {
+    setEndI(endI);
     return (T) this;
   }
 }
