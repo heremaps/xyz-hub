@@ -144,7 +144,9 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
         query.setTimeout(300);
 
       //Add retry settings for synchronous queries.
-      query.withRetryableErrorCodesAndMaximumRetries(RETRYABLE_SQL_CODES, MAXIMUM_RETRIES);
+      query
+          .withRetryableErrorCodes(RETRYABLE_SQL_CODES)
+          .withMaximumRetries(MAXIMUM_RETRIES);
     }
 
     Object result;
