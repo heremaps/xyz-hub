@@ -569,7 +569,7 @@ BEGIN
     IF task_item.task_id IS NOT NULL THEN
         EXECUTE format(
             'UPDATE %1$s C
-                SET started = true
+                SET started = true, started_at = now()
             WHERE C.task_id = %2$L;',
             get_table_reference(ctx->>'schema', ctx->>'stepId' ,'JOB_TABLE'),
             task_item.task_id
@@ -663,7 +663,7 @@ BEGIN
                     COALESCE(t.task_output->''taskOutput'', ''{}''::JSONB)
                     || COALESCE((%2$L::JSONB)->''taskOutput'', ''{}''::JSONB)
                 ),
-                finalized = %3$L
+                updated_at = now(), finalized = %3$L
           WHERE task_id = %4$L;',
         get_table_reference(ctx->>'schema', ctx->>'stepId', 'JOB_TABLE'),
         p_task_output::TEXT,

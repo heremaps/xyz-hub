@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
+
 
 ---------------------------------------------------------------------------------
 -- xyz_index_status							:	select * from xyz_index_status();
@@ -1618,99 +1619,81 @@ $body$
  select * from _prj_flatten( jdoc, 100 )
 $body$
 LANGUAGE sql IMMUTABLE PARALLEL SAFE;
+
 ------------------------------------------------
 ------------------------------------------------
 
-create or replace function prj_build(jpaths text[], indata jsonb)
-returns jsonb as
+CREATE OR REPLACE FUNCTION prj_build(jpaths TEXT[], indata TEXT)
+RETURNS TEXT AS
 $body$
-  /**
-   * Extract and preserve only properties from a JSON object that match
-   * given JSONPath-like expressions (supports $.a.b.0.c)
-   * and merges overlapping paths.
-   */
-	function removePrefixedStrings(strings) {
 
-  const uniqueStrings = [...new Set(strings)];
+  function buildPathTree(allowedPaths) {
+    const root = { terminal: false, children: {} };
 
-  uniqueStrings.sort((a, b) => a.localeCompare(b));
-
-  const result = [];
-
-  for (const current of uniqueStrings) {
-    const isPrefixed = result.some(prefix => current.startsWith(prefix));
-    if (!isPrefixed) {
-      result.push(current);
-    }
-  }
-
-  return result;
-  }
-
-  function includePaths(obj, allowedPaths) {
-    const result = {};
-
-    const inputPaths = removePrefixedStrings(allowedPaths);
-
-    for (const path of inputPaths || []) {
+    for (const path of allowedPaths || []) {
       const parts = path
-        .replace(/^\$\./, '')        // remove leading "$."
-        .split(/\./)                 // split by .
+        .split('.')                  // normal dot-path, e.g. "a.b.c"
         .filter(Boolean);
 
-      let src = obj;
-      let exists = true;
+      if (parts.length === 0) continue;
 
-      // Check if path fully exists in source
+      let node = root;
       for (const key of parts) {
-        const isIndex = /^\d+$/.test(key);
-        const srcKey = isIndex ? parseInt(key, 10) : key;
-        if (src == null || (Array.isArray(src) && src[srcKey] === undefined) || (!Array.isArray(src) && !(srcKey in src))) {
-          exists = false;
-          break;
-        }
-        src = src[srcKey];
+        // A terminal ancestor already preserves this whole subtree,
+        // so there is no need to descend any deeper.
+        if (node.terminal) break;
+        if (!node.children[key])
+          node.children[key] = { terminal: false, children: {} };
+        node = node.children[key];
       }
-
-      if (!exists) continue; // skip missing leaf paths
-
-      // Reset traversal for building result
-      src = obj;
-      let dst = result;
-
-      for (let i = 0; i < parts.length; i++) {
-        const key = parts[i];
-        const isIndex = /^\d+$/.test(key);
-        const srcKey = isIndex ? parseInt(key, 10) : key;
-        const isLast = i === parts.length - 1;
-
-        if (isLast) {
-          // assign only if leaf exists (checked earlier)
-            dst[srcKey] = src[srcKey];
-        } else {
-          // create or reuse existing branch
-          const nextIsArray = /^\d+$/.test(parts[i + 1]);
-          if (Array.isArray(dst)) {
-            dst[srcKey] = dst[srcKey] ?? (nextIsArray ? [] : {});
-          } else {
-            if (!(srcKey in dst)) {
-              dst[srcKey] = nextIsArray ? [] : {};
-            }
-          }
-
-          src = src[srcKey];
-          dst = dst[srcKey];
-        }
-      }
+      node.terminal = true; // whole subtree below this path is preserved
     }
 
-    return result;
+    return root;
   }
 
-  return includePaths(indata, jpaths);
+  function prune(obj, node) {
+    // A terminal node means: keep this value (and everything below) untouched.
+    if (node.terminal) return;
+    if (obj == null || typeof obj !== 'object') return;
+
+    if (Array.isArray(obj)) {
+      // Array aware: keep only the explicitly allowed indices (e.g. "b.1")
+      // and compact the array so the kept elements move to the front.
+      const keepKeys = Object.keys(node.children)
+        .filter(key => /^\d+$/.test(key) && key < obj.length)
+        .sort((a, b) => a - b); // numeric order via implicit coercion
+
+      const kept = [];
+      for (const key of keepKeys) {
+        // On an allowed path -> descend and prune deeper.
+        prune(obj[key], node.children[key]);
+        kept.push(obj[key]);
+      }
+
+      obj.length = 0;
+      obj.push(...kept);
+      return;
+    }
+
+    for (const key of Object.keys(obj)) {
+      const child = node.children[key];
+      if (child === undefined) {
+        // Not on any allowed path -> drop it.
+        delete obj[key];
+      }
+      else
+        // On an allowed path -> descend and prune deeper.
+        prune(obj[key], child);
+    }
+  }
+
+  const data = JSON.parse(indata);
+  prune(data, buildPathTree(jpaths));
+  return JSON.stringify(data);
 
 $body$
-language plv8 immutable PARALLEL SAFE;
+LANGUAGE plv8 IMMUTABLE PARALLEL SAFE;
 
 
 ------------------------------------------------

@@ -109,7 +109,7 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
   private long targetVersion = -1;
 
   @JsonView({Internal.class, Static.class})
-  private double featureWriterBatchSizeInMb = 70;
+  private double featureWriterBatchSizeInMb = 37;
 
   //Compilers can decide max allowed import size. Set default to 200G for normal use-case
   @JsonIgnore
@@ -376,8 +376,10 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
   protected void onTaskProgress(int taskId, ImportOutput output) throws WebClientException, SQLException, TooManyResourcesClaimed {
     long rangeStart = output.progress() == null ? 1 : output.progress().endI() + 1;
     String failureCallback = buildFailureCallbackQuery().substitute().text().replaceAll("'", "''");
-    runReadQueryAsync(buildImportFromTmpTableTaskQuery(taskId, rangeStart, output.targetVersion(), failureCallback)
-            , dbWriter(), 0, false);
+    runReadQueryAsync(
+            withTaskIdLabel(buildImportFromTmpTableTaskQuery(taskId, rangeStart,
+                    output.targetVersion(), failureCallback), taskId),
+            dbWriter(), 0, false);
   }
 
   @Override

@@ -40,6 +40,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -774,13 +775,6 @@ public class SQLQuery {
     return this;
   }
 
-  public SQLQuery withRetryableErrorCodesAndMaximumRetries(Set<String> retryableErrorCodes,
-      int maximumRetries) {
-    setRetryableErrorCodes(retryableErrorCodes);
-    setMaximumRetries(maximumRetries);
-    return this;
-  }
-
   public String getQueryId() {
     //TODO: Call initQueryId() here?
     return queryId;
@@ -910,11 +904,22 @@ public class SQLQuery {
   }
 
   private static SQLQuery buildLabelMatchQuery(String labelIdentifier, String labelValue) {
-    return new SQLQuery("strpos(query, '/*labels(') > 0 AND substring(query, "
-        + "strpos(query, '/*labels(') + 9, "
-        + "strpos(query, ')*/') - 9 - strpos(query, '/*labels('))::json->>#{labelIdentifier} = #{labelValue}")
-        .withNamedParameter("labelIdentifier", labelIdentifier)
+    return new SQLQuery("strpos(query, '/*labels(') > 0 AND ${{extractedLabelValue}} = #{labelValue}")
+        .withQueryFragment("extractedLabelValue", buildLabelValueExtraction(labelIdentifier))
         .withNamedParameter("labelValue", labelValue);
+  }
+
+  /**
+   * Builds the SQL fragment that extracts the value of the label with the specified identifier from the {@code /*labels(...)*}{@code /}
+   * comment prefix of a query in {@code pg_stat_activity}.
+   * @param labelIdentifier The label identifier whose value should be extracted (e.g. taskId).
+   * @return The SQL fragment resolving to the label value as text.
+   */
+  private static SQLQuery buildLabelValueExtraction(String labelIdentifier) {
+    return new SQLQuery("substring(query, "
+        + "strpos(query, '/*labels(') + 9, "
+        + "strpos(query, ')*/') - 9 - strpos(query, '/*labels('))::json->>#{labelIdentifier}")
+        .withNamedParameter("labelIdentifier", labelIdentifier);
   }
 
   public static boolean isRunning(DataSourceProvider dataSourceProvider, boolean useReplica, String queryId) throws SQLException {
@@ -936,6 +941,59 @@ public class SQLQuery {
         .withQueryFragment("labelMatching", buildLabelMatchQuery(labelIdentifier, labelValue))
         .withLoggingEnabled(false)
         .run(dataSourceProvider, rs -> rs.next(), useReplica);
+  }
+
+  /**
+   * Checks which of the provided values are currently running for one label identifier.
+   *
+   * @param labelIdentifier The label identifier to check (e.g. taskId).
+   * @param labelValues The set of values to check for the given label identifier.
+   * @return The subset of provided label values that are currently running.
+   */
+  public static Set<String> areRunning(DataSourceProvider dataSourceProvider, boolean useReplica,
+      String labelIdentifier, Set<String> labelValues) throws SQLException {
+    if (labelValues == null || labelValues.isEmpty())
+      return Set.of();
+
+    return new SQLQuery("""
+        WITH expected_values AS (${{expectedValues}}),
+             active_values AS (
+               SELECT ${{labelValue}} AS label_value
+                 FROM pg_stat_activity
+                WHERE state = 'active'
+                  AND pid != pg_backend_pid()
+                  AND strpos(query, '/*labels(') > 0
+             )
+        SELECT DISTINCT e.label_value
+          FROM expected_values e
+          JOIN active_values a
+            ON a.label_value = e.label_value
+        """)
+        .withQueryFragment("expectedValues", buildLabelValuesQuery(labelValues))
+        .withQueryFragment("labelValue", buildLabelValueExtraction(labelIdentifier))
+        .withLoggingEnabled(false)
+        .run(dataSourceProvider, rs -> {
+          Set<String> runningValues = new LinkedHashSet<>();
+          while (rs.next())
+            runningValues.add(rs.getString("label_value"));
+          return runningValues;
+        }, useReplica);
+  }
+
+  private static SQLQuery buildLabelValuesQuery(Set<String> labelValues) {
+    if (labelValues == null || labelValues.isEmpty())
+      return new SQLQuery("SELECT NULL::text AS label_value WHERE FALSE");
+
+    List<SQLQuery> values = new ArrayList<>();
+    int i = 0;
+    for (String labelValue : labelValues) {
+      String valueParam = "labelValue" + i;
+      values.add(new SQLQuery("SELECT #{" + valueParam + "} AS label_value")
+              .withNamedParameter(valueParam, labelValue));
+      i++;
+    }
+
+    return SQLQuery.join(values, " UNION ALL ");
   }
 
   private static String getClashing(Map<String, ?> map1, Map<String, ?> map2) {

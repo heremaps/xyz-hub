@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -382,23 +382,26 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
 
   @Test
   public void testFeatureByIdWithSelection() {
-    given().
-        urlEncodingEnabled(false).
-        accept(APPLICATION_GEO_JSON).
-        headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
-         when().
-          get(getSpacesPath() + "/x-psql-test/features/Q2838923?selection=p.name,p.selectionTest.a,p.selectionTest.b.1,p.selectionTest.d.d1").
-         then().
-          statusCode(OK.code()).
-           body("id", equalTo("Q2838923")).
-           body("properties.name", equalTo("Estadio Universidad San Marcos")).
-           body("properties.sport", equalTo(null)).
-           body("properties.selectionTest.a", equalTo("aString")).
-           body("properties.selectionTest.b.size()", equalTo(1)).
-           body("properties.selectionTest.b[0]", equalTo("bval2")).
-           body("properties.selectionTest.c", equalTo(null)).
-           body("properties.selectionTest.d.d1", equalTo("d1val")).
-           body("properties.selectionTest.d.d2", equalTo(null));
+    given()
+        .urlEncodingEnabled(false)
+        .accept(APPLICATION_GEO_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .when()
+        .get(getSpacesPath() + "/x-psql-test/features/Q2838923?"
+            + "selection=p.name,p.selectionTest.a,p.selectionTest.b.1,p.selectionTest.d.d1,p.selectionTest.e.1.v2")
+        .then()
+        .statusCode(OK.code())
+        .body("id", equalTo("Q2838923"))
+        .body("properties.name", equalTo("Estadio Universidad San Marcos"))
+        .body("properties.sport", equalTo(null))
+        .body("properties.selectionTest.a", equalTo("aString"))
+        .body("properties.selectionTest.b.size()", equalTo(1))
+        .body("properties.selectionTest.b[0]", equalTo("bval2"))
+        .body("properties.selectionTest.c", equalTo(null))
+        .body("properties.selectionTest.d.d1", equalTo("d1val"))
+        .body("properties.selectionTest.d.d2", equalTo(null))
+        .body("properties.selectionTest.e.size()", equalTo(1))
+        .body("properties.selectionTest.e[0].v2", equalTo("test1.1"));
   }
 
   @Test

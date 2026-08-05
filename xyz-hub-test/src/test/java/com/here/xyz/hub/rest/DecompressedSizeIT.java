@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,12 +19,15 @@
 
 package com.here.xyz.hub.rest;
 
+import static com.here.xyz.Payload.isGzipped;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_GEO_JSON;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.CoreMatchers.anyOf;
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
+import io.restassured.response.ValidatableResponse;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import org.junit.AfterClass;
@@ -47,14 +50,21 @@ public class DecompressedSizeIT extends TestSpaceWithFeature {
 
   @Test
   public void testHeaderOutputSizeReporting() {
-    given()
+    final ValidatableResponse response = given()
         .accept(APPLICATION_GEO_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
         .get(getSpacesPath() + "/x-psql-test/tile/quadkey/2100300120310022")
-        .then()
+        .then();
+
+    byte[] body = response
         .header("X-Decompressed-Input-Size", "0")
-        .header("X-Decompressed-Output-Size", "591");
+        .extract()
+        .body()
+        .asByteArray();
+
+    response.header("X-Decompressed-Output-Size", "" + body.length);
+    assertThat("Response body was not gzipped", isGzipped(body), is(false));
   }
 
   @Test

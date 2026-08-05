@@ -142,7 +142,7 @@ public class ExportStepValidationTest extends StepTest {
         //TODO: Deduplicate the following from ExportTestBase
         for (Output output : userOutputs) {
             if (output instanceof DownloadUrl downloadUrl)
-                exportedFeatures.addAll(downloadFileAndDeSerializeFeatures(downloadUrl));
+                exportedFeatures.addAll(downloadFileAndDeserializeFeatures(downloadUrl));
             else if (output instanceof FeatureStatistics statistics)
                 Assertions.assertEquals(expectedFeatures.getFeatures().size(), statistics.getFeatureCount());
         }
