@@ -102,7 +102,8 @@ public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureColl
         .with("PARTITION_SIZE", PARTITION_SIZE)
         .with("minVersion", event.getMinVersion())
         .with("versionsToKeep", event.getVersionsToKeep())
-        .with("pw", getDataSourceProvider().getDatabaseSettings().getPassword());
+        .with("pw", getDataSourceProvider().getDatabaseSettings().getPassword())
+        .with("skipNonModified", true);
 
     if (event.getRef() != null && event.getRef().isSingleVersion() && !event.getRef().isHead())
       queryContextBuilder.withBaseVersion(event.getRef().getVersion());
