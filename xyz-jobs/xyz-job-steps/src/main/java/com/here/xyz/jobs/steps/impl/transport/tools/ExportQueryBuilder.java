@@ -55,4 +55,10 @@ public class ExportQueryBuilder extends DatabaseStepQueryBuilder{
             .withNamedParameter("contentQuery", contentQuery)
             .withQueryFragment("failureCallback",  failureCallback);
   }
+
+  public SQLQuery buildIRangeFragment(long startI, long endI) {
+    return new SQLQuery("i >= #{startI} AND i <= #{endI}")
+            .withNamedParameter("startI", startI)
+            .withNamedParameter("endI", endI);
+  }
 }

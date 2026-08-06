@@ -19,147 +19,186 @@
 
 package com.here.xyz.jobs.steps.impl.export;
 
-import static com.here.xyz.jobs.steps.Step.Visibility.SYSTEM;
-import static com.here.xyz.jobs.steps.Step.Visibility.USER;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.jobs.steps.impl.StepTest;
-import com.here.xyz.jobs.steps.impl.transport.ExportChangedTiles;
 import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
 import com.here.xyz.jobs.steps.outputs.Output;
-import com.here.xyz.jobs.steps.outputs.TileInvalidations;
 import com.here.xyz.models.filters.SpatialFilter;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.hub.Ref;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.NoSuchElementException;
-import java.util.Set;
-import java.util.stream.Collectors;
+import com.here.xyz.models.hub.Space;
+import com.here.xyz.models.hub.Tag;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Assertions;
 
+import java.io.IOException;
+import java.util.HashSet;
+import java.util.List;
+import java.util.NoSuchElementException;
+import java.util.Set;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
 public class ExportTestBase extends StepTest {
-    private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger();
 
-    protected void executeExportStepAndCheckResults(String spaceId, ContextAwareEvent.SpaceContext context,
-                                                    SpatialFilter spatialFilter, PropertiesQuery propertiesQuery,
-                                                    Ref versionRef,
-                                                    String hubPathAndQuery)
-            throws IOException, InterruptedException {
-        //Retrieve all Features from Space
-        FeatureCollection allExpectedFeatures = customReadFeaturesQuery(spaceId, hubPathAndQuery);
+  protected void executeExportStepAndCheckResults(String spaceId, ContextAwareEvent.SpaceContext context,
+                                                  SpatialFilter spatialFilter, PropertiesQuery propertiesQuery,
+                                                  Ref versionRef,
+                                                  String hubPathAndQuery)
+          throws IOException, InterruptedException {
+    //Retrieve all Features from Space
+    FeatureCollection allExpectedFeatures = customReadFeaturesQuery(spaceId, hubPathAndQuery);
 
-        //Create Step definition
-        ExportSpaceToFiles step = new ExportSpaceToFiles()
+    //Create Step definition
+    ExportSpaceToFiles step = new ExportSpaceToFiles()
+            .withThreadCount(10)
             .withSpaceId(spaceId)
             .withJobId(JOB_ID);
 
-        if(context != null)
-            step.setContext(context);
-        if(propertiesQuery != null)
-            step.setPropertyFilter(propertiesQuery);
-        if(spaceId != null)
-            step.setSpatialFilter(spatialFilter);
-        if(versionRef != null)
-            step.setVersionRef(versionRef);
+    if (context != null)
+      step.setContext(context);
+    if (propertiesQuery != null)
+      step.setPropertyFilter(propertiesQuery);
+    if (spaceId != null)
+      step.setSpatialFilter(spatialFilter);
+    if (versionRef != null)
+      step.setVersionRef(versionRef);
 
-        //Send Lambda Requests
-        sendLambdaStepRequestBlock(step, true);
-        checkOutputs(new HashSet<>(allExpectedFeatures.getFeatures()), step.loadOutputs());
+    //Send Lambda Requests
+    sendLambdaStepRequestBlock(step, true);
+    checkOutputs(new HashSet<>(allExpectedFeatures.getFeatures()), step.loadOutputs());
+  }
+
+  protected void checkOutputs(Set<Feature> expectedFeatures, List<Output> allOutputs)
+          throws IOException {
+    Assertions.assertNotEquals(0, allOutputs.size());
+
+    Set<Feature> exportedFeatures = new HashSet<>();
+    Set<FeatureStatistics> statistics = new HashSet<>();
+
+    for (Output output : allOutputs) {
+      if (output instanceof DownloadUrl downloadUrl)
+        exportedFeatures.addAll(downloadFileAndDeserializeFeatures(downloadUrl));
+        //TODO: FeatureStatistics could get only checked if we also support during simulation "UPDATE_CALLBACK"
+      else if (output instanceof FeatureStatistics s)
+        statistics.add(s);
     }
 
-    protected void checkOutputs(Set<Feature> expectedFeatures, List<Output> allOutputs)
-            throws IOException {
-        Assertions.assertNotEquals(0, allOutputs.size());
+    checkFeatures(exportedFeatures, expectedFeatures);
+    checkStatistics(statistics, expectedFeatures.size());
+  }
 
-        Set<Feature> exportedFeatures = new HashSet<>();
-        Set<FeatureStatistics> statistics = new HashSet<>();
+  protected static void checkFeatures(Set<Feature> exportedFeatures, Set<Feature> expectedFeatures) {
+    assertEquals(expectedFeatures.size(), exportedFeatures.size(), "Expected features count should match exported features");
 
-        for (Output output : allOutputs) {
-            if (output instanceof DownloadUrl downloadUrl)
-                exportedFeatures.addAll(downloadFileAndDeSerializeFeatures(downloadUrl));
-            //TODO: FeatureStatistics could get only checked if we also support during simulation "UPDATE_CALLBACK"
-            else if (output instanceof FeatureStatistics s)
-                statistics.add(s);
-        }
+    for (Feature f : expectedFeatures)
+      assertEquals(f, exportedFeatures.stream().filter(feature -> feature.getId().equals(f.getId())).findFirst().orElseThrow(() -> new NoSuchElementException("Expected feature with id \"" + f.getId() + "\" was not exported.")));
 
-        for (Feature f : expectedFeatures)
-            assertEquals(f, exportedFeatures.stream().filter(feature -> feature.getId().equals(f.getId())).findFirst().orElseThrow(() -> new NoSuchElementException("Expected feature with id \"" + f.getId() + "\" was not exported.")));
+    for (Feature f : exportedFeatures)
+      assertEquals(expectedFeatures.stream().filter(feature -> feature.getId().equals(f.getId())).findFirst().orElseThrow(() -> new NoSuchElementException("Exported feature with id \"" + f.getId() + "\" was not expected")), f);
+  }
 
-        for (Feature f : exportedFeatures)
-            assertEquals(expectedFeatures.stream().filter(feature -> feature.getId().equals(f.getId())).findFirst().orElseThrow(() -> new NoSuchElementException("Exported feature with id \"" + f.getId() + "\" was not expected")), f);
+  protected static void checkStatistics(Set<FeatureStatistics> statistics, int expectedCount) {
+    for (FeatureStatistics s : statistics)
+      assertEquals(s.getFeatureCount(), expectedCount);
+  }
 
-        for (FeatureStatistics s : statistics)
-            assertEquals(s.getFeatureCount(), expectedFeatures.size());
+  void createTestData(int v2k, boolean createTag) throws JsonProcessingException {
+    createSpace(new Space().withId(SPACE_ID).withVersionsToKeep(v2k), false);
+    //Add two new Features //TODO: Do not create FeatureCollections out of a String, create them using the Model instead
+    FeatureCollection fc1 = XyzSerializable.deserialize("""
+            {
+                 "type": "FeatureCollection",
+                 "features": [
+                     {
+                         "type": "Feature",
+                         "id": "point1",
+                         "properties": {
+                            "value" : "1"
+                         },
+                         "geometry": {
+                             "coordinates": [
+                                 8.43,
+                                 50.06
+                             ],
+                             "type": "Point"
+                         }
+                     },
+                     {
+                         "type": "Feature",
+                         "id": "point2",
+                         "properties": {
+                            "value" : "2"
+                         },
+                         "geometry": {
+                             "coordinates": [
+                                 8.49,
+                                 50.07
+                             ],
+                             "type": "Point"
+                         }
+                     }
+                 ]
+             }
+            """, FeatureCollection.class);
+
+    FeatureCollection fc2 = XyzSerializable.deserialize("""
+            {
+                 "type": "FeatureCollection",
+                 "features": [
+                     {
+                         "type": "Feature",
+                         "id": "point1",
+                         "properties": {
+                            "value" : "new"
+                         },
+                         "geometry": {
+                             "coordinates": [
+                                 8.43,
+                                 50.06
+                             ],
+                             "type": "Point"
+                         }
+                     },
+                     {
+                         "type": "Feature",
+                         "id": "point3",
+                         "properties": {
+                            "value" : "3"
+                         },
+                         "geometry": {
+                             "coordinates": [
+                                 8.49,
+                                 50.07
+                             ],
+                             "type": "Point"
+                         }
+                     }
+                 ]
+             }
+            """, FeatureCollection.class);
+
+    putFeatureCollectionToSpace(SPACE_ID, fc1);
+    //=> Version 1
+    deleteFeaturesInSpace(SPACE_ID, List.of("point2"));
+    //=> Version 2
+    putFeatureCollectionToSpace(SPACE_ID, fc2);
+    //=> Version 3
+    for (int i = 0; i < 10 ; i++) {
+      putRandomFeatureCollectionToSpace(SPACE_ID, 2);
     }
+    //=> Version 4-13
 
-    protected void executeExportChangedTilesStepAndCheckResults(String spaceId, int targetLevel,
-                                                                ExportChangedTiles.QuadType quadType, Ref versionRef,
-                                                                List<String> expectedTileInvalidations, FeatureCollection expectedFeatures)
-            throws IOException, InterruptedException {
-        executeExportChangedTilesStepAndCheckResults(spaceId, targetLevel, quadType, versionRef, null, null, expectedTileInvalidations, expectedFeatures);
-    }
-
-    protected void executeExportChangedTilesStepAndCheckResults(String spaceId, int targetLevel,
-                    ExportChangedTiles.QuadType quadType, Ref versionRef, SpatialFilter spatialFilter, PropertiesQuery propertiesQuery,
-                    List<String> expectedTileInvalidations, FeatureCollection expectedFeatures)
-            throws IOException, InterruptedException {
-
-        //Create Step definition
-        ExportSpaceToFiles step = new ExportChangedTiles()
-                .withQuadType(quadType)
-                .withTargetLevel(targetLevel)
-                .withVersionRef(versionRef)
-                .withPropertyFilter(propertiesQuery)
-                .withSpatialFilter(spatialFilter)
-                .withSpaceId(spaceId)
-                .withJobId(JOB_ID);
-
-        //Send Lambda Requests
-        sendLambdaStepRequestBlock(step, true);
-        checkExportChangedTilesOutputs(expectedFeatures, step.loadOutputs(USER), step.loadOutputs(SYSTEM), expectedTileInvalidations);
-    }
-
-    protected void checkExportChangedTilesOutputs(FeatureCollection expectedFeatures, List<Output> userOutputs,
-                                                  List<Output> systemOutputs, List<String> expectedTileInvalidations) throws IOException {
-        List<Feature>  exportedFeatures = new ArrayList<>();
-        boolean foundTileInvalidations = false;
-
-        List<Output> allOutputs = new ArrayList<>();
-        allOutputs.addAll(userOutputs);
-        allOutputs.addAll(systemOutputs);
-
-        for (Output output : allOutputs) {
-            if (output instanceof DownloadUrl downloadUrl)
-                exportedFeatures.addAll(downloadFileAndDeSerializeFeatures(downloadUrl));
-                //TODO: FeatureStatistics could get only checked if we also support during simulation "UPDATE_CALLBACK"
-            else if (output instanceof FeatureStatistics statistics) {
-                System.out.println(statistics.getFeatureCount());
-                Assertions.assertEquals(expectedFeatures.getFeatures().size(), statistics.getFeatureCount());
-            }else if (output instanceof TileInvalidations tileInvalidations) {
-                foundTileInvalidations = true;
-                logger.info("TileInvalidations {} vs {}",expectedTileInvalidations, tileInvalidations.getTileIds());
-                Assertions.assertEquals(expectedTileInvalidations.size(), tileInvalidations.getTileIds().size());
-                Assertions.assertTrue(expectedTileInvalidations.containsAll(tileInvalidations.getTileIds()));
-            }
-        }
-        if(!expectedTileInvalidations.isEmpty())
-          Assertions.assertTrue(foundTileInvalidations);
-
-        List<String> expectedFeaturesIdList = expectedFeatures.getFeatures().stream().map(Feature::getId).collect(Collectors.toList());
-        List<String> exportedFeaturesFeaturesIdList = exportedFeatures.stream().map(Feature::getId).collect(Collectors.toList());
-
-        logger.info("FeaturesFeaturesIdList {} vs {}",expectedFeaturesIdList, exportedFeaturesFeaturesIdList);
-        Assertions.assertEquals(expectedFeaturesIdList.size(), exportedFeaturesFeaturesIdList.size());
-        Assertions.assertTrue(exportedFeaturesFeaturesIdList.containsAll(expectedFeaturesIdList));
-    }
+    if(createTag)
+      //Tag prevents deletion of versions >=2
+      createTag(SPACE_ID, new Tag().withId("tag1").withVersion(2));
+  }
 }

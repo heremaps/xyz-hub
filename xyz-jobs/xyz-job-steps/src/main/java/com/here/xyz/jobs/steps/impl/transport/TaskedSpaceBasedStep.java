@@ -1043,7 +1043,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
               superSpace == null ? null : getRootTableName(superSpace));
     }
     catch (WebClientException e) {
-      throw new StepException("Unable to load resource.", e.getCause());
+      throw new StepException("Unable to load resource.", e);
     }
   }
 

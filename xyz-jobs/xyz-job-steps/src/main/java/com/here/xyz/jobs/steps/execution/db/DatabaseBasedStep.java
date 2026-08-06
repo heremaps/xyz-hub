@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -127,12 +127,11 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
   }
 
   private Object executeQuery(SQLQuery query, Database db, double estimatedMaxAcuLoad, ResultSetHandler<?> resultSetHandler,
-      boolean isWriteQuery, boolean async, boolean withCallbacks, boolean addLables) throws TooManyResourcesClaimed, SQLException {
-
-    if(addLables)
+      boolean isWriteQuery, boolean async, boolean withCallbacks, boolean killable) throws TooManyResourcesClaimed, SQLException {
+    if (killable)
       query
-        .withLabel("jobId", getJobId())
-        .withLabel("stepId", getId());
+          .withLabel("jobId", getJobId())
+          .withLabel("stepId", getId());
 
     if (async) {
       query = (withCallbacks ? wrapQuery(query) : query)
@@ -145,7 +144,9 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
         query.setTimeout(300);
 
       //Add retry settings for synchronous queries.
-      query.withRetryableErrorCodesAndMaximumRetries(RETRYABLE_SQL_CODES, MAXIMUM_RETRIES);
+      query
+          .withRetryableErrorCodes(RETRYABLE_SQL_CODES)
+          .withMaximumRetries(MAXIMUM_RETRIES);
     }
 
     Object result;

@@ -35,6 +35,7 @@ class FeatureWriter {
   tableBaseVersions;
   context;
   historyEnabled;
+  skipNonModified;
 
   //Process input fields
   inputFeature;
@@ -80,6 +81,7 @@ class FeatureWriter {
     this.tableBaseVersions = FeatureWriter._tableBaseVersions();
     this.context = queryContext().context;
     this.historyEnabled = queryContext().historyEnabled;
+    this.skipNonModified = queryContext().skipNonModified;
 
     this.inputFeature = inputFeature;
     this.version = Number(version);
@@ -231,13 +233,11 @@ class FeatureWriter {
           }
         }
         else {
-          /* temp deactivation
           let baseFeature = existingFeature;
-          if (!Object.keys(this.diff(baseFeature, this.inputFeature)).length)
+          if (this.skipNonModified && !this.isDiff(baseFeature, this.inputFeature))
             //If the diff is empty, no history row needs to be inserted
             return new FeatureModificationExecutionResult(ExecutionAction.NONE, this.inputFeature, this.version, this.author)
-          */
-          
+
           /*
           NOTE: Only do the transformation to an update operation if the target is not a composite
           or if it's a composite the existing feature must have come from the top-level table
@@ -681,45 +681,78 @@ class FeatureWriter {
       geometry.push(0);
   }
 
-  diff(minuend, subtrahend, ignoreXyzNs = true, keyPath = []) {
+  /**
+   * Checks if there is a difference between two objects.
+   *
+   * @param minuend
+   * @param subtrahend
+   * @param ignoreXyzNs
+   * @returns {boolean}
+   */
+  isDiff(minuend, subtrahend, ignoreXyzNs = true) {
+    return this.diff(minuend, subtrahend, ignoreXyzNs, [], true);
+  }
+
+  /**
+   * Checks whether there is a difference between two objects and returns the difference itself, or just a boolean value.
+   * (depending on the value of the parameter `onlyBoolean`)
+   *
+   * @param minuend
+   * @param subtrahend
+   * @param ignoreXyzNs
+   * @param keyPath
+   * @param onlyBoolean Whether only to check whether a difference exists, but not return the actual diff. Return a boolean instead.
+   * @returns {{}|*|*[]|{}|boolean}
+   */
+  diff(minuend, subtrahend, ignoreXyzNs = true, keyPath = [], onlyBoolean = false) {
     let diff = Array.isArray(subtrahend) ? [] : {};
 
     if (minuend == null)
-      return subtrahend;
+      return onlyBoolean ? true : subtrahend;
     if (subtrahend == null)
-      return minuend;
+      return onlyBoolean ? true : minuend;
 
     if (Array.isArray(minuend) && Array.isArray(subtrahend) && this.isEqualCoord(minuend, subtrahend))
-      return {};
+      return onlyBoolean ? false : {};
 
     //TODO: Ensure that null values are treated correctly!
     for (let key in subtrahend) {
+      if (ignoreXyzNs && key === XYZ_NS)
+        continue;
+
       if (subtrahend.hasOwnProperty(key)) {
         if (typeof subtrahend[key] == "object" && subtrahend[key] !== null) {
           //Recursively diff nested objects
-          let nestedDiff = this.diff(minuend[key] || (Array.isArray(subtrahend[key]) ? [] : {}), subtrahend[key], false, [...keyPath, key]);
+          let nestedDiff = this.diff(minuend[key] || (Array.isArray(subtrahend[key]) ? [] : {}), subtrahend[key], ignoreXyzNs, [...keyPath, key], onlyBoolean);
+
+          if (onlyBoolean && nestedDiff)
+            return true;
 
           if (Object.keys(nestedDiff).length > 0)
             diff[key] = nestedDiff;
         }
-        else if (minuend[key] !== subtrahend[key])
-            //Add changed or new properties
+        else if (minuend[key] !== subtrahend[key]) {
+          if (onlyBoolean)
+            return true;
+          //Add changed or new properties
           diff[key] = subtrahend[key];
+        }
       }
     }
 
     //Check for removed properties
-    for (let key in minuend)
-      if (minuend.hasOwnProperty(key) && !subtrahend.hasOwnProperty(key) && !(keyPath.includes("coordinates") && minuend.length == 3 && minuend[2] == 0 && subtrahend.length == 2))
+    for (let key in minuend) {
+      if (ignoreXyzNs && key === XYZ_NS)
+        continue;
+      if (minuend.hasOwnProperty(key) && !subtrahend.hasOwnProperty(key) && !(keyPath.includes("coordinates") && minuend.length == 3
+          && minuend[2] == 0 && subtrahend.length == 2)) {
+        if (onlyBoolean)
+          return true;
         diff[key] = null;
-
-    if (ignoreXyzNs && diff.properties && diff.properties[XYZ_NS]) {
-      delete diff.properties[XYZ_NS];
-      if (!Object.keys(diff.properties).length)
-        delete diff.properties;
+      }
     }
 
-    return diff;
+    return onlyBoolean ? false : diff;
   }
 
   isEqualCoord(minuend, subtrahend) {

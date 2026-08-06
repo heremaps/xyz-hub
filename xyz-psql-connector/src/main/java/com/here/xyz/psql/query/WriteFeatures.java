@@ -44,6 +44,7 @@ import com.here.xyz.util.db.pg.SQLError;
 import com.here.xyz.util.runtime.FunctionRuntime;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.sql.ResultSet;
@@ -101,7 +102,8 @@ public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureColl
         .with("PARTITION_SIZE", PARTITION_SIZE)
         .with("minVersion", event.getMinVersion())
         .with("versionsToKeep", event.getVersionsToKeep())
-        .with("pw", getDataSourceProvider().getDatabaseSettings().getPassword());
+        .with("pw", getDataSourceProvider().getDatabaseSettings().getPassword())
+        .with("skipNonModified", true);
 
     if (event.getRef() != null && event.getRef().isSingleVersion() && !event.getRef().isHead())
       queryContextBuilder.withBaseVersion(event.getRef().getVersion());
@@ -159,11 +161,22 @@ public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureColl
           NodeExecutableLocator.findNode(),
           "--inspect-brk=9229",
           "xyz-util/src/test/js/db/featurewriter/TestFeatureWriter.js",
-          dataSourceProvider.getDatabaseSettings().getJdbcUrl(false),
-          queryJson
+          dataSourceProvider.getDatabaseSettings().getJdbcUrl(false)
       );
 
       Process process = pb.start();
+
+      //Pipe the (potentially very large) queryJson into the process' stdin instead of passing it as a command line argument.
+      Thread stdinWriter = new Thread(() -> {
+        try (OutputStream os = process.getOutputStream()) {
+          os.write(queryJson.getBytes());
+          os.flush();
+        }
+        catch (IOException e) {
+          throw new RuntimeException("Error writing queryJson to process stdin.", e);
+        }
+      });
+      stdinWriter.start();
 
       try (InputStream is = process.getInputStream()) {
         String stdout;

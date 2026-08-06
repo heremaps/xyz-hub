@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2017-2026 HERE Europe B.V.
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -21,15 +22,14 @@ package com.here.xyz.jobs.steps.impl.transport;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.X;
 import static com.here.xyz.jobs.steps.Step.Visibility.SYSTEM;
-import static com.here.xyz.jobs.steps.Step.Visibility.USER;
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_EXECUTE;
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_ON_ASYNC_SUCCESS;
 import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
-import com.here.xyz.models.filters.SpatialFilter;
 import com.here.xyz.jobs.steps.StepExecution;
 import com.here.xyz.jobs.steps.impl.transport.tasks.inputs.ExportInput;
 import com.here.xyz.jobs.steps.impl.transport.tasks.outputs.ExportOutput;
@@ -37,6 +37,7 @@ import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
 import com.here.xyz.jobs.steps.outputs.TileInvalidations;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
+import com.here.xyz.models.filters.SpatialFilter;
 import com.here.xyz.models.geojson.HQuad;
 import com.here.xyz.models.geojson.WebMercatorTile;
 import com.here.xyz.models.geojson.coordinates.BBox;
@@ -46,6 +47,7 @@ import com.here.xyz.models.geojson.coordinates.Position;
 import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
 import com.here.xyz.models.geojson.implementation.Polygon;
 import com.here.xyz.models.hub.Ref;
+import com.here.xyz.models.hub.Space;
 import com.here.xyz.psql.query.GetFeaturesByGeometryBuilder;
 import com.here.xyz.psql.query.GetFeaturesByGeometryBuilder.GetFeaturesByGeometryInput;
 import com.here.xyz.psql.query.GetFeaturesByIdsBuilder;
@@ -415,8 +417,9 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
 
     GetFeaturesByGeometryBuilder queryBuilder = new GetFeaturesByGeometryBuilder()
             .withDataSourceProvider(requestResource(dbReader(), 0));
-
-    GetFeaturesByGeometryInput input = createGetFeaturesByGeometryInput(context, spatialFilter, versionRef);
+    Space space = context == SUPER ? superSpace() : space();
+    SpaceContext targetContext = context == null ? DEFAULT : context == EXTENSION ? X : context;
+    GetFeaturesByGeometryInput input = createGetFeaturesByGeometryInput(space, targetContext, spatialFilter, versionRef);
 
     return queryBuilder
             .withSelectClauseOverride(selectClauseOverride)
@@ -439,7 +442,8 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
             .withGeometry(getTileBBOX(tileId))
             .withClip(clipOnTileBoundaries);
 
-    GetFeaturesByGeometryInput input = createGetFeaturesByGeometryInput(context, tileBBOXFilter, versionRef);
+    Space space = context == SUPER ? superSpace() : space();
+    GetFeaturesByGeometryInput input = createGetFeaturesByGeometryInput(space, context, tileBBOXFilter, versionRef);
 
     SQLQuery contentQuery = queryBuilder
             .withClippingGeometry(spatialFilter != null && spatialFilter.isClip() ? spatialFilter.getGeometry() : null)

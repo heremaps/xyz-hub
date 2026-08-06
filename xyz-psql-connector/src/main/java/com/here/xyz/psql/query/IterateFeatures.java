@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -72,6 +72,17 @@ public class IterateFeatures<E extends IterateFeaturesEvent, R extends XyzRespon
   }
 
   protected SQLQuery buildOffsetFilterFragment(IterateFeaturesEvent event, int dataset) {
+    if (event.getStartI() >= 0 || event.getEndI() >= 0) {
+      return new SQLQuery("${{pagingStartI}} ${{pagingEndI}} ")
+          .withQueryFragment("pagingStartI", event.getStartI() >= 0
+              ? new SQLQuery("AND i >= #{startI}")
+              .withNamedParameter("startI", event.getStartI())
+              : new SQLQuery(""))
+          .withQueryFragment("pagingEndI", event.getEndI() >= 0
+              ? new SQLQuery("AND i <= #{endI}").withNamedParameter("endI", event.getEndI())
+              : new SQLQuery(""));
+    }
+
     if (event.getNextPageToken() == null)
       return new SQLQuery("");
 
