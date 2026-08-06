@@ -35,6 +35,7 @@ class FeatureWriter {
   tableBaseVersions;
   context;
   historyEnabled;
+  skipNonModified;
 
   //Process input fields
   inputFeature;
@@ -80,6 +81,7 @@ class FeatureWriter {
     this.tableBaseVersions = FeatureWriter._tableBaseVersions();
     this.context = queryContext().context;
     this.historyEnabled = queryContext().historyEnabled;
+    this.skipNonModified = queryContext().skipNonModified;
 
     this.inputFeature = inputFeature;
     this.version = Number(version);
@@ -232,7 +234,7 @@ class FeatureWriter {
         }
         else {
           let baseFeature = existingFeature;
-          if (!this.isDiff(baseFeature, this.inputFeature))
+          if (this.skipNonModified && !this.isDiff(baseFeature, this.inputFeature))
             //If the diff is empty, no history row needs to be inserted
             return new FeatureModificationExecutionResult(ExecutionAction.NONE, this.inputFeature, this.version, this.author)
 
