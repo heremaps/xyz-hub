@@ -60,6 +60,9 @@ public class Tag implements XyzSerializable {
   @JsonView({Public.class})
   private Ref versionRef;
 
+  @JsonView(Static.class)
+  private Long sharedVersion;
+
   /**
    * The indicator that this tag is a system tag, which is not allowed to be deleted or modified by users.
    */
@@ -143,6 +146,19 @@ public class Tag implements XyzSerializable {
 
   public Tag withVersionRef(Ref versionRef) {
     setVersionRef(versionRef);
+    return this;
+  }
+
+  public Long getSharedVersion() {
+    return sharedVersion;
+  }
+
+  public void setSharedVersion(Long sharedVersion) {
+    this.sharedVersion = sharedVersion;
+  }
+
+  public Tag withSharedVersion(Long sharedVersion) {
+    setSharedVersion(sharedVersion);
     return this;
   }
 

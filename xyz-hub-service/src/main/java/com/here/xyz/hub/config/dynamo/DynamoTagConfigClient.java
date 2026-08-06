@@ -20,6 +20,7 @@
 package com.here.xyz.hub.config.dynamo;
 
 import com.amazonaws.services.dynamodbv2.document.Item;
+import com.amazonaws.services.dynamodbv2.document.ItemUtils;
 import com.amazonaws.services.dynamodbv2.document.Table;
 import com.amazonaws.services.dynamodbv2.document.TableKeysAndAttributes;
 import com.amazonaws.services.dynamodbv2.document.spec.DeleteItemSpec;
@@ -28,7 +29,10 @@ import com.amazonaws.services.dynamodbv2.model.BatchGetItemResult;
 import com.amazonaws.services.dynamodbv2.model.ExecuteStatementRequest;
 import com.amazonaws.services.dynamodbv2.model.ExecuteTransactionRequest;
 import com.amazonaws.services.dynamodbv2.model.ParameterizedStatement;
+import com.amazonaws.services.dynamodbv2.model.Put;
 import com.amazonaws.services.dynamodbv2.model.ReturnValue;
+import com.amazonaws.services.dynamodbv2.model.TransactWriteItem;
+import com.amazonaws.services.dynamodbv2.model.TransactWriteItemsRequest;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.hub.config.TagConfigClient;
 import com.here.xyz.models.hub.Ref;
@@ -186,6 +190,21 @@ public class DynamoTagConfigClient extends TagConfigClient {
   }
 
   @Override
+  public Future<Void> storeSharedTags(Marker marker, List<Tag> sharedTags) {
+    return dynamoClient.executeQueryAsync(() -> {
+      List<TransactWriteItem> transactWriteItems = sharedTags.stream()
+              .map(tag -> new TransactWriteItem().withPut(new Put()
+                      .withTableName(tagTable.getTableName())
+                      .withItem(ItemUtils.fromSimpleMap(XyzSerializable.toMap(tag, Static.class)))))
+              .toList();
+
+      dynamoClient.client.transactWriteItems(new TransactWriteItemsRequest()
+              .withTransactItems(transactWriteItems));
+      return null;
+    });
+  }
+
+  @Override
   public Future<Tag> deleteTag(Marker marker, String id, String spaceId) {
     return dynamoClient.executeQueryAsync(() -> {
       DeleteItemSpec deleteItemSpec = new DeleteItemSpec()
@@ -234,6 +253,7 @@ public class DynamoTagConfigClient extends TagConfigClient {
                       .withId(tagData.get("id").getS())
                       .withSpaceId(tagData.get("spaceId").getS())
                       .withVersion(version)
+                      .withSharedVersion(tagData.get("sharedVersion") != null ? Long.parseLong(tagData.get("sharedVersion").getN()) : null)
                       .withVersionRef(Ref.fromBranchId(branchId, version))
                       .withSystem(tagData.get("system") != null ? tagData.get("system").getBOOL() : false)
                       .withDescription(tagData.get("description") != null ? tagData.get("description").getS() : "")
