@@ -33,8 +33,8 @@ import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.JOB_EXECUTOR;
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.JOB_VALIDATE;
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_EXECUTE;
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_ON_ASYNC_SUCCESS;
-import static com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles.OutputType.FLAT_PATCH;
-import static com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles.OutputType.FOLDER_PATCH;
+import static com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles.PatchOutputType.CONSISTENT;
+import static com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles.PatchOutputType.LEGACY;
 import static com.here.xyz.psql.query.IterateChangesetsBuilder.IterateChangesetsInput;
 
 import com.fasterxml.jackson.annotation.JsonView;
@@ -119,7 +119,7 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
   @JsonView({Internal.class, Static.class})
   protected boolean squashedData = true;
   @JsonView({Internal.class, Static.class})
-  protected OutputType outputType = FLAT_PATCH;
+  protected PatchOutputType outputType = LEGACY;
 
   @JsonView({Internal.class, Static.class})
   protected SpatialFilter spatialFilter;
@@ -201,15 +201,15 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
     return false;
   }
 
-  public OutputType getOutputType() {
+  public PatchOutputType getOutputType() {
     return outputType;
   }
 
-  public void setOutputType(OutputType outputType) {
+  public void setOutputType(PatchOutputType outputType) {
     this.outputType = outputType;
   }
 
-  public ExportSpaceToFiles withOutputType(OutputType outputType) {
+  public ExportSpaceToFiles withOutputType(PatchOutputType outputType) {
     setOutputType(outputType);
     return this;
   }
@@ -441,11 +441,12 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
     for (int i = 0; i < taskListCount; i++) {
       long startI = iRange.minI() + i * iRangeSize;
       long endI = startI + iRangeSize - 1;
-      if(outputType.equals(FOLDER_PATCH)) {
+      if (outputType == CONSISTENT) {
         taskDataList.add(new ExportInput(i, startI, endI, INSERT));
         taskDataList.add(new ExportInput(i, startI, endI, UPDATE));
         taskDataList.add(new ExportInput(i, startI, endI, DELETE));
-      }else
+      }
+      else
         taskDataList.add(new ExportInput(i, startI, endI));
     }
     return taskDataList;
@@ -473,10 +474,13 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
   }
 
   private DownloadUrl buildDownloadUrlForTaskInput(ExportInput taskInput) {
-    if(outputType.equals(FLAT_PATCH))
-      return new DownloadUrl().withS3Key(toS3Path(getOutputSet(EXPORTED_DATA)) + "/" + taskInput.threadId() + "/" + UUID.randomUUID() + ".json");
-    else if(outputType.equals(FOLDER_PATCH))
-      return new DownloadUrl().withS3Key(toS3Path(getOutputSet(EXPORTED_DATA)) + "/" + toFolderName(taskInput.operation()) + "/" + taskInput.threadId() + "/"  + UUID.randomUUID() + ".json");
+    if (outputType == LEGACY)
+      return new DownloadUrl().withS3Key(
+          toS3Path(getOutputSet(EXPORTED_DATA)) + "/" + taskInput.threadId() + "/" + UUID.randomUUID() + ".json");
+    else if (outputType == CONSISTENT)
+      return new DownloadUrl().withS3Key(
+          toS3Path(getOutputSet(EXPORTED_DATA)) + "/" + toFolderName(taskInput.operation()) + "/" + taskInput.threadId() + "/"
+              + UUID.randomUUID() + ".json");
     else
       throw new StepException("Invalid outputType: " + outputType);
   }
@@ -581,7 +585,8 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
     Space space = context == SUPER ? superSpace() : space();
     SpaceContext targetContext = context == null ? DEFAULT : context == EXTENSION ? X : context;
 
-    return outputType.equals(FOLDER_PATCH) ? getFolderPatchQuery(space, targetContext, taskInput) : getFlatPatchQuery(space, targetContext, taskInput);
+    return outputType == CONSISTENT
+        ? getFolderPatchQuery(space, targetContext, taskInput) : getFlatPatchQuery(space, targetContext, taskInput);
   }
 
   private String getFlatPatchQuery(Space space, SpaceContext targetContext, ExportInput taskInput) throws TooManyResourcesClaimed, WebClientException, QueryBuildingException {
@@ -635,8 +640,13 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
 
   private record TransportStatistics(long rowCount, long byteSize, int fileCount) {}
 
-  public enum OutputType {
-    FOLDER_PATCH,
-    FLAT_PATCH
+  public enum PatchOutputType {
+    CONSISTENT,
+
+    /**
+     * @deprecated Use {@link #CONSISTENT} instead. The LEGACY output type is deprecated and may be removed in future versions.
+     */
+    @Deprecated
+    LEGACY
   }
 }
