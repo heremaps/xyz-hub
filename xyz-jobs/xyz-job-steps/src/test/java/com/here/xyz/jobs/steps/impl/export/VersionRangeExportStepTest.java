@@ -23,8 +23,8 @@ import static com.here.xyz.FeatureChange.Operation.DELETE;
 import static com.here.xyz.FeatureChange.Operation.INSERT;
 import static com.here.xyz.FeatureChange.Operation.UPDATE;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext;
-import static com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles.OutputType;
-import static com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles.OutputType.FOLDER_PATCH;
+import static com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles.PatchOutputType;
+import static com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles.PatchOutputType.CONSISTENT;
 
 import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
@@ -52,21 +52,20 @@ public class VersionRangeExportStepTest extends ExportTestBase {
     Ref versionRef = new Ref("0..HEAD");
 
     executeExportStepAndCheckResults(null, versionRef,
-            "changesets?versionRef=" + versionRef + "&squashed=true", FOLDER_PATCH);
+        "changesets?versionRef=" + versionRef + "&squashed=true", CONSISTENT);
   }
 
-  protected void executeExportStepAndCheckResults(SpaceContext context, Ref versionRef, String hubPathAndQuery, OutputType outputType)
-          throws IOException, InterruptedException {
-
+  protected void executeExportStepAndCheckResults(SpaceContext context, Ref versionRef, String hubPathAndQuery, PatchOutputType outputType)
+      throws IOException, InterruptedException {
     //Create Step definition
     ExportSpaceToFiles step = new ExportSpaceToFiles()
-            .withSpaceId(SPACE_ID)
-            .withJobId(JOB_ID);
+        .withSpaceId(SPACE_ID)
+        .withJobId(JOB_ID);
     if (context != null)
       step.setContext(context);
     if (versionRef != null)
       step.setVersionRef(versionRef);
-    if(outputType != null)
+    if (outputType != null)
       step.setOutputType(outputType);
 
     //Send Lambda Requests

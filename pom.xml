@@ -40,7 +40,7 @@
 
   <groupId>com.here.xyz</groupId>
   <artifactId>xyz-hub</artifactId>
-  <version>3.23.50-SNAPSHOT</version>
+  <version>3.23.52-SNAPSHOT</version>
   <packaging>pom</packaging>
 
   <modules>
