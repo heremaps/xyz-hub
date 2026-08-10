@@ -123,16 +123,10 @@ public class TaskProgress<I> {
     this.scalingElapsedMillis = scalingElapsedMillis;
   }
 
-  /**
-   * @return The number of tasks which are currently running, meaning they were started but are not finalized yet.
-   */
   public int getRunningTasks() {
     return Math.max(startedTasks - finalizedTasks, 0);
   }
 
-  /**
-   * @return The number of tasks which were not started yet and are therefore still claimable.
-   */
   public int getUnstartedTasks() {
     return Math.max(totalTasks - startedTasks, 0);
   }

@@ -93,19 +93,6 @@ public class TaskedSpaceBasedQueryBuilder extends DatabaseStepQueryBuilder {
             .withVariable("tmpTable", getTemporaryJobTableName());
   }
 
-  /**
-   * Retrieves the task statistics of the step, together with the age of its scaling anchor.
-   * <p>
-   * The scaling anchor is the oldest {@code started_at} of the task table, meaning the point in time at which the
-   * current attempt of the step started to put load onto the database. Task rows are never deleted while the step
-   * runs, so that minimum stays stable as tasks finalize. It is reset by
-   * {@link #buildResetScalingAnchorStatement()} whenever the step is (re)started.
-   * </p>
-   * <p>
-   * The anchor is kept in the task table rather than on the step itself, because the step object is re-created from
-   * the (frozen) request payload on every callback and can therefore not carry any state across invocations.
-   * </p>
-   */
   public SQLQuery retrieveTaskStatisticsQuery() {
     return new SQLQuery("""
             SELECT COUNT(1) as total,
@@ -119,16 +106,6 @@ public class TaskedSpaceBasedQueryBuilder extends DatabaseStepQueryBuilder {
             .withVariable("table", getTemporaryJobTableName(stepId));
   }
 
-  /**
-   * Resets the scaling anchor of the step, so that a (re)started step ramps its concurrency up from the initial
-   * thread count again instead of continuing where the previous attempt left off.
-   * <p>
-   * This clears {@code started_at} on <b>all</b> rows, including the already finalized ones. Otherwise their
-   * timestamps from the previous attempt would still be picked up by the {@code MIN(started_at)} in
-   * {@link #retrieveTaskStatisticsQuery()} and the resumed step would jump straight to full concurrency.
-   * {@code started_at} is not read anywhere else.
-   * </p>
-   */
   public SQLQuery buildResetScalingAnchorStatement() {
     return new SQLQuery("""
             UPDATE ${schema}.${table}
