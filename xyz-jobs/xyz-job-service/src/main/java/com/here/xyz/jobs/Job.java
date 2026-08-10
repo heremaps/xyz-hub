@@ -550,19 +550,13 @@ public class Job implements XyzSerializable {
 
   private Future<Void> scheduleResourcesForDeletion() {
     return ASYNC.run(() -> {
-      boolean plainJob = !hasRegisterDataReferencesStep() && !isReleaseJob();
-
       List<String> prefixes;
-      if (plainJob && !Input.hasInputReferences(getId()))
+      if (Input.hasInputReferences(getId()))
+        //Inputs are referenced by another job, delete only the output folders.
+        prefixes = getSteps().stepStream().map(Step::getOutputS3Prefix).toList();
+      else
         //If nothing under the job is shared with another job delete the whole job folder in one batch job.
         prefixes = List.of(getId() + "/");
-      else {
-        //If the job has registered references or is a release job, delete each input/output separately as they are shared across jobs.
-        prefixes = new ArrayList<>(Input.collectInputPrefixesForDeletion(getId()));
-        //Outputs are never shared across jobs; delete each step's outputs (unless registered references / a release job).
-        if (plainJob)
-          getSteps().stepStream().forEach(step -> prefixes.add(step.getOutputS3Prefix()));
-      }
 
       List<String> batchJobIds = S3BatchOperations.scheduleForDeletion(getId(), prefixes);
       if (!batchJobIds.isEmpty())
@@ -570,17 +564,6 @@ public class Job implements XyzSerializable {
       return null;
     });
   }
-
-  private boolean hasRegisterDataReferencesStep() {
-    return getSteps() != null
-        && getSteps().stepStream().anyMatch(step -> step != null
-            && "RegisterDataReferences".equals(step.getClass().getSimpleName()));
-  }
-
-  private boolean isReleaseJob() {
-    return getProcess() != null && "Release".equalsIgnoreCase(getProcess().getClass().getSimpleName());
-  }
-
 
 
   private List<StaticLoad> getCalculatedResourceLoads() {

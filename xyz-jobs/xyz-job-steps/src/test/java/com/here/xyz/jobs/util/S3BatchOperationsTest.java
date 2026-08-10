@@ -20,7 +20,6 @@
 package com.here.xyz.jobs.util;
 
 import static com.here.xyz.jobs.steps.Step.InputSet.DEFAULT_SET_NAME;
-import static com.here.xyz.jobs.steps.inputs.Input.inputS3Prefix;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -64,49 +63,6 @@ public class S3BatchOperationsTest extends StepTest {
 
     assertTrue(batchJobIds.isEmpty(), "no batch job should be created when there is nothing to schedule");
     assertFalse(S3Client.getInstance().isFolder(JOB_ID + "/"), "nothing should exist for the job");
-  }
-
-  @Test
-  public void jobInputsAreDeleted() throws IOException {
-    uploadInputFile(JOB_ID, "feature-a".getBytes(), S3ContentType.APPLICATION_JSON);
-    uploadInputFile(JOB_ID, "feature-b".getBytes(), S3ContentType.APPLICATION_JSON);
-    writeInputMetadata(Set.of(JOB_ID));
-
-    List<String> prefixes = Input.collectInputPrefixesForDeletion(JOB_ID);
-    assertEquals(List.of(inputS3Prefix(JOB_ID, DEFAULT_SET_NAME)), prefixes,
-        "the job's own input set should be eligible for deletion");
-
-    S3BatchOperations.scheduleForDeletion(JOB_ID, prefixes);
-
-    assertTrue(S3Client.getInstance().listObjects(inputS3Prefix(JOB_ID, DEFAULT_SET_NAME)).isEmpty(),
-        "the job's inputs should have been deleted");
-  }
-
-  @Test
-  public void inputsWithoutMetadataAreStillDeleted() throws IOException {
-    uploadInputFile(JOB_ID, "orphan-input".getBytes(), S3ContentType.APPLICATION_JSON);
-
-    List<String> prefixes = Input.collectInputPrefixesForDeletion(JOB_ID);
-    assertEquals(List.of(inputS3Prefix(JOB_ID)), prefixes,
-        "with no input metadata, the whole inputs prefix should be deleted");
-
-    S3BatchOperations.scheduleForDeletion(JOB_ID, prefixes);
-
-    assertTrue(S3Client.getInstance().listObjects(inputS3Prefix(JOB_ID)).isEmpty(),
-        "the orphan input (no metadata) should still be deleted");
-  }
-
-  @Test
-  public void inputsStillReferencedByAnotherJobAreNotDeleted() throws IOException {
-    uploadInputFile(JOB_ID, "shared-input".getBytes(), S3ContentType.APPLICATION_JSON);
-    writeInputMetadata(Set.of(JOB_ID, "some-other-live-job"));
-
-    List<String> prefixes = Input.collectInputPrefixesForDeletion(JOB_ID);
-    assertTrue(prefixes.isEmpty(), "an input set still referenced by another job must be skipped");
-
-    S3BatchOperations.scheduleForDeletion(JOB_ID, prefixes);
-    assertFalse(S3Client.getInstance().listObjects(inputS3Prefix(JOB_ID, DEFAULT_SET_NAME)).isEmpty(),
-        "the shared input must still be present");
   }
 
   @Test

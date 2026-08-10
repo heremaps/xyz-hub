@@ -43,7 +43,6 @@ import com.here.xyz.util.service.aws.s3.S3Uri;
 import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -500,29 +499,6 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
   }
 
   /**
-   * Collects the S3 prefixes of all input sets that may be scheduled for deletion for the given job, i.e. inputs that are
-   * no longer referenced by any other job.
-   *
-   * <p>The returned prefixes are handed to {@link com.here.xyz.jobs.util.S3BatchOperations} so a single S3 Batch
-   * Operations job tags all of their objects for deletion.
-   *
-   * @param jobId The job whose input prefixes should be collected.
-   * @return The input S3 prefixes eligible for deletion.
-   */
-  public static List<String> collectInputPrefixesForDeletion(String jobId) {
-    List<String> prefixes = Collections.synchronizedList(new ArrayList<>());
-    if (loadAllInputSetNames(jobId).isEmpty()) {
-      //No input metadata for this job (e.g. inputs were uploaded but the job was never submitted, so no metadata was
-      //written). Such inputs cannot be referenced by another job, so schedule the whole inputs prefix directly to avoid
-      //leaking them. This is a no-op if the job genuinely has no inputs (the prefix simply lists nothing).
-      prefixes.add(inputS3Prefix(jobId));
-      return prefixes;
-    }
-    collectInputPrefixesForDeletion(jobId, jobId, prefixes);
-    return prefixes;
-  }
-
-  /**
    * Checks whether the given job has any input sets that are referenced by another job.
    */
   public static boolean hasInputReferences(String jobId) {
@@ -534,34 +510,6 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
           && metadata.referencingJobs().stream().anyMatch(ref -> !ref.equals(jobId));
       return referencedByOtherJob || metadata.referencedJob() != null;
     });
-  }
-
-  private static void collectInputPrefixesForDeletion(String owningJobId, String referencingJob, List<String> prefixes) {
-    loadAllInputSetNames(owningJobId).parallelStream()
-        .forEach(setName -> collectInputPrefixForDeletion(owningJobId, referencingJob, setName, prefixes));
-  }
-
-  private static void collectInputPrefixForDeletion(String owningJobId, String referencingJob, String setName, List<String> prefixes) {
-    InputsMetadata metadata = null;
-    try {
-      metadata = loadMetadata(owningJobId, setName);
-      metadata.referencingJobs().remove(referencingJob);
-    }
-    catch (S3Exception | IOException ignore) {}
-
-    //Only delete the inputs if no other job is referencing them anymore
-    if (metadata == null || metadata.referencingJobs().isEmpty()) {
-      if (metadata != null && metadata.referencedJob() != null)
-        /*
-        The owning job referenced the inputs of another job, remove the owning job from the list of referencing jobs
-        and check whether the referenced inputs may be deleted now.
-         */
-        collectInputPrefixesForDeletion(metadata.referencedJob(), owningJobId, prefixes);
-
-      prefixes.add(inputS3Prefix(owningJobId, setName));
-    }
-    else if (metadata != null)
-      storeMetadata(owningJobId, metadata, setName, DEFAULT_SET_GROUP);
   }
 
   private static Input createInput(String s3Bucket, String s3Key, long byteSize, boolean compressed) {
