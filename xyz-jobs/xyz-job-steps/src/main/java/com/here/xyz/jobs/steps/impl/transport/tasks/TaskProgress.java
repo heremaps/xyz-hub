@@ -27,6 +27,7 @@ public class TaskProgress<I> {
   private Integer taskId;
   private I taskInput;
   private Set<Integer> startedNotFinalizedTaskIds = Set.of();
+  private long scalingElapsedMillis;
 
   public TaskProgress() {}
 
@@ -58,6 +59,12 @@ public class TaskProgress<I> {
     this.startedTasks = startedTasks;
     this.finalizedTasks = finalizedTasks;
     this.startedNotFinalizedTaskIds = startedNotFinalizedTaskIds;
+  }
+
+  public TaskProgress(int totalTasks, int startedTasks, int finalizedTasks, Set<Integer> startedNotFinalizedTaskIds,
+      long scalingElapsedMillis) {
+    this(totalTasks, startedTasks, finalizedTasks, startedNotFinalizedTaskIds);
+    this.scalingElapsedMillis = scalingElapsedMillis;
   }
 
   public int getTotalTasks() {
@@ -108,6 +115,28 @@ public class TaskProgress<I> {
     this.startedNotFinalizedTaskIds = startedNotFinalizedTaskIds;
   }
 
+  public long getScalingElapsedMillis() {
+    return scalingElapsedMillis;
+  }
+
+  public void setScalingElapsedMillis(long scalingElapsedMillis) {
+    this.scalingElapsedMillis = scalingElapsedMillis;
+  }
+
+  /**
+   * @return The number of tasks which are currently running, meaning they were started but are not finalized yet.
+   */
+  public int getRunningTasks() {
+    return Math.max(startedTasks - finalizedTasks, 0);
+  }
+
+  /**
+   * @return The number of tasks which were not started yet and are therefore still claimable.
+   */
+  public int getUnstartedTasks() {
+    return Math.max(totalTasks - startedTasks, 0);
+  }
+
   public boolean isComplete() {
     return totalTasks == finalizedTasks;
   }
@@ -133,6 +162,7 @@ public class TaskProgress<I> {
             ", startedTasks=" + startedTasks +
             ", finalizedTasks=" + finalizedTasks +
             ", startedNotFinalizedTaskIds=" + startedNotFinalizedTaskIds +
+            ", scalingElapsedMillis=" + scalingElapsedMillis +
             ", taskId=" + taskId +
             ", taskInput=" + taskInput +
             '}';

@@ -98,6 +98,14 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   public static final Integer MAX_UNKNOWN_TASK_QUERY_CHECKS = 3;
   /** Maximum number of retry attempts, for a server side killed single, before failing retry handling. */
   public static final Integer MAX_TASK_RETRY_ATTEMPTS = 3;
+  /** Hard ceiling for the concurrency of a single step, regardless of its configured {@link #threadCount}. */
+  public static final int MAX_THREAD_COUNT = 10;
+  /** Number of tasks a step is allowed to run concurrently right after it was started or resumed. */
+  public static final int INITIAL_THREAD_COUNT = 1;
+  /** Time that has to pass before the concurrency limit is raised again. */
+  public static final long THREAD_SCALE_COOLDOWN_TIME = 2 * 60 * 1000L;
+  /** Number of threads the concurrency limit grows by, per elapsed cooldown interval. */
+  public static final int THREAD_SCALE_INCREMENT = 2;
   private TaskedSpaceBasedQueryBuilder taskedSpaceBasedQueryBuilder;
 
   {
@@ -452,7 +460,49 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   }
 
   /**
-   * Starts the initial tasks for the process based on the calculated thread count.
+   * Calculates the number of tasks the step is allowed to run concurrently at the current point in time.
+   * <p>
+   * A step does not start with its configured {@link #threadCount} right away. It begins with
+   * {@link #INITIAL_THREAD_COUNT} concurrent tasks and is allowed to grow by {@link #THREAD_SCALE_INCREMENT} for
+   * every completed {@link #THREAD_SCALE_COOLDOWN_TIME} interval, until the configured thread count (capped at
+   * {@link #MAX_THREAD_COUNT}) is reached. That gives the database time to adapt to the additional load instead of
+   * being hit with the full parallelism of a step from the very first second.
+   * </p>
+   *
+   * @param scalingElapsedMillis Milliseconds elapsed since the scaling anchor of the step.
+   */
+  protected int getCurrentMaxThreadCount(long scalingElapsedMillis) {
+    long maxThreadCount = Math.min(threadCount, MAX_THREAD_COUNT);
+    long elapsedIntervals = scalingElapsedMillis / THREAD_SCALE_COOLDOWN_TIME;
+    long scaledThreadCount = INITIAL_THREAD_COUNT + elapsedIntervals * THREAD_SCALE_INCREMENT;
+
+    return (int) Math.max(Math.min(maxThreadCount, scaledThreadCount), 1);
+  }
+
+  /**
+   * Calculates how many additional tasks may be started right now.
+   * <p>
+   * Never returns more than the number of free concurrency slots, and never more than the number of tasks which are
+   * actually still waiting to be started. Returns 0 if the concurrency limit is already reached or exceeded - the
+   * limit only ever grows, but a running task is never interrupted because of it.
+   * </p>
+   *
+   * @param currentMaxThreadCount The concurrency limit valid right now.
+   * @param runningTasks The number of currently running (started but not finalized) tasks.
+   * @param unstartedTasks The number of tasks which were not started yet.
+   * @return The number of tasks that may additionally be started. Never negative.
+   */
+  public static int getStartableTaskCount(int currentMaxThreadCount, int runningTasks, int unstartedTasks) {
+    return Math.max(Math.min(currentMaxThreadCount - runningTasks, unstartedTasks), 0);
+  }
+
+  /**
+   * Starts the initial task set of the step.
+   * <p>
+   * Both a fresh execution and a resume reset the scaling anchor beforehand, so this always starts
+   * {@link #INITIAL_THREAD_COUNT} tasks. The concurrency is raised from there during the periodic state checks,
+   * see {@link #scaleUpConcurrency(TaskProgress)}.
+   * </p>
    *
    * @throws TooManyResourcesClaimed If too many resources are claimed during the process.
    * @throws QueryBuildingException If an error occurs while building the SQL query.
@@ -462,9 +512,13 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   private void startInitialTasks() throws TooManyResourcesClaimed,
           QueryBuildingException, WebClientException, SQLException, InvalidGeometryException {
     List<TaskProgress<I>> claimedInitialTasks = new ArrayList<>();
+    int initialThreadCount = getCurrentMaxThreadCount(0);
+
+    infoLog(STEP_EXECUTE, "Starting with a concurrency of " + initialThreadCount + " (configured threadCount: "
+            + threadCount + ")");
 
     //Claim the initial task set
-    for (int i = 0; i < threadCount; i++) {
+    for (int i = 0; i < initialThreadCount; i++) {
       TaskProgress<I> taskProgressAndTaskItem = getTaskProgressAndNextTaskItem();
       if (taskProgressAndTaskItem.getTaskId() == -1)
         break;
@@ -582,6 +636,10 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   }
 
   private boolean resetTaskItems() throws TooManyResourcesClaimed, SQLException, WebClientException {
+    //Reset the scaling anchor, so that a restarted step ramps up from INITIAL_THREAD_COUNT again instead of
+    //continuing with the concurrency the previous attempt had already reached
+    runWriteQuerySyncUnkillable(getQueryBuilder().buildResetScalingAnchorStatement(), db(WRITER), 0);
+
     //Reset all items which are not finalized to be able to restart them
     int resetItemCount = runWriteQuerySyncUnkillable(resetTaskItemWhichAreNotFinalized(), db(WRITER), 0);
 
@@ -818,6 +876,73 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
     return AsyncExecutionState.RUNNING;
   }
 
+  /**
+   * Raises the concurrency of the step towards the limit which is valid at the current point in time.
+   */
+  @Override
+  protected void onStateCheck() {
+    if (noTasksCreated)
+      return;
+
+    try {
+      scaleUpConcurrency(getTaskProgress());
+    }
+    catch (Exception e) {
+      warnLog(STEP_ON_STATE_CHECK, "Could not scale up the concurrency. Retrying on the next state check."
+              + " Reason: " + e.getMessage());
+    }
+  }
+
+  /**
+   * Starts as many additional tasks as the concurrency limit valid right now allows for.
+   * <p>
+   * This is the only place where a step gains additional concurrency. Every other path which starts task work keeps
+   * the number of running tasks flat, which is what keeps the step below
+   * {@link #getCurrentMaxThreadCount(long)} without any further locking:
+   * </p>
+   * <ul>
+   *   <li>{@link #onAsyncUpdate(ProcessUpdate)} finalizes its own task before claiming a replacement, so it frees its
+   *       slot first - no matter how many callbacks are processed at the same time.</li>
+   *   <li>The {@link #onTaskProgress(int, TaskPayload)} hook starts follow-up work for a task which is already
+   *       counted as running, and which stays counted until it is finalized.</li>
+   *   <li>The retry handling in {@link #getExecutionState()} restarts tasks whose query vanished. Those task items
+   *       are still flagged as started, so restarting them restores a lost query instead of adding one.</li>
+   * </ul>
+   *
+   * @param taskProgress The current task progress of the step.
+   */
+  private void scaleUpConcurrency(TaskProgress<?> taskProgress) throws WebClientException, SQLException,
+          TooManyResourcesClaimed, QueryBuildingException, InvalidGeometryException {
+    if (taskProgress == null)
+      return;
+
+    int currentMaxThreadCount = getCurrentMaxThreadCount(taskProgress.getScalingElapsedMillis());
+    int runningTasks = taskProgress.getRunningTasks();
+    int startableTasks = getStartableTaskCount(currentMaxThreadCount, runningTasks, taskProgress.getUnstartedTasks());
+
+    if (startableTasks == 0)
+      return;
+
+    infoLog(STEP_ON_STATE_CHECK, "Raising concurrency to " + currentMaxThreadCount + " (configured threadCount: "
+        + threadCount + "): " + runningTasks + " tasks running, " + taskProgress.getUnstartedTasks()
+        + " tasks unstarted, " + taskProgress.getScalingElapsedMillis() + "ms since scaling anchor."
+        + " Starting " + startableTasks + " additional task(s).");
+
+    List<TaskProgress<I>> claimedTasks = new ArrayList<>();
+
+    //Claim the additional task set
+    for (int i = 0; i < startableTasks; i++) {
+      TaskProgress<I> taskProgressAndTaskItem = getTaskProgressAndNextTaskItem();
+      if (taskProgressAndTaskItem.getTaskId() == -1)
+        break;
+      claimedTasks.add(taskProgressAndTaskItem);
+    }
+
+    //Start additional tasks
+    for (TaskProgress<I> claimedTask : claimedTasks)
+      startTask(claimedTask);
+  }
+
   private UnknownStateException mapSqlException(SQLException e) {
     if (e.getSQLState() != null && e.getSQLState().equalsIgnoreCase("42P01")) {
       // If we are here task table does not exist anymore. Could happen via getTaskProgress() or during check if queries are running.
@@ -944,7 +1069,8 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
               rs -> {
                 if (!rs.next())
                   return null;
-                return new TaskProgress(rs.getInt("total"), rs.getInt("started"), rs.getInt("finalized"),getIntegerList(rs, "started_not_finalized_task_ids"));
+                return new TaskProgress(rs.getInt("total"), rs.getInt("started"), rs.getInt("finalized"),
+                    getIntegerList(rs, "started_not_finalized_task_ids"), rs.getLong("scaling_elapsed_ms"));
               });
   }
 
