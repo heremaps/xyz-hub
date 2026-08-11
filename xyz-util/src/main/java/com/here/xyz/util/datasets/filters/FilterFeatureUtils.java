@@ -95,13 +95,7 @@ public class FilterFeatureUtils {
     ParseSpatialFilterToJts parseSpatialFilterUsingGeoTools = spatialFilter -> {
       try {
         GeometryValidator.validateSpatialFilter(spatialFilter);
-        org.locationtech.jts.geom.Geometry jtsGeometry = spatialFilter.getGeometry().getJTSGeometry();
-        int radius = spatialFilter.getRadius();
-        //skip transformation when radius/buffer not provided
-        if (radius == 0) {
-          return jtsGeometry;
-        }
-        return GeoTools.applyBufferInMetersToGeometry(jtsGeometry, radius);
+        return GeoTools.applyBufferInMetersToGeometry(spatialFilter.getGeometry().getJTSGeometry(), spatialFilter.getRadius());
       } catch (FactoryException | TransformException | org.geotools.api.referencing.operation.TransformException e) {
         logger.error("Encountered error when applying buffering using geotools in spatial filter: {}", e.getMessage());
         throw new IllegalArgumentException("Error applying buffer to spatial filter geometry", e);
