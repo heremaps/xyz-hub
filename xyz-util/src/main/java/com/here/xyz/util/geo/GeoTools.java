@@ -265,6 +265,10 @@ public class GeoTools {
    */
   public static Geometry applyBufferInMetersToGeometry(Geometry geometry, double distanceInMeters)
           throws FactoryException, javax.xml.crypto.dsig.TransformException, TransformException {
+    //skip transformation when radius/buffer not provided
+    if (distanceInMeters == 0) {
+      return geometry;
+    }
     MathTransform[] transforms = getTransforms(geometry);
     Geometry pGeom = JTS.transform(geometry, transforms[1]);
     Geometry pBufferedGeom = pGeom.buffer(distanceInMeters);
