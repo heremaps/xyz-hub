@@ -95,4 +95,12 @@ public class S3BatchOperationsTest extends StepTest {
 
     assertTrue(Input.hasInputReferences(JOB_ID), "an input set referenced by another job is a cross-job reference");
   }
+
+  @Test
+  public void scheduleForDeletionWithNoFoldersDoesNothing() {
+    List<String> batchJobIds = S3BatchOperations.scheduleForDeletion(JOB_ID, List.of("no-step"));
+
+    assertTrue(batchJobIds.isEmpty(), "no batch job should be created when there is no folder to schedule for deletion");
+    assertFalse(S3Client.getInstance().isFolder(JOB_ID + "/"), "nothing should exist for the job");
+  }
 }

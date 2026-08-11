@@ -84,6 +84,13 @@ public final class S3BatchOperations {
       logger.info("[{}] Nothing to schedule for deletion (no prefixes).", jobId);
       return List.of();
     }
+
+    // If the job has no folder on S3 there is nothing to delete
+    if (!S3Client.getInstance(bucket).isFolder(jobId)) {
+      logger.info("[{}] Nothing to schedule for deletion (no objects under job).", jobId);
+      return List.of();
+    }
+
     if (AwsClientFactoryBase.isLocal()) {
       deleteOutputs(bucket, jobId, prefixes);
       return List.of();
