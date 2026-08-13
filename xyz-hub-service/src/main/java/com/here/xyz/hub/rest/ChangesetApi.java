@@ -67,9 +67,6 @@ public class ChangesetApi extends SpaceBasedApi {
    */
   private void getChangesets(final RoutingContext context) throws HttpException {
 
-    //TODO: check Space.minVersion and take it into account - We need to check before the NTF related parts.
-    // its possible that it needs to read versions before the Space.minVersion
-
     Ref ref = getRef(context,true);
 
     IterateChangesetsEvent event = buildIterateChangesetsEvent(context, ref)
