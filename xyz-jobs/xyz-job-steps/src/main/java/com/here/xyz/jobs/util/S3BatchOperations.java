@@ -153,7 +153,7 @@ public final class S3BatchOperations {
         .priority(JOB_PRIORITY)
         //Run the job automatically (no manual confirmation step in the S3 console).
         .confirmationRequired(false)
-        .clientRequestToken(clientRequestToken("ScheduleForDeletion-" + jobId + "-" + prefix))
+        .clientRequestToken(clientRequestToken(jobId, prefix))
         .description("Schedule objects under prefix " + prefix + " of job " + jobId + " for deletion")
         // The operation is to tag the objects with ScheduledForDeletion=true, which triggers the bucket's lifecycle rule to expire them.
         .operation(tagObjects(Map.of(SCHEDULED_FOR_DELETION_TAG_KEY, SCHEDULED_FOR_DELETION_TAG_VALUE)))
@@ -197,8 +197,9 @@ public final class S3BatchOperations {
   /**
    * Deterministic idempotency token derived from jobId, so that a retried operation reuses the same token.
    */
-  private static String clientRequestToken(String jobId) {
-    return UUID.nameUUIDFromBytes(jobId.getBytes(StandardCharsets.UTF_8)).toString();
+  private static String clientRequestToken(String jobId, String prefix) {
+    String tokenKey = "ScheduleForDeletion-" + jobId + "-" + prefix;
+    return UUID.nameUUIDFromBytes(tokenKey.getBytes(StandardCharsets.UTF_8)).toString();
   }
 
   /**
