@@ -19,6 +19,7 @@
 
 package com.here.xyz.jobs.steps.execution;
 
+import static com.here.xyz.jobs.steps.Step.InputSet.GENERIC_PROVIDER;
 import static com.here.xyz.jobs.steps.Step.Visibility.SYSTEM;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
 import static java.util.regex.Matcher.quoteReplacement;
@@ -29,6 +30,7 @@ import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.util.S3Client;
+import com.here.xyz.util.Hasher;
 import com.here.xyz.util.KeyValue;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.service.aws.s3.S3ObjectSummary;
@@ -480,7 +482,11 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
   }
 
   private static String toInputReferenceIdentifier(InputSet inputSet) {
-    return inputSet.providerId() + "." + inputSet.name();
+    return inputSet.providerId() + "." + inputSetReferenceName(inputSet);
+  }
+
+  private static String inputSetReferenceName(InputSet inputSet) {
+    return inputSet.name() + (GENERIC_PROVIDER.equals(inputSet.providerId()) ? "_" + Hasher.getHash(inputSet.s3Uri().uri()).substring(0, 12) : "");
   }
 
   public String outputSetReference(OutputSet outputSet) {
@@ -516,7 +522,7 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
   protected InputSet getInputSet(String providerId, String name) {
     try {
       return getInputSets().stream()
-          .filter(inputSet -> Objects.equals(inputSet.name(), name) && Objects.equals(inputSet.providerId(), providerId))
+          .filter(inputSet -> Objects.equals(inputSetReference(inputSet), name) && Objects.equals(inputSet.providerId(), providerId))
           .findFirst()
           .get();
     }
