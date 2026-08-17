@@ -469,7 +469,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
    * being hit with the full parallelism of a step from the very first second.
    * </p>
    *
-   * @param scalingElapsedMillis Milliseconds elapsed since the scaling anchor of the step.
+   * @param scalingElapsedMillis Milliseconds elapsed since the concurrency ramp-up of the step started.
    */
   protected int getCurrentMaxThreadCount(long scalingElapsedMillis) {
     long maxThreadCount = Math.min(threadCount, MAX_THREAD_COUNT);
@@ -499,7 +499,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   /**
    * Starts the initial task set of the step.
    * <p>
-   * Both a fresh execution and a resume reset the scaling anchor beforehand, so this always starts
+   * Both a fresh execution and a resume restart the concurrency ramp-up beforehand, so this always starts
    * {@link #INITIAL_THREAD_COUNT} tasks. The concurrency is raised from there during the periodic state checks,
    * see {@link #scaleUpConcurrency(TaskProgress)}.
    * </p>
@@ -636,9 +636,9 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   }
 
   private boolean resetTaskItems() throws TooManyResourcesClaimed, SQLException, WebClientException {
-    //Reset the scaling anchor, so that a restarted step ramps up from INITIAL_THREAD_COUNT again instead of
+    //Restart the concurrency ramp-up, so that a restarted step begins at INITIAL_THREAD_COUNT again instead of
     //continuing with the concurrency the previous attempt had already reached
-    runWriteQuerySyncUnkillable(getQueryBuilder().buildResetScalingAnchorStatement(), db(WRITER), 0);
+    runWriteQuerySyncUnkillable(getQueryBuilder().buildResetScalingStartStatement(), db(WRITER), 0);
 
     //Reset all items which are not finalized to be able to restart them
     int resetItemCount = runWriteQuerySyncUnkillable(resetTaskItemWhichAreNotFinalized(), db(WRITER), 0);
@@ -925,7 +925,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
 
     infoLog(STEP_ON_STATE_CHECK, "Raising concurrency to " + currentMaxThreadCount + " (configured threadCount: "
         + threadCount + "): " + runningTasks + " tasks running, " + taskProgress.getUnstartedTasks()
-        + " tasks unstarted, " + taskProgress.getScalingElapsedMillis() + "ms since scaling anchor."
+        + " tasks unstarted, " + taskProgress.getScalingElapsedMillis() + "ms since the ramp-up started."
         + " Starting " + startableTasks + " additional task(s).");
 
     List<TaskProgress<I>> claimedTasks = new ArrayList<>();

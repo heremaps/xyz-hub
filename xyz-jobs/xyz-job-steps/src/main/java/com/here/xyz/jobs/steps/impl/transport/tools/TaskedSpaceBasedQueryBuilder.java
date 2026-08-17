@@ -46,6 +46,7 @@ public class TaskedSpaceBasedQueryBuilder extends DatabaseStepQueryBuilder {
             	finalized BOOLEAN DEFAULT false,
             	unknown_query_state_occurrences INTEGER DEFAULT 0,
             	retry_attempts INTEGER DEFAULT 0,
+              scaling_started_at TIMESTAMP NOT NULL DEFAULT now(),
               started_at TIMESTAMP DEFAULT NULL,
               updated_at TIMESTAMP DEFAULT NULL,
             	CONSTRAINT ${primaryKey} PRIMARY KEY (task_id)
@@ -99,17 +100,25 @@ public class TaskedSpaceBasedQueryBuilder extends DatabaseStepQueryBuilder {
                 SUM((started = true)::int) as started,
                 SUM((finalized = true)::int) as finalized,
                 ARRAY_AGG(task_id) FILTER (WHERE started = true AND finalized = false) as started_not_finalized_task_ids,
-                COALESCE((EXTRACT(EPOCH FROM (now() - MIN(started_at))) * 1000)::BIGINT, 0) as scaling_elapsed_ms
+                COALESCE((EXTRACT(EPOCH FROM (now() - MIN(scaling_started_at) FILTER (WHERE finalized = false)))
+                    * 1000)::BIGINT, 0) as scaling_elapsed_ms
                 FROM ${schema}.${table};
         """)
             .withVariable("schema", schema)
             .withVariable("table", getTemporaryJobTableName(stepId));
   }
 
-  public SQLQuery buildResetScalingAnchorStatement() {
+  /**
+   * Restarts the concurrency ramp-up, so that a resumed step begins at the initial thread count again instead of
+   * continuing where the previous attempt left off. Only the not yet finalized task items are moved - which is
+   * exactly the set {@link #retrieveTaskStatisticsQuery()} measures - so the already finalized ones keep the
+   * timestamps of the attempt they ran in.
+   */
+  public SQLQuery buildResetScalingStartStatement() {
     return new SQLQuery("""
             UPDATE ${schema}.${table}
-                SET started_at = NULL;
+                SET scaling_started_at = now()
+                WHERE finalized = false;
         """)
             .withVariable("schema", schema)
             .withVariable("table", getTemporaryJobTableName(stepId));
