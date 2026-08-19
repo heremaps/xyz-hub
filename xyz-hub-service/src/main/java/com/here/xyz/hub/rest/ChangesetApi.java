@@ -21,9 +21,6 @@ package com.here.xyz.hub.rest;
 
 import static com.here.xyz.events.PropertyQuery.QueryOperation.LESS_THAN;
 import static com.here.xyz.hub.rest.ApiParam.Path.VERSION;
-import static com.here.xyz.hub.rest.ApiParam.Query.END_VERSION;
-import static com.here.xyz.hub.rest.ApiParam.Query.START_VERSION;
-import static com.here.xyz.models.hub.Ref.HEAD;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 
@@ -69,16 +66,8 @@ public class ChangesetApi extends SpaceBasedApi {
    * Get changesets by version
    */
   private void getChangesets(final RoutingContext context) throws HttpException {
-    //TODO: check Space.minVersion and take it into account - We need to check before the NTF related parts.
-    // its possible that it needs to read versions before the Space.minVersion
-    long startVersion = getLongQueryParam(context, START_VERSION, 0);
-    long endVersion = getLongQueryParam(context, END_VERSION, -1);
-    Ref ref = getRef(context);
-    if (!ref.isRange())
-      ref = new Ref(new Ref(Math.max(0, startVersion - 1)), endVersion == -1 ? new Ref(HEAD) : new Ref(endVersion));
 
-    if (endVersion != -1 && startVersion > endVersion)
-      throw new IllegalArgumentException("The parameter \"" + START_VERSION + "\" needs to be smaller than or equal to \"" + END_VERSION + "\".");
+    Ref ref = getRef(context,true);
 
     IterateChangesetsEvent event = buildIterateChangesetsEvent(context, ref)
         .withSquashed(isSquashed(context))
@@ -210,21 +199,6 @@ public class ChangesetApi extends SpaceBasedApi {
     if (endTime != null) event.withEndTime(endTime);
 
     return event;
-  }
-
-  private long getLongQueryParam(RoutingContext context, String paramName, long defaultValue) {
-    try {
-      long paramValue = Query.getLong(context, paramName);
-      if (paramValue < 0)
-        throw new IllegalArgumentException("The parameter \"" + paramName + "\" must be >= 0.");
-      return paramValue;
-    }
-    catch (NullPointerException e) {
-      return defaultValue;
-    }
-    catch (NumberFormatException e) {
-      throw new IllegalArgumentException("The parameter \"" + paramName + "\" is not a number.", e);
-    }
   }
 
   private void sendResponse(final RoutingContext context, Object result) {
