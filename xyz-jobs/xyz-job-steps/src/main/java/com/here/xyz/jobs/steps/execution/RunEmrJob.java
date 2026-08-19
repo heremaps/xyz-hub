@@ -506,7 +506,7 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
 
   InputSet fromInputReferenceIdentifier(String referenceIdentifier) {
     ReferenceIdentifier ref = ReferenceIdentifier.fromString(referenceIdentifier);
-    return getInputSet(ref.stepId(), ref.name());
+    return fromInputReferenceIdentifier(ref.stepId(), ref.name());
   }
 
   OutputSet fromOutputReferenceIdentifier(String referenceIdentifier) {
@@ -519,15 +519,15 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
     return getOutputSet(ref.name());
   }
 
-  protected InputSet getInputSet(String providerId, String name) {
+  protected InputSet fromInputReferenceIdentifier(String providerId, String refName) {
     try {
       return getInputSets().stream()
-          .filter(inputSet -> Objects.equals(inputSetReference(inputSet), name) && Objects.equals(inputSet.providerId(), providerId))
+          .filter(inputSet -> Objects.equals(inputSetReferenceName(inputSet), refName) && Objects.equals(inputSet.providerId(), providerId))
           .findFirst()
           .get();
     }
     catch (NoSuchElementException e) {
-      throw new IllegalArgumentException("No input set \"" + providerId + "." + name + "\" exists in step \"" + getId() + "\"");
+      throw new IllegalArgumentException("No input set \"" + providerId + "." + refName + "\" exists in step \"" + getId() + "\"");
     }
   }
 
