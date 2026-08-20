@@ -21,7 +21,6 @@ package com.here.xyz.hub.util;
 
 import static com.here.xyz.models.hub.Space.TABLE_NAME;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.getTableNameFromSpaceParamsOrSpaceId;
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.isGeneratedTableName;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -32,9 +31,6 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class SpaceTableResolverTest {
-
-  private static final int PG_MAX_IDENTIFIER_LENGTH = 63;
-  private static final int LONGEST_DERIVED_SUFFIX_LENGTH = 25;
 
   private static Space spaceWithStorage(Map<String, Object> params) {
     return new Space()
@@ -49,7 +45,7 @@ class SpaceTableResolverTest {
     String tableName = SpaceTableResolver.assignTableName(space);
 
     assertThat(tableName).isNotNull();
-    assertThat(isGeneratedTableName(tableName)).isTrue();
+    assertThat(tableName).matches("[0-9a-f]{32}");
     assertThat(space.getStorage().getParams()).containsEntry(TABLE_NAME, tableName);
     assertThat(SpaceTableResolver.getTableName(space)).isEqualTo(tableName);
   }
@@ -68,9 +64,8 @@ class SpaceTableResolverTest {
   void generatedTableNameFitsIntoThePostgresIdentifierLimit() {
     String tableName = SpaceTableResolver.assignTableName(spaceWithStorage(null));
 
-    assertThat(tableName.length() + LONGEST_DERIVED_SUFFIX_LENGTH).isLessThanOrEqualTo(PG_MAX_IDENTIFIER_LENGTH);
-    //Postgres identifiers must not start with a digit
-    assertThat(tableName).matches("[a-z_][a-z0-9_]*");
+    //Keep the same root length as legacy Murmur3-hashed space IDs to preserve room for derived table names.
+    assertThat(tableName).hasSize(32);
   }
 
   @Test
@@ -126,4 +121,3 @@ class SpaceTableResolverTest {
         .isInstanceOf(IllegalStateException.class);
   }
 }
-

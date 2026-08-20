@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,6 @@
 package com.here.xyz.psql.query;
 
 import com.here.xyz.connectors.ErrorResponseException;
-import com.here.xyz.events.Event;
 import com.here.xyz.events.GetStorageStatisticsEvent;
 import com.here.xyz.responses.StatisticsResponse.Value;
 import com.here.xyz.responses.StorageStatistics;
@@ -95,12 +94,20 @@ public class GetStorageStatistics extends XyzQueryRunner<GetStorageStatisticsEve
         .withTimeout(15);
   }
 
-  private String resolveTableName(Event event, String spaceId) {
+  private String resolveTableName(GetStorageStatisticsEvent event, String spaceId) {
     if (tableName2SpaceId == null)
       tableName2SpaceId = new HashMap<>();
-    String tableName = XyzEventBasedQueryRunner.getTableNameForSpaceId(event, spaceId);
-    if (!spaceId.equals(tableName))
-      tableName2SpaceId.put(tableName, spaceId);
+
+    String tableName = resolvePhysicalTableName(event, spaceId);
+    tableName2SpaceId.put(tableName, spaceId);
+    return tableName;
+  }
+
+  static String resolvePhysicalTableName(GetStorageStatisticsEvent event, String spaceId) {
+    Map<String, String> explicitTableNames = event.getSpaceIdToTableName();
+    String tableName = explicitTableNames != null ? explicitTableNames.get(spaceId) : null;
+    if (tableName == null || tableName.isEmpty())
+      tableName = XyzEventBasedQueryRunner.getTableNameForSpaceId(event, spaceId);
     return tableName;
   }
 

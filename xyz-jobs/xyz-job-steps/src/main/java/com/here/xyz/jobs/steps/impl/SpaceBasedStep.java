@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -303,7 +303,10 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
   protected Space superSpace() throws WebClientException {
     if (space().getExtension() == null)
       return null;
-    return space(space().getExtension().getSpaceId());
+    Space superSpace = space(space().getExtension().getSpaceId());
+    if (superSpace.getExtension() != null)
+      superSpace.getExtension().resolvedSpace = space(superSpace.getExtension().getSpaceId());
+    return superSpace;
   }
 
   @Override

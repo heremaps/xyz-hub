@@ -25,7 +25,6 @@ import static com.here.xyz.hub.auth.XyzHubActionMatrix.DELETE_FEATURES;
 import static com.here.xyz.hub.auth.XyzHubActionMatrix.MANAGE_SPACES;
 import static com.here.xyz.hub.auth.XyzHubActionMatrix.READ_FEATURES;
 import static com.here.xyz.hub.auth.XyzHubActionMatrix.UPDATE_FEATURES;
-import static com.here.xyz.models.hub.Space.TABLE_NAME;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
@@ -635,7 +634,6 @@ public class SpaceTaskHandler {
         }
 
         task.resolvedExtensions = space.resolveCompositeParams(extendedSpace);
-        injectExtendedTableName(task.resolvedExtensions, extendedSpace);
 
         //Check for extensions with more than 2 levels
         if (extendedSpace.getExtension() != null) {
@@ -654,7 +652,8 @@ public class SpaceTaskHandler {
                   callback.exception(new HttpException(BAD_REQUEST, "The space " + space.getId() + " cannot extend the space "
                       + extendedSpace.getId() + " because the maximum extension level is 2."));
                 else{
-                  injectExtendedTableName(extensionSpecOf(task.resolvedExtensions), secondLvlExtendedSpace);
+                  extendedSpace.getExtension().resolvedSpace = secondLvlExtendedSpace;
+                  task.resolvedExtensions = space.resolveCompositeParams(extendedSpace);
                   //Store searchableProperties from base (but without storing them later)
                   if (task.isCreate())
                     task.resolvedSearchableProperties = secondLvlExtendedSpace.getSearchableProperties();
@@ -668,30 +667,7 @@ public class SpaceTaskHandler {
   }
 
   /**
-   * @param params A map that may contain an {@code extends} spec
-   * @return The (modifiable) {@code extends} spec of the specified params or {@code null}
-   */
-  private static Map<String, Object> extensionSpecOf(Map<String, Object> params) {
-    return params != null && params.get("extends") instanceof Map<?, ?> extensionSpec
-        ? (Map<String, Object>) extensionSpec : null;
-  }
-
-  /**
-   * Adds the physical table name of the extended space to the {@code extends} spec contained in the specified params.
-   *
-   * @param params A map that contains an {@code extends} spec
-   * @param extendedSpace The space that is being extended
-   */
-  private static void injectExtendedTableName(Map<String, Object> params, Space extendedSpace) {
-    Map<String, Object> extensionSpec = extensionSpecOf(params);
-    String extendedTableName = SpaceTableResolver.getTableName(extendedSpace);
-    if (extensionSpec != null && extendedTableName != null)
-      extensionSpec.put(TABLE_NAME, extendedTableName);
-  }
-
-  /**
    * Assigns a new, unique physical table name to a space that is about to be created.
-   * <p>
    * NOTE: This step must run *before* the {@link ModifySpaceEvent} is sent (see {@link #sendEvents}), because the
    * table creation is performed based on that name.
    */
