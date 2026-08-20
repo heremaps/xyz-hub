@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -165,13 +165,8 @@ public class FeatureHandler {
       if (space.getStorage().getParams() != null)
         storageParams.putAll(space.getStorage().getParams());
 
-      if (space.getExtension() != null) {
-        Map<String, Object> extendsMap = space.getExtension().toMap();
-        //Check if the extended space itself is extending some other space (2-level extension)
-        if (space.getExtension().resolvedSpace.getExtension() != null)
-          extendsMap.put("extends", space.getExtension().resolvedSpace.getExtension().toMap());
-        storageParams.putAll(Map.of("extends", extendsMap));
-      }
+      if (space.getExtension() != null)
+        storageParams.putAll(space.resolveCompositeParams(space.getExtension().resolvedSpace));
 
       event.setParams(storageParams);
       return Future.succeededFuture();

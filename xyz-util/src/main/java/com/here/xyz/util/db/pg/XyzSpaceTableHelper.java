@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,6 +34,7 @@ import com.here.xyz.util.db.SQLQuery;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 public class XyzSpaceTableHelper {
 
@@ -245,6 +246,17 @@ public class XyzSpaceTableHelper {
       return null;
 
     return hashed ? Hasher.getHash(spaceId) : spaceId;
+  }
+
+  /**
+   * Generates a new, unique physical table name which is completely independent of the space ID.
+   * <p>
+   * The resulting name is the 32 character hexadecimal Murmur3 hash of a random UUID
+   *
+   * @return A new unique physical table name
+   */
+  public static String generateUniqueTableName() {
+    return Hasher.getHash(UUID.randomUUID().toString());
   }
 
   public static String getTableNameFromSpaceParamsOrSpaceId(Map<String, Object> spaceParams, String spaceId, boolean hashed) {

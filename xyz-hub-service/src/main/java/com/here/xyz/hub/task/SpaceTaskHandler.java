@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -59,6 +59,7 @@ import com.here.xyz.hub.task.SpaceTask.ReadQuery;
 import com.here.xyz.hub.task.SpaceTask.View;
 import com.here.xyz.hub.task.TaskPipeline.C1;
 import com.here.xyz.hub.task.TaskPipeline.Callback;
+import com.here.xyz.hub.util.SpaceTableResolver;
 import com.here.xyz.hub.util.diff.Difference;
 import com.here.xyz.hub.util.diff.Patcher;
 import com.here.xyz.models.hub.Space.ConnectorRef;
@@ -620,7 +621,7 @@ public class SpaceTaskHandler {
           //Override the storage config by copying it from the extended space
           space.setStorage(new ConnectorRef()
                   .withId(extendedConnector.getId())
-                  .withParams(extendedConnector.getParams() != null ? extendedConnector.getParams() : new HashMap<>()));
+                  .withParams(SpaceTableResolver.withoutTableName(extendedConnector.getParams())));
         }
         else if (!Objects.equals(space.getStorage().getId(), extendedConnector.getId()) && !task.modifyOp.forceStorage) {
           callback.exception(new DetailedHttpException("E318408",
@@ -651,6 +652,8 @@ public class SpaceTaskHandler {
                   callback.exception(new HttpException(BAD_REQUEST, "The space " + space.getId() + " cannot extend the space "
                       + extendedSpace.getId() + " because the maximum extension level is 2."));
                 else{
+                  extendedSpace.getExtension().resolvedSpace = secondLvlExtendedSpace;
+                  task.resolvedExtensions = space.resolveCompositeParams(extendedSpace);
                   //Store searchableProperties from base (but without storing them later)
                   if (task.isCreate())
                     task.resolvedSearchableProperties = secondLvlExtendedSpace.getSearchableProperties();
@@ -661,6 +664,28 @@ public class SpaceTaskHandler {
         else
           callback.call(task);
       });
+  }
+
+  /**
+   * Assigns a new, unique physical table name to a space that is about to be created.
+   * NOTE: This step must run *before* the {@link ModifySpaceEvent} is sent (see {@link #sendEvents}), because the
+   * table creation is performed based on that name.
+   */
+  static void assignTableName(ConditionalOperation task, Callback<ConditionalOperation> callback) {
+    if (!task.isCreate() || !Service.configuration.ENABLE_UNIQUE_PHYSICAL_TABLE_NAMES) {
+      callback.call(task);
+      return;
+    }
+
+    Space space = task.modifyOp.entries.get(0).result;
+    if (space == null) {
+      callback.call(task);
+      return;
+    }
+
+    String tableName = SpaceTableResolver.assignTableName(space);
+    logger.info(task.getMarker(), "space[{}]: Assigned physical table name \"{}\"", space.getId(), tableName);
+    callback.call(task);
   }
 
   private static void onExtensionResolveError(ConditionalOperation task, Throwable error, Callback<ConditionalOperation> callback) {

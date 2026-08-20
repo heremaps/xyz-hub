@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -764,17 +764,37 @@ public class Space {
     if (getExtension() == null)
       return Collections.emptyMap();
     //Storage params are taken from the input and then resolved based on the extensions
-    final Map<String, Object> extendsMap = getExtension().toMap();
+    final Map<String, Object> extendsMap = resolveExtensionParams(getExtension(), extendedSpace);
 
     //TODO: Remove this once Job-API was fixed to configure that on job-level
     if (extendedSpace != null && extendedSpace.isReadOnly())
       extendsMap.put("readOnly", true);
-
-    //Check if the extended space itself is extending some other space (2-level extension)
-    if (extendedSpace != null && extendedSpace.getExtension() != null)
-      //Get the extension definition from the extended space and add it to this one additionally
-      extendsMap.put("extends", extendedSpace.getExtension().toMap());
     return Collections.singletonMap("extends", extendsMap);
+  }
+
+  /**
+   * Resolves the connector parameters for one level of a composite-space definition. Explicit physical table names
+   * are transported alongside logical space IDs, while legacy spaces without such a name keep using connector-side
+   * space-ID resolution.
+   */
+  private static Map<String, Object> resolveExtensionParams(Extension extension, Space extendedSpace) {
+    Map<String, Object> extensionParams = extension.toMap();
+    String tableName = getExplicitTableName(extendedSpace);
+    if (tableName != null)
+      extensionParams.put(TABLE_NAME, tableName);
+
+    if (extendedSpace != null && extendedSpace.getExtension() != null) {
+      Space secondLevelSpace = extendedSpace.getExtension().resolvedSpace;
+      extensionParams.put("extends", resolveExtensionParams(extendedSpace.getExtension(), secondLevelSpace));
+    }
+    return extensionParams;
+  }
+
+  private static String getExplicitTableName(Space space) {
+    if (space == null || space.getStorage() == null || space.getStorage().getParams() == null)
+      return null;
+    Object tableName = space.getStorage().getParams().get(TABLE_NAME);
+    return tableName instanceof String value && !value.isEmpty() ? value : null;
   }
 
   public static class License {
