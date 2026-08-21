@@ -267,6 +267,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
             .map(s3ObjectSummary -> modelBased
                 ? ModelBasedOutput.load(s3ObjectSummary.key(), outputMetadata)
                 : new DownloadUrl()
+                    .withS3Bucket(bucketName)
                     .withS3Key(s3ObjectSummary.key())
                     .withByteSize(s3ObjectSummary.size())
                     .withMetadata(outputMetadata)))
