@@ -43,7 +43,7 @@ public class DownloadUrl extends Output<DownloadUrl> implements S3DataFile {
 
   @JsonView(Public.class)
   public URL getUrl() {
-    return S3Client.getInstance().generateDownloadURL(getS3Key());
+    return S3Client.getInstance(getS3Bucket()).generateDownloadURL(getS3Key());
   }
 
   @Override
