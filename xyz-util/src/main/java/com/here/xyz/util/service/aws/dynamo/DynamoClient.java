@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,6 +29,8 @@ import com.amazonaws.services.dynamodbv2.document.Item;
 import com.amazonaws.services.dynamodbv2.document.Table;
 import com.amazonaws.services.dynamodbv2.model.AttributeDefinition;
 import com.amazonaws.services.dynamodbv2.model.AttributeValue;
+import com.amazonaws.services.dynamodbv2.model.BatchWriteItemRequest;
+import com.amazonaws.services.dynamodbv2.model.BatchWriteItemResult;
 import com.amazonaws.services.dynamodbv2.model.CreateTableRequest;
 import com.amazonaws.services.dynamodbv2.model.ExecuteStatementRequest;
 import com.amazonaws.services.dynamodbv2.model.ExecuteStatementResult;
@@ -41,6 +43,7 @@ import com.amazonaws.services.dynamodbv2.model.ProvisionedThroughput;
 import com.amazonaws.services.dynamodbv2.model.ResourceInUseException;
 import com.amazonaws.services.dynamodbv2.model.TimeToLiveSpecification;
 import com.amazonaws.services.dynamodbv2.model.UpdateTimeToLiveRequest;
+import com.amazonaws.services.dynamodbv2.model.WriteRequest;
 import com.amazonaws.util.CollectionUtils;
 import com.here.xyz.util.ARN;
 import com.here.xyz.util.service.Core;
@@ -58,6 +61,9 @@ public class DynamoClient {
   private static final Logger logger = LogManager.getLogger();
   private static final Long READ_CAPACITY_UNITS = 5L;
   private static final Long WRITE_CAPACITY_UNITS = 5L;
+  private static final int DYNAMODB_BATCH_WRITE_LIMIT = 25;
+  private static final int MAX_RETRIES_ON_THROTTLE = 5;
+  private static final long THROTTLE_RETRY_DELAY_MS = 100;
 
 
   public static final WorkerExecutor dynamoWorkers = Core.vertx.createSharedWorkerExecutor(DynamoClient.class.getName(), 30);
@@ -143,6 +149,37 @@ public class DynamoClient {
 
   public boolean isLocal() {
     return Region.regions().stream().noneMatch(r -> r.id().equals(arn.getRegion()));
+  }
+
+  /**
+   * Writes all given requests to {@code tableName} in chunks of {@value #DYNAMODB_BATCH_WRITE_LIMIT} (DynamoDB's BatchWriteItem limit)
+   */
+  public void batchWrite(String tableName, List<WriteRequest> writeRequests) {
+    for (int i = 0; i < writeRequests.size(); i += DYNAMODB_BATCH_WRITE_LIMIT) {
+      List<WriteRequest> batch = writeRequests.subList(i, Math.min(i + DYNAMODB_BATCH_WRITE_LIMIT, writeRequests.size()));
+      executeBatchWrite(Map.of(tableName, batch));
+    }
+  }
+
+  private void executeBatchWrite(Map<String, List<WriteRequest>> requestItems) {
+    Map<String, List<WriteRequest>> unprocessed = requestItems;
+    int retries = 0;
+    while (!unprocessed.isEmpty()) {
+      BatchWriteItemResult result = client.batchWriteItem(new BatchWriteItemRequest().withRequestItems(unprocessed));
+      unprocessed = result.getUnprocessedItems();
+      if (!unprocessed.isEmpty()) {
+        logger.warn("There were some unprocessed items during the batch write execution. Was there some DynamoDB throttling? "
+            + "Retry attempts so far: {}", retries);
+        if (++retries > MAX_RETRIES_ON_THROTTLE) {
+          throw new RuntimeException("Failed to process all DynamoDB batch writes after " + MAX_RETRIES_ON_THROTTLE + " retries.");
+        }
+        try {
+          Thread.sleep((long) (THROTTLE_RETRY_DELAY_MS * Math.pow(2, retries - 1)));
+        } catch (InterruptedException ignore) {
+          //ignore
+        }
+      }
+    }
   }
 
   public Future<List<Map<String, AttributeValue>>> executeStatement(ExecuteStatementRequest request) {

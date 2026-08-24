@@ -543,6 +543,8 @@ public class Job implements XyzSerializable {
     return JobExecutor.getInstance()
         //Delete StateMachine if still existing
         .deleteExecution(getExecutionId())
+        //The job config item is already gone here (TTL/admin delete), so delete the separately-stored step configs of this job.
+        .compose(v -> JobConfigClient.getInstance().deleteStepConfigs(getId()))
         //Schedule this job's S3 inputs/outputs for deletion via a single S3 Batch Operations job (tags them so the
         //bucket's lifecycle rule removes them)
         .compose(b -> scheduleResourcesForDeletion());

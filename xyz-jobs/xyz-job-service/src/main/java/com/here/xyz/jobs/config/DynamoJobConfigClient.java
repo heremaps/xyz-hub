@@ -29,8 +29,6 @@ import com.amazonaws.services.dynamodbv2.document.spec.UpdateItemSpec;
 import com.amazonaws.services.dynamodbv2.model.AttributeValue;
 import com.amazonaws.services.dynamodbv2.model.BatchGetItemRequest;
 import com.amazonaws.services.dynamodbv2.model.BatchGetItemResult;
-import com.amazonaws.services.dynamodbv2.model.BatchWriteItemRequest;
-import com.amazonaws.services.dynamodbv2.model.BatchWriteItemResult;
 import com.amazonaws.services.dynamodbv2.model.DeleteRequest;
 import com.amazonaws.services.dynamodbv2.model.KeysAndAttributes;
 import com.amazonaws.services.dynamodbv2.model.PutRequest;
@@ -56,7 +54,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -64,9 +61,6 @@ public class DynamoJobConfigClient extends JobConfigClient {
 
   private static final Logger logger = LogManager.getLogger();
   public static final int MAX_RESOURCE_KEYS = 256;
-  private static final int DYNAMODB_BATCH_WRITE_LIMIT = 25;
-  private static final int MAX_RETRIES_ON_THROTTLE = 5;
-  private static final long THROTTLE_RETRY_DELAY_MS = 100;
   public static final IndexDefinition JOB_ID_GSI = new IndexDefinition("jobId");
   public static final IndexDefinition STATE_GSI = new IndexDefinition("state");
   public static final IndexDefinition RESOURCE_KEY_GSI = new IndexDefinition("resourceKey");
@@ -74,12 +68,14 @@ public class DynamoJobConfigClient extends JobConfigClient {
   private final Table jobTable;
   private final Table resourceKeyTable;
   private final DynamoClient dynamoClient;
+  private final StepConfigClient stepConfigClient;
 
-  public DynamoJobConfigClient(String tableArn, String resourceKeysTableArn) {
+  public DynamoJobConfigClient(String tableArn, String resourceKeysTableArn, String stepConfigsTableArn) {
     dynamoClient = new DynamoClient(tableArn, null);
     logger.debug("Instantiating a reference to Dynamo Table {}", dynamoClient.tableName);
     jobTable = dynamoClient.db.getTable(dynamoClient.tableName);
     resourceKeyTable = dynamoClient.db.getTable(new ARN(resourceKeysTableArn).getResourceWithoutType());
+    stepConfigClient = new StepConfigClient(stepConfigsTableArn);
   }
 
   public static class Provider extends JobConfigClient.Provider {
@@ -92,7 +88,8 @@ public class DynamoJobConfigClient extends JobConfigClient {
     protected JobConfigClient getInstance() {
       if (Config.instance == null || Config.instance.JOBS_DYNAMODB_TABLE_ARN == null)
         throw new NullPointerException("Config variable JOBS_DYNAMODB_TABLE_ARN is not defined");
-      return new DynamoJobConfigClient(Config.instance.JOBS_DYNAMODB_TABLE_ARN, Config.instance.RESOURCE_KEYS_DYNAMODB_TABLE_ARN);
+      return new DynamoJobConfigClient(Config.instance.JOBS_DYNAMODB_TABLE_ARN, Config.instance.RESOURCE_KEYS_DYNAMODB_TABLE_ARN,
+          Config.instance.STEP_CONFIGS_DYNAMODB_TABLE_ARN);
     }
   }
 
@@ -100,7 +97,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
   public Future<Job> loadJob(String jobId) {
     return dynamoClient.executeQueryAsync(() -> {
       Item jobItem = jobTable.getItem("id", jobId);
-      return jobItem != null ? XyzSerializable.fromMap(jobItem.asMap(), Job.class) : null;
+      return jobItem != null ? deserializeJob(jobItem.asMap()) : null;
     });
   }
 
@@ -110,7 +107,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
       List<Job> jobs = new LinkedList<>();
       jobTable.scan()
           .pages()
-          .forEach(page -> page.forEach(jobItem -> jobs.add(XyzSerializable.fromMap(jobItem.asMap(), Job.class))));
+          .forEach(page -> page.forEach(jobItem -> jobs.add(deserializeJob(jobItem.asMap()))));
       return jobs;
     });
   }
@@ -164,7 +161,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
 
     jobTable.scan(filterExpr, attrNames, attrValues)
         .pages()
-        .forEach(page -> page.forEach(item -> jobs.add(XyzSerializable.fromMap(item.asMap(), Job.class))));
+        .forEach(page -> page.forEach(item -> jobs.add(deserializeJob(item.asMap()))));
 
     return Future.succeededFuture(jobs);
   }
@@ -215,7 +212,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
   public Future<List<Job>> loadJobs(State state) {
     return dynamoClient.executeQueryAsync(() -> queryIndex(jobTable, STATE_GSI, state.toString())
         .stream()
-        .map(jobItem -> XyzSerializable.fromMap(jobItem.asMap(), Job.class))
+        .map(jobItem -> deserializeJob(jobItem.asMap()))
         .toList());
   }
 
@@ -226,7 +223,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
 
     return dynamoClient.executeQueryAsync(() -> queryIndex(jobTable, RESOURCE_KEY_GSI, resourceKey)
             .stream()
-            .map(jobItem -> XyzSerializable.fromMap(jobItem.asMap(), Job.class))
+            .map(jobItem -> deserializeJob(jobItem.asMap()))
             .collect(Collectors.toSet()));
   }
 
@@ -287,7 +284,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
       List<Map<String, AttributeValue>> rawItems = result.getResponses().get(jobTable.getTableName());
 
       return ItemUtils.toItemList(rawItems).stream()
-          .map(jobItem -> XyzSerializable.fromMap(jobItem.asMap(), Job.class))
+          .map(jobItem -> deserializeJob(jobItem.asMap()))
           .collect(Collectors.toSet());
     });
   }
@@ -342,7 +339,10 @@ public class DynamoJobConfigClient extends JobConfigClient {
   @Override
   public Future<Void> storeJob(Job job) {
     return dynamoClient.executeQueryAsync(() -> {
-      batchWriteResourceKeys(job.getId(), job.getResourceKeys(), job.getKeepUntil() / 1000);
+      long keepUntil = job.getKeepUntil() / 1000;
+      if (job.getSteps() != null)
+        stepConfigClient.storeSteps(job.getSteps().stepStream().map(step -> (Step<?>) step).collect(Collectors.toList()), keepUntil);
+      batchWriteResourceKeys(job.getId(), job.getResourceKeys(), keepUntil);
       //TODO: Ensure that concurrent writes do not produce invalid state-transitions using atomic writes
       jobTable.putItem(convertJobToItem(job));
       return null;
@@ -361,39 +361,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
         ))))
         .toList();
 
-    executeInBatches(writeRequests);
-  }
-
-  private void executeInBatches(List<WriteRequest> writeRequests) {
-    for (int i = 0; i < writeRequests.size(); i += DYNAMODB_BATCH_WRITE_LIMIT) {
-      List<WriteRequest> batch = writeRequests.subList(i, Math.min(i + DYNAMODB_BATCH_WRITE_LIMIT, writeRequests.size()));
-      executeBatchWriteRequest(Map.of(resourceKeyTable.getTableName(), batch));
-    }
-  }
-
-  private void executeBatchWriteRequest(Map<String, List<WriteRequest>> requestItems) {
-    Map<String, List<WriteRequest>> unprocessed = requestItems;
-    int retries = 0;
-
-    while (!unprocessed.isEmpty()) {
-      BatchWriteItemResult result = dynamoClient
-          .client.batchWriteItem(new BatchWriteItemRequest().withRequestItems(unprocessed));
-      unprocessed = result.getUnprocessedItems();
-
-      logger.warn("There were some unprocessed items during the batch write execution. Was there some DynamoDB throttling? "
-          + "Retry attempts so far: {}", retries);
-      if (!unprocessed.isEmpty()) {
-        if (++retries > MAX_RETRIES_ON_THROTTLE)
-          throw new RuntimeException("Failed to process all DynamoDB batch write requests after " + MAX_RETRIES_ON_THROTTLE + " retries.");
-
-        try {
-          Thread.sleep((long) (THROTTLE_RETRY_DELAY_MS * Math.pow(2, retries - 1)));
-        }
-        catch (InterruptedException e) {
-          //ignore
-        }
-      }
-    }
+    dynamoClient.batchWrite(resourceKeyTable.getTableName(), writeRequests);
   }
 
   @Override
@@ -437,44 +405,42 @@ public class DynamoJobConfigClient extends JobConfigClient {
     });
   }
 
+  /**
+   * Persists a single step. With the split, step configs live in the step-config table, so this writes just the one step item (via
+   * {@link StepConfigClient#storeStep}) instead of updating a nested path inside the job item; the "don't overwrite a final step" guard is
+   * applied on the step item itself.
+   */
   @Override
   public Future<Void> updateStep(Job job, Step<?> newStep) {
-    final String stepPath = buildStepPath(job, newStep);
-    final List<State> finalStates = Stream.of(State.values())
-        .filter(state -> state.isFinal())
-        .collect(Collectors.toUnmodifiableList());
-    Map<String, Object> valueMap = new HashMap<>(Map.of(":newStep", newStep.toMap()));
-    finalStates.forEach(state -> valueMap.put(":" + state, state.toString()));
-
     return dynamoClient.executeQueryAsync(() -> {
       try {
-        jobTable.updateItem(new UpdateItemSpec()
-            .withPrimaryKey("id", job.getId())
-            .withUpdateExpression("SET " + stepPath + " = :newStep")
-            //NOTE: The condition ensures that we're not further updating a step that has a final state
-            .withConditionExpression(finalStates.stream()
-                .map(state -> "#state <> :" + state)
-                .collect(Collectors.joining(" AND ")))
-            .withNameMap(Map.of("#state", stepPath + ".status.state"))
-            .withValueMap(valueMap));
-        return null;
+        stepConfigClient.storeStep(newStep, job.getKeepUntil() / 1000);
       }
       catch (Exception e) {
         logger.error(e);
-        return null;
       }
+      return null;
     });
-  }
-
-  private String buildStepPath(Job job, Step<?> step) {
-    return "steps." + job.getSteps().findStepPath(step.getId());
   }
 
   private Item convertJobToItem(Job job) {
     Map<String, Object> jobItemData = job.toMap(Static.class);
     jobItemData.put("keepUntil", job.getKeepUntil() / 1000);
     jobItemData.put("state", job.getStatus().getState().toString());
+    //Replace the embedded step configs in the step graph with {"$ref": stepId} placeholders
+    if (jobItemData.get("steps") != null)
+      jobItemData.put("steps", StepGraphReferences.reference(jobItemData.get("steps")));
     return Item.fromMap(jobItemData);
+  }
+
+  private Job deserializeJob(Map<String, Object> jobItem) {
+    Object steps = jobItem.get("steps");
+    if (StepGraphReferences.containsRef(steps)) {
+      Map<String, Map<String, Object>> stepsById = stepConfigClient.loadStepsForJob((String) jobItem.get("id")).stream()
+          .collect(Collectors.toMap(StepConfigClient.StepConfig::getId, StepConfigClient.StepConfig::getStep));
+      jobItem.put("steps", StepGraphReferences.dereference(steps, stepsById));
+    }
+    return XyzSerializable.fromMap(jobItem, Job.class);
   }
 
   @Override
@@ -482,6 +448,19 @@ public class DynamoJobConfigClient extends JobConfigClient {
     return dynamoClient.executeQueryAsync(() -> {
       jobTable.deleteItem(new DeleteItemSpec().withPrimaryKey("id", jobId));
       deleteResourceKeys(jobId);
+      stepConfigClient.deleteSteps(jobId);
+      return null;
+    });
+  }
+
+  /**
+   * Deletes the separately-stored step configs of a job. Used by {@link com.here.xyz.jobs.Job#deleteJobResources()}
+   * on the TTL/expiration path.
+   */
+  @Override
+  public Future<Void> deleteStepConfigs(String jobId) {
+    return dynamoClient.executeQueryAsync(() -> {
+      stepConfigClient.deleteSteps(jobId);
       return null;
     });
   }
@@ -505,7 +484,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
         ))))
         .toList();
 
-    executeInBatches(writeRequests);
+    dynamoClient.batchWrite(resourceKeyTable.getTableName(), writeRequests);
   }
 
   @Override
@@ -522,6 +501,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
             "keepUntil");
         dynamoClient.createTable(resourceKeyTable.getTableName(), "resourceKey:S,jobId:S", "resourceKey,jobId",
             List.of(JOB_ID_GSI), "keepUntil");
+        stepConfigClient.initLocalTable();
         //TODO: Register a dynamo stream (in local dynamodb) to ensure we're getting informed when a job expires
       }
       catch (Exception e) {

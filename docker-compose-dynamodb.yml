@@ -36,6 +36,7 @@ services:
             - HUB_ENDPOINT=http://xyz-hub:8080/hub
             - LOCALSTACK_ENDPOINT=http://localstack:4566
             - JOBS_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-jobs-local
+            - STEP_CONFIGS_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-job-step-configs-local
             - PARALLEL_STEPS_SUPPORTED=false
         depends_on:
             - "xyz-hub"

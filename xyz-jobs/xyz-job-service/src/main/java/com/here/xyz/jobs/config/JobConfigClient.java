@@ -148,6 +148,15 @@ public abstract class JobConfigClient implements Initializable {
 
   public abstract Future<Void> deleteJob(String jobId);
 
+  /**
+   * Deletes the separately-stored step configs of a job. Called by {@link Job#deleteJobResources()} on the expiration/TTL path, where the
+   * job config item is already gone.
+   *
+   * @param jobId the job whose step configs to delete
+   */
+  public Future<Void> deleteStepConfigs(String jobId) {
+    return Future.succeededFuture();
+  }
 
   /*
   TODO: Provide a more generic variant of the method #loadJobs ...
