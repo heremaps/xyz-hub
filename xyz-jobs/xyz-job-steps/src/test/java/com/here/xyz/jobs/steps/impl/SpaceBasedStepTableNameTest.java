@@ -22,12 +22,16 @@ package com.here.xyz.jobs.steps.impl;
 import static com.here.xyz.models.hub.Space.TABLE_NAME;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.impl.transport.CountSpace;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Space.ConnectorRef;
 import com.here.xyz.models.hub.Space.Extension;
+import com.here.xyz.util.web.HubWebClient;
+import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import java.util.HashMap;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeAll;
@@ -83,6 +87,18 @@ class SpaceBasedStepTableNameTest {
     assertFalse(params.containsKey(TABLE_NAME));
   }
 
+  @Test
+  void refreshesTheSpaceOncePerStep() throws Exception {
+    Space currentIncarnation = space("recreated", "current_table");
+    RecordingHubWebClient webClient = new RecordingHubWebClient(currentIncarnation);
+    CachingTestStep step = new CachingTestStep(webClient);
+
+    assertSame(currentIncarnation, step.load("recreated"));
+    assertSame(currentIncarnation, step.load("recreated"));
+    assertEquals(1, webClient.loadCount);
+    assertTrue(webClient.lastSkipLocalCache);
+  }
+
   private static Space space(String id, String tableName) {
     Map<String, Object> params = tableName == null ? null : new HashMap<>(Map.of(TABLE_NAME, tableName));
     return new Space().withId(id).withStorage(new ConnectorRef().withId("psql").withParams(params));
@@ -107,6 +123,41 @@ class SpaceBasedStepTableNameTest {
     @Override
     protected Space space(String spaceId) {
       return spaces.get(spaceId);
+    }
+  }
+
+  private static class CachingTestStep extends CountSpace {
+    private final HubWebClient webClient;
+
+    private CachingTestStep(HubWebClient webClient) {
+      this.webClient = webClient;
+    }
+
+    private Space load(String spaceId) throws WebClientException {
+      return space(spaceId);
+    }
+
+    @Override
+    protected HubWebClient hubWebClient() {
+      return webClient;
+    }
+  }
+
+  private static class RecordingHubWebClient extends HubWebClient {
+    private final Space space;
+    private int loadCount;
+    private boolean lastSkipLocalCache;
+
+    private RecordingHubWebClient(Space space) {
+      super("http://localhost");
+      this.space = space;
+    }
+
+    @Override
+    public Space loadSpace(String spaceId, boolean skipLocalCache) {
+      loadCount++;
+      lastSkipLocalCache = skipLocalCache;
+      return space;
     }
   }
 }

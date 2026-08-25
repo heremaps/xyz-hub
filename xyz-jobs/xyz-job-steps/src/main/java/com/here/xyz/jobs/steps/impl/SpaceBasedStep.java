@@ -277,7 +277,7 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
   protected Space space(String spaceId) throws WebClientException {
     Space space = cachedSpaces.get(spaceId);
     if (space == null)
-      cachedSpaces.put(spaceId, space = loadSpace(spaceId, false));
+      cachedSpaces.put(spaceId, space = loadSpace(spaceId, true));
     return space;
   }
 
