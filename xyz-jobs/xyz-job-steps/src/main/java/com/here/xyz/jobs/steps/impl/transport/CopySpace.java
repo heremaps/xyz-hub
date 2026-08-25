@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2017-2026 HERE Europe B.V.
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -521,7 +522,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     GetFeaturesByGeometryInput input = new GetFeaturesByGeometryInput(
         space().getId(),
         hubWebClient().loadConnector(space().getStorage().getId()).params,
-        space().getExtension() != null ? space().resolveCompositeParams(superSpace()) : null,
+        resolveSpaceParams(space()),
         EXTENSION,
         space().getVersionsToKeep(),
         minSpaceVersion,

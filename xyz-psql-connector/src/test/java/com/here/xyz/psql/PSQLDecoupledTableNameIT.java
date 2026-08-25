@@ -30,6 +30,7 @@ import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.Map;
 import org.junit.After;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 public class PSQLDecoupledTableNameIT extends PSQLAbstractIT {
@@ -37,6 +38,14 @@ public class PSQLDecoupledTableNameIT extends PSQLAbstractIT {
   private static final String SPACE_ID = "recreated-space";
   private static final String FIRST_TABLE = "firsttable";
   private static final String SECOND_TABLE = "secondtable";
+  private static final Map<String, Object> CONNECTOR_PARAMS = Map.of(
+      CONNECTOR_ID, "test-connector",
+      ENABLE_HASHED_SPACEID, true);
+
+  @BeforeClass
+  public static void init() throws Exception {
+    initEnv(CONNECTOR_PARAMS);
+  }
 
   @After
   public void cleanUp() throws Exception {
@@ -77,6 +86,7 @@ public class PSQLDecoupledTableNameIT extends PSQLAbstractIT {
         .withSpace(SPACE_ID)
         .withOperation(ModifySpaceEvent.Operation.CREATE)
         .withSpaceDefinition(new Space().withId(SPACE_ID))
+        .withConnectorParams(CONNECTOR_PARAMS)
         .withParams(Map.of(TABLE_NAME, tableName));
     invokeLambda(event);
   }
@@ -85,6 +95,7 @@ public class PSQLDecoupledTableNameIT extends PSQLAbstractIT {
     ModifySpaceEvent event = new ModifySpaceEvent()
         .withSpace(SPACE_ID)
         .withOperation(ModifySpaceEvent.Operation.DELETE)
+        .withConnectorParams(CONNECTOR_PARAMS)
         .withParams(Map.of(TABLE_NAME, tableName));
     invokeLambda(event);
   }

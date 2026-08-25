@@ -93,6 +93,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.ZipEntry;
@@ -117,6 +118,7 @@ public class StepTestBase {
   private static final String PG_USER = "postgres";
   private static final String PG_PW = "password";
   private static final String SCHEMA = "public";
+  private static final long TASK_FINALIZATION_TIMEOUT_NANOS = TimeUnit.MINUTES.toNanos(2);
   private static LambdaClient lambdaClient;
   private static PooledDataSources testDatasource;
 
@@ -424,11 +426,14 @@ public class StepTestBase {
     //Lambda calls from db to invoke new db thread calls.
     try{
       Integer i = -1;
+      long deadline = System.nanoTime() + TASK_FINALIZATION_TIMEOUT_NANOS;
       while (i != 0) {
         Thread.sleep(1000);
         SQLQuery query = new TestQueryBuilder(step.getId(), SCHEMA).buildRetrieveNumberOfNotFinalizedTasksQuery();
         i = query.run(getDataSourceProvider(), rs -> rs.next() ? rs.getInt(1) : null);
         logger.info("{} Threads are not finished!", i);
+        if (i != 0 && System.nanoTime() >= deadline)
+          throw new AssertionError("Timed out waiting for " + i + " task item(s) of step " + step.getId() + " to finish.");
       }
     }catch (SQLException e){
       //42P01 = relation does not exist - happens if the step is already finalized
