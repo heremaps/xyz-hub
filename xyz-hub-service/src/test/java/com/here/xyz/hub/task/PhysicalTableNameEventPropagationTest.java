@@ -23,6 +23,7 @@ import static com.here.xyz.models.hub.Space.TABLE_NAME;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.here.xyz.events.GetStatisticsEvent;
 import com.here.xyz.events.IterateChangesetsEvent;
 import com.here.xyz.events.ModifyBranchEvent;
 import com.here.xyz.hub.connectors.models.Space;
@@ -49,6 +50,16 @@ class PhysicalTableNameEventPropagationTest {
     IterateChangesetsEvent event = new IterateChangesetsEvent().withSpace("logical-space-id");
 
     Future<Void> injection = SpaceConnectorBasedHandler.injectStorageParams(null, event, spaceWithPhysicalTableName());
+
+    assertTrue(injection.succeeded());
+    assertEquals(PHYSICAL_TABLE_NAME, event.getParams().get(TABLE_NAME));
+  }
+
+  @Test
+  void featureEventsReceiveThePersistedPhysicalTableName() throws Exception {
+    GetStatisticsEvent event = new GetStatisticsEvent().withSpace("logical-space-id");
+
+    Future<Void> injection = FeatureHandler.injectSpaceParams(event, spaceWithPhysicalTableName());
 
     assertTrue(injection.succeeded());
     assertEquals(PHYSICAL_TABLE_NAME, event.getParams().get(TABLE_NAME));

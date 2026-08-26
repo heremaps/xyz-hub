@@ -831,7 +831,8 @@ public class SpaceTaskHandler {
   private static Future<Void> updateReadOnlyHeadVersion(Marker marker, Space space) {
     GetChangesetStatisticsEvent event = new GetChangesetStatisticsEvent().withSpace(space.getId());
     Promise<Void> p = Promise.promise();
-    Space.resolveConnector(marker, space.getStorage().getId())
+    SpaceConnectorBasedHandler.injectStorageParams(marker, event, space)
+        .compose(v -> Space.resolveConnector(marker, space.getStorage().getId()))
         .onSuccess(connector -> RpcClient.getInstanceFor(connector).execute(marker, event, ar -> {
           if (ar.failed()) {
             p.fail(ar.cause());

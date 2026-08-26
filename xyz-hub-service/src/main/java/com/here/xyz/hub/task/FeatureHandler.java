@@ -184,26 +184,33 @@ public class FeatureHandler {
         .withContext(spaceContext);
 
     try {
-      Promise<Long> promise = Promise.promise();
-      getRpcClient(space.getResolvedStorageConnector())
-          .execute(marker, countEvent, (AsyncResult<XyzResponse> eventHandler) -> {
-            if (eventHandler.failed()) {
-              promise.fail(eventHandler.cause());
-              return;
-            }
-            long count;
-            XyzResponse response = eventHandler.result();
-            if (response instanceof StatisticsResponse)
-              count = ((StatisticsResponse) response).getCount().getValue();
-            else {
-              promise.fail(Api.responseToHttpException(response));
-              return;
-            }
-            long ttl = maxFeaturesPerSpace - count > 100_000 ? 30_000 : 500;
-            countCache.put(space.getId(), count, ttl, MILLISECONDS);
-            promise.complete(count);
-          }, space, requesterId);
-      return promise.future();
+      return injectSpaceParams(countEvent, space).compose(v -> {
+        Promise<Long> promise = Promise.promise();
+        try {
+          getRpcClient(space.getResolvedStorageConnector())
+              .execute(marker, countEvent, (AsyncResult<XyzResponse> eventHandler) -> {
+                if (eventHandler.failed()) {
+                  promise.fail(eventHandler.cause());
+                  return;
+                }
+                long count;
+                XyzResponse response = eventHandler.result();
+                if (response instanceof StatisticsResponse)
+                  count = ((StatisticsResponse) response).getCount().getValue();
+                else {
+                  promise.fail(Api.responseToHttpException(response));
+                  return;
+                }
+                long ttl = maxFeaturesPerSpace - count > 100_000 ? 30_000 : 500;
+                countCache.put(space.getId(), count, ttl, MILLISECONDS);
+                promise.complete(count);
+              }, space, requesterId);
+        }
+        catch (Exception e) {
+          promise.fail(e);
+        }
+        return promise.future();
+      });
     }
     catch (Exception e) {
       return Future.failedFuture(e);
