@@ -463,7 +463,8 @@ public abstract class JobExecutor implements Initializable {
 
   private static boolean isBaseResource(String resourceKey) {
     //TODO: Remove this hotfix, once the base resource-keys were separated from the rest of the resource-keys
-    return resourceKey.contains("-stable-");
+    return resourceKey.contains("-stable-")
+        || resourceKey.matches(".*-mom10-e2e-26\\d{2}-.*");
   }
 
   private static Future<Boolean> enoughResourcesAvailable(Job job) {
