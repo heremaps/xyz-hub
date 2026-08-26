@@ -29,6 +29,7 @@ import com.here.xyz.util.di.ImplementationProvider;
 import com.here.xyz.util.service.Initializable;
 import io.vertx.core.Future;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -149,14 +150,19 @@ public abstract class JobConfigClient implements Initializable {
   public abstract Future<Void> deleteJob(String jobId);
 
   /**
-   * Deletes the separately-stored step configs of a job. Called by {@link Job#deleteJobResources()} on the expiration/TTL path, where the
-   * job config item is already gone.
+   * Rebuilds a full {@link Job} from a stored (possibly {@code $ref}-form) job item map.
+   *
+   * @param jobItem the stored job item (its {@code steps} may be {@code $ref} placeholders)
+   * @return the fully-hydrated job
+   */
+  public abstract Future<Job> hydrateJob(Map<String, Object> jobItem);
+
+  /**
+   * Deletes only the separately-stored step configs of a job.
    *
    * @param jobId the job whose step configs to delete
    */
-  public Future<Void> deleteStepConfigs(String jobId) {
-    return Future.succeededFuture();
-  }
+  public abstract Future<Void> deleteStepConfigs(String jobId);
 
   /*
   TODO: Provide a more generic variant of the method #loadJobs ...

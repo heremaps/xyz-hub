@@ -149,7 +149,7 @@ public class StepConfigClient {
    */
   public void initLocalTable() {
     if (dynamoClient.isLocal()) {
-      dynamoClient.createTable(stepTable.getTableName(), "jobId:S,id:S", "jobId,id", List.of(), "keepUntil");
+      dynamoClient.createTable(stepTable.getTableName(), "jobId:S,id:S", "jobId,id", List.of(), null);
     }
   }
 

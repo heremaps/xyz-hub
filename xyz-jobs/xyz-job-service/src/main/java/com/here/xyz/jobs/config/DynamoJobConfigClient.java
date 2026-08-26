@@ -444,6 +444,11 @@ public class DynamoJobConfigClient extends JobConfigClient {
   }
 
   @Override
+  public Future<Job> hydrateJob(Map<String, Object> jobItem) {
+    return dynamoClient.executeQueryAsync(() -> deserializeJob(jobItem));
+  }
+
+  @Override
   public Future<Void> deleteJob(String jobId) {
     return dynamoClient.executeQueryAsync(() -> {
       jobTable.deleteItem(new DeleteItemSpec().withPrimaryKey("id", jobId));
