@@ -21,9 +21,13 @@ package com.here.xyz.psql;
 
 import static com.here.xyz.models.hub.Space.TABLE_NAME;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
+import com.here.xyz.events.GetFeaturesByTileEvent;
 import com.here.xyz.events.ModifySpaceEvent;
+import com.here.xyz.models.geojson.coordinates.BBox;
+import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.hub.Space;
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -79,6 +83,33 @@ public class PSQLDecoupledTableNameIT extends PSQLAbstractIT {
       assertTrue(metadata.next());
       assertEquals(SECOND_TABLE, metadata.getString("h_id"));
     }
+  }
+
+  @Test
+  public void vizSamplingUsesTheCurrentPhysicalTableAfterSpaceRecreation() throws Exception {
+    createPhysicalTable(FIRST_TABLE);
+    assertVizReadSucceeds(FIRST_TABLE);
+
+    deletePhysicalTable(FIRST_TABLE);
+    createPhysicalTable(SECOND_TABLE);
+
+    assertVizReadSucceeds(SECOND_TABLE);
+  }
+
+  private static void assertVizReadSucceeds(String tableName) throws Exception {
+    GetFeaturesByTileEvent event = new GetFeaturesByTileEvent()
+        .withSpace(SPACE_ID)
+        .withConnectorParams(CONNECTOR_PARAMS)
+        .withParams(Map.of(TABLE_NAME, tableName))
+        .withLevel(0)
+        .withX(0)
+        .withY(0)
+        .withBbox(new BBox(-180, -85, 180, 85))
+        .withOptimizationMode("viz")
+        .withVizSampling("low");
+
+    FeatureCollection response = deserializeResponse(invokeLambda(event));
+    assertNotNull(response);
   }
 
   private static void createPhysicalTable(String tableName) throws Exception {
