@@ -20,4 +20,15 @@ package com.here.xyz.jobs.steps.impl.transport.tasks.inputs;
 
 import com.here.xyz.jobs.steps.impl.transport.tasks.TaskPayload;
 
-public record CountInput(String s) implements TaskPayload { }
+/**
+ * Input payload for a single bucket of a parallelized space count.
+ *
+ * @param s            A descriptive label for the task.
+ * @param bucketId     The zero-based index of this bucket.
+ * @param bucketCount  The total number of buckets the count is split into.
+ */
+public record CountInput(String s, int bucketId, int bucketCount) implements TaskPayload {
+  public CountInput(String s) {
+    this(s, 0, 1);
+  }
+}
