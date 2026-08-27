@@ -116,6 +116,44 @@ class SpaceTableResolverTest {
   }
 
   @Test
+  void cacheIdentityChangesBetweenSpaceIncarnations() {
+    Space first = spaceWithStorage(Map.of(TABLE_NAME, "first_table"));
+    Space second = spaceWithStorage(Map.of(TABLE_NAME, "second_table"));
+
+    assertThat(SpaceTableResolver.getTableIdentity(first)).isEqualTo("psql:first_table");
+    assertThat(SpaceTableResolver.getTableIdentity(second)).isEqualTo("psql:second_table");
+  }
+
+  @Test
+  void legacyCacheIdentityUsesTheLogicalSpaceId() {
+    assertThat(SpaceTableResolver.getTableIdentity(spaceWithStorage(null))).isEqualTo("psql:my-space");
+  }
+
+  @Test
+  void restoresTheAuthoritativeTableNameWithoutDroppingOtherParams() {
+    Space source = spaceWithStorage(Map.of(TABLE_NAME, "persisted_table"));
+    Space target = spaceWithStorage(Map.of(TABLE_NAME, "replacement_table", "otherParam", "value"));
+
+    SpaceTableResolver.preserveTableName(source, target);
+
+    assertThat(target.getStorage().getParams())
+        .containsEntry(TABLE_NAME, "persisted_table")
+        .containsEntry("otherParam", "value");
+  }
+
+  @Test
+  void keepsLegacySpacesOnFallbackResolutionDuringUpdates() {
+    Space source = spaceWithStorage(null);
+    Space target = spaceWithStorage(Map.of(TABLE_NAME, "replacement_table", "otherParam", "value"));
+
+    SpaceTableResolver.preserveTableName(source, target);
+
+    assertThat(target.getStorage().getParams())
+        .doesNotContainKey(TABLE_NAME)
+        .containsEntry("otherParam", "value");
+  }
+
+  @Test
   void failsForSpacesWithoutStorage() {
     assertThatThrownBy(() -> SpaceTableResolver.assignTableName(new Space().withId("my-space")))
         .isInstanceOf(IllegalStateException.class);

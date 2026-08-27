@@ -45,6 +45,7 @@ import java.util.Map;
 @SuppressWarnings("unused")
 public class Space {
   public static final int DEFAULT_VERSIONS_TO_KEEP = 1;
+  /** Immutable physical storage-table identity persisted in {@link ConnectorRef#getParams() storage parameters}. */
   public static final String TABLE_NAME = "tableName";
 
   /**

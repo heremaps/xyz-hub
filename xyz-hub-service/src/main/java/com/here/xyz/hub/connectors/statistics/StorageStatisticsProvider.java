@@ -81,7 +81,7 @@ public class StorageStatisticsProvider {
    * @return The physical table names keyed by space ID. Legacy spaces without an explicit physical table name
    *     are not contained in the result, because for those the connector still derives the name from the space ID.
    */
-  private static Map<String, String> resolveTableNames(List<Space> spaces) {
+  static Map<String, String> resolveTableNames(List<Space> spaces) {
     Map<String, String> spaceIdToTableName = new HashMap<>();
     spaces.forEach(space -> {
       String tableName = SpaceTableResolver.getTableName(space);
@@ -89,6 +89,12 @@ public class StorageStatisticsProvider {
         spaceIdToTableName.put(space.getId(), tableName);
     });
     return spaceIdToTableName;
+  }
+
+  static Map<String, String> tableNamesForBatch(List<String> batchSpaceIds, Map<String, String> spaceIdToTableName) {
+    return batchSpaceIds.stream()
+        .filter(spaceIdToTableName::containsKey)
+        .collect(Collectors.toMap(spaceId -> spaceId, spaceIdToTableName::get));
   }
 
   private static StorageStatistics mergeStats(List<StorageStatistics> stats) {
@@ -150,9 +156,7 @@ public class StorageStatisticsProvider {
       f = f.compose(statsLists -> {
         Promise<List<StorageStatistics>> p = Promise.promise();
 
-        Map<String, String> batchTableNames = batchSpaceIds.stream()
-            .filter(spaceIdToTableName::containsKey)
-            .collect(Collectors.toMap(spaceId -> spaceId, spaceIdToTableName::get));
+        Map<String, String> batchTableNames = tableNamesForBatch(batchSpaceIds, spaceIdToTableName);
 
         GetStorageStatisticsEvent event = new GetStorageStatisticsEvent()
                 .withStreamId(marker.getName())

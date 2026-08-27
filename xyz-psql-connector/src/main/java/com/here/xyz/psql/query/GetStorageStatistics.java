@@ -28,12 +28,13 @@ import com.here.xyz.util.db.ConnectorParameters;
 import com.here.xyz.util.db.SQLQuery;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class GetStorageStatistics extends XyzQueryRunner<GetStorageStatisticsEvent, StorageStatistics> {
 
@@ -41,26 +42,28 @@ public class GetStorageStatistics extends XyzQueryRunner<GetStorageStatisticsEve
   private static final String TABLE_BYTES = "table_bytes";
   private static final String INDEX_BYTES = "index_bytes";
   private final String connectorId;
-  private final List<String> remainingSpaceIds;
-  private Map<String, String> tableName2SpaceId;
+  private final Set<String> remainingSpaceIds;
+  private Map<String, Set<String>> tableNameToSpaceIds;
 
   public GetStorageStatistics(GetStorageStatisticsEvent event)
       throws SQLException, ErrorResponseException {
     super(event);
     setUseReadReplica(true);
-    remainingSpaceIds = new LinkedList<>(event.getSpaceIds());
+    remainingSpaceIds = new LinkedHashSet<>(event.getSpaceIds());
     connectorId = ConnectorParameters.fromEvent(event).getConnectorId();
   }
 
   @Override
   protected SQLQuery buildQuery(GetStorageStatisticsEvent event) {
-    List<String> tableNames = new ArrayList<>(event.getSpaceIds().size() * 2);
-    event.getSpaceIds().forEach(spaceId -> {
-      String tableName = resolveTableName(event, spaceId);
-      tableNames.add(tableName);
-    });
+    List<String> tableNames = event.getSpaceIds().stream()
+        .map(spaceId -> resolveTableName(event, spaceId))
+        .distinct()
+        .toList();
 
-    return new SQLQuery("""
+    String tableNameParameters = IntStream.range(0, tableNames.size())
+        .mapToObj(i -> "#{tableName" + i + "}")
+        .collect(Collectors.joining(","));
+    SQLQuery query = new SQLQuery("""
         WITH roots AS (
           SELECT to_regclass(t) as root_oid
           FROM unnest(ARRAY[${{tableNames}}]) AS t
@@ -87,20 +90,24 @@ public class GetStorageStatistics extends XyzQueryRunner<GetStorageStatisticsEve
         FROM pg_class c
         JOIN sizes s ON s.oid = c.oid;
         """)
-        .withQueryFragment("tableNames", tableNames
-            .stream()
-            .map(tableName -> "'\"" + getSchema() + "\".\"" + tableName + "\"'")
-            .collect(Collectors.joining(",")))
+        .withQueryFragment("tableNames", tableNameParameters)
         .withTimeout(15);
+    for (int i = 0; i < tableNames.size(); i++)
+      query.withNamedParameter("tableName" + i, qualifiedTableName(tableNames.get(i)));
+    return query;
   }
 
   private String resolveTableName(GetStorageStatisticsEvent event, String spaceId) {
-    if (tableName2SpaceId == null)
-      tableName2SpaceId = new HashMap<>();
+    if (tableNameToSpaceIds == null)
+      tableNameToSpaceIds = new HashMap<>();
 
     String tableName = resolvePhysicalTableName(event, spaceId);
-    tableName2SpaceId.put(tableName, spaceId);
+    tableNameToSpaceIds.computeIfAbsent(tableName, k -> new LinkedHashSet<>()).add(spaceId);
     return tableName;
+  }
+
+  private String qualifiedTableName(String tableName) {
+    return "\"" + getSchema().replace("\"", "\"\"") + "\".\"" + tableName.replace("\"", "\"\"") + "\"";
   }
 
   static String resolvePhysicalTableName(GetStorageStatisticsEvent event, String spaceId) {
@@ -123,18 +130,20 @@ public class GetStorageStatistics extends XyzQueryRunner<GetStorageStatisticsEve
       String tableName = rs.getString(TABLE_NAME);
       boolean isHistoryTable = isHistoryTable(tableName);
       tableName = tableName.substring(0, tableName.lastIndexOf('_'));
-      String spaceId = tableName2SpaceId.containsKey(tableName) ? tableName2SpaceId.get(tableName) : tableName;
+      Set<String> spaceIds = tableNameToSpaceIds.getOrDefault(tableName, Set.of(tableName));
 
       long tableBytes = rs.getLong(TABLE_BYTES),
            indexBytes = rs.getLong(INDEX_BYTES);
 
-      SpaceByteSizes sizes = byteSizes.computeIfAbsent(spaceId, k -> new SpaceByteSizes().withStorageId(connectorId));
-      if (isHistoryTable)
-        sizes.setHistoryBytes(new Value<>(tableBytes + indexBytes).withEstimated(true));
-      else {
-        sizes.setContentBytes(new Value<>(tableBytes).withEstimated(true));
-        sizes.setSearchablePropertiesBytes(new Value<>(indexBytes).withEstimated(true));
-        remainingSpaceIds.remove(spaceId);
+      for (String spaceId : spaceIds) {
+        SpaceByteSizes sizes = byteSizes.computeIfAbsent(spaceId, k -> new SpaceByteSizes().withStorageId(connectorId));
+        if (isHistoryTable)
+          sizes.setHistoryBytes(new Value<>(tableBytes + indexBytes).withEstimated(true));
+        else {
+          sizes.setContentBytes(new Value<>(tableBytes).withEstimated(true));
+          sizes.setSearchablePropertiesBytes(new Value<>(indexBytes).withEstimated(true));
+          remainingSpaceIds.remove(spaceId);
+        }
       }
     }
 

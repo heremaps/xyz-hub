@@ -157,7 +157,7 @@ public class SpaceConnectorBasedHandler {
                 iterateChangesetsEvent.setVersionsToKeep(v2k);
 
                 if (minTag != null)
-                  iterateChangesetsEvent.setMinVersion(minTag.getVersion());
+                  iterateChangesetsEvent.setMinVersion(Math.min(minTag.getVersion(), space.getMinVersion()));
               }
               return Future.succeededFuture();
             })

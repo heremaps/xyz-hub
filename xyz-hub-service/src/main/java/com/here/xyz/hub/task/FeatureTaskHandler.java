@@ -28,6 +28,7 @@ import static com.here.xyz.hub.task.FeatureTask.FeatureKey.BBOX;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.ID;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.PROPERTIES;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.TYPE;
+import static com.here.xyz.hub.util.SpaceTableResolver.getTableIdentity;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_VND_MAPBOX_VECTOR_TILE;
 import static com.here.xyz.util.service.rest.TooManyRequestsException.ThrottlingReason.MEMORY;
@@ -1310,7 +1311,8 @@ public class FeatureTaskHandler {
       return;
     }
 
-    Long cachedCount = countCache.get(task.space.getId());
+    String tableIdentity = getTableIdentity(task.space);
+    Long cachedCount = countCache.get(tableIdentity);
     if (cachedCount != null) {
       checkFeaturesPerSpaceQuota(task, callback, maxFeaturesPerSpace, cachedCount);
       return;
@@ -1324,7 +1326,7 @@ public class FeatureTaskHandler {
       // Check the quota
       Long count = countResult.result();
       long ttl = (maxFeaturesPerSpace - count > 100_000) ? 60 : 10;
-      countCache.put(task.space.getId(), count, ttl, TimeUnit.SECONDS);
+      countCache.put(tableIdentity, count, ttl, TimeUnit.SECONDS);
       checkFeaturesPerSpaceQuota(task, callback, maxFeaturesPerSpace, count);
     });
   }

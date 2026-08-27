@@ -672,6 +672,13 @@ public class SpaceTaskHandler {
    * table creation is performed based on that name.
    */
   static void assignTableName(ConditionalOperation task, Callback<ConditionalOperation> callback) {
+    if (task.isUpdate()) {
+      Entry<Space> entry = task.modifyOp.entries.get(0);
+      SpaceTableResolver.preserveTableName(entry.head, entry.result);
+      callback.call(task);
+      return;
+    }
+
     if (!task.isCreate() || !Service.configuration.ENABLE_UNIQUE_PHYSICAL_TABLE_NAMES) {
       callback.call(task);
       return;
@@ -709,6 +716,7 @@ public class SpaceTaskHandler {
     Entry<Space> entry = task.modifyOp.entries.get(0);
 
     Space space = task.isDelete() ? entry.head : entry.result;
+    Space tableNameSource = task.isUpdate() ? entry.head : space;
 
     if (task.isDelete() && space.notSendDeleteMse) {
       callback.call(task);
@@ -755,6 +763,8 @@ public class SpaceTaskHandler {
             entry.result = DatabindCodec.mapper().readValue(Json.encode(resultClone), Space.class);
           }
         }
+        if (task.isCreate() || task.isUpdate())
+          SpaceTableResolver.preserveTableName(tableNameSource, entry.result);
         //remove searchable properties from the result if the space has an extension
         if(entry.result != null)
           entry.result.withSearchableProperties(entry.result.getExtension() != null ? null : entry.result.getSearchableProperties());

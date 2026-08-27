@@ -19,8 +19,9 @@
 
 package com.here.xyz.hub.task;
 
-import static com.here.xyz.hub.task.FeatureTaskHandler.injectMinVersion;
 import static com.here.xyz.hub.task.FeatureTask.resolveBranchFor;
+import static com.here.xyz.hub.task.FeatureTaskHandler.injectMinVersion;
+import static com.here.xyz.hub.util.SpaceTableResolver.getTableIdentity;
 import static com.here.xyz.util.service.rest.TooManyRequestsException.ThrottlingReason.MEMORY;
 import static com.here.xyz.util.service.rest.TooManyRequestsException.ThrottlingReason.STORAGE_QUEUE_FULL;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
@@ -175,7 +176,8 @@ public class FeatureHandler {
 
   public static Future<Long> getCountForSpace(Marker marker, Space space, SpaceContext spaceContext, String requesterId,
       long maxFeaturesPerSpace) {
-    Long cachedCount = countCache.get(space.getId());
+    String tableIdentity = getTableIdentity(space);
+    Long cachedCount = countCache.get(tableIdentity);
     if (cachedCount != null)
       return Future.succeededFuture(cachedCount);
 
@@ -202,7 +204,7 @@ public class FeatureHandler {
                   return;
                 }
                 long ttl = maxFeaturesPerSpace - count > 100_000 ? 30_000 : 500;
-                countCache.put(space.getId(), count, ttl, MILLISECONDS);
+                countCache.put(tableIdentity, count, ttl, MILLISECONDS);
                 promise.complete(count);
               }, space, requesterId);
         }

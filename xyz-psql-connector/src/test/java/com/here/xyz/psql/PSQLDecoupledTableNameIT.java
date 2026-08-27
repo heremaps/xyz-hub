@@ -26,13 +26,17 @@ import static org.junit.Assert.assertTrue;
 
 import com.here.xyz.events.GetFeaturesByTileEvent;
 import com.here.xyz.events.ModifySpaceEvent;
+import com.here.xyz.events.UpdateStrategy;
+import com.here.xyz.events.WriteFeaturesEvent;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.hub.Space;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -60,7 +64,9 @@ public class PSQLDecoupledTableNameIT extends PSQLAbstractIT {
   @Test
   public void createsTwoPhysicalTablesForTheSameLogicalSpace() throws Exception {
     createPhysicalTable(FIRST_TABLE);
+    writeFeature(FIRST_TABLE, "first-feature");
     createPhysicalTable(SECOND_TABLE);
+    writeFeature(SECOND_TABLE, "second-feature");
 
     try (Connection connection = LAMBDA.dataSourceProvider.getWriter().getConnection();
         Statement statement = connection.createStatement();
@@ -75,6 +81,11 @@ public class PSQLDecoupledTableNameIT extends PSQLAbstractIT {
         tableCount++;
       assertEquals(2, tableCount);
     }
+
+    assertEquals(1, featureCount(FIRST_TABLE, "first-feature"));
+    assertEquals(0, featureCount(FIRST_TABLE, "second-feature"));
+    assertEquals(0, featureCount(SECOND_TABLE, "first-feature"));
+    assertEquals(1, featureCount(SECOND_TABLE, "second-feature"));
 
     try (Connection connection = LAMBDA.dataSourceProvider.getWriter().getConnection();
         Statement statement = connection.createStatement();
@@ -120,6 +131,28 @@ public class PSQLDecoupledTableNameIT extends PSQLAbstractIT {
         .withConnectorParams(CONNECTOR_PARAMS)
         .withParams(Map.of(TABLE_NAME, tableName));
     invokeLambda(event);
+  }
+
+  private static void writeFeature(String tableName, String featureId) throws Exception {
+    WriteFeaturesEvent event = new WriteFeaturesEvent()
+        .withSpace(SPACE_ID)
+        .withParams(Map.of(TABLE_NAME, tableName))
+        .withVersionsToKeep(1)
+        .withResponseDataExpected(true)
+        .withModifications(Set.of(new WriteFeaturesEvent.Modification()
+            .withUpdateStrategy(UpdateStrategy.DEFAULT_UPDATE_STRATEGY)
+            .withFeatureData(new FeatureCollection().withFeatures(List.of(newTestFeature(featureId))))));
+    assertNotNull(deserializeResponse(invokeLambda(event)));
+  }
+
+  private static long featureCount(String tableName, String featureId) throws Exception {
+    try (Connection connection = LAMBDA.dataSourceProvider.getWriter().getConnection();
+        Statement statement = connection.createStatement();
+        ResultSet result = statement.executeQuery(
+            "SELECT count(*) FROM public.\"" + tableName + "\" WHERE id = '" + featureId + "'")) {
+      assertTrue(result.next());
+      return result.getLong(1);
+    }
   }
 
   private static void deletePhysicalTable(String tableName) throws Exception {

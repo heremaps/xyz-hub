@@ -87,6 +87,42 @@ public class SpaceTableResolver {
   }
 
   /**
+   * Copies the immutable physical table identity from one incarnation of a space definition to another.
+   * Legacy spaces intentionally keep the property absent so connector-side ID resolution remains in effect.
+   *
+   * @param source The authoritative space definition
+   * @param target The space definition to normalize
+   */
+  public static void preserveTableName(Space source, Space target) {
+    if (target == null || target.getStorage() == null)
+      return;
+
+    String tableName = getTableName(source);
+    Map<String, Object> currentParams = target.getStorage().getParams();
+    if (tableName == null && (currentParams == null || !currentParams.containsKey(TABLE_NAME)))
+      return;
+
+    Map<String, Object> params = currentParams == null ? new HashMap<>() : new HashMap<>(currentParams);
+    if (tableName == null)
+      params.remove(TABLE_NAME);
+    else
+      params.put(TABLE_NAME, tableName);
+    target.getStorage().setParams(params.isEmpty() ? null : params);
+  }
+
+  /**
+   * Returns an incarnation-aware cache identity for a space. Persisted physical table names distinguish recreated
+   * spaces, while legacy spaces retain their logical-ID based identity.
+   */
+  public static String getTableIdentity(Space space) {
+    if (space == null)
+      return null;
+    String storageId = space.getStorage() != null ? space.getStorage().getId() : null;
+    String tableName = getTableName(space);
+    return String.valueOf(storageId) + ":" + (tableName != null ? tableName : space.getId());
+  }
+
+  /**
    * Removes an inherited physical table name from the specified params.
    * <p>
    * That is necessary whenever the storage definition of another space is copied (e.g., for extending spaces),
@@ -101,4 +137,3 @@ public class SpaceTableResolver {
     return params;
   }
 }
-

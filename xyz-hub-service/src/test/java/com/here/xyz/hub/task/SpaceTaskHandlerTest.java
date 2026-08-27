@@ -19,8 +19,12 @@
 
 package com.here.xyz.hub.task;
 
+import static com.here.xyz.models.hub.Space.TABLE_NAME;
 import static com.here.xyz.models.hub.FeatureModificationList.IfExists.ERROR;
+import static com.here.xyz.models.hub.FeatureModificationList.IfExists.PATCH;
 import static com.here.xyz.models.hub.FeatureModificationList.IfNotExists.CREATE;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -71,6 +75,43 @@ class SpaceTaskHandlerTest {
     SpaceTaskHandler.assignTableName(task, successfulCallback());
 
     assertNull(modifyOp.entries.get(0).result.getStorage().getParams());
+  }
+
+  @Test
+  void preservesThePersistedTableNameOnUpdate() {
+    ModifySpaceOp modifyOp = new ModifySpaceOp(List.of(new HashMap<>(Map.of("id", "my-space"))), CREATE, PATCH, true, false);
+    Space head = spaceWithParams(Map.of(TABLE_NAME, "persisted_table"));
+    Space result = spaceWithParams(Map.of(TABLE_NAME, "replacement_table", "otherParam", "value"));
+    modifyOp.entries.get(0).head = head;
+    modifyOp.entries.get(0).result = result;
+    ConditionalOperation task = new ConditionalOperation(routingContext(), ApiResponseType.EMPTY, modifyOp, false);
+
+    SpaceTaskHandler.assignTableName(task, successfulCallback());
+
+    assertEquals("persisted_table", result.getStorage().getParams().get(TABLE_NAME));
+    assertEquals("value", result.getStorage().getParams().get("otherParam"));
+  }
+
+  @Test
+  void doesNotAllowAddingATableNameToALegacySpaceOnUpdate() {
+    ModifySpaceOp modifyOp = new ModifySpaceOp(List.of(new HashMap<>(Map.of("id", "legacy-space"))), CREATE, PATCH, true, false);
+    Space head = spaceWithParams(null);
+    Space result = spaceWithParams(Map.of(TABLE_NAME, "replacement_table", "otherParam", "value"));
+    modifyOp.entries.get(0).head = head;
+    modifyOp.entries.get(0).result = result;
+
+    SpaceTaskHandler.assignTableName(
+        new ConditionalOperation(routingContext(), ApiResponseType.EMPTY, modifyOp, false), successfulCallback());
+
+    assertFalse(result.getStorage().getParams().containsKey(TABLE_NAME));
+    assertEquals("value", result.getStorage().getParams().get("otherParam"));
+  }
+
+  private static Space spaceWithParams(Map<String, Object> params) {
+    Space space = new Space();
+    space.setId("my-space");
+    space.setStorage(new ConnectorRef().withId("psql").withParams(params));
+    return space;
   }
 
   private static Callback<ConditionalOperation> successfulCallback() {
