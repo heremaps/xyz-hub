@@ -123,7 +123,11 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
   }
 
   protected static String createSpaceWithId(String spaceId) {
-    return createSpaceWithCustomStorage(spaceId, "psql", null, 1, false);
+    return createSpaceWithId(spaceId, 1);
+  }
+
+  protected static String createSpaceWithId(String spaceId, int versionsToKeep) {
+    return createSpaceWithCustomStorage(spaceId, "psql", null, versionsToKeep, false);
   }
 
   protected static String createSpaceWithCustomStorage(String spaceId, String storageId, JsonObject storageParams) {
@@ -527,9 +531,13 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
   }
 
   public static Feature newFeature() {
-    return new Feature().withId("f1")
-        .withGeometry(new Point().withCoordinates(new PointCoordinates(0,0)))
-        .withProperties(new Properties().with("key1", "value1"));
+    return newFeature("f1");
+  }
+
+  public static Feature newFeature(String id) {
+    return new Feature().withId(id)
+            .withGeometry(new Point().withCoordinates(new PointCoordinates(0,0)))
+            .withProperties(new Properties().with("key1", "value1"));
   }
 
   public static void postFeatures(String spaceId, FeatureCollection features, AuthProfile authProfile) {
