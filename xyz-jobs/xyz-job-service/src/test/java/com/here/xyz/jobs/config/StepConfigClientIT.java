@@ -45,7 +45,7 @@ import org.junit.jupiter.api.Test;
 public class StepConfigClientIT {
 
   private static final String DYNAMO_HOST = System.getProperty("job.host", "localhost");
-  private static final String TABLE_ARN = "arn:aws:dynamodb:" + DYNAMO_HOST + ":000000008000:table/xyz-job-step-configs-local";
+  private static final String TABLE_ARN = "arn:aws:dynamodb:" + DYNAMO_HOST + ":000000008000:table/xyz-job-steps-local";
 
   private StepConfigClient client;
   private long keepUntil;
