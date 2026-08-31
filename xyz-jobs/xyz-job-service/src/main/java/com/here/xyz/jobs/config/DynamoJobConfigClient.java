@@ -86,8 +86,8 @@ public class DynamoJobConfigClient extends JobConfigClient {
 
     @Override
     protected JobConfigClient getInstance() {
-      if (Config.instance == null || Config.instance.JOBS_DYNAMODB_TABLE_ARN == null)
-        throw new NullPointerException("Config variable JOBS_DYNAMODB_TABLE_ARN is not defined");
+      if (Config.instance == null || Config.instance.JOBS_DYNAMODB_TABLE_ARN == null || Config.instance.RESOURCE_KEYS_DYNAMODB_TABLE_ARN == null || Config.instance.STEPS_DYNAMODB_TABLE_ARN == null)
+        throw new NullPointerException("One or more required Config variables are not defined");
       return new DynamoJobConfigClient(Config.instance.JOBS_DYNAMODB_TABLE_ARN, Config.instance.RESOURCE_KEYS_DYNAMODB_TABLE_ARN,
           Config.instance.STEPS_DYNAMODB_TABLE_ARN);
     }
