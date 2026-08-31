@@ -49,7 +49,7 @@ public class Config extends com.here.xyz.jobs.steps.Config {
   /**
    * ARN of the DynamoDB table storing step configs.
    */
-  public String STEP_CONFIGS_DYNAMODB_TABLE_ARN;
+  public String STEPS_DYNAMODB_TABLE_ARN;
 
   /**
    * The ARN of the step lambda being called by the step functions

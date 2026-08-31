@@ -48,7 +48,7 @@ import org.junit.jupiter.api.Test;
 public class JobStepConfigRoundTripIT extends JobTest {
 
   private static final String JOBS_TABLE = "xyz-jobs-local";
-  private static final String STEP_CONFIGS_TABLE = "xyz-job-step-configs-local";
+  private static final String STEPS_TABLE = "xyz-job-steps-local";
   private static final String DYNAMO_ENDPOINT = "http://" + System.getProperty("job.host", "localhost") + ":8000";
 
   private final int featureCount = 20;
@@ -132,7 +132,7 @@ public class JobStepConfigRoundTripIT extends JobTest {
   }
 
   private static List<Item> queryStepConfigs(DynamoDB db, String jobId) {
-    Table stepTable = db.getTable(STEP_CONFIGS_TABLE);
+    Table stepTable = db.getTable(STEPS_TABLE);
     List<Item> items = new ArrayList<>();
     stepTable.query("jobId", jobId).forEach(items::add);
     return items;
