@@ -21,6 +21,7 @@ package com.here.xyz.psql;
 
 import static com.here.xyz.models.hub.Space.TABLE_NAME;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
@@ -87,13 +88,17 @@ public class PSQLDecoupledTableNameIT extends PSQLAbstractIT {
     assertEquals(0, featureCount(SECOND_TABLE, "first-feature"));
     assertEquals(1, featureCount(SECOND_TABLE, "second-feature"));
 
-    try (Connection connection = LAMBDA.dataSourceProvider.getWriter().getConnection();
-        Statement statement = connection.createStatement();
-        ResultSet metadata = statement.executeQuery(
-            "SELECT h_id FROM xyz_config.space_meta WHERE id = 'recreated-space' AND schem = 'public'")) {
-      assertTrue(metadata.next());
-      assertEquals(SECOND_TABLE, metadata.getString("h_id"));
-    }
+    assertMetadataTable(SECOND_TABLE);
+
+    //Simulate a delayed deletion event for the previous incarnation after the new incarnation is already active
+    deletePhysicalTable(FIRST_TABLE);
+
+    assertFalse(tableExists(FIRST_TABLE));
+    assertTrue(tableExists(SECOND_TABLE));
+    assertEquals(1, featureCount(SECOND_TABLE, "second-feature"));
+    writeFeature(SECOND_TABLE, "feature-after-delayed-delete");
+    assertEquals(1, featureCount(SECOND_TABLE, "feature-after-delayed-delete"));
+    assertMetadataTable(SECOND_TABLE);
   }
 
   @Test
@@ -152,6 +157,31 @@ public class PSQLDecoupledTableNameIT extends PSQLAbstractIT {
             "SELECT count(*) FROM public.\"" + tableName + "\" WHERE id = '" + featureId + "'")) {
       assertTrue(result.next());
       return result.getLong(1);
+    }
+  }
+
+  private static boolean tableExists(String tableName) throws Exception {
+    try (Connection connection = LAMBDA.dataSourceProvider.getWriter().getConnection();
+        Statement statement = connection.createStatement();
+        ResultSet result = statement.executeQuery("""
+            SELECT EXISTS (
+              SELECT 1
+              FROM information_schema.tables
+              WHERE table_schema = 'public' AND table_name = '%s'
+            )
+            """.formatted(tableName))) {
+      assertTrue(result.next());
+      return result.getBoolean(1);
+    }
+  }
+
+  private static void assertMetadataTable(String expectedTableName) throws Exception {
+    try (Connection connection = LAMBDA.dataSourceProvider.getWriter().getConnection();
+        Statement statement = connection.createStatement();
+        ResultSet metadata = statement.executeQuery(
+            "SELECT h_id FROM xyz_config.space_meta WHERE id = 'recreated-space' AND schem = 'public'")) {
+      assertTrue(metadata.next());
+      assertEquals(expectedTableName, metadata.getString("h_id"));
     }
   }
 

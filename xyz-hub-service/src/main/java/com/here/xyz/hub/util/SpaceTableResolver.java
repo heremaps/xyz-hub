@@ -24,6 +24,7 @@ import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.generateUniqueTableNam
 
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Space.ConnectorRef;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -39,6 +40,8 @@ import java.util.Map;
  * so this class never modifies an already existing space.
  */
 public class SpaceTableResolver {
+
+  static final int POSTGRES_IDENTIFIER_MAX_BYTES = 63;
 
   private SpaceTableResolver() {}
 
@@ -76,8 +79,10 @@ public class SpaceTableResolver {
       throw new IllegalStateException("The space " + space.getId() + " has no storage definition.");
 
     String existingTableName = getTableName(storage.getParams());
-    if (existingTableName != null)
+    if (existingTableName != null) {
+      validateTableName(existingTableName);
       return existingTableName;
+    }
 
     Map<String, Object> params = storage.getParams() == null ? new HashMap<>() : new HashMap<>(storage.getParams());
     String tableName = generateUniqueTableName();
@@ -94,10 +99,22 @@ public class SpaceTableResolver {
    * @param target The space definition to normalize
    */
   public static void preserveTableName(Space source, Space target) {
-    if (target == null || target.getStorage() == null)
+    if (target == null)
       return;
 
     String tableName = getTableName(source);
+    if (target.getStorage() == null) {
+      if (tableName == null)
+        return;
+
+      ConnectorRef sourceStorage = source.getStorage();
+      Map<String, Object> sourceParams = sourceStorage.getParams() == null
+          ? new HashMap<>()
+          : new HashMap<>(sourceStorage.getParams());
+      target.setStorage(new ConnectorRef().withId(sourceStorage.getId()).withParams(sourceParams));
+      return;
+    }
+
     Map<String, Object> currentParams = target.getStorage().getParams();
     if (tableName == null && (currentParams == null || !currentParams.containsKey(TABLE_NAME)))
       return;
@@ -119,7 +136,15 @@ public class SpaceTableResolver {
       return null;
     String storageId = space.getStorage() != null ? space.getStorage().getId() : null;
     String tableName = getTableName(space);
-    return String.valueOf(storageId) + ":" + (tableName != null ? tableName : space.getId());
+    return String.valueOf(storageId) + ":" + (tableName != null ? "physical:" + tableName : "legacy:" + space.getId());
+  }
+
+  private static void validateTableName(String tableName) {
+    if (tableName.indexOf('\0') >= 0)
+      throw new IllegalArgumentException("The physical table name must not contain a null character.");
+    if (tableName.getBytes(StandardCharsets.UTF_8).length > POSTGRES_IDENTIFIER_MAX_BYTES)
+      throw new IllegalArgumentException(
+          "The physical table name must not exceed " + POSTGRES_IDENTIFIER_MAX_BYTES + " UTF-8 bytes.");
   }
 
   /**

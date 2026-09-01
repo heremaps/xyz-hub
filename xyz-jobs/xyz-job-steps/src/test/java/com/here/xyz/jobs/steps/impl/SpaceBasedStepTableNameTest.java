@@ -25,6 +25,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.fasterxml.jackson.annotation.JsonTypeName;
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.impl.transport.CountSpace;
 import com.here.xyz.models.hub.Space;
@@ -99,6 +101,19 @@ class SpaceBasedStepTableNameTest {
     assertTrue(webClient.lastSkipLocalCache);
   }
 
+  @Test
+  void preservesTheResolvedPhysicalTableAcrossStepSerialization() throws Exception {
+    Space originalIncarnation = space("recreated", "original_table");
+    CachingTestStep originalStep = new CachingTestStep(new RecordingHubWebClient(originalIncarnation));
+    originalStep.withSpaceId("recreated");
+    originalStep.load("recreated");
+
+    CountSpace restoredStep = XyzSerializable.deserialize(originalStep.serialize(), CountSpace.class);
+    Map<String, Object> restoredParams = restoredStep.resolveSpaceParams(restoredStep.space("recreated"));
+
+    assertEquals("original_table", restoredParams.get(TABLE_NAME));
+  }
+
   private static Space space(String id, String tableName) {
     Map<String, Object> params = tableName == null ? null : new HashMap<>(Map.of(TABLE_NAME, tableName));
     return new Space().withId(id).withStorage(new ConnectorRef().withId("psql").withParams(params));
@@ -126,6 +141,7 @@ class SpaceBasedStepTableNameTest {
     }
   }
 
+  @JsonTypeName("CountSpace")
   private static class CachingTestStep extends CountSpace {
     private final HubWebClient webClient;
 

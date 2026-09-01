@@ -87,7 +87,11 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
   @JsonView({Internal.class, Static.class})
   private Ref versionRef;
 
-  @JsonIgnore
+  /**
+   * Persisted snapshots of all spaces resolved by this step. Keeping these snapshots in the serialized step prevents an asynchronous or
+   * resumed execution from switching to a different physical table when the same logical space ID is recreated in the meantime.
+   */
+  @JsonView({Internal.class, Static.class})
   private Map<String, Space> cachedSpaces = new ConcurrentHashMap<>();
 
   @JsonIgnore
@@ -172,7 +176,7 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
       //Check if the space is actually existing
       if (getSpaceId() == null)
         throw new ValidationException("SpaceId is missing!");
-      space();
+      resolveSpaceParams(space());
     }
     catch (WebClientException e) {
       throw new ValidationException("Error loading resource " + getSpaceId(), e);

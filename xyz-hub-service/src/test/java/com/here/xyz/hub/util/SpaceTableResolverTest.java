@@ -76,6 +76,24 @@ class SpaceTableResolverTest {
   }
 
   @Test
+  void rejectsExplicitTableNamesLongerThanPostgresSupports() {
+    Space space = spaceWithStorage(Map.of(TABLE_NAME, "a".repeat(SpaceTableResolver.POSTGRES_IDENTIFIER_MAX_BYTES + 1)));
+
+    assertThatThrownBy(() -> SpaceTableResolver.assignTableName(space))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("must not exceed");
+  }
+
+  @Test
+  void rejectsExplicitTableNamesContainingNullCharacters() {
+    Space space = spaceWithStorage(Map.of(TABLE_NAME, "invalid\0table"));
+
+    assertThatThrownBy(() -> SpaceTableResolver.assignTableName(space))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("null character");
+  }
+
+  @Test
   void keepsOtherStorageParams() {
     Space space = spaceWithStorage(Map.of("someParam", "someValue"));
 
@@ -120,13 +138,22 @@ class SpaceTableResolverTest {
     Space first = spaceWithStorage(Map.of(TABLE_NAME, "first_table"));
     Space second = spaceWithStorage(Map.of(TABLE_NAME, "second_table"));
 
-    assertThat(SpaceTableResolver.getTableIdentity(first)).isEqualTo("psql:first_table");
-    assertThat(SpaceTableResolver.getTableIdentity(second)).isEqualTo("psql:second_table");
+    assertThat(SpaceTableResolver.getTableIdentity(first)).isEqualTo("psql:physical:first_table");
+    assertThat(SpaceTableResolver.getTableIdentity(second)).isEqualTo("psql:physical:second_table");
   }
 
   @Test
   void legacyCacheIdentityUsesTheLogicalSpaceId() {
-    assertThat(SpaceTableResolver.getTableIdentity(spaceWithStorage(null))).isEqualTo("psql:my-space");
+    assertThat(SpaceTableResolver.getTableIdentity(spaceWithStorage(null))).isEqualTo("psql:legacy:my-space");
+  }
+
+  @Test
+  void physicalAndLegacyCacheIdentitiesCannotCollide() {
+    Space physical = spaceWithStorage(Map.of(TABLE_NAME, "my-space"));
+    Space legacy = spaceWithStorage(null);
+
+    assertThat(SpaceTableResolver.getTableIdentity(physical))
+        .isNotEqualTo(SpaceTableResolver.getTableIdentity(legacy));
   }
 
   @Test
@@ -136,6 +163,19 @@ class SpaceTableResolverTest {
 
     SpaceTableResolver.preserveTableName(source, target);
 
+    assertThat(target.getStorage().getParams())
+        .containsEntry(TABLE_NAME, "persisted_table")
+        .containsEntry("otherParam", "value");
+  }
+
+  @Test
+  void restoresTheAuthoritativeStorageWhenConnectorManipulationRemovesIt() {
+    Space source = spaceWithStorage(Map.of(TABLE_NAME, "persisted_table", "otherParam", "value"));
+    Space target = new Space().withId("my-space");
+
+    SpaceTableResolver.preserveTableName(source, target);
+
+    assertThat(target.getStorage().getId()).isEqualTo("psql");
     assertThat(target.getStorage().getParams())
         .containsEntry(TABLE_NAME, "persisted_table")
         .containsEntry("otherParam", "value");
