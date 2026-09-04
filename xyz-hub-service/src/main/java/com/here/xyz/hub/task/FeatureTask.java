@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -69,6 +69,7 @@ import com.here.xyz.models.hub.FeatureModificationList.ConflictResolution;
 import com.here.xyz.models.hub.FeatureModificationList.IfExists;
 import com.here.xyz.models.hub.FeatureModificationList.IfNotExists;
 import com.here.xyz.models.hub.Ref;
+import com.here.xyz.models.hub.Space.Extension;
 import com.here.xyz.psql.query.XyzEventBasedQueryRunner;
 import com.here.xyz.psql.query.branching.BranchManager;
 import com.here.xyz.responses.XyzResponse;
@@ -233,8 +234,12 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
 
       if (!readOnlyAccess) {
         hasher.putLong(space.getContentUpdatedAt());
-        if (space.getExtension() != null && extendedSpaces != null)
+        if (space.getExtension() != null && extendedSpaces != null) {
           extendedSpaces.forEach(extendedSpace -> hasher.putLong(extendedSpace.getContentUpdatedAt()));
+          for (Extension e = space.getExtension(); e != null; e = e.resolvedSpace == null ? null : e.resolvedSpace.getExtension())
+            if (e.getVersion() != null)
+              hasher.putLong(e.getVersion());
+        }
       }
 
       return cacheKey = hasher.hash().toString();

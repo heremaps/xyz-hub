@@ -47,6 +47,7 @@ import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResponse> extends ExtendedSpace<E, R> {
@@ -309,17 +310,23 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   }
 
   private SQLQuery build1LevelBaseQuery(E event, SQLQuery filterWhereClause) {
+    SQLQuery versionCheck = getLevel1BaseVersion(event)
+            .map(version -> buildVersionCheckFragment(event, new Ref(version), 0))
+            .orElse(buildBaseVersionCheckFragment("base1Version"));
+
     int dataset = compositeDatasetNo(event, CompositeDataset.SUPER);
     return new SQLQuery("SELECT ${{selectClause}} FROM ${schema}.${extendedTable} WHERE ${{filters}} ${{versionCheck}} ${{orderBy}}")
         .withVariable("extendedTable", getExtendedTable(event))
         .withQueryFragment("selectClause", buildSelectClause(event, dataset, 0))
         .withQueryFragment("filters", buildFiltersFragment(event, false, filterWhereClause, dataset)) //NOTE: We know that the base space is not an extended one
-        .withQueryFragment("versionCheck", buildBaseVersionCheckFragment("base1Version"))
+        .withQueryFragment("versionCheck", versionCheck)
         .withQueryFragment("orderBy", buildOrderByFragment(event));
   }
 
   private SQLQuery build2LevelBaseQuery(E event, SQLQuery filterWhereClause) {
-    SQLQuery versionCheckFragment = buildBaseVersionCheckFragment("base2Version");
+    SQLQuery versionCheckFragment = getLevel2BaseVersion(event)
+            .map(version -> buildVersionCheckFragment(event, new Ref(version), 0))
+            .orElse(buildBaseVersionCheckFragment("base2Version"));
 
     int dataset = compositeDatasetNo(event, CompositeDataset.INTERMEDIATE);
     return new SQLQuery("(SELECT ${{selectClause}}"
