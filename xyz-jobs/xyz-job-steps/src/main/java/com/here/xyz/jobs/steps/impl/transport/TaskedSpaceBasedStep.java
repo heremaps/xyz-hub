@@ -99,7 +99,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   /** Maximum number of retry attempts, for a server side killed single, before failing retry handling. */
   public static final Integer MAX_TASK_RETRY_ATTEMPTS = 3;
   /** Hard ceiling for the concurrency of a single step, regardless of its configured {@link #threadCount}. */
-  public static final int MAX_THREAD_COUNT = 10;
+  public static final int MAX_THREAD_COUNT = 15;
   /** Number of tasks a step is allowed to run concurrently right after it was started or resumed. */
   public static final int INITIAL_THREAD_COUNT = 1;
   /** Time that has to pass before the concurrency limit is raised again. */
