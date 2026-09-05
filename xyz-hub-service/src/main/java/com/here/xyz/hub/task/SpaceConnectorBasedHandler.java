@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,6 +38,7 @@ import com.here.xyz.util.service.errors.DetailedHttpException;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
@@ -113,6 +114,23 @@ public class SpaceConnectorBasedHandler {
     }
 
     private static Future<Space> injectEventParameters(Marker marker, Event event, Space space) {
+      return injectStorageParams(marker, event, space)
+          .compose(v -> injectChangesetParameters(marker, event, space));
+    }
+
+    static Future<Void> injectStorageParams(Marker marker, Event event, Space space) {
+      return space.resolveCompositeParams(marker)
+          .map(compositeParams -> {
+            Map<String, Object> storageParams = new HashMap<>();
+            if (space.getStorage().getParams() != null)
+              storageParams.putAll(space.getStorage().getParams());
+            storageParams.putAll(compositeParams);
+            event.setParams(storageParams);
+            return null;
+          });
+    }
+
+    private static Future<Space> injectChangesetParameters(Marker marker, Event event, Space space) {
       if (event instanceof DeleteChangesetsEvent || event instanceof GetChangesetStatisticsEvent || event instanceof IterateChangesetsEvent) {
         return getMinTag(marker, space.getId())
             .compose(minTag -> {

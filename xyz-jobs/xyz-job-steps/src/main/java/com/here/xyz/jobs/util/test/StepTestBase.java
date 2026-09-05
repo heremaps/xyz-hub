@@ -28,6 +28,7 @@ import static com.here.xyz.jobs.steps.inputs.Input.inputS3Prefix;
 import static com.here.xyz.psql.query.branching.BranchManager.branchTableName;
 import static com.here.xyz.util.Random.randomAlpha;
 import static com.here.xyz.util.db.pg.IndexHelper.buildSpaceTableDropIndexQueries;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.getTableNameFromSpaceParamsOrSpaceId;
 import static java.net.http.HttpClient.Redirect.NORMAL;
 
 import com.amazonaws.services.lambda.runtime.Context;
@@ -55,10 +56,12 @@ import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.hub.Branch;
+import com.here.xyz.models.hub.Connector;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Tag;
 import com.here.xyz.responses.StatisticsResponse;
+import com.here.xyz.util.db.ConnectorParameters;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import com.here.xyz.util.db.datasource.DatabaseSettings;
@@ -93,6 +96,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.ZipEntry;
@@ -117,6 +121,7 @@ public class StepTestBase {
   private static final String PG_USER = "postgres";
   private static final String PG_PW = "password";
   private static final String SCHEMA = "public";
+  private static final long TASK_FINALIZATION_TIMEOUT_NANOS = TimeUnit.MINUTES.toNanos(2);
   private static LambdaClient lambdaClient;
   private static PooledDataSources testDatasource;
 
@@ -219,7 +224,7 @@ public class StepTestBase {
       hubWebClient().createBranch(spaceId, branch);
     }
     catch (XyzWebClient.WebClientException e) {
-      System.out.println("Hub Error: " + e.getMessage());
+      throw new AssertionError("Unable to create branch " + branch.getId() + " on space " + spaceId, e);
     }
   }
 
@@ -228,9 +233,8 @@ public class StepTestBase {
       return hubWebClient().loadBranch(spaceId, branchId, true);
     }
     catch (XyzWebClient.WebClientException e) {
-      System.out.println("Hub Error: " + e.getMessage());
+      throw new AssertionError("Unable to load branch " + branchId + " on space " + spaceId, e);
     }
-    return null;
   }
 
   protected StatisticsResponse getStatistics(String spaceId) {
@@ -273,9 +277,8 @@ public class StepTestBase {
       return hubWebClient().customReadFeaturesQuery(spaceId, customPath);
     }
     catch (XyzWebClient.WebClientException e) {
-      System.out.println("Hub Error: " + e.getMessage());
+      throw new AssertionError("Unable to read " + customPath + " from space " + spaceId, e);
     }
-    return null;
   }
 
   protected Feature simpleFeature(String id) {
@@ -424,11 +427,14 @@ public class StepTestBase {
     //Lambda calls from db to invoke new db thread calls.
     try{
       Integer i = -1;
+      long deadline = System.nanoTime() + TASK_FINALIZATION_TIMEOUT_NANOS;
       while (i != 0) {
         Thread.sleep(1000);
         SQLQuery query = new TestQueryBuilder(step.getId(), SCHEMA).buildRetrieveNumberOfNotFinalizedTasksQuery();
         i = query.run(getDataSourceProvider(), rs -> rs.next() ? rs.getInt(1) : null);
         logger.info("{} Threads are not finished!", i);
+        if (i != 0 && System.nanoTime() >= deadline)
+          throw new AssertionError("Timed out waiting for " + i + " task item(s) of step " + step.getId() + " to finish.");
       }
     }catch (SQLException e){
       //42P01 = relation does not exist - happens if the step is already finalized
@@ -642,7 +648,19 @@ public class StepTestBase {
 
   protected String getBranchTableName(String spaceId, String branchId) {
     Branch branch = loadBranch(spaceId, branchId);
-    return branchTableName(spaceId, branch.getBranchPath().get(branch.getBranchPath().size() - 1), branch.getNodeId());
+    return branchTableName(getRootTableName(spaceId), branch.getBranchPath().get(branch.getBranchPath().size() - 1), branch.getNodeId());
+  }
+
+  protected String getRootTableName(String spaceId) {
+    try {
+      Space space = hubWebClient().loadSpace(spaceId, true);
+      Connector connector = hubWebClient().loadConnector(space.getStorage().getId());
+      boolean hashedSpaceId = ConnectorParameters.fromMap(connector.params).isEnableHashedSpaceId();
+      return getTableNameFromSpaceParamsOrSpaceId(space.getStorage().getParams(), space.getId(), hashedSpaceId);
+    }
+    catch (XyzWebClient.WebClientException e) {
+      throw new AssertionError("Unable to resolve the physical table for space " + spaceId, e);
+    }
   }
 
   protected static FeatureCollection createKnownFeatures(String prefix, int count) {
