@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -212,17 +212,19 @@ public class GeoTools {
   { 
 
     Geometry degGeo = geometry.getJTSGeometry();
-             
+
+    Envelope envelope;
     if (radius > 0) {
       MathTransform convertToMeter   = mathTransform("EPSG:4326", "EPSG:31300");
       MathTransform convertFromMeter = mathTransform("EPSG:31300", "EPSG:4326");
 
-      Geometry mtrGeo = JTS.transform( degGeo, convertToMeter );
+      Geometry degEnvelope = JTS.toGeometry(degGeo.getEnvelopeInternal());
+      Geometry mtrGeo = JTS.transform(degEnvelope, convertToMeter);
       mtrGeo = mtrGeo.buffer(radius);
-      degGeo = JTS.transform(mtrGeo, convertFromMeter);
+      envelope = JTS.transform(mtrGeo, convertFromMeter).getEnvelopeInternal();
     }
-
-    Envelope envelope = degGeo.getEnvelopeInternal();
+    else
+      envelope = degGeo.getEnvelopeInternal();
 
     boolean r1 = envelope.intersects( 179.999995, envelope.centre().y),
             r2 = envelope.intersects(-179.999995, envelope.centre().y),
