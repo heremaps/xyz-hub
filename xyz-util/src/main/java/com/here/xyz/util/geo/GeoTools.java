@@ -213,18 +213,16 @@ public class GeoTools {
 
     Geometry degGeo = geometry.getJTSGeometry();
 
-    Envelope envelope;
     if (radius > 0) {
       MathTransform convertToMeter   = mathTransform("EPSG:4326", "EPSG:31300");
       MathTransform convertFromMeter = mathTransform("EPSG:31300", "EPSG:4326");
 
-      Geometry degEnvelope = JTS.toGeometry(degGeo.getEnvelopeInternal());
-      Geometry mtrGeo = JTS.transform(degEnvelope, convertToMeter);
+      Geometry mtrGeo = JTS.transform( degGeo, convertToMeter );
       mtrGeo = mtrGeo.buffer(radius);
-      envelope = JTS.transform(mtrGeo, convertFromMeter).getEnvelopeInternal();
+      degGeo = JTS.transform(mtrGeo, convertFromMeter);
     }
-    else
-      envelope = degGeo.getEnvelopeInternal();
+
+    Envelope envelope = degGeo.getEnvelopeInternal();
 
     boolean r1 = envelope.intersects( 179.999995, envelope.centre().y),
             r2 = envelope.intersects(-179.999995, envelope.centre().y),
