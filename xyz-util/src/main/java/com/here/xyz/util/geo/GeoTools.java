@@ -212,6 +212,7 @@ public class GeoTools {
   { 
 
     Geometry degGeo = geometry.getJTSGeometry();
+
     if (radius > 0) {
       MathTransform convertToMeter   = mathTransform("EPSG:4326", "EPSG:31300");
       MathTransform convertFromMeter = mathTransform("EPSG:31300", "EPSG:4326");
