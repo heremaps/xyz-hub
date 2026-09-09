@@ -310,7 +310,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   }
 
   private SQLQuery build1LevelBaseQuery(E event, SQLQuery filterWhereClause) {
-    SQLQuery versionCheck = getLevel1BaseVersion(event)
+    SQLQuery versionCheck = (is2LevelExtendedSpace(event) ? getIntermediateBaseVersion(event) : getBaseVersion(event))
             .map(version -> buildVersionCheckFragment(event, new Ref(version), 0))
             .orElse(buildBaseVersionCheckFragment("base1Version"));
 
@@ -324,7 +324,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   }
 
   private SQLQuery build2LevelBaseQuery(E event, SQLQuery filterWhereClause) {
-    SQLQuery versionCheckFragment = getLevel2BaseVersion(event)
+    SQLQuery versionCheckFragment = getBaseVersion(event)
             .map(version -> buildVersionCheckFragment(event, new Ref(version), 0))
             .orElse(buildBaseVersionCheckFragment("base2Version"));
 
