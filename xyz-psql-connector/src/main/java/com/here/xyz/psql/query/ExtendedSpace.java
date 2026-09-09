@@ -74,18 +74,16 @@ public abstract class ExtendedSpace<E extends Event, R extends XyzResponse> exte
     return null;
   }
 
-  protected static <E extends Event> Optional<Long> getLevel2BaseVersion(E event) {
-    if (is2LevelExtendedSpace(event)) {
+  static <E extends Event> Optional<Long> getBaseVersion(E event) {
+    if (isExtendedSpace(event)) {
       return getVersionFromExtendsMap((Map<String, Object>) event.getParams().get(EXTENDS));
     }
     return Optional.empty();
   }
 
-  protected static <E extends Event> Optional<Long> getLevel1BaseVersion(E event) {
+  static <E extends Event> Optional<Long> getIntermediateBaseVersion(E event) {
     if (is2LevelExtendedSpace(event)) {
       return getVersionFromExtendsMap((Map<String, Object>) ((Map)event.getParams().get(EXTENDS)).get(EXTENDS));
-    } else if (isExtendedSpace(event)) {
-      return getVersionFromExtendsMap((Map<String, Object>) event.getParams().get(EXTENDS));
     }
     return Optional.empty();
   }
