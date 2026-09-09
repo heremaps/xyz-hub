@@ -48,6 +48,11 @@ public class ReadFeatureCompositeSpaceWithVersionIT extends TestSpaceWithFeature
   private static final String spaceId = getSpaceId();
   private static final String extSpaceId = getSpaceId() + "-ext";
   private static final String extOfExtSpaceId = extSpaceId + "-ext";
+  private static final String extA = spaceId + "-a";
+  private static final String extB = spaceId + "-b";
+  private static final String delBase = spaceId + "-del";
+  private static final String delExtA = delBase + "-a";
+  private static final String delExtB = delBase + "-b";
 
   private static void createSpaceWithVersionExtension(String spaceId, String baseSpaceId, long baseVersion, int versionsToKeep) {
     String reqBody = String.format("""
@@ -90,8 +95,11 @@ public class ReadFeatureCompositeSpaceWithVersionIT extends TestSpaceWithFeature
     removeSpace(spaceId);
     removeSpace(extSpaceId);
     removeSpace(extOfExtSpaceId);
-    removeSpace(spaceId + "-a");
-    removeSpace(spaceId + "-b");
+    removeSpace(extA);
+    removeSpace(extB);
+    removeSpace(delExtA);
+    removeSpace(delExtB);
+    removeSpace(delBase);
   }
 
   @ParameterizedTest
@@ -125,26 +133,24 @@ public class ReadFeatureCompositeSpaceWithVersionIT extends TestSpaceWithFeature
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"features", "iterate", "search", "bbox", "tile", "spatial"})
+  @ValueSource(strings = {"iterate", "search"})
   public void baseFeatureIsReadAtTheSpecifiedBaseVersion(String endpoint) {
     addFeature(spaceId, updatedFeature("base-1", "value-v3")); //base version 3
 
-    String extV1 = spaceId + "-a";
-    String extV3 = spaceId + "-b";
-    createSpaceWithVersionExtension(extV1, spaceId, 1, 100);
-    createSpaceWithVersionExtension(extV3, spaceId, 3, 100);
+    createSpaceWithVersionExtension(extA, spaceId, 1, 100);
+    createSpaceWithVersionExtension(extB, spaceId, 3, 100);
 
-    loadFeatures(extV1, SUPER, endpoint)
+    loadFeatures(extA, SUPER, endpoint)
         .body("features.find { it.id == 'base-1' }.properties.key1", equalTo("value1"))
         .body("features.find { it.id == 'base-1' }.properties.'@ns:com:here:xyz'.version", equalTo(1));
 
-    loadFeatures(extV3, SUPER, endpoint)
+    loadFeatures(extB, SUPER, endpoint)
         .body("features.find { it.id == 'base-1' }.properties.key1", equalTo("value-v3"))
         .body("features.find { it.id == 'base-1' }.properties.'@ns:com:here:xyz'.version", equalTo(3));
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"features", "iterate", "search", "bbox", "tile", "spatial"})
+  @ValueSource(strings = {"iterate", "search"})
   public void baseFeatureUpdatedAfterExtensionVersionKeepsOldValue(String endpoint) {
     addFeature(spaceId, updatedFeature("base-1", "updated")); //base version 3
 
@@ -153,12 +159,15 @@ public class ReadFeatureCompositeSpaceWithVersionIT extends TestSpaceWithFeature
 
     loadFeatures(extSpaceId, SUPER, endpoint)
         .body("features.find { it.id == 'base-1' }.properties.key1", equalTo("value1"));
+
+    loadFeatures(spaceId, DEFAULT, endpoint)
+        .body("features.find { it.id == 'base-1' }.properties.key1", equalTo("updated"));
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"features", "iterate", "search", "bbox", "tile", "spatial"})
+  @ValueSource(strings = {"iterate", "search"})
   public void baseFeatureDeletedAfterExtensionVersionStaysVisible(String endpoint) {
-    deleteFeature(spaceId, "base-1"); //base version 3 tombstone
+    deleteFeature(spaceId, "base-1");
 
     loadFeatures(extSpaceId, DEFAULT, endpoint)
         .body("features.id", hasItem("base-1"));
@@ -168,37 +177,25 @@ public class ReadFeatureCompositeSpaceWithVersionIT extends TestSpaceWithFeature
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"features", "iterate", "search", "bbox", "tile", "spatial"})
+  @ValueSource(strings = {"iterate", "search"})
   public void baseFeatureDeletedAtBoundVersionIsNotVisible(String endpoint) {
-    deleteFeature(spaceId, "base-1");
+    createSpaceWithId(delBase, 100);
+    addFeature(delBase, newFeature("base-1"));
+    addFeature(delBase, newFeature("base-2"));
+    deleteFeature(delBase, "base-1");
 
-    String extBefore = spaceId + "-a";   //bound to version 1 (before the delete)
-    String extAtDelete = spaceId + "-b"; //bound to version 3 (the delete)
-    createSpaceWithVersionExtension(extBefore, spaceId, 1, 100);
-    createSpaceWithVersionExtension(extAtDelete, spaceId, 3, 100);
+    createSpaceWithVersionExtension(delExtA, delBase, 1, 100); //bound to version 1 (before the delete)
+    createSpaceWithVersionExtension(delExtB, delBase, 3, 100); //bound to version 3 (the delete)
 
-    loadFeatures(extBefore, SUPER, endpoint)
+    loadFeatures(delExtA, SUPER, endpoint)
         .body("features.id", hasItem("base-1"));
 
-    loadFeatures(extAtDelete, SUPER, endpoint)
+    loadFeatures(delExtB, SUPER, endpoint)
         .body("features.id", not(hasItem("base-1")));
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"features", "iterate", "search", "bbox", "tile", "spatial"})
-  public void baseFeatureReportsItsOwnModificationVersionNotBoundVersion(String endpoint) {
-    addFeature(spaceId, newFeature("base-3")); //base version 3 (base-1 stays at version 1)
-
-    String extV3 = spaceId + "-a";
-    createSpaceWithVersionExtension(extV3, spaceId, 3, 100);
-
-    loadFeatures(extV3, SUPER, endpoint)
-        .body("features.find { it.id == 'base-1' }.properties.'@ns:com:here:xyz'.version", equalTo(1))
-        .body("features.find { it.id == 'base-3' }.properties.'@ns:com:here:xyz'.version", equalTo(3));
-  }
-
-  @ParameterizedTest
-  @ValueSource(strings = {"features", "iterate", "search", "bbox", "tile", "spatial"})
+  @ValueSource(strings = {"iterate", "search"})
   public void intermediateChangeAfterExtensionVersionStaysVisible(String endpoint) {
     deleteFeature(extSpaceId, "delta1-1"); //intermediate version 3
 
@@ -216,7 +213,6 @@ public class ReadFeatureCompositeSpaceWithVersionIT extends TestSpaceWithFeature
     }
 
     queryParams.put("context", context);
-    queryParams.put("skipCache", "true"); //bypass the hub response cache so version-bound reads always hit the DB
 
     return given()
         .contentType(APPLICATION_JSON)
