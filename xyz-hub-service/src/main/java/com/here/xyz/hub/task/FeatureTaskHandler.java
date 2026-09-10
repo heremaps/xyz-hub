@@ -936,12 +936,22 @@ public class FeatureTaskHandler {
               if (connector.capabilities.binaryTiles && task.getEvent() instanceof GetFeaturesByTileEvent getTileEvent) {
                 getTileEvent.setResponseType(BINARY);
                 task.responseType = ApiResponseType.BINARY;
+                getTileEvent.setConnectorCacheVersion(getConnectorCacheVersion(connector));
               }
 
               return Future.succeededFuture(connector);
             },
             t -> Future.failedFuture(new InvalidStorageException("Unable to load the definition for this storage."))
         );
+  }
+
+  /**
+   * Returns the cache version which is configured for the specified connector, or <code>null</code> if none is configured.
+   * Incrementing that value in the connector's configuration invalidates all cache-keys of the events being handled by that connector.
+   */
+  private static String getConnectorCacheVersion(Connector connector) {
+    Object cacheVersion = connector.params == null ? null : connector.params.get("cacheVersion");
+    return cacheVersion == null ? null : String.valueOf(cacheVersion);
   }
 
   private static <X extends FeatureTask> Future<Void> resolveListenersAndProcessors(final X task) {

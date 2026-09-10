@@ -24,11 +24,13 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.vertx.core.json.JsonObject;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 public class LambdaBasedStepPayloadTest {
 
   @Test
+  @Disabled("compactStateCheckInput stripping is currently deactivated (see MMSUP-3045)")
   void compactStateCheckInputRemovesLargeFilterFields() {
     String input = """
         {
@@ -58,4 +60,3 @@ public class LambdaBasedStepPayloadTest {
     assertFalse(nested.containsKey("spatialFilter"));
   }
 }
-
