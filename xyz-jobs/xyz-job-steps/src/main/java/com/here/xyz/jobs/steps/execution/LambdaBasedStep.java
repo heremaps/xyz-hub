@@ -199,12 +199,16 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
           .description("Heartbeat trigger for Step " + getGlobalStepId())
           .build());
 
+      final String stepConfigJson = new LambdaStepRequest().withType(STATE_CHECK).withStep(this).serialize();
+      if (stepConfigJson.length() > 1024 * 1024)
+        logger.error("[{}] Step Config is too large (>1MB - most likely because of the geo filter). The creation of State Check trigger will fail.", getGlobalStepId());
+
       cloudwatchEventsClient().putTargets(PutTargetsRequest.builder()
           .rule(getStateCheckRuleName())
           .targets(Target.builder()
               .id(getGlobalStepId())
               .arn(ownLambdaArn.toString())
-              .input(compactStateCheckInput(new LambdaStepRequest().withType(STATE_CHECK).withStep(this).serialize()))
+              .input(compactStateCheckInput(stepConfigJson))
               .build())
           .build());
     }
@@ -219,9 +223,14 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   }
 
   static String compactStateCheckInput(String input) {
-    JsonObject payload = new JsonObject(input);
-    stripLargeFilters(payload);
-    return payload.encode();
+    /*
+    NOTE: This hack has been deactivated, because after the impl for dynamic scaling was added,
+    because the StepConfig for the creation of new queries is read from the EventRule . (See: MMSUP-3045)
+     */
+    return input;
+    //JsonObject payload = new JsonObject(input);
+    //stripLargeFilters(payload);
+    //return payload.encode();
   }
 
   private static void stripLargeFilters(Object node) {

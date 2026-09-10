@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -410,13 +410,22 @@ public abstract class Api extends com.here.xyz.util.service.rest.Api {
         if (!isGzipped(response))
           response = compress(response);
       }
-      else if (isGzipped(response)) {
-        try {
-          response = decompress(response);
+      else {
+        if (isGzipped(response)) {
+          try {
+            response = decompress(response);
+          }
+          catch (IOException e) {
+            throw new RuntimeException(e);
+          }
         }
-        catch (IOException e) {
-          throw new RuntimeException(e);
-        }
+        /*
+         * The response must not be compressed (e.g. blocked by the connector's blockMimetypeCompression, or the client did not
+         * accept gzip). Setting "Content-Encoding: identity" explicitly prevents the globally enabled Netty/Vert.x auto-compressor
+         * (HttpServerOptions.setCompressionSupported(true)) from gzipping the response again. In Netty's HttpContentCompressor,
+         * any present Content-Encoding header (including "identity") makes beginEncode() skip the compression.
+         */
+        httpResponse.putHeader(CONTENT_ENCODING, "identity");
       }
     }
     return response;

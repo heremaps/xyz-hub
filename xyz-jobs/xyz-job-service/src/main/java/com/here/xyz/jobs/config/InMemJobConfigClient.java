@@ -19,6 +19,7 @@
 
 package com.here.xyz.jobs.config;
 
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.RuntimeInfo;
 import com.here.xyz.jobs.RuntimeInfo.State;
@@ -184,8 +185,18 @@ public class InMemJobConfigClient extends JobConfigClient {
   }
 
   @Override
+  public Future<Job> hydrateJob(Map<String, Object> jobItem) {
+    return Future.succeededFuture(XyzSerializable.fromMap(jobItem, Job.class));
+  }
+
+  @Override
   public Future<Void> deleteJob(String jobId) {
     jobMap.remove(jobId);
+    return Future.succeededFuture();
+  }
+
+  @Override
+  public Future<Void> deleteStepConfigs(String jobId) {
     return Future.succeededFuture();
   }
 }

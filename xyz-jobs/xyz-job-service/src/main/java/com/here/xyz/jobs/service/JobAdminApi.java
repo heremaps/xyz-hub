@@ -42,6 +42,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.Job;
+import com.here.xyz.jobs.config.JobConfigClient;
 import com.here.xyz.jobs.RuntimeInfo;
 import com.here.xyz.jobs.RuntimeInfo.State;
 import com.here.xyz.jobs.steps.Step;
@@ -54,6 +55,7 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import java.util.List;
+import java.util.Map;
 import software.amazon.awssdk.services.emrserverless.model.GetJobRunRequest;
 import software.amazon.awssdk.services.emrserverless.model.JobRun;
 
@@ -102,8 +104,11 @@ public class JobAdminApi extends JobApiBase {
         .compose(job -> job == null ? Future.failedFuture(new HttpException(NOT_FOUND, "The requested job does not exist.")) : Future.succeededFuture(job));
   }
 
-  private void deleteJob(RoutingContext context) throws HttpException {
-    getJobFromBody(context).deleteJobResources()
+  private void deleteJob(RoutingContext context) {
+    Map<String, Object> jobItem = context.body().asJsonObject().getMap();
+    JobConfigClient configClient = JobConfigClient.getInstance();
+    configClient.hydrateJob(jobItem)
+        .compose(job -> job.deleteJobResources().compose(v -> configClient.deleteStepConfigs(job.getId())))
         .onSuccess(v -> sendResponse(context, NO_CONTENT.code(), null))
         .onFailure(t -> sendErrorResponse(context, t));
   }
@@ -454,10 +459,6 @@ public class JobAdminApi extends JobApiBase {
 
   private Step getStepFromBody(RoutingContext context) throws HttpException {
     return deserializeFromBody(context, Step.class);
-  }
-
-  private Job getJobFromBody(RoutingContext context) throws HttpException {
-    return deserializeFromBody(context, Job.class);
   }
 
   private SchedulerStatePatch getStateRequestFromBody(RoutingContext context) throws HttpException {

@@ -58,6 +58,7 @@ public class JobExecutorTests {
       new Config();
       Config.instance.PARALLEL_STEPS_SUPPORTED = true;
       Config.instance.JOBS_DYNAMODB_TABLE_ARN = "arn:aws:dynamodb:localhost:000000008000:table/xyz-jobs-local";
+      Config.instance.STEPS_DYNAMODB_TABLE_ARN = "arn:aws:dynamodb:localhost:000000008000:table/xyz-job-steps-local";
       Config.instance.LOCALSTACK_ENDPOINT = new URI("http://localhost:4566");
       Config.instance.JOBS_S3_BUCKET = "test-bucket";
       Config.instance.AWS_REGION = "us-east-1";

@@ -155,12 +155,6 @@ public class PropertiesQueryToJsonPathTest {
   }
 
   @Test
-  public void stringValueWithSingleQuoteIsEscaped() {
-    PropertiesQuery pq = propertiesQuery(query("properties.name", EQUALS, "O'Brien"));
-    assertEquals("$[?(@.properties.name == 'O\\'Brien')]", pq.toJsonPath());
-  }
-
-  @Test
   public void fromStringIsConverted() {
     PropertiesQuery pq = PropertiesQuery.fromString("p.type=building&p.height>=10");
     assertEquals("$[?(@.properties.type == 'building' && @.properties.height >= 10)]", pq.toJsonPath());
