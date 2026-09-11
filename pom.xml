@@ -74,6 +74,25 @@
     </repository>
   </distributionManagement>
 
+  <repositories>
+    <repository>
+      <!-- Override Maven's default id=central repository so that all dependencies are retrieved via internal HERE Artifactory. -->
+      <id>central</id>
+      <url>https://artifactory.in.here.com/artifactory/here-elm-maven-virtual-prd</url>
+      <snapshots><enabled>true</enabled></snapshots>
+      <releases><enabled>true</enabled></releases>
+    </repository>
+  </repositories>
+  <pluginRepositories>
+    <pluginRepository>
+      <!-- Override Maven's default id=central repository so that all plugin dependencies are retrieved via internal HERE Artifactory. -->
+      <id>central</id>
+      <url>https://artifactory.in.here.com/artifactory/here-elm-maven-virtual-prd</url>
+      <snapshots><enabled>true</enabled></snapshots>
+      <releases><enabled>true</enabled></releases>
+    </pluginRepository>
+  </pluginRepositories>
+
   <properties>
     <build.time>${maven.build.timestamp}</build.time>
     <maven.build.timestamp.format>yyyy.MM.dd-HH:mm</maven.build.timestamp.format>
