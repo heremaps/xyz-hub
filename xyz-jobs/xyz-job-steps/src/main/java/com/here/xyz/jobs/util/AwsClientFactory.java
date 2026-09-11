@@ -21,6 +21,7 @@ package com.here.xyz.jobs.util;
 
 import com.here.xyz.util.service.aws.AwsClientFactoryBase;
 import software.amazon.awssdk.services.cloudwatchevents.CloudWatchEventsClient;
+import software.amazon.awssdk.services.cloudwatchlogs.CloudWatchLogsClient;
 import software.amazon.awssdk.services.emrserverless.EmrServerlessClient;
 import software.amazon.awssdk.services.s3control.S3ControlClient;
 import software.amazon.awssdk.services.sfn.SfnAsyncClient;
@@ -30,6 +31,7 @@ public class AwsClientFactory extends AwsClientFactoryBase {
   private static SfnClient sfnClient;
   private static SfnAsyncClient asyncSfnClient;
   private static CloudWatchEventsClient cloudwatchEventsClient;
+  private static CloudWatchLogsClient cloudwatchLogsClient;
   private static EmrServerlessClient emrServerlessClient;
   private static S3ControlClient s3ControlClient;
 
@@ -49,6 +51,12 @@ public class AwsClientFactory extends AwsClientFactoryBase {
     if (cloudwatchEventsClient == null)
       cloudwatchEventsClient = prepareClient(CloudWatchEventsClient.builder()).build();
     return cloudwatchEventsClient;
+  }
+
+  public static CloudWatchLogsClient cloudwatchLogsClient() {
+    if (cloudwatchLogsClient == null)
+      cloudwatchLogsClient = prepareClient(CloudWatchLogsClient.builder()).build();
+    return cloudwatchLogsClient;
   }
 
   public static EmrServerlessClient emrServerlessClient() {
