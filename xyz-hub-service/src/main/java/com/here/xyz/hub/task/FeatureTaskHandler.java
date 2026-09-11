@@ -877,6 +877,14 @@ public class FeatureTaskHandler {
     task.getEvent().setSpace(space.getExtension().getSpaceId());
     //also overwrite the space context to be DEFAULT now ...
     ((ContextAwareEvent<?>) task.getEvent()).setContext(DEFAULT);
+
+    if (space.getExtension().getVersion() != null) {
+      //TODO: check what possible values are allowed for 'versionRef' with context=SUPER (e.g., single-version, range-version, tag)
+      // For now set the baseVersion as versionRef ignoring user provided value
+      ((ContextAwareEvent<?>) task.getEvent()).setRef(new Ref(space.getExtension().getVersion()));
+    }
+
+
     //... and resolve the extended (super) space instead
     return resolveSpace(task);
   }

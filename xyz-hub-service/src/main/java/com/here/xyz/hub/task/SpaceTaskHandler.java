@@ -19,12 +19,14 @@
 
 package com.here.xyz.hub.task;
 
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.hub.auth.XyzHubActionMatrix.ADMIN_SPACES;
 import static com.here.xyz.hub.auth.XyzHubActionMatrix.CREATE_FEATURES;
 import static com.here.xyz.hub.auth.XyzHubActionMatrix.DELETE_FEATURES;
 import static com.here.xyz.hub.auth.XyzHubActionMatrix.MANAGE_SPACES;
 import static com.here.xyz.hub.auth.XyzHubActionMatrix.READ_FEATURES;
 import static com.here.xyz.hub.auth.XyzHubActionMatrix.UPDATE_FEATURES;
+import static com.here.xyz.models.hub.Ref.HEAD;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
@@ -49,6 +51,7 @@ import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.connectors.models.Space.SpaceWithRights;
 import com.here.xyz.hub.rest.ApiResponseType;
+import com.here.xyz.hub.rest.FeatureQueryApi;
 import com.here.xyz.hub.rest.TagApi;
 import com.here.xyz.hub.task.FeatureTask.ModifySpaceQuery;
 import com.here.xyz.hub.task.ModifyOp.Entry;
@@ -61,6 +64,7 @@ import com.here.xyz.hub.task.TaskPipeline.C1;
 import com.here.xyz.hub.task.TaskPipeline.Callback;
 import com.here.xyz.hub.util.diff.Difference;
 import com.here.xyz.hub.util.diff.Patcher;
+import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space.ConnectorRef;
 import com.here.xyz.models.hub.Tag;
 import com.here.xyz.models.hub.jwt.ActionMatrix;
@@ -598,6 +602,13 @@ public class SpaceTaskHandler {
 
     //Load the space being extended
     Space.resolveSpace(task.getMarker(), space.getExtension().getSpaceId())
+      .compose(extendedSpace -> {
+        if (extendedSpace != null && space.getExtension().getVersion() != null) {
+          return validateExtensionVersion(task.getMarker(), extendedSpace.getId(), space.getExtension().getVersion())
+                  .map(v -> extendedSpace);
+        }
+        return Future.succeededFuture(extendedSpace);
+      })
       .onFailure(t -> onExtensionResolveError(task, t, callback))
       .onSuccess(extendedSpace -> {
         // check for existing space to be extended
@@ -663,10 +674,21 @@ public class SpaceTaskHandler {
       });
   }
 
+  private static Future<Void> validateExtensionVersion(Marker marker, String baseSpaceId, Long baseVersion) {
+    return FeatureQueryApi.getStatistics(marker, baseSpaceId, DEFAULT, new Ref(HEAD), true, false)
+          .compose(statistics -> {
+            if (baseVersion < statistics.getMinVersion().getValue() || baseVersion > statistics.getMaxVersion().getValue()) {
+              return Future.failedFuture(new HttpException(BAD_REQUEST, "The space cannot be created:  provided base space version " + baseVersion +
+                      " is not in the range of available versions [" + statistics.getMinVersion().getValue() + ", " + statistics.getMaxVersion().getValue() + "]"));
+            }
+            return Future.succeededFuture();
+          });
+  }
+
   private static void onExtensionResolveError(ConditionalOperation task, Throwable error, Callback<ConditionalOperation> callback) {
     String errMsg = "Error during resolving extensions.";
     logger.error(task.getMarker(), errMsg, error);
-    callback.exception(new HttpException(INTERNAL_SERVER_ERROR, errMsg, error));
+    callback.exception(error instanceof HttpException ? error : new HttpException(INTERNAL_SERVER_ERROR, errMsg, error));
   }
 
   static void sendEvents(ConditionalOperation task, Callback<ConditionalOperation> callback) {
