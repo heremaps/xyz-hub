@@ -114,6 +114,19 @@ public class StepConfigClient {
   }
 
   /**
+   * Loads a single step config directly by its composite key ({@code jobId} + {@code id}) via a {@code getItem},
+   * without loading the owning job or re-hydrating its whole step graph.
+   *
+   * @param jobId  the owning job id
+   * @param stepId the step id
+   * @return the step config, or {@code null} if no such step exists
+   */
+  public StepConfig loadStep(String jobId, String stepId) {
+    Item item = stepTable.getItem("jobId", jobId, "id", stepId);
+    return item == null ? null : XyzSerializable.fromMap(item.asMap(), StepConfig.class);
+  }
+
+  /**
    * Deletes all step configs of the given job (queries the step table by {@code jobId}, then batch-deletes).
    *
    * @param jobId the job whose steps to delete
