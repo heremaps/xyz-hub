@@ -20,6 +20,8 @@
 package com.here.xyz.jobs.steps.impl.transport;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
 import static com.here.xyz.events.UpdateStrategy.DEFAULT_UPDATE_STRATEGY;
 import static com.here.xyz.jobs.steps.Step.Visibility.USER;
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.JOB_EXECUTOR;
@@ -32,6 +34,7 @@ import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonView;
+import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.UpdateStrategy;
 import com.here.xyz.jobs.steps.S3DataFile;
 import com.here.xyz.jobs.steps.execution.StepException;
@@ -50,6 +53,8 @@ import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.jobs.util.S3Client;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.responses.StatisticsResponse;
+import com.here.xyz.util.db.ConnectorParameters;
+import com.here.xyz.util.db.ConnectorParameters.TableLayout;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
@@ -68,6 +73,8 @@ import java.util.Optional;
 public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportFilesToSpace, ImportInput, ImportOutput> {
   private static final long MAX_INPUT_BYTES_FOR_KEEP_INDICES = 1l * 1024 * 1024 * 1024;
   private static final int MIN_FEATURE_COUNT_IN_TARGET_TABLE_FOR_KEEP_INDICES = 5_000_000;
+  private static final boolean EXPRESS_IMPORT_ENABLED =
+      !"false".equalsIgnoreCase(System.getenv("EXPRESS_IMPORT_ENABLED"));
 
   public static final String STATISTICS = "statistics";
 
@@ -110,6 +117,9 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
 
   @JsonView({Internal.class, Static.class})
   private double featureWriterBatchSizeInMb = 37;
+
+  @JsonView({Internal.class, Static.class})
+  private Boolean expressImport;
 
   //Compilers can decide max allowed import size. Set default to 200G for normal use-case
   @JsonIgnore
@@ -207,6 +217,14 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
     return this;
   }
 
+  public Boolean getExpressImport() {
+    return expressImport;
+  }
+
+  public void setExpressImport(Boolean expressImport) {
+    this.expressImport = expressImport;
+  }
+
   @Override
   protected boolean queryRunsOnWriter(){
     return true;
@@ -214,13 +232,6 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
 
   @Override
   protected void initialSetup(boolean resume) throws SQLException, TooManyResourcesClaimed, WebClientException {
-
-    if(useFeatureWriter()){
-      infoLog(STEP_EXECUTE,  "initialSetup - Using FeatureWriter for import!");
-      //Pre-create two spare history partitions to avoid concurrency issue with hub requests. (also for resumes)
-      createSpareHistoryPartitions(targetVersion);
-    }
-
     if(resume){
       //If we are not using the featureWriter, we are disabling the space before we start the import.
       //In case of a resume the space is still inactive - so nobody is able to write in between => we are done here.
@@ -247,6 +258,13 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
       targetVersion = getOrIncreaseVersionSequence();
     }
 
+    if(useFeatureWriter()){
+      infoLog(STEP_EXECUTE, "initialSetup - Using "
+          + (useExpressImport() ? "express writer" : "FeatureWriter") + " for import!");
+      //Pre-create two spare history partitions to avoid concurrency issue with hub requests. (also for resumes)
+      createSpareHistoryPartitions(targetVersion);
+    }
+
     if(!useFeatureWriter() && !format.equals(FAST_IMPORT_INTO_EMPTY)) {
       infoLog(STEP_EXECUTE,  "initialSetup(" + resume + ") - Import into empty layer detected! Create Trigger.");
       //import into an empty, non-composite, layer - targetVersion got persisted in trigger
@@ -259,7 +277,8 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
     long currentPartitionNo = Math.floorDiv(version, XyzSpaceTableHelper.PARTITION_SIZE);
 
     String schema = getSchema(db());
-    String rootTable = getRootTableName(space());
+    Space targetSpace = useExpressImport() && getContext() == SUPER && superSpace() != null ? superSpace() : space();
+    String rootTable = getRootTableName(targetSpace);
 
     runBatchWriteQuerySync(SQLQuery.batchOf(
         XyzSpaceTableHelper.buildCreateHistoryPartitionQuery(schema, rootTable, currentPartitionNo, true),
@@ -445,6 +464,18 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
     if(targetVersion < 0)
       throw new StepException("Invalid targetVersion: " + targetVersion + "!");
 
+    if (useExpressImport())
+      return getQueryBuilder().buildExpressImportFromTmpTableTaskQuery(
+              taskId,
+              rangeStart,
+              expressTargetSpace().getOwner(),
+              targetVersion,
+              expressTargetSpace().getVersionsToKeep() > 1,
+              new LambdaStepRequest().withStep(this).serialize(),
+              getwOwnLambdaArn().toString(),
+              getwOwnLambdaArn().getRegion(),
+              failureCallback);
+
     return getQueryBuilder().buildImportFromTmpTableTaskQuery(
             taskId,
             rangeStart,
@@ -517,7 +548,8 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
   }
 
   private long increaseVersionSequence() throws SQLException, TooManyResourcesClaimed, WebClientException {
-    return runReadQuerySync(getQueryBuilder().buildNextVersionQuery(), db(), 0, rs -> {
+    Space versionSpace = useExpressImport() ? expressTargetSpace() : space();
+    return runReadQuerySync(getQueryBuilder().buildNextVersionQuery(getRootTableName(versionSpace)), db(), 0, rs -> {
       rs.next();
       return rs.getLong(1);
     });
@@ -533,13 +565,47 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
   }
 
   private long loadSpaceMaxVersion() throws WebClientException {
-    StatisticsResponse statistics = loadSpaceStatistics(getSpaceId(), EXTENSION, true);
+    Space targetSpace = useExpressImport() ? expressTargetSpace() : space();
+    StatisticsResponse statistics = loadSpaceStatistics(targetSpace.getId(), EXTENSION, true);
     return statistics.getMaxVersion() != null && statistics.getMaxVersion().getValue() != null
             ? statistics.getMaxVersion().getValue() : -1;
   }
 
   public boolean useFeatureWriter() throws WebClientException {
     return loadTargetSpaceFeatureCount() > 0 || space().getExtension() != null;
+  }
+
+  public boolean useExpressImport() throws WebClientException {
+    if (expressImport == null) {
+      TableLayout tableLayout = ConnectorParameters.fromMap(loadConnector(expressTargetSpace()).params).getTableLayout();
+      expressImport = EXPRESS_IMPORT_ENABLED && supportsExpressImport(
+          useFeatureWriter(), entityPerLine, updateStrategy, tableLayout, getContext(), space().getExtension() != null);
+    }
+    return expressImport;
+  }
+
+  static boolean supportsExpressImport(boolean stagedImport, EntityPerLine entityPerLine,
+                                       UpdateStrategy updateStrategy, TableLayout tableLayout,
+                                       ContextAwareEvent.SpaceContext context, boolean composite) {
+    ContextAwareEvent.SpaceContext effectiveContext = context == null ? DEFAULT : context;
+    return stagedImport
+        && entityPerLine == EntityPerLine.Feature
+        && isDefaultUpdateStrategy(updateStrategy)
+        && (!composite || effectiveContext == DEFAULT || effectiveContext == EXTENSION || effectiveContext == SUPER)
+        && (composite || effectiveContext == DEFAULT || effectiveContext == EXTENSION)
+        && (tableLayout == null || tableLayout == TableLayout.OLD_LAYOUT);
+  }
+
+  private Space expressTargetSpace() throws WebClientException {
+    return getContext() == SUPER && superSpace() != null ? superSpace() : space();
+  }
+
+  static boolean isDefaultUpdateStrategy(UpdateStrategy updateStrategy) {
+    return updateStrategy != null
+        && updateStrategy.onExists() == DEFAULT_UPDATE_STRATEGY.onExists()
+        && updateStrategy.onNotExists() == DEFAULT_UPDATE_STRATEGY.onNotExists()
+        && updateStrategy.onVersionConflict() == null
+        && updateStrategy.onMergeConflict() == null;
   }
 
   private long loadTargetSpaceFeatureCount() {
