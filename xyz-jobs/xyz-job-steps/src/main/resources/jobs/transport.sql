@@ -1083,7 +1083,7 @@ BEGIN
     END IF;
 
     space_context := COALESCE(UPPER(space_context), 'DEFAULT');
-    IF space_context NOT IN ('DEFAULT', 'EXTENSION', 'SUPER') THEN
+    IF space_context NOT IN ('DEFAULT', 'EXTENSION') THEN
         RAISE EXCEPTION 'Unsupported space context: %', space_context
             USING ERRCODE = 'XYZ40';
     END IF;

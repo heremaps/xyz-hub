@@ -277,8 +277,7 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
     long currentPartitionNo = Math.floorDiv(version, XyzSpaceTableHelper.PARTITION_SIZE);
 
     String schema = getSchema(db());
-    Space targetSpace = useExpressImport() && getContext() == SUPER && superSpace() != null ? superSpace() : space();
-    String rootTable = getRootTableName(targetSpace);
+    String rootTable = getRootTableName(space());
 
     runBatchWriteQuerySync(SQLQuery.batchOf(
         XyzSpaceTableHelper.buildCreateHistoryPartitionQuery(schema, rootTable, currentPartitionNo, true),
@@ -369,6 +368,9 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
 
   @Override
   public boolean validate() throws ValidationException {
+    if (getContext() == SUPER)
+      throw new ValidationException("Importing data with context SUPER is not supported.");
+
     super.validate();
     try {
       infoLog(JOB_VALIDATE);
@@ -468,9 +470,9 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
       return getQueryBuilder().buildExpressImportFromTmpTableTaskQuery(
               taskId,
               rangeStart,
-              expressTargetSpace().getOwner(),
+              space().getOwner(),
               targetVersion,
-              expressTargetSpace().getVersionsToKeep() > 1,
+              space().getVersionsToKeep() > 1,
               new LambdaStepRequest().withStep(this).serialize(),
               getwOwnLambdaArn().toString(),
               getwOwnLambdaArn().getRegion(),
@@ -548,8 +550,7 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
   }
 
   private long increaseVersionSequence() throws SQLException, TooManyResourcesClaimed, WebClientException {
-    Space versionSpace = useExpressImport() ? expressTargetSpace() : space();
-    return runReadQuerySync(getQueryBuilder().buildNextVersionQuery(getRootTableName(versionSpace)), db(), 0, rs -> {
+    return runReadQuerySync(getQueryBuilder().buildNextVersionQuery(getRootTableName(space())), db(), 0, rs -> {
       rs.next();
       return rs.getLong(1);
     });
@@ -565,8 +566,7 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
   }
 
   private long loadSpaceMaxVersion() throws WebClientException {
-    Space targetSpace = useExpressImport() ? expressTargetSpace() : space();
-    StatisticsResponse statistics = loadSpaceStatistics(targetSpace.getId(), EXTENSION, true);
+    StatisticsResponse statistics = loadSpaceStatistics(getSpaceId(), EXTENSION, true);
     return statistics.getMaxVersion() != null && statistics.getMaxVersion().getValue() != null
             ? statistics.getMaxVersion().getValue() : -1;
   }
@@ -576,29 +576,28 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
   }
 
   public boolean useExpressImport() throws WebClientException {
+    if (getContext() == SUPER)
+      throw new StepException("Importing data with context SUPER is not supported.");
+
     if (expressImport == null) {
-      TableLayout tableLayout = ConnectorParameters.fromMap(loadConnector(expressTargetSpace()).params).getTableLayout();
+      TableLayout tableLayout = ConnectorParameters.fromMap(loadConnector(space()).params).getTableLayout();
       expressImport = EXPRESS_IMPORT_ENABLED && supportsExpressImport(
-          useFeatureWriter(), entityPerLine, updateStrategy, tableLayout, getContext(), space().getExtension() != null);
+          useFeatureWriter(), entityPerLine, updateStrategy, tableLayout, getContext());
     }
     return expressImport;
   }
 
   static boolean supportsExpressImport(boolean stagedImport, EntityPerLine entityPerLine,
                                        UpdateStrategy updateStrategy, TableLayout tableLayout,
-                                       ContextAwareEvent.SpaceContext context, boolean composite) {
+                                       ContextAwareEvent.SpaceContext context) {
     ContextAwareEvent.SpaceContext effectiveContext = context == null ? DEFAULT : context;
     return stagedImport
         && entityPerLine == EntityPerLine.Feature
         && isDefaultUpdateStrategy(updateStrategy)
-        && (!composite || effectiveContext == DEFAULT || effectiveContext == EXTENSION || effectiveContext == SUPER)
-        && (composite || effectiveContext == DEFAULT || effectiveContext == EXTENSION)
+        && (effectiveContext == DEFAULT || effectiveContext == EXTENSION)
         && (tableLayout == null || tableLayout == TableLayout.OLD_LAYOUT);
   }
 
-  private Space expressTargetSpace() throws WebClientException {
-    return getContext() == SUPER && superSpace() != null ? superSpace() : space();
-  }
 
   static boolean isDefaultUpdateStrategy(UpdateStrategy updateStrategy) {
     return updateStrategy != null
