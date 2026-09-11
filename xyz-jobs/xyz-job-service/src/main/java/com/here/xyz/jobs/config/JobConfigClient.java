@@ -147,6 +147,15 @@ public abstract class JobConfigClient implements Initializable {
    */
   public abstract Future<Void> updateStep(Job job, Step<?> newStep);
 
+  /**
+   * Loads a single step of a job directly by {@code jobId} + {@code stepId}
+   *
+   * @param jobId  the owning job id
+   * @param stepId the step id
+   * @return the step, or {@code null} if no such step exists
+   */
+  public abstract Future<Step> loadStep(String jobId, String stepId);
+
   public abstract Future<Void> deleteJob(String jobId);
 
   /**

@@ -423,6 +423,17 @@ public class DynamoJobConfigClient extends JobConfigClient {
     });
   }
 
+  /**
+   * Loads a single step directly from the step-config table by {@code jobId} + {@code stepId} (a single {@code getItem}).
+   */
+  @Override
+  public Future<Step> loadStep(String jobId, String stepId) {
+    return dynamoClient.executeQueryAsync(() -> {
+      StepConfigClient.StepConfig stepConfig = stepConfigClient.loadStep(jobId, stepId);
+      return stepConfig == null ? null : XyzSerializable.fromMap(stepConfig.getStep(), Step.class);
+    });
+  }
+
   private Item convertJobToItem(Job job) {
     Map<String, Object> jobItemData = job.toMap(Static.class);
     jobItemData.put("keepUntil", job.getKeepUntil() / 1000);
