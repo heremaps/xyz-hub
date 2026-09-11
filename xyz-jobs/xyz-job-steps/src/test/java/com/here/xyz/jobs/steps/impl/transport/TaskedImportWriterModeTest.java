@@ -20,6 +20,7 @@ package com.here.xyz.jobs.steps.impl.transport;
 
 import static com.here.xyz.events.UpdateStrategy.DEFAULT_UPDATE_STRATEGY;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.X;
 import static com.here.xyz.events.UpdateStrategy.OnExists.RETAIN;
@@ -28,12 +29,31 @@ import static com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace.En
 import static com.here.xyz.util.db.ConnectorParameters.TableLayout.NEW_LAYOUT;
 import static com.here.xyz.util.db.ConnectorParameters.TableLayout.OLD_LAYOUT;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.here.xyz.events.UpdateStrategy;
+import com.here.xyz.jobs.steps.Config;
+import com.here.xyz.jobs.steps.execution.StepException;
+import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class TaskedImportWriterModeTest {
+  private Config previousConfig;
+
+  @BeforeEach
+  void setUp() {
+    previousConfig = Config.instance;
+    Config.instance = new Config();
+  }
+
+  @AfterEach
+  void tearDown() {
+    Config.instance = previousConfig;
+  }
 
   @Test
   void recognizesDefaultUpdateStrategyByValue() {
@@ -63,19 +83,42 @@ class TaskedImportWriterModeTest {
   @Test
   void enablesExpressImportOnlyForSupportedStagedImports() {
     assertTrue(TaskedImportFilesToSpace.supportsExpressImport(
-        true, Feature, DEFAULT_UPDATE_STRATEGY, OLD_LAYOUT, DEFAULT, false));
+        true, Feature, DEFAULT_UPDATE_STRATEGY, OLD_LAYOUT, DEFAULT));
     assertTrue(TaskedImportFilesToSpace.supportsExpressImport(
-        true, Feature, DEFAULT_UPDATE_STRATEGY, null, SUPER, true));
+        true, Feature, DEFAULT_UPDATE_STRATEGY, null, EXTENSION));
+    assertTrue(TaskedImportFilesToSpace.supportsExpressImport(
+        true, Feature, DEFAULT_UPDATE_STRATEGY, OLD_LAYOUT, null));
 
     assertFalse(TaskedImportFilesToSpace.supportsExpressImport(
-        false, Feature, DEFAULT_UPDATE_STRATEGY, OLD_LAYOUT, DEFAULT, false));
+        false, Feature, DEFAULT_UPDATE_STRATEGY, OLD_LAYOUT, DEFAULT));
     assertFalse(TaskedImportFilesToSpace.supportsExpressImport(
-        true, FeatureCollection, DEFAULT_UPDATE_STRATEGY, OLD_LAYOUT, DEFAULT, false));
+        true, FeatureCollection, DEFAULT_UPDATE_STRATEGY, OLD_LAYOUT, DEFAULT));
     assertFalse(TaskedImportFilesToSpace.supportsExpressImport(
-        true, Feature, DEFAULT_UPDATE_STRATEGY, NEW_LAYOUT, DEFAULT, false));
+        true, Feature, DEFAULT_UPDATE_STRATEGY, NEW_LAYOUT, DEFAULT));
     assertFalse(TaskedImportFilesToSpace.supportsExpressImport(
-        true, Feature, DEFAULT_UPDATE_STRATEGY, OLD_LAYOUT, X, true));
+        true, Feature, DEFAULT_UPDATE_STRATEGY, OLD_LAYOUT, X));
     assertFalse(TaskedImportFilesToSpace.supportsExpressImport(
-        true, Feature, DEFAULT_UPDATE_STRATEGY, OLD_LAYOUT, SUPER, false));
+        true, Feature, DEFAULT_UPDATE_STRATEGY, OLD_LAYOUT, SUPER));
+  }
+
+  @Test
+  void rejectsSuperContextDuringValidationRegardlessOfWriterMode() {
+    for (Boolean expressImport : new Boolean[] {null, false, true}) {
+      TaskedImportFilesToSpace step = new TaskedImportFilesToSpace().withContext(SUPER);
+      step.setExpressImport(expressImport);
+
+      ValidationException exception = assertThrows(ValidationException.class, step::validate);
+      assertEquals("Importing data with context SUPER is not supported.", exception.getMessage());
+    }
+  }
+
+  @Test
+  void rejectsSuperContextEvenWithPersistedWriterMode() {
+    for (Boolean expressImport : new Boolean[] {null, false, true}) {
+      TaskedImportFilesToSpace step = new TaskedImportFilesToSpace().withContext(SUPER);
+      step.setExpressImport(expressImport);
+
+      assertThrows(StepException.class, step::useExpressImport);
+    }
   }
 }

@@ -165,7 +165,8 @@ public class ImportQueryBuilder extends DatabaseStepQueryBuilder {
                                                           String serializedImportStep, String lambdaArn,
                                                           String ownLambdaRegion, String failureCallback) {
     ContextAwareEvent.SpaceContext effectiveContext = context == null ? DEFAULT : context;
-    String targetTable = effectiveContext == SUPER && superRootTable != null ? superRootTable : rootTable;
+    if (effectiveContext == SUPER)
+      throw new IllegalArgumentException("Importing data with context SUPER is not supported.");
     String visibleSuperTable = effectiveContext == DEFAULT ? superRootTable : null;
 
     return new SQLQuery(
@@ -177,7 +178,7 @@ public class ImportQueryBuilder extends DatabaseStepQueryBuilder {
             .withAsync(true)
             .withNamedParameter("taskId", taskId)
             .withNamedParameter("sourceTable", getTemporaryDataTableName(taskId))
-            .withNamedParameter("targetTable", schema + ".\"" + targetTable + "\"")
+            .withNamedParameter("targetTable", schema + ".\"" + rootTable + "\"")
             .withNamedParameter("superTable",
                     visibleSuperTable == null ? null : schema + ".\"" + visibleSuperTable + "\"")
             .withNamedParameter("spaceContext", effectiveContext.name())

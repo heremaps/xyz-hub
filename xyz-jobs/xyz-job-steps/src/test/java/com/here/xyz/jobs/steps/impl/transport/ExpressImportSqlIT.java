@@ -20,12 +20,14 @@ package com.here.xyz.jobs.steps.impl.transport;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.InputStream;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Statement;
 import org.junit.jupiter.api.Test;
 
@@ -66,6 +68,19 @@ class ExpressImportSqlIT {
               ('{"type":"Feature","id":"new","properties":{"name":"first"}}'),
               ('{"type":"Feature","id":"new","properties":{"name":"last"}}');
           """);
+
+      for (boolean historyEnabled : new boolean[] {false, true}) {
+        SQLException exception = assertThrows(SQLException.class, () -> statement.executeQuery("""
+            SELECT * FROM execute_express_import_batch(
+                'source_features', 'target_features', NULL, 'super', 1, 1, 'owner', 2, %s)
+            """.formatted(historyEnabled)));
+        assertEquals("XYZ40", exception.getSQLState());
+        assertTrue(exception.getMessage().contains("Unsupported space context: SUPER"));
+      }
+      try (ResultSet result = statement.executeQuery("SELECT count(*) FROM target_features WHERE version = 2")) {
+        assertTrue(result.next());
+        assertEquals(0, result.getInt(1));
+      }
 
       try (ResultSet result = statement.executeQuery("""
           SELECT * FROM execute_express_import_batch(

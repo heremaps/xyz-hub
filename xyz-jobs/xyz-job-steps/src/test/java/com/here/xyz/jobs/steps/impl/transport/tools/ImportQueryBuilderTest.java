@@ -19,10 +19,15 @@
 package com.here.xyz.jobs.steps.impl.transport.tools;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.here.xyz.models.hub.Space;
+import com.here.xyz.util.db.SQLQuery;
 import org.junit.jupiter.api.Test;
 
 class ImportQueryBuilderTest {
@@ -39,18 +44,18 @@ class ImportQueryBuilderTest {
         37
     );
 
-    String sql = queryBuilder.buildExpressImportFromTmpTableTaskQuery(
+    SQLQuery query = queryBuilder.buildExpressImportFromTmpTableTaskQuery(
         1, 1, "owner", 2, true, "{}", "lambda", "region", "PERFORM 1;"
-    ).substitute().text();
+    );
 
-    assertTrue(sql.contains("perform_express_import_from_tmp_table_task"));
-    assertTrue(sql.contains("'xyz.\"extension_table\"'"));
-    assertTrue(sql.contains("'xyz.\"super_table\"'"));
-    assertTrue(sql.contains("'DEFAULT'"));
+    assertEquals("xyz.\"extension_table\"", query.getNamedParameters().get("targetTable"));
+    assertEquals("xyz.\"super_table\"", query.getNamedParameters().get("superTable"));
+    assertEquals("DEFAULT", query.getNamedParameters().get("spaceContext"));
+    assertTrue(query.substitute().text().contains("perform_express_import_from_tmp_table_task"));
   }
 
   @Test
-  void targetsSuperTableForSuperContext() {
+  void rejectsSuperContext() {
     ImportQueryBuilder queryBuilder = new ImportQueryBuilder(
         new Space().withVersionsToKeep(10),
         SUPER,
@@ -61,19 +66,15 @@ class ImportQueryBuilderTest {
         37
     );
 
-    String sql = queryBuilder.buildExpressImportFromTmpTableTaskQuery(
-        1, 1, "owner", 2, true, "{}", "lambda", "region", "PERFORM 1;"
-    ).substitute().text();
-
-    assertTrue(sql.contains("'xyz.\"super_table\"'"));
-    assertTrue(sql.contains("'SUPER'"));
+    assertThrows(IllegalArgumentException.class, () -> queryBuilder.buildExpressImportFromTmpTableTaskQuery(
+        1, 1, "owner", 2, true, "{}", "lambda", "region", "PERFORM 1;"));
   }
 
   @Test
-  void allocatesVersionsFromExplicitTargetTable() {
+  void targetsExtensionTableForExtensionContext() {
     ImportQueryBuilder queryBuilder = new ImportQueryBuilder(
         new Space().withVersionsToKeep(10),
-        SUPER,
+        EXTENSION,
         "step",
         "xyz",
         "extension_table",
@@ -81,7 +82,14 @@ class ImportQueryBuilderTest {
         37
     );
 
-    assertTrue(queryBuilder.buildNextVersionQuery("super_table")
-        .substitute().text().contains("\"super_table_version_seq\""));
+    SQLQuery query = queryBuilder.buildExpressImportFromTmpTableTaskQuery(
+        1, 1, "owner", 2, true, "{}", "lambda", "region", "PERFORM 1;"
+    );
+
+    assertEquals("xyz.\"extension_table\"", query.getNamedParameters().get("targetTable"));
+    assertNull(query.getNamedParameters().get("superTable"));
+    assertEquals("EXTENSION", query.getNamedParameters().get("spaceContext"));
+    assertTrue(queryBuilder.buildNextVersionQuery("extension_table")
+        .substitute().text().contains("\"extension_table_version_seq\""));
   }
 }
