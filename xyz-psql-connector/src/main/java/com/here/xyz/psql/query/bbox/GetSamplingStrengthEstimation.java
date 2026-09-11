@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -66,7 +66,7 @@ public class GetSamplingStrengthEstimation<E extends GetFeaturesByBBoxEvent> ext
      + " ) "
      + " SELECT max(estim)::INTEGER AS rcount, max(rtup) AS rtuples FROM iiidata ";
   private String rTuples;
-  private String spaceId;
+  private String tableCacheKey;
 
   private static class TupleTime {
     private static Map<String, String> rTuplesMap = new ConcurrentHashMap<>();
@@ -85,8 +85,8 @@ public class GetSamplingStrengthEstimation<E extends GetFeaturesByBBoxEvent> ext
   protected SQLQuery buildQuery(E event) throws SQLException, ErrorResponseException {
     if (tTime.expired())
       tTime = new TupleTime();
-    rTuples = TupleTime.rTuplesMap.get(event.getSpace()); //TODO: Check semantics of that tuples cache
-    spaceId = event.getSpace();
+    tableCacheKey = getSchema() + "." + getDefaultTable(event);
+    rTuples = TupleTime.rTuplesMap.get(tableCacheKey);
 
     return buildEstimateSamplingStrengthQuery(event, event.getBbox(), rTuples);
   }
@@ -98,7 +98,7 @@ public class GetSamplingStrengthEstimation<E extends GetFeaturesByBBoxEvent> ext
       result.rCount = rs.getInt("rcount");
       if (rTuples == null) {
         rTuples = rs.getString("rtuples");
-        TupleTime.rTuplesMap.put(spaceId, rTuples);
+        TupleTime.rTuplesMap.put(tableCacheKey, rTuples);
       }
       result.rTuples = rTuples;
       return result;

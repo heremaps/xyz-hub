@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,8 @@
  */
 
 package com.here.xyz.psql.query;
+
+import static com.here.xyz.models.hub.Space.TABLE_NAME;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.Event;
@@ -44,7 +46,7 @@ public abstract class ExtendedSpace<E extends Event, R extends XyzResponse> exte
 
   private static <E extends Event> String getFirstLevelExtendedTable(E event) {
     if (isExtendedSpace(event))
-      return XyzEventBasedQueryRunner.getTableNameForSpaceId(event, (String) ((Map<String, Object>) event.getParams().get(EXTENDS)).get(SPACE_ID));
+      return resolveExtendedTable(event, (Map<String, Object>) event.getParams().get(EXTENDS));
     return null;
   }
 
@@ -52,9 +54,24 @@ public abstract class ExtendedSpace<E extends Event, R extends XyzResponse> exte
     if (is2LevelExtendedSpace(event)) {
       Map<String, Object> extSpec = (Map<String, Object>) event.getParams().get(EXTENDS);
       Map<String, Object> baseExtSpec = (Map<String, Object>) extSpec.get(EXTENDS);
-      return XyzEventBasedQueryRunner.getTableNameForSpaceId(event, (String) baseExtSpec.get(SPACE_ID));
+      return resolveExtendedTable(event, baseExtSpec);
     }
     return null;
+  }
+
+  /**
+   * Resolves the physical table name of an extended space.
+   *
+   * @param event The event that is being processed
+   * @param extensionSpec The extension-spec that describes the extended space
+   * @return The physical table name of the extended space
+   */
+  private static <E extends Event> String resolveExtendedTable(E event, Map<String, Object> extensionSpec) {
+    if (extensionSpec == null)
+      return null;
+    if (extensionSpec.get(TABLE_NAME) instanceof String tableName && !tableName.isEmpty())
+      return tableName;
+    return XyzEventBasedQueryRunner.getTableNameForSpaceId(event, (String) extensionSpec.get(SPACE_ID));
   }
 
   public static <E extends Event> String getExtendedTable(E event) {

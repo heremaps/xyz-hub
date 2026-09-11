@@ -520,7 +520,7 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
       throws WebClientException {
 
     return new GetFeaturesByGeometryInput(space.getId(), hubWebClient().loadConnector(space.getStorage().getId()).params,
-        space().getExtension() != null ? space().resolveCompositeParams(superSpace()) : null, targetContext, space.getVersionsToKeep(), minSpaceVersion,
+        resolveSpaceParams(space), targetContext, space.getVersionsToKeep(), minSpaceVersion,
         versionRef, spatialFilter != null ? spatialFilter.getGeometry() : null, spatialFilter != null ? spatialFilter.getRadius() : 0,
         spatialFilter != null && spatialFilter.isClip(), propertyFilter);
   }
@@ -619,7 +619,7 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
     return new IterateChangesetsInput(
         space.getId(),
         hubWebClient().loadConnector(space.getStorage().getId()).params,
-        space().getExtension() != null ? space().resolveCompositeParams(superSpace()) : null,
+        resolveSpaceParams(space),
         targetContext,
         space.getVersionsToKeep(),
         minSpaceVersion,

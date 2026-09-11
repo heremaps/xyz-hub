@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -226,7 +226,8 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
                   "  ON CONFLICT (id,schem)" +
                   "  DO " +
                   "  UPDATE" +
-                  "     SET meta = COALESCE(s_m.meta - 'extends','{}'::jsonb ,'{}'::jsonb) || (#{extend})::jsonb" +
+                  "     SET h_id = EXCLUDED.h_id," +
+                  "         meta = COALESCE(s_m.meta - 'extends','{}'::jsonb ,'{}'::jsonb) || (#{extend})::jsonb" +
                   "  WHERE 1=1" +
                   "     AND s_m.id = #{spaceid}" +
                   "     AND s_m.schem = #{schema};");

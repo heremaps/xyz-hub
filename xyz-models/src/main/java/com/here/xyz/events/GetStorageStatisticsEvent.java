@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,10 +20,12 @@
 package com.here.xyz.events;
 
 import java.util.List;
+import java.util.Map;
 
 public class GetStorageStatisticsEvent extends Event<GetStorageStatisticsEvent> {
 
   private List<String> spaceIds;
+  private Map<String, String> spaceIdToTableName;
 
   public List<String> getSpaceIds() {
     return spaceIds;
@@ -38,4 +40,20 @@ public class GetStorageStatisticsEvent extends Event<GetStorageStatisticsEvent> 
     return this;
   }
 
+  /**
+   * The physical table names of the requested spaces, keyed by their space ID.
+   * @return The physical table names, keyed by space ID
+   */
+  public Map<String, String> getSpaceIdToTableName() {
+    return spaceIdToTableName;
+  }
+
+  public void setSpaceIdToTableName(Map<String, String> spaceIdToTableName) {
+    this.spaceIdToTableName = spaceIdToTableName;
+  }
+
+  public GetStorageStatisticsEvent withSpaceIdToTableName(Map<String, String> spaceIdToTableName) {
+    setSpaceIdToTableName(spaceIdToTableName);
+    return this;
+  }
 }
