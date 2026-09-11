@@ -34,26 +34,11 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.here.xyz.events.UpdateStrategy;
-import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.execution.StepException;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class TaskedImportWriterModeTest {
-  private Config previousConfig;
-
-  @BeforeEach
-  void setUp() {
-    previousConfig = Config.instance;
-    Config.instance = new Config();
-  }
-
-  @AfterEach
-  void tearDown() {
-    Config.instance = previousConfig;
-  }
 
   @Test
   void recognizesDefaultUpdateStrategyByValue() {
