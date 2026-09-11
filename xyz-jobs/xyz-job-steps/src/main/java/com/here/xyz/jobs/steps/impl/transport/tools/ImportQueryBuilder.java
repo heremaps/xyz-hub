@@ -26,6 +26,8 @@ import com.here.xyz.util.db.SQLQuery;
 
 import java.util.List;
 
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
 import static com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace.Format;
 
 public class ImportQueryBuilder extends DatabaseStepQueryBuilder {
@@ -38,10 +40,10 @@ public class ImportQueryBuilder extends DatabaseStepQueryBuilder {
     this.featureWriterBatchSizeInMb = featureWriterBatchSizeInMb;
   }
 
-  public SQLQuery buildNextVersionQuery(){
+  public SQLQuery buildNextVersionQuery(String versionTable){
     return new SQLQuery("SELECT nextval('${schema}.${sequence}')")
             .withVariable("schema", schema)
-            .withVariable("sequence", rootTable + "_version_seq");
+            .withVariable("sequence", versionTable + "_version_seq");
   }
 
   public SQLQuery buildImportTaskQuery(Format format, Integer taskId, ImportInput taskInput, String serializedImportStep,
@@ -54,7 +56,8 @@ public class ImportQueryBuilder extends DatabaseStepQueryBuilder {
 
     return new SQLQuery(
             "SELECT perform_import_from_s3_task(#{taskId}, #{schema}, to_regclass(#{targetTable}), #{format}, " +
-                    "#{s3Bucket}, #{s3Key}, #{s3Region}, #{filesize}, #{targetVersion}, #{stepPayload}::JSON->'step', " +
+                    "#{s3Bucket}, #{s3Key}, #{s3Region}, #{filesize}, #{targetVersion}, #{replaceTargetContents}, "
+                    + "#{stepPayload}::JSON->'step', " +
                     "#{lambdaFunctionArn}, #{lambdaRegion}, '${{failureCallback}}')")
             .withContext(getQueryContext())
             .withAsync(true)
@@ -67,6 +70,7 @@ public class ImportQueryBuilder extends DatabaseStepQueryBuilder {
             .withNamedParameter("s3Region", taskInput.s3Region())
             .withNamedParameter("filesize", taskInput.fileByteSize())
             .withNamedParameter("targetVersion",taskInput.targetVersion())
+            .withNamedParameter("replaceTargetContents", useFeatureWriter)
             .withNamedParameter("stepPayload", serializedImportStep)
             .withNamedParameter("lambdaFunctionArn", lambdaArn)
             .withNamedParameter("lambdaRegion", ownLambdaRegion)
@@ -147,6 +151,42 @@ public class ImportQueryBuilder extends DatabaseStepQueryBuilder {
             .withNamedParameter("onNotExists", updateStrategy.onNotExists() == null ? null : updateStrategy.onNotExists().name())
             .withNamedParameter("onVersionConflict", updateStrategy.onVersionConflict() == null ? null : updateStrategy.onVersionConflict().name())
             .withNamedParameter("onMergeConflict", updateStrategy.onMergeConflict() == null ? null : updateStrategy.onMergeConflict().name())
+            .withNamedParameter("stepPayload", serializedImportStep)
+            .withNamedParameter("lambdaFunctionArn", lambdaArn)
+            .withNamedParameter("lambdaRegion", ownLambdaRegion)
+            .withQueryFragment("failureCallback", failureCallback);
+  }
+
+  /**
+   * Builds the default import query which writes staged features directly with PostgreSQL.
+   */
+  public SQLQuery buildExpressImportFromTmpTableTaskQuery(Integer taskId, long rangeStart,
+                                                          String author, long currentVersion, boolean historyEnabled,
+                                                          String serializedImportStep, String lambdaArn,
+                                                          String ownLambdaRegion, String failureCallback) {
+    ContextAwareEvent.SpaceContext effectiveContext = context == null ? DEFAULT : context;
+    if (effectiveContext == SUPER)
+      throw new IllegalArgumentException("Importing data with context SUPER is not supported.");
+    String visibleSuperTable = effectiveContext == DEFAULT ? superRootTable : null;
+
+    return new SQLQuery(
+            "SELECT perform_express_import_from_tmp_table_task(#{taskId}, to_regclass(#{sourceTable}), "
+                    + "to_regclass(#{targetTable}), to_regclass(#{superTable}), #{spaceContext}, "
+                    + "#{rangeStart}, #{targetMb}, #{author}, #{currentVersion}, #{historyEnabled}, "
+                    + "#{stepPayload}::JSON->'step', #{lambdaFunctionArn}, #{lambdaRegion}, '${{failureCallback}}')")
+            .withContext(getQueryContext())
+            .withAsync(true)
+            .withNamedParameter("taskId", taskId)
+            .withNamedParameter("sourceTable", getTemporaryDataTableName(taskId))
+            .withNamedParameter("targetTable", schema + ".\"" + rootTable + "\"")
+            .withNamedParameter("superTable",
+                    visibleSuperTable == null ? null : schema + ".\"" + visibleSuperTable + "\"")
+            .withNamedParameter("spaceContext", effectiveContext.name())
+            .withNamedParameter("rangeStart", rangeStart)
+            .withNamedParameter("targetMb", featureWriterBatchSizeInMb)
+            .withNamedParameter("author", author)
+            .withNamedParameter("currentVersion", currentVersion)
+            .withNamedParameter("historyEnabled", historyEnabled)
             .withNamedParameter("stepPayload", serializedImportStep)
             .withNamedParameter("lambdaFunctionArn", lambdaArn)
             .withNamedParameter("lambdaRegion", ownLambdaRegion)

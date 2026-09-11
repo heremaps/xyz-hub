@@ -89,7 +89,7 @@ public class ImportFromFiles implements JobCompilationInterceptor {
     //This validation check is necessary to deliver a constructive error to the user - otherwise keepIndices will throw a runtime error.
     checkIfSpaceIsAccessible(spaceId, hubWebClient);
 
-    //Recognize a user-provided space context (e.g. context=EXTENSION) on the target and forward it to the FeatureWriter
+    //Recognize a user-provided space context (e.g. context=EXTENSION) on the target and forward it to the selected writer
     SpaceContext targetContext = targetSpace.getFilters() != null ? targetSpace.getFilters().getContext() : null;
 
     TaskedImportFilesToSpace importFilesStep = new TaskedImportFilesToSpace() //Perform import
@@ -148,7 +148,7 @@ public class ImportFromFiles implements JobCompilationInterceptor {
 
   public static CompilationStepGraph compileTaskedImportSteps(TaskedImportFilesToSpace importFilesStep) {
     try {
-      //Keep these indices if FeatureWriter is used
+      //Keep these indices when staged feature writes are used
       List<Index> whiteListIndex = importFilesStep.useFeatureWriter() ? List.of(VERSION_ID, NEXT_VERSION, OPERATION) : null;
       return compileWrapWithDropRecreateIndices(importFilesStep.getSpaceId(), importFilesStep, whiteListIndex);
     } catch (WebClientException e) {

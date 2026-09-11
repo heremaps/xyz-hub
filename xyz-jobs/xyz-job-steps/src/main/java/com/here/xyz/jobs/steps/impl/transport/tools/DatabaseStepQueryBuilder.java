@@ -32,9 +32,9 @@ import java.util.Set;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 
 public abstract class DatabaseStepQueryBuilder {
-  private final Space space;
-  private final ContextAwareEvent.SpaceContext context;
-  private final String superRootTable;
+  protected final Space space;
+  protected final ContextAwareEvent.SpaceContext context;
+  protected final String superRootTable;
 
   protected static final String JOB_DATA_PREFIX = "job_data_";
   protected final String stepId;
