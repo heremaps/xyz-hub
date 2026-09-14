@@ -57,8 +57,6 @@ import com.here.xyz.util.service.aws.lambda.SimulatedContext;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
-import io.vertx.core.json.JsonArray;
-import io.vertx.core.json.JsonObject;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -67,7 +65,6 @@ import java.net.http.HttpResponse;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import software.amazon.awssdk.services.cloudwatchevents.model.ConcurrentModificationException;
@@ -199,16 +196,16 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
           .description("Heartbeat trigger for Step " + getGlobalStepId())
           .build());
 
-      final String stepConfigJson = new LambdaStepRequest().withType(STATE_CHECK).withStep(this).serialize();
+      final String stepConfigJson = new LambdaStepRequest().withType(STATE_CHECK).withStep(this).serialize(Internal.class);
       if (stepConfigJson.length() > 1024 * 1024)
-        logger.error("[{}] Step Config is too large (>1MB - most likely because of the geo filter). The creation of State Check trigger will fail.", getGlobalStepId());
+        logger.error("[{}] Step Config is too large (>1MB - most likely because of some very large property value). The creation of State Check trigger will fail.", getGlobalStepId());
 
       cloudwatchEventsClient().putTargets(PutTargetsRequest.builder()
           .rule(getStateCheckRuleName())
           .targets(Target.builder()
               .id(getGlobalStepId())
               .arn(ownLambdaArn.toString())
-              .input(compactStateCheckInput(stepConfigJson))
+              .input(stepConfigJson)
               .build())
           .build());
     }
@@ -220,32 +217,6 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
 
   private void unregisterStateCheckTrigger() {
     _unregisterStateCheckTriggerDeferred(0, 1);
-  }
-
-  static String compactStateCheckInput(String input) {
-    /*
-    NOTE: This hack has been deactivated, because after the impl for dynamic scaling was added,
-    because the StepConfig for the creation of new queries is read from the EventRule . (See: MMSUP-3045)
-     */
-    return input;
-    //JsonObject payload = new JsonObject(input);
-    //stripLargeFilters(payload);
-    //return payload.encode();
-  }
-
-  private static void stripLargeFilters(Object node) {
-    if (node instanceof JsonObject jsonObject) {
-      // SpatialFilter fields can be very large (e.g., huge multipolygons) and are
-      // not needed for heartbeat/state-checks.
-      jsonObject.remove("spatialFilter");
-      for (String fieldName : List.copyOf(jsonObject.fieldNames()))
-        stripLargeFilters(jsonObject.getValue(fieldName));
-      return;
-    }
-
-    if (node instanceof JsonArray jsonArray)
-      for (int i = 0; i < jsonArray.size(); i++)
-        stripLargeFilters(jsonArray.getValue(i));
   }
 
   private void _unregisterStateCheckTriggerDeferred(long waitMs, int attempt) {
