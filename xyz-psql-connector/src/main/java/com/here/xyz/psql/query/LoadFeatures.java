@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -93,6 +94,38 @@ public class LoadFeatures extends GetFeatures<LoadFeaturesEvent, FeatureCollecti
     else
       return new SQLQuery("id = ANY(#{ids})")
           .withNamedParameter("ids", idMap.keySet().toArray(new String[0]));
+  }
+
+  @Override
+  protected SQLQuery buildFiltersFragment(LoadFeaturesEvent event, boolean isExtension, SQLQuery filterWhereClause, int dataset) {
+    SQLQuery filters = getCompositeBaseVersion(event, isExtension, dataset)
+        .map(compositeBaseVersion -> buildCompositeBaseVersionFilter(event, dataset, compositeBaseVersion))
+        .orElse(filterWhereClause);
+    return super.buildFiltersFragment(event, isExtension, filters, dataset);
+  }
+
+  private SQLQuery buildCompositeBaseVersionFilter(LoadFeaturesEvent event, int dataset, long compositeBaseVersion) {
+    String idsParamName = "compositeBaseVersionIds" + dataset + (isForHistoryQuery ? "History" : "Head");
+    return new SQLQuery("id = ANY(#{" + idsParamName + "}) "
+        + "AND version <= ${{compositeBaseVersion}}::BIGINT AND next_version > ${{compositeBaseVersion}}::BIGINT")
+        .withNamedParameter(idsParamName, event.getIdsMap().keySet().toArray(new String[0]))
+        .withQueryFragment("compositeBaseVersion", "" + compositeBaseVersion);
+  }
+
+  /**
+   * @return The version the specified dataset of a composite query is bound to, if any.
+   */
+  private Optional<Long> getCompositeBaseVersion(LoadFeaturesEvent event, boolean isExtension, int dataset) {
+    if (isExtension || !isCompositeQuery(event))
+      return Optional.empty();
+
+    if (dataset == compositeDatasetNo(event, CompositeDataset.SUPER))
+      return is2LevelExtendedSpace(event) ? getIntermediateBaseVersion(event) : getBaseVersion(event);
+
+    if (is2LevelExtendedSpace(event) && dataset == compositeDatasetNo(event, CompositeDataset.INTERMEDIATE))
+      return getBaseVersion(event);
+
+    return Optional.empty();
   }
 
   private static SQLQuery buildLoadFeaturesInputFragment(List<LoadFeatureVersionInput> input, boolean head) {

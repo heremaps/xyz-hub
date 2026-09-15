@@ -22,6 +22,7 @@ package com.here.xyz.hub.rest;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_GEO_JSON;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.restassured.RestAssured.given;
@@ -40,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -201,6 +203,38 @@ public class ReadFeatureCompositeSpaceWithVersionIT extends TestSpaceWithFeature
 
     loadFeatures(extOfExtSpaceId, DEFAULT, endpoint)
         .body("features.id", hasItem("delta1-1"));
+  }
+
+  @Test
+  public void partialUpdateThroughCompositeMergesOntoBoundBaseVersion() {
+    //The base moves after the composite was bound to version 1 ...
+    addFeature(spaceId, updatedFeature("base-1", "value-v3")); //base version 3
+
+    //the composite still reads the base at the bound version
+    loadFeatures(extSpaceId, DEFAULT, "iterate")
+        .body("features.find { it.id == 'base-1' }.properties.key1", equalTo("value1"));
+
+    //and a partial update through the composite has to be merged onto that very state.
+    patchFeature(extSpaceId, newFeature("base-1").withProperties(new Properties().with("key2", "delta")));
+
+    loadFeatures(extSpaceId, DEFAULT, "iterate")
+        .body("features.find { it.id == 'base-1' }.properties.key1", equalTo("value1"))
+        .body("features.find { it.id == 'base-1' }.properties.key2", equalTo("delta"));
+
+    //The base itself stays untouched by the write which went into the extension
+    loadFeatures(spaceId, DEFAULT, "iterate")
+        .body("features.find { it.id == 'base-1' }.properties.key1", equalTo("value-v3"));
+  }
+
+  private static void patchFeature(String spaceId, Feature feature) {
+    given()
+        .contentType(APPLICATION_GEO_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .body(feature.serialize())
+        .when()
+        .patch(getSpacesPath() + "/" + spaceId + "/features/" + feature.getId())
+        .then()
+        .statusCode(OK.code());
   }
 
   private ValidatableResponse loadFeatures(String spaceId, SpaceContext context, String endpoint) {
