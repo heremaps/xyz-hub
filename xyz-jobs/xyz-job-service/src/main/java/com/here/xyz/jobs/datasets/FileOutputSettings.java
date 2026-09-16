@@ -35,6 +35,8 @@ public class FileOutputSettings {
   private FileFormat format = new GeoJson();
   private Partitioning partitioning = new FeatureKey();
   private FileChunking chunking = new FileChunking();
+  private String destinationBucket;
+  private String destinationPrefix;
 
   //Legacy fields:
   private String partitionKey = "tileid";
@@ -145,6 +147,32 @@ public class FileOutputSettings {
 
   public FileOutputSettings withMaxTilesPerFile(int maxTilesPerFile) {
     setMaxTilesPerFile(maxTilesPerFile);
+    return this;
+  }
+
+  public String getDestinationBucket() {
+    return destinationBucket;
+  }
+
+  public void setDestinationBucket(String destinationBucket) {
+    this.destinationBucket = destinationBucket;
+  }
+
+  public FileOutputSettings withDestinationBucket(String destinationBucket) {
+    setDestinationBucket(destinationBucket);
+    return this;
+  }
+
+  public String getDestinationPrefix() {
+    return destinationPrefix;
+  }
+
+  public void setDestinationPrefix(String destinationPrefix) {
+    this.destinationPrefix = destinationPrefix;
+  }
+
+  public FileOutputSettings withDestinationPrefix(String destinationPrefix) {
+    setDestinationPrefix(destinationPrefix);
     return this;
   }
 
