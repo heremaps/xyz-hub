@@ -141,13 +141,10 @@ public class JobAdminApi extends JobApiBase {
   }
 
   private void getStep(RoutingContext context) {
-    loadJob(jobId(context))
-        .compose(job -> {
-          Step step = job.getStepById(stepId(context));
-          return step == null
-              ? Future.failedFuture(new HttpException(NOT_FOUND, "Step is not present in the job"))
-              : Future.succeededFuture(step);
-        })
+    Job.loadStep(jobId(context), stepId(context))
+        .compose(step -> step == null
+            ? Future.failedFuture(new HttpException(NOT_FOUND, "Step is not present in the job"))
+            : Future.succeededFuture(step))
         .onSuccess(step -> sendResponse(context, OK, step))
         .onFailure(t -> sendErrorResponse(context, t));
   }

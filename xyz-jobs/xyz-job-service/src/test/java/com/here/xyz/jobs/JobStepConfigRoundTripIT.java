@@ -23,6 +23,7 @@ import static com.here.xyz.jobs.datasets.files.FileFormat.EntityPerLine.Feature;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
@@ -78,6 +79,14 @@ public class JobStepConfigRoundTripIT extends JobTest {
 
     int overallStepCount = ((Number) ((Map) job.get("status")).get("overallStepCount")).intValue();
     assertEquals(overallStepCount, hydratedStepIds.size(), "every step of the job must be re-hydrated from the step-config table");
+
+    String stepId = hydratedStepIds.get(0);
+    Map step = getStep(jobId, stepId);
+    assertEquals(stepId, step.get("id"), "the endpoint must return the requested step");
+    assertNotNull(step.get("type"), "the returned step must carry its full config (type)");
+    assertNotNull(step.get("status"), "the returned step must carry its status");
+    assertThrows(RuntimeException.class, () -> getStep(jobId, "s_does_not_exist"),
+        "an unknown step must yield an error response (404)");
 
     DynamoDB db = documentClient();
 

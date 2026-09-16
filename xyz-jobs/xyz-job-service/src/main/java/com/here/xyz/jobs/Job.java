@@ -500,6 +500,13 @@ public class Job implements XyzSerializable {
     return JobConfigClient.getInstance().loadJob(jobId);
   }
 
+  /**
+   * Loads a single step directly by {@code jobId} + {@code stepId} without loading the whole job.
+   */
+  public static Future<Step> loadStep(String jobId, String stepId) {
+    return JobConfigClient.getInstance().loadStep(jobId, stepId);
+  }
+
   public static Future<List<Job>> load(State state, String resourceKey) {
     if (state == null && resourceKey == null)
       return loadAll();
