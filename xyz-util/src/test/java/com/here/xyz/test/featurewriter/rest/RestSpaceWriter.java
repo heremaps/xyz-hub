@@ -61,6 +61,28 @@ public class RestSpaceWriter extends SpaceWriter {
     return HubWebClient.getInstance("http://localhost:8080/hub", Map.of("Author", author));
   }
 
+  /**
+   * Resolves the physical table name via the Hub. Since the {@code tableDecouple} change the Hub
+   * may assign a table name that is completely independent of the space id (stored under
+   * {@code space.storage.params.tableName}). Direct SQL access in the tests must therefore go
+   * through the actual physical table name instead of assuming {@code tableName == spaceId}.
+   */
+  @Override
+  protected String doResolveTableName(String spaceId) {
+    try {
+      Space space = webClient(DEFAULT_AUTHOR).loadSpace(spaceId);
+      if (space != null && space.getStorage() != null && space.getStorage().getParams() != null) {
+        Object tableName = space.getStorage().getParams().get(Space.TABLE_NAME);
+        if (tableName instanceof String s && !s.isEmpty())
+          return s;
+      }
+    }
+    catch (WebClientException e) {
+      throw new RuntimeException("Unable to resolve physical table name for space " + spaceId, e);
+    }
+    return spaceId;
+  }
+
   @Override
   public void createSpaceResources() throws Exception {
     Space space = new Space()
@@ -90,6 +112,7 @@ public class RestSpaceWriter extends SpaceWriter {
   }
 
   @Override
+  @SuppressWarnings("unchecked")
   public void writeFeatures(List<Feature> featureList, String author, OnExists onExists, OnNotExists onNotExists,
       OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict, boolean isPartial,
       SpaceContext spaceContext, boolean historyEnabled, SQLError expectedErrorCode)
