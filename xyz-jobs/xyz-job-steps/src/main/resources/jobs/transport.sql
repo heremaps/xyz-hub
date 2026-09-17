@@ -374,9 +374,8 @@ BEGIN
     feature := feature || jsonb_build_object(
         'id', feature_id,
         'type', CASE
-            WHEN jsonb_typeof(feature->'type') = 'string'
-                THEN COALESCE(NULLIF(feature->>'type', ''), 'Feature')
-            ELSE 'Feature'
+            WHEN feature->>'type' IS DISTINCT FROM 'Feature' THEN 'Feature'
+            ELSE feature->>'type'
         END
     );
     feature := feature - 'bbox';
@@ -392,6 +391,7 @@ BEGIN
     END;
     properties := jsonb_set(properties, '{@ns:com:here:xyz}', metadata, true);
     feature := jsonb_set(feature, '{properties}', properties, true);
+    feature := jsonb_strip_nulls(feature);
 
     is_deleted := COALESCE((feature#>>'{properties,@ns:com:here:xyz,deleted}')::BOOLEAN, false);
     IF is_deleted THEN
