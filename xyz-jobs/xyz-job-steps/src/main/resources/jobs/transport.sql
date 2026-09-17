@@ -389,11 +389,8 @@ BEGIN
     END IF;
 
     feature := feature || jsonb_build_object(
-        'id', feature_id,
-        'type', CASE
-            WHEN feature->>'type' IS DISTINCT FROM 'Feature' THEN 'Feature'
-            ELSE feature->>'type'
-        END
+            'id', feature_id,
+            'type', 'Feature'
     );
     feature := feature - 'bbox';
 
