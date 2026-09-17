@@ -36,7 +36,6 @@ public class FileOutputSettings {
   private FileFormat format = new GeoJson();
   private Partitioning partitioning = new FeatureKey();
   private FileChunking chunking = new FileChunking();
-  private InputsFromS3 s3Destination = new InputsFromS3();
 
   //Legacy fields:
   private String partitionKey = "tileid";
@@ -147,19 +146,6 @@ public class FileOutputSettings {
 
   public FileOutputSettings withMaxTilesPerFile(int maxTilesPerFile) {
     setMaxTilesPerFile(maxTilesPerFile);
-    return this;
-  }
-
-  public InputsFromS3 getS3Destination() {
-    return s3Destination;
-  }
-
-  public void setS3Destination(InputsFromS3 s3Destination) {
-    this.s3Destination = s3Destination;
-  }
-
-  public FileOutputSettings withS3Destination(InputsFromS3 s3Destination) {
-    setS3Destination(s3Destination);
     return this;
   }
 
