@@ -392,7 +392,6 @@ BEGIN
     END;
     properties := jsonb_set(properties, '{@ns:com:here:xyz}', metadata, true);
     feature := jsonb_set(feature, '{properties}', properties, true);
-    feature := jsonb_strip_nulls(feature);
 
     is_deleted := COALESCE((feature#>>'{properties,@ns:com:here:xyz,deleted}')::BOOLEAN, false);
     IF is_deleted THEN
