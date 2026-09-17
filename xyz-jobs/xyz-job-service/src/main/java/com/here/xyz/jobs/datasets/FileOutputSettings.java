@@ -28,6 +28,7 @@ import com.here.xyz.jobs.datasets.files.FileFormat;
 import com.here.xyz.jobs.datasets.files.GeoJson;
 import com.here.xyz.jobs.datasets.files.Partitioning;
 import com.here.xyz.jobs.datasets.files.Partitioning.FeatureKey;
+import com.here.xyz.jobs.steps.inputs.InputsFromS3;
 import java.util.Map;
 
 @JsonInclude(Include.NON_DEFAULT)
@@ -35,8 +36,7 @@ public class FileOutputSettings {
   private FileFormat format = new GeoJson();
   private Partitioning partitioning = new FeatureKey();
   private FileChunking chunking = new FileChunking();
-  private String destinationBucket;
-  private String destinationPrefix;
+  private InputsFromS3 s3Destination = new InputsFromS3();
 
   //Legacy fields:
   private String partitionKey = "tileid";
@@ -150,29 +150,16 @@ public class FileOutputSettings {
     return this;
   }
 
-  public String getDestinationBucket() {
-    return destinationBucket;
+  public InputsFromS3 getS3Destination() {
+    return s3Destination;
   }
 
-  public void setDestinationBucket(String destinationBucket) {
-    this.destinationBucket = destinationBucket;
+  public void setS3Destination(InputsFromS3 s3Destination) {
+    this.s3Destination = s3Destination;
   }
 
-  public FileOutputSettings withDestinationBucket(String destinationBucket) {
-    setDestinationBucket(destinationBucket);
-    return this;
-  }
-
-  public String getDestinationPrefix() {
-    return destinationPrefix;
-  }
-
-  public void setDestinationPrefix(String destinationPrefix) {
-    this.destinationPrefix = destinationPrefix;
-  }
-
-  public FileOutputSettings withDestinationPrefix(String destinationPrefix) {
-    setDestinationPrefix(destinationPrefix);
+  public FileOutputSettings withS3Destination(InputsFromS3 s3Destination) {
+    setS3Destination(s3Destination);
     return this;
   }
 
