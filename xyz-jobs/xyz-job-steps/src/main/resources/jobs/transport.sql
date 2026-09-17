@@ -1,4 +1,42 @@
 /*
+ * Copyright (C) 2017-2026 HERE Europe B.V.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ * License-Filename: LICENSE
+ */
+
+/*
+ * Copyright (C) 2017-2026 HERE Europe B.V.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ * License-Filename: LICENSE
+ */
+
+/*
  * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -358,13 +396,33 @@ LANGUAGE plpgsql VOLATILE;
  * Geometry is extracted into the PostGIS column while the remaining feature is
  * kept as JSONB. Timestamps are added later, after the target operation has
  * been determined.
+ *
+ * id_was_generated reports whether the returned feature_id had to be generated because the input
+ * carried no usable one. The caller needs that information to persist the generated id back into
+ * the staging table, and returning it here avoids parsing the whole input document again just to
+ * re-answer a question which was already answered while normalizing.
+ *
+ * NOTE on why this stays a PL/pgSQL function which is called per row:
+ *   Turning this into a non volatile LANGUAGE sql function, so that the planner inlines it into a
+ *   set based statement, was tried and measured to be about twice as slow (50k features: 0.56 s as a
+ *   function versus 1.07 s inlined). The reason is that PostgreSQL offers no way to bind an
+ *   intermediate expression inside a query: subqueries and LATERAL subqueries get flattened by the
+ *   planner, which substitutes the expression at every reference. In the inlined variant the plan
+ *   contained the TEXT to JSONB cast of the input 15 times, so every row was parsed 15 times instead
+ *   of once. The local variables of this function are what provides that binding, and they are worth
+ *   more than the per call overhead they cost, which was measured at about 2.3 us per row (roughly
+ *   17% of the normalization time).
+ *   Behavior is pinned by ExpressNormalizationIT, so a future attempt can be validated cheaply.
  */
+--CREATE OR REPLACE can not change the return type of an existing function, and id_was_generated was added to it
+DROP FUNCTION IF EXISTS normalize_default_import_feature(TEXT);
 CREATE OR REPLACE FUNCTION normalize_default_import_feature(input_jsondata TEXT)
     RETURNS TABLE(
         feature_id TEXT,
         normalized_jsondata JSONB,
         normalized_geo geometry(GeometryZ, 4326),
-        is_deleted BOOLEAN
+        is_deleted BOOLEAN,
+        id_was_generated BOOLEAN
     )
     LANGUAGE 'plpgsql'
     VOLATILE
@@ -384,15 +442,10 @@ BEGIN
         WHEN jsonb_typeof(feature->'id') = 'string' THEN NULLIF(feature->>'id', '')
         ELSE NULL
     END;
-    IF feature_id IS NULL THEN
+    id_was_generated := feature_id IS NULL;
+    IF id_was_generated THEN
         feature_id := xyz_random_string(16);
     END IF;
-
-    feature := feature || jsonb_build_object(
-            'id', feature_id,
-            'type', 'Feature'
-    );
-    feature := feature - 'bbox';
 
     properties := CASE
         WHEN jsonb_typeof(feature->'properties') = 'object' THEN feature->'properties'
@@ -403,11 +456,13 @@ BEGIN
             THEN properties->'@ns:com:here:xyz'
         ELSE '{}'::JSONB
     END;
-    properties := jsonb_set(properties, '{@ns:com:here:xyz}', metadata, true);
-    feature := jsonb_set(feature, '{properties}', properties, true);
-    feature := jsonb_strip_nulls(feature);
 
-    is_deleted := COALESCE((feature#>>'{properties,@ns:com:here:xyz,deleted}')::BOOLEAN, false);
+    /*
+     * Reading the flag off the namespace is equivalent to reading it off the fully rebuilt and null stripped
+     * document: ->> yields SQL NULL for a JSON null, so an explicit "deleted": null still ends up as false.
+     * Determining it this early lets a deletion skip the document reconstruction below entirely.
+     */
+    is_deleted := COALESCE((metadata->>'deleted')::BOOLEAN, false);
     IF is_deleted THEN
         normalized_jsondata := jsonb_build_object(
             'type', 'Feature',
@@ -426,7 +481,24 @@ BEGIN
         WHEN geometry_json IS NULL OR geometry_json = 'null'::JSONB THEN NULL
         ELSE xyz_reduce_precision(ST_Force3D(ST_GeomFromGeoJSON(geometry_json)), false)
     END;
-    normalized_jsondata := feature - 'geometry';
+
+    /*
+     * JSONB values are immutable, so every operator applied to one copies the whole document. Building the result
+     * in a single construction therefore matters: the keys which get authoritative values are removed in one pass
+     * (the array form of the delete operator), and the merge puts them back. Note that the order of the keys in
+     * the output does not depend on the construction, because JSONB always stores object keys sorted.
+     *
+     * Removing the geometry here rather than after the null stripping is equivalent, because a "geometry": null
+     * would be dropped by either of the two.
+     */
+    normalized_jsondata := jsonb_strip_nulls(
+        (feature - ARRAY['bbox', 'geometry', 'id', 'type', 'properties'])
+        || jsonb_build_object(
+            'id', feature_id,
+            'type', 'Feature',
+            'properties', properties || jsonb_build_object('@ns:com:here:xyz', metadata)
+        )
+    );
     RETURN NEXT;
 END;
 $BODY$;
@@ -1042,6 +1114,21 @@ $BODY$;
  * The function currently supports the OLD_LAYOUT table shape used by tasked imports.
  * Duplicate IDs are collapsed to the last source row in this range and overwrite an
  * existing row at the same target version.
+ *
+ * NOTE on optimizing this function:
+ *   The normalization and staging work below was optimized deliberately without touching the
+ *   transaction shape, the set of rows written, the batch boundaries or the stale head detection, so
+ *   that the behavior under concurrent readers and writers of the target space stays unchanged by
+ *   construction rather than by testing. Three further ideas were considered and left out for that
+ *   reason, since a target space is expected to be written to while an import runs:
+ *     - Enlarging the batch window (target_mb) multiplies the number of HEAD rows locked by the
+ *       UPDATE below and the time they are held, and it widens the window in which a concurrent
+ *       writer can push a HEAD above current_version and turn the batch into an XYZ49 retry.
+ *     - Merging the stale head probe into the writes query changes when and how that conflict is
+ *       detected, which is exactly the semantics to keep constant.
+ *     - Replacing the row loop by one set based statement is safe for locking but changes which rows
+ *       land in which batch, and the byte budget boundary has no test coverage yet, because every
+ *       scenario of the reused FeatureWriter suites writes a single feature per batch.
  */
 CREATE OR REPLACE FUNCTION execute_express_import_batch(
         source_tbl REGCLASS,
@@ -1069,6 +1156,7 @@ DECLARE
     normalized RECORD;
     row_bytes BIGINT;
     target_bytes BIGINT;
+    generated_id_count BIGINT;
     batch_timestamp BIGINT := FLOOR(EXTRACT(epoch FROM clock_timestamp()) * 1000);
     target_schema TEXT;
     target_table TEXT;
@@ -1116,6 +1204,7 @@ BEGIN
     target_bytes := (target_mb * 1024 * 1024)::BIGINT;
     pulled_count := 0;
     pulled_bytes := 0;
+    generated_id_count := 0;
     selected_range_start := NULL;
     selected_range_end := NULL;
     finished := false;
@@ -1127,7 +1216,8 @@ BEGIN
         normalized_jsondata JSONB NOT NULL,
         normalized_geo geometry(GeometryZ, 4326),
         is_deleted BOOLEAN NOT NULL,
-        feature_bytes BIGINT NOT NULL
+        feature_bytes BIGINT NOT NULL,
+        id_was_generated BOOLEAN NOT NULL
     ) ON COMMIT DROP;
 
     FOR source_row IN EXECUTE format(
@@ -1144,26 +1234,21 @@ BEGIN
           INTO normalized
           FROM normalize_default_import_feature(source_row.jsondata);
 
-        IF jsonb_typeof(source_row.jsondata::JSONB->'id') IS DISTINCT FROM 'string'
-            OR NULLIF(source_row.jsondata::JSONB->>'id', '') IS NULL THEN
-            EXECUTE format(
-                'UPDATE %s
-                    SET jsondata = jsonb_set(jsondata::JSONB, ''{id}'', to_jsonb($1::TEXT), true)::TEXT
-                  WHERE i = $2',
-                source_tbl
-            ) USING normalized.feature_id, source_row.i;
-        END IF;
-
         INSERT INTO pg_temp.xyz_express_import_batch(
-            i, feature_id, normalized_jsondata, normalized_geo, is_deleted, feature_bytes
+            i, feature_id, normalized_jsondata, normalized_geo, is_deleted, feature_bytes, id_was_generated
         ) VALUES (
             source_row.i,
             normalized.feature_id,
             normalized.normalized_jsondata,
             normalized.normalized_geo,
             normalized.is_deleted,
-            row_bytes
+            row_bytes,
+            normalized.id_was_generated
         );
+
+        IF normalized.id_was_generated THEN
+            generated_id_count := generated_id_count + 1;
+        END IF;
 
         pulled_count := pulled_count + 1;
         pulled_bytes := pulled_bytes + row_bytes;
@@ -1177,6 +1262,23 @@ BEGIN
         RETURN;
     END IF;
 
+    /*
+     * Persist the generated ids back into the staging table, so that a resume or a retry of the same
+     * range produces the same ids again. This is done as one set based statement after the pull loop
+     * instead of one statement per row, and it is skipped entirely for the common case of inputs which
+     * already carry their ids.
+     */
+    IF generated_id_count > 0 THEN
+        EXECUTE format(
+            'UPDATE %s s
+                SET jsondata = jsonb_set(s.jsondata::JSONB, ''{id}'', to_jsonb(b.feature_id), true)::TEXT
+               FROM pg_temp.xyz_express_import_batch b
+              WHERE b.i = s.i
+                AND b.id_was_generated',
+            source_tbl
+        );
+    END IF;
+
     DROP TABLE IF EXISTS pg_temp.xyz_express_import_final;
     CREATE TEMP TABLE xyz_express_import_final ON COMMIT DROP AS
         SELECT DISTINCT ON (feature_id)
@@ -1184,6 +1286,14 @@ BEGIN
           FROM pg_temp.xyz_express_import_batch
          ORDER BY feature_id, i DESC;
     CREATE UNIQUE INDEX ON xyz_express_import_final(feature_id);
+    /*
+     * A table created by CREATE TABLE AS carries no statistics, so the planner would fall back to
+     * default estimates when this batch gets joined against the target table below. Since the batch
+     * size varies by orders of magnitude between imports, those estimates decide between per row
+     * index probes and a hash join over the HEAD partition. Analyzing it is cheap compared to a
+     * badly planned join over the whole batch.
+     */
+    ANALYZE pg_temp.xyz_express_import_final;
 
     EXECUTE format(
         'SELECT EXISTS (

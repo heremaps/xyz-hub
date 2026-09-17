@@ -23,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -102,6 +103,74 @@ public class ExpressWriterSmokeIT {
         dropResources(dsp, table, stagingTable);
       }
     }
+  }
+
+  /**
+   * Covers the id generation path: a staged feature without a usable id has to get one generated, and that
+   * generated id has to be persisted back into the staging table so that a resume or a retry of the same range
+   * produces the same id again.
+   *
+   * <p>Staged features which already carry an id must be left untouched, which is the common case and the reason
+   * why the write back is applied to the affected rows only.</p>
+   */
+  @Test
+  void generatesMissingIdsAndPersistsThemBackIntoTheStagingTable() throws Exception {
+    String table = "express_smoke_generated_ids";
+    String stagingTable = table + "_staging";
+    String featureWithoutId = "{\"type\":\"Feature\",\"properties\":{\"name\":\"no-id\"}}";
+    String featureWithId = "{\"type\":\"Feature\",\"id\":\"has-id\",\"properties\":{\"name\":\"with-id\"}}";
+
+    try (DataSourceProvider dsp = ExpressWriterDataSources.getDataSourceProvider()) {
+      dropResources(dsp, table, stagingTable);
+      createResources(dsp, table, stagingTable);
+
+      for (String jsondata : new String[] {featureWithoutId, featureWithId})
+        new SQLQuery("INSERT INTO ${schema}.${table} (jsondata) VALUES (#{jsondata})")
+            .withVariable("schema", SCHEMA)
+            .withVariable("table", stagingTable)
+            .withNamedParameter("jsondata", jsondata)
+            .write(dsp);
+
+      long targetVersion = allocateVersion(dsp, table);
+      BatchResult batch = executeExpressImportBatch(dsp, stagingTable, table, 1, targetVersion, false);
+      assertEquals(2, batch.pulledCount());
+
+      String generatedId = new SQLQuery("SELECT id FROM ${schema}.${table} WHERE id <> #{knownId}")
+          .withVariable("schema", SCHEMA)
+          .withVariable("table", table)
+          .withNamedParameter("knownId", "has-id")
+          .run(dsp, rs -> rs.next() ? rs.getString(1) : null);
+      assertNotNull(generatedId, "An id should have been generated for the feature without one.");
+      assertFalse(generatedId.isBlank(), "The generated id must not be blank.");
+
+      //The generated id has to be visible in the staging table, otherwise a retry would generate a different one
+      assertEquals(generatedId, stagedId(dsp, stagingTable, 1),
+          "The generated id should have been written back into the staging table.");
+      //A feature which already carried an id must not have been rewritten
+      assertEquals(featureWithId, stagedJsondata(dsp, stagingTable, 2),
+          "A staged feature which already had an id must be left untouched.");
+    }
+    finally {
+      try (DataSourceProvider dsp = ExpressWriterDataSources.getDataSourceProvider()) {
+        dropResources(dsp, table, stagingTable);
+      }
+    }
+  }
+
+  private String stagedId(DataSourceProvider dsp, String stagingTable, long i) throws Exception {
+    return new SQLQuery("SELECT jsondata::JSONB->>'id' AS id FROM ${schema}.${table} WHERE i = #{i}")
+        .withVariable("schema", SCHEMA)
+        .withVariable("table", stagingTable)
+        .withNamedParameter("i", i)
+        .run(dsp, rs -> rs.next() ? rs.getString("id") : null);
+  }
+
+  private String stagedJsondata(DataSourceProvider dsp, String stagingTable, long i) throws Exception {
+    return new SQLQuery("SELECT jsondata FROM ${schema}.${table} WHERE i = #{i}")
+        .withVariable("schema", SCHEMA)
+        .withVariable("table", stagingTable)
+        .withNamedParameter("i", i)
+        .run(dsp, rs -> rs.next() ? rs.getString("jsondata") : null);
   }
 
   private void createResources(DataSourceProvider dsp, String table, String stagingTable) throws Exception {
