@@ -250,7 +250,9 @@ BEGIN
 
     NEW.id = feature.new_id;
     NEW.operation = feature.new_operation;
-    NEW.geo = xyz_reduce_precision(feature.new_geo, false);
+    --NOTE: No xyz_reduce_precision here. import_from_s3_enrich_feature already reduced the precision, and applying
+    --it twice is a measurable waste: it round trips the geometry through WKT, which cost about 12% of this path.
+    NEW.geo = feature.new_geo;
     NEW.jsondata = feature.new_jsondata;
 
     RETURN NEW;
@@ -282,6 +284,11 @@ $BODY$
  *   - new_geo (geometry): The processed geometry.
  *   - new_operation (character): The operation type ('I' for insert).
  *   - new_id (TEXT): The feature ID.
+ *
+ * NOTE on inlining this into the trigger:
+ *   Doing so would save the per row SPI call plus the one row tuplestore of this SETOF function, but it was
+ *   measured to be worth only about 3% of the import (50k features: 5.74 s versus 5.54 s), while it would remove
+ *   the only separately testable unit of this path. Behavior is pinned by EmptyLayerEnrichmentIT.
  */
 CREATE OR REPLACE FUNCTION import_from_s3_enrich_feature(IN jsondata JSONB, geo geometry(GeometryZ,4326), retain_meta BOOLEAN DEFAULT FALSE)
     RETURNS TABLE(new_jsondata JSONB, new_geo geometry(GeometryZ,4326), new_operation character, new_id TEXT)
@@ -290,43 +297,53 @@ DECLARE
     fid TEXT := jsondata->>'id';
     createdAt BIGINT := FLOOR(EXTRACT(epoch FROM NOW()) * 1000);
     --TODO: Align with featureWriter. Currently we are also writing version and author there into the metadata.
-    meta JSONB := format(
-            '{
-                 "createdAt": %s,
-                 "updatedAt": %s
-            }', createdAt, createdAt
-                  );
+    meta JSONB := jsonb_build_object('createdAt', createdAt, 'updatedAt', createdAt);
+    properties JSONB;
+    geometry_json JSONB;
 BEGIN
     IF fid IS NULL THEN
-        fid = xyz_random_string(10);
-        jsondata := (jsondata || format('{"id": "%s"}', fid)::JSONB);
+        fid := xyz_random_string(10);
     END IF;
 
-    -- Remove bbox on root
-    jsondata := jsondata - 'bbox';
+    /*
+     * The properties have to be an object, otherwise the metadata below can not be attached to them.
+     * Without this coercion a feature whose properties are missing, null or a scalar would silently end up
+     * without createdAt and updatedAt, because jsonb_set does not create the intermediate level of a path.
+     */
+    properties := CASE
+        WHEN jsonb_typeof(jsondata->'properties') = 'object' THEN jsondata->'properties'
+        ELSE '{}'::JSONB
+    END;
 
-    -- Inject type
-    jsondata := jsonb_set(jsondata, '{type}', '"Feature"');
-
-    -- Inject meta
     IF retain_meta THEN
-        meta := coalesce(jsonb_set(meta, '{createdAt}', (jsondata->'properties'->'@ns:com:here:xyz'->>'createdAt')::JSONB), meta);
-        meta := coalesce(jsonb_set(meta, '{updatedAt}', (jsondata->'properties'->'@ns:com:here:xyz'->>'updatedAt')::JSONB), meta);
+        meta := coalesce(jsonb_set(meta, '{createdAt}', (properties->'@ns:com:here:xyz'->>'createdAt')::JSONB), meta);
+        meta := coalesce(jsonb_set(meta, '{updatedAt}', (properties->'@ns:com:here:xyz'->>'updatedAt')::JSONB), meta);
     END IF;
-    jsondata := jsonb_set(jsondata, '{properties,@ns:com:here:xyz}', meta);
 
-    IF jsondata->'geometry' IS NOT NULL THEN
+    geometry_json := jsondata->'geometry';
+    IF geometry_json IS NOT NULL THEN
         -- GeoJson Feature Import
-        new_geo := ST_Force3D(ST_GeomFromGeoJSON(
-            CASE WHEN (jsondata->'geometry') = 'null'::jsonb THEN NULL ELSE (jsondata->'geometry') END
-        ));
-        jsondata := jsondata - 'geometry';
+        new_geo := ST_Force3D(ST_GeomFromGeoJSON(NULLIF(geometry_json, 'null'::JSONB)));
     ELSE
         new_geo := ST_Force3D(geo);
     END IF;
-
+    --NOTE: The precision reduction happens here only. The caller must not apply it a second time, it is expensive
     new_geo := xyz_reduce_precision(new_geo, false);
-    new_jsondata := jsondata;
+
+    /*
+     * JSONB values are immutable, so every operator applied to one copies the whole document. The result is
+     * therefore built in a single construction: the keys which get authoritative values are removed in one pass
+     * (the array form of the delete operator) and the merge puts them back. The order of the keys in the output
+     * does not depend on this, because JSONB always stores object keys sorted.
+     * NOTE: As before, the xyz namespace is replaced rather than merged, so namespace entries of the input are
+     * intentionally not carried over.
+     */
+    new_jsondata := (jsondata - ARRAY['bbox', 'geometry', 'id', 'type', 'properties'])
+        || jsonb_build_object(
+            'id', fid,
+            'type', 'Feature',
+            'properties', properties || jsonb_build_object('@ns:com:here:xyz', meta)
+        );
     new_operation := 'I';
     new_id := fid;
 
@@ -496,6 +513,25 @@ BEGIN
         );
 END;
 $BODY$;
+
+/*
+ * Copyright (C) 2017-2026 HERE Europe B.V.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ * License-Filename: LICENSE
+ */
 
 -- ####################################################################################################################
 -- Task related functions --
