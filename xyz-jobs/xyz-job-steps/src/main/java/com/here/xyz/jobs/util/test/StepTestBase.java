@@ -87,6 +87,7 @@ import java.net.URL;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -375,6 +376,10 @@ public class StepTestBase {
                     .withPassword(PG_PW)
                     .withDbMaxPoolSize(2));
     return testDatasource;
+  }
+
+  protected Connection getTestDatabaseConnection() throws SQLException {
+    return getDataSourceProvider().getWriter().getConnection();
   }
 
   protected void deleteAllJobTables(List<String> stepIds) throws SQLException {

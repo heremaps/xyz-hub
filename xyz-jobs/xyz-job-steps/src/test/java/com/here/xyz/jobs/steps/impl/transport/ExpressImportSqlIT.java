@@ -23,21 +23,20 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.here.xyz.jobs.util.test.StepTestBase;
 import java.io.InputStream;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import org.junit.jupiter.api.Test;
 
-class ExpressImportSqlIT {
+class ExpressImportSqlIT extends StepTestBase {
 
   @Test
   void importsOversizedAndDuplicateFeaturesWithoutPlv8() throws Exception {
     String schema = "express_import_" + Long.toUnsignedString(System.nanoTime());
-    try (Connection connection = DriverManager.getConnection(
-        "jdbc:postgresql://localhost:5432/postgres", "postgres", "password");
+    try (Connection connection = getTestDatabaseConnection();
         Statement statement = connection.createStatement()) {
       statement.execute("CREATE EXTENSION IF NOT EXISTS postgis");
       statement.execute("CREATE SCHEMA " + schema);
@@ -108,8 +107,7 @@ class ExpressImportSqlIT {
       }
     }
     finally {
-      try (Connection connection = DriverManager.getConnection(
-          "jdbc:postgresql://localhost:5432/postgres", "postgres", "password");
+      try (Connection connection = getTestDatabaseConnection();
           Statement statement = connection.createStatement()) {
         statement.execute("DROP SCHEMA IF EXISTS " + schema + " CASCADE");
       }
@@ -119,8 +117,7 @@ class ExpressImportSqlIT {
   @Test
   void preservesCompositeHistoryDeleteOperations() throws Exception {
     String schema = "express_composite_" + Long.toUnsignedString(System.nanoTime());
-    try (Connection connection = DriverManager.getConnection(
-        "jdbc:postgresql://localhost:5432/postgres", "postgres", "password");
+    try (Connection connection = getTestDatabaseConnection();
         Statement statement = connection.createStatement()) {
       statement.execute("CREATE EXTENSION IF NOT EXISTS postgis");
       statement.execute("CREATE SCHEMA " + schema);
@@ -178,8 +175,7 @@ class ExpressImportSqlIT {
       }
     }
     finally {
-      try (Connection connection = DriverManager.getConnection(
-          "jdbc:postgresql://localhost:5432/postgres", "postgres", "password");
+      try (Connection connection = getTestDatabaseConnection();
           Statement statement = connection.createStatement()) {
         statement.execute("DROP SCHEMA IF EXISTS " + schema + " CASCADE");
       }
