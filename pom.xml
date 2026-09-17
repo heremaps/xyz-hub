@@ -231,6 +231,18 @@
         <artifactId>xyz-util</artifactId>
         <version>${project.version}</version>
       </dependency>
+      <!--
+        The test-jar of xyz-util exposes the engine-agnostic FeatureWriter test framework
+        (com.here.xyz.test.featurewriter.TestSuite / SpaceWriter) so that other modules can
+        run the same write scenarios against their own write implementations.
+        NOTE: A managed "jar" entry does not apply to a "test-jar" dependency, hence the extra entry.
+      -->
+      <dependency>
+        <groupId>${project.groupId}</groupId>
+        <artifactId>xyz-util</artifactId>
+        <version>${project.version}</version>
+        <type>test-jar</type>
+      </dependency>
       <dependency>
         <groupId>${project.groupId}</groupId>
         <artifactId>xyz-job-service</artifactId>

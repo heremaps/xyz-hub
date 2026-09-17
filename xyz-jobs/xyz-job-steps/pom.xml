@@ -42,6 +42,18 @@
       <groupId>${project.groupId}</groupId>
       <artifactId>xyz-util</artifactId>
     </dependency>
+    <!--
+      Provides the engine-agnostic FeatureWriter test framework
+      (com.here.xyz.test.featurewriter.TestSuite / SpaceWriter and the SQL scenario suites),
+      which is reused here to verify the express import writer against the very same
+      write scenarios and assertions that cover the PLV8 FeatureWriter.
+    -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>xyz-util</artifactId>
+      <type>test-jar</type>
+      <scope>test</scope>
+    </dependency>
     <!-- TODO: Get rid of the following dependency again -->
     <dependency>
       <groupId>${project.groupId}</groupId>
