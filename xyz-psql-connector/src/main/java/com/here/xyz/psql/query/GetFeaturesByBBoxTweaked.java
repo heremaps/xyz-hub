@@ -103,8 +103,8 @@ public class GetFeaturesByBBoxTweaked<E extends GetFeaturesByBBoxEvent, R extend
   public R handle(ResultSet rs) throws SQLException {
     R response = super.handle(rs);
 
-    if (!isMvtRequested && resultIsPartial)
-        ((FeatureCollection) response).setPartial(true);
+    if (!isMvtRequested && resultIsPartial && response instanceof FeatureCollection fc)
+        fc.setPartial(true);
 
     return response;
   }
