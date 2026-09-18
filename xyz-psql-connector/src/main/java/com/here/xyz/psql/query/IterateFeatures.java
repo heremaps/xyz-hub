@@ -111,7 +111,10 @@ public class IterateFeatures<E extends IterateFeaturesEvent, R extends XyzRespon
 
   @Override
   public R handle(ResultSet rs) throws SQLException {
-    FeatureCollection fc = (FeatureCollection) super.handle(rs);
+    R response = super.handle(rs);
+
+    if (!(response instanceof FeatureCollection fc))
+      return response;
 
     String nextToken = createNextPageToken();
     fc.setHandle(nextToken); //TODO: Kept for backwards compatibility - remove after deprecation period
