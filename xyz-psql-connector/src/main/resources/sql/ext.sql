@@ -122,7 +122,9 @@ BEGIN
    RETURN geo;
   end if;
 
-  sgeo := st_geomfromtext(st_astext(ST_SnapToGrid(geo, 0.00000001),8),4326); -- ST_ReducePrecision(geo, 0.00000001);
+  --Replaces a st_geomfromtext(st_astext(..., 8), 4326) round trip that cost 535 of this function's 600 ms per 50k.
+  --Both the six argument form and the ST_SetSRID are needed to keep the previous output, see ReducePrecisionIT.
+  sgeo := ST_SetSRID(ST_SnapToGrid(geo, ST_MakePoint(0,0,0,0), 0.00000001, 0.00000001, 0.00000001, 0.00000001), 4326);
 
   IF GeometryType(sgeo) = GeometryType(geo) THEN
    RETURN sgeo;  -- only if type did not changed
