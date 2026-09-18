@@ -21,14 +21,17 @@ package com.here.xyz.psql.query;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.Event;
+import com.here.xyz.models.hub.Ref;
 import com.here.xyz.responses.XyzResponse;
 import java.sql.SQLException;
 import java.util.Map;
+import java.util.Optional;
 
 public abstract class ExtendedSpace<E extends Event, R extends XyzResponse> extends XyzQueryRunner<E, R> {
 
   private static final String EXTENDS = "extends";
   private static final String SPACE_ID = "spaceId";
+  private static final String EXTENDS_VERSION = "version";
 
   public ExtendedSpace(E event) throws SQLException, ErrorResponseException {
     super(event);
@@ -70,4 +73,23 @@ public abstract class ExtendedSpace<E extends Event, R extends XyzResponse> exte
       return getFirstLevelExtendedTable(event);
     return null;
   }
+
+  static <E extends Event> Optional<Long> getBaseVersion(E event) {
+    if (isExtendedSpace(event)) {
+      return getVersionFromExtendsMap((Map<String, Object>) event.getParams().get(EXTENDS));
+    }
+    return Optional.empty();
+  }
+
+  static <E extends Event> Optional<Long> getIntermediateBaseVersion(E event) {
+    if (is2LevelExtendedSpace(event)) {
+      return getVersionFromExtendsMap((Map<String, Object>) ((Map)event.getParams().get(EXTENDS)).get(EXTENDS));
+    }
+    return Optional.empty();
+  }
+
+  private static Optional<Long> getVersionFromExtendsMap(Map<String, Object> extendsObject) {
+    return Optional.ofNullable(extendsObject.get(EXTENDS_VERSION)).map(version -> ((Number) version).longValue());
+  }
+
 }

@@ -845,6 +845,7 @@ public class Space {
 
   public static class Extension implements XyzSerializable {
     private String spaceId;
+    private Long version;
     @JsonIgnore
     public Space resolvedSpace;
 
@@ -858,6 +859,19 @@ public class Space {
 
     public Extension withSpaceId(final String spaceId) {
       setSpaceId(spaceId);
+      return this;
+    }
+
+    public Long getVersion() {
+      return version;
+    }
+
+    public void setVersion(final Long version) {
+      this.version = version;
+    }
+
+    public Extension withVersion(final Long version) {
+      setVersion(version);
       return this;
     }
   }
