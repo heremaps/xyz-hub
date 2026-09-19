@@ -30,7 +30,7 @@ import org.apache.logging.log4j.Logger;
 
 public class ErrorManager {
 
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(ErrorManager.class);
   private static final Map<String, ErrorDefinition> errorMap = new HashMap<>();
   private static Map<String, String> globalPlaceholders = new HashMap<>();
 

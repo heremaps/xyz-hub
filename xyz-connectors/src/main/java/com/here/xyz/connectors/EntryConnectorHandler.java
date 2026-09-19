@@ -54,7 +54,7 @@ public abstract class EntryConnectorHandler extends AbstractConnectorHandler imp
    * Environment variable or connector param for setting the max uncompressed response size which can be written out of the connector.
    */
   public static final String MAX_UNCOMPRESSED_RESPONSE_SIZE = "MAX_UNCOMPRESSED_RESPONSE_SIZE";
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(EntryConnectorHandler.class);
   /**
    * The relocation client
    */

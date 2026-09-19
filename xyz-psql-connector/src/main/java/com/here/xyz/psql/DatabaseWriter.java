@@ -121,7 +121,7 @@ public class DatabaseWriter {
             return shortValue;
         }
     }
-    private static final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger(DatabaseWriter.class);
 
     private static final String UPDATE_ERROR_GENERAL = "Update has failed";
     public static final String UPDATE_ERROR_NOT_EXISTS = UPDATE_ERROR_GENERAL + " - Object does not exist";

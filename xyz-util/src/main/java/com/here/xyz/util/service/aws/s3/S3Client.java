@@ -61,7 +61,7 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 
 public class S3Client {
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(S3Client.class);
   private static final ExecutorService S3_DELETE_POOL =
           new ThreadPoolExecutor(
                   4,
