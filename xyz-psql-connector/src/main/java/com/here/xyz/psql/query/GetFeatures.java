@@ -513,7 +513,8 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   }
 
   protected SQLQuery buildGeoJsonExpression(E event) {
-    return new SQLQuery("REGEXP_REPLACE(ST_AsGeojson(${{rawGeoExpression}}, ${{precision}}), 'nan', '0', 'gi')")
+    //xyz_as_geojson replaces a per-row REGEXP_REPLACE that also missed Infinity; see ext.sql.
+    return new SQLQuery("xyz_as_geojson(${{rawGeoExpression}}, ${{precision}})")
           .withQueryFragment("rawGeoExpression", buildRawGeoExpression(event))
           .withQueryFragment("precision", "" + GetFeatures.GEOMETRY_DECIMAL_DIGITS);
   }
