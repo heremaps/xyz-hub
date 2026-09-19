@@ -111,6 +111,10 @@ public class StepTestBase {
 
   public static final Config config = new Config();
   protected static final String LAMBDA_ARN = "arn:aws:lambda:us-east-1:000000000000:function:job-step";
+  private static final long INITIAL_TASK_WAIT_MILLIS = 1_000;
+  private static final long TASK_POLL_INTERVAL_MILLIS = 100;
+  private static final long INITIAL_QUERY_WAIT_MILLIS = 500;
+  private static final long QUERY_POLL_INTERVAL_MILLIS = 100;
   private static final Logger logger = LogManager.getLogger();
   private static final S3Client s3Client;
   private static final String PG_HOST = System.getProperty("pg.host", "localhost");
@@ -429,8 +433,11 @@ public class StepTestBase {
     //Lambda calls from db to invoke new db thread calls.
     try{
       Integer i = -1;
+      //The first wait has to be long enough for the task table to exist, a missing one is read as "already finalized"
+      long waitMillis = INITIAL_TASK_WAIT_MILLIS;
       while (i != 0) {
-        Thread.sleep(1000);
+        Thread.sleep(waitMillis);
+        waitMillis = TASK_POLL_INTERVAL_MILLIS;
         SQLQuery query = new TestQueryBuilder(step.getId(), SCHEMA).buildRetrieveNumberOfNotFinalizedTasksQuery();
         i = query.run(getDataSourceProvider(), rs -> rs.next() ? rs.getInt(1) : null);
         logger.info("{} Threads are not finished!", i);
@@ -443,8 +450,11 @@ public class StepTestBase {
   }
 
   protected void waitTillAllQueriesAreFinalized(Step step) throws InterruptedException{
+    //The first wait has to be long enough for the query to show up, an absent one is read as "already done"
+    long waitMillis = INITIAL_QUERY_WAIT_MILLIS;
     while (true) {
-      Thread.sleep(500);
+      Thread.sleep(waitMillis);
+      waitMillis = QUERY_POLL_INTERVAL_MILLIS;
       try {
         boolean running = SQLQuery.isRunning(getDataSourceProvider(), false, "jobId", step.getJobId());
         if (!running)
