@@ -12,7 +12,22 @@ concurrency:
 
 jobs:
   test:
+    name: test (${{ matrix.name }})
     runs-on: ubuntu-latest
+    strategy:
+      #One stack per slice, so a failing slice does not hide the result of the others
+      fail-fast: false
+      matrix:
+        include:
+          - name: hub
+            modules: xyz-hub-test
+          - name: job-steps
+            modules: xyz-jobs/xyz-job-steps
+          - name: job-service
+            modules: xyz-jobs/xyz-job-service
+          #Everything the slices above do not claim, so a new module is covered without touching this list
+          - name: rest
+            modules: '!xyz-hub-test,!xyz-jobs/xyz-job-steps,!xyz-jobs/xyz-job-service'
     steps:
       - uses: actions/checkout@v4
       - name: Setup Java
@@ -38,4 +53,14 @@ jobs:
       - name: Run tests
         working-directory: ./
         #The fat jars were already built and deployed by the steps above, no need to repackage them
-        run: mvn verify -DskipTests=false -Dshade.skip=true
+        run: mvn verify -DskipTests=false -Dshade.skip=true -pl '${{ matrix.modules }}'
+
+  #Single check to require in the branch protection, the matrix job names change whenever a slice is added
+  tests-passed:
+    name: tests passed
+    if: always()
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail unless every slice succeeded
+        run: '[ "${{ needs.test.result }}" = "success" ]'
