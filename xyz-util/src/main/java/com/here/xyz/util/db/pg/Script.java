@@ -46,7 +46,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public class Script {
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(Script.class);
   private String scriptResourceLocation;
   private String scriptIdPrefix;
   private String scriptContent;
