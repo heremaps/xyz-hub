@@ -36,7 +36,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Scanner;
 import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -267,15 +266,26 @@ public interface XyzSerializable {
     return (T) deserialize(is, Typed.class);
   }
 
+  /*
+  Read into a byte[] rather than slurped into a String through a Scanner with an "\\A" delimiter,
+  which ran the regex engine over the whole document. This is the connector's entry point for every
+  event (EntryConnectorHandler.readEvent), so the cost scaled with the payload.
+   */
   static <T> T deserialize(InputStream is, Class<T> klass) throws JsonProcessingException {
-    try (Scanner scanner = new java.util.Scanner(is)) {
-      return deserialize(scanner.useDelimiter("\\A").next(), klass);
+    try {
+      return deserialize(is.readAllBytes(), klass);
+    }
+    catch (IOException e) {
+      throw new RuntimeException("Error reading the input stream.", e);
     }
   }
 
   static <T> T deserialize(InputStream is, TypeReference<T> type) throws JsonProcessingException {
-    try (Scanner scanner = new java.util.Scanner(is)) {
-      return deserialize(scanner.useDelimiter("\\A").next(), type);
+    try {
+      return deserialize(is.readAllBytes(), type);
+    }
+    catch (IOException e) {
+      throw new RuntimeException("Error reading the input stream.", e);
     }
   }
 
