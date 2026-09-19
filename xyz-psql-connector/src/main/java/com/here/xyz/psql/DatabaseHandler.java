@@ -67,6 +67,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
@@ -423,12 +424,30 @@ public abstract class DatabaseHandler extends StorageConnector {
         }
     }
 
+    /**
+     * Whether the target table carries its "_unique" constraint, which decides the shape of the
+     * upsert statement. Cached with a short expiry: it only changes when a table is created or
+     * migrated, but was looked up on every write request.
+     */
+    private static final Map<String, long[]> UNIQUE_CONSTRAINT_CACHE = new ConcurrentHashMap<>();
+    private static final long UNIQUE_CONSTRAINT_CACHE_TTL_MS = 60_000;
+
     private boolean checkUniqueTableConstraint(ModifyFeaturesEvent event) throws SQLException {
-        return new SQLQuery("SELECT 1 FROM pg_catalog.pg_constraint "
+        String table = readBranchTableFromEvent(event);
+        String cacheKey = getDatabaseSettings().getId() + "/" + getDatabaseSettings().getSchema() + "/" + table;
+
+        long[] cached = UNIQUE_CONSTRAINT_CACHE.get(cacheKey);
+        if (cached != null && System.currentTimeMillis() - cached[1] < UNIQUE_CONSTRAINT_CACHE_TTL_MS)
+            return cached[0] == 1;
+
+        boolean exists = new SQLQuery("SELECT 1 FROM pg_catalog.pg_constraint "
             + "WHERE connamespace::regnamespace::text = #{schema} AND conname = #{constraintName}")
             .withNamedParameter("schema", getDatabaseSettings().getSchema())
-            .withNamedParameter("constraintName", readBranchTableFromEvent(event) + "_unique")
+            .withNamedParameter("constraintName", table + "_unique")
             .run(dataSourceProvider, rs -> rs.next());
+
+        UNIQUE_CONSTRAINT_CACHE.put(cacheKey, new long[] {exists ? 1 : 0, System.currentTimeMillis()});
+        return exists;
     }
 
     private List<Feature> loadExistingFeatures(ModifyFeaturesEvent event, List<String> idsToFetch) throws SQLException,
