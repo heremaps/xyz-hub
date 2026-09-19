@@ -291,12 +291,33 @@ public interface XyzSerializable {
     return (T) deserialize(bytes, Typed.class);
   }
 
+  /*
+  Handed to Jackson directly rather than via new String(bytes), which decoded the whole document up
+  front and used the slower char-based parser. LazyParsable.RawDeserializer slices a byte[] source,
+  so the raw-value fast path still applies.
+   */
   static <T> T deserialize(byte[] bytes, Class<T> klass) throws JsonProcessingException {
-    return deserialize(new String(bytes), klass);
+    try {
+      return DEFAULT_MAPPER.get().readValue(bytes, klass);
+    }
+    catch (JsonProcessingException e) {
+      throw e;
+    }
+    catch (IOException e) {
+      return null;
+    }
   }
 
   static <T> T deserialize(byte[] bytes, TypeReference<T> type) throws JsonProcessingException {
-    return deserialize(new String(bytes), type);
+    try {
+      return DEFAULT_MAPPER.get().readValue(bytes, type);
+    }
+    catch (JsonProcessingException e) {
+      throw e;
+    }
+    catch (IOException e) {
+      return null;
+    }
   }
 
   static <T extends Typed> T deserialize(String string) throws JsonProcessingException {
