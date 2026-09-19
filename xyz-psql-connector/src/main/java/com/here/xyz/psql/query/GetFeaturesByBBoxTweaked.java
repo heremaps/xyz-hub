@@ -346,9 +346,10 @@ public class GetFeaturesByBBoxTweaked<E extends GetFeaturesByBBoxEvent, R extend
 
   private static String clipProjGeom(BBox bbox, String tweaksGeoSql )
   {
+    //xyz_clip_geometry repairs only what GEOS refuses to overlay, instead of ST_MakeValid per row.
     String fmt =  DhString.format(  " case st_within( %%1$s, ST_MakeEnvelope(%%2$.%1$df,%%3$.%1$df,%%4$.%1$df,%%5$.%1$df, 4326) ) "
         + "  when true then %%1$s "
-        + "  else ST_Intersection(ST_MakeValid(%%1$s),ST_MakeEnvelope(%%2$.%1$df,%%3$.%1$df,%%4$.%1$df,%%5$.%1$df, 4326))"
+        + "  else xyz_clip_geometry(%%1$s,ST_MakeEnvelope(%%2$.%1$df,%%3$.%1$df,%%4$.%1$df,%%5$.%1$df, 4326))"
         + " end " , 14 /*GEOMETRY_DECIMAL_DIGITS*/ );
     return DhString.format( fmt, tweaksGeoSql, bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat());
   }
