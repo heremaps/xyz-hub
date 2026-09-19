@@ -49,8 +49,8 @@ import org.junit.runners.MethodSorters;
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 @Category(RestTests.class)
 public class VersioningIT extends TestSpaceWithFeature {
-  final String SPACE_ID_1 = "space1";
-  final String SPACE_ID_2 = "space2";
+  final String SPACE_ID_1 = "space1" + TEST_SUFFIX;
+  final String SPACE_ID_2 = "space2" + TEST_SUFFIX;
   final String FEATURE_ID_1 = "Q3495887";
   final String FEATURE_ID_2 = "Q929126";
   final String FEATURE_ID_3 = "Q1370732";

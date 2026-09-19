@@ -36,12 +36,17 @@ import org.junit.Test;
 
 public class CreateExtensionSpaceIT extends TestSpaceWithFeature {
 
+  private static final String EXTENDS_SPACE_ID = "x-psql-extends" + TEST_SUFFIX;
+  private static final String SECOND_EXTENDS_SPACE_ID = "x-psql-second-extends" + TEST_SUFFIX;
+  private static final String THIRD_EXTENDS_SPACE_ID = "x-psql-third-extends" + TEST_SUFFIX;
+  private static final String NO_EXTENSION_SPACE_ID = "x-psql-no-extension" + TEST_SUFFIX;
+
   private Set<String> cleanUpIds = new HashSet<>();
 
   @BeforeClass
   public static void setupClass() {
     removeAllSpaces();
-    createSpaceWithCustomStorage("x-psql-test-extensible", "psql", null);
+    createSpaceWithCustomStorage(EXTENSIBLE_SPACE_ID, "psql", null);
     createSpace();
   }
 
@@ -61,10 +66,10 @@ public class CreateExtensionSpaceIT extends TestSpaceWithFeature {
   }
 
   public static void removeAllSpaces() {
-    removeSpace("x-psql-test");
-    removeSpace("x-psql-test-extensible");
-    removeSpace("x-psql-extends");
-    removeSpace("x-psql-third-extends");
+    removeSpace(DEFAULT_SPACE_ID);
+    removeSpace(EXTENSIBLE_SPACE_ID);
+    removeSpace(EXTENDS_SPACE_ID);
+    removeSpace(THIRD_EXTENDS_SPACE_ID);
   }
 
   @Test // should pass
@@ -77,17 +82,17 @@ public class CreateExtensionSpaceIT extends TestSpaceWithFeature {
         .post("/spaces")
         .then()
         .statusCode(OK.code())
-        .body("extends.spaceId", equalTo("x-psql-test-extensible"));
+        .body("extends.spaceId", equalTo(EXTENSIBLE_SPACE_ID));
     cleanUpIds.add(response.extract().path("id"));
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .get("/spaces/x-psql-extending-test")
+        .get("/spaces/" + EXTENDING_SPACE_ID)
         .then()
         .statusCode(OK.code())
-        .body("id", equalTo("x-psql-extending-test"))
-        .body("extends.spaceId", equalTo("x-psql-test-extensible"));
+        .body("id", equalTo(EXTENDING_SPACE_ID))
+        .body("extends.spaceId", equalTo(EXTENSIBLE_SPACE_ID));
   }
 
   @Test // should pass
@@ -106,14 +111,14 @@ public class CreateExtensionSpaceIT extends TestSpaceWithFeature {
     response = given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
-        .body("{\"id\": \"x-psql-second-extends\", \"title\": \"x-psql-second-extends\", \"extends\":{\"spaceId\":\"x-psql-extending-test\"}}")
+        .body("{\"id\": \"" + SECOND_EXTENDS_SPACE_ID + "\", \"title\": \"" + SECOND_EXTENDS_SPACE_ID + "\", \"extends\":{\"spaceId\":\"" + EXTENDING_SPACE_ID + "\"}}")
         .when()
         .post("/spaces")
         .then();
     cleanUpIds.add(response.extract().path("id"));
 
     response.statusCode(OK.code())
-        .body("extends.spaceId", equalTo("x-psql-extending-test"));
+        .body("extends.spaceId", equalTo(EXTENDING_SPACE_ID));
   }
 
   @Test // should fail
@@ -132,7 +137,7 @@ public class CreateExtensionSpaceIT extends TestSpaceWithFeature {
     response = given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
-        .body("{\"id\": \"x-psql-second-extends\", \"title\": \"x-psql-second-extends\", \"extends\":{\"spaceId\":\"x-psql-extending-test\"}}")
+        .body("{\"id\": \"" + SECOND_EXTENDS_SPACE_ID + "\", \"title\": \"" + SECOND_EXTENDS_SPACE_ID + "\", \"extends\":{\"spaceId\":\"" + EXTENDING_SPACE_ID + "\"}}")
         .when()
         .post("/spaces")
         .then()
@@ -143,7 +148,7 @@ public class CreateExtensionSpaceIT extends TestSpaceWithFeature {
     given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
-        .body("{\"id\": \"x-psql-third-extends\", \"title\": \"x-psql-third-extends\", \"extends\":{\"spaceId\":\"x-psql-second-extends\"}}")
+        .body("{\"id\": \"" + THIRD_EXTENDS_SPACE_ID + "\", \"title\": \"" + THIRD_EXTENDS_SPACE_ID + "\", \"extends\":{\"spaceId\":\"" + SECOND_EXTENDS_SPACE_ID + "\"}}")
         .when()
         .post("/spaces")
         .then()
@@ -155,7 +160,7 @@ public class CreateExtensionSpaceIT extends TestSpaceWithFeature {
     given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
-        .body("{\"id\": \"x-psql-extends\", \"title\": \"x-psql-extends\", \"extends\":{\"spaceId\":\"unexisting-space-id\"}}")
+        .body("{\"id\": \"" + EXTENDS_SPACE_ID + "\", \"title\": \"" + EXTENDS_SPACE_ID + "\", \"extends\":{\"spaceId\":\"unexisting-space-id\"}}")
         .when()
         .post("/spaces")
         .then()
@@ -179,7 +184,7 @@ public class CreateExtensionSpaceIT extends TestSpaceWithFeature {
     given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
-        .body("{\"id\": \"x-psql-extends\", \"title\": \"x-psql-extends\", \"extends\":{\"spaceId\":\"x-psql-test\"}, \"searchableProperties\":{\"name\": true}}")
+        .body("{\"id\": \"" + EXTENDS_SPACE_ID + "\", \"title\": \"" + EXTENDS_SPACE_ID + "\", \"extends\":{\"spaceId\":\"" + DEFAULT_SPACE_ID + "\"}, \"searchableProperties\":{\"name\": true}}")
         .when()
         .post("/spaces")
         .then()
@@ -202,9 +207,9 @@ public class CreateExtensionSpaceIT extends TestSpaceWithFeature {
     given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
-        .body("{\"extends\": {\"spaceId\": \"x-psql-test\"}}")
+        .body("{\"extends\": {\"spaceId\": \"" + DEFAULT_SPACE_ID + "\"}}")
         .when()
-        .patch("/spaces/x-psql-extending-test")
+        .patch("/spaces/" + EXTENDING_SPACE_ID)
         .then()
         .statusCode(OK.code());
   }
@@ -214,7 +219,7 @@ public class CreateExtensionSpaceIT extends TestSpaceWithFeature {
     given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .body("{\"id\": \"x-psql-extends\", \"title\": \"x-psql-extends\", \"extends\":{\"spaceId\":\"x-psql-test\"}, \"storage\":{\"id\": \"psql\", \"params\":{\"foo\": \"bar\"}}}")
+        .body("{\"id\": \"" + EXTENDS_SPACE_ID + "\", \"title\": \"" + EXTENDS_SPACE_ID + "\", \"extends\":{\"spaceId\":\"" + DEFAULT_SPACE_ID + "\"}, \"storage\":{\"id\": \"psql\", \"params\":{\"foo\": \"bar\"}}}")
         .when()
         .post("/spaces")
         .then()
@@ -224,13 +229,13 @@ public class CreateExtensionSpaceIT extends TestSpaceWithFeature {
 
   @Test // should fail
   public void createSpaceWithExtensionNotSupported() {
-    createSpaceWithCustomStorage("x-psql-no-extension", "inMemory", null);
-    cleanUpIds.add("x-psql-no-extension");
+    createSpaceWithCustomStorage(NO_EXTENSION_SPACE_ID, "inMemory", null);
+    cleanUpIds.add(NO_EXTENSION_SPACE_ID);
 
     given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
-        .body("{\"id\": \"x-psql-extends\", \"title\": \"x-psql-extends\", \"extends\":{\"spaceId\":\"x-psql-no-extension\"}}}")
+        .body("{\"id\": \"" + EXTENDS_SPACE_ID + "\", \"title\": \"" + EXTENDS_SPACE_ID + "\", \"extends\":{\"spaceId\":\"" + NO_EXTENSION_SPACE_ID + "\"}}}")
         .when()
         .post("/spaces")
         .then()
@@ -242,7 +247,7 @@ public class CreateExtensionSpaceIT extends TestSpaceWithFeature {
     given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
-        .body("{\"id\": \"x-psql-extends\", \"title\": \"x-psql-extends\", \"extends\":{\"spaceId\":\"x-psql-extends\"}}")
+        .body("{\"id\": \"" + EXTENDS_SPACE_ID + "\", \"title\": \"" + EXTENDS_SPACE_ID + "\", \"extends\":{\"spaceId\":\"" + EXTENDS_SPACE_ID + "\"}}")
         .when()
         .post("/spaces")
         .then()

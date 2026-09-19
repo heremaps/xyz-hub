@@ -90,6 +90,9 @@
     <maven.compiler.source>17</maven.compiler.source>
     <maven.compiler.target>17</maven.compiler.target>
 
+    <!-- Number of JVMs failsafe uses to run integration test classes in parallel. Set to 1 to run them serially. -->
+    <it.forkCount>4</it.forkCount>
+
     <!-- Dependencies versions -->
     <aws-sdk-version>1.12.772</aws-sdk-version>
     <aws-sdk2-version>2.25.8</aws-sdk2-version>
