@@ -82,9 +82,31 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 
 public class BaseHttpServerVerticle extends AbstractVerticle {
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(BaseHttpServerVerticle.class);
+
+  /**
+   * Deflate level for responses. Vert.x defaults to 6, a poor trade for multi-MB GeoJSON: level 3
+   * compresses in about a third of the time for roughly a tenth more bytes. Read from the
+   * environment because SERVER_OPTIONS is initialised at class-load, before the config is loaded.
+   */
+  private static final int DEFAULT_HTTP_COMPRESSION_LEVEL = 3;
+  private static final int HTTP_COMPRESSION_LEVEL = readCompressionLevel();
+
+  private static int readCompressionLevel() {
+    String raw = System.getProperty("HTTP_COMPRESSION_LEVEL", System.getenv("HTTP_COMPRESSION_LEVEL"));
+    if (raw == null || raw.isBlank())
+      return DEFAULT_HTTP_COMPRESSION_LEVEL;
+    try {
+      return Math.min(9, Math.max(1, Integer.parseInt(raw.trim())));
+    }
+    catch (NumberFormatException e) {
+      return DEFAULT_HTTP_COMPRESSION_LEVEL;
+    }
+  }
+
   public static final HttpServerOptions SERVER_OPTIONS = new HttpServerOptions()
       .setCompressionSupported(true)
+      .setCompressionLevel(HTTP_COMPRESSION_LEVEL)
       .setDecompressionSupported(true)
       .setHandle100ContinueAutomatically(true)
       .setTcpQuickAck(true)

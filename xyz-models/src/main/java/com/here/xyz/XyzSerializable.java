@@ -36,7 +36,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Scanner;
 import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -267,15 +266,26 @@ public interface XyzSerializable {
     return (T) deserialize(is, Typed.class);
   }
 
+  /*
+  Read into a byte[] rather than slurped into a String through a Scanner with an "\\A" delimiter,
+  which ran the regex engine over the whole document. This is the connector's entry point for every
+  event (EntryConnectorHandler.readEvent), so the cost scaled with the payload.
+   */
   static <T> T deserialize(InputStream is, Class<T> klass) throws JsonProcessingException {
-    try (Scanner scanner = new java.util.Scanner(is)) {
-      return deserialize(scanner.useDelimiter("\\A").next(), klass);
+    try {
+      return deserialize(is.readAllBytes(), klass);
+    }
+    catch (IOException e) {
+      throw new RuntimeException("Error reading the input stream.", e);
     }
   }
 
   static <T> T deserialize(InputStream is, TypeReference<T> type) throws JsonProcessingException {
-    try (Scanner scanner = new java.util.Scanner(is)) {
-      return deserialize(scanner.useDelimiter("\\A").next(), type);
+    try {
+      return deserialize(is.readAllBytes(), type);
+    }
+    catch (IOException e) {
+      throw new RuntimeException("Error reading the input stream.", e);
     }
   }
 
@@ -291,12 +301,33 @@ public interface XyzSerializable {
     return (T) deserialize(bytes, Typed.class);
   }
 
+  /*
+  Handed to Jackson directly rather than via new String(bytes), which decoded the whole document up
+  front and used the slower char-based parser. LazyParsable.RawDeserializer slices a byte[] source,
+  so the raw-value fast path still applies.
+   */
   static <T> T deserialize(byte[] bytes, Class<T> klass) throws JsonProcessingException {
-    return deserialize(new String(bytes), klass);
+    try {
+      return DEFAULT_MAPPER.get().readValue(bytes, klass);
+    }
+    catch (JsonProcessingException e) {
+      throw e;
+    }
+    catch (IOException e) {
+      return null;
+    }
   }
 
   static <T> T deserialize(byte[] bytes, TypeReference<T> type) throws JsonProcessingException {
-    return deserialize(new String(bytes), type);
+    try {
+      return DEFAULT_MAPPER.get().readValue(bytes, type);
+    }
+    catch (JsonProcessingException e) {
+      throw e;
+    }
+    catch (IOException e) {
+      return null;
+    }
   }
 
   static <T extends Typed> T deserialize(String string) throws JsonProcessingException {
