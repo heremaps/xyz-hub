@@ -1,23 +1,41 @@
 name: Run XYZ Hub tests
 
-on: [push, pull_request, workflow_dispatch]
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   test:
+    name: test (${{ matrix.name }})
     runs-on: ubuntu-latest
+    strategy:
+      #One stack per slice, so a failing slice does not hide the result of the others
+      fail-fast: false
+      matrix:
+        include:
+          - name: hub
+            modules: xyz-hub-test
+          - name: job-steps
+            modules: xyz-jobs/xyz-job-steps
+          - name: job-service
+            modules: xyz-jobs/xyz-job-service
+          #Everything the slices above do not claim, so a new module is covered without touching this list
+          - name: rest
+            modules: '!xyz-hub-test,!xyz-jobs/xyz-job-steps,!xyz-jobs/xyz-job-service'
     steps:
-      - uses: actions/checkout@v2
-      - name: Cache local Maven repository
-        uses: actions/cache@v4
-        with:
-          path: ~/.m2/repository
-          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
-          restore-keys: |
-            ${{ runner.os }}-maven-
+      - uses: actions/checkout@v4
       - name: Setup Java
-        uses: actions/setup-java@v1
+        uses: actions/setup-java@v4
         with:
           java-version: '17'
+          distribution: temurin
+          cache: maven
       - name: Add hosts to /etc/hosts
         run: |
           sudo echo "127.0.0.1 dynamodb postgres.local postgres postgres.replica" | sudo tee -a /etc/hosts
@@ -34,4 +52,15 @@ jobs:
         run: docker run --rm --entrypoint '' -v ./localSetup.sh:/aws/localSetup.sh --add-host host.docker.internal=host-gateway amazon/aws-cli ./localSetup.sh true
       - name: Run tests
         working-directory: ./
-        run: mvn verify -DskipTests=false
+        #The fat jars were already built and deployed by the steps above, no need to repackage them
+        run: mvn verify -DskipTests=false -Dshade.skip=true -pl '${{ matrix.modules }}'
+
+  #Single check to require in the branch protection, the matrix job names change whenever a slice is added
+  tests-passed:
+    name: tests passed
+    if: always()
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail unless every slice succeeded
+        run: '[ "${{ needs.test.result }}" = "success" ]'

@@ -27,7 +27,20 @@
     <plugins>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <!-- Test classes of these modules address their resources by a per-instance random ID, so they may run concurrently. -->
+          <forkCount>${it.forkCount}</forkCount>
+          <reuseForks>true</reuseForks>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-failsafe-plugin</artifactId>
+        <configuration>
+          <forkCount>${it.forkCount}</forkCount>
+          <reuseForks>true</reuseForks>
+        </configuration>
         <executions>
           <execution>
             <configuration>

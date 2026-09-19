@@ -52,29 +52,87 @@
         <artifactId>maven-surefire-plugin</artifactId>
         <groupId>org.apache.maven.plugins</groupId>
         <configuration>
+          <!--
+            Only the unit tests of this module. Without this restriction the default pattern **/Test*.java would also
+            pick up the IT base classes, and the integration tests would run a second time in the surefire phase.
+          -->
           <includes>
-            <include>**/*.class</include>
+            <include>**/*Test.java</include>
           </includes>
         </configuration>
       </plugin>
       <plugin>
         <artifactId>maven-failsafe-plugin</artifactId>
+        <configuration>
+          <encoding>UTF-8</encoding>
+          <skip>${skipTests}</skip>
+        </configuration>
         <executions>
+          <!--
+            Tests that assert on state which is global to the hub: space listings per owner, region or tag, the
+            connector listing, or the request throttling. They cannot tolerate a second test creating a space at the
+            same time, so they run alone and before everything else.
+          -->
           <execution>
-            <configuration>
-              <encoding>UTF-8</encoding>
-              <skip>${skipTests}</skip>
-            </configuration>
+            <id>integration-test-exclusive</id>
             <goals>
               <goal>integration-test</goal>
             </goals>
-            <id>integration-test</id>
+            <configuration>
+              <forkCount>1</forkCount>
+              <includes>
+                <include>**/AuthTestsIT.java</include>
+                <include>**/ConnectorApiIT.java</include>
+                <include>**/CreateExtensionSpaceIT.java</include>
+                <include>**/LimitsTestIT.java</include>
+                <include>**/ListSpaceContentUpdatedAtTestIT.java</include>
+                <include>**/ReadSpaceApiIT.java</include>
+                <include>**/ReadSpacePerRegionApiIT.java</include>
+                <include>**/RequesterThrottlingIT.java</include>
+                <include>**/SpaceStatisticsIT.java</include>
+                <include>**/StorageReportingApiIT.java</include>
+                <include>**/SubscriptionApiIT.java</include>
+                <include>**/TagApiIT.java</include>
+              </includes>
+              <systemPropertyVariables>
+                <xyz.test.suffix>-x</xyz.test.suffix>
+              </systemPropertyVariables>
+            </configuration>
           </execution>
+          <!-- Everything else. Each fork works on its own set of spaces, see TestAuthenticator#TEST_SUFFIX. -->
           <execution>
+            <id>integration-test</id>
+            <goals>
+              <goal>integration-test</goal>
+            </goals>
+            <configuration>
+              <forkCount>${it.forkCount}</forkCount>
+              <reuseForks>true</reuseForks>
+              <excludes>
+                <exclude>**/AuthTestsIT.java</exclude>
+                <exclude>**/ConnectorApiIT.java</exclude>
+                <exclude>**/CreateExtensionSpaceIT.java</exclude>
+                <exclude>**/LimitsTestIT.java</exclude>
+                <exclude>**/ListSpaceContentUpdatedAtTestIT.java</exclude>
+                <exclude>**/ReadSpaceApiIT.java</exclude>
+                <exclude>**/ReadSpacePerRegionApiIT.java</exclude>
+                <exclude>**/RequesterThrottlingIT.java</exclude>
+                <exclude>**/SpaceStatisticsIT.java</exclude>
+                <exclude>**/StorageReportingApiIT.java</exclude>
+                <exclude>**/SubscriptionApiIT.java</exclude>
+                <exclude>**/TagApiIT.java</exclude>
+              </excludes>
+              <systemPropertyVariables>
+                <xyz.test.suffix>-f${surefire.forkNumber}</xyz.test.suffix>
+              </systemPropertyVariables>
+            </configuration>
+          </execution>
+          <!-- Both integration-test executions merge their results into the default summary file. -->
+          <execution>
+            <id>verify</id>
             <goals>
               <goal>verify</goal>
             </goals>
-            <id>verify</id>
           </execution>
         </executions>
         <groupId>org.apache.maven.plugins</groupId>

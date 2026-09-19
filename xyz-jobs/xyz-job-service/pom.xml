@@ -215,6 +215,18 @@
       </resource>
     </resources>
     <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-failsafe-plugin</artifactId>
+        <configuration>
+          <!--
+            The integration tests of this module submit jobs to one shared job service and wait for them to reach a
+            final state. Several tests submitting at the same time make the jobs queue up until the poll timeout, so
+            these tests stay serial.
+          -->
+          <forkCount>1</forkCount>
+        </configuration>
+      </plugin>
       <!-- Include sources -->
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>

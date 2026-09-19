@@ -90,6 +90,10 @@
     <maven.compiler.source>17</maven.compiler.source>
     <maven.compiler.target>17</maven.compiler.target>
 
+    <!-- Number of JVMs failsafe uses to run integration test classes in parallel. Set to 1 to run them serially. -->
+    <it.forkCount>4</it.forkCount>
+    <shade.skip>false</shade.skip>
+
     <!-- Dependencies versions -->
     <aws-sdk-version>1.12.772</aws-sdk-version>
     <aws-sdk2-version>2.25.8</aws-sdk2-version>
@@ -168,6 +172,13 @@
         <plugin>
           <artifactId>maven-shade-plugin</artifactId>
           <version>3.5.0</version>
+          <configuration>
+            <!--
+              Lets a build that only runs tests skip repackaging the fat jars. They are needed to build the docker
+              images and to deploy the step lambda, both of which happen before the tests run.
+            -->
+            <skip>${shade.skip}</skip>
+          </configuration>
         </plugin>
         <plugin>
           <artifactId>maven-resources-plugin</artifactId>

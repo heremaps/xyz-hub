@@ -89,10 +89,10 @@ public class ReadSpaceApiIT extends TestSpaceWithFeature {
         .accept(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .get("/spaces/x-psql-test")
+        .get("/spaces/" + DEFAULT_SPACE_ID)
         .then()
         .statusCode(OK.code())
-        .body("id", equalTo("x-psql-test"))
+        .body("id", equalTo(DEFAULT_SPACE_ID))
         .body("title", equalTo("My Demo Space"))
         .body("storage.id", equalTo("psql"));
   }
@@ -103,7 +103,7 @@ public class ReadSpaceApiIT extends TestSpaceWithFeature {
         .accept(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.NO_ACCESS))
         .when()
-        .get("/spaces/x-psql-test")
+        .get("/spaces/" + DEFAULT_SPACE_ID)
         .then()
         .statusCode(FORBIDDEN.code());
   }
@@ -114,10 +114,10 @@ public class ReadSpaceApiIT extends TestSpaceWithFeature {
         .accept(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_NO_ADMIN))
         .when()
-        .get("/spaces/x-psql-test")
+        .get("/spaces/" + DEFAULT_SPACE_ID)
         .then()
         .statusCode(OK.code())
-        .body("id", equalTo("x-psql-test"))
+        .body("id", equalTo(DEFAULT_SPACE_ID))
         .body("title", equalTo("My Demo Space"))
         .body("$", not(hasKey("storage")))
         .body("$", not(hasKey("tileMinLevel")))
@@ -135,7 +135,7 @@ public class ReadSpaceApiIT extends TestSpaceWithFeature {
         .then()
         .statusCode(OK.code())
         .body("size()", is(1))
-        .body("[0].id", equalTo("x-psql-test"))
+        .body("[0].id", equalTo(DEFAULT_SPACE_ID))
         .body("[0].title", equalTo("My Demo Space"))
         .body("[0].$", not(hasKey("rights")))
         .body("[0].$", not(hasKey("storage")))
@@ -211,7 +211,7 @@ public class ReadSpaceApiIT extends TestSpaceWithFeature {
         .then()
         .statusCode(OK.code())
         .body("size()", is(1))
-        .body("[0].id", equalTo("x-psql-test"))
+        .body("[0].id", equalTo(DEFAULT_SPACE_ID))
         .body("[0].title", equalTo("My Demo Space"))
         .body("[0].rights.size()", is(5))
         .body("[0].$", not(hasKey("storage")))
@@ -230,7 +230,7 @@ public class ReadSpaceApiIT extends TestSpaceWithFeature {
         .then()
         .statusCode(OK.code())
         .body("size()", is(1))
-        .body("[0].id", equalTo("x-psql-test"))
+        .body("[0].id", equalTo(DEFAULT_SPACE_ID))
         .body("[0].title", equalTo("My Demo Space"))
         .body("[0].createdAt", instanceOf(Number.class))
         .body("[0].updatedAt", instanceOf(Number.class));
@@ -246,9 +246,9 @@ public class ReadSpaceApiIT extends TestSpaceWithFeature {
         .then()
         .statusCode(OK.code())
         .body("size()",  zeroSpaces ? is(1) : greaterThanOrEqualTo(1))
-        .body("findAll { it.id == 'x-psql-test' }", not(empty()))
-        .body("find { it.id == 'x-psql-test' }.title", equalTo("My Demo Space"))
-        .body("find { it.id == 'x-psql-test' }.storage.id", equalTo("psql"));
+        .body("findAll { it.id == '" + DEFAULT_SPACE_ID + "' }", not(empty()))
+        .body("find { it.id == '" + DEFAULT_SPACE_ID + "' }.title", equalTo("My Demo Space"))
+        .body("find { it.id == '" + DEFAULT_SPACE_ID + "' }.storage.id", equalTo("psql"));
   }
 
   @Test
@@ -296,7 +296,7 @@ public class ReadSpaceApiIT extends TestSpaceWithFeature {
         .accept(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_2))
         .when()
-        .get("/spaces/x-psql-test")
+        .get("/spaces/" + DEFAULT_SPACE_ID)
         .then()
         .statusCode(FORBIDDEN.code());
   }
@@ -307,7 +307,7 @@ public class ReadSpaceApiIT extends TestSpaceWithFeature {
         .accept(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get("/spaces/x-psql-test")
+        .get("/spaces/" + DEFAULT_SPACE_ID)
         .then()
         .statusCode(OK.code());
   }
@@ -315,26 +315,26 @@ public class ReadSpaceApiIT extends TestSpaceWithFeature {
   @Test
   public void readSharedSpaceWithOtherOwner() {
     //Publish space from OWNER_1
-    publishSpace("x-psql-test");
+    publishSpace(DEFAULT_SPACE_ID);
 
     given()
         .accept(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_2))
         .when()
-        .get("/spaces/x-psql-test")
+        .get("/spaces/" + DEFAULT_SPACE_ID)
         .then()
         .statusCode(OK.code());
   }
 
   @Test
   public void readSpaceWithAccessConnectors() {
-    addListener("x-psql-test");
+    addListener(DEFAULT_SPACE_ID);
 
     given()
         .accept(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_WITH_PSQL))
         .when()
-        .get("/spaces/x-psql-test")
+        .get("/spaces/" + DEFAULT_SPACE_ID)
         .then()
         .statusCode(OK.code())
         .body("$", hasKey("listeners"))
@@ -344,13 +344,13 @@ public class ReadSpaceApiIT extends TestSpaceWithFeature {
 
   @Test
   public void readSpaceWithNoAccessConnectors() {
-    addListener("x-psql-test");
+    addListener(DEFAULT_SPACE_ID);
 
     given()
         .accept(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_WITH_FEATURES_ONLY))
         .when()
-        .get("/spaces/x-psql-test")
+        .get("/spaces/" + DEFAULT_SPACE_ID)
         .then()
         .statusCode(OK.code())
         .body("$", not(hasKey("listeners")));
