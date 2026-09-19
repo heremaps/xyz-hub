@@ -74,7 +74,7 @@ public abstract class EventDecryptor {
   /**
    * Logger
    */
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(EventDecryptor.class);
 
   /**
    * This method returns an instance of the known EventDecryptor implementations.
