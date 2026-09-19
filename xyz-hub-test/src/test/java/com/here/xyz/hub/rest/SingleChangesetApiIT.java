@@ -42,7 +42,7 @@ import org.junit.Test;
 
 public class SingleChangesetApiIT extends TestSpaceWithFeature {
 
-  private static String cleanUpSpaceId = "space1";
+  private static String cleanUpSpaceId = "space1" + TEST_SUFFIX;
   protected static final String AUTHOR_1 = "XYZ-01234567-89ab-cdef-0123-456789aUSER1";
   protected static final String AUTHOR_2 = "XYZ-01234567-89ab-cdef-0123-456789aUSER2";
 

@@ -28,6 +28,12 @@ import java.util.Map;
 
 public class TestAuthenticator {
 
+  /**
+   * Appended to every space ID the tests create, so that test classes running in concurrent failsafe forks do not
+   * address the same spaces. Failsafe passes the fork number in, running from an IDE it stays empty.
+   */
+  public static final String TEST_SUFFIX = System.getProperty("xyz.test.suffix", "");
+
   protected static Map<String, String> getAuthHeaders(AuthProfile authProfile) {
     HashMap<String, String> authHeaders = new HashMap<>();
     authHeaders.put("Authorization", "Bearer " + authProfile.jwt_string);
@@ -35,6 +41,16 @@ public class TestAuthenticator {
   }
 
   protected static String content(String file) {
+    return resolvePlaceholders(rawContent(file));
+  }
+
+  protected static String content(String file, String storageId) {
+    JsonObject jsonContent = new JsonObject(rawContent(file));
+    jsonContent.put("storage", new JsonObject().put("id", storageId));
+    return resolvePlaceholders(jsonContent.encode());
+  }
+
+  private static String rawContent(String file) {
     try {
       return new String(ByteStreams.toByteArray(TestAuthenticator.class.getResourceAsStream(file))).trim();
     }
@@ -43,18 +59,16 @@ public class TestAuthenticator {
     }
   }
 
-  protected static String content(String file, String storageId) {
-    try {
-      String content = new String(ByteStreams.toByteArray(TestAuthenticator.class.getResourceAsStream(file))).trim();
-      JsonObject jsonContent = new JsonObject(content);
-
-      JsonObject storage = new JsonObject().put("id", storageId);
-      jsonContent.put("storage", storage);
-      return jsonContent.encode();
-    }
-    catch (IOException e) {
-      throw new RuntimeException("Error while reading token from resource file: " + file, e);
-    }
+  /**
+   * Replaces the space ID placeholders of the test resources by the IDs which are actually in use in this JVM.
+   */
+  private static String resolvePlaceholders(String content) {
+    if (!content.contains("${"))
+      return content;
+    return content
+        .replace("${spaceId}", "x-psql-test" + TEST_SUFFIX)
+        .replace("${extensibleSpaceId}", "x-psql-test-extensible" + TEST_SUFFIX)
+        .replace("${extendingSpaceId}", "x-psql-extending-test" + TEST_SUFFIX);
   }
 
   public enum AuthProfile {

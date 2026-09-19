@@ -57,12 +57,12 @@ public class UpdateSpaceApiIT extends TestSpaceWithFeature {
             contentType(APPLICATION_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
             body(content("/xyz/hub/updateSpace.json")).
-            when().patch("/spaces/x-psql-test").peek().then();
+            when().patch("/spaces/" + DEFAULT_SPACE_ID).peek().then();
 
         long createdAt = response.extract().path("createdAt");
 
         response.statusCode(OK.code()).
-            body("id", equalTo("x-psql-test")).
+            body("id", equalTo(DEFAULT_SPACE_ID)).
             body("title", equalTo("My Demo Space Updated")).
             body("storage.id", equalTo("psql")).
             body("updatedAt", not(equalTo(createdAt)));
@@ -75,7 +75,7 @@ public class UpdateSpaceApiIT extends TestSpaceWithFeature {
         accept(APPLICATION_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
         body("{\"readOnly\":true}").
-        when().patch("/spaces/x-psql-test").then().statusCode(OK.code());
+        when().patch("/spaces/" + DEFAULT_SPACE_ID).then().statusCode(OK.code());
 
     Feature point = Feature.createEmptyFeature()
         .withId("C001")
@@ -86,7 +86,7 @@ public class UpdateSpaceApiIT extends TestSpaceWithFeature {
         headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
         body(point.serialize()).
         when().
-        put("/spaces/x-psql-test/features/C001").
+        put("/spaces/" + DEFAULT_SPACE_ID + "/features/C001").
         then().statusCode(METHOD_NOT_ALLOWED.code());
   }
 }

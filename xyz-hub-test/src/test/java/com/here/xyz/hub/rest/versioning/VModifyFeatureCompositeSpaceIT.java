@@ -28,7 +28,7 @@ public class VModifyFeatureCompositeSpaceIT extends ModifyFeatureCompositeSpaceI
   public void setup() {
     tearDown();
 
-    String spaceId = "x-psql-test";
+    String spaceId = DEFAULT_SPACE_ID;
     VersioningBaseIT.createSpace(spaceId, getCreateSpacePath(), 10);
     createSpaceWithCustomStorage(spaceId + "-2", "psql", null);
     createSpaceWithExtension(spaceId);
