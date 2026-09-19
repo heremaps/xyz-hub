@@ -37,4 +37,5 @@ jobs:
         run: docker run --rm --entrypoint '' -v ./localSetup.sh:/aws/localSetup.sh --add-host host.docker.internal=host-gateway amazon/aws-cli ./localSetup.sh true
       - name: Run tests
         working-directory: ./
-        run: mvn verify -DskipTests=false
+        #The fat jars were already built and deployed by the steps above, no need to repackage them
+        run: mvn verify -DskipTests=false -Dshade.skip=true
