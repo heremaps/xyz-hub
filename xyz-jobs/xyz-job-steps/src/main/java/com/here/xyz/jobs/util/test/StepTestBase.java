@@ -113,8 +113,11 @@ public class StepTestBase {
   protected static final String LAMBDA_ARN = "arn:aws:lambda:us-east-1:000000000000:function:job-step";
   private static final long INITIAL_TASK_WAIT_MILLIS = 1_000;
   private static final long TASK_POLL_INTERVAL_MILLIS = 100;
+  /** A task item is finalized through a lambda callback from the database. A lost one would wait forever. */
+  private static final long TASK_WAIT_TIMEOUT_MILLIS = 5 * 60 * 1_000;
   private static final long INITIAL_QUERY_WAIT_MILLIS = 500;
   private static final long QUERY_POLL_INTERVAL_MILLIS = 100;
+  private static final long QUERY_WAIT_TIMEOUT_MILLIS = 5 * 60 * 1_000;
   private static final Logger logger = LogManager.getLogger();
   private static final S3Client s3Client;
   private static final String PG_HOST = System.getProperty("pg.host", "localhost");
@@ -435,7 +438,11 @@ public class StepTestBase {
       Integer i = -1;
       //The first wait has to be long enough for the task table to exist, a missing one is read as "already finalized"
       long waitMillis = INITIAL_TASK_WAIT_MILLIS;
+      long deadline = System.currentTimeMillis() + TASK_WAIT_TIMEOUT_MILLIS;
       while (i != 0) {
+        if (System.currentTimeMillis() > deadline)
+          throw new IllegalStateException("Step " + step.getId() + " still has " + i
+              + " task items that were not finalized after " + TASK_WAIT_TIMEOUT_MILLIS + "ms");
         Thread.sleep(waitMillis);
         waitMillis = TASK_POLL_INTERVAL_MILLIS;
         SQLQuery query = new TestQueryBuilder(step.getId(), SCHEMA).buildRetrieveNumberOfNotFinalizedTasksQuery();
@@ -452,7 +459,11 @@ public class StepTestBase {
   protected void waitTillAllQueriesAreFinalized(Step step) throws InterruptedException{
     //The first wait has to be long enough for the query to show up, an absent one is read as "already done"
     long waitMillis = INITIAL_QUERY_WAIT_MILLIS;
+    long deadline = System.currentTimeMillis() + QUERY_WAIT_TIMEOUT_MILLIS;
     while (true) {
+      if (System.currentTimeMillis() > deadline)
+        throw new IllegalStateException("Queries of job " + step.getJobId() + " are still running after "
+            + QUERY_WAIT_TIMEOUT_MILLIS + "ms");
       Thread.sleep(waitMillis);
       waitMillis = QUERY_POLL_INTERVAL_MILLIS;
       try {
