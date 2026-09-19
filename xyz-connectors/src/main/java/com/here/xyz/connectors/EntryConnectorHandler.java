@@ -74,9 +74,13 @@ public abstract class EntryConnectorHandler extends AbstractConnectorHandler imp
   private static final int RELOCATION_THRESHOLD_SIZE = 6 * 1024 * 1024;
   /**
    * The maximal size of uncompressed bytes. Exceeding that limit leads to the response getting gzipped.
+   *
+   * Compressing keeps the response under {@link #RELOCATION_THRESHOLD_SIZE} so it still fits into a
+   * Lambda result and avoids the S3 hop. A payload that already fits gains nothing, since the
+   * service inflates it again to parse it - hence just below, with a 1 MiB margin.
    */
   @SuppressWarnings("WeakerAccess")
-  private static final int GZIP_THRESHOLD_SIZE = 1024 * 1024; // 1MB
+  private static final int GZIP_THRESHOLD_SIZE = RELOCATION_THRESHOLD_SIZE - 1024 * 1024; // 5MB
 
   /**
    * The entry point for processing an event.
