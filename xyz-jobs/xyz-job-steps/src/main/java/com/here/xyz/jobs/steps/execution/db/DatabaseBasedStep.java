@@ -263,7 +263,7 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
         ? """
             select t.* 
             from 
-            dblink( $icnt$ host=${{rmtHost}} dbname=${{rmtDb}} user=${{rmtUsr}} password=${{rmtPwd}} $icnt$, 
+            dblink( $icnt$ host=${{rmtHost}} dbname=${{rmtDb}} user=${{rmtUsr}} password=${{rmtPwd}} options=-csearch_path=${{rmtSearchPath}} $icnt$, 
                     $iqry$ select jsondata, jsondata#>>'{properties,@ns:com:here:xyz,author}' as author, geo from ( ${{innerContentQuery}} ) rcopy $iqry$
                   ) 
             as t( jsondata jsonb, author text, geo text )
@@ -271,7 +271,7 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
          : """
             select t.* 
             from 
-            dblink( $icnt$ host=${{rmtHost}} dbname=${{rmtDb}} user=${{rmtUsr}} password=${{rmtPwd}} $icnt$, 
+            dblink( $icnt$ host=${{rmtHost}} dbname=${{rmtDb}} user=${{rmtUsr}} password=${{rmtPwd}} options=-csearch_path=${{rmtSearchPath}} $icnt$, 
                     $iqry$ select id, operation, author, jsondata, geo from ( ${{innerContentQuery}} ) rcopy $iqry$
                   ) 
             as t( id text, operation character(1), author text, jsondata jsonb, geo geometry )
@@ -281,9 +281,23 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
        .withQueryFragment("rmtHost", dbSettings.getHost())
        .withQueryFragment("rmtDb", dbSettings.getDb())
        .withQueryFragment("rmtUsr", dbSettings.getUser())
-       .withQueryFragment("rmtPwd", dbSettings.getPassword());
+       .withQueryFragment("rmtPwd", dbSettings.getPassword())
+       .withQueryFragment("rmtSearchPath", buildRemoteSearchPath(dbSettings));
 
      return contentQuery;
+  }
+
+  /**
+   * The search path a dblink session has to be given explicitly. It does not inherit the one the
+   * connection customizer sets, so anything the inner content query resolves through the versioned
+   * script schemas - xyz_reduce_precision, for example - is otherwise not found on the remote side.
+   */
+  private static String buildRemoteSearchPath(DatabaseSettings dbSettings) {
+    List<String> schemas = new ArrayList<>(List.of(dbSettings.getSchema(), "public", "topology"));
+    if (dbSettings.getSearchPath() != null)
+      schemas.addAll(dbSettings.getSearchPath());
+    //No spaces: the value has to survive as a single libpq connection-string token.
+    return schemas.stream().map(schema -> "\"" + schema + "\"").collect(Collectors.joining(","));
   }
 
   @Override
