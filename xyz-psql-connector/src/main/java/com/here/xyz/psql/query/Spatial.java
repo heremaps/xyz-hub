@@ -64,7 +64,7 @@ public abstract class Spatial<E extends SpatialQueryEvent, R extends XyzResponse
       return super.buildRawGeoExpression(event);
 
     //Override the geo fragment by a clipped version
-    return new SQLQuery("ST_Intersection(ST_MakeValid(geo), ${{geoFilter}})")
+    return new SQLQuery("xyz_clip_geometry(geo, ${{geoFilter}})")
         .withQueryFragment("geoFilter", geoFilter);
   }
 }
