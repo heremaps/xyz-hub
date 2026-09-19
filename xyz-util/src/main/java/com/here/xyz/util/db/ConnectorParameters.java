@@ -37,6 +37,13 @@ public class ConnectorParameters {
   private boolean enableHashedSpaceId = false;
   private int onDemandIdxLimit = 4;
   private boolean readOnly;
+  /**
+   * The maximum number of concurrent connections the connector may open to its database. A value
+   * &lt;= 0 means unset, in which case the deprecated PSQL_MAX_CONN ECPS setting or the
+   * {@link com.here.xyz.util.db.datasource.DatabaseSettings} default applies. Only relevant outside
+   * Lambda, where a container serves one invocation at a time and never needs more than one.
+   */
+  private int dbMaxPoolSize;
 
   private TableLayout tableLayout;
   public enum TableLayout {
@@ -73,6 +80,19 @@ public class ConnectorParameters {
     return onDemandIdxLimit;
   }
 
+  public int getDbMaxPoolSize() {
+    return dbMaxPoolSize;
+  }
+
+  public void setDbMaxPoolSize(int dbMaxPoolSize) {
+    this.dbMaxPoolSize = dbMaxPoolSize;
+  }
+
+  public ConnectorParameters withDbMaxPoolSize(int dbMaxPoolSize) {
+    setDbMaxPoolSize(dbMaxPoolSize);
+    return this;
+  }
+
   public boolean isReadOnly() {
     return readOnly;
   }
@@ -98,6 +118,7 @@ public class ConnectorParameters {
             ", autoIndexing=" + autoIndexing +
             ", enableHashedSpaceId=" + enableHashedSpaceId +
             ", onDemandIdxLimit=" + onDemandIdxLimit +
+            ", dbMaxPoolSize=" + dbMaxPoolSize +
             ", ecps='" + ecps + '\'' +
             '}';
   }
