@@ -1747,13 +1747,27 @@ public class FeatureTaskHandler {
   }
 
   static void injectMinVersion(final ConditionalOperation task, final Callback<ConditionalOperation> callback) {
-    if (task.getEvent() instanceof ModifyFeaturesEvent)
-      injectMinVersion(task.getMarker(), task.space.getId(), task.getEvent())
-          .onSuccess(tag -> callback.call(task))
-          .onFailure(t -> {
-            logger.error(task.getMarker(), "Error while injecting minVersion into event.", t);
-            callback.exception(t instanceof HttpException ? t : new HttpException(INTERNAL_SERVER_ERROR, "Unexpected error.", t));
-          });
+    if (!(task.getEvent() instanceof ModifyFeaturesEvent)) {
+      callback.call(task);
+      return;
+    }
+
+    /*
+    minVersion only reaches the database through the versioned write function, so for a non-versioned
+    space resolving it would mean a DynamoDB tag lookup per write request for a value never read.
+     */
+    if (task.space.getVersionsToKeep() <= 1) {
+      task.getEvent().setMinVersion(-1l);
+      callback.call(task);
+      return;
+    }
+
+    injectMinVersion(task.getMarker(), task.space.getId(), task.getEvent())
+        .onSuccess(tag -> callback.call(task))
+        .onFailure(t -> {
+          logger.error(task.getMarker(), "Error while injecting minVersion into event.", t);
+          callback.exception(t instanceof HttpException ? t : new HttpException(INTERNAL_SERVER_ERROR, "Unexpected error.", t));
+        });
   }
 
   public static Future<Long> injectMinVersion(Marker marker, String spaceId, ContextAwareEvent event) {
