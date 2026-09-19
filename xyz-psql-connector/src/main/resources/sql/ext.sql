@@ -144,6 +144,25 @@ $BODY$
 LANGUAGE plpgsql immutable parallel safe;
 ------------------------------------------------
 ------------------------------------------------
+/**
+ * Clips geo to clip_to, repairing the input only when GEOS actually refuses to overlay it.
+ * Reaching ST_MakeValid through the exception handler is far cheaper than paying it per row.
+ */
+CREATE OR REPLACE FUNCTION xyz_clip_geometry(geo GEOMETRY, clip_to GEOMETRY)
+    RETURNS GEOMETRY AS
+$BODY$
+BEGIN
+  RETURN ST_Intersection(geo, clip_to);
+
+  EXCEPTION WHEN OTHERS THEN
+    --Reached only for geometry GEOS refuses to overlay as-is.
+    RETURN ST_Intersection(ST_MakeValid(geo), clip_to);
+
+END
+$BODY$
+LANGUAGE plpgsql immutable parallel safe;
+------------------------------------------------
+------------------------------------------------
 CREATE OR  REPLACE FUNCTION xyz_random_string(length integer)
     RETURNS text AS
 $BODY$
