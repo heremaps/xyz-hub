@@ -1891,8 +1891,9 @@ $BODY$
                 END IF;
 
                 EXECUTE
-                    format('UPDATE %I.%I SET next_version = %L WHERE id = %L AND next_version = %L AND version = %L',
-                           schema, tableName, version, id, max_bigint(), baseVersion);
+                    format('UPDATE %I.%I SET next_version = $1 WHERE id = $2 AND next_version = $3 AND version = $4',
+                           schema, tableName)
+                    USING version, id, max_bigint(), baseVersion;
 
                 GET DIAGNOSTICS updated_rows = ROW_COUNT;
                 IF updated_rows != 1 THEN
@@ -1902,8 +1903,9 @@ $BODY$
                 END IF;
             ELSE
                 EXECUTE
-                    format('UPDATE %I.%I SET next_version = %L WHERE id = %L AND next_version = %L AND version < %L',
-                           schema, tableName, version, id, max_bigint(), version);
+                    format('UPDATE %I.%I SET next_version = $1 WHERE id = $2 AND next_version = $3 AND version < $4',
+                           schema, tableName)
+                    USING version, id, max_bigint(), version;
 
                 GET DIAGNOSTICS updated_rows = ROW_COUNT;
                 IF updated_rows != 1 THEN
@@ -1917,14 +1919,16 @@ $BODY$
             -- Ignore concurrency check for inserts and try to update the previous versions
             --TODO: Activate concurrency check for inserts as well
             EXECUTE
-                format('UPDATE %I.%I SET next_version = %L WHERE id = %L AND next_version = %L AND version < %L',
-                       schema, tableName, version, id, max_bigint(), version);
+                format('UPDATE %I.%I SET next_version = $1 WHERE id = $2 AND next_version = $3 AND version < $4',
+                       schema, tableName)
+                USING version, id, max_bigint(), version;
         END IF;
 
         -- Now actually insert the new version of the feature (NOTE: The order is important here to not violate the (id, next_version) uniqueness constraint)
         EXECUTE
-            format('INSERT INTO %I.%I (id, version, operation, author, jsondata, geo) VALUES (%L, %L, %L, %L, %L, %L)',
-                   schema, tableName, id, version, operation, author, jsondata, xyz_geoFromWkb(geo) );
+            format('INSERT INTO %I.%I (id, version, operation, author, jsondata, geo) '
+                   'VALUES ($1, $2, $3, $4, $5, xyz_geoFromWkb($6))', schema, tableName)
+            USING id, version, operation, author, jsondata, geo;
 
         -- If the current history partition is nearly full, create the next one already
         IF version % partitionSize > partitionSize - 50 THEN
@@ -1948,6 +1952,9 @@ $BODY$
 LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
+-- EXECUTE ... USING here and in the write functions below: the statement text stays dynamic
+-- because the table is a parameter, but format(%L) rendered the whole jsondata into that text and
+-- had the SQL parser re-read it for every feature written.
 CREATE OR REPLACE FUNCTION xyz_simple_upsert(id TEXT, version BIGINT, operation CHAR, author TEXT, jsondata JSONB, geo GEOMETRY, schema TEXT, tableName TEXT, concurrencyCheck BOOLEAN, uniqueConstraintExists BOOLEAN)
     RETURNS INTEGER AS
 $BODY$
@@ -1955,27 +1962,20 @@ $BODY$
         insertQuery TEXT;
         updated_rows INTEGER;
     BEGIN
-        insertQuery = 'INSERT INTO %I.%I AS tbl (id, version, operation, author, jsondata, geo) VALUES (%L, %L, %L, %L, %L, %L)';
-        IF concurrencyCheck THEN
-            -- This query will throw an error in case of a conflict
-            EXECUTE
-                format(insertQuery,
-                       schema, tableName, id, version, operation, author, jsondata, xyz_geoFromWkb(geo));
-        ELSE
-            IF uniqueConstraintExists THEN
-                -- This query will perform an update instead of throwing an error in case of a conflict
-                insertQuery = insertQuery || ' ON CONFLICT (id, next_version) DO UPDATE SET ' ||
-                              'version = greatest(tbl.version, EXCLUDED.version), ' ||
-                              'operation = CASE WHEN xyz_isHideOperation(EXCLUDED.operation) THEN ''J'' ELSE ''U'' END, ' ||
-                              'author = EXCLUDED.author, ' ||
-                              'jsondata = EXCLUDED.jsondata, ' ||
-                              'geo = EXCLUDED.geo';
-            END IF;
+        insertQuery = format('INSERT INTO %I.%I AS tbl (id, version, operation, author, jsondata, geo) '
+                             'VALUES ($1, $2, $3, $4, $5, xyz_geoFromWkb($6))', schema, tableName);
 
-            EXECUTE
-                format(insertQuery,
-                       schema, tableName, id, version, operation, author, jsondata, xyz_geoFromWkb(geo));
+        IF NOT concurrencyCheck AND uniqueConstraintExists THEN
+            -- This query will perform an update instead of throwing an error in case of a conflict
+            insertQuery = insertQuery || ' ON CONFLICT (id, next_version) DO UPDATE SET ' ||
+                          'version = greatest(tbl.version, EXCLUDED.version), ' ||
+                          'operation = CASE WHEN xyz_isHideOperation(EXCLUDED.operation) THEN ''J'' ELSE ''U'' END, ' ||
+                          'author = EXCLUDED.author, ' ||
+                          'jsondata = EXCLUDED.jsondata, ' ||
+                          'geo = EXCLUDED.geo';
         END IF;
+
+        EXECUTE insertQuery USING id, version, operation, author, jsondata, geo;
 
         GET DIAGNOSTICS updated_rows = ROW_COUNT;
         RETURN updated_rows;
@@ -2003,9 +2003,11 @@ $BODY$
         updated_rows INTEGER;
     BEGIN
         EXECUTE
-            format('UPDATE %I.%I SET version = %L, operation = %L, author = %L, jsondata = %L, geo = %L WHERE id = %L'
+            format('UPDATE %I.%I SET version = $1, operation = $2, author = $3, jsondata = $4, '
+                       'geo = xyz_geoFromWkb($5) WHERE id = $6'
                        || xyz_simple_conflictCheck(concurrencyCheck, baseVersion),
-                schema, tableName, version, operation, author, jsondata, xyz_geoFromWkb(geo), id);
+                schema, tableName)
+            USING version, operation, author, jsondata, geo, id;
 
         GET DIAGNOSTICS updated_rows = ROW_COUNT;
 
@@ -2039,9 +2041,10 @@ $BODY$
         updated_rows INTEGER;
     BEGIN
         EXECUTE
-            format('DELETE FROM %I.%I WHERE id = %L'
+            format('DELETE FROM %I.%I WHERE id = $1'
                        || xyz_simple_conflictCheck(concurrencyCheck, baseVersion),
-                   schema, tableName, id);
+                   schema, tableName)
+            USING id;
 
         GET DIAGNOSTICS updated_rows = ROW_COUNT;
 
