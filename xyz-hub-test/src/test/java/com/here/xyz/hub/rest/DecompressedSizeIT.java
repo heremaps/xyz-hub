@@ -54,7 +54,7 @@ public class DecompressedSizeIT extends TestSpaceWithFeature {
         .accept(APPLICATION_GEO_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .get(getSpacesPath() + "/x-psql-test/tile/quadkey/2100300120310022")
+        .get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/tile/quadkey/2100300120310022")
         .then();
 
     byte[] body = response
@@ -74,7 +74,7 @@ public class DecompressedSizeIT extends TestSpaceWithFeature {
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .body(new JsonObject().put("type", "FeatureCollection").put("features", new JsonArray().add(new JsonObject().put("type", "Feature").put("id", "f1"))).toString())
         .when()
-        .put(getSpacesPath() + "/x-psql-test/features")
+        .put(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/features")
         .prettyPeek()
         .then()
         .header("X-Decompressed-Input-Size", "70")

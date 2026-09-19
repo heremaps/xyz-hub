@@ -25,8 +25,11 @@ import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_REQUIRED;
 import static io.restassured.RestAssured.given;
+import static org.awaitility.Awaitility.await;
 import static org.hamcrest.Matchers.equalTo;
 
+import java.util.concurrent.TimeUnit;
+import org.awaitility.Durations;
 import org.junit.Test;
 
 public class ModifyCompositeSpaceIT extends TestCompositeSpace {
@@ -36,25 +39,25 @@ public class ModifyCompositeSpaceIT extends TestCompositeSpace {
     given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
-        .body("{\"title\":\"x-psql-test-ext-new-title\",\"description\":\"a test space which extends x-psql-test\"}")
+        .body("{\"title\":\"x-psql-test-ext-new-title\",\"description\":\"a test space which extends " + DEFAULT_SPACE_ID + "\"}")
         .when()
-        .patch("/spaces/x-psql-test-ext")
+        .patch("/spaces/" + EXTENSION_SPACE_ID)
         .then()
         .statusCode(OK.code())
-        .body("id", equalTo("x-psql-test-ext"))
-        .body("extends.spaceId", equalTo("x-psql-test"))
+        .body("id", equalTo(EXTENSION_SPACE_ID))
+        .body("extends.spaceId", equalTo(DEFAULT_SPACE_ID))
         .body("title", equalTo("x-psql-test-ext-new-title"))
-        .body("description", equalTo("a test space which extends x-psql-test"));
+        .body("description", equalTo("a test space which extends " + DEFAULT_SPACE_ID));
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .get("/spaces/x-psql-test-ext")
+        .get("/spaces/" + EXTENSION_SPACE_ID)
         .then()
         .statusCode(OK.code())
-        .body("id", equalTo("x-psql-test-ext"))
+        .body("id", equalTo(EXTENSION_SPACE_ID))
         .body("title", equalTo("x-psql-test-ext-new-title"))
-        .body("extends.spaceId", equalTo("x-psql-test"));
+        .body("extends.spaceId", equalTo(DEFAULT_SPACE_ID));
   }
 
   @Test
@@ -62,9 +65,9 @@ public class ModifyCompositeSpaceIT extends TestCompositeSpace {
     given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
-        .body("{\"id\":\"x-psql-test-ext\",\"title\":\"x-psql-test-ext\",\"extends\":{\"spaceId\":\"x-psql-test\"}}")
+        .body("{\"id\":\"" + EXTENSION_SPACE_ID + "\",\"title\":\"" + EXTENSION_SPACE_ID + "\",\"extends\":{\"spaceId\":\"" + DEFAULT_SPACE_ID + "\"}}")
         .when()
-        .patch("/spaces/x-psql-test-ext")
+        .patch("/spaces/" + EXTENSION_SPACE_ID)
         .then()
         .statusCode(OK.code());
   }
@@ -76,7 +79,7 @@ public class ModifyCompositeSpaceIT extends TestCompositeSpace {
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .body("{\"searchableProperties\":{\"property1\":true}}")
         .when()
-        .patch("/spaces/x-psql-test-ext")
+        .patch("/spaces/" + EXTENSION_SPACE_ID)
         .then()
         .statusCode(BAD_REQUEST.code());
 
@@ -85,7 +88,7 @@ public class ModifyCompositeSpaceIT extends TestCompositeSpace {
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .body("{\"storage\":{\"id\":\"psql\",\"params\":{\"foo\":\"bar\"}}}")
         .when()
-        .patch("/spaces/x-psql-test-ext")
+        .patch("/spaces/" + EXTENSION_SPACE_ID)
         .then()
         .statusCode(BAD_REQUEST.code())
         .body("errorMessage", equalTo("Validation failed. The properties 'storage' and 'extends' cannot be set together."));
@@ -98,21 +101,21 @@ public class ModifyCompositeSpaceIT extends TestCompositeSpace {
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .body("{\"extends\":{\"spaceId\":\"non-existing-space\"}}")
         .when()
-        .patch("/spaces/x-psql-test-ext-ext")
+        .patch("/spaces/" + EXTENSION_EXTENSION_SPACE_ID)
         .then()
         .statusCode(BAD_REQUEST.code())
-        .body("errorMessage", equalTo("The space x-psql-test-ext-ext cannot extend the space non-existing-space because it does not exist."));
+        .body("errorMessage", equalTo("The space " + EXTENSION_EXTENSION_SPACE_ID + " cannot extend the space non-existing-space because it does not exist."));
 
     given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
-        .body("{\"extends\":{\"spaceId\":\"x-psql-test\"}}")
+        .body("{\"extends\":{\"spaceId\":\"" + DEFAULT_SPACE_ID + "\"}}")
         .when()
-        .patch("/spaces/x-psql-test-ext-ext")
+        .patch("/spaces/" + EXTENSION_EXTENSION_SPACE_ID)
         .then()
         .statusCode(OK.code())
-        .body("id", equalTo("x-psql-test-ext-ext"))
-        .body("extends.spaceId", equalTo("x-psql-test"));
+        .body("id", equalTo(EXTENSION_EXTENSION_SPACE_ID))
+        .body("extends.spaceId", equalTo(DEFAULT_SPACE_ID));
   }
 
   @Test
@@ -120,9 +123,9 @@ public class ModifyCompositeSpaceIT extends TestCompositeSpace {
     given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
-        .body("{\"extends\":{\"spaceId\":\"x-psql-test-ext-ext\"}}")
+        .body("{\"extends\":{\"spaceId\":\"" + EXTENSION_EXTENSION_SPACE_ID + "\"}}")
         .when()
-        .patch("/spaces/x-psql-test-ext-ext")
+        .patch("/spaces/" + EXTENSION_EXTENSION_SPACE_ID)
         .then()
         .statusCode(BAD_REQUEST.code());
   }
@@ -132,9 +135,9 @@ public class ModifyCompositeSpaceIT extends TestCompositeSpace {
     given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
-        .body("{\"extends\":{\"spaceId\":\"x-psql-test-ext-ext\"}}")
+        .body("{\"extends\":{\"spaceId\":\"" + EXTENSION_EXTENSION_SPACE_ID + "\"}}")
         .when()
-        .patch("/spaces/x-psql-test-2")
+        .patch("/spaces/" + SECOND_SPACE_ID)
         .then()
         .statusCode(BAD_REQUEST.code());
   }
@@ -144,7 +147,7 @@ public class ModifyCompositeSpaceIT extends TestCompositeSpace {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .delete("/spaces/x-psql-test")
+        .delete("/spaces/" + DEFAULT_SPACE_ID)
         .then()
         .statusCode(NO_CONTENT.code());
   }
@@ -154,14 +157,14 @@ public class ModifyCompositeSpaceIT extends TestCompositeSpace {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .delete("/spaces/x-psql-test")
+        .delete("/spaces/" + DEFAULT_SPACE_ID)
         .then()
         .statusCode(NO_CONTENT.code());
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .delete("/spaces/x-psql-test-ext")
+        .delete("/spaces/" + EXTENSION_SPACE_ID)
         .then()
         .statusCode(NO_CONTENT.code());
   }
@@ -171,9 +174,9 @@ public class ModifyCompositeSpaceIT extends TestCompositeSpace {
     given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
-        .body("{\"extends\":{\"spaceId\":\"x-psql-test\"}}")
+        .body("{\"extends\":{\"spaceId\":\"" + DEFAULT_SPACE_ID + "\"}}")
         .when()
-        .patch("/spaces/x-psql-test")
+        .patch("/spaces/" + DEFAULT_SPACE_ID)
         .then()
         .statusCode(BAD_REQUEST.code());
   }
@@ -183,9 +186,9 @@ public class ModifyCompositeSpaceIT extends TestCompositeSpace {
     given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
-        .body("{\"extends\":{\"spaceId\":\"x-psql-test-ext\"}}")
+        .body("{\"extends\":{\"spaceId\":\"" + EXTENSION_SPACE_ID + "\"}}")
         .when()
-        .patch("/spaces/x-psql-test")
+        .patch("/spaces/" + DEFAULT_SPACE_ID)
         .then()
         .statusCode(BAD_REQUEST.code());
   }
@@ -195,29 +198,33 @@ public class ModifyCompositeSpaceIT extends TestCompositeSpace {
     given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
-        .body("{\"extends\":{\"spaceId\":\"x-psql-test-ext-ext\"}}")
+        .body("{\"extends\":{\"spaceId\":\"" + EXTENSION_EXTENSION_SPACE_ID + "\"}}")
         .when()
-        .patch("/spaces/x-psql-test")
+        .patch("/spaces/" + DEFAULT_SPACE_ID)
         .then()
         .statusCode(BAD_REQUEST.code());
   }
 
   @Test
   public void deactivateCompositeSpacesOnParentDelete() throws InterruptedException {
-    removeSpace("x-psql-test");
+    removeSpace(DEFAULT_SPACE_ID);
+
+    //The deactivation of the extending spaces is propagated asynchronously
+    await()
+        .atMost(30, TimeUnit.SECONDS)
+        .pollInterval(Durations.ONE_HUNDRED_MILLISECONDS)
+        .untilAsserted(() -> given()
+            .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+            .when()
+            .get("/spaces/" + EXTENSION_SPACE_ID)
+            .then()
+            .statusCode(OK.code())
+            .body("active", equalTo(false)));
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .get("/spaces/x-psql-test-ext")
-        .then()
-        .statusCode(OK.code())
-        .body("active", equalTo(false));
-
-    given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
-        .when()
-        .get("/spaces/x-psql-test-ext/iterate")
+        .get("/spaces/" + EXTENSION_SPACE_ID + "/iterate")
         .then()
         .statusCode(PRECONDITION_REQUIRED.code());
 
@@ -227,7 +234,7 @@ public class ModifyCompositeSpaceIT extends TestCompositeSpace {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .get("/spaces/x-psql-test-ext-ext/iterate")
+        .get("/spaces/" + EXTENSION_EXTENSION_SPACE_ID + "/iterate")
         .then()
         .statusCode(PRECONDITION_REQUIRED.code());
   }
@@ -237,9 +244,9 @@ public class ModifyCompositeSpaceIT extends TestCompositeSpace {
     given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
-        .body("{\"extends\":{\"spaceId\":\"x-psql-test-3\"}}")
+        .body("{\"extends\":{\"spaceId\":\"" + THIRD_SPACE_ID + "\"}}")
         .when()
-        .patch("/spaces/x-psql-test-ext")
+        .patch("/spaces/" + EXTENSION_SPACE_ID)
         .then()
         .statusCode(BAD_REQUEST.code())
         .body("code", equalTo("E318408"))

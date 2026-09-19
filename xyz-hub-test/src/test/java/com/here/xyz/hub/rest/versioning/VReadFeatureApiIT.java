@@ -50,7 +50,7 @@ public class VReadFeatureApiIT extends ReadFeatureApiIT {
             accept(APPLICATION_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
             when().
-            get(getSpacesPath() + "/x-psql-test/statistics").
+            get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/statistics").
             then().
             statusCode(OK.code()).
             body("minVersion.value", equalTo(0)).
@@ -69,7 +69,7 @@ public class VReadFeatureApiIT extends ReadFeatureApiIT {
             accept(APPLICATION_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
             when().
-            get(getSpacesPath() + "/x-psql-test/statistics?fastMode=true").
+            get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/statistics?fastMode=true").
             then().
             statusCode(OK.code()).
             body("minVersion.value", equalTo(0)).

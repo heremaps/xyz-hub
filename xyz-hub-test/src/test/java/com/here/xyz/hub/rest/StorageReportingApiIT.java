@@ -82,7 +82,7 @@ public class StorageReportingApiIT extends TestSpaceWithFeature {
         .statusCode(OK.code())
         .body("type", equalTo("StorageStatistics"))
         .body("createdAt", greaterThan(0L))
-        .body("byteSizes.x-psql-test.contentBytes.value", equalTo(8192));
+        .body("byteSizes." + DEFAULT_SPACE_ID + ".contentBytes.value", equalTo(8192));
   }
 
   @Test
@@ -98,14 +98,14 @@ public class StorageReportingApiIT extends TestSpaceWithFeature {
         .statusCode(OK.code())
         .body("type", equalTo("StorageStatistics"))
         .body("createdAt", greaterThan(0L))
-        .body("byteSizes.x-psql-test.contentBytes.value", greaterThan(3000));
+        .body("byteSizes." + DEFAULT_SPACE_ID + ".contentBytes.value", greaterThan(3000));
   }
 
   @Test
   public void testWithMultipleStorageIds() {
-    cleanUpIds.add(createSpaceWithCustomStorage("x-psql-test-1", "psql", null));
-    cleanUpIds.add(createSpaceWithCustomStorage("x-psql-test-2", "psql_db2_hashed", null));
-    addFeatures("x-psql-test-2");
+    cleanUpIds.add(createSpaceWithCustomStorage((DEFAULT_SPACE_ID + "-1"), "psql", null));
+    cleanUpIds.add(createSpaceWithCustomStorage(SECOND_SPACE_ID, "psql_db2_hashed", null));
+    addFeatures(SECOND_SPACE_ID);
     given()
             .accept(APPLICATION_JSON)
             .headers(getAuthHeaders(AuthProfile.ACCESS_ADMIN_STATISTICS))
@@ -115,10 +115,10 @@ public class StorageReportingApiIT extends TestSpaceWithFeature {
             .statusCode(OK.code())
             .body("type", equalTo("StorageStatistics"))
             .body("createdAt", greaterThan(0L))
-            .body("byteSizes.x-psql-test-1.contentBytes.value", equalTo(8192))
-            .body("byteSizes.x-psql-test-1.storageId", equalTo("psql"))
-            .body("byteSizes.x-psql-test-2.contentBytes.value", greaterThan(8192))
-            .body("byteSizes.x-psql-test-2.storageId", equalTo("psql_db2_hashed"));
+            .body("byteSizes." + (DEFAULT_SPACE_ID + "-1") + ".contentBytes.value", equalTo(8192))
+            .body("byteSizes." + (DEFAULT_SPACE_ID + "-1") + ".storageId", equalTo("psql"))
+            .body("byteSizes." + SECOND_SPACE_ID + ".contentBytes.value", greaterThan(8192))
+            .body("byteSizes." + SECOND_SPACE_ID + ".storageId", equalTo("psql_db2_hashed"));
   }
 
 }
