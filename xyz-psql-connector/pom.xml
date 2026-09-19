@@ -227,6 +227,12 @@
       <artifactId>xyz-util</artifactId>
     </dependency>
 
+    <!-- Cache -->
+    <dependency>
+      <artifactId>expiringmap</artifactId>
+      <groupId>net.jodah</groupId>
+    </dependency>
+
     <!--  Logging libraries -->
     <dependency>
       <groupId>org.apache.logging.log4j</groupId>
