@@ -225,8 +225,21 @@ public abstract class EntryConnectorHandler extends AbstractConnectorHandler imp
         else {
           //Handle compression and ETag injection
           byte[] etagBytes = ETAG_STRING.replace("_", etag.replace("\"", "\\\"")).getBytes();
+          final boolean compress = !runningLocally && bytes.length > GZIP_THRESHOLD_SIZE;
+          final long injectedSize = (long) bytes.length - 1 + etagBytes.length;
+
+          /*
+          Without compression the payload goes out unchanged apart from the appended ETag, so
+          assembling it in memory first only cost two more copies of a multi-MB response.
+           */
+          if (!compress && !(!runningLocally && injectedSize > RELOCATION_THRESHOLD_SIZE)) {
+            output.write(bytes, 0, bytes.length - 1);
+            output.write(etagBytes);
+            return;
+          }
+
           try (ByteArrayOutputStream os = new ByteArrayOutputStream(bytes.length - 1 + etagBytes.length)) {
-            OutputStream targetOs = (!runningLocally && bytes.length > GZIP_THRESHOLD_SIZE ? Payload.gzip(os) : os);
+            OutputStream targetOs = (compress ? Payload.gzip(os) : os);
             targetOs.write(bytes, 0, bytes.length - 1);
             targetOs.write(etagBytes);
             os.close();
