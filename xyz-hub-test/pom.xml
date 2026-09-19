@@ -52,8 +52,12 @@
         <artifactId>maven-surefire-plugin</artifactId>
         <groupId>org.apache.maven.plugins</groupId>
         <configuration>
+          <!--
+            Only the unit tests of this module. Without this restriction the default pattern **/Test*.java would also
+            pick up the IT base classes, and the integration tests would run a second time in the surefire phase.
+          -->
           <includes>
-            <include>**/*.class</include>
+            <include>**/*Test.java</include>
           </includes>
         </configuration>
       </plugin>
