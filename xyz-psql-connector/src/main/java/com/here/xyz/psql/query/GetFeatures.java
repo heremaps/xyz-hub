@@ -84,7 +84,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
           .withQueryFragment("orderBy", buildOrderByFragment(event))
           .withQueryFragment("versionCheck", versionCheckFragment)
           .withQueryFragment("unionAll", event.getContext() == COMPOSITE_EXTENSION ? "UNION DISTINCT" : "UNION ALL")
-          .withQueryFragment("compositionFilter", buildCompositionFilter(event, false, buildIdComparisonFragment(event, "a.", versionCheckFragment)))
+          .withQueryFragment("compositionFilter", buildCompositionFilter(event, false, buildIdComparisonFragment(event, "a.", versionCheckFragment, false)))
           .withQueryFragment("baseQuery", !is2LevelExtendedSpace(event)
               ? build1LevelBaseQuery(event, filterWhereClause) //1-level extension
               : build2LevelBaseQuery(event, filterWhereClause)); //2-level extension
@@ -130,7 +130,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   protected SQLQuery buildCompositionFilter(E event, boolean isL2, SQLQuery idComparisonFragment) {
     if (event instanceof SelectiveEvent selectiveEvent && selectiveEvent.getRef().isAllVersions()
         //Keep the composition filter for a bound intermediate dataset.
-        && (!isL2 || !isBoundDataset(event, false, compositeDatasetNo(event, CompositeDataset.INTERMEDIATE))))
+        && (!isL2 || !isBoundIntermediate(event)))
       return new SQLQuery("");
 
     String tableVariable = isL2 ? "intermediateExtensionTable" : "table";
@@ -155,6 +155,13 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     return is2LevelExtendedSpace(event)
         && dataset == compositeDatasetNo(event, CompositeDataset.INTERMEDIATE)
         && getBaseVersion(event).isPresent();
+  }
+
+  /**
+   * Returns whether the intermediate dataset of a two-level composite is fixed to a configured version.
+   */
+  protected boolean isBoundIntermediate(E event) {
+    return isBoundDataset(event, false, compositeDatasetNo(event, CompositeDataset.INTERMEDIATE));
   }
 
   protected SQLQuery buildBranchCompositionFilter() {
@@ -368,7 +375,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
         .withQueryFragment("versionCheck", versionCheckFragment)
         .withQueryFragment("orderBy", buildOrderByFragment(event))
         .withQueryFragment("baseQuery", build1LevelBaseQuery(event, filterWhereClause))
-        .withQueryFragment("compositionFilter", buildCompositionFilter(event, true, buildIdComparisonFragment(event, "b.", versionCheckFragment)));
+        .withQueryFragment("compositionFilter", buildCompositionFilter(event, true, buildIdComparisonFragment(event, "b.", versionCheckFragment, isBoundIntermediate(event))));
   }
 
   /**
@@ -379,9 +386,10 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
         .withQueryFragment("baseVersion", "" + baseVersion);
   }
 
-  private SQLQuery buildIdComparisonFragment(E event, String prefix, SQLQuery versionCheckFragment) {
+  private SQLQuery buildIdComparisonFragment(E event, String prefix, SQLQuery versionCheckFragment, boolean boundIntermediate) {
+    boolean filterByVersion = event instanceof SelectiveEvent || boundIntermediate;
     return new SQLQuery("id = " + prefix + "id"
-        + (event instanceof SelectiveEvent ? " ${{versionCheck}} ${{deletionInclusionFragment}}" : ""))
+        + (filterByVersion ? " ${{versionCheck}} ${{deletionInclusionFragment}}" : ""))
         .withQueryFragment("versionCheck", versionCheckFragment)
         .withQueryFragment("deletionInclusionFragment", event.getContext() == X ? "AND operation = 'D'" : "AND operation != 'D'");
   }
