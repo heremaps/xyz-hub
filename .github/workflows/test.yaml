@@ -10,6 +10,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+#Checking out the sources is all the workflow needs the token for
+permissions:
+  contents: read
+
 jobs:
   module-tests:
     name: test (${{ matrix.name }})
