@@ -25,6 +25,7 @@ import static com.here.xyz.jobs.RuntimeInfo.State.SUCCEEDED;
 import static com.here.xyz.util.Random.randomAlpha;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -147,6 +148,33 @@ public class StepConfigClientIT {
     client.storeSteps(List.of(), keepUntil);
     client.deleteSteps(jobId, List.of());
     assertTrue(client.loadStepsForJob(jobId).isEmpty());
+  }
+
+  @Test
+  public void loadStepReturnsTheSingleStepByJobIdAndStepId() {
+    String jobId = randomAlpha(6);
+    Step<?> target = step(jobId, RUNNING);
+    Step<?> other = step(jobId, PENDING);
+    client.storeSteps(List.of(target, other), keepUntil);
+
+    StepConfig loaded = client.loadStep(jobId, target.getId());
+
+    assertNotNull(loaded, "the requested step must be returned via a single getItem");
+    assertEquals(jobId, loaded.getJobId(), "the item is identified by its jobId");
+    assertEquals(target.getId(), loaded.getId(), "the returned item is the requested step, not the other one");
+    assertEquals(target.getStatus().getState().toString(), loaded.getState(), "the step's state is carried");
+    assertEquals(target.getId(), loaded.getStep().get("id"), "the full step config is carried");
+    assertNotNull(loaded.getStep().get("type"), "the persisted step config carries its type");
+  }
+
+  @Test
+  public void loadStepReturnsNullForAnUnknownStepOrJob() {
+    String jobId = randomAlpha(6);
+    Step<?> step = step(jobId, RUNNING);
+    client.storeSteps(List.of(step), keepUntil);
+
+    assertNull(client.loadStep(jobId, "s_does_not_exist"), "an unknown step id must yield null");
+    assertNull(client.loadStep(randomAlpha(6), step.getId()), "an unknown job must yield null");
   }
 
   @SuppressWarnings({"rawtypes", "unchecked"})

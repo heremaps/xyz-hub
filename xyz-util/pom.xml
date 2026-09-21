@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   ~ Copyright (C) 2017-2026 HERE Europe B.V.
+  ~
   ~ Licensed under the Apache License, Version 2.0 (the "License");
   ~ you may not use this file except in compliance with the License.
   ~ You may obtain a copy of the License at
@@ -24,7 +25,7 @@
     <groupId>com.here.xyz</groupId>
     <artifactId>xyz-hub</artifactId>
     <relativePath>../pom.xml</relativePath>
-    <version>3.23.67-SNAPSHOT</version>
+    <version>3.23.71-SNAPSHOT</version>
   </parent>
 
   <licenses>
@@ -54,6 +55,35 @@
 <!--      </plugin>-->
 <!--    </plugins>-->
 <!--  </build>-->
+
+  <build>
+    <plugins>
+      <!--
+        Publish the test classes as a separate test-jar artifact.
+        This makes the engine-agnostic FeatureWriter test framework
+        (com.here.xyz.test.featurewriter.TestSuite / SpaceWriter and the SQL scenario suites)
+        reusable from other modules, so that alternative write implementations
+        can be verified against exactly the same scenarios and assertions.
+      -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <!--
+          Pinned locally instead of in the pluginManagement of the parent, so that the jar packaging
+          of all the other modules keeps using the version it used before.
+        -->
+        <version>3.3.0</version>
+        <executions>
+          <execution>
+            <id>attach-test-jar</id>
+            <goals>
+              <goal>test-jar</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
 
   <dependencies>
     <!-- Vert.x -->

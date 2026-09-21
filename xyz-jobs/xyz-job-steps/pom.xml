@@ -22,7 +22,7 @@
   <parent>
     <groupId>com.here.xyz</groupId>
     <artifactId>xyz-jobs</artifactId>
-    <version>3.23.67-SNAPSHOT</version>
+    <version>3.23.71-SNAPSHOT</version>
   </parent>
 
   <name>XYZ Job Steps</name>
@@ -42,6 +42,18 @@
       <groupId>${project.groupId}</groupId>
       <artifactId>xyz-util</artifactId>
     </dependency>
+    <!--
+      Provides the engine-agnostic FeatureWriter test framework
+      (com.here.xyz.test.featurewriter.TestSuite / SpaceWriter and the SQL scenario suites),
+      which is reused here to verify the express import writer against the very same
+      write scenarios and assertions that cover the PLV8 FeatureWriter.
+    -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>xyz-util</artifactId>
+      <type>test-jar</type>
+      <scope>test</scope>
+    </dependency>
     <!-- TODO: Get rid of the following dependency again -->
     <dependency>
       <groupId>${project.groupId}</groupId>
@@ -56,6 +68,16 @@
     <dependency>
       <groupId>software.amazon.awssdk</groupId>
       <artifactId>cloudwatchevents</artifactId>
+      <exclusions>
+        <exclusion>
+          <artifactId>jackson-annotations</artifactId>
+          <groupId>com.fasterxml.jackson.core</groupId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>cloudwatchlogs</artifactId>
       <exclusions>
         <exclusion>
           <artifactId>jackson-annotations</artifactId>

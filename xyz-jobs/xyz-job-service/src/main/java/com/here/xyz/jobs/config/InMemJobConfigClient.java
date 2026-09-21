@@ -185,6 +185,12 @@ public class InMemJobConfigClient extends JobConfigClient {
   }
 
   @Override
+  public Future<Step> loadStep(String jobId, String stepId) {
+    Job job = jobMap.get(jobId);
+    return Future.succeededFuture(job == null ? null : job.getStepById(stepId));
+  }
+
+  @Override
   public Future<Job> hydrateJob(Map<String, Object> jobItem) {
     return Future.succeededFuture(XyzSerializable.fromMap(jobItem, Job.class));
   }
