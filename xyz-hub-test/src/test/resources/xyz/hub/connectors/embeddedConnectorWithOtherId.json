@@ -2,7 +2,7 @@
   "remoteFunctions": {
     "local": {
       "type": "Embedded",
-      "id": "test-connector",
+      "id": "${connectorId}",
       "warmUp": 0,
       "className": "com.here.xyz.hub.connectors.test.TestStorageConnector",
       "env": {}
@@ -18,7 +18,7 @@
   "contactEmails": [
     "test@here.com"
   ],
-  "id": "xyz-connector",
+  "id": "${otherConnectorId}",
   "capabilities": {
     "searchablePropertiesConfiguration": true,
     "clusteringTypes": [

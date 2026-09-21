@@ -47,9 +47,9 @@ public class ConnectorApiIT extends RestAssuredTest {
 
   private static void removeAll() {
     //Delete all connectors which have potentially been created during the test
-    removeConnector(AuthProfile.ACCESS_ALL, "test-connector");
-    removeConnector(AuthProfile.ACCESS_ALL, "test-connector2");
-    removeConnector(AuthProfile.ACCESS_ALL, "xyz-connector");
+    removeConnector(AuthProfile.ACCESS_ALL, CONNECTOR_ID);
+    removeConnector(AuthProfile.ACCESS_ALL, CONNECTOR_2_ID);
+    removeConnector(AuthProfile.ACCESS_ALL, OTHER_CONNECTOR_ID);
   }
 
   private static ValidatableResponse removeConnector(AuthProfile profile, String connectorId) {
@@ -80,7 +80,7 @@ public class ConnectorApiIT extends RestAssuredTest {
   public void createConnector() {
     addConnector(AuthProfile.ACCESS_OWNER_1_WITH_MANAGE_OWN_CONNECTORS, "/xyz/hub/connectors/embeddedConnector.json")
         .statusCode(CREATED.code())
-        .body("id", equalTo("test-connector"));
+        .body("id", equalTo(CONNECTOR_ID));
   }
 
   @Test
@@ -88,7 +88,7 @@ public class ConnectorApiIT extends RestAssuredTest {
     addConnector(AuthProfile.ACCESS_OWNER_1_WITH_MANAGE_CONNECTORS_WITH_PREFIX_ID,
         "/xyz/hub/connectors/embeddedConnectorWithOtherId.json")
         .statusCode(CREATED.code())
-        .body("id", equalTo("xyz-connector"));
+        .body("id", equalTo(OTHER_CONNECTOR_ID));
   }
 
   @Test
@@ -112,7 +112,7 @@ public class ConnectorApiIT extends RestAssuredTest {
         .accept(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_WITH_MANAGE_OWN_CONNECTORS))
         .when()
-        .get("/connectors/test-connector")
+        .get("/connectors/" + CONNECTOR_ID)
         .then()
         .statusCode(FORBIDDEN.code());
 
@@ -120,7 +120,7 @@ public class ConnectorApiIT extends RestAssuredTest {
         .accept(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_2_WITH_MANAGE_CONNECTORS))
         .when()
-        .get("/connectors/test-connector")
+        .get("/connectors/" + CONNECTOR_ID)
         .then()
         .statusCode(OK.code());
   }
@@ -144,7 +144,7 @@ public class ConnectorApiIT extends RestAssuredTest {
   public void deleteConnector() {
     addTestConnector();
 
-    String connectorId = "test-connector";
+    String connectorId = CONNECTOR_ID;
     removeConnector(AuthProfile.ACCESS_OWNER_1_WITH_MANAGE_OWN_CONNECTORS, connectorId)
         .statusCode(OK.code())
         .body("id", equalTo(connectorId));
@@ -163,7 +163,7 @@ public class ConnectorApiIT extends RestAssuredTest {
   public void deleteConnectorInsufficientRights() {
     addTestConnector();
 
-    String connectorId = "test-connector";
+    String connectorId = CONNECTOR_ID;
     removeConnector(AuthProfile.ACCESS_OWNER_2_WITH_MANAGE_CONNECTORS, connectorId)
         .statusCode(FORBIDDEN.code());
   }
@@ -178,7 +178,7 @@ public class ConnectorApiIT extends RestAssuredTest {
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_WITH_MANAGE_OWN_CONNECTORS))
         .body(content("/xyz/hub/connectors/embeddedConnectorPatch.json"))
         .when()
-        .patch("/connectors/test-connector")
+        .patch("/connectors/" + CONNECTOR_ID)
         .then()
         .statusCode(OK.code())
         .body("connectionSettings.minConnections", equalTo(0))
@@ -197,7 +197,7 @@ public class ConnectorApiIT extends RestAssuredTest {
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_WITH_MANAGE_OWN_CONNECTORS))
         .body("{\"skipAutoDisable\":true}")
         .when()
-        .patch("/connectors/test-connector")
+        .patch("/connectors/" + CONNECTOR_ID)
         .then()
         .statusCode(FORBIDDEN.code());
 
@@ -207,7 +207,7 @@ public class ConnectorApiIT extends RestAssuredTest {
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_WITH_MANAGE_OWN_CONNECTORS))
         .body("{\"owner\":\"newFakeOwner\"}")
         .when()
-        .patch("/connectors/test-connector")
+        .patch("/connectors/" + CONNECTOR_ID)
         .then()
         .statusCode(FORBIDDEN.code());
 
@@ -217,7 +217,7 @@ public class ConnectorApiIT extends RestAssuredTest {
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_WITH_MANAGE_OWN_CONNECTORS))
         .body("{\"trusted\":true}")
         .when()
-        .patch("/connectors/test-connector")
+        .patch("/connectors/" + CONNECTOR_ID)
         .then()
         .statusCode(FORBIDDEN.code());
   }
@@ -230,7 +230,7 @@ public class ConnectorApiIT extends RestAssuredTest {
         .accept(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_2_WITH_MANAGE_CONNECTORS))
         .when()
-        .get("/connectors/test-connector")
+        .get("/connectors/" + CONNECTOR_ID)
         .then()
         .statusCode(FORBIDDEN.code());
   }
@@ -241,7 +241,7 @@ public class ConnectorApiIT extends RestAssuredTest {
         .accept(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_WITH_MANAGE_CONNECTOR_ONE_ID))
         .when()
-        .get("/connectors/test-connector")
+        .get("/connectors/" + CONNECTOR_ID)
         .then()
         .statusCode(FORBIDDEN.code());
   }
@@ -264,7 +264,7 @@ public class ConnectorApiIT extends RestAssuredTest {
         .accept(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_WITH_MANAGE_CONNECTOR_ONE_ID))
         .when()
-        .get("/connectors/test-connector")
+        .get("/connectors/" + CONNECTOR_ID)
         .then()
         .statusCode(FORBIDDEN.code());
   }
@@ -282,16 +282,16 @@ public class ConnectorApiIT extends RestAssuredTest {
         .post("/connectors")
         .then()
         .statusCode(CREATED.code())
-        .body("id", equalTo("test-connector2"));
+        .body("id", equalTo(CONNECTOR_2_ID));
 
     given()
         .accept(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_WITH_MANAGE_CONNECTOR_ONE_ID))
         .when()
-        .delete("/connectors/test-connector2")
+        .delete("/connectors/" + CONNECTOR_2_ID)
         .then()
         .statusCode(OK.code())
-        .body("id", equalTo("test-connector2"));
+        .body("id", equalTo(CONNECTOR_2_ID));
   }
 
   @Test
