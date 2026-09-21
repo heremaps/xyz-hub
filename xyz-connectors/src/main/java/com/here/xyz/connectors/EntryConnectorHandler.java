@@ -158,13 +158,16 @@ public abstract class EntryConnectorHandler extends AbstractConnectorHandler imp
     String streamPreview = null;
     long start = System.currentTimeMillis();
 
-    try {
-      input = Payload.prepareInputStream(input);
-      streamPreview = previewInput(input);
+    /*
+    The prepared stream is usually a GZIPInputStream holding a native inflater, so it is closed on
+    every path here rather than only on the one that hands it to XyzSerializable.
+     */
+    try (InputStream preparedInput = Payload.prepareInputStream(input)) {
+      streamPreview = previewInput(preparedInput);
 
       Event receivedEvent = isXyzBinaryPayload(streamPreview.substring(4, 8))
-          ? BinaryEvent.fromByteArray(input.readAllBytes())
-          : XyzSerializable.deserialize(input);
+          ? BinaryEvent.fromByteArray(preparedInput.readAllBytes())
+          : XyzSerializable.deserialize(preparedInput);
       logger.debug("{} [{} ms] - Parsed event: {}", receivedEvent.getStreamId(), duration(start), streamPreview);
       return receivedEvent;
     }
