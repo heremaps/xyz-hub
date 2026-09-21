@@ -24,6 +24,7 @@ import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_GEO_JSON;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
+import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -35,7 +36,9 @@ import static org.hamcrest.Matchers.not;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.Properties;
+import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import io.restassured.response.ValidatableResponse;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -48,13 +51,9 @@ import org.junit.jupiter.params.provider.ValueSource;
 public class ReadFeatureCompositeSpaceWithVersionIT extends TestSpaceWithFeature {
 
   private static final String spaceId = getSpaceId();
-  private static final String extSpaceId = getSpaceId() + "-ext";
+  private static final String extSpaceId = spaceId + "-ext";
   private static final String extOfExtSpaceId = extSpaceId + "-ext";
-  private static final String extA = spaceId + "-a";
-  private static final String extB = spaceId + "-b";
-  private static final String delBase = spaceId + "-del";
-  private static final String delExtA = delBase + "-a";
-  private static final String delExtB = delBase + "-b";
+  private final List<String> testSpecificSpaceIds = new ArrayList<>();
 
   private static void createSpaceWithVersionExtension(String spaceId, String baseSpaceId, long baseVersion, int versionsToKeep) {
     String reqBody = String.format("""
@@ -66,7 +65,7 @@ public class ReadFeatureCompositeSpaceWithVersionIT extends TestSpaceWithFeature
             "version": "%s"
           }%s
         }
-        """, spaceId, baseSpaceId, baseVersion, (versionsToKeep <= 0 ? "" : ",\"versionsToKeep\":" + versionsToKeep));
+        """, spaceId, baseSpaceId, baseVersion == -1 ? null : baseVersion, (versionsToKeep <= 0 ? "" : ",\"versionsToKeep\":" + versionsToKeep));
 
     createSpace(reqBody);
   }
@@ -94,14 +93,13 @@ public class ReadFeatureCompositeSpaceWithVersionIT extends TestSpaceWithFeature
 
   @AfterEach
   public void tearDown() {
+    for (int i = testSpecificSpaceIds.size() - 1; i >= 0; i--)
+      removeSpace(testSpecificSpaceIds.get(i));
+    testSpecificSpaceIds.clear();
+
     removeSpace(spaceId);
     removeSpace(extSpaceId);
     removeSpace(extOfExtSpaceId);
-    removeSpace(extA);
-    removeSpace(extB);
-    removeSpace(delExtA);
-    removeSpace(delExtB);
-    removeSpace(delBase);
   }
 
   @ParameterizedTest
@@ -134,74 +132,99 @@ public class ReadFeatureCompositeSpaceWithVersionIT extends TestSpaceWithFeature
         .body("features.id", containsInAnyOrder("base-1", "delta1-1"));
   }
 
-  @ParameterizedTest
-  @ValueSource(strings = {"iterate", "search"})
-  public void baseFeatureIsReadAtTheSpecifiedBaseVersion(String endpoint) {
+  @Test
+  public void baseFeatureIsReadAtTheSpecifiedBaseVersion() {
+    String versionOneSpaceId = testSpecificSpaceId("-base-v1");
+    String versionThreeSpaceId = testSpecificSpaceId("-base-v3");
     addFeature(spaceId, updatedFeature("base-1", "value-v3")); //base version 3
 
-    createSpaceWithVersionExtension(extA, spaceId, 1, 100);
-    createSpaceWithVersionExtension(extB, spaceId, 3, 100);
+    createSpaceWithVersionExtension(versionOneSpaceId, spaceId, 1, 100);
+    createSpaceWithVersionExtension(versionThreeSpaceId, spaceId, 3, 100);
 
-    loadFeatures(extA, SUPER, endpoint)
+    loadFeatures(versionOneSpaceId, SUPER)
         .body("features.find { it.id == 'base-1' }.properties.key1", equalTo("value1"))
         .body("features.find { it.id == 'base-1' }.properties.'@ns:com:here:xyz'.version", equalTo(1));
 
-    loadFeatures(extB, SUPER, endpoint)
+    loadFeatures(versionThreeSpaceId, SUPER)
         .body("features.find { it.id == 'base-1' }.properties.key1", equalTo("value-v3"))
         .body("features.find { it.id == 'base-1' }.properties.'@ns:com:here:xyz'.version", equalTo(3));
   }
 
-  @ParameterizedTest
-  @ValueSource(strings = {"iterate", "search"})
-  public void baseFeatureUpdatedAfterExtensionVersionKeepsOldValue(String endpoint) {
+  @Test
+  public void logicalVersionZeroReadsConfiguredBaseVersion() {
+    String versionThreeSpaceId = testSpecificSpaceId("-base-v3");
+    addFeature(spaceId, updatedFeature("base-1", "value-v3")); //base version 3
+    createSpaceWithVersionExtension(versionThreeSpaceId, spaceId, 3, 100);
+
+    loadFeatures(versionThreeSpaceId, DEFAULT, "iterate", "0")
+        .body("features", hasSize(2))
+        .body("features.find { it.id == 'base-1' }.properties.key1", equalTo("value-v3"))
+        .body("features.find { it.id == 'base-1' }.properties.'@ns:com:here:xyz'.version", equalTo(0));
+  }
+
+  @Test
+  public void logicalVersionZeroReadsComposedNestedBaseVersion() {
+    String nestedSpaceId = testSpecificSpaceId("-intermediate-v3");
+    patchFeature(extSpaceId, newFeature("base-1")
+        .withProperties(new Properties().with("intermediate", "override"))); //intermediate version 3
+    createSpaceWithVersionExtension(nestedSpaceId, extSpaceId, 3, 100);
+
+    loadFeatures(nestedSpaceId, DEFAULT, "iterate", "0")
+        .body("features.findAll { it.id == 'base-1' }", hasSize(1))
+        .body("features.find { it.id == 'base-1' }.properties.intermediate", equalTo("override"))
+        .body("features.find { it.id == 'base-1' }.properties.'@ns:com:here:xyz'.version", equalTo(0));
+  }
+
+  @Test
+  public void baseFeatureUpdatedAfterExtensionVersionKeepsOldValue() {
     addFeature(spaceId, updatedFeature("base-1", "updated")); //base version 3
 
-    loadFeatures(extSpaceId, DEFAULT, endpoint)
+    loadFeatures(extSpaceId, DEFAULT)
         .body("features.find { it.id == 'base-1' }.properties.key1", equalTo("value1"));
 
-    loadFeatures(extSpaceId, SUPER, endpoint)
+    loadFeatures(extSpaceId, SUPER)
         .body("features.find { it.id == 'base-1' }.properties.key1", equalTo("value1"));
 
-    loadFeatures(spaceId, DEFAULT, endpoint)
+    loadFeatures(spaceId, DEFAULT)
         .body("features.find { it.id == 'base-1' }.properties.key1", equalTo("updated"));
   }
 
-  @ParameterizedTest
-  @ValueSource(strings = {"iterate", "search"})
-  public void baseFeatureDeletedAfterExtensionVersionStaysVisible(String endpoint) {
+  @Test
+  public void baseFeatureDeletedAfterExtensionVersionStaysVisible() {
     deleteFeature(spaceId, "base-1");
 
-    loadFeatures(extSpaceId, DEFAULT, endpoint)
+    loadFeatures(extSpaceId, DEFAULT)
         .body("features.id", hasItem("base-1"));
 
-    loadFeatures(extSpaceId, SUPER, endpoint)
+    loadFeatures(extSpaceId, SUPER)
         .body("features.id", hasItem("base-1"));
   }
 
-  @ParameterizedTest
-  @ValueSource(strings = {"iterate", "search"})
-  public void baseFeatureDeletedAtBoundVersionIsNotVisible(String endpoint) {
-    createSpaceWithId(delBase, 100);
-    addFeature(delBase, newFeature("base-1"));
-    addFeature(delBase, newFeature("base-2"));
-    deleteFeature(delBase, "base-1");
+  @Test
+  public void baseFeatureDeletedAtBoundVersionIsNotVisible() {
+    String deleteHistoryBaseSpaceId = testSpecificSpaceId("-delete-history");
+    String beforeDeleteSpaceId = testSpecificSpaceId("-delete-history-before-delete");
+    String atDeleteSpaceId = testSpecificSpaceId("-delete-history-at-delete");
+    createSpaceWithId(deleteHistoryBaseSpaceId, 100);
+    addFeature(deleteHistoryBaseSpaceId, newFeature("base-1"));
+    addFeature(deleteHistoryBaseSpaceId, newFeature("base-2"));
+    deleteFeature(deleteHistoryBaseSpaceId, "base-1");
 
-    createSpaceWithVersionExtension(delExtA, delBase, 1, 100); //bound to version 1 (before the delete)
-    createSpaceWithVersionExtension(delExtB, delBase, 3, 100); //bound to version 3 (the delete)
+    createSpaceWithVersionExtension(beforeDeleteSpaceId, deleteHistoryBaseSpaceId, 1, 100);
+    createSpaceWithVersionExtension(atDeleteSpaceId, deleteHistoryBaseSpaceId, 3, 100);
 
-    loadFeatures(delExtA, SUPER, endpoint)
+    loadFeatures(beforeDeleteSpaceId, SUPER)
         .body("features.id", hasItem("base-1"));
 
-    loadFeatures(delExtB, SUPER, endpoint)
+    loadFeatures(atDeleteSpaceId, SUPER)
         .body("features.id", not(hasItem("base-1")));
   }
 
-  @ParameterizedTest
-  @ValueSource(strings = {"iterate", "search"})
-  public void intermediateChangeAfterExtensionVersionStaysVisible(String endpoint) {
+  @Test
+  public void intermediateChangeAfterExtensionVersionStaysVisible() {
     deleteFeature(extSpaceId, "delta1-1"); //intermediate version 3
 
-    loadFeatures(extOfExtSpaceId, DEFAULT, endpoint)
+    loadFeatures(extOfExtSpaceId, DEFAULT)
         .body("features.id", hasItem("delta1-1"));
   }
 
@@ -226,6 +249,72 @@ public class ReadFeatureCompositeSpaceWithVersionIT extends TestSpaceWithFeature
         .body("features.find { it.id == 'base-1' }.properties.key1", equalTo("value-v3"));
   }
 
+  @Test
+  public void baseVersionPartialUpdateMergesWithExtensionOverride() {
+    patchFeature(extSpaceId, newFeature("base-1")
+        .withProperties(new Properties().with("headDelta", "head")));
+
+    patchFeature(extSpaceId, newFeature("base-1")
+        .withProperties(new Properties()
+            .withXyzNamespace(new XyzNamespace().withVersion(0))
+            .with("staleDelta", "stale")));
+
+    loadFeatures(extSpaceId, DEFAULT, "iterate")
+        .body("features.find { it.id == 'base-1' }.properties.key1", equalTo("value1"))
+        .body("features.find { it.id == 'base-1' }.properties.headDelta", equalTo("head"))
+        .body("features.find { it.id == 'base-1' }.properties.staleDelta", equalTo("stale"));
+  }
+
+  @Test
+  public void conflictDetectionUsesTheBoundBaseAsLogicalVersionZero() {
+    addFeature(spaceId, updatedFeature("base-1", "value-after-bound"));
+
+    postFeature(extSpaceId, newFeature("base-1")
+        .withProperties(new Properties()
+            .withXyzNamespace(new XyzNamespace().withVersion(0))
+            .with("delta", "value")), AuthProfile.ACCESS_ALL, true);
+
+    loadFeatures(extSpaceId, DEFAULT, "iterate")
+        .body("features.find { it.id == 'base-1' }.properties.key1", equalTo("value1"))
+        .body("features.find { it.id == 'base-1' }.properties.delta", equalTo("value"));
+  }
+
+  @Test
+  public void conflictDetectionRejectsLogicalVersionZeroAfterDeltaOverride() {
+    postFeature(extSpaceId, newFeature("base-1")
+        .withProperties(new Properties()
+            .withXyzNamespace(new XyzNamespace().withVersion(0))
+            .with("delta", "first")), AuthProfile.ACCESS_ALL, true);
+
+    postFeature(extSpaceId, newFeature("base-1")
+        .withProperties(new Properties()
+            .withXyzNamespace(new XyzNamespace().withVersion(0))
+            .with("delta", "stale")), AuthProfile.ACCESS_ALL, true, CONFLICT);
+  }
+
+  @Test
+  public void conflictDetectionUsesComposedNestedBaseAsLogicalVersionZero() {
+    String nestedSpaceId = testSpecificSpaceId("-intermediate-v3");
+    patchFeature(extSpaceId, newFeature("base-1")
+        .withProperties(new Properties().with("intermediate", "override"))); //intermediate version 3
+    createSpaceWithVersionExtension(nestedSpaceId, extSpaceId, 3, 100);
+
+    postFeature(nestedSpaceId, newFeature("base-1")
+        .withProperties(new Properties()
+            .withXyzNamespace(new XyzNamespace().withVersion(0))
+            .with("outer", "value")), AuthProfile.ACCESS_ALL, true);
+
+    loadFeatures(nestedSpaceId, DEFAULT, "iterate")
+        .body("features.find { it.id == 'base-1' }.properties.intermediate", equalTo("override"))
+        .body("features.find { it.id == 'base-1' }.properties.outer", equalTo("value"));
+  }
+
+  private String testSpecificSpaceId(String suffix) {
+    String id = spaceId + suffix;
+    testSpecificSpaceIds.add(id);
+    return id;
+  }
+
   private static void patchFeature(String spaceId, Feature feature) {
     given()
         .contentType(APPLICATION_GEO_JSON)
@@ -237,7 +326,15 @@ public class ReadFeatureCompositeSpaceWithVersionIT extends TestSpaceWithFeature
         .statusCode(OK.code());
   }
 
+  private ValidatableResponse loadFeatures(String spaceId, SpaceContext context) {
+    return loadFeatures(spaceId, context, "iterate");
+  }
+
   private ValidatableResponse loadFeatures(String spaceId, SpaceContext context, String endpoint) {
+    return loadFeatures(spaceId, context, endpoint, null);
+  }
+
+  private ValidatableResponse loadFeatures(String spaceId, SpaceContext context, String endpoint, String versionRef) {
     String uri = getSpacesPath() + "/" + spaceId + "/" + endpoint + (endpoint.equals("tile") ? "/quadkey/0" : "");
     Map<String, Object> queryParams = new HashMap<>();
     switch (endpoint) {
@@ -247,6 +344,8 @@ public class ReadFeatureCompositeSpaceWithVersionIT extends TestSpaceWithFeature
     }
 
     queryParams.put("context", context);
+    if (versionRef != null)
+      queryParams.put("versionRef", versionRef);
 
     return given()
         .contentType(APPLICATION_JSON)

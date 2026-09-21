@@ -74,18 +74,31 @@ public abstract class ExtendedSpace<E extends Event, R extends XyzResponse> exte
     return null;
   }
 
-  static <E extends Event> Optional<Long> getBaseVersion(E event) {
+  /**
+   * Returns the base version of the current space.
+   */
+  public static <E extends Event> Optional<Long> getBaseVersion(E event) {
     if (isExtendedSpace(event)) {
       return getVersionFromExtendsMap((Map<String, Object>) event.getParams().get(EXTENDS));
     }
     return Optional.empty();
   }
 
+  /**
+   * Returns the base version of the intermediate space.
+   */
   static <E extends Event> Optional<Long> getIntermediateBaseVersion(E event) {
     if (is2LevelExtendedSpace(event)) {
       return getVersionFromExtendsMap((Map<String, Object>) ((Map)event.getParams().get(EXTENDS)).get(EXTENDS));
     }
     return Optional.empty();
+  }
+
+  /**
+   * Returns whether any base-space edge in the resolved composite is bound to a version.
+   */
+  protected static <E extends Event> boolean hasBoundBaseVersion(E event) {
+    return getBaseVersion(event).isPresent() || getIntermediateBaseVersion(event).isPresent();
   }
 
   private static Optional<Long> getVersionFromExtendsMap(Map<String, Object> extendsObject) {

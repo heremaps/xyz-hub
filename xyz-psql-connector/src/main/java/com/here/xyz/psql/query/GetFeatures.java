@@ -45,9 +45,9 @@ import com.here.xyz.util.db.SQLQuery;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 
 public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResponse> extends ExtendedSpace<E, R> {
@@ -127,14 +127,34 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
         .withQueryFragment("limit", buildLimitFragment(event));
   }
 
-  private SQLQuery buildCompositionFilter(E event, boolean isL2, SQLQuery idComparisonFragment) {
-    if (event instanceof SelectiveEvent selectiveEvent && selectiveEvent.getRef().isAllVersions())
+  protected SQLQuery buildCompositionFilter(E event, boolean isL2, SQLQuery idComparisonFragment) {
+    if (event instanceof SelectiveEvent selectiveEvent && selectiveEvent.getRef().isAllVersions()
+        //Keep the composition filter for a bound intermediate dataset.
+        && (!isL2 || !isBoundDataset(event, false, compositeDatasetNo(event, CompositeDataset.INTERMEDIATE))))
       return new SQLQuery("");
 
     String tableVariable = isL2 ? "intermediateExtensionTable" : "table";
     return new SQLQuery("WHERE ${{exists}} exists(SELECT 1 FROM ${schema}.${" + tableVariable + "} WHERE ${{idComparison}})")
         .withQueryFragment("exists", (event.getContext() == COMPOSITE_EXTENSION || event.getContext() == X) && !isL2 ? "" : "NOT")
         .withQueryFragment("idComparison", idComparisonFragment);
+  }
+
+  /**
+   * Returns whether the selected base dataset is fixed to a configured version.
+   * The extension dataset itself is never bound.
+   * In a two-level composite, the outer extension version binds the intermediate dataset,
+   * while the intermediate extension version binds the root dataset.
+   */
+  protected boolean isBoundDataset(E event, boolean isExtension, int dataset) {
+    if (isExtension || !isCompositeQuery(event))
+      return false;
+
+    if (dataset == compositeDatasetNo(event, CompositeDataset.SUPER))
+      return (is2LevelExtendedSpace(event) ? getIntermediateBaseVersion(event) : getBaseVersion(event)).isPresent();
+
+    return is2LevelExtendedSpace(event)
+        && dataset == compositeDatasetNo(event, CompositeDataset.INTERMEDIATE)
+        && getBaseVersion(event).isPresent();
   }
 
   protected SQLQuery buildBranchCompositionFilter() {
@@ -184,6 +204,14 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
   protected SQLQuery buildFilterWhereClause(E event) {
     return new SQLQuery("TRUE");
+  }
+
+  /**
+   * Builds an ID filter with a caller-specific parameter name to avoid collisions in composed queries.
+   */
+  protected SQLQuery buildIdsFilter(Collection<String> ids, String parameterName) {
+    return new SQLQuery("id = ANY(#{" + parameterName + "})")
+        .withNamedParameter(parameterName, ids.toArray(new String[0]));
   }
 
   protected SQLQuery buildSelectClause(E event, int dataset, long baseVersion) {
@@ -311,7 +339,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
   private SQLQuery build1LevelBaseQuery(E event, SQLQuery filterWhereClause) {
     SQLQuery versionCheck = (is2LevelExtendedSpace(event) ? getIntermediateBaseVersion(event) : getBaseVersion(event))
-            .map(version -> buildVersionCheckFragment(event, new Ref(version), 0))
+            .map(this::buildCompositeBaseVersionCheckFragment)
             .orElse(buildBaseVersionCheckFragment("base1Version"));
 
     int dataset = compositeDatasetNo(event, CompositeDataset.SUPER);
@@ -325,7 +353,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
   private SQLQuery build2LevelBaseQuery(E event, SQLQuery filterWhereClause) {
     SQLQuery versionCheckFragment = getBaseVersion(event)
-            .map(version -> buildVersionCheckFragment(event, new Ref(version), 0))
+            .map(this::buildCompositeBaseVersionCheckFragment)
             .orElse(buildBaseVersionCheckFragment("base2Version"));
 
     int dataset = compositeDatasetNo(event, CompositeDataset.INTERMEDIATE);
@@ -341,6 +369,14 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
         .withQueryFragment("orderBy", buildOrderByFragment(event))
         .withQueryFragment("baseQuery", build1LevelBaseQuery(event, filterWhereClause))
         .withQueryFragment("compositionFilter", buildCompositionFilter(event, true, buildIdComparisonFragment(event, "b.", versionCheckFragment)));
+  }
+
+  /**
+   * Selects rows active at the configured physical base-space version.
+   */
+  protected SQLQuery buildCompositeBaseVersionCheckFragment(long baseVersion) {
+    return new SQLQuery("AND version <= ${{baseVersion}}::BIGINT AND next_version > ${{baseVersion}}::BIGINT")
+        .withQueryFragment("baseVersion", "" + baseVersion);
   }
 
   private SQLQuery buildIdComparisonFragment(E event, String prefix, SQLQuery versionCheckFragment) {

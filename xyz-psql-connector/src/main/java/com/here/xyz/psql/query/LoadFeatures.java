@@ -33,7 +33,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -92,40 +91,39 @@ public class LoadFeatures extends GetFeatures<LoadFeaturesEvent, FeatureCollecti
               .collect(Collectors.toList()), true));
     }
     else
-      return new SQLQuery("id = ANY(#{ids})")
-          .withNamedParameter("ids", idMap.keySet().toArray(new String[0]));
+      return buildIdsFilter(idMap.keySet(), "ids");
   }
 
   @Override
   protected SQLQuery buildFiltersFragment(LoadFeaturesEvent event, boolean isExtension, SQLQuery filterWhereClause, int dataset) {
-    SQLQuery filters = getCompositeBaseVersion(event, isExtension, dataset)
-        .map(compositeBaseVersion -> buildCompositeBaseVersionFilter(event, dataset, compositeBaseVersion))
-        .orElse(filterWhereClause);
+    SQLQuery filters = isBoundDataset(event, isExtension, dataset)
+        ? buildBoundDatasetFilter(event, dataset)
+        : filterWhereClause;
     return super.buildFiltersFragment(event, isExtension, filters, dataset);
   }
 
-  private SQLQuery buildCompositeBaseVersionFilter(LoadFeaturesEvent event, int dataset, long compositeBaseVersion) {
-    String idsParamName = "compositeBaseVersionIds" + dataset + (isForHistoryQuery ? "History" : "Head");
-    return new SQLQuery("id = ANY(#{" + idsParamName + "}) "
-        + "AND version <= ${{compositeBaseVersion}}::BIGINT AND next_version > ${{compositeBaseVersion}}::BIGINT")
-        .withNamedParameter(idsParamName, event.getIdsMap().keySet().toArray(new String[0]))
-        .withQueryFragment("compositeBaseVersion", "" + compositeBaseVersion);
+  @Override
+  protected SQLQuery buildCompositionFilter(LoadFeaturesEvent event, boolean isL2, SQLQuery idComparisonFragment) {
+    if (isForHistoryQuery && hasBoundBaseVersion(event) && !isL2)
+      return new SQLQuery("");
+
+    return super.buildCompositionFilter(event, isL2, idComparisonFragment);
   }
 
   /**
-   * @return The version the specified dataset of a composite query is bound to, if any.
+   * Selects requested IDs from a bound dataset. For the history query, only IDs requesting logical version zero
+   * belong to the physical base snapshot.
    */
-  private Optional<Long> getCompositeBaseVersion(LoadFeaturesEvent event, boolean isExtension, int dataset) {
-    if (isExtension || !isCompositeQuery(event))
-      return Optional.empty();
+  private SQLQuery buildBoundDatasetFilter(LoadFeaturesEvent event, int dataset) {
+    String idsParamName = "baseVersionIds" + dataset + (isForHistoryQuery ? "History" : "Head");
+    Set<String> ids = isForHistoryQuery
+        ? event.getIdsMap().entrySet().stream()
+            .filter(entry -> "0".equals(entry.getValue()))
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toSet())
+        : event.getIdsMap().keySet();
 
-    if (dataset == compositeDatasetNo(event, CompositeDataset.SUPER))
-      return is2LevelExtendedSpace(event) ? getIntermediateBaseVersion(event) : getBaseVersion(event);
-
-    if (is2LevelExtendedSpace(event) && dataset == compositeDatasetNo(event, CompositeDataset.INTERMEDIATE))
-      return getBaseVersion(event);
-
-    return Optional.empty();
+    return buildIdsFilter(ids, idsParamName);
   }
 
   private static SQLQuery buildLoadFeaturesInputFragment(List<LoadFeatureVersionInput> input, boolean head) {
