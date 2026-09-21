@@ -43,8 +43,15 @@ jobs:
       - name: Add hosts to /etc/hosts
         run: |
           sudo echo "127.0.0.1 dynamodb postgres.local postgres postgres.replica" | sudo tee -a /etc/hosts
+      - name: Build the service jars
+        run: mvn clean install -DskipTests=true
+      #Only the services the tests talk to are started. The swagger, dynamodb-admin and s3-explorer
+      #containers of the compose file are user interfaces that no test addresses, so naming the
+      #services here leaves them and the image build of the s3 explorer out.
       - name: Start the XYZ Hub stack
-        run: mvn clean install -Pdocker -DskipTests=true -DdockerComposeFile=docker-compose-dynamodb.yml
+        run: |
+          docker compose -f docker-compose-dynamodb.yml build postgres xyz-hub xyz-job-service
+          docker compose -f docker-compose-dynamodb.yml up --detach --no-build xyz-job-service
       - name: Deploy StepLambda for Job API
         run: ./xyz-jobs/xyz-job-steps/src/main/bash/deployLocalLambda.sh
         env:
