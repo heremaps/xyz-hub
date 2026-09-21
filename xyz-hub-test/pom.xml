@@ -69,9 +69,19 @@
         </configuration>
         <executions>
           <!--
-            Tests that assert on state which is global to the hub: space listings per owner, region or tag, the
-            connector listing, or the request throttling. They cannot tolerate a second test creating a space at the
-            same time, so they run alone and before everything else.
+            The tests that are left with an assertion no fork local naming can isolate, so they run alone and before
+            everything else:
+
+            AuthTestsIT, ListSpaceContentUpdatedAtTestIT and ReadSpaceApiIT assert on an exact number of spaces
+            returned for "owner=*" or "owner=others". Those listings include the shared spaces of every other owner
+            by design, so no fork local naming keeps the other forks out of the result.
+
+            LimitsTestIT creates a space with a token that may own exactly one, and the hub counts that per owner
+            across all of its spaces. Only a fork local owner would isolate it, and the owners cannot be made fork
+            local: the connectors c2 and c3 of the service configuration name one, and that file is shared.
+
+            RequesterThrottlingIT asserts on how many of its concurrent requests the hub rejects, which any other
+            traffic against the same hub changes.
           -->
           <execution>
             <id>integration-test-exclusive</id>
@@ -82,17 +92,10 @@
               <forkCount>1</forkCount>
               <includes>
                 <include>**/AuthTestsIT.java</include>
-                <include>**/ConnectorApiIT.java</include>
-                <include>**/CreateExtensionSpaceIT.java</include>
                 <include>**/LimitsTestIT.java</include>
                 <include>**/ListSpaceContentUpdatedAtTestIT.java</include>
                 <include>**/ReadSpaceApiIT.java</include>
-                <include>**/ReadSpacePerRegionApiIT.java</include>
                 <include>**/RequesterThrottlingIT.java</include>
-                <include>**/SpaceStatisticsIT.java</include>
-                <include>**/StorageReportingApiIT.java</include>
-                <include>**/SubscriptionApiIT.java</include>
-                <include>**/TagApiIT.java</include>
               </includes>
               <systemPropertyVariables>
                 <xyz.test.suffix>-x</xyz.test.suffix>
@@ -110,17 +113,10 @@
               <reuseForks>true</reuseForks>
               <excludes>
                 <exclude>**/AuthTestsIT.java</exclude>
-                <exclude>**/ConnectorApiIT.java</exclude>
-                <exclude>**/CreateExtensionSpaceIT.java</exclude>
                 <exclude>**/LimitsTestIT.java</exclude>
                 <exclude>**/ListSpaceContentUpdatedAtTestIT.java</exclude>
                 <exclude>**/ReadSpaceApiIT.java</exclude>
-                <exclude>**/ReadSpacePerRegionApiIT.java</exclude>
                 <exclude>**/RequesterThrottlingIT.java</exclude>
-                <exclude>**/SpaceStatisticsIT.java</exclude>
-                <exclude>**/StorageReportingApiIT.java</exclude>
-                <exclude>**/SubscriptionApiIT.java</exclude>
-                <exclude>**/TagApiIT.java</exclude>
               </excludes>
               <systemPropertyVariables>
                 <xyz.test.suffix>-f${surefire.forkNumber}</xyz.test.suffix>
