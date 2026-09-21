@@ -38,7 +38,7 @@ import org.junit.Test;
 
 public class ChangesetCollectionApiIT extends TestSpaceWithFeature {
 
-  protected static final String AUTHOR_1 = "XYZ-01234567-89ab-cdef-0123-456789aUSER1";
+  protected static final String AUTHOR_1 = AuthProfile.ACCESS_OWNER_1_ADMIN.payload.aid;
   private static String cleanUpSpaceId = "space1" + TEST_SUFFIX;
 
   @BeforeClass

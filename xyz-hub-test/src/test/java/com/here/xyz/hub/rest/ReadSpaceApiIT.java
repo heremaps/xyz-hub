@@ -185,7 +185,7 @@ public class ReadSpaceApiIT extends TestSpaceWithFeature {
         .accept(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.NO_ACCESS))
         .when()
-        .get("/spaces?owner=XYZ-01234567-89ab-cdef-0123-456789aUSER2")
+        .get("/spaces?owner=" + AuthProfile.ACCESS_OWNER_2.payload.aid)
         .then()
         .statusCode(FORBIDDEN.code());
   }

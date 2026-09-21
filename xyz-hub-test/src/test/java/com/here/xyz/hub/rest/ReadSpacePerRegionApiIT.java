@@ -37,10 +37,17 @@ import org.junit.Test;
 
 public class ReadSpacePerRegionApiIT extends TestSpaceWithFeature {
   static List<String> cleanupSpaceIds = new ArrayList<>();
-  static final String SPACE_ID_NO_REGION = "test-s-no-region";
-  static final String SPACE_ID_REGION_A_1 = "test-s-region-a-1";
-  static final String SPACE_ID_REGION_A_2 = "test-s-region-a-2";
-  static final String SPACE_ID_REGION_B = "test-s-region-b";
+  static final String SPACE_ID_NO_REGION = "test-s-no-region" + TEST_SUFFIX;
+  static final String SPACE_ID_REGION_A_1 = "test-s-region-a-1" + TEST_SUFFIX;
+  static final String SPACE_ID_REGION_A_2 = "test-s-region-a-2" + TEST_SUFFIX;
+  static final String SPACE_ID_REGION_B = "test-s-region-b" + TEST_SUFFIX;
+  /*
+  The regions are fork local as well. The listing filters by region across all spaces, so the tests
+  below can only assert on an exact number of spaces if no other fork puts spaces in the same region.
+   */
+  static final String REGION_A = "a" + TEST_SUFFIX;
+  static final String REGION_B = "b" + TEST_SUFFIX;
+  static final String REGION_UNUSED = "x" + TEST_SUFFIX;
 
   @BeforeClass
   public static void setupClass() {
@@ -65,7 +72,7 @@ public class ReadSpacePerRegionApiIT extends TestSpaceWithFeature {
     given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .body(new Space().withRegion("a").withTitle("test space region a #1").withId(SPACE_ID_REGION_A_1))
+        .body(new Space().withRegion(REGION_A).withTitle("test space region a #1").withId(SPACE_ID_REGION_A_1))
         .when()
         .post(getCreateSpacePath())
         .then()
@@ -74,7 +81,7 @@ public class ReadSpacePerRegionApiIT extends TestSpaceWithFeature {
     given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .body(new Space().withRegion("a").withTitle("test space region a #2").withId(SPACE_ID_REGION_A_2))
+        .body(new Space().withRegion(REGION_A).withTitle("test space region a #2").withId(SPACE_ID_REGION_A_2))
         .when()
         .post(getCreateSpacePath())
         .then()
@@ -83,7 +90,7 @@ public class ReadSpacePerRegionApiIT extends TestSpaceWithFeature {
     given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .body(new Space().withRegion("b").withTitle("test space region b").withId(SPACE_ID_REGION_B))
+        .body(new Space().withRegion(REGION_B).withTitle("test space region b").withId(SPACE_ID_REGION_B))
         .when()
         .post(getCreateSpacePath())
         .then()
@@ -100,14 +107,14 @@ public class ReadSpacePerRegionApiIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get("/spaces?region=a")
+        .get("/spaces?region=" + REGION_A)
         .then()
         .statusCode(OK.code()).extract().body().asString();
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get("/spaces?region=a")
+        .get("/spaces?region=" + REGION_A)
         .then()
         .statusCode(OK.code())
         .body("$.size()", equalTo(2))
@@ -116,7 +123,7 @@ public class ReadSpacePerRegionApiIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get("/spaces?region=b")
+        .get("/spaces?region=" + REGION_B)
         .then()
         .statusCode(OK.code())
         .body("$.size()", equalTo(1))
@@ -125,7 +132,7 @@ public class ReadSpacePerRegionApiIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get("/spaces?region=x")
+        .get("/spaces?region=" + REGION_UNUSED)
         .then()
         .statusCode(OK.code())
         .body("$.size()", equalTo(0));
@@ -146,7 +153,7 @@ public class ReadSpacePerRegionApiIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get("/spaces?region=a&contentUpdatedAt=gt=" + --contentUpdatedAtSpaceA2)
+        .get("/spaces?region=" + REGION_A + "&contentUpdatedAt=gt=" + --contentUpdatedAtSpaceA2)
         .then()
         .statusCode(OK.code())
         .body("$.size()", equalTo(1))
@@ -155,7 +162,7 @@ public class ReadSpacePerRegionApiIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get("/spaces?contentUpdatedAt=gt="+ Instant.now().minus(1, ChronoUnit.DAYS).toEpochMilli() +"&region=b")
+        .get("/spaces?contentUpdatedAt=gt="+ Instant.now().minus(1, ChronoUnit.DAYS).toEpochMilli() + "&region=" + REGION_B)
         .then()
         .statusCode(OK.code())
         .body("$.size()", equalTo(1))

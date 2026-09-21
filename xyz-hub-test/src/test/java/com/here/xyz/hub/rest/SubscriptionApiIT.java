@@ -41,8 +41,8 @@ import org.junit.Test;
 
 public class SubscriptionApiIT extends TestSpaceWithFeature {
 
-  private static final String cleanUpSpaceId = "space1";
-  private static final String cleanUpSpaceId2 = "space2";
+  private static final String cleanUpSpaceId = "space1" + TEST_SUFFIX;
+  private static final String cleanUpSpaceId2 = "space2" + TEST_SUFFIX;
   private static final String cleanUpSpaceId3 = cleanUpSpaceId + "-ext";
   private static final String subscriptionId = "test-subscription-1";
 
@@ -296,7 +296,7 @@ public class SubscriptionApiIT extends TestSpaceWithFeature {
     given()
         .accept(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES))
-        .queryParam("source", "space1")
+        .queryParam("source", cleanUpSpaceId)
         .when()
         .get("/spaces/" + cleanUpSpaceId + "/subscriptions")
         .then()
