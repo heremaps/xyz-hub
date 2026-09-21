@@ -32,6 +32,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.models.geojson.implementation.Feature;
@@ -226,6 +227,53 @@ public class ReadFeatureCompositeSpaceWithVersionIT extends TestSpaceWithFeature
 
     loadFeatures(extOfExtSpaceId, DEFAULT)
         .body("features.id", hasItem("delta1-1"));
+  }
+
+  @Test
+  public void nestedPartialUpdateMergesOntoIntermediateStateAtBoundVersion() {
+    //The intermediate overrides the inherited feature after the outer composite was bound to version 1
+    patchFeature(extSpaceId, newFeature("base-1")
+        .withProperties(new Properties().with("intermediate", "after-bound-version"))); //intermediate version 3
+
+    //so the outer composite still reads it in the state it had at the bound version
+    loadFeatures(extOfExtSpaceId, DEFAULT)
+        .body("features.find { it.id == 'base-1' }.properties.key1", equalTo("value1"))
+        .body("features.find { it.id == 'base-1' }.properties.intermediate", nullValue());
+
+    //and a partial update through the outer composite has to be merged onto that very state.
+    patchFeature(extOfExtSpaceId, newFeature("base-1")
+        .withProperties(new Properties().with("outer", "value")));
+
+    loadFeatures(extOfExtSpaceId, DEFAULT)
+        .body("features.find { it.id == 'base-1' }.properties.key1", equalTo("value1"))
+        .body("features.find { it.id == 'base-1' }.properties.outer", equalTo("value"))
+        .body("features.find { it.id == 'base-1' }.properties.intermediate", nullValue());
+
+    //The intermediate itself stays untouched by the write which went into the outer extension
+    loadFeatures(extSpaceId, DEFAULT)
+        .body("features.find { it.id == 'base-1' }.properties.intermediate", equalTo("after-bound-version"))
+        .body("features.find { it.id == 'base-1' }.properties.outer", nullValue());
+  }
+
+  @Test
+  public void nestedPartialUpdateWorksAfterIntermediateDeletedTheInheritedFeature() {
+    //The intermediate hides the inherited feature after the outer composite was bound to version 1
+    deleteFeature(extSpaceId, "base-1"); //intermediate version 3
+
+    loadFeatures(extSpaceId, DEFAULT)
+        .body("features.id", not(hasItem("base-1")));
+
+    //but the outer composite still sees it at the bound version
+    loadFeatures(extOfExtSpaceId, DEFAULT)
+        .body("features.id", hasItem("base-1"));
+
+    //so a partial update through the outer composite has to succeed instead of answering 404.
+    patchFeature(extOfExtSpaceId, newFeature("base-1")
+        .withProperties(new Properties().with("outer", "value")));
+
+    loadFeatures(extOfExtSpaceId, DEFAULT)
+        .body("features.find { it.id == 'base-1' }.properties.key1", equalTo("value1"))
+        .body("features.find { it.id == 'base-1' }.properties.outer", equalTo("value"));
   }
 
   @Test
