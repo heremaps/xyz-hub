@@ -50,7 +50,7 @@ public class PrivateKeyEventDecryptor extends EventDecryptor {
   /**
    * Logger for the class
    */
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(PrivateKeyEventDecryptor.class);
   /**
    * Environment variable for the file path to the private key in PKCS#8 PEM format.
    */

@@ -29,7 +29,7 @@ import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 
 public class SecretManagerCredentialsProvider implements AwsCredentialsProvider {
-    private static final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger(SecretManagerCredentialsProvider.class);
     private static final int DEFAULT_REFRESH_INTERVAL_SECONDS = 3600;
 
     private final AtomicReference<AwsCredentials> credentialsRef;

@@ -80,7 +80,7 @@ public abstract class DatabaseHandler extends StorageConnector {
     //TODO - set scriptResourcePath if ext & h3 functions should get installed here.
     private static final List<ScriptResourcePath> SCRIPT_RESOURCE_PATHS = List.of(new ScriptResourcePath("/sql", "hub", "common"));
     public static final String ECPS_PHRASE = "ECPS_PHRASE";
-    private static final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger(DatabaseHandler.class);
 
     /**
      * Lambda Execution Time = 25s. We are actively canceling queries after STATEMENT_TIMEOUT_SECONDS
@@ -112,7 +112,18 @@ public abstract class DatabaseHandler extends StorageConnector {
             .withApplicationName(FunctionRuntime.getInstance().getApplicationName())
             .withScriptResourcePaths(SCRIPT_RESOURCE_PATHS);
 
+        applyConnectionPoolParams(dbSettings, connectorParams);
+
         initialize(dbSettings, null);
+    }
+
+    /**
+     * Applies the pool sizing from the connector params, taking precedence over the deprecated
+     * PSQL_MAX_CONN ECPS setting. A Lambda container serves one invocation, so its default stays 1.
+     */
+    private static void applyConnectionPoolParams(DatabaseSettings dbSettings, ConnectorParameters connectorParams) {
+        if (connectorParams.getDbMaxPoolSize() > 0)
+            dbSettings.withDbMaxPoolSize(connectorParams.getDbMaxPoolSize());
     }
 
     public void initialize(DatabaseSettings dbSettings, Context context) {
