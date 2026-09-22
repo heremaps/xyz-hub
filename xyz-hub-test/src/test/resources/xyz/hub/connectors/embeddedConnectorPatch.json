@@ -2,7 +2,7 @@
   "contactEmails": [
     "newEmail@here.com"
   ],
-  "id": "test-connector",
+  "id": "${connectorId}",
   "capabilities": {
     "preserializedResponseSupport": false
   }

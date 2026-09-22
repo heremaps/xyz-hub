@@ -52,29 +52,83 @@
         <artifactId>maven-surefire-plugin</artifactId>
         <groupId>org.apache.maven.plugins</groupId>
         <configuration>
+          <!--
+            Only the unit tests of this module. Without this restriction the default pattern **/Test*.java would also
+            pick up the IT base classes, and the integration tests would run a second time in the surefire phase.
+          -->
           <includes>
-            <include>**/*.class</include>
+            <include>**/*Test.java</include>
           </includes>
         </configuration>
       </plugin>
       <plugin>
         <artifactId>maven-failsafe-plugin</artifactId>
+        <configuration>
+          <encoding>UTF-8</encoding>
+          <skip>${skipTests}</skip>
+        </configuration>
         <executions>
+          <!--
+            The tests that are left with an assertion no fork local naming can isolate, so they run alone and before
+            everything else:
+
+            AuthTestsIT, ListSpaceContentUpdatedAtTestIT and ReadSpaceApiIT assert on an exact number of spaces
+            returned for "owner=*" or "owner=others". Those listings include the shared spaces of every other owner
+            by design, so no fork local naming keeps the other forks out of the result.
+
+            LimitsTestIT creates a space with a token that may own exactly one, and the hub counts that per owner
+            across all of its spaces. Only a fork local owner would isolate it, and the owners cannot be made fork
+            local: the connectors c2 and c3 of the service configuration name one, and that file is shared.
+
+            RequesterThrottlingIT asserts on how many of its concurrent requests the hub rejects, which any other
+            traffic against the same hub changes.
+          -->
           <execution>
-            <configuration>
-              <encoding>UTF-8</encoding>
-              <skip>${skipTests}</skip>
-            </configuration>
+            <id>integration-test-exclusive</id>
             <goals>
               <goal>integration-test</goal>
             </goals>
-            <id>integration-test</id>
+            <configuration>
+              <forkCount>1</forkCount>
+              <includes>
+                <include>**/AuthTestsIT.java</include>
+                <include>**/LimitsTestIT.java</include>
+                <include>**/ListSpaceContentUpdatedAtTestIT.java</include>
+                <include>**/ReadSpaceApiIT.java</include>
+                <include>**/RequesterThrottlingIT.java</include>
+              </includes>
+              <systemPropertyVariables>
+                <xyz.test.suffix>-x</xyz.test.suffix>
+              </systemPropertyVariables>
+            </configuration>
           </execution>
+          <!-- Everything else. Each fork works on its own set of spaces, see TestAuthenticator#TEST_SUFFIX. -->
           <execution>
+            <id>integration-test</id>
+            <goals>
+              <goal>integration-test</goal>
+            </goals>
+            <configuration>
+              <forkCount>${it.forkCount}</forkCount>
+              <reuseForks>true</reuseForks>
+              <excludes>
+                <exclude>**/AuthTestsIT.java</exclude>
+                <exclude>**/LimitsTestIT.java</exclude>
+                <exclude>**/ListSpaceContentUpdatedAtTestIT.java</exclude>
+                <exclude>**/ReadSpaceApiIT.java</exclude>
+                <exclude>**/RequesterThrottlingIT.java</exclude>
+              </excludes>
+              <systemPropertyVariables>
+                <xyz.test.suffix>-f${surefire.forkNumber}</xyz.test.suffix>
+              </systemPropertyVariables>
+            </configuration>
+          </execution>
+          <!-- Both integration-test executions merge their results into the default summary file. -->
+          <execution>
+            <id>verify</id>
             <goals>
               <goal>verify</goal>
             </goals>
-            <id>verify</id>
           </execution>
         </executions>
         <groupId>org.apache.maven.plugins</groupId>

@@ -59,7 +59,17 @@ import org.apache.commons.lang3.RandomStringUtils;
 
 public class TestSpaceWithFeature extends TestWithSpaceCleanup {
 
-  protected static final String DEFAULT_SPACE_ID = "x-psql-test";
+  /** The space extending {@link #DEFAULT_SPACE_ID}, as created by {@link #createSpaceWithExtension(String)}. */
+  protected static final String EXTENSION_SPACE_ID = DEFAULT_SPACE_ID + "-ext";
+  /** The space extending {@link #EXTENSION_SPACE_ID}. */
+  protected static final String EXTENSION_EXTENSION_SPACE_ID = EXTENSION_SPACE_ID + "-ext";
+  protected static final String SECOND_SPACE_ID = DEFAULT_SPACE_ID + "-2";
+  protected static final String THIRD_SPACE_ID = DEFAULT_SPACE_ID + "-3";
+  /** The extended space of createSpaceWithExtension.json. */
+  protected static final String EXTENSIBLE_SPACE_ID = "x-psql-test-extensible" + TEST_SUFFIX;
+  /** The extending space of createSpaceWithExtension.json. */
+  protected static final String EXTENDING_SPACE_ID = "x-psql-extending-test" + TEST_SUFFIX;
+
   protected static String embeddedStorageId = "psql";
   protected static String httpStorageId = "psql-http";
 
@@ -254,7 +264,7 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
             .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
             .body(f.serialize())
             .when()
-            .post(getSpacesPath() + "/x-psql-test/features")
+            .post(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/features")
             .then()
             .statusCode(OK.code());
       });
@@ -282,7 +292,7 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
             .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
             .body(f.serialize())
             .when()
-            .post(getSpacesPath() + "/x-psql-test/features")
+            .post(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/features")
             .then()
             .statusCode(OK.code());
     }

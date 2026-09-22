@@ -37,7 +37,6 @@ import com.here.xyz.util.service.aws.s3.S3ObjectSummary;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
@@ -53,6 +52,8 @@ import java.util.function.Function;
 import java.util.regex.Pattern;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import software.amazon.awssdk.core.ResponseInputStream;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
 public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
@@ -333,12 +334,23 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
     //Lambda allows writing to /tmp folder - Jar file could be bigger than 512MB
     try {
       logger.info("[EMR-local] Copy file: '{}' to local.", s3Path);
-      InputStream jarStream = S3Client.getInstance().streamObjectContent(s3Path);
 
       //Create local target Folder
       createLocalFolder(Paths.get(s3Path).getParent().toString(), false);
-      Files.copy(jarStream, Paths.get(getLocalTmpPath(s3Path)));
-      jarStream.close();
+
+      ResponseInputStream<GetObjectResponse> jarStream = S3Client.getInstance().streamObjectContent(s3Path);
+      try {
+        Files.copy(jarStream, Paths.get(getLocalTmpPath(s3Path)));
+        jarStream.close();
+      }
+      catch (IOException | RuntimeException e) {
+        /*
+        The copy did not read the stream to its end, so it is aborted rather than closed, because
+        closing would block until the SDK read the whole object.
+         */
+        S3Client.abortS3Streaming(jarStream);
+        throw e;
+      }
     }
     catch (FileAlreadyExistsException e) {
       logger.info("[EMR-local] File: '{}' already exists locally - skip download.", s3Path);

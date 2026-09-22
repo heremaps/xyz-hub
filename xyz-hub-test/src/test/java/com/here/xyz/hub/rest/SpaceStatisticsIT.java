@@ -42,7 +42,7 @@ public class SpaceStatisticsIT extends TestSpaceWithFeature {
   @Before
   public void setup() {
     removeAllSpaces();
-    createSpaceWithCustomStorage("x-psql-test-extensible", "psql", null);
+    createSpaceWithCustomStorage(EXTENSIBLE_SPACE_ID, "psql", null);
   }
 
   @After
@@ -51,13 +51,13 @@ public class SpaceStatisticsIT extends TestSpaceWithFeature {
   }
 
   public static void removeAllSpaces() {
-    removeSpace("x-psql-test-extensible");
-    removeSpace("x-psql-extending-test");
+    removeSpace(EXTENSIBLE_SPACE_ID);
+    removeSpace(EXTENDING_SPACE_ID);
   }
 
   @Test
   public void spaceStatistics() {
-    ValidatableResponse statisticsResponse = getStatistics("x-psql-test-extensible", null);
+    ValidatableResponse statisticsResponse = getStatistics(EXTENSIBLE_SPACE_ID, null);
     statisticsResponse
             .body("contentUpdatedAt.value", greaterThan(0L))
             .body("contentUpdatedAt.estimated", equalTo(true));
@@ -67,24 +67,24 @@ public class SpaceStatisticsIT extends TestSpaceWithFeature {
   public void spaceWithExtensionStatistics() {
     createExtension();
 
-    ValidatableResponse statisticsResponse = getStatistics("x-psql-extending-test", null);
+    ValidatableResponse statisticsResponse = getStatistics(EXTENDING_SPACE_ID, null);
     statisticsResponse
             .body("contentUpdatedAt.value", greaterThan(0L))
             .body("contentUpdatedAt.estimated", equalTo(true));
 
     long extensionUpdatedAt = statisticsResponse.extract().body().path("contentUpdatedAt.value");
 
-    statisticsResponse = getStatistics("x-psql-extending-test", "SUPER");
+    statisticsResponse = getStatistics(EXTENDING_SPACE_ID, "SUPER");
     statisticsResponse
             .body("contentUpdatedAt.value", lessThan(extensionUpdatedAt))
             .body("contentUpdatedAt.estimated", equalTo(true));
 
-    statisticsResponse = getStatistics("x-psql-extending-test", "EXTENSION");
+    statisticsResponse = getStatistics(EXTENDING_SPACE_ID, "EXTENSION");
     statisticsResponse
             .body("contentUpdatedAt.value", equalTo(extensionUpdatedAt))
             .body("contentUpdatedAt.estimated", equalTo(true));
 
-    statisticsResponse = getStatistics("x-psql-extending-test", "DEFAULT");
+    statisticsResponse = getStatistics(EXTENDING_SPACE_ID, "DEFAULT");
     statisticsResponse
             .body("contentUpdatedAt.value", equalTo(extensionUpdatedAt))
             .body("contentUpdatedAt.estimated", equalTo(true));
@@ -110,15 +110,15 @@ public class SpaceStatisticsIT extends TestSpaceWithFeature {
             .post("/spaces")
             .then()
             .statusCode(OK.code())
-            .body("extends.spaceId", equalTo("x-psql-test-extensible"));
+            .body("extends.spaceId", equalTo(EXTENSIBLE_SPACE_ID));
 
     given()
             .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
             .when()
-            .get("/spaces/x-psql-extending-test")
+            .get("/spaces/" + EXTENDING_SPACE_ID)
             .then()
             .statusCode(OK.code())
-            .body("id", equalTo("x-psql-extending-test"))
-            .body("extends.spaceId", equalTo("x-psql-test-extensible"));
+            .body("id", equalTo(EXTENDING_SPACE_ID))
+            .body("extends.spaceId", equalTo(EXTENSIBLE_SPACE_ID));
   }
 }

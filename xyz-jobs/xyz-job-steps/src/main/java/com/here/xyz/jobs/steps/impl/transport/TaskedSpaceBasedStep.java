@@ -100,8 +100,11 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   public static final Integer MAX_TASK_RETRY_ATTEMPTS = 3;
   /** Hard ceiling for the concurrency of a single step, regardless of its configured {@link #threadCount}. */
   public static final int MAX_THREAD_COUNT = 25;
-  /** Number of tasks a step is allowed to run concurrently right after it was started or resumed. */
-  public static final int INITIAL_THREAD_COUNT = 1;
+  /**
+   * Number of tasks a step is allowed to run concurrently right after it was started or resumed. Never exceeds the
+   * {@link #threadCount} configured for the step, see {@link #getCurrentMaxThreadCount(long)}.
+   */
+  public static final int INITIAL_THREAD_COUNT = 3;
   /** Time that has to pass before the concurrency limit is raised again. */
   public static final long THREAD_SCALE_COOLDOWN_TIME = 2 * 60 * 1000L;
   /** Number of threads the concurrency limit grows by, per elapsed cooldown interval. */

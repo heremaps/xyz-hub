@@ -92,7 +92,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         accept(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
         when().
-        get(getSpacesPath() + "/x-psql-test/bbox?north=23.13&west=113.32&south=23.14&east=113.33").
+        get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/bbox?north=23.13&west=113.32&south=23.14&east=113.33").
         then().
         statusCode(OK.code()).
         body("features.size()", equalTo(1));
@@ -104,7 +104,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         accept(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
         when().
-        get(getSpacesPath() + "/x-psql-test/bbox?north=-90&west=-180&south=0&east=0").
+        get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/bbox?north=-90&west=-180&south=0&east=0").
         then().
         statusCode(OK.code()).
         body("features.size()", equalTo(32)).
@@ -119,7 +119,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
             when().
-            get(getSpacesPath() + "/x-psql-test/bbox?north=-90&west=-180&south=0&east=0").
+            get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/bbox?north=-90&west=-180&south=0&east=0").
             then().
             statusCode(OK.code()).
             extract().
@@ -130,7 +130,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
         header(IF_NONE_MATCH, etag).
         when().
-        get(getSpacesPath() + "/x-psql-test/bbox?north=-90&west=-180&south=0&east=0").
+        get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/bbox?north=-90&west=-180&south=0&east=0").
         then().
         statusCode(NOT_MODIFIED.code());
   }
@@ -141,7 +141,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         accept(APPLICATION_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
         when().
-        get(getSpacesPath() + "/x-psql-test/statistics").
+        get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/statistics").
         then().
         statusCode(OK.code()).
         body("minVersion.value", equalTo(1)).
@@ -159,7 +159,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
             accept(APPLICATION_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
             when().
-            get(getSpacesPath() + "/x-psql-test/statistics?fastMode=true").
+            get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/statistics?fastMode=true").
             then().
             statusCode(OK.code()).
             body("minVersion.value", equalTo(1)).
@@ -178,7 +178,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         accept(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
         when().
-        get(getSpacesPath() + "/x-psql-test/search?limit=100&testNoValue=").
+        get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/search?limit=100&testNoValue=").
         then().
         statusCode(OK.code()).
         body("features.size()", equalTo(100));
@@ -191,7 +191,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
             when().
-            get(getSpacesPath() + "/x-psql-test/search?limit=100").
+            get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/search?limit=100").
             then().
             statusCode(OK.code()).
             header(ETAG, notNullValue()).
@@ -204,7 +204,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
         header(IF_NONE_MATCH, etag).
         when().
-        get(getSpacesPath() + "/x-psql-test/search?limit=100").
+        get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/search?limit=100").
         then().
         statusCode(NOT_MODIFIED.code());
   }
@@ -237,7 +237,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         accept(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
         when().
-        get(getSpacesPath() + "/x-psql-test/iterate?limit=500").
+        get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/iterate?limit=500").
         then().
         statusCode(OK.code()).
         body("features.size()", equalTo(252)).
@@ -251,7 +251,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         .accept(APPLICATION_GEO_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .get(getSpacesPath() + "/x-psql-test/iterate?limit=500&handle=dguh45gh54g98h2gfherigfhdsfifg")
+        .get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/iterate?limit=500&handle=dguh45gh54g98h2gfherigfhdsfifg")
         .then()
         .statusCode(BAD_REQUEST.code())
         .body("type", equalTo("ErrorResponse"))
@@ -263,7 +263,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         .accept(APPLICATION_GEO_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .get(getSpacesPath() + "/x-psql-test/iterate?limit=500&handle=test_errorResponse_dguh45gh54g98h2gfherigfhdsfifg")
+        .get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/iterate?limit=500&handle=test_errorResponse_dguh45gh54g98h2gfherigfhdsfifg")
         .then()
         .statusCode(BAD_REQUEST.code())
         .body("type", equalTo("ErrorResponse"))
@@ -274,7 +274,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         .accept(APPLICATION_GEO_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .get(getSpacesPath() + "/x-psql-test/iterate?limit=500&handle=test_exception_dguh45gh54g98h2gfherigfhdsfifg")
+        .get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/iterate?limit=500&handle=test_exception_dguh45gh54g98h2gfherigfhdsfifg")
         .then()
         .statusCode(BAD_REQUEST.code())
         .body("type", equalTo("ErrorResponse"))
@@ -289,7 +289,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
             when().
-            get(getSpacesPath() + "/x-psql-test/iterate?limit=100").
+            get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/iterate?limit=100").
             then().
             statusCode(OK.code()).
             body("handle", notNullValue()).
@@ -302,7 +302,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
             when().
-            get(getSpacesPath() + "/x-psql-test/iterate?limit=100&handle=" + handle).
+            get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/iterate?limit=100&handle=" + handle).
             then().
             statusCode(OK.code()).
             body("handle", notNullValue()).
@@ -314,7 +314,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         accept(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
         when().
-        get(getSpacesPath() + "/x-psql-test/iterate?limit=100&handle=" + handle2).
+        get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/iterate?limit=100&handle=" + handle2).
         then().
         statusCode(OK.code()).
         body("handle", nullValue()).
@@ -328,7 +328,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
             when().
-            get(getSpacesPath() + "/x-psql-test/iterate?limit=100").
+            get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/iterate?limit=100").
             then().
             statusCode(OK.code()).
             header("etag", notNullValue()).
@@ -340,7 +340,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
         header(IF_NONE_MATCH, etag).
         when().
-        get(getSpacesPath() + "/x-psql-test/iterate?limit=100").
+        get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/iterate?limit=100").
         then().
         statusCode(NOT_MODIFIED.code());
   }
@@ -351,7 +351,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         accept(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
         when().
-        get(getSpacesPath() + "/x-psql-test/iterate?limit=5&tags=").
+        get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/iterate?limit=5&tags=").
         then().
         statusCode(OK.code());
   }
@@ -362,7 +362,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         accept(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
         when().
-        get(getSpacesPath() + "/x-psql-test/search?limit=1&tags=").
+        get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/search?limit=1&tags=").
         then().
         statusCode(OK.code());
   }
@@ -373,7 +373,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         accept(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
         when().
-        get(getSpacesPath() + "/x-psql-test/features/Q2838923").
+        get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/features/Q2838923").
         then().
         statusCode(OK.code()).
         body("id", equalTo("Q2838923")).
@@ -387,7 +387,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         .accept(APPLICATION_GEO_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .get(getSpacesPath() + "/x-psql-test/features/Q2838923?"
+        .get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/features/Q2838923?"
             + "selection=p.name,p.selectionTest.a,p.selectionTest.b.1,p.selectionTest.d.d1,p.selectionTest.e.1.v2")
         .then()
         .statusCode(OK.code())
@@ -411,7 +411,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         accept(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
         when().
-        get(getSpacesPath() + "/x-psql-test/features?id=Q2838923,Q856393").
+        get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/features?id=Q2838923,Q856393").
         then().
         statusCode(OK.code()).
         body("features.id", hasItems("Q2838923", "Q856393"));
@@ -425,7 +425,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
             when().
-            get(getSpacesPath() + "/x-psql-test/features/Q2838923").
+            get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/features/Q2838923").
             then().
             statusCode(OK.code()).
             body("id", equalTo("Q2838923")).
@@ -439,7 +439,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
         header(IF_NONE_MATCH, etag).
         when().
-        get(getSpacesPath() + "/x-psql-test/features/Q2838923").
+        get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/features/Q2838923").
         then().
         statusCode(NOT_MODIFIED.code());
   }
@@ -450,7 +450,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         accept(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
         when().
-        get(getSpacesPath() + "/x-psql-test/features/Q28389231").
+        get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/features/Q28389231").
         then().
         statusCode(NOT_FOUND.code());
   }
@@ -461,7 +461,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         accept(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
         when().
-        get(getSpacesPath() + "/x-psql-test/tile/quadkey/2100300120310022.geojson").
+        get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/tile/quadkey/2100300120310022.geojson").
         then().
         statusCode(OK.code()).
         body("features.size()", equalTo(1)).
@@ -475,7 +475,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         accept(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
         when().
-        get(getSpacesPath() + "/x-psql-test/tile/here/5148795642.geojson").
+        get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/tile/here/5148795642.geojson").
         then().
         statusCode(OK.code()).
         body("features.size()", equalTo(1)).
@@ -490,7 +490,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         accept(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
         when().
-        get(getSpacesPath() + "/x-psql-test/tile/here/5148795631.geojson").
+        get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/tile/here/5148795631.geojson").
         then().
         statusCode(OK.code()).
         body("features.size()", equalTo(0));
@@ -503,7 +503,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         accept(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
         when().
-        get(getSpacesPath() + "/x-psql-test/tile/quadkey/2100300170310022.geojson").
+        get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/tile/quadkey/2100300170310022.geojson").
         then().
         statusCode(BAD_REQUEST.code());
   }
@@ -514,7 +514,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         accept(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
         when().
-        get(getSpacesPath() + "/x-psql-test/features/Q2838923").
+        get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/features/Q2838923").
         then().
         statusCode(OK.code());
   }
@@ -525,7 +525,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         accept(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
         when().
-        get(getSpacesPath() + "/x-psql-test/bbox?north=23.13&west=113.32&south=23.14&east=113.33").
+        get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/bbox?north=23.13&west=113.32&south=23.14&east=113.33").
         then().
         statusCode(OK.code());
   }
@@ -536,7 +536,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         accept(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
         when().
-        get(getSpacesPath() + "/x-psql-test/search?limit=100").
+        get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/search?limit=100").
         then().
         statusCode(OK.code());
   }
@@ -547,7 +547,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         accept(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
         when().
-        get(getSpacesPath() + "/x-psql-test/search?limit=100001").
+        get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/search?limit=100001").
         then().
         statusCode(BAD_REQUEST.code());
 
@@ -555,7 +555,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         accept(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
         when().
-        get(getSpacesPath() + "/x-psql-test/search?limit=-1").
+        get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/search?limit=-1").
         then().
         statusCode(BAD_REQUEST.code());
   }
@@ -565,7 +565,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
     given().
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
         when().
-        get(getSpacesPath() + "/x-psql-test/search?tags=").
+        get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/search?tags=").
         then().
         statusCode(OK.code());
   }
@@ -576,7 +576,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         accept(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
         when().
-        get(getSpacesPath() + "/x-psql-test/iterate?limit=500").
+        get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/iterate?limit=500").
         then().
         statusCode(OK.code());
   }
@@ -587,7 +587,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         accept(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
         when().
-        get(getSpacesPath() + "/x-psql-test/tile/quadkey/2100300120310022.geojson").
+        get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/tile/quadkey/2100300120310022.geojson").
         then().
         statusCode(OK.code());
   }
@@ -598,7 +598,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         accept(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
         when().
-        get(getSpacesPath() + "/x-psql-test/features/zzzzzzz").
+        get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/features/zzzzzzz").
         then().
         statusCode(NOT_FOUND.code()).
         body("errorMessage", equalTo("The requested resource does not exist."));
@@ -610,7 +610,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         accept(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
         when().
-        get(getSpacesPath() + "/x-psql-test/features?id=zzzzzzz").
+        get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/features?id=zzzzzzz").
         then().
         statusCode(OK.code()).
         body("features", is(empty()));
@@ -708,7 +708,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         accept(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
         when().
-        get(getSpacesPath() + "/x-psql-test/features/Q2838923?force2D=false").
+        get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/features/Q2838923?force2D=false").
         then().
         statusCode(OK.code()).
         body("geometry.coordinates.size()", equalTo(3)).
@@ -720,7 +720,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         accept(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
         when().
-        get(getSpacesPath() + "/x-psql-test/features/Q2838923?force2D=true").
+        get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/features/Q2838923?force2D=true").
         then().
         statusCode(OK.code()).
         body("geometry.coordinates.size()", equalTo(2)).
@@ -735,7 +735,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         accept(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
         when().
-        get(getSpacesPath() + "/x-psql-test/features?id=Q2838923&id=Q202150&force2D=false").
+        get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/features?id=Q2838923&id=Q202150&force2D=false").
         then().
         statusCode(OK.code()).
         body("features[0].geometry.coordinates.size()", equalTo(3)).
@@ -751,7 +751,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         accept(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
         when().
-        get(getSpacesPath() + "/x-psql-test/features?id=Q2838923&id=Q202150&force2D=true").
+        get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/features?id=Q2838923&id=Q202150&force2D=true").
         then().
         statusCode(OK.code()).
         body("features[0].geometry.coordinates.size()", equalTo(2)).
@@ -768,7 +768,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         accept(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
         when().
-        get(getSpacesPath() + "/x-psql-test/bbox?west=-180&north=90&east=180&south=-90&force2D=false").
+        get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/bbox?west=-180&north=90&east=180&south=-90&force2D=false").
         then().
         statusCode(OK.code()).
         body("features[0].geometry.coordinates.size()", equalTo(3));
@@ -777,7 +777,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         accept(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
         when().
-        get(getSpacesPath() + "/x-psql-test/bbox?west=-180&north=90&east=180&south=-90&force2D=true").
+        get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/bbox?west=-180&north=90&east=180&south=-90&force2D=true").
         then().
         statusCode(OK.code()).
         body("features[0].geometry.coordinates.size()", equalTo(2));
@@ -789,7 +789,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         accept(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
         when().
-        get(getSpacesPath() + "/x-psql-test/tile/quadkey/2100300120310022?force2D=false").
+        get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/tile/quadkey/2100300120310022?force2D=false").
         then().
         statusCode(OK.code()).
         body("features[0].geometry.coordinates.size()", equalTo(3));
@@ -798,7 +798,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         accept(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
         when().
-        get(getSpacesPath() + "/x-psql-test/tile/quadkey/2100300120310022?force2D=true").
+        get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/tile/quadkey/2100300120310022?force2D=true").
         then().
         statusCode(OK.code()).
         body("features[0].geometry.coordinates.size()", equalTo(2));
@@ -811,7 +811,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         accept(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
         when().
-        get(getSpacesPath() + "/x-psql-test/spatial?lon=-77.075&lat=-12.057&force2D=false").
+        get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/spatial?lon=-77.075&lat=-12.057&force2D=false").
         then().
         statusCode(OK.code()).
         body("features[0].geometry.coordinates.size()", equalTo(3));
@@ -820,7 +820,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         accept(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
         when().
-        get(getSpacesPath() + "/x-psql-test/spatial?lon=-77.075&lat=-12.057&force2D=true").
+        get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/spatial?lon=-77.075&lat=-12.057&force2D=true").
         then().
         statusCode(OK.code()).
         body("features[0].geometry.coordinates.size()", equalTo(2));
@@ -840,7 +840,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
             + "    -12.057"
             + "  ]"
             + "}").
-        post(getSpacesPath() + "/x-psql-test/spatial?force2D=false").
+        post(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/spatial?force2D=false").
         then().
         statusCode(OK.code()).
         body("features[0].geometry.coordinates.size()", equalTo(3));
@@ -857,7 +857,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
             + "    -12.057"
             + "  ]"
             + "}").
-        post(getSpacesPath() + "/x-psql-test/spatial?force2D=true").
+        post(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/spatial?force2D=true").
         then().
         statusCode(OK.code()).
         body("features[0].geometry.coordinates.size()", equalTo(2));
@@ -869,7 +869,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         accept(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
         when().
-        get(getSpacesPath() + "/x-psql-test/search?p.capacity=67469&force2D=false").
+        get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/search?p.capacity=67469&force2D=false").
         then().
         statusCode(OK.code()).
         body("features[0].geometry.coordinates.size()", equalTo(3));
@@ -878,7 +878,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         accept(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
         when().
-        get(getSpacesPath() + "/x-psql-test/search?p.capacity=67469&force2D=true").
+        get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/search?p.capacity=67469&force2D=true").
         then().
         statusCode(OK.code()).
         body("features[0].geometry.coordinates.size()", equalTo(2));
@@ -890,7 +890,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         accept(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
         when().
-        get(getSpacesPath() + "/x-psql-test/iterate?force2D=false").
+        get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/iterate?force2D=false").
         then().
         statusCode(OK.code()).
         body("features[0].geometry.coordinates.size()", equalTo(3));
@@ -899,15 +899,17 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         accept(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
         when().
-        get(getSpacesPath() + "/x-psql-test/iterate?force2D=true").
+        get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/iterate?force2D=true").
         then().
         statusCode(OK.code()).
         body("features[0].geometry.coordinates.size()", equalTo(2));
   }
 
   private void createSpaceWithSize(int s) {
-    // Create a space which returns around 9 MB of data
-    cleanUpId = HUGE_RESPONSE_SPACE + s;
+    // Create a space which returns around 9 MB of data.
+    // TestStorageConnector recognizes the space by the HUGE_RESPONSE_SPACE prefix and reads the size from the last
+    // segment, so the fork suffix has to go in between.
+    cleanUpId = HUGE_RESPONSE_SPACE + TEST_SUFFIX + "_" + s;
     JsonObject space = new JsonObject()
         .put("id", cleanUpId)
         .put("storage", new JsonObject().put("id", "test"))

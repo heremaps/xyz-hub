@@ -74,9 +74,13 @@ public abstract class EntryConnectorHandler extends AbstractConnectorHandler imp
   private static final int RELOCATION_THRESHOLD_SIZE = 6 * 1024 * 1024;
   /**
    * The maximal size of uncompressed bytes. Exceeding that limit leads to the response getting gzipped.
+   *
+   * Compressing keeps the response under {@link #RELOCATION_THRESHOLD_SIZE} so it still fits into a
+   * Lambda result and avoids the S3 hop. A payload that already fits gains nothing, since the
+   * service inflates it again to parse it - hence just below, with a 1 MiB margin.
    */
   @SuppressWarnings("WeakerAccess")
-  private static final int GZIP_THRESHOLD_SIZE = 1024 * 1024; // 1MB
+  private static final int GZIP_THRESHOLD_SIZE = RELOCATION_THRESHOLD_SIZE - 1024 * 1024; // 5MB
 
   /**
    * The entry point for processing an event.
@@ -154,13 +158,16 @@ public abstract class EntryConnectorHandler extends AbstractConnectorHandler imp
     String streamPreview = null;
     long start = System.currentTimeMillis();
 
-    try {
-      input = Payload.prepareInputStream(input);
-      streamPreview = previewInput(input);
+    /*
+    The prepared stream is usually a GZIPInputStream holding a native inflater, so it is closed on
+    every path here rather than only on the one that hands it to XyzSerializable.
+     */
+    try (InputStream preparedInput = Payload.prepareInputStream(input)) {
+      streamPreview = previewInput(preparedInput);
 
       Event receivedEvent = isXyzBinaryPayload(streamPreview.substring(4, 8))
-          ? BinaryEvent.fromByteArray(input.readAllBytes())
-          : XyzSerializable.deserialize(input);
+          ? BinaryEvent.fromByteArray(preparedInput.readAllBytes())
+          : XyzSerializable.deserialize(preparedInput);
       logger.debug("{} [{} ms] - Parsed event: {}", receivedEvent.getStreamId(), duration(start), streamPreview);
       return receivedEvent;
     }
@@ -221,8 +228,21 @@ public abstract class EntryConnectorHandler extends AbstractConnectorHandler imp
         else {
           //Handle compression and ETag injection
           byte[] etagBytes = ETAG_STRING.replace("_", etag.replace("\"", "\\\"")).getBytes();
+          final boolean compress = !runningLocally && bytes.length > GZIP_THRESHOLD_SIZE;
+          final long injectedSize = (long) bytes.length - 1 + etagBytes.length;
+
+          /*
+          Without compression the payload goes out unchanged apart from the appended ETag, so
+          assembling it in memory first only cost two more copies of a multi-MB response.
+           */
+          if (!compress && !(!runningLocally && injectedSize > RELOCATION_THRESHOLD_SIZE)) {
+            output.write(bytes, 0, bytes.length - 1);
+            output.write(etagBytes);
+            return;
+          }
+
           try (ByteArrayOutputStream os = new ByteArrayOutputStream(bytes.length - 1 + etagBytes.length)) {
-            OutputStream targetOs = (!runningLocally && bytes.length > GZIP_THRESHOLD_SIZE ? Payload.gzip(os) : os);
+            OutputStream targetOs = (compress ? Payload.gzip(os) : os);
             targetOs.write(bytes, 0, bytes.length - 1);
             targetOs.write(etagBytes);
             os.close();

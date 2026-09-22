@@ -34,11 +34,23 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.here.xyz.events.UpdateStrategy;
+import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.execution.StepException;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 class TaskedImportWriterModeTest {
+
+  /**
+   * Step validation reads the config. Do not rely on another test class in the same JVM having created it, the test
+   * classes are distributed over several forks.
+   */
+  @BeforeAll
+  static void initConfig() {
+    if (Config.instance == null)
+      new Config();
+  }
 
   @Test
   void recognizesDefaultUpdateStrategyByValue() {

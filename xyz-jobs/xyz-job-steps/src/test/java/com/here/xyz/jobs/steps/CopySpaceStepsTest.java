@@ -22,6 +22,8 @@ import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 import static com.here.xyz.jobs.steps.Step.Visibility.SYSTEM;
 import static com.here.xyz.jobs.steps.Step.Visibility.USER;
+import static com.here.xyz.util.Random.randomAlpha;
+import static org.junit.jupiter.api.TestInstance.Lifecycle.PER_CLASS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -54,23 +56,31 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
+/**
+ * The source spaces are only read by the test cases, so they are built once for the whole class. Every case creates
+ * the one target space it needs - the copy writes into the target, and #copySpacePre() depends on its version count.
+ */
+@TestInstance(PER_CLASS)
 public class CopySpaceStepsTest extends StepTest {
 
-  static private String sourceSpaceId = "testCopy-Source-07",
-                        sourceSpaceBaseId = "testCopy-Source-base-07",
-                        targetSpaceId = "testCopy-Target-07",
-                        emptyTargetSpaceId = "testCopy-Target-07e",
-                        otherConnectorId = "psql_db2_hashed",
-                        targetRemoteSpace = "testCopy-Target-07-remote",
-                        emptyTargetRemoteSpace = "testCopy-Target-07e-remote",
+  static private String otherConnectorId = "psql_db2_hashed",
                         propertyFilter = "p.all=common",
                         versionRange = "1..6";
+
+  private final String fixtureId = randomAlpha(5);
+  private final String sourceSpaceId = "testCopy-Source-" + fixtureId,
+                       sourceSpaceBaseId = "testCopy-Source-base-" + fixtureId;
+  /** The target space of the currently running test case, if it needs one. */
+  private String targetSpaceId;
 
   static private Polygon spatialSearchGeom;
   static private float xmin = 7.0f, ymin = 50.0f, xmax = 7.1f, ymax = 50.1f;
@@ -101,19 +111,12 @@ public class CopySpaceStepsTest extends StepTest {
             .withCoordinates(new PointCoordinates(7.05, 50.05)));
   }
 
-  @BeforeEach
-  public void setup() throws SQLException {
-    cleanup();
+  @BeforeAll
+  public void createSourceSpaces() throws SQLException {
     createSpace(new Space().withId(sourceSpaceBaseId).withVersionsToKeep(100), false);
 
     createSpace(new Space().withId(sourceSpaceId).withVersionsToKeep(100)
                            .withExtension(new Space.Extension().withSpaceId(sourceSpaceBaseId)), false);
-
-    createSpace(new Space().withId(targetSpaceId).withVersionsToKeep(100), false);
-    createSpace(new Space().withId(targetRemoteSpace).withVersionsToKeep(100).withStorage(new ConnectorRef().withId(otherConnectorId)),false);
-
-    createSpace(new Space().withId(emptyTargetSpaceId).withVersionsToKeep(100), false);
-    createSpace(new Space().withId(emptyTargetRemoteSpace).withVersionsToKeep(100).withStorage(new ConnectorRef().withId(otherConnectorId)),false);
 
     //FIXME: Do not use random feature sets but specific ones that are fitting the actual use-case to be tested (prevents flickering and improves testing time)
     //write features source
@@ -135,21 +138,46 @@ public class CopySpaceStepsTest extends StepTest {
     putRandomFeatureCollectionToSpace(sourceSpaceId, 5, xmin, ymin, xmax, ymax);
     //v8
     putRandomFeatureCollectionToSpace(sourceSpaceId, 5, xmin, ymin, xmax, ymax);
+  }
 
-    //write features target - non-empty-space
-    putRandomFeatureCollectionToSpace(targetSpaceId, 2, xmin, ymin, xmax, ymax);
-    putFeatureToSpace(targetSpaceId, DELETED_FEATURE_IN_TARGET);
+  @AfterAll
+  public void deleteSourceSpaces() {
+    deleteSpace(sourceSpaceId);
+    deleteSpace(sourceSpaceBaseId);
+  }
 
-    putRandomFeatureCollectionToSpace(targetRemoteSpace, 2, xmin, ymin, xmax, ymax);
-    putFeatureToSpace(targetRemoteSpace, DELETED_FEATURE_IN_TARGET);
+  /**
+   * The class shares one test instance, so the inherited job ID has to be renewed per test case.
+   */
+  @BeforeEach
+  public void newJobId() {
+    JOB_ID = generateJobId();
   }
 
   @AfterEach
-  public void cleanup() throws SQLException {
-    deleteSpace(sourceSpaceId);
-    deleteSpace(sourceSpaceBaseId);
+  public void deleteTargetSpace() {
+    if (targetSpaceId == null)
+      return;
     deleteSpace(targetSpaceId);
-    deleteSpace(targetRemoteSpace);
+    targetSpaceId = null;
+  }
+
+  /**
+   * Creates the single target space the running test case copies into. A non-empty target gets its features in two
+   * writes, because {@link #copySpacePre()} expects the copy to be written as version 3.
+   */
+  private String createTargetSpace(boolean remoteDb, boolean empty) {
+    targetSpaceId = "testCopy-Target-" + fixtureId + "-" + randomAlpha(5);
+    Space target = new Space().withId(targetSpaceId).withVersionsToKeep(100);
+    if (remoteDb)
+      target.withStorage(new ConnectorRef().withId(otherConnectorId));
+    createSpace(target, false);
+
+    if (!empty) {
+      putRandomFeatureCollectionToSpace(targetSpaceId, 2, xmin, ymin, xmax, ymax);
+      putFeatureToSpace(targetSpaceId, DELETED_FEATURE_IN_TARGET);
+    }
+    return targetSpaceId;
   }
 
   private static Stream<Arguments> provideParameters() {
@@ -186,8 +214,7 @@ public class CopySpaceStepsTest extends StepTest {
   public void copySpace(boolean testRemoteDb, Geometry geo, boolean clip, String propertyFilter, String versionRef, boolean emptyTarget) throws Exception {
     Ref resolvedRef = resolveRef(sourceSpaceId, new Ref(versionRef));
 
-    String targetSpace = !testRemoteDb ? (!emptyTarget ? targetSpaceId : emptyTargetSpaceId )
-                                       : (!emptyTarget ? targetRemoteSpace : emptyTargetRemoteSpace );
+    String targetSpace = createTargetSpace(testRemoteDb, emptyTarget);
 
     StatisticsResponse statsBefore = getStatistics(targetSpace);
 
@@ -223,7 +250,7 @@ public class CopySpaceStepsTest extends StepTest {
   @Test
   public void copySpacePre() throws Exception {
     CopySpacePre step = new CopySpacePre()
-        .withSpaceId(targetSpaceId)
+        .withSpaceId(createTargetSpace(false, false))
         .withJobId(JOB_ID);
 
     sendLambdaStepRequestBlock(step, true);
