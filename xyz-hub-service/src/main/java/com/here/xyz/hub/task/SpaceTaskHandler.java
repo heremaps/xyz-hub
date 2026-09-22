@@ -604,7 +604,7 @@ public class SpaceTaskHandler {
     Space.resolveSpace(task.getMarker(), space.getExtension().getSpaceId())
       .compose(extendedSpace -> {
         if (extendedSpace != null && space.getExtension().getVersion() != null) {
-          return validateExtensionVersion(task.getMarker(), extendedSpace.getId(), space.getExtension().getVersion())
+          return validateExtensionVersion(task.getMarker(), extendedSpace, space.getExtension().getVersion())
                   .map(v -> extendedSpace);
         }
         return Future.succeededFuture(extendedSpace);
@@ -674,11 +674,16 @@ public class SpaceTaskHandler {
       });
   }
 
-  private static Future<Void> validateExtensionVersion(Marker marker, String baseSpaceId, Long baseVersion) {
-    return FeatureQueryApi.getStatistics(marker, baseSpaceId, DEFAULT, new Ref(HEAD), true, false)
+  private static Future<Void> validateExtensionVersion(Marker marker, Space baseSpace, Long baseVersion) {
+    //Without a version history the extended space can not provide a stable snapshot, as an update replaces the bound row
+    if (baseSpace.getVersionsToKeep() <= 1)
+      return Future.failedFuture(new HttpException(BAD_REQUEST, "The space " + baseSpace.getId()
+          + " cannot be extended on a specific version, because it does not keep a version history."));
+
+    return FeatureQueryApi.getStatistics(marker, baseSpace.getId(), DEFAULT, new Ref(HEAD), true, false)
           .compose(statistics -> {
             if (baseVersion < statistics.getMinVersion().getValue() || baseVersion > statistics.getMaxVersion().getValue()) {
-              return Future.failedFuture(new HttpException(BAD_REQUEST, "The space cannot be created:  provided base space version " + baseVersion +
+              return Future.failedFuture(new HttpException(BAD_REQUEST, "The provided base space version " + baseVersion +
                       " is not in the range of available versions [" + statistics.getMinVersion().getValue() + ", " + statistics.getMaxVersion().getValue() + "]"));
             }
             return Future.succeededFuture();

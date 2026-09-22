@@ -24,6 +24,7 @@ import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_GEO_JSON;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.restassured.RestAssured.given;
@@ -49,7 +50,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
-public class ReadFeatureCompositeSpaceWithVersionIT extends TestSpaceWithFeature {
+public class CompositeSpaceOnBaseVersionIT extends TestSpaceWithFeature {
 
   private static final String spaceId = getSpaceId();
   private static final String extSpaceId = spaceId + "-ext";
@@ -219,6 +220,38 @@ public class ReadFeatureCompositeSpaceWithVersionIT extends TestSpaceWithFeature
 
     loadFeatures(atDeleteSpaceId, SUPER)
         .body("features.id", not(hasItem("base-1")));
+  }
+
+  @Test
+  public void extendingASpecificVersionOfASpaceWithoutHistoryIsRejected() {
+    String noHistoryBaseSpaceId = testSpecificSpaceId("-no-history-base");
+    createSpaceWithId(noHistoryBaseSpaceId); //Without history, so no stable snapshot can be provided
+    addFeature(noHistoryBaseSpaceId, newFeature("base-1"));
+
+    given()
+        .contentType(APPLICATION_JSON)
+        .accept(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .body(String.format("""
+            {"id": "%s", "title": "x-psql-test-extension", "extends": {"spaceId": "%s", "version": 1}}
+            """, testSpecificSpaceId("-on-no-history-base"), noHistoryBaseSpaceId))
+        .when()
+        .post(getCreateSpacePath())
+        .then()
+        .statusCode(BAD_REQUEST.code());
+  }
+
+  @Test
+  public void readingAVersionBeyondTheBoundBaseVersionIsRejected() {
+    //extSpaceId is bound to version 1 of spaceId, so version 2 of the base is not readable through it
+    given()
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .queryParams(Map.of("context", SUPER, "versionRef", "2"))
+        .when()
+        .get(getSpacesPath() + "/" + extSpaceId + "/iterate")
+        .then()
+        .statusCode(BAD_REQUEST.code());
   }
 
   @Test

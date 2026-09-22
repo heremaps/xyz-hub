@@ -879,11 +879,15 @@ public class FeatureTaskHandler {
     ((ContextAwareEvent<?>) task.getEvent()).setContext(DEFAULT);
 
     if (space.getExtension().getVersion() != null) {
-      //TODO: check what possible values are allowed for 'versionRef' with context=SUPER (e.g., single-version, range-version, tag)
-      // For now set the baseVersion as versionRef ignoring user provided value
+      //Only HEAD is accepted: refs are resolved later (FeatureTask#resolveVersionRef), so a tag can't be compared here
+      //TODO: Allow refs up to the bound version once that comparison happens after the ref was resolved
+      Ref requestedRef = ((ContextAwareEvent<?>) task.getEvent()).getRef();
+      if (requestedRef != null && !requestedRef.isHead())
+        return Future.failedFuture(new HttpException(BAD_REQUEST,
+            "versionRef is not supported with context=" + SUPER + " on a resource extending a specific version."));
+
       ((ContextAwareEvent<?>) task.getEvent()).setRef(new Ref(space.getExtension().getVersion()));
     }
-
 
     //... and resolve the extended (super) space instead
     return resolveSpace(task);

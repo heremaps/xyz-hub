@@ -21,6 +21,7 @@ package com.here.xyz.psql.query;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.GetFeaturesByIdEvent;
+import com.here.xyz.events.SelectiveEvent;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.db.SQLQuery;
 import java.sql.ResultSet;
@@ -33,8 +34,14 @@ import java.util.Set;
  */
 public class GetFeatureIds extends GetFeatures<GetFeaturesByIdEvent, GetFeatureIds.FeatureIds> {
 
+  private boolean minVersionCheckEnabled = true;
+
   public GetFeatureIds(GetFeaturesByIdEvent event) throws SQLException, ErrorResponseException {
     super(event);
+  }
+
+  public void setMinVersionCheckEnabled(boolean minVersionCheckEnabled) {
+    this.minVersionCheckEnabled = minVersionCheckEnabled;
   }
 
   @Override
@@ -45,6 +52,11 @@ public class GetFeatureIds extends GetFeatures<GetFeaturesByIdEvent, GetFeatureI
   @Override
   protected SQLQuery buildSelectClause(GetFeaturesByIdEvent event, int dataset, long baseVersion) {
     return new SQLQuery("id");
+  }
+
+  @Override
+  protected SQLQuery buildMinVersionFragment(SelectiveEvent event, long baseVersion) {
+    return minVersionCheckEnabled ? super.buildMinVersionFragment(event, baseVersion) : new SQLQuery("");
   }
 
   @Override

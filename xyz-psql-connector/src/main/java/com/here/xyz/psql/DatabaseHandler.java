@@ -489,9 +489,13 @@ public abstract class DatabaseHandler extends StorageConnector {
           .withParams(baseParams)
           .withConnectorParams(event.getConnectorParams())
           .withIds(idsToFetch)
-          .withVersionsToKeep(readVersionsToKeep(event));
+          //The base's own retention is unknown here; this lookup just needs the history-enabled read shape
+          .withVersionsToKeep(Integer.MAX_VALUE);
 
-      return run(new GetFeatureIds(fetchEvent)).getIds();
+      GetFeatureIds baseIdsQuery = new GetFeatureIds(fetchEvent);
+      baseIdsQuery.setUseReadReplica(false);
+      baseIdsQuery.setMinVersionCheckEnabled(false);
+      return run(baseIdsQuery).getIds();
     }
 
     private List<String> getAllIds(List<Feature> inserts, List<Feature> updates, List<Feature> upserts, Map<String, ?> deletes) {
