@@ -41,7 +41,7 @@ import org.junit.jupiter.api.Test;
 /**
  * Compiler tests for {@link ImportFromFiles} that verify a user-provided {@code context} filter on the
  * import target (e.g. {@code context=EXTENSION}) is recognized during compilation and forwarded to the
- * resulting {@link TaskedImportFilesToSpace} step (and therefore to the FeatureWriter).
+ * resulting {@link TaskedImportFilesToSpace} step and its selected writer.
  */
 public class ImportFromFilesTest extends JobTest {
 
@@ -51,14 +51,14 @@ public class ImportFromFilesTest extends JobTest {
   public void setUp() {
     //Base space (the "super" space of the composite)
     createSpace(new Space().withId(SPACE_ID).withVersionsToKeep(10), false);
-    //Composite space extending the base space -> import into it uses the FeatureWriter
+    //Composite space extending the base space -> import into it uses a staged writer
     createSpace(new Space().withId(SPACE_ID_EXT).withVersionsToKeep(10)
         .withExtension(new Space.Extension().withSpaceId(SPACE_ID)), false);
   }
 
   /**
    * When the user specifies {@code context=EXTENSION} on the target, the compiled import step must carry
-   * that context so that it gets passed to the FeatureWriter.
+   * that context so that it gets passed to the selected writer.
    */
   @Test
   public void testImportWithContextExtension() {
@@ -80,7 +80,7 @@ public class ImportFromFilesTest extends JobTest {
 
   /**
    * When no filters/context are provided on the target, the compiled import step must not carry any context
-   * (the FeatureWriter then falls back to its DEFAULT behaviour).
+   * (the selected writer then falls back to its DEFAULT behaviour).
    */
   @Test
   public void testImportWithoutContext() {

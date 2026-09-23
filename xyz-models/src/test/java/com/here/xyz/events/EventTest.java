@@ -91,6 +91,28 @@ public class EventTest {
   }
 
   @Test
+  public void checkConnectorCacheVersionAffectsHash() throws Exception {
+    GetFeaturesByTileEvent event1 = XyzSerializable
+        .deserialize(LazyParsedFeatureCollectionTest.class.getResourceAsStream("/com/here/xyz/test/GetFeaturesByTileEvent.json"));
+    GetFeaturesByTileEvent event2 = XyzSerializable
+        .deserialize(LazyParsedFeatureCollectionTest.class.getResourceAsStream("/com/here/xyz/test/GetFeaturesByTileEvent.json"));
+
+    //An unset connectorCacheVersion must not be serialized at all, so existing cache-keys stay untouched
+    assertFalse(event1.getCacheString().contains("connectorCacheVersion"));
+    assertEquals(event1.getHash(), event2.getHash());
+
+    event2.setConnectorCacheVersion("v2");
+    assertTrue(event2.getCacheString().contains("connectorCacheVersion"));
+    assertNotEquals(event1.getHash(), event2.getHash());
+
+    //Incrementing the version leads to another new cache-key
+    GetFeaturesByTileEvent event3 = XyzSerializable
+        .deserialize(LazyParsedFeatureCollectionTest.class.getResourceAsStream("/com/here/xyz/test/GetFeaturesByTileEvent.json"));
+    event3.setConnectorCacheVersion("v3");
+    assertNotEquals(event2.getHash(), event3.getHash());
+  }
+
+  @Test
   public void checkTrustedParams() throws Exception {
     final ObjectMapper om = new ObjectMapper();
     IterateFeaturesEvent event = om.readValue(eventJson, IterateFeaturesEvent.class);

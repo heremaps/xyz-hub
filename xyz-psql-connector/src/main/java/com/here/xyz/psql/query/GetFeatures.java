@@ -424,10 +424,29 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     return jsonData.replaceAll(namespacePattern, versionAuthor);
   }
 
+  /**
+   * The size at which accumulating more features is pointless. {@link #MAX_RESULT_SIZE} is a fixed
+   * 100 MiB, but the response is rejected further up at MAX_UNCOMPRESSED_RESPONSE_SIZE, so building
+   * past the smaller of the two only produces work that is thrown away.
+   */
+  private static long effectiveResultSizeLimit() {
+    String configured = System.getenv("MAX_UNCOMPRESSED_RESPONSE_SIZE");
+    if (configured == null || configured.isBlank())
+      return MAX_RESULT_SIZE;
+    try {
+      long limit = Long.parseLong(configured.trim());
+      return limit > 0 ? Math.min(limit, MAX_RESULT_SIZE) : MAX_RESULT_SIZE;
+    }
+    catch (NumberFormatException e) {
+      return MAX_RESULT_SIZE;
+    }
+  }
+
   protected static class LazyParsableFeatureCollection {
     public static final String PREFIX = "[";
     public static final String SUFFIX = "]";
 
+    private final long resultSizeLimit = effectiveResultSizeLimit();
     private StringBuilder content = new StringBuilder().append(PREFIX);
 
     public void addFeature(FeatureAppender featureAppender) throws ErrorResponseException, SQLException {
@@ -436,8 +455,8 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
       if( content.length() > PREFIX.length() && content.charAt(content.length() - 1) != ',' ) //prevent inserting additionals ',' in case featureAppender.appendFeature(content) does nop
        content = content.append(",");
 
-      if (content.length() > MAX_RESULT_SIZE)
-        throw new ErrorResponseException(PAYLOAD_TO_LARGE, "Maximum response char limit of " + MAX_RESULT_SIZE + " reached");
+      if (content.length() > resultSizeLimit)
+        throw new ErrorResponseException(PAYLOAD_TO_LARGE, "Maximum response char limit of " + resultSizeLimit + " reached");
     }
 
     public FeatureCollection build() {
@@ -513,7 +532,8 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   }
 
   protected SQLQuery buildGeoJsonExpression(E event) {
-    return new SQLQuery("REGEXP_REPLACE(ST_AsGeojson(${{rawGeoExpression}}, ${{precision}}), 'nan', '0', 'gi')")
+    //xyz_as_geojson replaces a per-row REGEXP_REPLACE that also missed Infinity; see ext.sql.
+    return new SQLQuery("xyz_as_geojson(${{rawGeoExpression}}, ${{precision}})")
           .withQueryFragment("rawGeoExpression", buildRawGeoExpression(event))
           .withQueryFragment("precision", "" + GetFeatures.GEOMETRY_DECIMAL_DIGITS);
   }

@@ -1,3 +1,22 @@
+/*
+ * Copyright (C) 2017-2026 HERE Europe B.V.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ * License-Filename: LICENSE
+ */
+
 package com.here.xyz.jobs.util.test;
 
 import static com.google.common.net.HttpHeaders.CONTENT_TYPE;
@@ -23,9 +42,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import io.vertx.core.json.JsonObject;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -34,6 +50,8 @@ public class JobTestBase extends StepTestBase {
     private static final Logger logger = LogManager.getLogger();
     private static final String LOCALSTACK_HOST = System.getProperty("localstack.host", "localhost");
     protected static int DEFAULT_JOB_POLL_TIMEOUT_SEC = 120;
+    private static final long MIN_JOB_POLL_INTERVAL_MILLIS = 250;
+    private static final long MAX_JOB_POLL_INTERVAL_MILLIS = 2_000;
     protected Set<String> createdJobs = new HashSet<>();
     protected Set<String> createdSpaces = new HashSet<>();
 
@@ -156,6 +174,12 @@ public class JobTestBase extends StepTestBase {
         return XyzSerializable.deserialize(jobResponse.body(), new TypeReference<Map>() {});
     }
 
+    public static Map getStep(String jobId, String stepId) throws IOException, InterruptedException {
+        logger.info("Get step {} of job {} ...", stepId, jobId);
+        HttpResponse<byte[]> stepResponse = get("/admin/jobs/" + jobId + "/steps/" + stepId);
+        return XyzSerializable.deserialize(stepResponse.body(), new TypeReference<>() {});
+    }
+
     public static List<Map> getJobsOnResource(String resource, boolean useAdminEndpoint) throws IOException, InterruptedException {
         logger.info("Get jobs on resource {} ...", resource);
         HttpResponse<byte[]> jobsResponse = get((useAdminEndpoint ? "/admin" : "/") +"/jobs?resource=" + resource );
@@ -178,30 +202,37 @@ public class JobTestBase extends StepTestBase {
       pollJobStatus(jobId, DEFAULT_JOB_POLL_TIMEOUT_SEC);
   }
 
+    /**
+     * Polls the job until it reached a final state or the timeout elapsed. The interval starts short and grows, so that
+     * a job which is done after a few hundred milliseconds is not waited for a full interval.
+     */
     public static void pollJobStatus(String jobId, int timeoutSeconds) throws InterruptedException {
-        ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
+        final long deadline = System.currentTimeMillis() + timeoutSeconds * 1_000L;
+        long interval = MIN_JOB_POLL_INTERVAL_MILLIS;
 
-        //Poll job status every 5 seconds
-        executor.scheduleAtFixedRate(() -> {
+        while (true) {
             try {
                 RuntimeStatus status = getJobStatus(jobId);
                 logger.info("Job state for {}: {} ({}/{} steps succeeded)", jobId, status.getState(), status.getSucceededSteps(),
                         status.getOverallStepCount());
                 if (status.getState().isFinal()) {
-                    if(!status.getState().equals(RuntimeInfo.State.SUCCEEDED))
+                    if (!status.getState().equals(RuntimeInfo.State.SUCCEEDED))
                         logger.info("Job state for {} is not SUCCEEDED:\n{}", jobId, XyzSerializable.serialize(status, true));
-                    executor.shutdownNow();
+                    return;
                 }
             }
             catch (Exception e) {
                 logger.error(e);
                 throw new RuntimeException(e);
             }
-        }, 0, 5, TimeUnit.SECONDS);
 
-        if (!executor.awaitTermination(timeoutSeconds, TimeUnit.SECONDS)) {
-            executor.shutdownNow();
-            logger.info("Stopped polling status for job {} after timeout {} seconds", jobId, timeoutSeconds);
+            long remaining = deadline - System.currentTimeMillis();
+            if (remaining <= 0) {
+                logger.info("Stopped polling status for job {} after timeout {} seconds", jobId, timeoutSeconds);
+                return;
+            }
+            Thread.sleep(Math.min(interval, remaining));
+            interval = Math.min(interval * 2, MAX_JOB_POLL_INTERVAL_MILLIS);
         }
     }
 

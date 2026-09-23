@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   ~ Copyright (C) 2017-2026 HERE Europe B.V.
+  ~
   ~ Licensed under the Apache License, Version 2.0 (the "License");
   ~ you may not use this file except in compliance with the License.
   ~ You may obtain a copy of the License at
@@ -40,7 +41,7 @@
 
   <groupId>com.here.xyz</groupId>
   <artifactId>xyz-hub</artifactId>
-  <version>3.23.53-SNAPSHOT</version>
+  <version>3.23.72-SNAPSHOT</version>
   <packaging>pom</packaging>
 
   <modules>
@@ -88,6 +89,10 @@
     <!-- Java version -->
     <maven.compiler.source>17</maven.compiler.source>
     <maven.compiler.target>17</maven.compiler.target>
+
+    <!-- Number of JVMs failsafe uses to run integration test classes in parallel. Set to 1 to run them serially. -->
+    <it.forkCount>4</it.forkCount>
+    <shade.skip>false</shade.skip>
 
     <!-- Dependencies versions -->
     <aws-sdk-version>1.12.772</aws-sdk-version>
@@ -167,6 +172,13 @@
         <plugin>
           <artifactId>maven-shade-plugin</artifactId>
           <version>3.5.0</version>
+          <configuration>
+            <!--
+              Lets a build that only runs tests skip repackaging the fat jars. They are needed to build the docker
+              images and to deploy the step lambda, both of which happen before the tests run.
+            -->
+            <skip>${shade.skip}</skip>
+          </configuration>
         </plugin>
         <plugin>
           <artifactId>maven-resources-plugin</artifactId>
@@ -229,6 +241,18 @@
         <groupId>${project.groupId}</groupId>
         <artifactId>xyz-util</artifactId>
         <version>${project.version}</version>
+      </dependency>
+      <!--
+        The test-jar of xyz-util exposes the engine-agnostic FeatureWriter test framework
+        (com.here.xyz.test.featurewriter.TestSuite / SpaceWriter) so that other modules can
+        run the same write scenarios against their own write implementations.
+        NOTE: A managed "jar" entry does not apply to a "test-jar" dependency, hence the extra entry.
+      -->
+      <dependency>
+        <groupId>${project.groupId}</groupId>
+        <artifactId>xyz-util</artifactId>
+        <version>${project.version}</version>
+        <type>test-jar</type>
       </dependency>
       <dependency>
         <groupId>${project.groupId}</groupId>
@@ -386,6 +410,17 @@
       </dependency>
       <dependency>
         <groupId>software.amazon.awssdk</groupId>
+        <artifactId>s3control</artifactId>
+        <version>${aws-sdk2-version}</version>
+        <exclusions>
+          <exclusion>
+            <artifactId>jackson-annotations</artifactId>
+            <groupId>com.fasterxml.jackson.core</groupId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>software.amazon.awssdk</groupId>
         <artifactId>auth</artifactId>
         <version>${aws-sdk2-version}</version>
         <exclusions>
@@ -525,6 +560,17 @@
       <dependency>
         <groupId>software.amazon.awssdk</groupId>
         <artifactId>cloudwatchevents</artifactId>
+        <version>${aws-sdk2-version}</version>
+        <exclusions>
+          <exclusion>
+            <artifactId>jackson-annotations</artifactId>
+            <groupId>com.fasterxml.jackson.core</groupId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>software.amazon.awssdk</groupId>
+        <artifactId>cloudwatchlogs</artifactId>
         <version>${aws-sdk2-version}</version>
         <exclusions>
           <exclusion>

@@ -58,23 +58,23 @@ public class SpecComplianceApiIT extends TestSpaceWithFeature {
   public void testUnauthorized() {
     if ("JWT".equals(System.getProperty("xyz.hub.auth"))) {
       checkUnauthorized(Method.GET, APPLICATION_JSON, "/spaces");
-      checkUnauthorized(Method.GET, APPLICATION_JSON, "/spaces/x-psql-test");
+      checkUnauthorized(Method.GET, APPLICATION_JSON, "/spaces/" + DEFAULT_SPACE_ID);
       checkUnauthorized(Method.POST, APPLICATION_JSON, "/spaces");
-      checkUnauthorized(Method.PATCH, APPLICATION_JSON, "/spaces/x-psql-test");
-      checkUnauthorized(Method.DELETE, APPLICATION_JSON, "/spaces/x-psql-test");
-      checkUnauthorized(Method.GET, APPLICATION_GEO_JSON, "/spaces/x-psql-test/features?id=Q3495887");
-      checkUnauthorized(Method.GET, APPLICATION_GEO_JSON, "/spaces/x-psql-test/features/Q3495887");
-      checkUnauthorized(Method.GET, APPLICATION_JSON, "/spaces/x-psql-test/statistics");
-      checkUnauthorized(Method.GET, APPLICATION_GEO_JSON, "/spaces/x-psql-test/bbox");
-      checkUnauthorized(Method.GET, APPLICATION_GEO_JSON, "/spaces/x-psql-test/tile/quadkey/x-tile-id");
-      checkUnauthorized(Method.GET, APPLICATION_GEO_JSON, "/spaces/x-psql-test/search");
-      checkUnauthorized(Method.GET, APPLICATION_GEO_JSON, "/spaces/x-psql-test/iterate");
-      checkUnauthorized(Method.PUT, APPLICATION_GEO_JSON, "/spaces/x-psql-test/features");
-      checkUnauthorized(Method.POST, APPLICATION_GEO_JSON, "/spaces/x-psql-test/features");
-      checkUnauthorized(Method.DELETE, APPLICATION_JSON, "/spaces/x-psql-test/features");
-      checkUnauthorized(Method.PUT, APPLICATION_GEO_JSON, "/spaces/x-psql-test/features/Q3495887");
-      checkUnauthorized(Method.PATCH, APPLICATION_GEO_JSON, "/spaces/x-psql-test/features/Q3495887");
-      checkUnauthorized(Method.DELETE, APPLICATION_JSON, "/spaces/x-psql-test/features/Q3495887");
+      checkUnauthorized(Method.PATCH, APPLICATION_JSON, "/spaces/" + DEFAULT_SPACE_ID);
+      checkUnauthorized(Method.DELETE, APPLICATION_JSON, "/spaces/" + DEFAULT_SPACE_ID);
+      checkUnauthorized(Method.GET, APPLICATION_GEO_JSON, "/spaces/" + DEFAULT_SPACE_ID + "/features?id=Q3495887");
+      checkUnauthorized(Method.GET, APPLICATION_GEO_JSON, "/spaces/" + DEFAULT_SPACE_ID + "/features/Q3495887");
+      checkUnauthorized(Method.GET, APPLICATION_JSON, "/spaces/" + DEFAULT_SPACE_ID + "/statistics");
+      checkUnauthorized(Method.GET, APPLICATION_GEO_JSON, "/spaces/" + DEFAULT_SPACE_ID + "/bbox");
+      checkUnauthorized(Method.GET, APPLICATION_GEO_JSON, "/spaces/" + DEFAULT_SPACE_ID + "/tile/quadkey/x-tile-id");
+      checkUnauthorized(Method.GET, APPLICATION_GEO_JSON, "/spaces/" + DEFAULT_SPACE_ID + "/search");
+      checkUnauthorized(Method.GET, APPLICATION_GEO_JSON, "/spaces/" + DEFAULT_SPACE_ID + "/iterate");
+      checkUnauthorized(Method.PUT, APPLICATION_GEO_JSON, "/spaces/" + DEFAULT_SPACE_ID + "/features");
+      checkUnauthorized(Method.POST, APPLICATION_GEO_JSON, "/spaces/" + DEFAULT_SPACE_ID + "/features");
+      checkUnauthorized(Method.DELETE, APPLICATION_JSON, "/spaces/" + DEFAULT_SPACE_ID + "/features");
+      checkUnauthorized(Method.PUT, APPLICATION_GEO_JSON, "/spaces/" + DEFAULT_SPACE_ID + "/features/Q3495887");
+      checkUnauthorized(Method.PATCH, APPLICATION_GEO_JSON, "/spaces/" + DEFAULT_SPACE_ID + "/features/Q3495887");
+      checkUnauthorized(Method.DELETE, APPLICATION_JSON, "/spaces/" + DEFAULT_SPACE_ID + "/features/Q3495887");
     }
   }
 
@@ -84,13 +84,13 @@ public class SpecComplianceApiIT extends TestSpaceWithFeature {
     checkNotFound(Method.GET, APPLICATION_JSON, "/spaces/non-existing-path");
     checkNotFound(Method.PATCH, APPLICATION_JSON, "/spaces/non-existing-path");
     checkNotFound(Method.DELETE, APPLICATION_JSON, "/spaces/non-existing-path");
-    checkNotFound(Method.GET, APPLICATION_GEO_JSON, "/spaces/x-psql-test/features/non-existing-path");
+    checkNotFound(Method.GET, APPLICATION_GEO_JSON, "/spaces/" + DEFAULT_SPACE_ID + "/features/non-existing-path");
     checkNotFound(Method.GET, APPLICATION_JSON, "/spaces/non-existing-path/statistics");
     checkNotFound(Method.GET, APPLICATION_GEO_JSON, "/spaces/non-existing-path/bbox?east=1&west=1&north=1&south=1");
     checkNotFound(Method.GET, APPLICATION_GEO_JSON, "/spaces/non-existing-path/search");
     checkNotFound(Method.GET, APPLICATION_GEO_JSON, "/spaces/non-existing-path/iterate");
     checkNotFound(Method.DELETE, APPLICATION_JSON, "/spaces/non-existing-path/features?id=non-existing-feature");
-    checkNotFound(Method.DELETE, APPLICATION_JSON, "/spaces/x-psql-test/features/non-existing-path");
+    checkNotFound(Method.DELETE, APPLICATION_JSON, "/spaces/" + DEFAULT_SPACE_ID + "/features/non-existing-path");
   }
 
   private void checkUnauthorized(final Method method, final String accept, final String path) {

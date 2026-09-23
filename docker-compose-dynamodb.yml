@@ -9,10 +9,14 @@ services:
         ports:
             - "8080:8080"
         depends_on:
-            - "dynamodb"
-            - "postgres"
-            - "redis"
-            - "aws-localstack"
+            dynamodb:
+                condition: service_started
+            postgres:
+                condition: service_healthy
+            redis:
+                condition: service_started
+            aws-localstack:
+                condition: service_started
         environment:
             - SPACES_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-spaces
             - BRANCHES_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-branches
@@ -36,12 +40,17 @@ services:
             - HUB_ENDPOINT=http://xyz-hub:8080/hub
             - LOCALSTACK_ENDPOINT=http://localstack:4566
             - JOBS_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-jobs-local
+            - STEPS_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-job-steps-local
             - PARALLEL_STEPS_SUPPORTED=false
         depends_on:
-            - "xyz-hub"
-            - "dynamodb"
-            - "postgres"
-            - "aws-localstack"
+            xyz-hub:
+                condition: service_started
+            dynamodb:
+                condition: service_started
+            postgres:
+                condition: service_healthy
+            aws-localstack:
+                condition: service_started
         command: java -cp xyz-job-service-fat.jar com.here.xyz.jobs.service.JobService
     postgres:
         image: "xyz-postgres"
@@ -51,6 +60,14 @@ services:
         container_name: "postgres"
         ports:
             - "5432:5432"
+        #The services below wait for this, because depends_on alone only orders the container starts.
+        #A hub that reaches its database before the database accepts connections never installs the
+        #hub.* schemas, and every request then fails with a connector error.
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+            interval: 2s
+            timeout: 5s
+            retries: 45
     redis:
         image: "redis"
         container_name: "redis"

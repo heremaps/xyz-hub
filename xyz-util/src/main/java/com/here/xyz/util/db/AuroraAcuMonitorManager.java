@@ -31,7 +31,7 @@ import software.amazon.awssdk.services.cloudwatch.CloudWatchClient;
 
 public final class AuroraAcuMonitorManager {
 
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(AuroraAcuMonitorManager.class);
   private static final ScheduledExecutorService executorService =
       Executors.newSingleThreadScheduledExecutor(r -> {
         Thread t = new Thread(r, "acu-monitor");

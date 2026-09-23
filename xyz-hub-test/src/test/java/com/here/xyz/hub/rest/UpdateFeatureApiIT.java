@@ -83,7 +83,7 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .body(content("/xyz/hub/featureWithNumberId.json"))
         .when()
-        .post(getSpacesPath() + "/x-psql-test/features")
+        .post(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/features")
         .then()
         .statusCode(OK.code())
         .body("features[0].id", equalTo("1234"));
@@ -118,7 +118,7 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .body(largeCollection)
         .when()
-        .post(getSpacesPath() + "/x-psql-test/features")
+        .post(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/features")
         .then()
         .statusCode(OK.code());
 
@@ -126,7 +126,7 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
         .accept(APPLICATION_GEO_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .get(getSpacesPath() + "/x-psql-test/iterate?limit=50000")
+        .get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/iterate?limit=50000")
         .then()
         .statusCode(OK.code())
         .body("features.size()", greaterThan(20_000));
@@ -140,7 +140,7 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .body(content("/xyz/hub/wrongType.json"))
         .when()
-        .post(getSpacesPath() + "/x-psql-test/features")
+        .post(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/features")
         .then()
         .statusCode(BAD_REQUEST.code());
   }
@@ -153,7 +153,7 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .body(content("/xyz/hub/updateFeature.json"))
         .when()
-        .put(getSpacesPath() + "/x-psql-test/features/Q2838923?addTags=baseball&removeTags=soccer")
+        .put(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/features/Q2838923?addTags=baseball&removeTags=soccer")
         .then()
         .statusCode(OK.code())
         .body("id", equalTo("Q2838923"))
@@ -173,7 +173,7 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .body(content("/xyz/hub/updateFeature.json"))
         .when()
-        .put(getSpacesPath() + "/x-psql-test/features/Q2838924?addTags=baseball&removeTags=soccer")
+        .put(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/features/Q2838924?addTags=baseball&removeTags=soccer")
         .then()
         .statusCode(OK.code())
         .body("id", equalTo("Q2838924"))
@@ -192,7 +192,7 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .body(content("/xyz/hub/updateFeature.json"))
         .when()
-        .put(getSpacesPath() + "/x-psql-test/features/Q2838924?addTags=baseball&removeTags=soccer&prefixId=foo:")
+        .put(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/features/Q2838924?addTags=baseball&removeTags=soccer&prefixId=foo:")
         .then()
         .statusCode(OK.code())
         .body("id", equalTo("foo:Q2838924"))
@@ -224,7 +224,7 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .body(content("/xyz/hub/updateFeatureById.json"))
         .when()
-        .post(getSpacesPath() + "/x-psql-test/features?addTags=baseball&removeTags=soccer")
+        .post(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/features?addTags=baseball&removeTags=soccer")
         .then()
         .statusCode(OK.code())
         .body("features[0].id", equalTo("Q271454"))
@@ -243,7 +243,7 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .body(content("/xyz/hub/updateFeatureById.json"))
         .when()
-        .post(getSpacesPath() + "/x-psql-test/features?addTags=baseball&removeTags=soccer&prefixId=foo:")
+        .post(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/features?addTags=baseball&removeTags=soccer&prefixId=foo:")
         .then()
         .statusCode(OK.code())
         .body("features[0].id", equalTo("foo:Q271454"))
@@ -262,7 +262,7 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .body(content("/xyz/hub/createFeatureById.json"))
         .when()
-        .post(getSpacesPath() + "/x-psql-test/features?addTags=baseball&removeTags=soccer")
+        .post(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/features?addTags=baseball&removeTags=soccer")
         .then()
         .statusCode(OK.code())
         .body("features[0].id", equalTo("Q271455"))
@@ -281,7 +281,7 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .body(content("/xyz/hub/updateFeature.json"))
         .when()
-        .patch(getSpacesPath() + "/x-psql-test/features/Q2838923?addTags=baseball&removeTags=soccer")
+        .patch(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/features/Q2838923?addTags=baseball&removeTags=soccer")
         .then()
         .statusCode(OK.code());
   }
@@ -294,7 +294,7 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .body(content("/xyz/hub/patchFeature.json"))
         .when()
-        .patch(getSpacesPath() + "/x-psql-test/features/Q2838923?addTags=baseball&removeTags=soccer")
+        .patch(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/features/Q2838923?addTags=baseball&removeTags=soccer")
         .then()
         .statusCode(OK.code());
   }
@@ -307,7 +307,7 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .body(content("/xyz/hub/updateFeatureById.json"))
         .when()
-        .post(getSpacesPath() + "/x-psql-test/features?addTags=baseball&removeTags=soccer")
+        .post(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/features?addTags=baseball&removeTags=soccer")
         .then()
         .statusCode(OK.code());
   }
@@ -320,7 +320,7 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .body(content("/xyz/hub/emptyFeatureCollection.json"))
         .when()
-        .post(getSpacesPath() + "/x-psql-test/features?addTags=baseball")
+        .post(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/features?addTags=baseball")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(0));
@@ -337,7 +337,7 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .body(point.serialize())
         .when()
-        .post(getSpacesPath() + "/x-psql-test/features")
+        .post(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/features")
         .then()
         .statusCode(OK.code());
 
@@ -355,7 +355,7 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .body(line.serialize())
         .when()
-        .post(getSpacesPath() + "/x-psql-test/features")
+        .post(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/features")
         .then()
         .statusCode(OK.code());
   }
@@ -371,7 +371,7 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .body(point.serialize())
         .when()
-        .put(getSpacesPath() + "/x-psql-test/features/C001")
+        .put(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/features/C001")
         .then()
         .statusCode(OK.code());
 
@@ -389,7 +389,7 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .body(line.serialize())
         .when()
-        .put(getSpacesPath() + "/x-psql-test/features/C001")
+        .put(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/features/C001")
         .then()
         .statusCode(OK.code())
         .body("geometry.type", equalTo("LineString"));
@@ -403,7 +403,7 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
         .accept(APPLICATION_GEO_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .get(getSpacesPath() + "/x-psql-test/features?id=" + featureId)
+        .get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/features?id=" + featureId)
         .then()
         .statusCode(OK.code()), featureId);
   }
@@ -419,7 +419,7 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .body(featureCollection.serialize())
         .when()
-        .post(getSpacesPath() + "/x-psql-test/features")
+        .post(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/features")
         .then()
         .statusCode(OK.code());
   }
@@ -435,7 +435,7 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .body(feature.serialize())
         .when()
-        .patch(getSpacesPath() + "/x-psql-test/features/Q2838923")
+        .patch(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/features/Q2838923")
         .then()
         .statusCode(OK.code());
   }
@@ -469,7 +469,7 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .body(content("/xyz/hub/updateFeatureNonModified.json"))
         .when()
-        .put(getSpacesPath() + "/x-psql-test/features")
+        .put(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/features")
         .then()
         .statusCode(OK.code());
   }

@@ -63,6 +63,7 @@ import com.here.xyz.jobs.steps.StepGraph;
 import com.here.xyz.jobs.steps.execution.JobExecutor;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.inputs.ModelBasedInput;
+import com.here.xyz.jobs.util.S3BatchOperations;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.outputs.Output;
@@ -499,6 +500,13 @@ public class Job implements XyzSerializable {
     return JobConfigClient.getInstance().loadJob(jobId);
   }
 
+  /**
+   * Loads a single step directly by {@code jobId} + {@code stepId} without loading the whole job.
+   */
+  public static Future<Step> loadStep(String jobId, String stepId) {
+    return JobConfigClient.getInstance().loadStep(jobId, stepId);
+  }
+
   public static Future<List<Job>> load(State state, String resourceKey) {
     if (state == null && resourceKey == null)
       return loadAll();
@@ -540,35 +548,26 @@ public class Job implements XyzSerializable {
    */
   public Future<Void> deleteJobResources() {
     return JobExecutor.getInstance()
-            //Delete StateMachine if still existing
-            .deleteExecution(getExecutionId())
-            .mapEmpty();
-
-
-/*
-            //Delete the inputs of this job
-            .compose(b -> deleteInputs())
-            //Delete the outputs of this job
-            .compose(v -> (hasRegisterDataReferencesStep() || isReleaseJob())
-                    //Temporary deletion deactivation for jobs with RegisterDataReferences step(s) or for release jobs.
-                    ? Future.succeededFuture()
-                    : Future.all(Job.forEach(getSteps().stepStream().toList(), Job::deleteStepOutputs)).mapEmpty());
- */
+        //Delete StateMachine if still existing
+        .deleteExecution(getExecutionId())
+        //Schedule this job's S3 inputs/outputs for deletion via a single S3 Batch Operations job (tags them so the
+        //bucket's lifecycle rule removes them)
+        .compose(b -> scheduleResourcesForDeletion());
   }
 
-  private boolean hasRegisterDataReferencesStep() {
-    return getSteps() != null
-        && getSteps().stepStream().anyMatch(step -> step != null
-            && "RegisterDataReferences".equals(step.getClass().getSimpleName()));
-  }
-
-  private boolean isReleaseJob() {
-    return getProcess() != null && "Release".equalsIgnoreCase(getProcess().getClass().getSimpleName());
-  }
-
-  private static Future<Void> deleteStepOutputs(Step step) {
+  private Future<Void> scheduleResourcesForDeletion() {
     return ASYNC.run(() -> {
-      step.deleteOutputs();
+      List<String> prefixes;
+      if (Input.hasInputReferences(getId()))
+        //Inputs are referenced by another job, delete only the output folders.
+        prefixes = getSteps().stepStream().map(Step::getOutputS3Prefix).toList();
+      else
+        //If nothing under the job is shared with another job delete the whole job folder in one batch job.
+        prefixes = List.of(getId() + "/");
+
+      List<String> batchJobIds = S3BatchOperations.scheduleForDeletion(getId(), prefixes);
+      if (!batchJobIds.isEmpty())
+        logger.info("[{}] Created S3 Batch Operations job(s) {} to schedule resources for deletion.", getId(), batchJobIds);
       return null;
     });
   }
@@ -641,12 +640,6 @@ public class Job implements XyzSerializable {
     if (state != RUNNING)
       return Future.failedFuture(new IllegalStateException("This job can not consume any input as it is not RUNNING. Current state: " + state));
     return JobExecutor.getInstance().sendInput(this, input);
-  }
-
-  private Future<Void> deleteInputs() {
-    //TODO: Asyncify!
-    Input.deleteInputs(getId());
-    return Future.succeededFuture();
   }
 
   public Future<List<Input>> loadInputs(String setName) {

@@ -33,12 +33,18 @@ import org.apache.logging.log4j.Marker;
 public abstract class TagConfigClient implements Initializable {
   private static final Logger logger = LogManager.getLogger();
 
+  /*
+   * Single instance, like the other config clients: this is reached per request for tag-addressed
+   * refs, and each call used to build a new AmazonDynamoDBAsyncClient. The JDBC variant already was.
+   */
+  private static final class InstanceHolder {
+    private static final TagConfigClient instance = Service.configuration.TAGS_DYNAMODB_TABLE_ARN != null
+        ? new DynamoTagConfigClient(Service.configuration.TAGS_DYNAMODB_TABLE_ARN)
+        : JDBCTagConfigClient.getInstance();
+  }
+
   public static TagConfigClient getInstance() {
-    if (Service.configuration.TAGS_DYNAMODB_TABLE_ARN != null) {
-      return new DynamoTagConfigClient(Service.configuration.TAGS_DYNAMODB_TABLE_ARN);
-    } else {
-      return JDBCTagConfigClient.getInstance();
-    }
+    return InstanceHolder.instance;
   }
   public abstract Future<Tag> getTag(Marker marker, String id, String spaceId);
 

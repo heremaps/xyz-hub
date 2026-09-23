@@ -148,7 +148,7 @@ public class GetFeaturesByBBoxClustered<E extends GetFeaturesByBBoxEvent, R exte
 
         /*clippedGeo - passed bbox is extended by "margin" on service level */
         String clippedGeo = (!event.getClip() ? "geo" : DhString
-                .format("ST_Intersection(st_makevalid(geo),ST_MakeEnvelope(%.14f,%.14f,%.14f,%.14f,4326) )", bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat())),
+                .format("xyz_clip_geometry(geo,ST_MakeEnvelope(%.14f,%.14f,%.14f,%.14f,4326) )", bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat())),
                 fid = (!event.getClip() ? "h3" : DhString.format("h3 || %f || %f", bbox.minLon(), bbox.minLat()));
 
 
@@ -438,11 +438,14 @@ public class GetFeaturesByBBoxClustered<E extends GetFeaturesByBBoxEvent, R exte
   private static String h3sqlMid_1a = // standard flavour
       "              select ${{statisticalValue}} as cval, coalesce( l.geoh3, v.geo ) as refpt"
           + "              from ${schema}.${headTable} v "
+          /*
+          Replaces a ST_Within/ST_Intersection case whose branches both paid ST_MakeValid, the more
+          expensive of the two. Overlay output is valid by construction, which is what coveringDeg needs.
+           */
           + "               left join lateral "
-          + "                ( select st_force3d(st_setsrid( h3ToGeoDeg( coveringDeg( case ST_Within(geo, ${{geoFilter}}) "
-          + "                                                                          when true then ST_MakeValid(geo) "
-          + "                                                                          else ST_Intersection( ST_MakeValid(geo), ${{geoFilter}}) "
-          + "                                                                         end, #{h3Resolution}::INTEGER)), st_srid(geo))) "
+          + "                ( select st_force3d(st_setsrid( h3ToGeoDeg( coveringDeg( "
+          + "                                                  xyz_clip_geometry(geo, ${{geoFilter}}) "
+          + "                                                  , #{h3Resolution}::INTEGER)), st_srid(geo))) "
           + "                  where st_geometrytype(v.geo) != 'ST_Point'"
           + "                ) l(geoh3) "
           + "                on ( true ) ";

@@ -19,6 +19,7 @@
 
 package com.here.xyz.jobs.steps.execution;
 
+import static com.here.xyz.jobs.steps.Step.InputSet.GENERIC_PROVIDER;
 import static com.here.xyz.jobs.steps.Step.Visibility.SYSTEM;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
 import static java.util.regex.Matcher.quoteReplacement;
@@ -29,13 +30,13 @@ import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.util.S3Client;
+import com.here.xyz.util.Hasher;
 import com.here.xyz.util.KeyValue;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.service.aws.s3.S3ObjectSummary;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
@@ -51,6 +52,8 @@ import java.util.function.Function;
 import java.util.regex.Pattern;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import software.amazon.awssdk.core.ResponseInputStream;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
 public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
@@ -331,12 +334,23 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
     //Lambda allows writing to /tmp folder - Jar file could be bigger than 512MB
     try {
       logger.info("[EMR-local] Copy file: '{}' to local.", s3Path);
-      InputStream jarStream = S3Client.getInstance().streamObjectContent(s3Path);
 
       //Create local target Folder
       createLocalFolder(Paths.get(s3Path).getParent().toString(), false);
-      Files.copy(jarStream, Paths.get(getLocalTmpPath(s3Path)));
-      jarStream.close();
+
+      ResponseInputStream<GetObjectResponse> jarStream = S3Client.getInstance().streamObjectContent(s3Path);
+      try {
+        Files.copy(jarStream, Paths.get(getLocalTmpPath(s3Path)));
+        jarStream.close();
+      }
+      catch (IOException | RuntimeException e) {
+        /*
+        The copy did not read the stream to its end, so it is aborted rather than closed, because
+        closing would block until the SDK read the whole object.
+         */
+        S3Client.abortS3Streaming(jarStream);
+        throw e;
+      }
     }
     catch (FileAlreadyExistsException e) {
       logger.info("[EMR-local] File: '{}' already exists locally - skip download.", s3Path);
@@ -480,7 +494,11 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
   }
 
   private static String toInputReferenceIdentifier(InputSet inputSet) {
-    return inputSet.providerId() + "." + inputSet.name();
+    return inputSet.providerId() + "." + inputSetReferenceName(inputSet);
+  }
+
+  private static String inputSetReferenceName(InputSet inputSet) {
+    return inputSet.name() + (GENERIC_PROVIDER.equals(inputSet.providerId()) ? "_" + Hasher.getHash(inputSet.s3Uri().uri()).substring(0, 12) : "");
   }
 
   public String outputSetReference(OutputSet outputSet) {
@@ -500,7 +518,7 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
 
   InputSet fromInputReferenceIdentifier(String referenceIdentifier) {
     ReferenceIdentifier ref = ReferenceIdentifier.fromString(referenceIdentifier);
-    return getInputSet(ref.stepId(), ref.name());
+    return fromInputReferenceIdentifier(ref.stepId(), ref.name());
   }
 
   OutputSet fromOutputReferenceIdentifier(String referenceIdentifier) {
@@ -513,15 +531,15 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
     return getOutputSet(ref.name());
   }
 
-  protected InputSet getInputSet(String providerId, String name) {
+  protected InputSet fromInputReferenceIdentifier(String providerId, String refName) {
     try {
       return getInputSets().stream()
-          .filter(inputSet -> Objects.equals(inputSet.name(), name) && Objects.equals(inputSet.providerId(), providerId))
+          .filter(inputSet -> Objects.equals(inputSetReferenceName(inputSet), refName) && Objects.equals(inputSet.providerId(), providerId))
           .findFirst()
           .get();
     }
     catch (NoSuchElementException e) {
-      throw new IllegalArgumentException("No input set \"" + providerId + "." + name + "\" exists in step \"" + getId() + "\"");
+      throw new IllegalArgumentException("No input set \"" + providerId + "." + refName + "\" exists in step \"" + getId() + "\"");
     }
   }
 

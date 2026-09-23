@@ -49,7 +49,7 @@ public class ModifySpaceApiIT extends TestSpaceWithFeature {
 
   @After
   public void tearDown() {
-    removeSpace("x-psql-test");
+    removeSpace(DEFAULT_SPACE_ID);
   }
 
   @Test
@@ -60,7 +60,7 @@ public class ModifySpaceApiIT extends TestSpaceWithFeature {
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .body(content("/xyz/hub/updateSpaceWithSearchableProperties.json"))
         .when()
-        .patch("/spaces/x-psql-test")
+        .patch("/spaces/" + DEFAULT_SPACE_ID)
         .then()
         .statusCode(OK.code())
         .body("searchableProperties.name", equalTo(true))
@@ -75,14 +75,14 @@ public class ModifySpaceApiIT extends TestSpaceWithFeature {
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .body(content("/xyz/hub/updateSpaceWithSearchablePropertiesConnectorC1.json"))
         .when()
-        .patch("/spaces/x-psql-test")
+        .patch("/spaces/" + DEFAULT_SPACE_ID)
         .then()
         .statusCode(BAD_REQUEST.code());
   }
 
   @Test
   public void removeAllListeners() {
-    addListener("x-psql-test");
+    addListener(DEFAULT_SPACE_ID);
 
     given()
         .contentType(APPLICATION_JSON)
@@ -90,7 +90,7 @@ public class ModifySpaceApiIT extends TestSpaceWithFeature {
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .body("{\"listeners\": null}")
         .when()
-        .patch("/spaces/x-psql-test")
+        .patch("/spaces/" + DEFAULT_SPACE_ID)
         .then()
         .statusCode(OK.code())
         .body("listeners", nullValue());
@@ -99,7 +99,7 @@ public class ModifySpaceApiIT extends TestSpaceWithFeature {
         .accept(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .get("/spaces/x-psql-test")
+        .get("/spaces/" + DEFAULT_SPACE_ID)
         .then()
         .statusCode(OK.code())
         .body("listeners", nullValue());
@@ -107,7 +107,7 @@ public class ModifySpaceApiIT extends TestSpaceWithFeature {
 
   @Test
   public void removeAllProcessors() {
-    addProcessor("x-psql-test");
+    addProcessor(DEFAULT_SPACE_ID);
 
     given()
         .contentType(APPLICATION_JSON)
@@ -115,7 +115,7 @@ public class ModifySpaceApiIT extends TestSpaceWithFeature {
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .body("{\"processors\": null}")
         .when()
-        .patch("/spaces/x-psql-test")
+        .patch("/spaces/" + DEFAULT_SPACE_ID)
         .then()
         .statusCode(OK.code())
         .body("processors", nullValue());
@@ -124,7 +124,7 @@ public class ModifySpaceApiIT extends TestSpaceWithFeature {
         .accept(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .get("/spaces/x-psql-test")
+        .get("/spaces/" + DEFAULT_SPACE_ID)
         .then()
         .statusCode(OK.code())
         .body("processors", nullValue());
@@ -132,13 +132,13 @@ public class ModifySpaceApiIT extends TestSpaceWithFeature {
 
   @Test
   public void addProcessorToExistingSpace() {
-    addProcessor("x-psql-test");
+    addProcessor(DEFAULT_SPACE_ID);
 
     given()
         .accept(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .get("/spaces/x-psql-test")
+        .get("/spaces/" + DEFAULT_SPACE_ID)
         .then()
         .statusCode(OK.code())
         .body("processors", notNullValue())
@@ -150,7 +150,7 @@ public class ModifySpaceApiIT extends TestSpaceWithFeature {
 
   @Test
   public void testConnectorResponseInModifiedSpace() {
-    addProcessor("x-psql-test");
+    addProcessor(DEFAULT_SPACE_ID);
 
     given()
         .accept(APPLICATION_JSON)
@@ -158,7 +158,7 @@ public class ModifySpaceApiIT extends TestSpaceWithFeature {
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_WITH_ACCESS_CONNECTOR_RULE_TAGGER))
         .body("{\"description\": \"Added description\"}")
         .when()
-        .patch("/spaces/x-psql-test")
+        .patch("/spaces/" + DEFAULT_SPACE_ID)
         .then()
         .statusCode(OK.code())
         .body("title", is("Test Space Processor"))
@@ -180,7 +180,7 @@ public class ModifySpaceApiIT extends TestSpaceWithFeature {
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_WITH_ACCESS_CONNECTOR_RULE_TAGGER))
         .body("{\"storage\": null}")
         .when()
-        .patch("/spaces/x-psql-test")
+        .patch("/spaces/" + DEFAULT_SPACE_ID)
         .then()
         .statusCode(BAD_REQUEST.code());
   }
@@ -193,7 +193,7 @@ public class ModifySpaceApiIT extends TestSpaceWithFeature {
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .body("{\"title\": \"My Demo Space\"}")
         .when()
-        .patch("/spaces/x-psql-test")
+        .patch("/spaces/" + DEFAULT_SPACE_ID)
         .then()
         .statusCode(OK.code());
   }
@@ -206,7 +206,7 @@ public class ModifySpaceApiIT extends TestSpaceWithFeature {
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .body("{\"versionsToKeep\": 0}")
         .when()
-        .patch("/spaces/x-psql-test")
+        .patch("/spaces/" + DEFAULT_SPACE_ID)
         .then()
         .statusCode(BAD_REQUEST.code());
   }
@@ -219,7 +219,7 @@ public class ModifySpaceApiIT extends TestSpaceWithFeature {
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .body("\"versionsToKeep\": 0}")
         .when()
-        .patch("/spaces/x-psql-test")
+        .patch("/spaces/" + DEFAULT_SPACE_ID)
         .then()
         .statusCode(BAD_REQUEST.code());
   }
@@ -231,14 +231,14 @@ public class ModifySpaceApiIT extends TestSpaceWithFeature {
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .body("{\"versionsToKeep\": 2}")
         .when()
-        .patch("/spaces/x-psql-test")
+        .patch("/spaces/" + DEFAULT_SPACE_ID)
         .then()
         .statusCode(OK.code());
   }
 
   @Test
   public void patchExistingVersionsToKeepFromTenToOne() {
-    cleanUpId = "x-psql-test-v2k-10";
+    cleanUpId = (DEFAULT_SPACE_ID + "-v2k-10");
     given()
         .accept(APPLICATION_JSON)
         .contentType(APPLICATION_JSON)
@@ -273,7 +273,7 @@ public class ModifySpaceApiIT extends TestSpaceWithFeature {
     given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
-        .body("{\"id\":\"x-psql-test-dry-run\",\"title\": \"dryRun-space\"}")
+        .body("{\"id\":\"" + (DEFAULT_SPACE_ID + "-dry-run") + "\",\"title\": \"dryRun-space\"}")
         .when()
         .post("/spaces?dryRun=true")
         .then()
@@ -282,7 +282,7 @@ public class ModifySpaceApiIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .get("/spaces/x-psql-test-dry-run")
+        .get("/spaces/" + (DEFAULT_SPACE_ID + "-dry-run"))
         .then()
         .statusCode(NOT_FOUND.code());
   }
@@ -294,14 +294,14 @@ public class ModifySpaceApiIT extends TestSpaceWithFeature {
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .body("{\"title\": \"dryRun-space\"}")
         .when()
-        .patch("/spaces/x-psql-test?dryRun=true")
+        .patch("/spaces/" + DEFAULT_SPACE_ID + "?dryRun=true")
         .then()
         .statusCode(OK.code());
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .get("/spaces/x-psql-test")
+        .get("/spaces/" + DEFAULT_SPACE_ID)
         .then()
         .statusCode(OK.code())
         .body("title", equalTo("My Demo Space"));
@@ -312,14 +312,14 @@ public class ModifySpaceApiIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .delete("/spaces/x-psql-test?dryRun=true")
+        .delete("/spaces/" + DEFAULT_SPACE_ID + "?dryRun=true")
         .then()
         .statusCode(NO_CONTENT.code());
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .get("/spaces/x-psql-test")
+        .get("/spaces/" + DEFAULT_SPACE_ID)
         .then()
         .statusCode(OK.code());
   }

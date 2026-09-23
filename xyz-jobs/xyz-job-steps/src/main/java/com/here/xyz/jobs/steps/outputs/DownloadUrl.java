@@ -33,6 +33,8 @@ public class DownloadUrl extends Output<DownloadUrl> implements S3DataFile {
   @JsonIgnore
   private byte[] content;
   private String contentType = "application/octet-stream";
+  @JsonIgnore
+  private String s3Bucket;
 
   @Override
   public void store(String s3Key) throws IOException {
@@ -43,7 +45,7 @@ public class DownloadUrl extends Output<DownloadUrl> implements S3DataFile {
 
   @JsonView(Public.class)
   public URL getUrl() {
-    return S3Client.getInstance().generateDownloadURL(getS3Key());
+    return S3Client.getInstance(getS3Bucket()).generateDownloadURL(getS3Key());
   }
 
   @Override
@@ -80,7 +82,16 @@ public class DownloadUrl extends Output<DownloadUrl> implements S3DataFile {
   @JsonIgnore
   public String getS3Bucket() {
     //Current outputs are written to default bucket only
-    return Config.instance.JOBS_S3_BUCKET;
+    return s3Bucket != null ? s3Bucket : Config.instance.JOBS_S3_BUCKET;
+  }
+
+  public void setS3Bucket(String s3Bucket) {
+    this.s3Bucket = s3Bucket;
+  }
+
+  public DownloadUrl withS3Bucket(String s3Bucket) {
+    setS3Bucket(s3Bucket);
+    return this;
   }
 
   @Override

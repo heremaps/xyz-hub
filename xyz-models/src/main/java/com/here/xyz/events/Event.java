@@ -97,6 +97,14 @@ public abstract class Event<T extends Event> extends Payload {
   private String version = VERSION;
   @JsonView(ExcludeFromHash.class)
   private String sourceRegion;
+  /**
+   * An arbitrary version string of the connector which is going to handle this event.
+   * NOTE: This field is intentionally *not* annotated with {@link ExcludeFromHash}, so it takes part in the cache-key generation.
+   * That way, incrementing the version for a connector invalidates all cache-keys of the events being handled by that connector, without
+   * affecting the cache-keys of any other connector. As long as no version is defined for a connector, this field stays <code>null</code>
+   * and is not serialized at all, so existing cache-keys stay untouched.
+   */
+  private String connectorCacheVersion;
 
   /**
    * The identifier of the space.
@@ -359,6 +367,26 @@ public abstract class Event<T extends Event> extends Payload {
 
   public T withSourceRegion(String sourceRegion) {
     setSourceRegion(sourceRegion);
+    return (T) this;
+  }
+
+  /**
+   * The cache version of the connector which is going to handle this event.
+   *
+   * @return The connector cache version or null if none is defined for the connector
+   */
+  public String getConnectorCacheVersion() {
+    return connectorCacheVersion;
+  }
+
+  public void setConnectorCacheVersion(String connectorCacheVersion) {
+    this.connectorCacheVersion = connectorCacheVersion;
+  }
+
+  @SuppressWarnings("unused")
+  public T withConnectorCacheVersion(String connectorCacheVersion) {
+    setConnectorCacheVersion(connectorCacheVersion);
+    //noinspection unchecked
     return (T) this;
   }
 

@@ -44,14 +44,14 @@ import org.junit.runners.MethodSorters;
 @Category(RestTests.class)
 public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
 
-  protected static final String SPACE_ID = "spacev2k1000";
-  protected static final String AUTHOR_1 = "XYZ-01234567-89ab-cdef-0123-456789aUSER1";
-  protected static final String AUTHOR_2 = "XYZ-01234567-89ab-cdef-0123-456789aUSER2";
+  protected static final String SPACE_ID = "spacev2k1000" + TEST_SUFFIX;
+  protected static final String AUTHOR_1 = AuthProfile.ACCESS_OWNER_1_ADMIN.payload.aid;
+  protected static final String AUTHOR_2 = AuthProfile.ACCESS_OWNER_2_ALL.payload.aid;
 
   @Before
   public void before() {
     removeSpace(SPACE_ID);
-    createSpaceWithVersionsToKeep("spacev2k1000", 1000);
+    createSpaceWithVersionsToKeep(SPACE_ID, 1000);
     postFeature(SPACE_ID, newFeature(), ACCESS_ALL);
     postFeature(SPACE_ID, newFeature()
         .withGeometry(new Point().withCoordinates(new PointCoordinates(50,50)))

@@ -97,7 +97,7 @@ public class IterateFeatures<E extends IterateFeaturesEvent, R extends XyzRespon
     token = decodeToken(token);
     if (token.contains("_")) {
       final String[] tokenParts = token.split("_");
-      return new TokenContent(Integer.parseInt(tokenParts[0]), Integer.parseInt(tokenParts[1]));
+      return new TokenContent(Integer.parseInt(tokenParts[0]), Long.parseLong(tokenParts[1]));
     }
     else
       return new TokenContent(-1, Long.parseLong(token));
@@ -111,7 +111,10 @@ public class IterateFeatures<E extends IterateFeaturesEvent, R extends XyzRespon
 
   @Override
   public R handle(ResultSet rs) throws SQLException {
-    FeatureCollection fc = (FeatureCollection) super.handle(rs);
+    R response = super.handle(rs);
+
+    if (!(response instanceof FeatureCollection fc))
+      return response;
 
     String nextToken = createNextPageToken();
     fc.setHandle(nextToken); //TODO: Kept for backwards compatibility - remove after deprecation period
