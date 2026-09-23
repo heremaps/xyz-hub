@@ -678,7 +678,12 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
       infoLog(STEP_ON_ASYNC_UPDATE, "Received progress update: " + processUpdate.serialize());
 
       if (!isTaskFinalized(update.taskId, (O) update.taskOutput)){
-        updateQueryTaskItemOutput(update); //update taskItem output
+        if (!updateQueryTaskItemOutput(update)) {
+          infoLog(STEP_ON_ASYNC_UPDATE, "Ignoring duplicate or outdated progress update for taskId=" + update.taskId
+              + ". No follow-up query gets started for it.");
+          return false;
+        }
+
         onTaskProgress(update.taskId, (O) update.taskOutput);  //hook method
       }else{
         finalizeTaskQuery(update.taskId); //hook method
@@ -997,12 +1002,17 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
    * and the update contains a {@code progress} field, the result will contain all three fields.
    * Fields in the update override fields with the same name in the existing output.
    * </p>
+   * <p>
+   * The query builder may reject duplicate or outdated updates using an additional condition.
+   * </p>
    *
    * @param update The in-progress task update carrying the complete payload.
+   * @return {@code true} if the update was applied, {@code false} if it was a duplicate / outdated update.
    */
-  private void updateQueryTaskItemOutput(SpaceBasedTaskUpdate update) throws WebClientException, SQLException, TooManyResourcesClaimed {
-    runWriteQuerySyncUnkillable(getQueryBuilder().buildUpdateTaskItemOutputStatement(update)
-            , db(WRITER), 0);
+  private boolean updateQueryTaskItemOutput(SpaceBasedTaskUpdate update)
+      throws WebClientException, SQLException, TooManyResourcesClaimed {
+    return runWriteQuerySyncUnkillable(getQueryBuilder().buildUpdateTaskItemOutputStatement(update)
+            , db(WRITER), 0) > 0;
   }
 
   private Set<Integer> incrementUnknownQueryStateForTasks(Set<Integer> unknownStateTaskIds)
@@ -1152,8 +1162,12 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
 
   private TaskedSpaceBasedQueryBuilder getQueryBuilder() {
     if (taskedSpaceBasedQueryBuilder == null)
-      taskedSpaceBasedQueryBuilder = initQueryBuilder(TaskedSpaceBasedQueryBuilder::new);
+      taskedSpaceBasedQueryBuilder = createTaskQueryBuilder();
     return taskedSpaceBasedQueryBuilder;
+  }
+
+  protected TaskedSpaceBasedQueryBuilder createTaskQueryBuilder() {
+    return initQueryBuilder(TaskedSpaceBasedQueryBuilder::new);
   }
 
   /**

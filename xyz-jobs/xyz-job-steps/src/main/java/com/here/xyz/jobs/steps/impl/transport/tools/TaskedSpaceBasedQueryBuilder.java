@@ -57,7 +57,11 @@ public class TaskedSpaceBasedQueryBuilder extends DatabaseStepQueryBuilder {
             .withVariable("primaryKey", getTemporaryJobTableName() + "_primKey");
   }
 
-  public SQLQuery buildUpdateTaskItemOutputStatement(SpaceBasedTaskUpdate update) {
+  /**
+   * Builds the statement which merges a non-final task update into the task's {@code task_output}.
+   * The additional condition allows subclasses to reject duplicate or outdated updates atomically.
+   */
+  public SQLQuery buildUpdateTaskItemOutputStatement(SpaceBasedTaskUpdate<?> update) {
     return new SQLQuery("""
             UPDATE ${schema}.${table}
                   SET
@@ -69,12 +73,17 @@ public class TaskedSpaceBasedQueryBuilder extends DatabaseStepQueryBuilder {
                       COALESCE(task_output->'taskOutput', '{}'::JSONB)
                       || COALESCE((#{taskUpdate}::JSONB)->'taskOutput', '{}'::JSONB)
                   )
-                  WHERE task_id = #{taskId};
+                  WHERE task_id = #{taskId} AND ${{updateCondition}};
             """)
             .withVariable("schema", schema)
             .withVariable("table", getTemporaryJobTableName())
+            .withQueryFragment("updateCondition", buildTaskOutputUpdateCondition())
             .withNamedParameter("taskId", update.taskId)
             .withNamedParameter("taskUpdate", XyzSerializable.serialize(update));
+  }
+
+  protected SQLQuery buildTaskOutputUpdateCondition() {
+    return new SQLQuery("TRUE");
   }
 
   public SQLQuery buildResetTaskItemWhichAreNotFinalizedStatement() {
