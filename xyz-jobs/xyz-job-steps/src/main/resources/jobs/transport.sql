@@ -817,6 +817,7 @@ $$ LANGUAGE plpgsql VOLATILE;
  *     task_id INT,      -- Claimed next task ID, or -1 if no task is available
  *     task_input JSONB  -- Input payload of the claimed task, or {"type":"Empty"}
  *   )
+ *   No rows if the task was already finalized or does not exist. No next task is claimed in that case.
  *
  * Notes:
  *   The actual statistics calculation and next-task claiming are delegated to
@@ -831,10 +832,7 @@ CREATE OR REPLACE FUNCTION update_task_item_and_get_task_item_and_statistics(
 )
     RETURNS TABLE (total INT, started INT, finalized INT, task_id INT, task_input JSONB) AS $$
 DECLARE
-    v_total INT := 0;
-    v_started INT := 0;
-    v_finalized INT := 0;
-    v_task_item RECORD;
+    v_updated_rows BIGINT;
     ctx JSONB;
 BEGIN
     SELECT context() INTO ctx;
@@ -851,12 +849,17 @@ BEGIN
                     || COALESCE((%2$L::JSONB)->''taskOutput'', ''{}''::JSONB)
                 ),
                 updated_at = now(), finalized = %3$L
-          WHERE task_id = %4$L;',
+          WHERE t.task_id = %4$L AND t.finalized = false;',
         get_table_reference(ctx->>'schema', ctx->>'stepId', 'JOB_TABLE'),
         p_task_output::TEXT,
         p_finalized,
         p_task_id
     );
+    GET DIAGNOSTICS v_updated_rows = ROW_COUNT;
+
+    IF v_updated_rows = 0 THEN
+        RETURN;
+    END IF;
 
     RETURN QUERY SELECT * FROM get_task_item_and_statistics();
 END;

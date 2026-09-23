@@ -689,6 +689,12 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
         finalizeTaskQuery(update.taskId); //hook method
 
         TaskProgress taskProgressAndItem = finalizeCurrentTaskAndGetTaskProgressAndNextTaskItem(update);
+        if (taskProgressAndItem == null) {
+          infoLog(STEP_ON_ASYNC_UPDATE, "Ignoring duplicate finalization update for taskId=" + update.taskId
+              + ". No further task item gets claimed.");
+          return false;
+        }
+
         //Calculate progress and set it on the step's status
         getStatus().setEstimatedProgress((float) taskProgressAndItem.getFinalizedTasks() / (float) taskProgressAndItem.getTotalTasks());
 
@@ -984,6 +990,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
    * @param update The callback payload containing the completed task id and output.
    * @return A {@link TaskProgress} instance containing total/started/finalized counters and the
    *         next task input; {@code taskId = -1} indicates that no further task is available.
+   *         Returns {@code null} if no non-finalized task matched the update.
    * @throws WebClientException If context-dependent metadata retrieval fails.
    * @throws SQLException If the underlying SQL function execution fails.
    * @throws TooManyResourcesClaimed If DB resource claiming exceeds allowed limits.
