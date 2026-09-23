@@ -815,9 +815,10 @@ $$ LANGUAGE plpgsql VOLATILE;
  *     started INT,      -- Number of task items marked as started
  *     finalized INT,    -- Number of task items marked as finalized
  *     task_id INT,      -- Claimed next task ID, or -1 if no task is available
- *     task_input JSONB  -- Input payload of the claimed task, or {"type":"Empty"}
+ *     task_input JSONB, -- Input payload of the claimed task, or {"type":"Empty"}
+ *     update_applied BOOLEAN -- Whether the callback updated a non-finalized task
  *   )
- *   No rows if the task was already finalized or does not exist. No next task is claimed in that case.
+ *   If no task is updated, returns the current counters with task_id = -1 without claiming another task.
  *
  * Notes:
  *   The actual statistics calculation and next-task claiming are delegated to
@@ -825,14 +826,18 @@ $$ LANGUAGE plpgsql VOLATILE;
  *   acquiring the same transaction-level advisory lock in the same transaction
  *   is safe and does not block.
  */
+DROP FUNCTION IF EXISTS update_task_item_and_get_task_item_and_statistics(INT, JSONB, BOOLEAN);
 CREATE OR REPLACE FUNCTION update_task_item_and_get_task_item_and_statistics(
     p_task_id INT,
     p_task_output JSONB,
     p_finalized BOOLEAN DEFAULT true
 )
-    RETURNS TABLE (total INT, started INT, finalized INT, task_id INT, task_input JSONB) AS $$
+    RETURNS TABLE (total INT, started INT, finalized INT, task_id INT, task_input JSONB, update_applied BOOLEAN) AS $$
 DECLARE
     v_updated_rows BIGINT;
+    v_total INT := 0;
+    v_started INT := 0;
+    v_finalized INT := 0;
     ctx JSONB;
 BEGIN
     SELECT context() INTO ctx;
@@ -858,10 +863,21 @@ BEGIN
     GET DIAGNOSTICS v_updated_rows = ROW_COUNT;
 
     IF v_updated_rows = 0 THEN
+        -- Claim nothing, but allow a redelivered callback to recover a lost completion report.
+        EXECUTE format(
+            'SELECT COUNT(1)::int,
+                    COALESCE(SUM((A.started = true)::int), 0)::int,
+                    COALESCE(SUM((A.finalized = true)::int), 0)::int
+               FROM %1$s A;',
+            get_table_reference(ctx->>'schema', ctx->>'stepId', 'JOB_TABLE')
+        ) INTO v_total, v_started, v_finalized;
+
+        RETURN QUERY SELECT v_total, v_started, v_finalized, -1, '{"type":"Empty"}'::JSONB, false;
         RETURN;
     END IF;
 
-    RETURN QUERY SELECT * FROM get_task_item_and_statistics();
+    RETURN QUERY SELECT n.total, n.started, n.finalized, n.task_id, n.task_input, true
+        FROM get_task_item_and_statistics() n;
 END;
 $$ LANGUAGE plpgsql VOLATILE;
 
