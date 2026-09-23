@@ -90,6 +90,7 @@ import java.net.URL;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -114,6 +115,13 @@ public class StepTestBase {
 
   public static final Config config = new Config();
   protected static final String LAMBDA_ARN = "arn:aws:lambda:us-east-1:000000000000:function:job-step";
+  private static final long INITIAL_TASK_WAIT_MILLIS = 1_000;
+  private static final long TASK_POLL_INTERVAL_MILLIS = 100;
+  /** A task item is finalized through a lambda callback from the database. A lost one would wait forever. */
+  private static final long TASK_WAIT_TIMEOUT_MILLIS = 5 * 60 * 1_000;
+  private static final long INITIAL_QUERY_WAIT_MILLIS = 500;
+  private static final long QUERY_POLL_INTERVAL_MILLIS = 100;
+  private static final long QUERY_WAIT_TIMEOUT_MILLIS = 5 * 60 * 1_000;
   private static final Logger logger = LogManager.getLogger();
   private static final S3Client s3Client;
   private static final String PG_HOST = System.getProperty("pg.host", "localhost");
@@ -380,6 +388,10 @@ public class StepTestBase {
     return testDatasource;
   }
 
+  protected Connection getTestDatabaseConnection() throws SQLException {
+    return getDataSourceProvider().getWriter().getConnection();
+  }
+
   protected void deleteAllJobTables(List<String> stepIds) throws SQLException {
     List<SQLQuery> dropQueries = new ArrayList<>();
     for (String stepId : stepIds) {
@@ -427,14 +439,18 @@ public class StepTestBase {
     //Lambda calls from db to invoke new db thread calls.
     try{
       Integer i = -1;
-      long deadline = System.nanoTime() + TASK_FINALIZATION_TIMEOUT_NANOS;
+      //The first wait has to be long enough for the task table to exist, a missing one is read as "already finalized"
+      long waitMillis = INITIAL_TASK_WAIT_MILLIS;
+      long deadline = System.currentTimeMillis() + TASK_WAIT_TIMEOUT_MILLIS;
       while (i != 0) {
-        Thread.sleep(1000);
+        if (System.currentTimeMillis() > deadline)
+          throw new IllegalStateException("Step " + step.getId() + " still has " + i
+              + " task items that were not finalized after " + TASK_WAIT_TIMEOUT_MILLIS + "ms");
+        Thread.sleep(waitMillis);
+        waitMillis = TASK_POLL_INTERVAL_MILLIS;
         SQLQuery query = new TestQueryBuilder(step.getId(), SCHEMA).buildRetrieveNumberOfNotFinalizedTasksQuery();
         i = query.run(getDataSourceProvider(), rs -> rs.next() ? rs.getInt(1) : null);
         logger.info("{} Threads are not finished!", i);
-        if (i != 0 && System.nanoTime() >= deadline)
-          throw new AssertionError("Timed out waiting for " + i + " task item(s) of step " + step.getId() + " to finish.");
       }
     }catch (SQLException e){
       //42P01 = relation does not exist - happens if the step is already finalized
@@ -444,8 +460,15 @@ public class StepTestBase {
   }
 
   protected void waitTillAllQueriesAreFinalized(Step step) throws InterruptedException{
+    //The first wait has to be long enough for the query to show up, an absent one is read as "already done"
+    long waitMillis = INITIAL_QUERY_WAIT_MILLIS;
+    long deadline = System.currentTimeMillis() + QUERY_WAIT_TIMEOUT_MILLIS;
     while (true) {
-      Thread.sleep(500);
+      if (System.currentTimeMillis() > deadline)
+        throw new IllegalStateException("Queries of job " + step.getJobId() + " are still running after "
+            + QUERY_WAIT_TIMEOUT_MILLIS + "ms");
+      Thread.sleep(waitMillis);
+      waitMillis = QUERY_POLL_INTERVAL_MILLIS;
       try {
         boolean running = SQLQuery.isRunning(getDataSourceProvider(), false, "jobId", step.getJobId());
         if (!running)

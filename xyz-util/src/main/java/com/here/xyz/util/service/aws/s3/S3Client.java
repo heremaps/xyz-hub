@@ -61,7 +61,7 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 
 public class S3Client {
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(S3Client.class);
   private static final ExecutorService S3_DELETE_POOL =
           new ThreadPoolExecutor(
                   4,
@@ -166,7 +166,13 @@ public class S3Client {
   }
 
   public byte[] loadObjectContent(String s3Key, long offset, long length) throws IOException {
-    return streamObjectContent(s3Key, offset, length).readAllBytes();
+    /*
+    readAllBytes() consumes the stream to its end, so closing it releases the connection back to the
+    pool. No abortS3Streaming() is needed for that, as it would be when stopping to read early.
+     */
+    try (ResponseInputStream<GetObjectResponse> objectResponseStream = streamObjectContent(s3Key, offset, length)) {
+      return objectResponseStream.readAllBytes();
+    }
   }
 
   /**

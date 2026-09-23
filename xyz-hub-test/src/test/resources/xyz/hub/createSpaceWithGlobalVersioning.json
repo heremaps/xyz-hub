@@ -1,5 +1,5 @@
 {
-  "id": "x-psql-test",
+  "id": "${spaceId}",
   "title": "My Demo Space",
   "enableGlobalVersioning" : true,
   "client": {}

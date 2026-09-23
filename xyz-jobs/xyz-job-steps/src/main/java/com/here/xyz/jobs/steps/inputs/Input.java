@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -342,8 +342,11 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
   }
 
   static List<String> loadAllInputSetNames(String jobId) {
+    String metaPrefix = inputMetaS3Prefix(jobId) + "/";
     return S3Client.getInstance().scanFolder(inputMetaS3Prefix(jobId)).stream()
-        .map(s3ObjectSummary -> s3ObjectSummary.key().substring(0, s3ObjectSummary.key().lastIndexOf(".json")))
+        .map(S3ObjectSummary::key)
+        .filter(key -> key.startsWith(metaPrefix) && key.endsWith(".json"))
+        .map(key -> key.substring(metaPrefix.length(), key.length() - ".json".length()))
         .toList();
   }
 
@@ -495,42 +498,18 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
     return XyzSerializable.fromMap(rawInput, ModelBasedInput.class);
   }
 
-  public static void deleteInputs(String jobId) {
-    deleteInputs(jobId, jobId);
-  }
-
-  private static void deleteInputs(String owningJobId, String referencingJob) {
-    //TODO: Parallelize
-    loadAllInputSetNames(owningJobId).forEach(setName -> deleteInputs(owningJobId, referencingJob, setName));
-  }
-
-  private static void deleteInputs(String owningJobId, String referencingJob, String setName) {
-    InputsMetadata metadata = null;
-    try {
-      metadata = loadMetadata(owningJobId, setName);
-      metadata.referencingJobs().remove(referencingJob);
-    }
-    catch (S3Exception | IOException ignore) {}
-
-    //Only delete the inputs if no other job is referencing them anymore
-    if (metadata == null || metadata.referencingJobs().isEmpty()) {
-      if (metadata != null && metadata.referencedJob() != null)
-        /*
-        The owning job referenced the inputs of another job, remove the owning job from the list of referencing jobs
-        and check whether the referenced inputs may be deleted now.
-         */
-        deleteInputs(metadata.referencedJob(), owningJobId);
-
-      S3Client.getInstance().deleteFolder(inputS3Prefix(owningJobId, setName))
-              .whenComplete((v, ex) -> {
-                if(ex != null)
-                  logger.error("[{}:{}] Error while deleting inputs", owningJobId, referencingJob, ex);
-                else
-                  logger.info("[{}:{}] End deleting inputs.", owningJobId, referencingJob);
-              });
-    }
-    else if (metadata != null)
-      storeMetadata(owningJobId, metadata, setName, DEFAULT_SET_GROUP);
+  /**
+   * Checks whether the given job has any input sets that are referenced by another job.
+   */
+  public static boolean hasInputReferences(String jobId) {
+    return loadAllInputSetNames(jobId).stream().anyMatch(setName -> {
+      InputsMetadata metadata = loadMetadataIfExists(jobId, setName).orElse(null);
+      if (metadata == null)
+        return false;
+      boolean referencedByOtherJob = metadata.referencingJobs() != null
+          && metadata.referencingJobs().stream().anyMatch(ref -> !ref.equals(jobId));
+      return referencedByOtherJob || metadata.referencedJob() != null;
+    });
   }
 
   private static Input createInput(String s3Bucket, String s3Key, long byteSize, boolean compressed) {

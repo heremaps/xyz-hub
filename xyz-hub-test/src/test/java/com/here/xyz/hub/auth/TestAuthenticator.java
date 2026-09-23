@@ -21,12 +21,31 @@ package com.here.xyz.hub.auth;
 
 import com.google.common.io.ByteStreams;
 import com.here.xyz.models.hub.jwt.JWTPayload;
+import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
 public class TestAuthenticator {
+
+  /**
+   * Appended to every space ID the tests create, so that test classes running in concurrent failsafe forks do not
+   * address the same spaces. Failsafe passes the fork number in, running from an IDE it stays empty.
+   */
+  public static final String TEST_SUFFIX = System.getProperty("xyz.test.suffix", "");
+
+  /** The spaces of the auth tests, fork local like every other test space. */
+  public static final String AUTH_SPACE_ID = "x-auth-test-space" + TEST_SUFFIX;
+  public static final String AUTH_SHARED_SPACE_ID = "x-auth-test-space-shared" + TEST_SUFFIX;
+
+  /**
+   * The connectors of the connector tests. Connectors are registered hub wide rather than per space,
+   * so two forks creating and deleting them under the same ID would interfere.
+   */
+  public static final String CONNECTOR_ID = "test-connector" + TEST_SUFFIX;
+  public static final String CONNECTOR_2_ID = "test-connector2" + TEST_SUFFIX;
+  public static final String OTHER_CONNECTOR_ID = "xyz-connector" + TEST_SUFFIX;
 
   protected static Map<String, String> getAuthHeaders(AuthProfile authProfile) {
     HashMap<String, String> authHeaders = new HashMap<>();
@@ -35,6 +54,16 @@ public class TestAuthenticator {
   }
 
   protected static String content(String file) {
+    return resolvePlaceholders(rawContent(file));
+  }
+
+  protected static String content(String file, String storageId) {
+    JsonObject jsonContent = new JsonObject(rawContent(file));
+    jsonContent.put("storage", new JsonObject().put("id", storageId));
+    return resolvePlaceholders(jsonContent.encode());
+  }
+
+  private static String rawContent(String file) {
     try {
       return new String(ByteStreams.toByteArray(TestAuthenticator.class.getResourceAsStream(file))).trim();
     }
@@ -43,18 +72,49 @@ public class TestAuthenticator {
     }
   }
 
-  protected static String content(String file, String storageId) {
-    try {
-      String content = new String(ByteStreams.toByteArray(TestAuthenticator.class.getResourceAsStream(file))).trim();
-      JsonObject jsonContent = new JsonObject(content);
+  /**
+   * The spaces and connectors a token payload names explicitly. A grant has to keep matching the
+   * space or connector the test works on, so these move with the fork suffix.
+   *
+   * The owner IDs deliberately stay as they are. Making them fork local would isolate the space
+   * limits of a token, which the hub counts per owner, but the connectors c2 and c3 in the service
+   * configuration name an owner as well, and that configuration is shared by every fork.
+   */
+  private static final String[] FORK_LOCAL_TOKEN_VALUES = {
+      "space1",
+      "space-2",
+      "test-connector2"
+  };
 
-      JsonObject storage = new JsonObject().put("id", storageId);
-      jsonContent.put("storage", storage);
-      return jsonContent.encode();
-    }
-    catch (IOException e) {
-      throw new RuntimeException("Error while reading token from resource file: " + file, e);
-    }
+  /**
+   * Rewrites a token payload so that it belongs to this fork alone. The values are replaced quoted,
+   * so that only whole JSON values are hit and never a substring of a longer ID.
+   */
+  private static String forkLocalTokenPayload(String payloadJson) {
+    if (TEST_SUFFIX.isEmpty())
+      return payloadJson;
+
+    for (String value : FORK_LOCAL_TOKEN_VALUES)
+      payloadJson = payloadJson.replace("\"" + value + "\"", "\"" + value + TEST_SUFFIX + "\"");
+
+    return payloadJson;
+  }
+
+  /**
+   * Replaces the space ID placeholders of the test resources by the IDs which are actually in use in this JVM.
+   */
+  private static String resolvePlaceholders(String content) {
+    if (!content.contains("${"))
+      return content;
+    return content
+        .replace("${spaceId}", "x-psql-test" + TEST_SUFFIX)
+        .replace("${extensibleSpaceId}", "x-psql-test-extensible" + TEST_SUFFIX)
+        .replace("${extendingSpaceId}", "x-psql-extending-test" + TEST_SUFFIX)
+        .replace("${authSharedSpaceId}", AUTH_SHARED_SPACE_ID)
+        .replace("${authSpaceId}", AUTH_SPACE_ID)
+        .replace("${connector2Id}", CONNECTOR_2_ID)
+        .replace("${connectorId}", CONNECTOR_ID)
+        .replace("${otherConnectorId}", OTHER_CONNECTOR_ID);
   }
 
   public enum AuthProfile {
@@ -111,7 +171,7 @@ public class TestAuthenticator {
 
     AuthProfile() {
       String resourceFilename = "/auth/" + name() + ".json";
-      this.payload = JwtGenerator.readTokenPayload(resourceFilename, false);
+      this.payload = Json.decodeValue(forkLocalTokenPayload(rawContent(resourceFilename)), JWTPayload.class);
       jwt_string = JwtGenerator.generateToken(this.payload);
     }
   }

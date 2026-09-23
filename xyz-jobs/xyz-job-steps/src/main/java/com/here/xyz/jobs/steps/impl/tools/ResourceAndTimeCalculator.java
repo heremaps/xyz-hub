@@ -78,16 +78,22 @@ public class ResourceAndTimeCalculator implements Initializable {
     public double calculateNeededImportAcus(long uncompressedUploadBytesEstimation, int fileCount, int threadCount) {
         //maximum auf Acus - to prevent that job never gets executed. @TODO: check how to deal is maxUnits of DB
         final double maxAcus = 70;
-        final long bytesPerThreads;
+        final long bytesPerThread;
 
         if (fileCount == 0)
             fileCount = 1;
 
-        //Only take into account the max parallel execution
-        bytesPerThreads = uncompressedUploadBytesEstimation / fileCount * threadCount;
+        /*
+         * One thread processes one file at a time, so the memory a single thread needs is derived from the size of
+         * one file. Multiplying that by the thread count then gives the demand of the whole step.
+         * NOTE: The thread count must not be applied here as well. Doing so made the result grow quadratically with
+         * the concurrency, which for small files claimed far more than the step can use, and for larger ones simply
+         * saturated the maxAcus cap.
+         */
+        bytesPerThread = uncompressedUploadBytesEstimation / fileCount;
 
         //Calculate the needed ACUs
-        double neededAcus = threadCount * calculateNeededAcusFromByteSize(bytesPerThreads);
+        double neededAcus = threadCount * calculateNeededAcusFromByteSize(bytesPerThread);
         return Math.min(neededAcus, maxAcus);
     }
 

@@ -423,8 +423,8 @@ public abstract class JobExecutor implements Initializable {
     //Filter the pre-loaded RUNNING jobs to those sharing at
     //least one resource key (and excluding the job itself)
     List<Job> conflictingRunning = runningJobs.stream()
-        .filter(other -> !job.getId().equals(other.getId()))
-        .filter(other -> other.getResourceKeys() != null && !Collections.disjoint(filterNonBaseResourceKeys(other.getResourceKeys()), nonBaseResourceKeys))
+        .filter(otherRunningJob -> !otherRunningJob.getId().equals(job.getId()))
+        .filter(otherRunningJob -> otherRunningJob.getResourceKeys() != null && !Collections.disjoint(filterNonBaseResourceKeys(otherRunningJob.getResourceKeys()), nonBaseResourceKeys))
         .toList();
 
     if (!conflictingRunning.isEmpty()) {
@@ -439,7 +439,7 @@ public abstract class JobExecutor implements Initializable {
     //NOTE: This check is still needed even though checkPendingJobs() sorts by createdAt, because:
     // 1. A job directly submitted via startExecution() (outside the poll loop) has no ordering guarantee.
     // 2. An older job blocked by insufficient virtual units stays PENDING while a newer job could otherwise jump ahead.
-    return JobConfigClient.getInstance().loadJobs(resourceKeys, PENDING)
+    return JobConfigClient.getInstance().loadJobs(nonBaseResourceKeys, PENDING)
         .map(pendingJobs -> {
           List<Job> olderPendingConflicts = pendingJobs.stream()
               .filter(other -> !job.getId().equals(other.getId()))

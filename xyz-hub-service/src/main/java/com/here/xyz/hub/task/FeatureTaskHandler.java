@@ -929,12 +929,22 @@ public class FeatureTaskHandler {
               if (connector.capabilities.binaryTiles && task.getEvent() instanceof GetFeaturesByTileEvent getTileEvent) {
                 getTileEvent.setResponseType(BINARY);
                 task.responseType = ApiResponseType.BINARY;
+                getTileEvent.setConnectorCacheVersion(getConnectorCacheVersion(connector));
               }
 
               return Future.succeededFuture(connector);
             },
             t -> Future.failedFuture(new InvalidStorageException("Unable to load the definition for this storage."))
         );
+  }
+
+  /**
+   * Returns the cache version which is configured for the specified connector, or <code>null</code> if none is configured.
+   * Incrementing that value in the connector's configuration invalidates all cache-keys of the events being handled by that connector.
+   */
+  private static String getConnectorCacheVersion(Connector connector) {
+    Object cacheVersion = connector.params == null ? null : connector.params.get("cacheVersion");
+    return cacheVersion == null ? null : String.valueOf(cacheVersion);
   }
 
   private static <X extends FeatureTask> Future<Void> resolveListenersAndProcessors(final X task) {
@@ -1739,13 +1749,27 @@ public class FeatureTaskHandler {
   }
 
   static void injectMinVersion(final ConditionalOperation task, final Callback<ConditionalOperation> callback) {
-    if (task.getEvent() instanceof ModifyFeaturesEvent)
-      injectMinVersion(task.getMarker(), task.space.getId(), task.getEvent())
-          .onSuccess(tag -> callback.call(task))
-          .onFailure(t -> {
-            logger.error(task.getMarker(), "Error while injecting minVersion into event.", t);
-            callback.exception(t instanceof HttpException ? t : new HttpException(INTERNAL_SERVER_ERROR, "Unexpected error.", t));
-          });
+    if (!(task.getEvent() instanceof ModifyFeaturesEvent)) {
+      callback.call(task);
+      return;
+    }
+
+    /*
+    minVersion only reaches the database through the versioned write function, so for a non-versioned
+    space resolving it would mean a DynamoDB tag lookup per write request for a value never read.
+     */
+    if (task.space.getVersionsToKeep() <= 1) {
+      task.getEvent().setMinVersion(-1l);
+      callback.call(task);
+      return;
+    }
+
+    injectMinVersion(task.getMarker(), task.space.getId(), task.getEvent())
+        .onSuccess(tag -> callback.call(task))
+        .onFailure(t -> {
+          logger.error(task.getMarker(), "Error while injecting minVersion into event.", t);
+          callback.exception(t instanceof HttpException ? t : new HttpException(INTERNAL_SERVER_ERROR, "Unexpected error.", t));
+        });
   }
 
   public static Future<Long> injectMinVersion(Marker marker, String spaceId, ContextAwareEvent event) {

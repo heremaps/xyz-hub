@@ -103,8 +103,8 @@ public class GetFeaturesByBBoxTweaked<E extends GetFeaturesByBBoxEvent, R extend
   public R handle(ResultSet rs) throws SQLException {
     R response = super.handle(rs);
 
-    if (!isMvtRequested && resultIsPartial)
-        ((FeatureCollection) response).setPartial(true);
+    if (!isMvtRequested && resultIsPartial && response instanceof FeatureCollection fc)
+        fc.setPartial(true);
 
     return response;
   }
@@ -274,7 +274,7 @@ public class GetFeaturesByBBoxTweaked<E extends GetFeaturesByBBoxEvent, R extend
    String tweaksGeoSql = clipProjGeom(bbox,"geo");
    tweaksGeoSql = map2MvtGeom( event, bbox, tweaksGeoSql );
    //convert to geojson
-   tweaksGeoSql = ( bConvertGeo2Geojson ? DhString.format("REGEXP_REPLACE(ST_AsGeojson(" + getForceMode(event.isForce2D()) + "( %s ),%d), 'nan', '0', 'gi')",tweaksGeoSql,GEOMETRY_DECIMAL_DIGITS)
+   tweaksGeoSql = ( bConvertGeo2Geojson ? DhString.format("xyz_as_geojson(" + getForceMode(event.isForce2D()) + "( %s ),%d)",tweaksGeoSql,GEOMETRY_DECIMAL_DIGITS)
                                         : DhString.format( getForceMode(event.isForce2D()) + "( %s )",tweaksGeoSql ) );
 
    return generateCombinedQueryTweaks(event, tweakQuery , tweaksGeoSql, bTestTweaksGeoIfNull, tblSampleRatio, bSortByHashedValue );
@@ -346,9 +346,10 @@ public class GetFeaturesByBBoxTweaked<E extends GetFeaturesByBBoxEvent, R extend
 
   private static String clipProjGeom(BBox bbox, String tweaksGeoSql )
   {
+    //xyz_clip_geometry repairs only what GEOS refuses to overlay, instead of ST_MakeValid per row.
     String fmt =  DhString.format(  " case st_within( %%1$s, ST_MakeEnvelope(%%2$.%1$df,%%3$.%1$df,%%4$.%1$df,%%5$.%1$df, 4326) ) "
         + "  when true then %%1$s "
-        + "  else ST_Intersection(ST_MakeValid(%%1$s),ST_MakeEnvelope(%%2$.%1$df,%%3$.%1$df,%%4$.%1$df,%%5$.%1$df, 4326))"
+        + "  else xyz_clip_geometry(%%1$s,ST_MakeEnvelope(%%2$.%1$df,%%3$.%1$df,%%4$.%1$df,%%5$.%1$df, 4326))"
         + " end " , 14 /*GEOMETRY_DECIMAL_DIGITS*/ );
     return DhString.format( fmt, tweaksGeoSql, bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat());
   }
@@ -422,7 +423,7 @@ public class GetFeaturesByBBoxTweaked<E extends GetFeaturesByBBoxEvent, R extend
        default: break;
      }
      //convert to geojson
-     tweaksGeoSql = ( convertGeo2Geojson ? DhString.format("REGEXP_REPLACE(ST_AsGeojson(" + getForceMode(event.isForce2D()) + "( %s ),%d),'nan', '0', 'gi')",tweaksGeoSql,GEOMETRY_DECIMAL_DIGITS)
+     tweaksGeoSql = ( convertGeo2Geojson ? DhString.format("xyz_as_geojson(" + getForceMode(event.isForce2D()) + "( %s ),%d)",tweaksGeoSql,GEOMETRY_DECIMAL_DIGITS)
                                           : DhString.format( getForceMode(event.isForce2D()) + "( %s )",tweaksGeoSql) );
    }
 
@@ -442,7 +443,7 @@ public class GetFeaturesByBBoxTweaked<E extends GetFeaturesByBBoxEvent, R extend
      else if ( strength <= 80 ) {                           minGeoHashLenForLineMerge = 4; } //medhigh
 
      if( "geo".equals(tweaksGeoSql) ) // formal, just in case
-      tweaksGeoSql = ( convertGeo2Geojson ? DhString.format("REGEXP_REPLACE(ST_AsGeojson(" + getForceMode(event.isForce2D()) + "( %s ),%d),'nan', '0', 'gi')",tweaksGeoSql,GEOMETRY_DECIMAL_DIGITS)
+      tweaksGeoSql = ( convertGeo2Geojson ? DhString.format("xyz_as_geojson(" + getForceMode(event.isForce2D()) + "( %s ),%d)",tweaksGeoSql,GEOMETRY_DECIMAL_DIGITS)
                                            : DhString.format(getForceMode(event.isForce2D()) + "( %s )",tweaksGeoSql) );
 
      if( convertGeo2Geojson )

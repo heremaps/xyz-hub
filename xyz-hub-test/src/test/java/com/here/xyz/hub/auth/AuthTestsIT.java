@@ -71,12 +71,12 @@ public class AuthTestsIT extends RestAssuredTest {
 
   public static void removeAllSpaces() {
     //NOTE: Not actually remove *all* spaces but the ones being relevant for this test-class (stay runnable in other envs)
-    removeSpace("x-auth-test-space");
-    removeSpace("x-auth-test-space-shared");
+    removeSpace(AUTH_SPACE_ID);
+    removeSpace(AUTH_SHARED_SPACE_ID);
 
     if (cleanUpId != null
-        && !"x-auth-test-space".equals(cleanUpId)
-        && !"x-auth-test-space-shared".equals(cleanUpId)
+        && !AUTH_SPACE_ID.equals(cleanUpId)
+        && !AUTH_SHARED_SPACE_ID.equals(cleanUpId)
     ) removeSpace(cleanUpId);
   }
 
@@ -151,7 +151,7 @@ public class AuthTestsIT extends RestAssuredTest {
         .headers(getAuthHeaders(profile))
         .body("{\"storage\": {\"id\": \"" + storageId + "\"}}")
         .when()
-        .patch("/spaces/x-auth-test-space")
+        .patch("/spaces/" + AUTH_SPACE_ID)
         .then();
   }
 
@@ -243,7 +243,7 @@ public class AuthTestsIT extends RestAssuredTest {
         .body("storage", notNullValue())
         .body("storage.id", equalTo("c1"));
 
-    getSpace("x-auth-test-space", AuthProfile.STORAGE_AUTH_TEST_C1_ONLY)
+    getSpace(AUTH_SPACE_ID, AuthProfile.STORAGE_AUTH_TEST_C1_ONLY)
         .statusCode(OK.code())
         .body("owner", equalTo(AuthProfile.STORAGE_AUTH_TEST_C1_ONLY.payload.aid))
         .body("storage", notNullValue())
@@ -332,7 +332,7 @@ public class AuthTestsIT extends RestAssuredTest {
     createSpace("/xyz/hub/auth/createSharedSpace.json", AuthProfile.ACCESS_OWNER_1_ADMIN)
         .statusCode(OK.code());
 
-    getSpace("x-auth-test-space-shared", AuthProfile.ACCESS_OWNER_1_NO_ADMIN)
+    getSpace(AUTH_SHARED_SPACE_ID, AuthProfile.ACCESS_OWNER_1_NO_ADMIN)
         .body("storage", equalTo(null));
   }
 
@@ -341,7 +341,7 @@ public class AuthTestsIT extends RestAssuredTest {
     createSpace("/xyz/hub/auth/createSharedSpace.json", AuthProfile.ACCESS_OWNER_1_ADMIN)
         .statusCode(OK.code());
 
-    getSpace("x-auth-test-space-shared", AuthProfile.ACCESS_OWNER_1_ADMIN)
+    getSpace(AUTH_SHARED_SPACE_ID, AuthProfile.ACCESS_OWNER_1_ADMIN)
         .body("storage.id", equalTo("psql"));
   }
 
@@ -350,7 +350,7 @@ public class AuthTestsIT extends RestAssuredTest {
     testSpaceListWithShared(null)
         .statusCode(OK.code())
         .body("$.size()", equalTo(1))
-        .body("[0].id", equalTo("x-auth-test-space"));
+        .body("[0].id", equalTo(AUTH_SPACE_ID));
   }
 
   @Test
@@ -358,7 +358,7 @@ public class AuthTestsIT extends RestAssuredTest {
     testSpaceListWithShared("me")
         .statusCode(OK.code())
         .body("$.size()", equalTo(1))
-        .body("[0].id", equalTo("x-auth-test-space"));
+        .body("[0].id", equalTo(AUTH_SPACE_ID));
   }
 
   @Test
@@ -366,7 +366,7 @@ public class AuthTestsIT extends RestAssuredTest {
     testSpaceListWithShared("others")
         .statusCode(OK.code())
         .body("$.size()", equalTo(1))
-        .body("[0].id", equalTo("x-auth-test-space-shared"));
+        .body("[0].id", equalTo(AUTH_SHARED_SPACE_ID));
   }
 
   @Test
@@ -381,7 +381,7 @@ public class AuthTestsIT extends RestAssuredTest {
     testSpaceListWithShared("*")
         .statusCode(OK.code())
         .body("$.size()", equalTo(2))
-        .body("id", hasItems("x-auth-test-space", "x-auth-test-space-shared"));
+        .body("id", hasItems(AUTH_SPACE_ID, AUTH_SHARED_SPACE_ID));
   }
 
   @Test
@@ -389,28 +389,28 @@ public class AuthTestsIT extends RestAssuredTest {
     testSpaceListWithShared("*", AuthProfile.ACCESS_OWNER_1_ADMIN)
         .statusCode(OK.code())
         .body("$.size()", equalTo(1))
-        .body("id", hasItems("x-auth-test-space-shared"));
+        .body("id", hasItems(AUTH_SHARED_SPACE_ID));
   }
 
   @Test
   public void testSpaceListWithSharedOwner1() {
-    testSpaceListWithShared("XYZ-01234567-89ab-cdef-0123-456789aUSER1")
+    testSpaceListWithShared(AuthProfile.ACCESS_OWNER_1_ADMIN.payload.aid)
         .statusCode(OK.code())
         .body("$.size()", equalTo(1))
-        .body("[0].id", equalTo("x-auth-test-space-shared"));
+        .body("[0].id", equalTo(AUTH_SHARED_SPACE_ID));
   }
 
   @Test
   public void testSpaceListWithSharedOwner2() {
-    testSpaceListWithShared("XYZ-01234567-89ab-cdef-0123-456789aUSER2")
+    testSpaceListWithShared(AuthProfile.ACCESS_OWNER_2.payload.aid)
         .statusCode(OK.code())
         .body("$.size()", equalTo(1))
-        .body("[0].id", equalTo("x-auth-test-space"));
+        .body("[0].id", equalTo(AUTH_SPACE_ID));
   }
 
   @Test
   public void testSpaceListWithSharedOwner2Negative() {
-    testSpaceListWithShared("XYZ-01234567-89ab-cdef-0123-456789aUSER2", AuthProfile.ACCESS_OWNER_1_ADMIN)
+    testSpaceListWithShared(AuthProfile.ACCESS_OWNER_2.payload.aid, AuthProfile.ACCESS_OWNER_1_ADMIN)
         .statusCode(OK.code())
         .body("$.size()", equalTo(0));
   }
@@ -420,7 +420,7 @@ public class AuthTestsIT extends RestAssuredTest {
     testSpaceListWithShared("*", AuthProfile.ACCESS_ALL)
         .statusCode(OK.code())
         .body("$.size()", zeroSpaces ? equalTo(2) : greaterThanOrEqualTo(2) )
-        .body("id", hasItems("x-auth-test-space", "x-auth-test-space-shared"));
+        .body("id", hasItems(AUTH_SPACE_ID, AUTH_SHARED_SPACE_ID));
   }
 
   @Test
@@ -838,7 +838,7 @@ public class AuthTestsIT extends RestAssuredTest {
         .accept(APPLICATION_GEO_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_WITH_FEATURES_ONLY))
         .when()
-        .get("/spaces/x-auth-test-space/bbox?west=179&north=89&east=-179&south=-89&clustering=hexbin")
+        .get("/spaces/" + AUTH_SPACE_ID + "/bbox?west=179&north=89&east=-179&south=-89&clustering=hexbin")
         .then()
         .statusCode(FORBIDDEN.code());
   }
@@ -856,7 +856,7 @@ public class AuthTestsIT extends RestAssuredTest {
         .accept(APPLICATION_GEO_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_WITH_USE_CAPABILITIES))
         .when()
-        .get("/spaces/x-auth-test-space/bbox?west=179&north=89&east=-179&south=-89&clustering=hexbin")
+        .get("/spaces/" + AUTH_SPACE_ID + "/bbox?west=179&north=89&east=-179&south=-89&clustering=hexbin")
         .then()
         .statusCode(either(is(200)).or(is(502)));
   }
@@ -874,7 +874,7 @@ public class AuthTestsIT extends RestAssuredTest {
         .accept(APPLICATION_GEO_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_WITH_FEATURES_ONLY))
         .when()
-        .get("/spaces/x-auth-test-space/tile/quadkey/120?clustering=hexbin")
+        .get("/spaces/" + AUTH_SPACE_ID + "/tile/quadkey/120?clustering=hexbin")
         .then()
         .statusCode(FORBIDDEN.code());
   }
@@ -892,7 +892,7 @@ public class AuthTestsIT extends RestAssuredTest {
         .accept(APPLICATION_GEO_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_WITH_USE_CAPABILITIES))
         .when()
-        .get("/spaces/x-auth-test-space/tile/quadkey/120?clustering=hexbin")
+        .get("/spaces/" + AUTH_SPACE_ID + "/tile/quadkey/120?clustering=hexbin")
         .then()
         .statusCode(either(is(200)).or(is(502)));
   }
@@ -1014,7 +1014,7 @@ public class AuthTestsIT extends RestAssuredTest {
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .body(changeset1.toString())
-        .post("/spaces/x-auth-test-space/features")
+        .post("/spaces/" + AUTH_SPACE_ID + "/features")
         .then()
         .statusCode(OK.code());
 

@@ -349,7 +349,7 @@ public class GraphFusionTool {
          */
         return null;
       OutputSet referencedOutputsSet = referencedDelegateStep.getOutputSet(ref.name());
-      return toInputSetReference(runEmrJob.getInputSet(referencedOutputsSet.getStepId(), ref.name()));
+      return toInputSetReference(runEmrJob.fromInputReferenceIdentifier(referencedOutputsSet.getStepId(), ref.name()));
     }
   }
 }

@@ -43,8 +43,17 @@ public abstract class BranchConfigClient implements Initializable {
     return spaceId + ":" + branchId;
   }
 
+  /*
+   * Single instance, like the other config clients: this is reached per request, and each call used
+   * to build two AmazonDynamoDBAsyncClients - one here and one for the entityConfigClient field.
+   */
+  private static final class InstanceHolder {
+    private static final BranchConfigClient instance =
+        new DynamoBranchConfigClient(Service.configuration.BRANCHES_DYNAMODB_TABLE_ARN);
+  }
+
   public static BranchConfigClient getInstance() {
-    return new DynamoBranchConfigClient(Service.configuration.BRANCHES_DYNAMODB_TABLE_ARN);
+    return InstanceHolder.instance;
   }
 
   /**

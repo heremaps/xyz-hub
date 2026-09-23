@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,9 @@ package com.here.xyz.jobs.util;
 
 import com.here.xyz.util.service.aws.AwsClientFactoryBase;
 import software.amazon.awssdk.services.cloudwatchevents.CloudWatchEventsClient;
+import software.amazon.awssdk.services.cloudwatchlogs.CloudWatchLogsClient;
 import software.amazon.awssdk.services.emrserverless.EmrServerlessClient;
+import software.amazon.awssdk.services.s3control.S3ControlClient;
 import software.amazon.awssdk.services.sfn.SfnAsyncClient;
 import software.amazon.awssdk.services.sfn.SfnClient;
 
@@ -29,7 +31,9 @@ public class AwsClientFactory extends AwsClientFactoryBase {
   private static SfnClient sfnClient;
   private static SfnAsyncClient asyncSfnClient;
   private static CloudWatchEventsClient cloudwatchEventsClient;
+  private static CloudWatchLogsClient cloudwatchLogsClient;
   private static EmrServerlessClient emrServerlessClient;
+  private static S3ControlClient s3ControlClient;
 
   public static SfnClient sfnClient() {
     if (sfnClient == null)
@@ -49,9 +53,21 @@ public class AwsClientFactory extends AwsClientFactoryBase {
     return cloudwatchEventsClient;
   }
 
+  public static CloudWatchLogsClient cloudwatchLogsClient() {
+    if (cloudwatchLogsClient == null)
+      cloudwatchLogsClient = prepareClient(CloudWatchLogsClient.builder()).build();
+    return cloudwatchLogsClient;
+  }
+
   public static EmrServerlessClient emrServerlessClient() {
     if (emrServerlessClient == null)
       emrServerlessClient = prepareClient(EmrServerlessClient.builder()).build();
     return emrServerlessClient;
+  }
+
+  public static S3ControlClient s3ControlClient() {
+    if (s3ControlClient == null)
+      s3ControlClient = prepareClient(S3ControlClient.builder()).build();
+    return s3ControlClient;
   }
 }

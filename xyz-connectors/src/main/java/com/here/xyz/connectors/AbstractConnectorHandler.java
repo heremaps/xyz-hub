@@ -52,7 +52,7 @@ import org.apache.logging.log4j.util.Strings;
  * A default implementation of a request handler that can be reused. It supports out of the box caching via e-tag.
  */
 public abstract class AbstractConnectorHandler {
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(AbstractConnectorHandler.class);
 
   /**
    * The event-type-suffix for response notifications.

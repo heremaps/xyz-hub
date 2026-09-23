@@ -92,7 +92,7 @@ import org.locationtech.jts.io.WKBWriter;
 import org.postgresql.util.PGobject;
 
 public class NLConnector extends PSQLXyzConnector {
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(NLConnector.class);
   private static final String STATUS_PROPERTY_KEY = "status";
 
   private static final String GLOBAL_VERSION_SEARCH_KEY = "globalVersions";

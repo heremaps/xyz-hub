@@ -67,8 +67,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import net.jodah.expiringmap.ExpirationPolicy;
+import net.jodah.expiringmap.ExpiringMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -76,7 +79,7 @@ public abstract class DatabaseHandler extends StorageConnector {
     //TODO - set scriptResourcePath if ext & h3 functions should get installed here.
     private static final List<ScriptResourcePath> SCRIPT_RESOURCE_PATHS = List.of(new ScriptResourcePath("/sql", "hub", "common"));
     public static final String ECPS_PHRASE = "ECPS_PHRASE";
-    private static final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger(DatabaseHandler.class);
 
     /**
      * Lambda Execution Time = 25s. We are actively canceling queries after STATEMENT_TIMEOUT_SECONDS
@@ -108,7 +111,18 @@ public abstract class DatabaseHandler extends StorageConnector {
             .withApplicationName(FunctionRuntime.getInstance().getApplicationName())
             .withScriptResourcePaths(SCRIPT_RESOURCE_PATHS);
 
+        applyConnectionPoolParams(dbSettings, connectorParams);
+
         initialize(dbSettings, null);
+    }
+
+    /**
+     * Applies the pool sizing from the connector params, taking precedence over the deprecated
+     * PSQL_MAX_CONN ECPS setting. A Lambda container serves one invocation, so its default stays 1.
+     */
+    private static void applyConnectionPoolParams(DatabaseSettings dbSettings, ConnectorParameters connectorParams) {
+        if (connectorParams.getDbMaxPoolSize() > 0)
+            dbSettings.withDbMaxPoolSize(connectorParams.getDbMaxPoolSize());
     }
 
     public void initialize(DatabaseSettings dbSettings, Context context) {
@@ -423,12 +437,36 @@ public abstract class DatabaseHandler extends StorageConnector {
         }
     }
 
+    /**
+     * Whether the target table carries its "_unique" constraint, which decides the shape of the
+     * upsert statement. Cached with a short expiry: it only changes when a table is created or
+     * migrated, but was looked up on every write request.
+     *
+     * Keyed by the cache key of the database settings rather than by their ID, so that a connector
+     * repointed at another database or schema does not read the answer for the previous one.
+     */
+    private static final Map<String, Boolean> UNIQUE_CONSTRAINT_CACHE = ExpiringMap.builder()
+        .maxSize(1024)
+        .expirationPolicy(ExpirationPolicy.CREATED)
+        .expiration(1, TimeUnit.MINUTES)
+        .build();
+
     private boolean checkUniqueTableConstraint(ModifyFeaturesEvent event) throws SQLException {
-        return new SQLQuery("SELECT 1 FROM pg_catalog.pg_constraint "
+        String table = readBranchTableFromEvent(event);
+        String cacheKey = getDatabaseSettings().getCacheKey() + "/" + table;
+
+        Boolean cached = UNIQUE_CONSTRAINT_CACHE.get(cacheKey);
+        if (cached != null)
+            return cached;
+
+        boolean exists = new SQLQuery("SELECT 1 FROM pg_catalog.pg_constraint "
             + "WHERE connamespace::regnamespace::text = #{schema} AND conname = #{constraintName}")
             .withNamedParameter("schema", getDatabaseSettings().getSchema())
-            .withNamedParameter("constraintName", readBranchTableFromEvent(event) + "_unique")
+            .withNamedParameter("constraintName", table + "_unique")
             .run(dataSourceProvider, rs -> rs.next());
+
+        UNIQUE_CONSTRAINT_CACHE.put(cacheKey, exists);
+        return exists;
     }
 
     private List<Feature> loadExistingFeatures(ModifyFeaturesEvent event, List<String> idsToFetch) throws SQLException,
