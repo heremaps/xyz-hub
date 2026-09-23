@@ -140,7 +140,7 @@ public class TaskedSpaceBasedQueryBuilder extends DatabaseStepQueryBuilder {
 
   public SQLQuery buildRetrieveTaskItemAndStatisticsAfterUpdateQuery(SpaceBasedTaskUpdate update) {
     return new SQLQuery("""
-        SELECT total, started, finalized, task_id, task_input
+        SELECT total, started, finalized, task_id, task_input, update_applied
           FROM update_task_item_and_get_task_item_and_statistics(
             #{taskId},
             #{taskOutput}::JSONB,
