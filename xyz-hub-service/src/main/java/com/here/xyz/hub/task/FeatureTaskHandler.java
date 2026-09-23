@@ -88,6 +88,7 @@ import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.FeatureCollection.ModificationFailure;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
+import com.here.xyz.models.hub.Branch;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space.Extension;
 import com.here.xyz.models.hub.Tag;
@@ -134,6 +135,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import net.jodah.expiringmap.ExpirationPolicy;
 import net.jodah.expiringmap.ExpiringMap;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -1506,14 +1508,12 @@ public class FeatureTaskHandler {
         //Ensure the StatisticsResponse is correctly set-up
         StatisticsResponse response = (StatisticsResponse) task.getResponse();
 
-        getMinTagVersion(task.getMarker(), task.space.getId())
-                .onSuccess(minTagVersion -> {
-                  //Override minVersion if it is set in the space config and if it is higher than the one in the response
-                  response.getMinVersion().setValue(Math.max(task.space.getMinVersion(),
-                          response.getMaxVersion().getValue() - task.space.getVersionsToKeep() + 1));
-
-                  if(minTagVersion != null)
-                    response.getMinVersion().setValue(Math.min(minTagVersion, response.getMinVersion().getValue()));
+        getMinProtectedVersion(task.getMarker(), task.space.getId())
+                .onSuccess(minProtectedVersion -> {
+                  long retentionFloor = Math.max(task.space.getMinVersion(),
+                          response.getMaxVersion().getValue() - task.space.getVersionsToKeep() + 1);
+                  response.getMinVersion().setValue(minProtectedVersion == null
+                          ? retentionFloor : Math.min(minProtectedVersion, retentionFloor));
 
                   defineGlobalSearchableField(response, task);
                   defineContentUpdatedAtField(response, (FeatureTask.GetStatistics) task)
@@ -1530,6 +1530,54 @@ public class FeatureTaskHandler {
       }
     }
     callback.call(task);
+  }
+
+  /**
+   * @return The lowest version which must stay readable because a tag, a version-bound extension or a branch
+   *         references it, or null if nothing does.
+   */
+  private static Future<Long> getMinProtectedVersion(Marker marker, String spaceId) {
+    Future<Long> minTagVersion = getMinTagVersion(marker, spaceId);
+    Future<List<VersionReader>> readers = loadVersionReaders(marker, spaceId);
+
+    return Future.all(minTagVersion, readers)
+        .map(v -> Stream.concat(Stream.ofNullable(minTagVersion.result()), readers.result().stream().map(VersionReader::version))
+            .min(Long::compare)
+            .orElse(null));
+  }
+
+  record VersionReader(String name, long version) {}
+
+  /**
+   * @return The version-bound extensions and the branches which still read an older version of the specified space
+   */
+  static Future<List<VersionReader>> loadVersionReaders(Marker marker, String spaceId) {
+    Future<List<VersionReader>> extensions = Service.spaceConfigClient.getSpacesFromSuper(marker, spaceId)
+        .map(spaces -> spaces.stream()
+            .filter(FeatureTaskHandler::isPinned)
+            .map(space -> new VersionReader("extension " + space.getId(), space.getExtension().getVersion()))
+            .toList());
+
+    Future<List<VersionReader>> branches = Service.branchConfigClient.load(spaceId)
+        .map(spaceBranches -> spaceBranches.stream()
+            .filter(FeatureTaskHandler::isBranchOfMain)
+            .map(branch -> new VersionReader("branch " + branch.getId(), branch.getBaseRef().getVersion()))
+            .toList());
+
+    return Future.all(extensions, branches)
+        .map(v -> Stream.concat(extensions.result().stream(), branches.result().stream()).toList());
+  }
+
+  //A version-bound extension is a reader of the extended space's version, and thus protects that version from being deleted.
+  private static boolean isPinned(Space space) {
+    Long version = space.getExtension() == null ? null : space.getExtension().getVersion();
+    return version != null && version >= 0;
+  }
+
+  //A branch of the main branch is a reader of the main branch's version, and thus protects that version from being deleted.
+  private static boolean isBranchOfMain(Branch branch) {
+    Ref baseRef = branch.getBaseRef();
+    return baseRef != null && baseRef.isMainBranch() && baseRef.isOnlyNumeric() && baseRef.isSingleVersion();
   }
 
   protected static Future<Long> getMinTagVersion(Marker marker, String spaceId) {
@@ -1759,23 +1807,32 @@ public class FeatureTaskHandler {
   }
 
   static void injectMinVersion(final ConditionalOperation task, final Callback<ConditionalOperation> callback) {
-    if (task.getEvent() instanceof ModifyFeaturesEvent)
-      injectMinVersion(task.getMarker(), task.space.getId(), task.getEvent())
-          .onSuccess(tag -> callback.call(task))
-          .onFailure(t -> {
-            logger.error(task.getMarker(), "Error while injecting minVersion into event.", t);
-            callback.exception(t instanceof HttpException ? t : new HttpException(INTERNAL_SERVER_ERROR, "Unexpected error.", t));
-          });
+    if (!(task.getEvent() instanceof ModifyFeaturesEvent)) {
+      callback.call(task);
+      return;
+    }
+
+    /*
+    minVersion only reaches the database through the versioned write function, so for a non-versioned
+    space resolving it would mean a DynamoDB tag lookup per write request for a value never read.
+     */
+    if (task.space.getVersionsToKeep() <= 1) {
+      task.getEvent().setMinVersion(-1l);
+      callback.call(task);
+      return;
+    }
+
+    injectMinVersion(task.getMarker(), task.space.getId(), task.getEvent())
+        .onSuccess(tag -> callback.call(task))
+        .onFailure(t -> {
+          logger.error(task.getMarker(), "Error while injecting minVersion into event.", t);
+          callback.exception(t instanceof HttpException ? t : new HttpException(INTERNAL_SERVER_ERROR, "Unexpected error.", t));
+        });
   }
 
   public static Future<Long> injectMinVersion(Marker marker, String spaceId, ContextAwareEvent event) {
-    return getMinTagVersion(marker, spaceId)
-        .onSuccess(minTagVersion -> {
-          if (minTagVersion != null)
-            event.setMinVersion(minTagVersion);
-          else
-            event.setMinVersion(-1l);
-        });
+    return getMinProtectedVersion(marker, spaceId)
+        .onSuccess(minProtectedVersion -> event.setMinVersion(minProtectedVersion != null ? minProtectedVersion : -1l));
   }
 
   private static SnsAsyncClient getSnsClient() {
