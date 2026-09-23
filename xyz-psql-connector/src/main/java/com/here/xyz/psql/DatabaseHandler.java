@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -71,8 +71,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import net.jodah.expiringmap.ExpirationPolicy;
+import net.jodah.expiringmap.ExpiringMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -437,12 +440,36 @@ public abstract class DatabaseHandler extends StorageConnector {
         }
     }
 
+    /**
+     * Whether the target table carries its "_unique" constraint, which decides the shape of the
+     * upsert statement. Cached with a short expiry: it only changes when a table is created or
+     * migrated, but was looked up on every write request.
+     *
+     * Keyed by the cache key of the database settings rather than by their ID, so that a connector
+     * repointed at another database or schema does not read the answer for the previous one.
+     */
+    private static final Map<String, Boolean> UNIQUE_CONSTRAINT_CACHE = ExpiringMap.builder()
+        .maxSize(1024)
+        .expirationPolicy(ExpirationPolicy.CREATED)
+        .expiration(1, TimeUnit.MINUTES)
+        .build();
+
     private boolean checkUniqueTableConstraint(ModifyFeaturesEvent event) throws SQLException {
-        return new SQLQuery("SELECT 1 FROM pg_catalog.pg_constraint "
+        String table = readBranchTableFromEvent(event);
+        String cacheKey = getDatabaseSettings().getCacheKey() + "/" + table;
+
+        Boolean cached = UNIQUE_CONSTRAINT_CACHE.get(cacheKey);
+        if (cached != null)
+            return cached;
+
+        boolean exists = new SQLQuery("SELECT 1 FROM pg_catalog.pg_constraint "
             + "WHERE connamespace::regnamespace::text = #{schema} AND conname = #{constraintName}")
             .withNamedParameter("schema", getDatabaseSettings().getSchema())
-            .withNamedParameter("constraintName", readBranchTableFromEvent(event) + "_unique")
+            .withNamedParameter("constraintName", table + "_unique")
             .run(dataSourceProvider, rs -> rs.next());
+
+        UNIQUE_CONSTRAINT_CACHE.put(cacheKey, exists);
+        return exists;
     }
 
     private List<Feature> loadExistingFeatures(ModifyFeaturesEvent event, List<String> idsToFetch) throws SQLException,
