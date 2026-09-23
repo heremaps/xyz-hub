@@ -122,7 +122,10 @@ public class Script {
     try {
       if (installed)
         return;
-      if (!getHash().equals(loadLatestHash())) {
+      //NOTE: The versioned schema must be created even if the content did not change, because #getCompatibleSchema() resolves the
+      //search path by version, not by content. Without this check a version bump without a content change leaves the new version
+      //without a schema, so the resolution silently falls back to an older version which may carry outdated content.
+      if (!getHash().equals(loadLatestHash()) || scriptVersion != null && !scriptVersionExists()) {
         if (scriptVersion != null)
           install(getTargetSchema(scriptVersion), false);
         //Also install the "latest" version
