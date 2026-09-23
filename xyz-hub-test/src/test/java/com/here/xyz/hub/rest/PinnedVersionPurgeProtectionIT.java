@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2026 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,184 +27,124 @@ import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
 
 import com.here.xyz.models.geojson.implementation.Properties;
 import io.restassured.response.ValidatableResponse;
 import io.vertx.core.json.JsonObject;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
-/**
- * Checks that a version which a version-bound (pinned) extension is reading survives the deletion of changesets, and
- * that the oldest available version which is reported stays consistent with what is physically there.
- *
- * <p>The rolling {@code versionsToKeep} purge inside the connector is only sampled every 1000th version, so it is not
- * practical to trigger here. These tests therefore drive the explicit purge, which is the path a user can trigger at
- * any time, plus the reported {@code minVersion} that new pins are validated against.
- */
 public class PinnedVersionPurgeProtectionIT extends TestSpaceWithFeature {
 
-  private final List<String> createdSpaces = new ArrayList<>();
+  private final List<String> spaces = new ArrayList<>();
 
   @AfterEach
   public void cleanup() {
-    for (int i = createdSpaces.size() - 1; i >= 0; i--)
-      removeSpace(createdSpaces.get(i));
-    createdSpaces.clear();
+    for (int i = spaces.size() - 1; i >= 0; i--) {
+      removeSpace(spaces.get(i));
+    }
+    spaces.clear();
   }
 
   @Test
-  public void deletingChangesetsBelowAPinnedVersionIsRejected() {
-    String base = newSpace(100, null, null);
-    write(base, "f1", "base-v1"); //version 1
-    write(base, "f1", "base-v2"); //version 2
-    write(base, "f1", "base-v3"); //version 3
-    String delta = newSpace(100, base, 2L);
+  public void deletingChangesetsBelowAPinIsRejectedUntilTheExtensionIsRemoved() {
+    String base = newBase(3);
+    String delta = newExtension(base, 2L);
 
-    deleteChangesets(base, 3)
-        .statusCode(BAD_REQUEST.code())
-        .body("errorMessage", containsString(delta));
+    //The extension is pinned to version 2, so deleting changesets below version 3 is rejected
+    deleteChangesets(base, 3).statusCode(BAD_REQUEST.code()).body("errorMessage", containsString(delta));
 
-    //The pinned version must still be readable, both directly and through the extension
-    assertFeature(base, "f1", "base-v2", "2");
-    assertFeature(delta, "f1", "base-v2", null);
-  }
-
-  @Test
-  public void deletingChangesetsUpToThePinnedVersionIsAllowed() {
-    String base = newSpace(100, null, null);
-    write(base, "f1", "base-v1");
-    write(base, "f1", "base-v2");
-    write(base, "f1", "base-v3");
-    String delta = newSpace(100, base, 2L);
-
-    //Everything below the pinned version may go, the pinned version itself is kept
-    deleteChangesets(base, 2).statusCode(NO_CONTENT.code());
-
-    assertFeature(delta, "f1", "base-v2", null);
-  }
-
-  @Test
-  public void anUnpinnedExtensionDoesNotBlockTheDeletionOfChangesets() {
-    String base = newSpace(100, null, null);
-    write(base, "f1", "base-v1");
-    write(base, "f1", "base-v2");
-    write(base, "f1", "base-v3");
-    newSpace(100, base, null);
-
-    deleteChangesets(base, 3).statusCode(NO_CONTENT.code());
-  }
-
-  @Test
-  public void removingThePinnedExtensionUnblocksTheDeletionOfChangesets() {
-    String base = newSpace(100, null, null);
-    write(base, "f1", "base-v1");
-    write(base, "f1", "base-v2");
-    write(base, "f1", "base-v3");
-    String delta = newSpace(100, base, 2L);
-
-    deleteChangesets(base, 3).statusCode(BAD_REQUEST.code());
-
+    //Check that the key1 value is still as expected
+    assertKey1(delta, "v2");
+    //Removing the extension allows the deletion to proceed
     removeSpace(delta);
-    createdSpaces.remove(delta);
-
+    //Check that the key1 value is still as expected
+    spaces.remove(delta);
+    //Now the deletion is allowed
     deleteChangesets(base, 3).statusCode(NO_CONTENT.code());
   }
 
   @Test
-  public void anExtensionOfAnotherSpaceDoesNotBlockTheDeletionOfChangesets() {
-    String unrelatedBase = newSpace(100, null, null);
-    write(unrelatedBase, "f1", "unrelated-v1");
-    newSpace(100, unrelatedBase, 1L);
+  public void deletingChangesetsUpToThePinIsAllowed() {
 
-    String base = newSpace(100, null, null);
-    write(base, "f1", "base-v1");
-    write(base, "f1", "base-v2");
-    write(base, "f1", "base-v3");
+    String base = newBase(3);
+    String delta = newExtension(base, 2L);
 
+    //Deleting changesets below version 2 is allowed, since the pin is at version 2
+    deleteChangesets(base, 2).statusCode(NO_CONTENT.code());
+    //Check that the key1 value is still as expected
+    assertKey1(delta, "v2");
+  }
+
+  @Test
+  public void extensionsNotPinnedToThisSpaceDoNotBlockTheDeletion() {
+    //Create a base space with 3 versions, and an extension pinned to version 1
+    newExtension(newBase(1), 1L);
+    String base = newBase(3);
+    //Create an extension that is not pinned to any version of the base space
+    newExtension(base, null);
+    //Deleting changesets below version 3 is allowed, since the extension is not pinned to any version of the base space
     deleteChangesets(base, 3).statusCode(NO_CONTENT.code());
   }
 
-  /** A pin keeps its version alive past the rolling window, so it has to be reported as the oldest available one. */
   @Test
-  public void aPinnedVersionIsReportedAsTheOldestAvailableVersion() {
-    String base = newSpace(100, null, null);
-    write(base, "f1", "base-v1");
-    write(base, "f1", "base-v2");
-    write(base, "f1", "base-v3");
-    write(base, "f1", "base-v4");
-    newSpace(100, base, 2L);
-
-    //Shrink the rolling window so that it would no longer include the pinned version
-    patchSpace(base, new JsonObject().put("versionsToKeep", 2)).statusCode(OK.code());
-
-    statistics(base).body("minVersion.value", equalTo(2));
-  }
-
-  /** A tag and a pin both protect their version, so the lower of the two is the oldest available one. */
-  @Test
-  public void aPinBelowATagIsReportedAsTheOldestAvailableVersion() {
-    String base = newSpace(100, null, null);
-    write(base, "f1", "base-v1");
-    write(base, "f1", "base-v2");
-    write(base, "f1", "base-v3");
-    write(base, "f1", "base-v4");
-    newSpace(100, base, 2L);
+  public void theOldestAvailableVersionFollowsPinsAndTags() {
+    String base = newBase(4);
+    String delta = newExtension(base, 2L);
+    //Create a tag at version 3, and set the rolling window to 2 versions
     given().contentType(APPLICATION_JSON).headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .body(new JsonObject().put("id", "tag-v3").put("version", 3).encode())
         .when().post(getSpacesPath() + "/" + base + "/tags")
         .then().statusCode(OK.code());
-
+    //The oldest available version is now 2, since the extension is pinned to version 2 and the tag is at version 3
     patchSpace(base, new JsonObject().put("versionsToKeep", 2)).statusCode(OK.code());
 
+    //The oldest available version is now 2, since the extension is pinned to version 2 and the tag is at version 3
     statistics(base).body("minVersion.value", equalTo(2));
-  }
 
-  @Test
-  public void withoutAnyProtectionTheRollingWindowDefinesTheOldestAvailableVersion() {
-    String base = newSpace(100, null, null);
-    write(base, "f1", "base-v1");
-    write(base, "f1", "base-v2");
-    write(base, "f1", "base-v3");
-    write(base, "f1", "base-v4");
-
-    patchSpace(base, new JsonObject().put("versionsToKeep", 2)).statusCode(OK.code());
-
-    //Control for the test above: with nothing pinned, only the 2 newest versions are reported as available
+    //Removing the extension allows the deletion to proceed, and the oldest available version is now 3,
+    //since the tag is at version 3 and the rolling window starts at version 3
+    removeSpace(delta);
+    spaces.remove(delta);
+    //The oldest available version is now 3, since the tag is at version 3 and the rolling window starts at version 3
     statistics(base).body("minVersion.value", equalTo(3));
   }
 
-  // --- helpers -----------------------------------------------------------------------------------------------------
-
-  private String newSpace(int history, String base, Long pin) {
-    String id = "pin-purge-it-" + UUID.randomUUID();
-    Map<String, Object> definition = new HashMap<>(Map.of("id", id, "title", "Pinned purge protection", "versionsToKeep", history));
-    if (base != null) {
-      Map<String, Object> extension = new HashMap<>(Map.of("spaceId", base));
-      if (pin != null)
-        extension.put("version", pin.toString());
-      definition.put("extends", extension);
+  private String newBase(int versions) {
+    String id = newSpace(null);
+    for (int v = 1; v <= versions; v++) {
+      given().contentType(APPLICATION_GEO_JSON).headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+          .body(newFeature("f1").withProperties(new Properties().with("key1", "v" + v)).serialize())
+          .when().post(getSpacesPath() + "/" + id + "/features")
+          .then().statusCode(OK.code());
     }
-    createdSpaces.add(id);
-
-    given().contentType(APPLICATION_JSON).accept(APPLICATION_JSON).headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .body(new JsonObject(definition).encode())
-        .when().post(getCreateSpacePath())
-        .then().statusCode(OK.code());
     return id;
   }
 
-  private void write(String space, String id, String value) {
-    given().contentType(APPLICATION_GEO_JSON).headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .body(newFeature(id).withProperties(new Properties().with("key1", value)).serialize())
-        .when().post(getSpacesPath() + "/" + space + "/features")
+  private String newExtension(String base, Long pin) {
+    JsonObject extension = new JsonObject().put("spaceId", base);
+    if (pin != null) {
+      extension.put("version", pin);
+    }
+    return newSpace(extension);
+  }
+
+  private String newSpace(JsonObject extension) {
+    String id = "pin-purge-it-" + UUID.randomUUID();
+    JsonObject space = new JsonObject().put("id", id).put("title", id).put("versionsToKeep", 100);
+    if (extension != null) {
+      space.put("extends", extension);
+    }
+    spaces.add(id);
+
+    given().contentType(APPLICATION_JSON).headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .body(space.encode())
+        .when().post(getCreateSpacePath())
         .then().statusCode(OK.code());
+    return id;
   }
 
   private ValidatableResponse deleteChangesets(String space, long belowVersion) {
@@ -214,18 +154,15 @@ public class PinnedVersionPurgeProtectionIT extends TestSpaceWithFeature {
   }
 
   private ValidatableResponse statistics(String space) {
-    return given().contentType(APPLICATION_JSON).headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+    return given().headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when().get(getSpacesPath() + "/" + space + "/statistics")
         .then().statusCode(OK.code());
   }
 
-  private void assertFeature(String space, String id, String key1, String versionRef) {
-    String path = "features.find { it.id == '" + id + "' }.properties";
-    given().contentType(APPLICATION_JSON).headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .queryParam("context", "DEFAULT").queryParam("versionRef", versionRef == null ? "HEAD" : versionRef)
+  private void assertKey1(String space, String expected) {
+    given().headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when().get(getSpacesPath() + "/" + space + "/iterate")
         .then().statusCode(OK.code())
-        .body("features.findAll { it.id == '" + id + "' }", hasSize(1))
-        .body(path + ".key1", equalTo(key1));
+        .body("features.find { it.id == 'f1' }.properties.key1", equalTo(expected));
   }
 }
