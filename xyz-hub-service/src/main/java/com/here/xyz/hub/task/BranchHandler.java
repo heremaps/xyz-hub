@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -47,6 +47,7 @@ import com.here.xyz.util.service.Core;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -105,9 +106,9 @@ public class BranchHandler {
                 //Validate that the space is no composite space, because no branches can be created on composite spaces!
                 .compose(space -> space.getExtension() != null ? Future.failedFuture("Branch " + branchId
                     + " cannot be created on composite resource " + spaceId) : Future.succeededFuture(space))
-                .compose(space -> Space.resolveConnector(marker, space.getStorage().getId()))
-                .compose(storage -> eventForUpdate(spaceId, existingBranch, branchUpdate)
-                    .compose(event -> sendEvent(marker, event, storage)))
+                .compose(space -> eventForUpdate(spaceId, existingBranch, branchUpdate)
+                    .compose(event -> Space.resolveConnector(marker, space.getStorage().getId())
+                        .compose(storage -> sendEvent(marker, injectStorageParams(event, space), storage))))
                 .compose(branchModifiedResponse -> handleBranchModifiedResponse(spaceId, branchId, branchUpdate, branchModifiedResponse));
 
           return stored
@@ -121,9 +122,9 @@ public class BranchHandler {
     return loadBranch(spaceId, branchId)
         .compose(sourceBranch -> loadBranch(spaceId, targetBranchId)
             .compose(targetBranch -> Space.resolveSpace(marker, spaceId)
-                .compose(space -> space.resolveConnector(marker, space.getStorage().getId()))
-                .compose(storage -> eventForMerge(spaceId, sourceBranch, targetBranch)
-                    .compose(event -> sendEvent(marker, event, storage)))
+                .compose(space -> eventForMerge(spaceId, sourceBranch, targetBranch)
+                    .compose(event -> space.resolveConnector(marker, space.getStorage().getId())
+                        .compose(storage -> sendEvent(marker, injectStorageParams(event, space), storage))))
                 .compose(mergeResponse -> handleMergeResponse(spaceId, branchId, sourceBranch, targetBranch, mergeResponse)))
             .map(sourceBranch))
         .onSuccess(v -> Service.spaceConfigClient.invalidateCache(spaceId));
@@ -245,8 +246,8 @@ public class BranchHandler {
                 //Invalidate the space to ensure the deleted branch will not be listed inside anymore
                 Service.spaceConfigClient.invalidateCache(spaceId);
                 Space.resolveSpace(marker, spaceId)
-                    .compose(space -> Space.resolveConnector(marker, space.getStorage().getId()))
-                    .compose(storage -> sendEvent(marker, eventForDelete(spaceId, branch), storage))
+                    .compose(space -> Space.resolveConnector(marker, space.getStorage().getId())
+                        .compose(storage -> sendEvent(marker, injectStorageParams(eventForDelete(spaceId, branch), space), storage)))
                     .onFailure(t -> logger.error(marker, "Error updating storage after branch deletion:", t));
               });
         });
@@ -267,6 +268,12 @@ public class BranchHandler {
     return promise.future()
         .compose(response -> response instanceof ErrorResponse errorResponse ? Future.failedFuture(handleConnectorError(errorResponse))
             : Future.succeededFuture((ModifiedBranchResponse) response));
+  }
+
+  static ModifyBranchEvent injectStorageParams(ModifyBranchEvent event, Space space) {
+    if (space.getStorage().getParams() != null)
+      event.setParams(new HashMap<>(space.getStorage().getParams()));
+    return event;
   }
 
   private static Future<ModifyBranchEvent> eventForUpdate(String spaceId, Branch existingBranch, Branch branchUpdate) {

@@ -20,6 +20,7 @@
 package com.here.xyz.psql.query.branching;
 
 import static com.here.xyz.models.hub.Ref.HEAD;
+import static com.here.xyz.models.hub.Space.TABLE_NAME;
 import static com.here.xyz.psql.query.branching.BranchManager.getNodeId;
 
 import com.here.xyz.connectors.ErrorResponseException;
@@ -77,10 +78,8 @@ public class HistoryManager {
           .withNextPageToken(changesets == null ? null : changesets.getNextPageToken())
           .withNodeId(getNodeId(rangeRef))
           .withStreamId(branchManager.streamId)
-          .withVersionsToKeep(1000); //TODO: Read from original event?
-          //.withMinVersion() //TODO:
-          //.withConnectorParams() //TODO:
-          //.withParams(); //TODO:
+          .withVersionsToKeep(1000)
+          .withParams(Map.of(TABLE_NAME, branchManager.rootTable));
 
       try {
         changesets = (ChangesetCollection) new IterateChangesets(event)
