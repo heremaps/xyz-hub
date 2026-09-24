@@ -288,7 +288,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     long requestedVersion = isHeadOrAllVersions ? Long.MAX_VALUE : ref.isRange() ? ref.getEnd().getVersion() : ref.getVersion();
 
     if (event.getVersionsToKeep() > 1) {
-      return new SQLQuery("AND greatest(#{minVersion}, (SELECT max(version) + ${{baseVersion}} - #{versionsToKeep} FROM ${schema}.${table})) <= ${{requestedVersion}}")
+      return new SQLQuery("AND greatest(#{minVersion}, least((SELECT max(version) + ${{baseVersion}} - #{versionsToKeep} FROM ${schema}.${table}), (SELECT min(version) + ${{baseVersion}} FROM ${schema}.${table}))) <= ${{requestedVersion}}")
           .withNamedParameter("versionsToKeep", event.getVersionsToKeep())
           .withNamedParameter("minVersion", event.getMinVersion())
           .withQueryFragment("baseVersion", baseVersion + "::BIGINT") //TODO: That's a workaround for a minor bug in SQLQuery
