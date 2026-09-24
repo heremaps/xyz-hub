@@ -21,11 +21,9 @@ package com.here.xyz.hub.rest;
 
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_GEO_JSON;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
-import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.restassured.RestAssured.given;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 import com.here.xyz.models.geojson.implementation.Properties;
@@ -50,32 +48,13 @@ public class PinnedVersionPurgeProtectionIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void deletingChangesetsBelowAPinIsRejectedUntilTheExtensionIsRemoved() {
+  public void deletingChangesetsBelowAPinKeepsThePinnedVersion() {
     String base = newBase(3);
     String delta = newExtension(base, 2L);
 
-    //The extension is pinned to version 2, so deleting changesets below version 3 is rejected
-    deleteChangesets(base, 3).statusCode(BAD_REQUEST.code()).body("errorMessage", containsString(delta));
-
-    //Check that the key1 value is still as expected
-    assertKey1(delta, "v2");
-    //Removing the extension allows the deletion to proceed
-    removeSpace(delta);
-    //Check that the key1 value is still as expected
-    spaces.remove(delta);
-    //Now the deletion is allowed
+    //The extension is pinned to version 2, so deleting changesets below version 3 only deletes below version 2
     deleteChangesets(base, 3).statusCode(NO_CONTENT.code());
-  }
-
-  @Test
-  public void deletingChangesetsUpToThePinIsAllowed() {
-
-    String base = newBase(3);
-    String delta = newExtension(base, 2L);
-
-    //Deleting changesets below version 2 is allowed, since the pin is at version 2
-    deleteChangesets(base, 2).statusCode(NO_CONTENT.code());
-    //Check that the key1 value is still as expected
+    //Check that the pinned version is still readable through the extension
     assertKey1(delta, "v2");
   }
 

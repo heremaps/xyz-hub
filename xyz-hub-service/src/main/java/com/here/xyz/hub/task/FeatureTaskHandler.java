@@ -88,7 +88,6 @@ import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.FeatureCollection.ModificationFailure;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
-import com.here.xyz.models.hub.Branch;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space.Extension;
 import com.here.xyz.models.hub.Tag;
@@ -135,7 +134,6 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import net.jodah.expiringmap.ExpirationPolicy;
 import net.jodah.expiringmap.ExpiringMap;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -1533,51 +1531,43 @@ public class FeatureTaskHandler {
   }
 
   /**
-   * @return The lowest version which must stay readable because a tag, a version-bound extension or a branch
+   * @return The lowest version which must stay readable because a tag or a version-bound extension
    *         references it, or null if nothing does.
    */
-  private static Future<Long> getMinProtectedVersion(Marker marker, String spaceId) {
+  static Future<Long> getMinProtectedVersion(Marker marker, String spaceId) {
     Future<Long> minTagVersion = getMinTagVersion(marker, spaceId);
-    Future<List<VersionReader>> readers = loadVersionReaders(marker, spaceId);
+    Future<Long> minPinnedVersion = getMinPinnedVersion(marker, spaceId);
 
-    return Future.all(minTagVersion, readers)
-        .map(v -> Stream.concat(Stream.ofNullable(minTagVersion.result()), readers.result().stream().map(VersionReader::version))
+    return Future.all(minTagVersion, minPinnedVersion)
+        .map(v -> minOf(minTagVersion.result(), minPinnedVersion.result()));
+  }
+
+  /**
+   * @return The lowest version which a version-bound extension of the specified space reads, or null if none does.
+   */
+  static Future<Long> getMinPinnedVersion(Marker marker, String spaceId) {
+    //TODO: protect the base versions of the branches of this space (Branch#getBaseRef()) once branches are used.
+    return Service.spaceConfigClient.getSpacesFromSuper(marker, spaceId)
+        .map(spaces -> spaces.stream()
+            .filter(FeatureTaskHandler::isPinned)
+            .map(space -> space.getExtension().getVersion())
             .min(Long::compare)
             .orElse(null));
   }
 
-  record VersionReader(String name, long version) {}
-
   /**
-   * @return The version-bound extensions and the branches which still read an older version of the specified space
+   * @return The lower of the two versions, treating null as "no version" rather than as a floor
    */
-  static Future<List<VersionReader>> loadVersionReaders(Marker marker, String spaceId) {
-    Future<List<VersionReader>> extensions = Service.spaceConfigClient.getSpacesFromSuper(marker, spaceId)
-        .map(spaces -> spaces.stream()
-            .filter(FeatureTaskHandler::isPinned)
-            .map(space -> new VersionReader("extension " + space.getId(), space.getExtension().getVersion()))
-            .toList());
-
-    Future<List<VersionReader>> branches = Service.branchConfigClient.load(spaceId)
-        .map(spaceBranches -> spaceBranches.stream()
-            .filter(FeatureTaskHandler::isBranchOfMain)
-            .map(branch -> new VersionReader("branch " + branch.getId(), branch.getBaseRef().getVersion()))
-            .toList());
-
-    return Future.all(extensions, branches)
-        .map(v -> Stream.concat(extensions.result().stream(), branches.result().stream()).toList());
+  static Long minOf(Long version, Long otherVersion) {
+    if (version == null)
+      return otherVersion;
+    return otherVersion == null ? version : Math.min(version, otherVersion);
   }
 
   //A version-bound extension is a reader of the extended space's version, and thus protects that version from being deleted.
   private static boolean isPinned(Space space) {
     Long version = space.getExtension() == null ? null : space.getExtension().getVersion();
     return version != null && version >= 0;
-  }
-
-  //A branch of the main branch is a reader of the main branch's version, and thus protects that version from being deleted.
-  private static boolean isBranchOfMain(Branch branch) {
-    Ref baseRef = branch.getBaseRef();
-    return baseRef != null && baseRef.isMainBranch() && baseRef.isOnlyNumeric() && baseRef.isSingleVersion();
   }
 
   protected static Future<Long> getMinTagVersion(Marker marker, String spaceId) {

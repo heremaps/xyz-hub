@@ -40,7 +40,6 @@ import io.vertx.core.Promise;
 import java.util.Comparator;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
@@ -117,13 +116,20 @@ public class SpaceConnectorBasedHandler {
       if (event instanceof DeleteChangesetsEvent || event instanceof GetChangesetStatisticsEvent || event instanceof IterateChangesetsEvent) {
         return getMinTag(marker, space.getId())
             .compose(minTag -> {
-              if (event instanceof DeleteChangesetsEvent deleteChangesetsEvent && minTag != null) {
+              if (event instanceof DeleteChangesetsEvent deleteChangesetsEvent) {
                 //FIXME: getMinUserTag and use this version. Currently we use minTag to be BWC
-                if (!minTag.isSystem() && minTag.getVersion() < deleteChangesetsEvent.getMinVersion())
+                if (minTag != null && !minTag.isSystem() && minTag.getVersion() < deleteChangesetsEvent.getMinVersion())
                   return Future.failedFuture(new HttpException(BAD_REQUEST, "Tag \"" + minTag.getId() + "\"for version "
                       + minTag.getVersion() + " exists!"));
-                else
-                  deleteChangesetsEvent.setMinVersion(Math.min(minTag.getVersion(), deleteChangesetsEvent.getMinVersion()));
+                //Never delete a version which a tag or a version-bound extension still reads. Only the pins are looked
+                //up here, because the tag floor is already known from the lookup above.
+                return FeatureTaskHandler.getMinPinnedVersion(marker, space.getId())
+                    .onSuccess(minPinnedVersion -> {
+                      Long minProtectedVersion = FeatureTaskHandler.minOf(minTag == null ? null : minTag.getVersion(), minPinnedVersion);
+                      if (minProtectedVersion != null)
+                        deleteChangesetsEvent.setMinVersion(Math.min(minProtectedVersion, deleteChangesetsEvent.getMinVersion()));
+                    })
+                    .mapEmpty();
               }
               else if (event instanceof GetChangesetStatisticsEvent getChangesetStatisticsEvent && minTag != null) {
                 //TODO: check minSpaceVersion
@@ -144,33 +150,12 @@ public class SpaceConnectorBasedHandler {
               }
               return Future.succeededFuture();
             })
-            //After the tag handling, which may have lowered the version to be deleted
-            .compose(v -> event instanceof DeleteChangesetsEvent deleteChangesetsEvent
-                    ? checkVersionReaders(marker, space.getId(), deleteChangesetsEvent.getMinVersion())
-                    : Future.succeededFuture())
             .compose(v -> event instanceof ContextAwareEvent<?> contextAwareEvent
                     ? resolveBranchFor(contextAwareEvent, space) : Future.succeededFuture())
             .map(space);
       }
       else
         return Future.succeededFuture(space);
-    }
-
-    /**
-     * Refuses to delete changesets which a version-bound extension or a branch of the space still reads.
-     */
-    private static Future<Void> checkVersionReaders(Marker marker, String spaceId, long minVersion) {
-        return FeatureTaskHandler.loadVersionReaders(marker, spaceId).compose(readers -> {
-            String blockingReaders = readers.stream()
-                    .filter(reader -> reader.version() < minVersion)
-                    .map(reader -> reader.name() + "@" + reader.version())
-                    .collect(Collectors.joining(", "));
-
-            if (blockingReaders.isEmpty())
-                return Future.succeededFuture();
-            return Future.failedFuture(new HttpException(BAD_REQUEST, "The changesets below version " + minVersion
-                    + " can not be deleted, because the following still read an older version of this space: " + blockingReaders));
-        });
     }
 
     public static Future<Tag> getMinTag(Marker marker, String space) {
