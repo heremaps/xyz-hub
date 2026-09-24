@@ -42,7 +42,6 @@ public class GetFeaturesById extends GetFeatures<GetFeaturesByIdEvent, FeatureCo
 
   @Override
   protected SQLQuery buildFilterWhereClause(GetFeaturesByIdEvent event) {
-    return new SQLQuery("id = ANY(#{ids})")
-        .withNamedParameter("ids", event.getIds().toArray(new String[0]));
+    return buildIdsFilter(event.getIds(), "ids");
   }
 }

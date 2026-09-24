@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -91,8 +91,39 @@ public class LoadFeatures extends GetFeatures<LoadFeaturesEvent, FeatureCollecti
               .collect(Collectors.toList()), true));
     }
     else
-      return new SQLQuery("id = ANY(#{ids})")
-          .withNamedParameter("ids", idMap.keySet().toArray(new String[0]));
+      return buildIdsFilter(idMap.keySet(), "ids");
+  }
+
+  @Override
+  protected SQLQuery buildFiltersFragment(LoadFeaturesEvent event, boolean isExtension, SQLQuery filterWhereClause, int dataset) {
+    SQLQuery filters = isBoundDataset(event, isExtension, dataset)
+        ? buildBoundDatasetFilter(event, dataset)
+        : filterWhereClause;
+    return super.buildFiltersFragment(event, isExtension, filters, dataset);
+  }
+
+  @Override
+  protected SQLQuery buildCompositionFilter(LoadFeaturesEvent event, boolean isL2, SQLQuery idComparisonFragment) {
+    if (isForHistoryQuery && hasBoundBaseVersion(event) && !isL2)
+      return new SQLQuery("");
+
+    return super.buildCompositionFilter(event, isL2, idComparisonFragment);
+  }
+
+  /**
+   * Selects requested IDs from a bound dataset. For the history query, only IDs requesting logical version zero
+   * belong to the physical base snapshot.
+   */
+  private SQLQuery buildBoundDatasetFilter(LoadFeaturesEvent event, int dataset) {
+    String idsParamName = "baseVersionIds" + dataset + (isForHistoryQuery ? "History" : "Head");
+    Set<String> ids = isForHistoryQuery
+        ? event.getIdsMap().entrySet().stream()
+            .filter(entry -> "0".equals(entry.getValue()))
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toSet())
+        : event.getIdsMap().keySet();
+
+    return buildIdsFilter(ids, idsParamName);
   }
 
   private static SQLQuery buildLoadFeaturesInputFragment(List<LoadFeatureVersionInput> input, boolean head) {
