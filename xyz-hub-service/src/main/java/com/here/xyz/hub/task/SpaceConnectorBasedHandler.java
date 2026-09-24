@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -116,13 +116,20 @@ public class SpaceConnectorBasedHandler {
       if (event instanceof DeleteChangesetsEvent || event instanceof GetChangesetStatisticsEvent || event instanceof IterateChangesetsEvent) {
         return getMinTag(marker, space.getId())
             .compose(minTag -> {
-              if (event instanceof DeleteChangesetsEvent deleteChangesetsEvent && minTag != null) {
+              if (event instanceof DeleteChangesetsEvent deleteChangesetsEvent) {
                 //FIXME: getMinUserTag and use this version. Currently we use minTag to be BWC
-                if (!minTag.isSystem() && minTag.getVersion() < deleteChangesetsEvent.getMinVersion())
+                if (minTag != null && !minTag.isSystem() && minTag.getVersion() < deleteChangesetsEvent.getMinVersion())
                   return Future.failedFuture(new HttpException(BAD_REQUEST, "Tag \"" + minTag.getId() + "\"for version "
                       + minTag.getVersion() + " exists!"));
-                else
-                  deleteChangesetsEvent.setMinVersion(Math.min(minTag.getVersion(), deleteChangesetsEvent.getMinVersion()));
+                //Never delete a version which a tag or a version-bound extension still reads. Only the pins are looked
+                //up here, because the tag floor is already known from the lookup above.
+                return FeatureTaskHandler.getMinPinnedVersion(marker, space.getId())
+                    .onSuccess(minPinnedVersion -> {
+                      Long minProtectedVersion = FeatureTaskHandler.minOf(minTag == null ? null : minTag.getVersion(), minPinnedVersion);
+                      if (minProtectedVersion != null)
+                        deleteChangesetsEvent.setMinVersion(Math.min(minProtectedVersion, deleteChangesetsEvent.getMinVersion()));
+                    })
+                    .mapEmpty();
               }
               else if (event instanceof GetChangesetStatisticsEvent getChangesetStatisticsEvent && minTag != null) {
                 //TODO: check minSpaceVersion

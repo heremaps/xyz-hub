@@ -1506,14 +1506,12 @@ public class FeatureTaskHandler {
         //Ensure the StatisticsResponse is correctly set-up
         StatisticsResponse response = (StatisticsResponse) task.getResponse();
 
-        getMinTagVersion(task.getMarker(), task.space.getId())
-                .onSuccess(minTagVersion -> {
-                  //Override minVersion if it is set in the space config and if it is higher than the one in the response
-                  response.getMinVersion().setValue(Math.max(task.space.getMinVersion(),
-                          response.getMaxVersion().getValue() - task.space.getVersionsToKeep() + 1));
-
-                  if(minTagVersion != null)
-                    response.getMinVersion().setValue(Math.min(minTagVersion, response.getMinVersion().getValue()));
+        getMinProtectedVersion(task.getMarker(), task.space.getId())
+                .onSuccess(minProtectedVersion -> {
+                  long retentionFloor = Math.max(task.space.getMinVersion(),
+                          response.getMaxVersion().getValue() - task.space.getVersionsToKeep() + 1);
+                  response.getMinVersion().setValue(minProtectedVersion == null
+                          ? retentionFloor : Math.min(minProtectedVersion, retentionFloor));
 
                   defineGlobalSearchableField(response, task);
                   defineContentUpdatedAtField(response, (FeatureTask.GetStatistics) task)
@@ -1530,6 +1528,46 @@ public class FeatureTaskHandler {
       }
     }
     callback.call(task);
+  }
+
+  /**
+   * @return The lowest version which must stay readable because a tag or a version-bound extension
+   *         references it, or null if nothing does.
+   */
+  static Future<Long> getMinProtectedVersion(Marker marker, String spaceId) {
+    Future<Long> minTagVersion = getMinTagVersion(marker, spaceId);
+    Future<Long> minPinnedVersion = getMinPinnedVersion(marker, spaceId);
+
+    return Future.all(minTagVersion, minPinnedVersion)
+        .map(v -> minOf(minTagVersion.result(), minPinnedVersion.result()));
+  }
+
+  /**
+   * @return The lowest version which a version-bound extension of the specified space reads, or null if none does.
+   */
+  static Future<Long> getMinPinnedVersion(Marker marker, String spaceId) {
+    //TODO: protect the base versions of the branches of this space (Branch#getBaseRef()) once branches are used.
+    return Service.spaceConfigClient.getSpacesFromSuper(marker, spaceId)
+        .map(spaces -> spaces.stream()
+            .filter(FeatureTaskHandler::isPinned)
+            .map(space -> space.getExtension().getVersion())
+            .min(Long::compare)
+            .orElse(null));
+  }
+
+  /**
+   * @return The lower of the two versions, treating null as "no version" rather than as a floor
+   */
+  static Long minOf(Long version, Long otherVersion) {
+    if (version == null)
+      return otherVersion;
+    return otherVersion == null ? version : Math.min(version, otherVersion);
+  }
+
+  //A version-bound extension is a reader of the extended space's version, and thus protects that version from being deleted.
+  private static boolean isPinned(Space space) {
+    Long version = space.getExtension() == null ? null : space.getExtension().getVersion();
+    return version != null && version >= 0;
   }
 
   protected static Future<Long> getMinTagVersion(Marker marker, String spaceId) {
@@ -1783,13 +1821,8 @@ public class FeatureTaskHandler {
   }
 
   public static Future<Long> injectMinVersion(Marker marker, String spaceId, ContextAwareEvent event) {
-    return getMinTagVersion(marker, spaceId)
-        .onSuccess(minTagVersion -> {
-          if (minTagVersion != null)
-            event.setMinVersion(minTagVersion);
-          else
-            event.setMinVersion(-1l);
-        });
+    return getMinProtectedVersion(marker, spaceId)
+        .onSuccess(minProtectedVersion -> event.setMinVersion(minProtectedVersion != null ? minProtectedVersion : -1l));
   }
 
   private static SnsAsyncClient getSnsClient() {
