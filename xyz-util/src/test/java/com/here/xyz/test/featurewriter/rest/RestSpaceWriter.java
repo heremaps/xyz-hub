@@ -53,7 +53,12 @@ public class RestSpaceWriter extends SpaceWriter {
   }
 
   public RestSpaceWriter(boolean composite, boolean history, String testSuiteName) {
-    super(composite, testSuiteName);
+    //Force the Hub to assign a decoupled physical table name (see SpaceTaskHandler.assignTableName):
+    //only ~5% of new spaces are sampled, but any space whose id contains "drgnstn" is always opted in.
+    //Without that, the physical table name would fall back to the connector's legacy naming and
+    //the direct SQL reads in the tests could not locate it via the Hub any more.
+    super(composite, testSuiteName == null ? null
+        : (testSuiteName.contains("drgnstn") ? testSuiteName : testSuiteName + "_drgnstn"));
     this.history = history;
   }
 
