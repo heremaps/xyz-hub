@@ -31,6 +31,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.restassured.RestAssured.given;
 import static org.awaitility.Awaitility.await;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -404,6 +405,7 @@ public class CompositeSpaceOnBaseVersionIT extends TestSpaceWithFeature {
     for (String versionRef : new String[] {null, "0"}) {
       awaitCached(cachedSpaceId, versionRef);
       loadFeatures(cachedSpaceId, DEFAULT, "iterate", versionRef)
+          .header(STREAM_INFO, containsString("CH=1"))
           .body("features.find { it.id == 'base-1' }.properties.key1", equalTo("value1"));
     }
 
@@ -423,6 +425,7 @@ public class CompositeSpaceOnBaseVersionIT extends TestSpaceWithFeature {
 
     awaitCached(cachedSpaceId, null);
     loadFeatures(cachedSpaceId, DEFAULT)
+        .header(STREAM_INFO, containsString("CH=1"))
         .body("features.find { it.id == 'base-1' }.properties.key1", equalTo("value1"));
 
     //Only the intermediate is re-bound, the outer composite's own config stays the same
