@@ -24,10 +24,12 @@ import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_GEO_JSON;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.STREAM_INFO;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.restassured.RestAssured.given;
+import static org.awaitility.Awaitility.await;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -40,6 +42,8 @@ import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import io.restassured.response.ValidatableResponse;
+import io.vertx.core.json.JsonObject;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -388,6 +392,58 @@ public class CompositeSpaceOnBaseVersionIT extends TestSpaceWithFeature {
     loadFeatures(nestedSpaceId, DEFAULT, "iterate")
         .body("features.find { it.id == 'base-1' }.properties.intermediate", equalTo("override"))
         .body("features.find { it.id == 'base-1' }.properties.outer", equalTo("value"));
+  }
+
+  @Test
+  public void changingTheBaseVersionInvalidatesTheCachedResponse() {
+    String cachedSpaceId = testSpecificSpaceId("-cached");
+    addFeature(spaceId, updatedFeature("base-1", "value-v3")); //base version 3
+    createCachedSpace(cachedSpaceId, spaceId);
+
+    //HEAD and a specific version (immutable, so cached with the static TTL) are both served from the cache ...
+    for (String versionRef : new String[] {null, "0"}) {
+      awaitCached(cachedSpaceId, versionRef);
+      loadFeatures(cachedSpaceId, DEFAULT, "iterate", versionRef)
+          .body("features.find { it.id == 'base-1' }.properties.key1", equalTo("value1"));
+    }
+
+    patchSpace(cachedSpaceId, new JsonObject().put("extends", new JsonObject().put("spaceId", spaceId).put("version", 3)));
+
+    //... but not anymore after the base version was changed
+    for (String versionRef : new String[] {null, "0"})
+      loadFeatures(cachedSpaceId, DEFAULT, "iterate", versionRef)
+          .body("features.find { it.id == 'base-1' }.properties.key1", equalTo("value-v3"));
+  }
+
+  @Test
+  public void changingTheIntermediateBaseVersionInvalidatesTheCachedResponse() {
+    String cachedSpaceId = testSpecificSpaceId("-cached-nested");
+    addFeature(spaceId, updatedFeature("base-1", "value-v3")); //base version 3
+    createCachedSpace(cachedSpaceId, extSpaceId);
+
+    awaitCached(cachedSpaceId, null);
+    loadFeatures(cachedSpaceId, DEFAULT)
+        .body("features.find { it.id == 'base-1' }.properties.key1", equalTo("value1"));
+
+    //Only the intermediate is re-bound, the outer composite's own config stays the same
+    patchSpace(extSpaceId, new JsonObject().put("extends", new JsonObject().put("spaceId", spaceId).put("version", 3)));
+
+    loadFeatures(cachedSpaceId, DEFAULT)
+        .body("features.find { it.id == 'base-1' }.properties.key1", equalTo("value-v3"));
+  }
+
+  private static void createCachedSpace(String spaceId, String baseSpaceId) {
+    createSpace(String.format("""
+        {"id": "%s", "title": "x-psql-test-extension", "cacheTTL": 1000, "extends": {"spaceId": "%s", "version": 1}}
+        """, spaceId, baseSpaceId));
+  }
+
+  //wait until the response is served from the cache
+  private void awaitCached(String spaceId, String versionRef) {
+    await().atMost(Duration.ofSeconds(5)).pollInterval(Duration.ofMillis(50)).until(() -> {
+      String streamInfo = loadFeatures(spaceId, DEFAULT, "iterate", versionRef).extract().header(STREAM_INFO);
+      return streamInfo != null && streamInfo.contains("CH=1");
+    });
   }
 
   private String testSpecificSpaceId(String suffix) {
