@@ -678,12 +678,18 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
       infoLog(STEP_ON_ASYNC_UPDATE, "Received progress update: " + processUpdate.serialize());
 
       if (!isTaskFinalized(update.taskId, (O) update.taskOutput)){
-        updateQueryTaskItemOutput(update); //update taskItem output
+        if (!updateQueryTaskItemOutput(update)) {
+          infoLog(STEP_ON_ASYNC_UPDATE, "Ignoring duplicate or outdated progress update for taskId=" + update.taskId
+              + ". No follow-up query gets started for it.");
+          return false;
+        }
+
         onTaskProgress(update.taskId, (O) update.taskOutput);  //hook method
       }else{
         finalizeTaskQuery(update.taskId); //hook method
 
         TaskProgress taskProgressAndItem = finalizeCurrentTaskAndGetTaskProgressAndNextTaskItem(update);
+
         //Calculate progress and set it on the step's status
         getStatus().setEstimatedProgress((float) taskProgressAndItem.getFinalizedTasks() / (float) taskProgressAndItem.getTotalTasks());
 
@@ -965,7 +971,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
    * @throws TooManyResourcesClaimed If too many resources are claimed during the process.
    */
   private TaskProgress getTaskProgressAndNextTaskItem() throws WebClientException, SQLException, TooManyResourcesClaimed {
-    return executeTaskItemQuery(getQueryBuilder().retrieveTaskItemAndStatisticsQuery());
+    return executeTaskItemQuery(getQueryBuilder().retrieveTaskItemAndStatisticsQuery(), null);
   }
 
   /**
@@ -979,6 +985,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
    * @param update The callback payload containing the completed task id and output.
    * @return A {@link TaskProgress} instance containing total/started/finalized counters and the
    *         next task input; {@code taskId = -1} indicates that no further task is available.
+   *         Duplicate callbacks return current counters without claiming another task.
    * @throws WebClientException If context-dependent metadata retrieval fails.
    * @throws SQLException If the underlying SQL function execution fails.
    * @throws TooManyResourcesClaimed If DB resource claiming exceeds allowed limits.
@@ -986,7 +993,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   private TaskProgress finalizeCurrentTaskAndGetTaskProgressAndNextTaskItem(SpaceBasedTaskUpdate update)
           throws WebClientException, SQLException, TooManyResourcesClaimed {
     infoLog(STEP_ON_ASYNC_UPDATE, "Update process table and claim next task with: " + update.serialize());
-    return  executeTaskItemQuery(getQueryBuilder().buildRetrieveTaskItemAndStatisticsAfterUpdateQuery(update));
+    return executeTaskItemQuery(getQueryBuilder().buildRetrieveTaskItemAndStatisticsAfterUpdateQuery(update), update.taskId);
   }
 
   /**
@@ -997,12 +1004,17 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
    * and the update contains a {@code progress} field, the result will contain all three fields.
    * Fields in the update override fields with the same name in the existing output.
    * </p>
+   * <p>
+   * The query builder may reject duplicate or outdated updates using an additional condition.
+   * </p>
    *
    * @param update The in-progress task update carrying the complete payload.
+   * @return {@code true} if the update was applied, {@code false} if it was a duplicate / outdated update.
    */
-  private void updateQueryTaskItemOutput(SpaceBasedTaskUpdate update) throws WebClientException, SQLException, TooManyResourcesClaimed {
-    runWriteQuerySyncUnkillable(getQueryBuilder().buildUpdateTaskItemOutputStatement(update)
-            , db(WRITER), 0);
+  private boolean updateQueryTaskItemOutput(SpaceBasedTaskUpdate update)
+      throws WebClientException, SQLException, TooManyResourcesClaimed {
+    return runWriteQuerySyncUnkillable(getQueryBuilder().buildUpdateTaskItemOutputStatement(update)
+            , db(WRITER), 0) > 0;
   }
 
   private Set<Integer> incrementUnknownQueryStateForTasks(Set<Integer> unknownStateTaskIds)
@@ -1039,13 +1051,17 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
     });
   }
 
-  private TaskProgress executeTaskItemQuery(SQLQuery query) throws WebClientException, SQLException, TooManyResourcesClaimed {
+  private TaskProgress executeTaskItemQuery(SQLQuery query, Integer finalizedTaskId)
+      throws WebClientException, SQLException, TooManyResourcesClaimed {
     TaskProgress taskProgress;
     try {
       taskProgress = runReadQuerySync(query, db(WRITER), 0,
           rs -> {
             if (!rs.next())
               return null;
+            if (finalizedTaskId != null && !rs.getBoolean("update_applied"))
+              infoLog(STEP_ON_ASYNC_UPDATE, "Finalization update not applied for taskId=" + finalizedTaskId
+                  + " (duplicate callback or missing task). No further task claimed; checking completion from current counters.");
             try {
               return new TaskProgress(rs.getInt("total"), rs.getInt("started"), rs.getInt("finalized"),
                   rs.getInt("task_id"), XyzSerializable.deserialize(rs.getString("task_input"), new TypeReference<I>() {
@@ -1152,8 +1168,12 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
 
   private TaskedSpaceBasedQueryBuilder getQueryBuilder() {
     if (taskedSpaceBasedQueryBuilder == null)
-      taskedSpaceBasedQueryBuilder = initQueryBuilder(TaskedSpaceBasedQueryBuilder::new);
+      taskedSpaceBasedQueryBuilder = createTaskQueryBuilder();
     return taskedSpaceBasedQueryBuilder;
+  }
+
+  protected TaskedSpaceBasedQueryBuilder createTaskQueryBuilder() {
+    return initQueryBuilder(TaskedSpaceBasedQueryBuilder::new);
   }
 
   /**
