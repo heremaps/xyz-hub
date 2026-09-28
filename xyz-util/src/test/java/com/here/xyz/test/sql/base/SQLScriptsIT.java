@@ -20,7 +20,6 @@
 package com.here.xyz.test.sql.base;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
@@ -104,8 +103,9 @@ public class SQLScriptsIT extends SQLITBase {
       assertTrue(installedVersions.contains("1.0.0"));
       assertTrue(installedVersions.contains("1.0.1"));
       assertTrue(installedVersions.contains("1.0.2"));
-      assertFalse("It's not expected that version 1.0.3 was installed, as its content is equal to the one from version 1.0.2",
-          installedVersions.contains("1.0.3"));
+      assertTrue("Version 1.0.3 is expected to be installed even though its content is equal to the one from version 1.0.2, "
+          + "because #getCompatibleSchema() resolves the schema by version and would otherwise fall back to a version that "
+          + "is not guaranteed to carry the same content", installedVersions.contains("1.0.3"));
     }
   }
 
@@ -118,7 +118,28 @@ public class SQLScriptsIT extends SQLITBase {
       List<String> installedVersions = functions.listInstalledScriptVersions();
       assertEquals("There should be kept only one script version after cleaning up old script versions", 1,
           installedVersions.size());
-      assertTrue("The kept script version should be the newest of the installed ones.", installedVersions.contains("1.0.2"));
+      assertTrue("The kept script version should be the newest of the installed ones.", installedVersions.contains("1.0.3"));
+    }
+  }
+
+  @Test
+  public void versionBumpWithoutContentChangeResolvesToTheDeployedContent() throws Exception {
+    try (DataSourceProvider dsp = getDataSourceProvider()) {
+      //An early software version installed some older content ...
+      new Script("/functions0/functions.sql", dsp, "1.0.0").install();
+      //... then a build reporting a version from a different (lower sorting) version scheme installed the current content.
+      //That also wrote the current content into the unversioned "latest" schema, which is what the hash check compares against.
+      new Script("/functions2/functions.sql", dsp, "0.0.623").install();
+
+      //Now the same content gets deployed again, this time reporting a proper version. The content did not change, so only
+      //the check for the missing versioned schema can trigger the installation here.
+      Script deployed = new Script("/functions2/functions.sql", dsp, "1.0.1");
+      deployed.install();
+
+      assertEquals("The schema resolved for the deployed version must be the one of that very version", "functions:1.0.1",
+          deployed.getCompatibleSchema());
+      assertEquals("The resolved schema must carry the content of the deployed version, not the one of an older version",
+          "Hello, TestUser", runSampleFunctionCall(dsp, "functions:1.0.1"));
     }
   }
 

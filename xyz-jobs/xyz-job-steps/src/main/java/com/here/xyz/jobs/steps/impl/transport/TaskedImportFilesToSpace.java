@@ -621,6 +621,11 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
     return targetTableFeatureCount;
   }
 
+  @Override
+  protected ImportQueryBuilder createTaskQueryBuilder() {
+    return getQueryBuilder();
+  }
+
   private ImportQueryBuilder getQueryBuilder() {
     if (importQueryBuilder == null)
       importQueryBuilder = initQueryBuilder((space, context, stepId, schema, rootTable, superRootTable) ->

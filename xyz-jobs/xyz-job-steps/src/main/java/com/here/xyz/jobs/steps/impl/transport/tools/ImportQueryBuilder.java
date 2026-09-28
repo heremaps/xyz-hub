@@ -30,7 +30,7 @@ import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
 import static com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace.Format;
 
-public class ImportQueryBuilder extends DatabaseStepQueryBuilder {
+public class ImportQueryBuilder extends TaskedSpaceBasedQueryBuilder {
   private static final String TMP_TABLE_SUFFIX = "_tmp_tbl_";
   protected final double featureWriterBatchSizeInMb;
 
@@ -38,6 +38,19 @@ public class ImportQueryBuilder extends DatabaseStepQueryBuilder {
                                String schema, String rootTable, String superRootTable, double featureWriterBatchSizeInMb) {
     super(space, context, stepId, schema, rootTable, superRootTable);
     this.featureWriterBatchSizeInMb = featureWriterBatchSizeInMb;
+  }
+
+  @Override
+  protected SQLQuery buildTaskOutputUpdateCondition() {
+    //Missing progress represents phase 1, which is accepted only while no output has been stored.
+    return new SQLQuery("""
+        finalized = false
+        AND (
+          task_output IS NULL
+          OR COALESCE((task_output #>> '{taskOutput,progress,endI}')::BIGINT, -1)
+             < COALESCE((#{taskUpdate}::JSONB #>> '{taskOutput,progress,endI}')::BIGINT, -1)
+        )
+        """);
   }
 
   public SQLQuery buildNextVersionQuery(String versionTable){
