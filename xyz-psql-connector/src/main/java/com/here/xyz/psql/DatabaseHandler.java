@@ -498,9 +498,10 @@ public abstract class DatabaseHandler extends StorageConnector {
      */
     private Set<String> loadExistingBaseFeatureIds(ModifyFeaturesEvent event, List<String> idsToFetch)
         throws SQLException, ErrorResponseException {
-      Map<String, Object> baseParams = new HashMap<>(event.getParams());
-      Map<String, Object> extension = (Map<String, Object>) baseParams.remove("extends");
+      Map<String, Object> extension = (Map<String, Object>) event.getParams().get("extends");
       Object nestedExtension = extension.get("extends");
+
+      Map<String, Object> baseParams = new HashMap<>();
       if (nestedExtension != null)
         baseParams.put("extends", nestedExtension);
 
