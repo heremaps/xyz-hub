@@ -435,6 +435,26 @@ public class CompositeSpaceOnBaseVersionIT extends TestSpaceWithFeature {
         .body("features.find { it.id == 'base-1' }.properties.key1", equalTo("value-v3"));
   }
 
+  @Test
+  public void changingTheBaseSpaceInvalidatesTheCachedResponse() {
+    String otherBaseSpaceId = testSpecificSpaceId("-other-base");
+    String cachedSpaceId = testSpecificSpaceId("-cached-rebased");
+    createSpaceWithId(otherBaseSpaceId, 100);
+    addFeature(otherBaseSpaceId, updatedFeature("base-1", "other-base")); //other base version 1
+    createCachedSpace(cachedSpaceId, spaceId);
+
+    awaitCached(cachedSpaceId, "0");
+    loadFeatures(cachedSpaceId, DEFAULT, "iterate", "0")
+        .header(STREAM_INFO, containsString("CH=1"))
+        .body("features.find { it.id == 'base-1' }.properties.key1", equalTo("value1"));
+
+    //Rebase the composite onto the same version of another space
+    patchSpace(cachedSpaceId, new JsonObject().put("extends", new JsonObject().put("spaceId", otherBaseSpaceId).put("version", 1)));
+
+    loadFeatures(cachedSpaceId, DEFAULT, "iterate", "0")
+        .body("features.find { it.id == 'base-1' }.properties.key1", equalTo("other-base"));
+  }
+
   private static void createCachedSpace(String spaceId, String baseSpaceId) {
     createSpace(String.format("""
         {"id": "%s", "title": "x-psql-test-extension", "cacheTTL": 1000, "extends": {"spaceId": "%s", "version": 1}}

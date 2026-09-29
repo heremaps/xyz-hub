@@ -240,7 +240,9 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
 
       Stream.concat(Stream.of(space), Stream.ofNullable(extendedSpaces).flatMap(Collection::stream))
           .filter(s -> s.getExtension() != null && s.getExtension().getVersion() != null)
-          .forEach(s -> hasher.putString(s.getId(), Charset.defaultCharset()).putLong(s.getExtension().getVersion()));
+          .forEach(s -> hasher.putString(s.getId(), Charset.defaultCharset())
+              .putString(s.getExtension().getSpaceId(), Charset.defaultCharset())
+              .putLong(s.getExtension().getVersion()));
 
       return cacheKey = hasher.hash().toString();
     }
