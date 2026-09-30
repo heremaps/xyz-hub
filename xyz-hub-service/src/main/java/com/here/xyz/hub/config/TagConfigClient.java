@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,7 +22,10 @@ package com.here.xyz.hub.config;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.config.dynamo.DynamoTagConfigClient;
 import com.here.xyz.hub.config.jdbc.JDBCTagConfigClient;
+import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Tag;
+import com.here.xyz.util.Hasher;
+import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.Initializable;
 import io.vertx.core.Future;
 import java.util.List;
@@ -63,5 +66,29 @@ public abstract class TagConfigClient implements Initializable {
   public abstract Future<Tag> deleteTag(Marker marker, String id, String spaceId);
 
   public abstract Future<List<Tag>> deleteTagsForSpace(Marker marker, String spaceId);
+
+  /**
+   * Protects a version, which a version-bound extension or a branch reads, from being purged by a system tag, as all purges respect tags.
+   */
+  public Future<Void> tagVersion(Marker marker, String spaceId, Ref versionRef, String taggedBy) {
+    return storeTag(marker, new Tag()
+        .withId(versionTagId(versionRef, taggedBy))
+        .withSpaceId(spaceId)
+        .withVersionRef(versionRef)
+        .withSystem(true)
+        .withDescription("Keeps the version tagged by " + taggedBy)
+        .withCreatedAt(Core.currentTimeMillis()));
+  }
+
+  public Future<Void> untagVersion(Marker marker, String spaceId, Ref versionRef, String taggedBy) {
+    return deleteTag(marker, versionTagId(versionRef, taggedBy), spaceId).mapEmpty();
+  }
+
+  /**
+   * @return The ID of the system tag which keeps the version: {@code <branchId>_<version>_<taggedBy>}, e.g. main_42_1f0c9a2b3d4e5f60.
+   */
+  public static String versionTagId(Ref versionRef, String taggedBy) {
+    return versionRef.getBranch() + "_" + versionRef.getVersion() + "_" + Hasher.getHash(taggedBy).substring(0, 16);
+  }
 }
 
