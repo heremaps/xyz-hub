@@ -100,20 +100,20 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   protected boolean isSimulation = false; //TODO: Remove testing code
   private static final Logger logger = LogManager.getLogger();
 
-  @JsonView(Static.class)
+  @JsonView({Internal.class, Static.class})
   private String taskToken = TASK_TOKEN_TEMPLATE; //Will be defined by the Step Function
 
-  @JsonView(Static.class)
+  @JsonView({Internal.class, Static.class})
   private String executionId = null; //Will be defined by the Step Function
 
-  @JsonView(Static.class)
+  @JsonView({Internal.class, Static.class})
   private int retryCount = -1; //Will be defined by the Step Function
 
   //RedriveCount is not available in localstack!
-  @JsonView(Static.class)
+  @JsonView({Internal.class, Static.class})
   private int redriveCount = Config.instance.LOCALSTACK_ENDPOINT != null ? 0 : -1; //Will be defined by the Step Function
 
-  @JsonView(Internal.class)
+  @JsonView({Internal.class, Static.class})
   private int stepExecutionHeartBeatTimeoutOverride;
 
   /**
