@@ -69,6 +69,7 @@ import com.here.xyz.models.hub.jwt.AttributeMap;
 import com.here.xyz.models.hub.jwt.JWTPayload;
 import com.here.xyz.responses.ChangesetsStatisticsResponse;
 import com.here.xyz.util.Async;
+import com.here.xyz.util.Hasher;
 import com.here.xyz.util.service.BaseHttpServerVerticle;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.HttpException;
@@ -88,6 +89,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -666,11 +668,27 @@ public class SpaceTaskHandler {
       });
   }
 
+  private static boolean shouldUseNewTablenames(String sourceId) {
+   //TODO: only temp. needed to have just a sample of spaces using new tablenames,  this restriction will be removed later on.
+    if (sourceId == null) return false;
+
+    if (sourceId.contains("drgnstn"))
+      return true;
+
+    try { // activate new tablenames for 6.25% (1/16) of all layers
+      String hash = Hasher.getHash(sourceId);
+      return hash != null && !hash.isEmpty() && hash.charAt(0) == '0';
+    } catch (Throwable t) {
+      return false;
+    }
+  }
+
   /**
    * Assigns a new, unique physical table name to a space that is about to be created.
    * NOTE: This step must run *before* the {@link ModifySpaceEvent} is sent (see {@link #sendEvents}), because the
    * table creation is performed based on that name.
    */
+
   static void assignTableName(ConditionalOperation task, Callback<ConditionalOperation> callback) {
     if (task.isUpdate()) {
       Entry<Space> entry = task.modifyOp.entries.get(0);
@@ -690,8 +708,21 @@ public class SpaceTaskHandler {
       return;
     }
 
+    //Only ~6.25% of newly created spaces get a decoupled physical table name.
+    //Spaces whose id contains "drgnstn" are always opted in.
+    //All other spaces fall back to the legacy behaviour where the connector derives the
+    //table name from the space id (optionally Murmur3-hashed via connector param enableHashedSpaceId).
+    final String spaceId = space.getId();
+    final boolean forced = shouldUseNewTablenames(spaceId);
+
+    if (!forced) {
+      logger.info(task.getMarker(), "space[{}]: Skipping decoupled table name assignment (legacy naming)", spaceId);
+      callback.call(task);
+      return;
+    }
+
     String tableName = SpaceTableResolver.assignTableName(space);
-    logger.info(task.getMarker(), "space[{}]: Assigned physical table name \"{}\"", space.getId(), tableName);
+    logger.info(task.getMarker(), "space[{}]: Assigned physical table name \"{}\" (forced={})",spaceId, tableName, forced);
     callback.call(task);
   }
 
