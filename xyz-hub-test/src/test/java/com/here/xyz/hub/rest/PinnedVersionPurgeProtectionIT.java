@@ -24,7 +24,10 @@ import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPL
 import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.restassured.RestAssured.given;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.hasItem;
 
 import com.here.xyz.models.geojson.implementation.Properties;
 import io.restassured.response.ValidatableResponse;
@@ -59,37 +62,71 @@ public class PinnedVersionPurgeProtectionIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void extensionsNotPinnedToThisSpaceDoNotBlockTheDeletion() {
-    //Create a base space with 3 versions, and an extension pinned to version 1
-    newExtension(newBase(1), 1L);
-    String base = newBase(3);
-    //Create an extension that is not pinned to any version of the base space
-    newExtension(base, null);
-    //Deleting changesets below version 3 is allowed, since the extension is not pinned to any version of the base space
-    deleteChangesets(base, 3).statusCode(NO_CONTENT.code());
+  public void rePinningAndUnpinningMoveTheProtectedVersion() {
+    String base = newBase(5);
+    String delta = newExtension(base, 2L);
+
+    //The rolling window alone would keep the versions 4 and 5, but the pin of the extension keeps version 2
+    patchSpace(base, new JsonObject().put("versionsToKeep", 2));
+    statistics(base).body("minVersion.value", equalTo(2));
+
+    //Moving the pin to version 3 releases version 2
+    patchSpace(delta, new JsonObject().put("extends", new JsonObject().put("spaceId", base).put("version", 3)));
+    tags(base, true).body("size()", equalTo(1)).body("[0].version", equalTo(3));
+    statistics(base).body("minVersion.value", equalTo(3));
+
+    //Removing the pin releases version 3 as well
+    patchSpace(delta, new JsonObject().put("extends", new JsonObject().put("spaceId", base).putNull("version")));
+    statistics(base).body("minVersion.value", equalTo(4));
   }
 
   @Test
-  public void theOldestAvailableVersionFollowsPinsAndTags() {
-    String base = newBase(4);
-    String delta = newExtension(base, 2L);
-    //Create a tag at version 3, and set the rolling window to 2 versions
-    given().contentType(APPLICATION_JSON).headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .body(new JsonObject().put("id", "tag-v3").put("version", 3).encode())
-        .when().post(getSpacesPath() + "/" + base + "/tags")
-        .then().statusCode(OK.code());
-    //The oldest available version is now 2, since the extension is pinned to version 2 and the tag is at version 3
-    patchSpace(base, new JsonObject().put("versionsToKeep", 2)).statusCode(OK.code());
+  public void eachExtensionKeepsItsBaseVersionWithAHiddenSystemTag() {
+    String base = newBase(5);
+    String lowerDelta = newExtension(base, 2L);
+    String higherDelta = newExtension(base, 3L);
 
-    //The oldest available version is now 2, since the extension is pinned to version 2 and the tag is at version 3
+    //Each extension has its own system tag, which is hidden from the normal tag listing
+    tags(base, false).body("size()", equalTo(0));
+    tags(base, true)
+        .body("size()", equalTo(2))
+        .body("system", everyItem(equalTo(true)))
+        .body("description", hasItem(containsString(lowerDelta)));
+
+    //The rolling window alone would keep the versions 4 and 5, but the lower of the two tags wins
+    patchSpace(base, new JsonObject().put("versionsToKeep", 2));
     statistics(base).body("minVersion.value", equalTo(2));
 
-    //Removing the extension allows the deletion to proceed, and the oldest available version is now 3,
-    //since the tag is at version 3 and the rolling window starts at version 3
-    removeSpace(delta);
-    spaces.remove(delta);
-    //The oldest available version is now 3, since the tag is at version 3 and the rolling window starts at version 3
+    //Deleting an extension removes only its own tag
+    removeSpace(lowerDelta);
+    spaces.remove(lowerDelta);
     statistics(base).body("minVersion.value", equalTo(3));
+    assertKey1(higherDelta, "v3");
+
+    //Once the last tag is gone, the rolling window applies again
+    removeSpace(higherDelta);
+    spaces.remove(higherDelta);
+    tags(base, true).body("size()", equalTo(0));
+    statistics(base).body("minVersion.value", equalTo(4));
+  }
+
+  @Test
+  public void dryRunsDoNotChangeThePins() {
+    String base = newBase(3);
+    String delta = newExtension(base, 2L);
+
+    given().contentType(APPLICATION_JSON).headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .body(new JsonObject().put("title", "dry-run").put("extends", new JsonObject().put("spaceId", base).put("version", 1)).encode())
+        .when().post(getSpacesPath() + "?dryRun=true")
+        .then().statusCode(OK.code());
+    given().headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .when().delete(getSpacesPath() + "/" + delta + "?dryRun=true")
+        .then().statusCode(NO_CONTENT.code());
+
+    //Still only the pin of the real extension
+    tags(base, true)
+        .body("size()", equalTo(1))
+        .body("[0].version", equalTo(2));
   }
 
   private String newBase(int versions) {
@@ -135,6 +172,12 @@ public class PinnedVersionPurgeProtectionIT extends TestSpaceWithFeature {
   private ValidatableResponse statistics(String space) {
     return given().headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when().get(getSpacesPath() + "/" + space + "/statistics")
+        .then().statusCode(OK.code());
+  }
+
+  private ValidatableResponse tags(String space, boolean includeSystemTags) {
+    return given().headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .when().get(getSpacesPath() + "/" + space + "/tags?includeSystemTags=" + includeSystemTags)
         .then().statusCode(OK.code());
   }
 
