@@ -33,6 +33,7 @@ class FeatureWriter {
   schema;
   tables;
   tableBaseVersions;
+  tableBoundVersions;
   context;
   historyEnabled;
   skipNonModified;
@@ -79,6 +80,7 @@ class FeatureWriter {
     this.schema = queryContext().schema;
     this.tables = queryContext().tables;
     this.tableBaseVersions = FeatureWriter._tableBaseVersions();
+    this.tableBoundVersions = FeatureWriter._tableBoundVersions();
     this.context = queryContext().context;
     this.historyEnabled = queryContext().historyEnabled;
     this.skipNonModified = queryContext().skipNonModified;
@@ -867,6 +869,13 @@ class FeatureWriter {
         : queryContext().tables.map(table => 0);
   }
 
+  static _tableBoundVersions() {
+    return queryContext().tableBoundVersions
+        ? queryContext().tableBoundVersions
+        //No table is bound to a specific version, so every one of them is read at its HEAD
+        : queryContext().tables.map(table => null);
+  }
+
   static _isComposite() {
     return queryContext().tables.length > 1 && this._tableBaseVersions().at(-1) == 0
   }
@@ -874,8 +883,20 @@ class FeatureWriter {
   _loadFeature(id, version, context) {
     let tables = context == "EXTENSION" ? this.tables.slice(-1) : context == "SUPER" ? this.tables.slice(0, -1) : this.tables;
     let tableAliases = tables.map((table, i) => "t" + (tables.length - i - 1));
+    //The EXTENSION context slices the base tables off the front, so an index into "tables" has to be shifted to index tableBoundVersions
+    let boundVersionOf = i => this.tableBoundVersions[(context == "EXTENSION" ? this.tables.length - 1 : 0) + i];
     let branchTableMaxVersion = i => i == tables.length - 1 || FeatureWriter._isComposite() ? "" : `AND version <= ${this.tableBaseVersions[i + 1] - this.tableBaseVersions[i]}`;
-    let whereConditions = tables.map((table, i) => `WHERE id = $1 AND ${version == "HEAD" ? `next_version = ${MAX_BIG_INT}` : `version = ${version - this.tableBaseVersions[i]}`} ${branchTableMaxVersion(i)} AND operation != $2`).reverse();
+    let versionCondition = i => {
+      let boundVersion = boundVersionOf(i);
+      /*
+      A table bound to a specific version always contributes the very same snapshot, regardless of which version was requested.
+      That also covers a requested version of 0, which is the logical version reported for any row coming from a base table.
+       */
+      if (boundVersion != null)
+        return `version <= ${boundVersion} AND next_version > ${boundVersion}`;
+      return `${version == "HEAD" ? `next_version = ${MAX_BIG_INT}` : `version = ${version - this.tableBaseVersions[i]}`} ${branchTableMaxVersion(i)}`;
+    };
+    let whereConditions = tables.map((table, i) => `WHERE id = $1 AND ${versionCondition(i)} AND operation != $2`).reverse();
     let tableBaseVersions = tables.map((table, i) => this.tableBaseVersions[i]).reverse();
 
     let sql = `
