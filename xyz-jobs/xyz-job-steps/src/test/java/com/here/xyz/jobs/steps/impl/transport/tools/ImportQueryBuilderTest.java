@@ -28,6 +28,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.util.db.SQLQuery;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class ImportQueryBuilderTest {
@@ -52,6 +55,59 @@ class ImportQueryBuilderTest {
     assertEquals("xyz.\"super_table\"", query.getNamedParameters().get("superTable"));
     assertEquals("DEFAULT", query.getNamedParameters().get("spaceContext"));
     assertTrue(query.substitute().text().contains("perform_express_import_from_tmp_table_task"));
+  }
+
+  @Test
+  void bindsTheBaseTableToTheConfiguredExtensionVersion() {
+    ImportQueryBuilder queryBuilder = new ImportQueryBuilder(
+        new Space().withVersionsToKeep(10).withExtension(new Space.Extension().withSpaceId("base").withVersion(7L)),
+        DEFAULT,
+        "step",
+        "xyz",
+        "extension_table",
+        "super_table",
+        37
+    );
+
+    Map<String, Object> queryContext = queryBuilder.getQueryContext();
+
+    assertEquals(List.of("super_table", "extension_table"), queryContext.get("tables"));
+    //Positionally aligned with the tables: the base is bound to version 7, the write target is never bound
+    assertEquals(Arrays.asList(7L, null), queryContext.get("tableBoundVersions"));
+  }
+
+  @Test
+  void leavesTheBaseTableUnboundWithoutAConfiguredExtensionVersion() {
+    ImportQueryBuilder queryBuilder = new ImportQueryBuilder(
+        new Space().withVersionsToKeep(10).withExtension(new Space.Extension().withSpaceId("base")),
+        DEFAULT,
+        "step",
+        "xyz",
+        "extension_table",
+        "super_table",
+        37
+    );
+
+    assertNull(queryBuilder.getQueryContext().get("tableBoundVersions"),
+        "An unbound composite has to keep the query context it produced before bound base versions existed");
+  }
+
+  @Test
+  void leavesANonCompositeSpaceUnbound() {
+    ImportQueryBuilder queryBuilder = new ImportQueryBuilder(
+        new Space().withVersionsToKeep(10),
+        DEFAULT,
+        "step",
+        "xyz",
+        "target_table",
+        null,
+        37
+    );
+
+    Map<String, Object> queryContext = queryBuilder.getQueryContext();
+
+    assertEquals(List.of("target_table"), queryContext.get("tables"));
+    assertNull(queryContext.get("tableBoundVersions"));
   }
 
   @Test
