@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@ import static com.here.xyz.events.UpdateStrategy.DEFAULT_DELETE_STRATEGY;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
@@ -43,7 +42,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junitpioneer.jupiter.cartesian.CartesianTest;
@@ -247,24 +245,6 @@ public class PSQLBranchFeaturesIT extends PSQLAbstractBranchIT {
             .withBranchPath(branchPath)
             .withVersionsToKeep(1000)
             .withSpace(TEST_SPACE_ID());
-  }
-
-  private Set<String> extractFeatureIds(FeatureCollection featureCollection) throws JsonProcessingException {
-    if (featureCollection == null || featureCollection.getFeatures() == null) return Set.of();
-    return featureCollection.getFeatures()
-            .stream()
-            .map(feature -> feature.getId())
-            .collect(Collectors.toSet());
-  }
-
-  private Set<String> extractFeatureIds(List<FeatureRow> featureRows) {
-    return featureRows.stream().map(featureRow -> featureRow.id()).collect(Collectors.toSet());
-  }
-
-  private void executeReadFeaturesEvent(Event event, Set<String> expectedFeatureIds) throws Exception {
-    FeatureCollection fc = deserializeResponse(invokeLambda(event));
-    Set<String> actualFeatureIds = extractFeatureIds(fc);
-    assertEquals(expectedFeatureIds, actualFeatureIds);
   }
 
 }

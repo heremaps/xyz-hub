@@ -30,10 +30,7 @@ import com.here.xyz.events.UpdateStrategy;
 import com.here.xyz.events.WriteFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.hub.Ref;
-import com.here.xyz.util.db.SQLQuery;
 import java.sql.Connection;
-import java.sql.SQLException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.AfterEach;
@@ -141,21 +138,6 @@ public abstract class PSQLAbstractBranchIT extends PSQLAbstractIT {
               .next();
     }
   }
-
-  protected List<FeatureRow> getAllRowFromTable(String tableName) throws SQLException {
-    return new SQLQuery("SELECT id, version FROM ${schema}.${table} ")
-            .withVariable("schema", PG_SCHEMA)
-            .withVariable("table", tableName)
-            .run(getDataSourceProvider(), rs -> {
-              List<FeatureRow> allFeatureIdAndVersion = new ArrayList<>();
-              while(rs.next()) {
-                allFeatureIdAndVersion.add(new FeatureRow(rs.getString("id"), rs.getLong("version")));
-              }
-              return allFeatureIdAndVersion;
-            });
-  }
-
-  public record FeatureRow(String id, long version) {}
 
   protected String getBranchTableName(String spaceId, int branchNodeId, Ref ref) {
     return getBranchTableName(spaceId, branchNodeId, Integer.parseInt(ref.getBranch().replace("~", "")), ref.getVersion());
