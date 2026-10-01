@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -56,6 +56,7 @@ import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -86,7 +87,11 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
   @JsonView({Internal.class, Static.class})
   private Ref versionRef;
 
-  @JsonIgnore
+  /**
+   * Persisted snapshots of all spaces resolved by this step. Keeping these snapshots in the serialized step prevents an asynchronous or
+   * resumed execution from switching to a different physical table when the same logical space ID is recreated in the meantime.
+   */
+  @JsonView({Internal.class, Static.class})
   private Map<String, Space> cachedSpaces = new ConcurrentHashMap<>();
 
   @JsonIgnore
@@ -171,7 +176,7 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
       //Check if the space is actually existing
       if (getSpaceId() == null)
         throw new ValidationException("SpaceId is missing!");
-      space();
+      resolveSpaceParams(space());
     }
     catch (WebClientException e) {
       throw new ValidationException("Error loading resource " + getSpaceId(), e);
@@ -276,7 +281,7 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
   protected Space space(String spaceId) throws WebClientException {
     Space space = cachedSpaces.get(spaceId);
     if (space == null)
-      cachedSpaces.put(spaceId, space = loadSpace(spaceId, false));
+      cachedSpaces.put(spaceId, space = loadSpace(spaceId, true));
     return space;
   }
 
@@ -301,9 +306,36 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
   }
 
   protected Space superSpace() throws WebClientException {
-    if (space().getExtension() == null)
+    return resolveExtendedSpace(space());
+  }
+
+  /**
+   * Builds the storage parameters for connector-side queries against the provided space.
+   *
+   * <p>The current space's storage parameters contain its persisted physical table name. Composite parameters are
+   * merged on top and carry the physical table names of the extended spaces. Legacy spaces without explicit table
+   * names remain unchanged and are resolved by the connector through {@code enableHashedSpaceId}.</p>
+   */
+  protected final Map<String, Object> resolveSpaceParams(Space targetSpace) throws WebClientException {
+    Map<String, Object> params = targetSpace.getStorage().getParams() == null
+        ? new HashMap<>()
+        : new HashMap<>(targetSpace.getStorage().getParams());
+
+    Space extendedSpace = resolveExtendedSpace(targetSpace);
+    if (extendedSpace != null)
+      params.putAll(targetSpace.resolveCompositeParams(extendedSpace));
+
+    return params;
+  }
+
+  private Space resolveExtendedSpace(Space targetSpace) throws WebClientException {
+    if (targetSpace.getExtension() == null)
       return null;
-    return space(space().getExtension().getSpaceId());
+
+    Space extendedSpace = space(targetSpace.getExtension().getSpaceId());
+    if (extendedSpace.getExtension() != null)
+      extendedSpace.getExtension().resolvedSpace = space(extendedSpace.getExtension().getSpaceId());
+    return extendedSpace;
   }
 
   @Override

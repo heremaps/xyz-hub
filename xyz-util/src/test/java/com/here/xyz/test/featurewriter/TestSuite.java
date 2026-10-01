@@ -199,7 +199,7 @@ public abstract class TestSuite {
     spaceWriter().cleanSpaceResources();
   }
 
-  private void writeFeatureForPreparation(Feature feature, String author, SpaceContext context) throws Exception {
+  protected void writeFeatureForPreparation(Feature feature, String author, SpaceContext context) throws Exception {
     new SQLSpaceWriter(composite, getClass().getSimpleName())
         .writeFeature(feature, author, null, null, null, null, false, context, history);
     writtenSpaceVersions.get(context).increment();
@@ -254,6 +254,10 @@ public abstract class TestSuite {
 
     //Create a snapshot of the space state *before* the test execution
     beforeState = gatherSpaceState();
+    // Ensure the DB timestamps of the preparation writes are strictly below beforeTs.
+    // This avoids clock-skew flakiness between the Test JVM and the DB server, which is
+    // especially relevant for the REST/Hub path where writes go through an extra hop.
+    Thread.sleep(200);
     long beforeTs = System.currentTimeMillis();
 
     //------------ Perform the actual test call ------------
@@ -306,10 +310,10 @@ public abstract class TestSuite {
 
       //Check if the feature's update timestamp has been written properly
       Matcher<Long> isGreaterThanBeforeTimestamp = greaterThan(beforeTestStartTimestamp);
-      assertThat("The feature's update timestamp has to be higher than the timestamp when the test started.",
+      assertThat("[" + testName + "] The feature's update timestamp has to be higher than the timestamp when the test started.",
           afterTableState.feature.getProperties().getXyzNamespace().getUpdatedAt(), isGreaterThanBeforeTimestamp);
       //Check if the feature's creation timestamp has been written properly
-      assertThat("The feature's creation timestamp has to be " + (featureOperation == I || featureOperation == H ? "higher" : "lower")
+      assertThat("[" + testName + "] The feature's creation timestamp has to be " + (featureOperation == I || featureOperation == H ? "higher" : "lower")
           + " than the timestamp when the test started.", afterTableState.feature.getProperties().getXyzNamespace().getCreatedAt(),
           featureOperation == I || featureOperation == H ? isGreaterThanBeforeTimestamp : not(isGreaterThanBeforeTimestamp));
     }
