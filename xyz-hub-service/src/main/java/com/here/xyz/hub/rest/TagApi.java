@@ -156,9 +156,14 @@ public class TagApi extends SpaceBasedApi {
     return createTag(marker, spaceId, tagId, new Ref(HEAD), true, "", author, Core.currentTimeMillis());
   }
 
-  // TODO auth
   public static Future<Tag> createTag(Marker marker, String spaceId, String tagId, Ref versionRef, boolean system,
                                       String description, String author, long createdAt) {
+    return createTag(marker, spaceId, tagId, versionRef, system, description, author, createdAt, false);
+  }
+
+  // TODO auth
+  public static Future<Tag> createTag(Marker marker, String spaceId, String tagId, Ref versionRef, boolean system,
+                                      String description, String author, long createdAt, boolean dryRun) {
     if (spaceId == null) {
       return Future.failedFuture(new ValidationException("Invalid parameter"));
     }
@@ -186,7 +191,7 @@ public class TagApi extends SpaceBasedApi {
           .withDescription(description)
           .withAuthor(author)
           .withCreatedAt(createdAt);
-      return Service.tagConfigClient.storeTag(marker, tag).map(v -> tag);
+      return dryRun ? Future.succeededFuture(tag) : Service.tagConfigClient.storeTag(marker, tag).map(v -> tag);
     });
   }
 
