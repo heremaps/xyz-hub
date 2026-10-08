@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -304,6 +304,15 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
     if (space().getExtension() == null)
       return null;
     return space(space().getExtension().getSpaceId());
+  }
+
+  /**
+   * Whether this step's space extends a space which is itself a composite space, i.e. whether it is a composite space with more than
+   * one extension level. See {@link #superSpace()} for why that matters.
+   */
+  protected boolean isNestedComposite() throws WebClientException {
+    Space superSpace = superSpace();
+    return superSpace != null && superSpace.getExtension() != null;
   }
 
   @Override

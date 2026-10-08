@@ -382,6 +382,12 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
       if (space.isReadOnly())
         throw new ValidationException("Data can not be written to target " + space.getId() + " as it is in read-only mode.");
 
+      //Both execution modes only know the directly extended space, so the root base of a nested composite would be ignored
+      //while classifying deletes. See SpaceBasedStep#superSpace for the details.
+      if (isNestedComposite())
+        throw new ValidationException("Data can not be written to target " + space.getId()
+                + " as it is a composite space with more than one extension level, which is not supported for imports.");
+
       if (loadTargetSpaceFeatureCount() > 0 && getUncompressedUploadBytesEstimation() > getMaxInputBytesForNonEmptyImport())
         throw new ValidationException("An import into a non empty space is not possible. "
                 + "The uncompressed size of the provided files exceeds the limit of " + getMaxInputBytesForNonEmptyImport() + " bytes.");
