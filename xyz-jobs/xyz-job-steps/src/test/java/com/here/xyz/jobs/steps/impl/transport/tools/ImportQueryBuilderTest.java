@@ -111,6 +111,66 @@ class ImportQueryBuilderTest {
   }
 
   @Test
+  void passesTheBoundBaseVersionToTheExpressImport() {
+    ImportQueryBuilder queryBuilder = new ImportQueryBuilder(
+        new Space().withVersionsToKeep(10).withExtension(new Space.Extension().withSpaceId("base").withVersion(7L)),
+        DEFAULT,
+        "step",
+        "xyz",
+        "extension_table",
+        "super_table",
+        37
+    );
+
+    SQLQuery query = queryBuilder.buildExpressImportFromTmpTableTaskQuery(
+        1, 1, "owner", 2, true, "{}", "lambda", "region", "PERFORM 1;"
+    );
+
+    assertEquals(7L, query.getNamedParameters().get("superBoundVersion"));
+  }
+
+  @Test
+  void passesNoBoundBaseVersionForAnUnboundComposite() {
+    ImportQueryBuilder queryBuilder = new ImportQueryBuilder(
+        new Space().withVersionsToKeep(10).withExtension(new Space.Extension().withSpaceId("base")),
+        DEFAULT,
+        "step",
+        "xyz",
+        "extension_table",
+        "super_table",
+        37
+    );
+
+    SQLQuery query = queryBuilder.buildExpressImportFromTmpTableTaskQuery(
+        1, 1, "owner", 2, true, "{}", "lambda", "region", "PERFORM 1;"
+    );
+
+    assertNull(query.getNamedParameters().get("superBoundVersion"),
+        "An unbound base has to keep being probed at its HEAD");
+  }
+
+  @Test
+  void passesNoBoundBaseVersionForExtensionContext() {
+    ImportQueryBuilder queryBuilder = new ImportQueryBuilder(
+        new Space().withVersionsToKeep(10).withExtension(new Space.Extension().withSpaceId("base").withVersion(7L)),
+        EXTENSION,
+        "step",
+        "xyz",
+        "extension_table",
+        "super_table",
+        37
+    );
+
+    SQLQuery query = queryBuilder.buildExpressImportFromTmpTableTaskQuery(
+        1, 1, "owner", 2, true, "{}", "lambda", "region", "PERFORM 1;"
+    );
+
+    assertNull(query.getNamedParameters().get("superTable"));
+    assertNull(query.getNamedParameters().get("superBoundVersion"),
+        "The base is not visible with context=EXTENSION, so there is nothing to bind");
+  }
+
+  @Test
   void rejectsSuperContext() {
     ImportQueryBuilder queryBuilder = new ImportQueryBuilder(
         new Space().withVersionsToKeep(10),

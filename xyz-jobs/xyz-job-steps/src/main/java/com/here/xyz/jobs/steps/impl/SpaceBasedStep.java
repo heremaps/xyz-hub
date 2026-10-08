@@ -338,6 +338,15 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
     return extendedSpace;
   }
 
+  /**
+   * Whether this step's space extends a space which is itself a composite space, i.e. whether it is a composite space with more than
+   * one extension level. See {@link #superSpace()} for why that matters.
+   */
+  protected boolean isNestedComposite() throws WebClientException {
+    Space superSpace = superSpace();
+    return superSpace != null && superSpace.getExtension() != null;
+  }
+
   @Override
   public boolean validate() throws ValidationException {
     validateSpaceExists();
