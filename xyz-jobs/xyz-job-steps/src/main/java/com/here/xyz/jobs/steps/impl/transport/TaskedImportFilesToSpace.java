@@ -51,6 +51,7 @@ import com.here.xyz.jobs.steps.resources.IOResource;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.jobs.util.S3Client;
+import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.ConnectorParameters;
@@ -503,6 +504,11 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
               .withFeatureCount(totalImportedRows)
               .withByteSize(totalImportedBytes);
       statistics.withFileName(STATISTICS + ".json");
+
+      //The version the rows were written into, so the statistics can be recorded per layer version
+      long importedVersion = finalizedTaskItems.stream().mapToLong(item -> item.output().targetVersion()).max().orElse(-1);
+      if (importedVersion >= 0)
+        statistics.withVersionRef(new Ref(importedVersion));
     }
 
     infoLog(STEP_ON_ASYNC_SUCCESS, "Job Statistics: bytes=" + statistics.getByteSize() + " rows=" + statistics.getFeatureCount());
