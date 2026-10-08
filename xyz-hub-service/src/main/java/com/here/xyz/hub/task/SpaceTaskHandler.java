@@ -668,20 +668,6 @@ public class SpaceTaskHandler {
       });
   }
 
-  private static boolean shouldUseNewTablenames(String sourceId) {
-   //TODO: only temp. needed to have just a sample of spaces using new tablenames,  this restriction will be removed later on.
-    if (sourceId == null) return false;
-
-    if (sourceId.contains("drgnstn"))
-      return true;
-
-    try { // activate new tablenames for 6.25% (1/16) of all layers
-      String hash = Hasher.getHash(sourceId);
-      return hash != null && !hash.isEmpty() && hash.charAt(0) == '0';
-    } catch (Throwable t) {
-      return false;
-    }
-  }
 
   /**
    * Assigns a new, unique physical table name to a space that is about to be created.
@@ -708,21 +694,10 @@ public class SpaceTaskHandler {
       return;
     }
 
-    //Only ~6.25% of newly created spaces get a decoupled physical table name.
-    //Spaces whose id contains "drgnstn" are always opted in.
-    //All other spaces fall back to the legacy behaviour where the connector derives the
-    //table name from the space id (optionally Murmur3-hashed via connector param enableHashedSpaceId).
     final String spaceId = space.getId();
-    final boolean forced = shouldUseNewTablenames(spaceId);
-
-    if (!forced) {
-      logger.info(task.getMarker(), "space[{}]: Skipping decoupled table name assignment (legacy naming)", spaceId);
-      callback.call(task);
-      return;
-    }
 
     String tableName = SpaceTableResolver.assignTableName(space);
-    logger.info(task.getMarker(), "space[{}]: Assigned physical table name \"{}\" (forced={})",spaceId, tableName, forced);
+    logger.info(task.getMarker(), "space[{}]: Assigned physical table name \"{}\"",spaceId, tableName);
     callback.call(task);
   }
 
