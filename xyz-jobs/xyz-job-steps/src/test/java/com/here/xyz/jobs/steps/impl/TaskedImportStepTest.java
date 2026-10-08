@@ -35,6 +35,7 @@ import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Tag;
 import com.here.xyz.responses.StatisticsResponse;
+import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -50,6 +51,7 @@ import static com.here.xyz.jobs.steps.Step.InputSet.USER_INPUTS;
 public class TaskedImportStepTest extends StepTest {
 
   private final String SPACE_ID_EXT = SPACE_ID + "_ext";
+  private final String SPACE_ID_EXT_OF_EXT = SPACE_ID + "_ext_of_ext";
 
   @BeforeEach
   public void setup() throws SQLException {
@@ -59,6 +61,8 @@ public class TaskedImportStepTest extends StepTest {
 
   @AfterEach
   public void cleanup() throws SQLException {
+    //Delete the composite spaces starting with the outermost one
+    deleteSpace(SPACE_ID_EXT_OF_EXT);
     deleteSpace(SPACE_ID_EXT);
     super.cleanup();
   }
@@ -233,6 +237,48 @@ public class TaskedImportStepTest extends StepTest {
   }
 
 /****  */
+
+  /**
+   * An import into a composite space which extends another composite space has to be rejected. The write path only ever resolves one
+   * extension level, so the root base would be invisible while classifying deletes of features inherited from it. See
+   * {@link SpaceBasedStep#superSpace()}.
+   */
+  @Test
+  public void testImport_intoNestedComposite_isRejected() throws Exception {
+    createSpace(new Space().withId(SPACE_ID_EXT).withVersionsToKeep(1000)
+        .withStorage(new Space.ConnectorRef().withId("psql"))
+        .withExtension(new Space.Extension().withSpaceId(SPACE_ID)), false);
+    createSpace(new Space().withId(SPACE_ID_EXT_OF_EXT).withVersionsToKeep(1000)
+        .withStorage(new Space.ConnectorRef().withId("psql"))
+        .withExtension(new Space.Extension().withSpaceId(SPACE_ID_EXT)), false);
+
+    //No versionRef is set on purpose, an unresolved one would make the ref validation fail before the composite check is reached
+    TaskedImportFilesToSpace step = new TaskedImportFilesToSpace()
+        .withJobId(JOB_ID)
+        .withSpaceId(SPACE_ID_EXT_OF_EXT)
+        .withInputSets(List.of(USER_INPUTS.get()));
+
+    ValidationException exception = Assertions.assertThrows(ValidationException.class, step::validate);
+    Assertions.assertTrue(exception.getMessage().contains("more than one extension level"), exception.getMessage());
+  }
+
+  /**
+   * The counterpart of {@link #testImport_intoNestedComposite_isRejected()}: a composite space with a single extension level stays
+   * accepted. Validation still returns false here, but only because no input file was uploaded.
+   */
+  @Test
+  public void testImport_intoSingleLevelComposite_isAccepted() throws Exception {
+    createSpace(new Space().withId(SPACE_ID_EXT).withVersionsToKeep(1000)
+        .withStorage(new Space.ConnectorRef().withId("psql"))
+        .withExtension(new Space.Extension().withSpaceId(SPACE_ID)), false);
+
+    TaskedImportFilesToSpace step = new TaskedImportFilesToSpace()
+        .withJobId(JOB_ID)
+        .withSpaceId(SPACE_ID_EXT)
+        .withInputSets(List.of(USER_INPUTS.get()));
+
+    Assertions.assertFalse(step.validate());
+  }
 
   /**
    * Import into a composite (extension) space while the target carries the filter context=EXTENSION.
