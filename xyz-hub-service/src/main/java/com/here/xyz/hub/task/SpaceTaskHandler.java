@@ -736,6 +736,12 @@ public class SpaceTaskHandler {
     callback.call(task);
   }
 
+  /**
+   * Validates the version an extension binds its base space to, on creation as well as on update.
+   *
+   * NOTE: {@code extends.version} is functionally immutable - changing it makes the composite expose a different dataset,
+   * which invalidates anything a client derived from it. That is deliberately not rejected - the risk is left to the caller.
+   */
   private static Future<Void> validateExtensionVersion(Marker marker, Space baseSpace, Long baseVersion) {
     //Without a version history the extended space can not provide a stable snapshot, as an update replaces the bound row
     if (baseSpace.getVersionsToKeep() <= 1)
