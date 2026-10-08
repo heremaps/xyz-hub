@@ -297,6 +297,10 @@ public class JobAdminApi extends JobApiBase {
                 job.getStatus().setState(newJobState);
 
               future = future.compose(v -> job.storeStatus(oldState));
+
+              //Keep the feature statistics of the job beyond its (and its S3 outputs') lifetime
+              if (newJobState == SUCCEEDED)
+                future = future.onSuccess(v -> JobStatisticsRecorder.record(job));
             }
 
             return notifyFinalizationObserversAfterStatusUpdate(job, future);
