@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2016 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,11 +21,16 @@ package com.here.xyz.events;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonTypeName;
+import java.util.regex.Pattern;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "PropertyQuery")
 public class PropertyQuery {
+
+  private static final Pattern DISALLOWED_KEY_CHARACTERS = Pattern.compile("[^a-zA-Z0-9@:.,_!=\\-<>]");
+  private static final Pattern DISALLOWED_VALUE_CHARACTERS = Pattern.compile("[^a-zA-Z0-9@:.,_!=\\-<> {}\"]");
 
   private String key;
   private QueryOperation operation;
@@ -38,7 +43,7 @@ public class PropertyQuery {
 
   @SuppressWarnings("WeakerAccess")
   public void setKey(String key) {
-    this.key = key;
+    this.key = sanitizeKey(key);
   }
 
   @SuppressWarnings("unused")
@@ -70,13 +75,33 @@ public class PropertyQuery {
 
   @SuppressWarnings("WeakerAccess")
   public void setValues(List<Object> values) {
-    this.values = values;
+    this.values = values == null ? null : values.stream()
+            .map(PropertyQuery::sanitizeValue)
+            .collect(Collectors.toList());
   }
 
   @SuppressWarnings("unused")
   public PropertyQuery withValues(List<Object> values) {
     setValues(values);
     return this;
+  }
+
+  private static Object sanitizeValue(Object value) {
+    if (value instanceof String)
+      return sanitizeValue((String) value);
+    if (value instanceof List<?>)
+      return ((List<?>) value).stream()
+              .map(PropertyQuery::sanitizeValue)
+              .collect(Collectors.toList());
+    return value;
+  }
+
+  private static String sanitizeKey(String key) {
+    return key == null ? null : DISALLOWED_KEY_CHARACTERS.matcher(key).replaceAll("");
+  }
+
+  private static String sanitizeValue(String value) {
+    return value == null ? null : DISALLOWED_VALUE_CHARACTERS.matcher(value).replaceAll("");
   }
 
   public enum QueryOperation {EQUALS, NOT_EQUALS, LESS_THAN, GREATER_THAN, LESS_THAN_OR_EQUALS, GREATER_THAN_OR_EQUALS, CONTAINS }
