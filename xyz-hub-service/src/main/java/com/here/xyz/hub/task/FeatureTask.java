@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -83,6 +83,7 @@ import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -236,6 +237,12 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
         if (space.getExtension() != null && extendedSpaces != null)
           extendedSpaces.forEach(extendedSpace -> hasher.putLong(extendedSpace.getContentUpdatedAt()));
       }
+
+      Stream.concat(Stream.of(space), Stream.ofNullable(extendedSpaces).flatMap(Collection::stream))
+          .filter(s -> s.getExtension() != null && s.getExtension().getVersion() != null)
+          .forEach(s -> hasher.putString(s.getId(), Charset.defaultCharset())
+              .putString(s.getExtension().getSpaceId(), Charset.defaultCharset())
+              .putLong(s.getExtension().getVersion()));
 
       return cacheKey = hasher.hash().toString();
     }
