@@ -1,4 +1,4 @@
-FROM openjdk:17-slim
+FROM amazoncorretto:17
 
 MAINTAINER Benjamin Rögner "benjamin.roegner@here.com"
 MAINTAINER Lucas Ceni "lucas.ceni@here.com"
