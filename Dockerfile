@@ -1,4 +1,4 @@
-FROM amazoncorretto:17
+FROM eclipse-temurin:17-jdk-jammy
 
 MAINTAINER Benjamin Rögner "benjamin.roegner@here.com"
 MAINTAINER Lucas Ceni "lucas.ceni@here.com"
