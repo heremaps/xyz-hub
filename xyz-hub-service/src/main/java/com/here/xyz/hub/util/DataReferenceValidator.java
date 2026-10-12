@@ -67,7 +67,7 @@ public final class DataReferenceValidator {
       violations.add("Data Reference endVersion must be a non-negative integer");
     }
 
-    if (hasEnd && hasStart && start >= end) {
+    if (hasEnd && hasStart && start > end) {
       violations.add("Data Reference startVersion must be an integer less than endVersion");
     }
 
