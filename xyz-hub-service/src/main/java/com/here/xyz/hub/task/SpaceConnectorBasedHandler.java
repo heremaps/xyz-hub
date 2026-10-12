@@ -119,15 +119,15 @@ public class SpaceConnectorBasedHandler {
     }
 
     static Future<Void> injectStorageParams(Marker marker, Event event, Space space) {
-      return space.resolveCompositeParams(marker)
-          .map(compositeParams -> {
-            Map<String, Object> storageParams = new HashMap<>();
-            if (space.getStorage().getParams() != null)
-              storageParams.putAll(space.getStorage().getParams());
-            storageParams.putAll(compositeParams);
-            event.setParams(storageParams);
-            return null;
-          });
+      /*
+      NOTE: Changeset events always operate on the space's own (extension) layer only. Injecting the composite params ("extends")
+      would make the connector process them as composite queries across the extended layers.
+       */
+      Map<String, Object> storageParams = new HashMap<>();
+      if (space.getStorage().getParams() != null)
+        storageParams.putAll(space.getStorage().getParams());
+      event.setParams(storageParams);
+      return Future.succeededFuture();
     }
 
     private static Future<Space> injectChangesetParameters(Marker marker, Event event, Space space) {
