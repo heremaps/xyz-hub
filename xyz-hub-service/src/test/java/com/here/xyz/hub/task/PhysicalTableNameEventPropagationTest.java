@@ -28,6 +28,7 @@ import com.here.xyz.events.IterateChangesetsEvent;
 import com.here.xyz.events.ModifyBranchEvent;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.models.hub.Space.ConnectorRef;
+import com.here.xyz.models.hub.Space.Extension;
 import io.vertx.core.Future;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -53,6 +54,18 @@ class PhysicalTableNameEventPropagationTest {
 
     assertTrue(injection.succeeded());
     assertEquals(PHYSICAL_TABLE_NAME, event.getParams().get(TABLE_NAME));
+  }
+
+  @Test
+  void changesetEventsOfCompositeSpacesOnlyReceiveTheirOwnStorageParams() {
+    IterateChangesetsEvent event = new IterateChangesetsEvent().withSpace("logical-space-id");
+    Space space = spaceWithPhysicalTableName();
+    space.setExtension(new Extension().withSpaceId("extended-space-id"));
+
+    Future<Void> injection = SpaceConnectorBasedHandler.injectStorageParams(null, event, space);
+
+    assertTrue(injection.succeeded());
+    assertEquals(Map.of(TABLE_NAME, PHYSICAL_TABLE_NAME), event.getParams());
   }
 
   @Test
