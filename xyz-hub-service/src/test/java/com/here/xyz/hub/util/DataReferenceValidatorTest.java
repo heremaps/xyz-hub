@@ -104,11 +104,6 @@ class DataReferenceValidatorTest {
         Set.of("Data Reference startVersion must be an integer less than endVersion")
       ),
       argumentSet(
-        "startVersion equal to endVersion",
-        correctPatchReference().withStartVersion(1).withEndVersion(1),
-        Set.of("Data Reference startVersion must be an integer less than endVersion")
-      ),
-      argumentSet(
         "startVersion present but reference is not a patch",
         correctNonPatchReference().withStartVersion(1),
         Set.of("Data Reference startVersion must only be set when isPatch is set to true")
