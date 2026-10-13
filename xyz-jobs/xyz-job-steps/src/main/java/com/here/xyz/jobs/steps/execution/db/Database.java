@@ -370,5 +370,13 @@ public class Database extends ExecutionResource {
         return super.getUser();
       return super.getReplicaUser();
     }
+
+    @Override
+    protected DatabaseSettings getScriptInstallationSettings() {
+      //Installing the scripts requires write access, so always connect to the writer - also for the READER role
+      return new DatabaseSettings(getId(), connectorDbSettingsMap)
+              .withApplicationName(getApplicationName())
+              .withDbCheckoutTimeout(getDbCheckoutTimeout());
+    }
   }
 }
