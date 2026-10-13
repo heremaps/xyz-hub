@@ -467,7 +467,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     if (e != null) {
       getStatus()
           .withErrorMessage(e.getMessage())
-          .withErrorCause(e.getCause() != null ? e.getCause().getClass().getSimpleName() + ": " + e.getCause().getMessage() : null)
+          .withErrorCause(ErrorCauseResolver.resolve(e))
           .withErrorCode(e instanceof StepException stepException ? stepException.getCode() : null);
 
       if (e instanceof ErrorResponseException responseException)
