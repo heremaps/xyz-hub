@@ -47,6 +47,7 @@ import com.here.xyz.util.service.Core;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -107,9 +108,9 @@ public class BranchHandler {
                     + " cannot be created on composite resource " + spaceId) : Future.succeededFuture(space))
                 //Protect the new base version before the branch is built on it
                 .compose(space -> tagBaseVersion(marker, spaceId, branchUpdate).map(space))
-                .compose(space -> Space.resolveConnector(marker, space.getStorage().getId()))
-                .compose(storage -> eventForUpdate(spaceId, existingBranch, branchUpdate)
-                    .compose(event -> sendEvent(marker, event, storage)))
+                .compose(space -> eventForUpdate(spaceId, existingBranch, branchUpdate)
+                    .compose(event -> Space.resolveConnector(marker, space.getStorage().getId())
+                        .compose(storage -> sendEvent(marker, injectStorageParams(event, space), storage))))
                 .compose(branchModifiedResponse -> handleBranchModifiedResponse(marker, spaceId, branchId, branchUpdate, branchModifiedResponse))
                 //After a rebase, the old base version is not read by the branch anymore
                 .compose(v -> existingBranch == null ? Future.succeededFuture() : untagBaseVersion(marker, spaceId, existingBranch));
@@ -125,9 +126,9 @@ public class BranchHandler {
     return loadBranch(spaceId, branchId)
         .compose(sourceBranch -> loadBranch(spaceId, targetBranchId)
             .compose(targetBranch -> Space.resolveSpace(marker, spaceId)
-                .compose(space -> space.resolveConnector(marker, space.getStorage().getId()))
-                .compose(storage -> eventForMerge(spaceId, sourceBranch, targetBranch)
-                    .compose(event -> sendEvent(marker, event, storage)))
+                .compose(space -> eventForMerge(spaceId, sourceBranch, targetBranch)
+                    .compose(event -> space.resolveConnector(marker, space.getStorage().getId())
+                        .compose(storage -> sendEvent(marker, injectStorageParams(event, space), storage))))
                 .compose(mergeResponse -> handleMergeResponse(marker, spaceId, branchId, sourceBranch, targetBranch, mergeResponse)))
             .map(sourceBranch))
         .onSuccess(v -> Service.spaceConfigClient.invalidateCache(spaceId));
@@ -265,8 +266,8 @@ public class BranchHandler {
                 //Invalidate the space to ensure the deleted branch will not be listed inside anymore
                 Service.spaceConfigClient.invalidateCache(spaceId);
                 Space.resolveSpace(marker, spaceId)
-                    .compose(space -> Space.resolveConnector(marker, space.getStorage().getId()))
-                    .compose(storage -> sendEvent(marker, eventForDelete(spaceId, branch), storage))
+                    .compose(space -> Space.resolveConnector(marker, space.getStorage().getId())
+                        .compose(storage -> sendEvent(marker, injectStorageParams(eventForDelete(spaceId, branch), space), storage)))
                     .onFailure(t -> logger.error(marker, "Error updating storage after branch deletion:", t));
               });
         });
@@ -287,6 +288,12 @@ public class BranchHandler {
     return promise.future()
         .compose(response -> response instanceof ErrorResponse errorResponse ? Future.failedFuture(handleConnectorError(errorResponse))
             : Future.succeededFuture((ModifiedBranchResponse) response));
+  }
+
+  static ModifyBranchEvent injectStorageParams(ModifyBranchEvent event, Space space) {
+    if (space.getStorage().getParams() != null)
+      event.setParams(new HashMap<>(space.getStorage().getParams()));
+    return event;
   }
 
   private static Future<ModifyBranchEvent> eventForUpdate(String spaceId, Branch existingBranch, Branch branchUpdate) {

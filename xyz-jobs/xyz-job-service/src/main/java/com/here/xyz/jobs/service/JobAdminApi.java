@@ -152,7 +152,9 @@ public class JobAdminApi extends JobApiBase {
         .compose(step -> step == null
             ? Future.failedFuture(new HttpException(NOT_FOUND, "Step is not present in the job"))
             : Future.succeededFuture(step))
-        .onSuccess(step -> sendResponse(context, OK, step))
+        //NOTE: Serialize using the Internal view so runtime-only fields (e.g. the SFN taskToken & executionId) are included,
+        //which allows a LambdaBasedStep to be re-hydrated in isolation (e.g. for a STATE_CHECK).
+        .onSuccess(step -> sendInternalResponse(context, OK.code(), step))
         .onFailure(t -> sendErrorResponse(context, t));
   }
 

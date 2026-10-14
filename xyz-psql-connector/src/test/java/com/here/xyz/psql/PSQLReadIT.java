@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 package com.here.xyz.psql;
 
 import static com.here.xyz.events.PropertyQuery.QueryOperation.CONTAINS;
+import static com.here.xyz.models.hub.Space.TABLE_NAME;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -467,7 +468,8 @@ public class PSQLReadIT extends PSQLAbstractIT {
         // =========== GetStatistics ==========
         GetStatisticsEvent getStatsEvent = new GetStatisticsEvent()
             .withConnectorParams(defaultTestConnectorParams)
-            .withSpace("foo");
+            .withParams(Map.of(TABLE_NAME, "foo"))
+            .withSpace("logical-space-id");
 
         String statisticsJson = invokeLambda(getStatsEvent);
         StatisticsResponse response = XyzSerializable.deserialize(statisticsJson);

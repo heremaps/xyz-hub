@@ -228,6 +228,18 @@ public class CompositeSpaceOnBaseVersionIT extends TestSpaceWithFeature {
   }
 
   @Test
+  public void deletingABaseFeatureThroughTheNestedCompositeHidesIt() {
+    //Here the base is itself a composite: base-1 has to be found through the intermediate's table and its own base's table
+    deleteFeature(extOfExtSpaceId, "base-1");
+
+    loadFeatures(extOfExtSpaceId, DEFAULT)
+        .body("features.id", not(hasItem("base-1")));
+
+    loadFeatures(extSpaceId, DEFAULT)
+        .body("features.id", hasItem("base-1"));
+  }
+
+  @Test
   public void extendingASpecificVersionOfASpaceWithoutHistoryIsRejected() {
     String noHistoryBaseSpaceId = testSpecificSpaceId("-no-history-base");
     createSpaceWithId(noHistoryBaseSpaceId); //Without history, so no stable snapshot can be provided
@@ -300,6 +312,10 @@ public class CompositeSpaceOnBaseVersionIT extends TestSpaceWithFeature {
 
     loadFeatures(extSpaceId, DEFAULT)
         .body("features.id", not(hasItem("base-1")));
+
+    //The delete only hid it in the intermediate, the base itself is unchanged
+    loadFeatures(spaceId, DEFAULT)
+        .body("features.id", hasItem("base-1"));
 
     //but the outer composite still sees it at the bound version
     loadFeatures(extOfExtSpaceId, DEFAULT)

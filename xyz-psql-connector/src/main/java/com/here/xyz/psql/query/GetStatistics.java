@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -45,6 +45,7 @@ import java.util.regex.Pattern;
 public class GetStatistics extends ExtendedSpace<GetStatisticsEvent, StatisticsResponse>  {
   private boolean fastMode;
   private String spaceId;
+  private Map<String, Object> spaceParams;
   private Map<String, Object> connectorParams;
   private long minVersion = -1L;
   private static final Pattern BBOX_PATTERN = Pattern.compile("^BOX\\(([-\\d\\.]*)\\s([-\\d\\.]*),([-\\d\\.]*)\\s([-\\d\\.]*)\\)$");
@@ -53,6 +54,7 @@ public class GetStatistics extends ExtendedSpace<GetStatisticsEvent, StatisticsR
     super(event);
     setUseReadReplica(true);
     spaceId = event.getSpace();
+    spaceParams = event.getParams();
     connectorParams = event.getConnectorParams();
     fastMode = event.isFastMode();
     minVersion = event.getMinVersion();
@@ -79,6 +81,7 @@ public class GetStatistics extends ExtendedSpace<GetStatisticsEvent, StatisticsR
       final GetChangesetStatisticsEvent event = new GetChangesetStatisticsEvent()
           .withMinVersion(minVersion)
           .withSpace(spaceId)
+          .withParams(spaceParams)
           .withConnectorParams(connectorParams);
 
       ChangesetsStatisticsResponse versionResponse = new GetChangesetStatistics(event)

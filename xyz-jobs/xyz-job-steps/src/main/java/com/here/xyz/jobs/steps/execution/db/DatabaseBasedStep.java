@@ -53,7 +53,7 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
   private static final Logger logger = LogManager.getLogger();
   private String ASYNC_STEP_ID = "asyncStepId";
   private double claimedAcuLoad;
-  @JsonView(Internal.class)
+  @JsonView({Static.class, Internal.class})
   private List<RunningQuery> runningQueries = new ArrayList<>();
 
   private static final int MAXIMUM_RETRIES = 10;

@@ -41,7 +41,7 @@
 
   <groupId>com.here.xyz</groupId>
   <artifactId>xyz-hub</artifactId>
-  <version>3.23.73-SNAPSHOT</version>
+  <version>3.24.6-SNAPSHOT</version>
   <packaging>pom</packaging>
 
   <modules>
@@ -571,17 +571,6 @@
       <dependency>
         <groupId>software.amazon.awssdk</groupId>
         <artifactId>cloudwatchlogs</artifactId>
-        <version>${aws-sdk2-version}</version>
-        <exclusions>
-          <exclusion>
-            <artifactId>jackson-annotations</artifactId>
-            <groupId>com.fasterxml.jackson.core</groupId>
-          </exclusion>
-        </exclusions>
-      </dependency>
-      <dependency>
-        <groupId>software.amazon.awssdk</groupId>
-        <artifactId>rds</artifactId>
         <version>${aws-sdk2-version}</version>
         <exclusions>
           <exclusion>

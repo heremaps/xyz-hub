@@ -58,6 +58,7 @@ import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.psql.query.EraseSpace;
+import com.here.xyz.psql.query.ExtendedSpace;
 import com.here.xyz.psql.query.GetFastStatistics;
 import com.here.xyz.psql.query.GetFeaturesByBBox;
 import com.here.xyz.psql.query.GetFeaturesByGeometry;
@@ -154,13 +155,7 @@ public class NLConnector extends PSQLXyzConnector {
       PropertiesQueryInput propertiesQueryInput = getPropertiesQueryInput(event.getPropertiesQuery());
       String selectionValue = getSelectionValue(event.getSelection());
 
-      List<String> tables = new ArrayList<>();
-      tables.add(XyzEventBasedQueryRunner.readTableFromEvent(event));
-
-      if(event.getParams() != null && event.getParams().get("extends") != null) {
-        //TODO: check if we need to support hashing
-        tables.add(((Map<String, Object>) event.getParams().get("extends")).get("spaceId").toString());
-      }
+      List<String> tables = resolveSearchTables(event);
 
       logger.info("refquad: {}, globalVersion: {}, selection: {}", propertiesQueryInput.refQuad,
               propertiesQueryInput.globalVersions, selectionValue);
@@ -182,6 +177,14 @@ public class NLConnector extends PSQLXyzConnector {
     }
 
     throw new IllegalArgumentException("Search without propertiesQuery is not supported in NLConnector!");
+  }
+
+  static List<String> resolveSearchTables(SearchForFeaturesEvent event) {
+    List<String> tables = new ArrayList<>();
+    tables.add(XyzEventBasedQueryRunner.readTableFromEvent(event));
+    if (event.getParams() != null && event.getParams().get("extends") != null)
+      tables.add(ExtendedSpace.getExtendedTable(event));
+    return tables;
   }
 
   public boolean isSeedingMode() {

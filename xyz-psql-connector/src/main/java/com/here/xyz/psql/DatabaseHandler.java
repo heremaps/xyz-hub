@@ -22,6 +22,7 @@ package com.here.xyz.psql;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.models.hub.Ref.HEAD;
 import static com.here.xyz.models.hub.Space.DEFAULT_VERSIONS_TO_KEEP;
+import static com.here.xyz.models.hub.Space.TABLE_NAME;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.DELETE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.INSERT;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE;
@@ -502,6 +503,9 @@ public abstract class DatabaseHandler extends StorageConnector {
       Object nestedExtension = extension.get("extends");
 
       Map<String, Object> baseParams = new HashMap<>();
+      // The base's table name is not necessarily the same as the extension's table name, so we need to pass it explicitly to the base query.
+      if (extension.get(TABLE_NAME) != null)
+        baseParams.put(TABLE_NAME, extension.get(TABLE_NAME));
       if (nestedExtension != null)
         baseParams.put("extends", nestedExtension);
 

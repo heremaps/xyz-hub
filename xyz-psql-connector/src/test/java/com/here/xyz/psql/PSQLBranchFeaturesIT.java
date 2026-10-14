@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -246,7 +246,8 @@ public class PSQLBranchFeaturesIT extends PSQLAbstractBranchIT {
             .withNodeId(nodeId)
             .withBranchPath(branchPath)
             .withVersionsToKeep(1000)
-            .withSpace(TEST_SPACE_ID());
+            .withSpace(logicalSpaceId())
+            .withParams(physicalTableParams());
   }
 
   private Set<String> extractFeatureIds(FeatureCollection featureCollection) throws JsonProcessingException {

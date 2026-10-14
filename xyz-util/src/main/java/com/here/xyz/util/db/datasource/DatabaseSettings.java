@@ -496,7 +496,7 @@ public class DatabaseSettings extends Payload {
         String softwareVersion = FunctionRuntime.getInstance() == null ? null : FunctionRuntime.getInstance().getSoftwareVersion();
         if (!sqlScripts.containsKey(getId())) {
             logger.info("Checking scripts for connector {} ...", getId());
-            try (DataSourceProvider dataSourceProvider = new StaticDataSources(this)) {
+            try (DataSourceProvider dataSourceProvider = new StaticDataSources(getScriptInstallationSettings())) {
                 for (ScriptResourcePath scriptResourcePath : scriptResourcePaths) {
                     List<Script> scripts = Script.loadScripts(scriptResourcePath, dataSourceProvider, softwareVersion);
                     if (!sqlScripts.containsKey(getId()))
@@ -522,7 +522,23 @@ public class DatabaseSettings extends Payload {
         setSearchPath(extendedSearchPath);
     }
 
+
     /**
+     * Provides the settings to be used for the connection that checks & installs the SQL scripts.
+     * Installing the scripts requires write access. Subclasses which route their connections to a read-only host (e.g., a
+     * replica) have to override this method and return settings that point to the writer. Otherwise, the installation fails
+     * and the search path silently falls back to an older installed script version.
+     *
+     * NOTE: The returned settings are only used to connect, so they must not define any script resource paths.
+     *  Otherwise, their own initialization would check & install the scripts once more.
+     *
+     * @return The settings to be used for checking & installing the SQL scripts
+     */
+    protected DatabaseSettings getScriptInstallationSettings() {
+      return this;
+    }
+
+  /**
      * Must be called whenever this DatabaseSettings objects is used to initialize a new {@link DataSourceProvider}.
      */
     synchronized void init() {

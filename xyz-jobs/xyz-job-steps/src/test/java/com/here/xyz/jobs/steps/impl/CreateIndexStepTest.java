@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -58,7 +58,7 @@ public class CreateIndexStepTest extends StepTest {
     }
 
     private void executeCreateIndexStep(String spaceId, String branchId, Index index) throws Exception {
-        String tableName = spaceId;
+        String tableName = getRootTableName(spaceId);
         CreateIndex step = new CreateIndex().withSpaceId(spaceId).withIndex(index);
 
         if (branchId != null) {

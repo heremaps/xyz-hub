@@ -19,6 +19,8 @@
 
 package com.here.xyz.test.featurewriter.rest;
 
+import com.here.xyz.events.ContextAwareEvent.SpaceContext;
+import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.test.featurewriter.SpaceWriter;
 import com.here.xyz.test.featurewriter.TestSuite;
 
@@ -27,6 +29,18 @@ public abstract class RestTestSuite extends TestSuite {
   @Override
   protected SpaceWriter spaceWriter() {
     return new RestSpaceWriter(composite, history, getClass().getSimpleName());
+  }
+
+  /**
+   * Preparation writes must go through the Hub in the REST test suites, because the physical
+   * table name is opaque to the tests (see {@code SpaceTableResolver}). Writing directly via
+   * {@code SQLSpaceWriter} would target a table named after the space id, which may not exist.
+   */
+  @Override
+  protected void writeFeatureForPreparation(Feature feature, String author, SpaceContext context) throws Exception {
+    spaceWriter().writeFeature(feature, author, null, null, null, null, false, context, history);
+    // Keep the base-version bookkeeping consistent with the parent implementation.
+    writtenSpaceVersions.get(context).increment();
   }
 
   public RestTestSuite() {

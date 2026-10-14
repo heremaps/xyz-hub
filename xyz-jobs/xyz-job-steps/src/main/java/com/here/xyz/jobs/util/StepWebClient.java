@@ -19,6 +19,7 @@
 
 package com.here.xyz.jobs.util;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.RuntimeInfo;
 import com.here.xyz.jobs.steps.Step;
@@ -59,6 +60,22 @@ public class StepWebClient extends JobWebClient {
         .uri(uri("/admin/jobs/" + step.getJobId() + "/steps"))
         .header(CONTENT_TYPE, JSON_UTF_8.toString())
         .method("POST", BodyPublishers.ofByteArray(XyzSerializable.serialize(step).getBytes())));
+  }
+
+  /**
+   * Loads the config of a single step directly from the job service (admin API) without loading the whole job.
+   * The step is returned using the Internal view, so runtime-only fields (e.g. the SFN taskToken & executionId) are included.
+   */
+  public Step<?> getStep(String jobId, String stepId) throws WebClientException {
+    byte[] body = request(HttpRequest.newBuilder()
+        .uri(uri("/admin/jobs/" + jobId + "/steps/" + stepId)))
+        .body();
+    try {
+      return XyzSerializable.deserialize(body, Step.class);
+    }
+    catch (JsonProcessingException e) {
+      throw new WebClientException("Error parsing the step config for " + jobId + "." + stepId, e);
+    }
   }
 
   public void postStepStatusUpdate(String jobId, String stepId, RuntimeInfo<?> status) throws WebClientException {

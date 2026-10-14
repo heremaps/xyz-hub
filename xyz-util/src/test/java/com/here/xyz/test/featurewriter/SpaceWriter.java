@@ -43,6 +43,7 @@ import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public abstract class SpaceWriter extends SQLITBase {
   public static String DEFAULT_AUTHOR = "ANONYMOUS";
@@ -53,6 +54,14 @@ public abstract class SpaceWriter extends SQLITBase {
   private String spaceId;
   protected boolean composite;
 
+  /**
+   * Cache for space-id -> physical table name lookups. Populated lazily by
+   * {@link #resolveTableName(String)}. Necessary because in the {@code tableDecouple} model
+   * the Hub may assign a physical table name that is completely independent of the space id
+   * (see {@code SpaceTableResolver}).
+   */
+  private final Map<String, String> tableNameCache = new ConcurrentHashMap<>();
+
   protected String superSpaceId() {
     if (!composite)
       throw new IllegalArgumentException(spaceId + " is not a composite space");
@@ -61,6 +70,32 @@ public abstract class SpaceWriter extends SQLITBase {
 
   protected String spaceId() {
     return spaceId;
+  }
+
+  /**
+   * Resolves the physical PostgreSQL table name for the given space id.
+   * <p>
+   * Default implementation returns the space id itself (legacy behavior, used e.g. by the
+   * direct SQL test path which creates the table with exactly that name).
+   * <p>
+   * The REST test path overrides this in order to query the Hub and read the actual
+   * {@code space.storage.params.tableName}, which since the {@code tableDecouple} change
+   * is no longer identical to the space id.
+   */
+  protected String resolveTableName(String spaceId) throws Exception {
+    return tableNameCache.computeIfAbsent(spaceId, this::doResolveTableName);
+  }
+
+  /**
+   * Hook for subclasses to actually load the physical table name. Default returns the space id.
+   * Wrapped so subclasses can throw checked exceptions via {@link RuntimeException} if needed.
+   */
+  protected String doResolveTableName(String spaceId) {
+    return spaceId;
+  }
+
+  private String tableFor(SpaceContext context) throws Exception {
+    return resolveTableName(context == SUPER ? superSpaceId() : spaceId());
   }
 
   protected SpaceWriter(boolean composite, String testSuiteName) {
@@ -118,12 +153,13 @@ public abstract class SpaceWriter extends SQLITBase {
         .withGeometry(row.geo);
   }
 
+  @SuppressWarnings("unchecked")
   public SpaceTableRow getFeatureRow(SpaceContext context) throws Exception {
     try (DataSourceProvider dsp = getDataSourceProvider()) {
       return new SQLQuery("SELECT id, version, next_version, operation, author, jsondata, ST_AsGeojson(geo) AS geo " + " FROM ${schema}.${table} "
           + "WHERE id = #{id} AND next_version = #{MAX_BIGINT}")
           .withVariable(SCHEMA, dsp.getDatabaseSettings().getSchema())
-          .withVariable(TABLE, context == SUPER ? superSpaceId() : spaceId())
+          .withVariable(TABLE, tableFor(context))
           .withNamedParameter("id", TEST_FEATURE_ID)
           .withNamedParameter("MAX_BIGINT", Long.MAX_VALUE)
           .run(dsp, rs -> {
@@ -135,7 +171,7 @@ public abstract class SpaceWriter extends SQLITBase {
                       rs.getLong("next_version"),
                       Operation.valueOf(rs.getString("operation")),
                       rs.getString("author"),
-                      XyzSerializable.deserialize(rs.getString("jsondata"), Map.class),
+                      (Map<String, Object>) XyzSerializable.deserialize(rs.getString("jsondata"), Map.class),
                       rs.getString("geo") == null ? null : XyzSerializable.deserialize(rs.getString("geo"))
                     )
                   : null;
@@ -154,7 +190,7 @@ public abstract class SpaceWriter extends SQLITBase {
     try (DataSourceProvider dsp = getDataSourceProvider()) {
       return new SQLQuery("SELECT count(1) FROM ${schema}.${table} ")
           .withVariable(SCHEMA, dsp.getDatabaseSettings().getSchema())
-          .withVariable(TABLE, context == SUPER ? superSpaceId() : spaceId())
+          .withVariable(TABLE, tableFor(context))
           .run(dsp, rs -> rs.next() ? rs.getInt(1) : 0);
     }
   }
@@ -163,7 +199,7 @@ public abstract class SpaceWriter extends SQLITBase {
     try (DataSourceProvider dsp = getDataSourceProvider()) {
       return new SQLQuery("SELECT operation FROM ${schema}.${table} WHERE id = #{id} ORDER BY version DESC LIMIT 1")
           .withVariable(SCHEMA, dsp.getDatabaseSettings().getSchema())
-          .withVariable(TABLE, context == SUPER ? superSpaceId() : spaceId())
+          .withVariable(TABLE, tableFor(context))
           .withNamedParameter("id", DEFAULT_FEATURE_ID)
           .run(dsp, rs -> rs.next() ? Operation.valueOf(rs.getString(1)) : null);
     }
@@ -172,7 +208,7 @@ public abstract class SpaceWriter extends SQLITBase {
   public SQLQuery checkNotExistingFeature(String id) throws Exception {
     try (DataSourceProvider dsp = getDataSourceProvider()) {
       SQLQuery check = new SQLQuery("SELECT id FROM ${schema}.${table} WHERE id = #{id};").withVariable(SCHEMA,
-          dsp.getDatabaseSettings().getSchema()).withVariable(TABLE, spaceId()).withNamedParameter("id", id);
+          dsp.getDatabaseSettings().getSchema()).withVariable(TABLE, resolveTableName(spaceId())).withNamedParameter("id", id);
 
       check.run(dsp, rs -> {
         assertFalse("Feature exists but was expected to not exist!", rs.next());

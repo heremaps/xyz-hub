@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import static com.here.xyz.events.ModifyBranchEvent.Operation.CREATE;
 import static com.here.xyz.events.ModifyBranchEvent.Operation.DELETE;
 import static com.here.xyz.events.ModifyBranchEvent.Operation.MERGE;
 import static com.here.xyz.events.ModifyBranchEvent.Operation.REBASE;
+import static com.here.xyz.models.hub.Space.TABLE_NAME;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.events.ModifyBranchEvent;
@@ -35,6 +36,7 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -62,6 +64,14 @@ public abstract class PSQLAbstractBranchIT extends PSQLAbstractIT {
     return spaceId();
   }
 
+  protected final String logicalSpaceId() {
+    return "logical-" + TEST_SPACE_ID();
+  }
+
+  protected final Map<String, Object> physicalTableParams() {
+    return Map.of(TABLE_NAME, TEST_SPACE_ID());
+  }
+
   protected String writeFeature(String featureId) throws Exception {
     return writeFeature(featureId, 0, null);
   }
@@ -77,7 +87,8 @@ public abstract class PSQLAbstractBranchIT extends PSQLAbstractIT {
   protected String writeFeature(String featureId, int nodeId, List<Ref> branchPath, boolean addRandomProperties,
                                 UpdateStrategy updateStrategy) throws Exception {
     return invokeLambda(new WriteFeaturesEvent()
-            .withSpace(TEST_SPACE_ID())
+            .withSpace(logicalSpaceId())
+            .withParams(physicalTableParams())
             .withNodeId(nodeId)
             .withBranchPath(branchPath)
             .withResponseDataExpected(true)
@@ -91,14 +102,16 @@ public abstract class PSQLAbstractBranchIT extends PSQLAbstractIT {
   protected ModifyBranchEvent eventForCreate(Ref baseRef) {
     return new ModifyBranchEvent()
             .withOperation(CREATE)
-            .withSpace(TEST_SPACE_ID())
+            .withSpace(logicalSpaceId())
+            .withParams(physicalTableParams())
             .withBaseRef(baseRef);
   }
 
   protected ModifyBranchEvent eventForDelete(int nodeId, Ref baseRef) {
     return new ModifyBranchEvent()
             .withOperation(DELETE)
-            .withSpace(TEST_SPACE_ID())
+            .withSpace(logicalSpaceId())
+            .withParams(physicalTableParams())
             .withNodeId(nodeId)
             .withBaseRef(baseRef);
   }
@@ -106,7 +119,8 @@ public abstract class PSQLAbstractBranchIT extends PSQLAbstractIT {
   protected ModifyBranchEvent eventForMerge(int nodeId, Ref baseRef, int targetNodeId) {
     return new ModifyBranchEvent()
             .withOperation(MERGE)
-            .withSpace(TEST_SPACE_ID())
+            .withSpace(logicalSpaceId())
+            .withParams(physicalTableParams())
             .withNodeId(nodeId)
             .withMergeTargetNodeId(targetNodeId)
             .withBaseRef(baseRef);
@@ -115,7 +129,8 @@ public abstract class PSQLAbstractBranchIT extends PSQLAbstractIT {
   protected ModifyBranchEvent eventForRebase(int nodeId, Ref baseRef, Ref newBaseRef) {
     return new ModifyBranchEvent()
             .withOperation(REBASE)
-            .withSpace(TEST_SPACE_ID())
+            .withSpace(logicalSpaceId())
+            .withParams(physicalTableParams())
             .withNodeId(nodeId)
             .withBaseRef(baseRef)
             .withNewBaseRef(newBaseRef);

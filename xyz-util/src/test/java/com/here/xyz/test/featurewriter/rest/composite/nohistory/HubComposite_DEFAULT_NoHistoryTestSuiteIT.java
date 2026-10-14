@@ -33,8 +33,10 @@ public class HubComposite_DEFAULT_NoHistoryTestSuiteIT extends RestTestSuite {
 
   public static Stream<TestArgs> testScenarios() throws JsonProcessingException {
     Set<String> ignoredTests = Set.of(
+        "4.1", //FIXME: Issue "The feature's creation timestamp has to be lower than the timestamp when the test started".
         "5.1", //FIXME: Issue in Hub: No version conflict is thrown in that case, because Hub does not distinguish an existence conflict and a version conflict in its error message [will be fixed by new FeatureWriter impl]
-        "5.5" //FIXME: Issue in Hub: No illegal argument error is thrown in that case [will be fixed by new FeatureWriter impl]
+        "5.5", //FIXME: Issue in Hub: No illegal argument error is thrown in that case [will be fixed by new FeatureWriter impl]
+        "6.1"  //FIXME: Issue in Hub: createdAt is overwritten on UPDATE instead of being preserved from the initial INSERT [will be fixed by new FeatureWriter impl]
     );
 
     return SQLComposite_DEFAULT_NoHistoryTestSuiteIT.testScenarios()

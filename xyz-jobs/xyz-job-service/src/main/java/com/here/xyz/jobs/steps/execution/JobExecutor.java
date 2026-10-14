@@ -44,7 +44,6 @@ import com.here.xyz.util.service.Initializable;
 import io.vertx.core.Future;
 import io.vertx.core.impl.ConcurrentHashSet;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Executors;
@@ -404,8 +403,8 @@ public abstract class JobExecutor implements Initializable {
   }
 
   /**
-   * If the {@code singleJobPerResourceEnabled} flag is on, ensures no other RUNNING job shares any
-   * resource key (source/target) with the given job.
+   * If the {@code singleJobPerResourceEnabled} flag is on, ensures no other RUNNING job occupies a
+   * resource (source/target) of the given job. See {@link #resourcesConflict(Job, Job)} for the conflict semantics.
    *
    * @return A future that resolves to true if the job may execute, false if another RUNNING job
    *         already occupies one of its resources or an older PENDING job exists for overlapping
@@ -418,13 +417,12 @@ public abstract class JobExecutor implements Initializable {
     Set<String> resourceKeys = job.getResourceKeys();
     if (resourceKeys == null || resourceKeys.isEmpty())
       return Future.succeededFuture(true);
-    Set<String> nonBaseResourceKeys =  filterNonBaseResourceKeys(resourceKeys);
 
-    //Filter the pre-loaded RUNNING jobs to those sharing at
-    //least one resource key (and excluding the job itself)
+    //Filter the pre-loaded RUNNING jobs to those conflicting
+    //on at least one resource (and excluding the job itself)
     List<Job> conflictingRunning = runningJobs.stream()
         .filter(otherRunningJob -> !otherRunningJob.getId().equals(job.getId()))
-        .filter(otherRunningJob -> otherRunningJob.getResourceKeys() != null && !Collections.disjoint(filterNonBaseResourceKeys(otherRunningJob.getResourceKeys()), nonBaseResourceKeys))
+        .filter(otherRunningJob -> resourcesConflict(job, otherRunningJob))
         .toList();
 
     if (!conflictingRunning.isEmpty()) {
@@ -439,11 +437,15 @@ public abstract class JobExecutor implements Initializable {
     //NOTE: This check is still needed even though checkPendingJobs() sorts by createdAt, because:
     // 1. A job directly submitted via startExecution() (outside the poll loop) has no ordering guarantee.
     // 2. An older job blocked by insufficient virtual units stays PENDING while a newer job could otherwise jump ahead.
-    return JobConfigClient.getInstance().loadJobs(nonBaseResourceKeys, PENDING)
+    //NOTE: All resource keys (incl. base resources) have to be used for loading. Otherwise, a PENDING job operating directly
+    // on a base resource would be invisible for a job only inheriting that base resource. Jobs that merely share inherited
+    // base resources are filtered out afterward.
+    return JobConfigClient.getInstance().loadJobs(resourceKeys, PENDING)
         .map(pendingJobs -> {
           List<Job> olderPendingConflicts = pendingJobs.stream()
               .filter(other -> !job.getId().equals(other.getId()))
               .filter(other -> other.getCreatedAt() < job.getCreatedAt())
+              .filter(other -> resourcesConflict(job, other))
               .sorted(comparingLong(Job::getCreatedAt))
               .toList();
 
@@ -457,8 +459,30 @@ public abstract class JobExecutor implements Initializable {
         });
   }
 
-  private static Set<String> filterNonBaseResourceKeys(Set<String> resourceKeys) {
-    return resourceKeys.stream().filter(resourceKey -> !isBaseResource(resourceKey)).collect(Collectors.toSet());
+  /**
+   * Checks whether two jobs must not run in parallel, because they share at least one resource.
+   * <p>
+   * A shared non-base resource is always a conflict.
+   * A shared base resource (e.g., a global layer extended by composite layers) is only a conflict, if it is the primary
+   * resource ({@link Job#getResourceKey()}) of at least one of both jobs. If both jobs only inherit it (e.g., jobs on two
+   * different composite layers extending the same base layer), they may run in parallel.
+   *
+   * @return true, if the jobs must not run in parallel
+   */
+  static boolean resourcesConflict(Job job, Job otherJob) {
+    Set<String> resourceKeys = job.getResourceKeys();
+    Set<String> otherResourceKeys = otherJob.getResourceKeys();
+    if (resourceKeys == null || otherResourceKeys == null)
+      return false;
+
+    String primaryResourceKey = job.getResourceKey();
+    String otherPrimaryResourceKey = otherJob.getResourceKey();
+
+    return resourceKeys.stream()
+        .filter(otherResourceKeys::contains)
+        .anyMatch(sharedResourceKey -> !isBaseResource(sharedResourceKey)
+            || sharedResourceKey.equals(primaryResourceKey)
+            || sharedResourceKey.equals(otherPrimaryResourceKey));
   }
 
   private static boolean isBaseResource(String resourceKey) {

@@ -348,21 +348,7 @@ public class Job implements XyzSerializable {
     if (existingStep == null)
       throw new IllegalArgumentException("The provided step with ID " + step.getGlobalStepId() + " was not found.");
 
-    /*
-    NOTE: The following is a hotfix to prevent the system from overloading when there is an incoming burst of parallel step updates
-    for the same step.
-     */
-    //---------------------------
-    RuntimeInfo newStepStatus = step.getStatus();
-    RuntimeInfo existingStepStatus = existingStep.getStatus();
-    final long TIME_TOLERANCE = 5_000;
-
-    if (newStepStatus.getState() == existingStepStatus.getState()
-        && newStepStatus.getUpdatedAt() - TIME_TOLERANCE < existingStepStatus.getUpdatedAt())
-      return Future.succeededFuture();
-    //---------------------------
-
-    return updateStep(step, existingStepStatus.getState(), true);
+    return updateStep(step, existingStep.getStatus().getState(), true);
   }
 
   //NOTE: This method is currently only used to update a step by its ID from incoming events (e.g., from EMR) rather than using an incoming step payload
