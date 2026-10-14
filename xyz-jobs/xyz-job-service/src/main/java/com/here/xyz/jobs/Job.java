@@ -36,6 +36,7 @@ import static com.here.xyz.jobs.steps.resources.Load.addLoads;
 import static com.here.xyz.jobs.steps.resources.ResourcesRegistry.fromStaticLoads;
 import static com.here.xyz.jobs.steps.resources.ResourcesRegistry.toStaticLoads;
 import static com.here.xyz.util.Random.randomAlpha;
+import static java.util.concurrent.TimeUnit.SECONDS;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -131,7 +132,7 @@ public class Job implements XyzSerializable {
   @JsonView({Internal.class, Static.class})
   private boolean reusable = true;
 
-  private static final Async ASYNC = new Async(100, Job.class);
+  private static final Async ASYNC = new Async(200, Job.class);
   private static final Logger logger = LogManager.getLogger();
   private static final long DEFAULT_JOB_TTL = TimeUnit.DAYS.toMillis(2 * 7); //2 weeks
 
@@ -273,7 +274,7 @@ public class Job implements XyzSerializable {
       if (step.getStatus().getState() != targetState)
         step.getStatus().setState(targetState);
       return isReady;
-    });
+    }, 10, SECONDS);
   }
 
   public Future<Void> start() {
