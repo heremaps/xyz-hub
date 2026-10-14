@@ -150,16 +150,6 @@ public class PSQLDecoupledTableNameIT extends PSQLAbstractIT {
     assertNotNull(deserializeResponse(invokeLambda(event)));
   }
 
-  private static long featureCount(String tableName, String featureId) throws Exception {
-    try (Connection connection = LAMBDA.dataSourceProvider.getWriter().getConnection();
-        Statement statement = connection.createStatement();
-        ResultSet result = statement.executeQuery(
-            "SELECT count(*) FROM public.\"" + tableName + "\" WHERE id = '" + featureId + "'")) {
-      assertTrue(result.next());
-      return result.getLong(1);
-    }
-  }
-
   private static boolean tableExists(String tableName) throws Exception {
     try (Connection connection = LAMBDA.dataSourceProvider.getWriter().getConnection();
         Statement statement = connection.createStatement();
