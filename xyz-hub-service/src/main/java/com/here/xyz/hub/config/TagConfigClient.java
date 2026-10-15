@@ -68,7 +68,7 @@ public abstract class TagConfigClient implements Initializable {
   public abstract Future<List<Tag>> deleteTagsForSpace(Marker marker, String spaceId);
 
   /**
-   * Protects a version, which a version-bound extension or a branch reads, from being purged by a system tag, as all purges respect tags.
+   * Protects a version, which a version-bound extension reads, from being purged by a system tag, as all purges respect tags.
    */
   public Future<Void> tagVersion(Marker marker, String spaceId, Ref versionRef, String taggedBy) {
     return storeTag(marker, new Tag()

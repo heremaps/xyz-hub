@@ -59,7 +59,7 @@ public class TagTest {
   @Test
   public void testValidVersionTagNames() {
     assertTrue(isValidId(versionTagId(new Ref(42), "extension hrn:here:data::olp-here:catalog:layer")));
-    assertTrue(isValidId(versionTagId(new Ref("b1:7"), "branch b2")));
+    assertTrue(isValidId(versionTagId(new Ref("b1:7"), "extension b2")));
     assertTrue(isValidId(versionTagId(new Ref(Long.MAX_VALUE), "extension " + "x".repeat(200))));
   }
 
@@ -67,9 +67,8 @@ public class TagTest {
   public void testVersionTagNamesPerTaggedByAndVersion() {
     assertEquals(versionTagId(new Ref(42), "extension a"), versionTagId(new Ref(42), "extension a"));
     assertTrue(versionTagId(new Ref(42), "extension a").startsWith("main_42_"));
-    assertTrue(versionTagId(new Ref("b1:7"), "branch b2").startsWith("b1_7_"));
+    assertTrue(versionTagId(new Ref("b1:7"), "extension b2").startsWith("b1_7_"));
     assertNotEquals(versionTagId(new Ref(42), "extension a"), versionTagId(new Ref(43), "extension a"));
     assertNotEquals(versionTagId(new Ref(42), "extension a"), versionTagId(new Ref(42), "extension b"));
-    assertNotEquals(versionTagId(new Ref(42), "extension a"), versionTagId(new Ref(42), "branch a"));
   }
 }

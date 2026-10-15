@@ -20,21 +20,19 @@
 package com.here.xyz.hub.rest;
 
 import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
-import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Tag;
+import io.netty.handler.codec.http.HttpResponseStatus;
 import io.restassured.http.ContentType;
-import io.vertx.core.json.JsonObject;
-import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -192,81 +190,12 @@ public class BranchApiIT extends TestSpaceBranch {
     createBranch(SPACE_ID, B2_B1, B1_MAIN)
             .body("id", equalTo(B2_B1));
 
-    assertEquals(2, getBranches(SPACE_ID).size(), "should have branches before removing space");
+    assertEquals("should have branches before removing space", 2, getBranches(SPACE_ID).size());
 
     removeSpace(SPACE_ID);
 
-    assertEquals(0, getBranches(SPACE_ID).size(), "should not have any branch after removing space");
+    assertEquals("should not have any branch after removing space", 0, getBranches(SPACE_ID).size());
 
-  }
-
-  @Test
-  public void aBranchKeepsItsBaseVersionFromBeingPurged() throws Exception {
-    long version1 = extractVersion(addFeatureToBranch(SPACE_ID, null, createSampleFeature("main1")));
-    long version2 = extractVersion(addFeatureToBranch(SPACE_ID, null, createSampleFeature("main2")));
-
-    addFeatureToBranch(SPACE_ID, null, createSampleFeature("main3"));
-
-    long headVersion = extractVersion(addFeatureToBranch(SPACE_ID, null, createSampleFeature("main4")));
-
-    //The rolling window alone would keep only the last 2 versions
-    patchSpace(SPACE_ID, new JsonObject().put("versionsToKeep", 2));
-
-    createBranch(SPACE_ID, B1_MAIN, "main:" + version1);
-    assertEquals(version1, minVersion());
-
-    //Rebasing moves the protection to the new base version
-    rebaseBranch(SPACE_ID, B1_MAIN, "main:" + version2);
-    assertEquals(version2, minVersion());
-
-    //Deleting the branch releases it
-    deleteBranch(SPACE_ID, B1_MAIN);
-    assertEquals(headVersion - 1, minVersion());
-  }
-
-  @Test
-  public void aBranchBasedOnAnotherBranchDoesNotTagTheSpace() throws Exception {
-    createBranch(SPACE_ID, B1_MAIN, null)
-        .body("id", equalTo(B1_MAIN));
-    long b1Version = extractVersion(addFeatureToBranch(SPACE_ID, B1_MAIN, createSampleFeature("b1_1")));
-
-    //Only the branch on main protects a version of main, a version of b1 is no version of main
-    assertEquals(1, systemTagIds().size(), "only b1 is based on main");
-    createBranch(SPACE_ID, B2_B1, B1_MAIN + ":" + b1Version)
-        .body("id", equalTo(B2_B1));
-    List<String> tagIds = systemTagIds();
-    assertEquals(1, tagIds.size(), "a base on another branch must not add a tag: " + tagIds);
-    assertTrue(tagIds.get(0).startsWith("main_"), "the tag protects a version of main: " + tagIds);
-
-    //Rebasing it onto a newer version of the branch does not touch the tag of the branch on main either
-    long newerB1Version = extractVersion(addFeatureToBranch(SPACE_ID, B1_MAIN, createSampleFeature("b1_2")));
-    rebaseBranch(SPACE_ID, B2_B1, B1_MAIN + ":" + newerB1Version);
-    assertEquals(tagIds, systemTagIds());
-
-    //Deleting the branch on a branch does not touch it either
-    deleteBranch(SPACE_ID, B2_B1);
-    assertEquals(tagIds, systemTagIds());
-
-    deleteBranch(SPACE_ID, B1_MAIN);
-    assertEquals(0, systemTagIds().size());
-  }
-
-  private List<String> systemTagIds() {
-    var response = given().headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .get(getSpacesPath() + "/" + SPACE_ID + "/tags?includeSystemTags=true")
-        .then().extract();
-    //A space without any tag answers with "no content"
-    if (response.statusCode() == NO_CONTENT.code())
-      return List.of();
-    assertEquals(OK.code(), response.statusCode());
-    return response.jsonPath().getList("id", String.class);
-  }
-
-  private long minVersion() {
-    return ((Number) given().headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .get(getSpacesPath() + "/" + SPACE_ID + "/statistics")
-        .then().statusCode(OK.code())
-        .extract().path("minVersion.value")).longValue();
   }
 
   /**

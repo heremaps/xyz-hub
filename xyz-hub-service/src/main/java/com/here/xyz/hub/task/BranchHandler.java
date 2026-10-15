@@ -106,14 +106,10 @@ public class BranchHandler {
                 //Validate that the space is no composite space, because no branches can be created on composite spaces!
                 .compose(space -> space.getExtension() != null ? Future.failedFuture("Branch " + branchId
                     + " cannot be created on composite resource " + spaceId) : Future.succeededFuture(space))
-                //Protect the new base version before the branch is built on it
-                .compose(space -> tagBaseVersion(marker, spaceId, branchUpdate).map(space))
                 .compose(space -> eventForUpdate(spaceId, existingBranch, branchUpdate)
                     .compose(event -> Space.resolveConnector(marker, space.getStorage().getId())
                         .compose(storage -> sendEvent(marker, injectStorageParams(event, space), storage))))
-                .compose(branchModifiedResponse -> handleBranchModifiedResponse(marker, spaceId, branchId, branchUpdate, branchModifiedResponse))
-                //After a rebase, the old base version is not read by the branch anymore
-                .compose(v -> existingBranch == null ? Future.succeededFuture() : untagBaseVersion(marker, spaceId, existingBranch));
+                .compose(branchModifiedResponse -> handleBranchModifiedResponse(spaceId, branchId, branchUpdate, branchModifiedResponse));
 
           return stored
               //Invalidate the space to ensure the new branch will be updated inside
@@ -129,12 +125,12 @@ public class BranchHandler {
                 .compose(space -> eventForMerge(spaceId, sourceBranch, targetBranch)
                     .compose(event -> space.resolveConnector(marker, space.getStorage().getId())
                         .compose(storage -> sendEvent(marker, injectStorageParams(event, space), storage))))
-                .compose(mergeResponse -> handleMergeResponse(marker, spaceId, branchId, sourceBranch, targetBranch, mergeResponse)))
+                .compose(mergeResponse -> handleMergeResponse(spaceId, branchId, sourceBranch, targetBranch, mergeResponse)))
             .map(sourceBranch))
         .onSuccess(v -> Service.spaceConfigClient.invalidateCache(spaceId));
   }
 
-  private static Future<Void> handleBranchModifiedResponse(Marker marker, String spaceId, String branchId, Branch branchUpdate,
+  private static Future<Void> handleBranchModifiedResponse(String spaceId, String branchId, Branch branchUpdate,
       ModifiedBranchResponse branchModifiedResponse) {
     List<Future<Void>> futures = new ArrayList<>();
     if (branchModifiedResponse.isConflicting()) {
@@ -144,8 +140,7 @@ public class BranchHandler {
           .withNodeId(branchModifiedResponse.getNodeId())
           .withBaseRef(branchModifiedResponse.getBaseRef())
           .withDescription("The branch to be used to solve conflicts of branch: " + branchId);
-      Future<Void> conflictingBranchStored = tagBaseVersion(marker, spaceId, conflictingBranch)
-          .compose(v -> storeBranch(spaceId, conflictingBranch, conflictingBranch.getId(), true));
+      Future<Void> conflictingBranchStored = storeBranch(spaceId, conflictingBranch, conflictingBranch.getId(), true);
       futures.add(conflictingBranchStored);
 
       /*
@@ -167,7 +162,7 @@ public class BranchHandler {
     return Future.all(futures).mapEmpty();
   }
 
-  private static Future<Void> handleMergeResponse(Marker marker, String spaceId, String branchId, Branch sourceBranch, Branch targetBranch,
+  private static Future<Void> handleMergeResponse(String spaceId, String branchId, Branch sourceBranch, Branch targetBranch,
       ModifiedBranchResponse branchModifiedResponse) {
     if (!(branchModifiedResponse instanceof MergedBranchResponse mergeResponse))
       throw new RuntimeException("Unexpected response for merge from storage connector.");
@@ -176,7 +171,7 @@ public class BranchHandler {
       sourceBranch.addMerge(mergeResponse.getMergedSourceVersion(),
           Ref.fromBranchId(targetBranch.getId(), mergeResponse.getResolvedMergeTargetRef().getVersion()));
 
-    return handleBranchModifiedResponse(marker, spaceId, branchId, sourceBranch, branchModifiedResponse);
+    return handleBranchModifiedResponse(spaceId, branchId, sourceBranch, branchModifiedResponse);
   }
 
   private static Future<Ref> resolveRef(Marker marker, String spaceId, Ref ref) {
@@ -239,29 +234,6 @@ public class BranchHandler {
     return new Ref("~" + branch.getNodeId() + ":" + ref.getVersion()); //TODO: Implement constructor Ref(branchId, version)
   }
 
-  //Checks whether the branch is based on a non-main branch. In that case, the base version does not need to be tagged.
-  private static boolean hasNonMainBase(Branch branch) {
-    return !branch.getBaseRef().isMainBranch();
-  }
-
-  // Protects the version the branch is based on from being purged
-  private static Future<Void> tagBaseVersion(Marker marker, String spaceId, Branch branch) {
-    if (hasNonMainBase(branch))
-      return Future.succeededFuture();
-    return Service.tagConfigClient.tagVersion(marker, spaceId, branch.getBaseRef(), "branch " + branch.getId());
-  }
-
-  //Releases the version the branch was based on; a failure is only logged, as the branch operation itself succeeded already
-  private static Future<Void> untagBaseVersion(Marker marker, String spaceId, Branch branch) {
-    if (hasNonMainBase(branch))
-      return Future.succeededFuture();
-    return Service.tagConfigClient.untagVersion(marker, spaceId, branch.getBaseRef(), "branch " + branch.getId())
-        .recover(t -> {
-          logger.error(marker, "Failed to remove the version tag of branch {} of space {}", branch.getId(), spaceId, t);
-          return Future.succeededFuture();
-        });
-  }
-
   public static Future<Void> deleteBranch(Marker marker, String spaceId, String branchId) {
     return loadBranch(spaceId, branchId)
         .compose(branch -> {
@@ -271,7 +243,6 @@ public class BranchHandler {
 
           return Service.branchConfigClient.delete(spaceId, branchId, false)
               .onSuccess(v -> {
-                untagBaseVersion(marker, spaceId, branch);
                 //Invalidate the space to ensure the deleted branch will not be listed inside anymore
                 Service.spaceConfigClient.invalidateCache(spaceId);
                 Space.resolveSpace(marker, spaceId)
