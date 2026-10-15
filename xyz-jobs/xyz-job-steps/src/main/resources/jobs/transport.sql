@@ -186,10 +186,9 @@ $BODY$;
 -- Retry helpers (shared between execute_import_from_s3 / execute_export_to_s3) ---
 
 /**
- * is_retryable_s3_sqlstate(state TEXT)
+ * is_retryable_s3_sqlstate(state TEXT, message TEXT)
  *
- * Returns TRUE if the given SQLSTATE is considered a transient / retryable error
- * for aws_s3 import & export operations.
+ * Returns TRUE if the given error of an aws_s3 import / export is considered transient / retryable.
  *
  * Covered classes:
  *   - 40001 serialization_failure
@@ -203,8 +202,14 @@ $BODY$;
  *   - 22P02 invalid_text_representation (import only in practice)
  *   - 22P04 bad_copy_file_format        (import only in practice)
  *   - 58000 system_error / could not upload to Amazon S3  (export)
+ * Special case:
+ *   - XX000 internal_error "Unable to generate pre-signed url, look at engine log for details." (import)
+ *     aws_s3 raises it once its own (sub-second) pre-signed URL validation retries are exhausted,
+ *     e.g. on S3 503 SlowDown. NOTE: aws_s3 raises the same message for permanent problems
+ *     (missing IAM role, wrong bucket / region). The cause is only visible in the engine log,
+ *     so those are retried as well and fail after max_attempts.
  */
-CREATE OR REPLACE FUNCTION is_retryable_s3_sqlstate(state TEXT)
+CREATE OR REPLACE FUNCTION is_retryable_s3_sqlstate(state TEXT, message TEXT)
     RETURNS BOOLEAN
     LANGUAGE 'sql'
     IMMUTABLE
@@ -218,7 +223,8 @@ AS $BODY$
        -- '57P01', TBD: clarify
         '22P02', '22P04',
         '58000'
-    );
+    )
+    OR (state = 'XX000' AND COALESCE(message, '') ILIKE '%pre-signed url%');
 $BODY$;
 
 /**
@@ -559,7 +565,7 @@ BEGIN
     RETURN import_statistics;
 
     EXCEPTION WHEN OTHERS THEN
-        IF NOT is_retryable_s3_sqlstate(SQLSTATE) THEN
+        IF NOT is_retryable_s3_sqlstate(SQLSTATE, SQLERRM) THEN
             RAISE;
         END IF;
 
@@ -641,7 +647,7 @@ BEGIN
     RETURN NEXT;
 
     EXCEPTION WHEN OTHERS THEN
-        IF NOT is_retryable_s3_sqlstate(SQLSTATE) THEN
+        IF NOT is_retryable_s3_sqlstate(SQLSTATE, SQLERRM) THEN
             RAISE;
         END IF;
 
