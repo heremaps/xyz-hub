@@ -239,13 +239,22 @@ public class BranchHandler {
     return new Ref("~" + branch.getNodeId() + ":" + ref.getVersion()); //TODO: Implement constructor Ref(branchId, version)
   }
 
+  //Checks whether the branch is based on a non-main branch. In that case, the base version does not need to be tagged.
+  private static boolean hasNonMainBase(Branch branch) {
+    return !branch.getBaseRef().isMainBranch();
+  }
+
   // Protects the version the branch is based on from being purged
   private static Future<Void> tagBaseVersion(Marker marker, String spaceId, Branch branch) {
+    if (hasNonMainBase(branch))
+      return Future.succeededFuture();
     return Service.tagConfigClient.tagVersion(marker, spaceId, branch.getBaseRef(), "branch " + branch.getId());
   }
 
   //Releases the version the branch was based on; a failure is only logged, as the branch operation itself succeeded already
   private static Future<Void> untagBaseVersion(Marker marker, String spaceId, Branch branch) {
+    if (hasNonMainBase(branch))
+      return Future.succeededFuture();
     return Service.tagConfigClient.untagVersion(marker, spaceId, branch.getBaseRef(), "branch " + branch.getId())
         .recover(t -> {
           logger.error(marker, "Failed to remove the version tag of branch {} of space {}", branch.getId(), spaceId, t);
