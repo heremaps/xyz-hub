@@ -281,6 +281,29 @@ public class TaskedImportStepTest extends StepTest {
   }
 
   /**
+   * With context EXTENSION no base is read by either write path, so an import into a nested composite stays accepted, unlike in
+   * {@link #testImport_intoNestedComposite_isRejected()}. Validation still returns false here, but only because no input file was uploaded.
+   */
+  @Test
+  public void testImport_intoNestedComposite_withContextEXTENSION_isAccepted() throws Exception {
+    createSpace(new Space().withId(SPACE_ID_EXT).withVersionsToKeep(1000)
+        .withStorage(new Space.ConnectorRef().withId("psql"))
+        .withExtension(new Space.Extension().withSpaceId(SPACE_ID)), false);
+    createSpace(new Space().withId(SPACE_ID_EXT_OF_EXT).withVersionsToKeep(1000)
+        .withStorage(new Space.ConnectorRef().withId("psql"))
+        .withExtension(new Space.Extension().withSpaceId(SPACE_ID_EXT)), false);
+
+    //No versionRef is set on purpose, see testImport_intoNestedComposite_isRejected
+    TaskedImportFilesToSpace step = new TaskedImportFilesToSpace()
+        .withJobId(JOB_ID)
+        .withSpaceId(SPACE_ID_EXT_OF_EXT)
+        .withContext(SpaceContext.EXTENSION)
+        .withInputSets(List.of(USER_INPUTS.get()));
+
+    Assertions.assertFalse(step.validate());
+  }
+
+  /**
    * Import into a composite (extension) space while the target carries the filter context=EXTENSION.
    * The imported features must be written into the extension layer only and must NOT leak into the base
    * (SUPER) layer. The composite (DEFAULT context) view must show the base features plus the imported ones.

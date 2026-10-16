@@ -1149,6 +1149,8 @@ $BODY$;
  *       land in which batch, and the byte budget boundary has no test coverage yet, because every
  *       scenario of the reused FeatureWriter suites writes a single feature per batch.
  */
+--super_bound_version was added; without dropping the old signature, a reused versioned schema keeps both overloads and 9-arg calls become ambiguous
+DROP FUNCTION IF EXISTS execute_express_import_batch(REGCLASS, REGCLASS, REGCLASS, TEXT, BIGINT, NUMERIC, TEXT, BIGINT, BOOLEAN);
 CREATE OR REPLACE FUNCTION execute_express_import_batch(
         source_tbl REGCLASS,
         target_tbl REGCLASS,
@@ -1567,6 +1569,8 @@ $BODY$;
  * Executes one default-import range through the PostgreSQL express writer and
  * reports progress using the existing tasked-import callback protocol.
  */
+--super_bound_version was added; drop the old signature so a reused versioned schema does not keep a stale overload
+DROP FUNCTION IF EXISTS perform_express_import_from_tmp_table_task(INT, REGCLASS, REGCLASS, REGCLASS, TEXT, BIGINT, NUMERIC, TEXT, BIGINT, BOOLEAN, JSON, TEXT, TEXT, TEXT);
 CREATE OR REPLACE FUNCTION perform_express_import_from_tmp_table_task(
         task_id INT,
         source_tbl REGCLASS,
