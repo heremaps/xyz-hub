@@ -402,8 +402,8 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
         throw new ValidationException("Data can not be written to target " + space.getId() + " as it is in read-only mode.");
 
       //Both execution modes only know the directly extended space, so the root base of a nested composite would be ignored
-      //while classifying deletes. See SpaceBasedStep#superSpace for the details.
-      if (isNestedComposite())
+      //while classifying deletes. With context EXTENSION no base is read at all. See SpaceBasedStep#superSpace for the details.
+      if (getContext() != EXTENSION && isNestedComposite())
         throw new ValidationException("Data can not be written to target " + space.getId()
                 + " as it is a composite space with more than one extension level, which is not supported for imports.");
 
