@@ -20,6 +20,7 @@
 package com.here.xyz.jobs.steps.impl;
 
 import com.google.common.io.ByteStreams;
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
 import com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace;
@@ -35,6 +36,9 @@ import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Tag;
 import com.here.xyz.responses.StatisticsResponse;
+import com.here.xyz.util.ARN;
+import com.here.xyz.util.runtime.LambdaFunctionRuntime;
+import com.here.xyz.util.service.aws.lambda.SimulatedContext;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -42,10 +46,18 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.List;
+import java.util.Map;
 
 import static com.here.xyz.jobs.steps.Step.InputSet.USER_INPUTS;
+import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.START_EXECUTION;
+import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.SUCCESS_CALLBACK;
 
 public class TaskedImportStepTest extends StepTest {
 
@@ -297,6 +309,161 @@ public class TaskedImportStepTest extends StepTest {
         .getFeatures().size());
 
     checkStatistics(1, step.loadUserOutputs());
+  }
+
+  /**
+   * A resumed import into an empty layer must recreate its import trigger, even if it was dropped while the step was
+   * suspended (e.g., together with an outdated SQL script version). Without the trigger, the features get written
+   * without an id and the import fails with a not-null violation (23502).
+   */
+  @Test
+  public void testResume_inEmpty_recreatesDroppedImportTrigger() throws Exception {
+    uploadInputFile(JOB_ID, ByteStreams.toByteArray(this.getClass().getResourceAsStream("/testFiles/file1.geojson")),
+            S3ContentType.APPLICATION_JSON);
+    uploadInputFile(JOB_ID, ByteStreams.toByteArray(this.getClass().getResourceAsStream("/testFiles/file2.geojson")),
+            S3ContentType.APPLICATION_JSON);
+
+    TaskedImportFilesToSpace step = new TaskedImportFilesToSpace()
+            .withJobId(JOB_ID)
+            .withVersionRef(new Ref(Ref.HEAD))
+            .withFormat(Format.GEOJSON)
+            .withSpaceId(SPACE_ID)
+            .withInputSets(List.of(USER_INPUTS.get()));
+    step.prepare(null, null);
+    Assertions.assertTrue(step.validate());
+    //Like the definition a resume is started with, this one does not carry any state of the previous attempt
+    Map<String, Object> stepDefinition = step.toMap();
+
+    String rootTable = getRootTableName(SPACE_ID);
+    String jobTable = "job_data_" + step.getId();
+    try {
+      //First attempt: creates the task items and the import trigger
+      sendLambdaStepRequest(step, START_EXECUTION, true);
+      waitTillTaskItemsAreFinalized(step);
+      long targetVersion = loadTargetVersionOfTaskItems(jobTable);
+
+      //Rewind to the state of an attempt which failed before its tasks were finalized and whose trigger got dropped
+      //in between, as it happens when the script version providing the trigger function gets cleaned up
+      runStatements(
+              "DROP TRIGGER insertTrigger ON public.\"" + rootTable + "\"",
+              "DELETE FROM public.\"" + rootTable + "\"",
+              "UPDATE public.\"" + jobTable + "\" SET finalized = false, task_output = NULL");
+      Assertions.assertNull(loadImportTriggerDefinition(rootTable));
+
+      //Resume
+      TaskedImportFilesToSpace resumedStep = XyzSerializable.fromMap(stepDefinition, TaskedImportFilesToSpace.class);
+      executeResumeSimulated(resumedStep);
+
+      String triggerDefinition = loadImportTriggerDefinition(rootTable);
+      Assertions.assertNotNull(triggerDefinition, "The resume has to recreate the dropped import trigger");
+      Assertions.assertTrue(triggerDefinition.endsWith("tasked_import_from_s3_trigger_for_empty_layer('ANONYMOUS', '"
+              + targetVersion + "', 'false')"), "The import trigger has to use the version persisted in the task items, but is: "
+              + triggerDefinition);
+
+      waitTillTaskItemsAreFinalized(resumedStep);
+      sendLambdaStepRequest(resumedStep, SUCCESS_CALLBACK, true);
+
+      StatisticsResponse statsAfter = getStatistics(SPACE_ID);
+      Assertions.assertEquals(40L, statsAfter.getCount().getValue());
+      Assertions.assertEquals(targetVersion, statsAfter.getMaxVersion().getValue());
+      checkStatistics(40, resumedStep.loadUserOutputs());
+      Assertions.assertNull(loadImportTriggerDefinition(rootTable), "The import trigger has to be dropped after the import");
+    }
+    finally {
+      deleteAllJobTables(List.of(step.getId()));
+    }
+  }
+
+  /**
+   * A repeated (non-resume) start of an import into an empty layer, which finds the task table of a previous attempt
+   * with all task items finalized, finalizes the step directly. It must not leave an import trigger behind, otherwise
+   * every later write into the space would be rewritten by it.
+   */
+  @Test
+  public void testRepeatedStart_inEmpty_afterAllTasksFinalized_leavesNoImportTrigger() throws Exception {
+    uploadInputFile(JOB_ID, ByteStreams.toByteArray(this.getClass().getResourceAsStream("/testFiles/file1.geojson")),
+            S3ContentType.APPLICATION_JSON);
+    uploadInputFile(JOB_ID, ByteStreams.toByteArray(this.getClass().getResourceAsStream("/testFiles/file2.geojson")),
+            S3ContentType.APPLICATION_JSON);
+
+    TaskedImportFilesToSpace step = new TaskedImportFilesToSpace()
+            .withJobId(JOB_ID)
+            .withVersionRef(new Ref(Ref.HEAD))
+            .withFormat(Format.GEOJSON)
+            .withSpaceId(SPACE_ID)
+            .withInputSets(List.of(USER_INPUTS.get()));
+    step.prepare(null, null);
+    Assertions.assertTrue(step.validate());
+
+    String rootTable = getRootTableName(SPACE_ID);
+    try {
+      //First attempt: all tasks get finalized, but the step itself does not (no success callback in the simulation)
+      sendLambdaStepRequest(step, START_EXECUTION, true);
+      waitTillTaskItemsAreFinalized(step);
+      Assertions.assertNotNull(loadImportTriggerDefinition(rootTable));
+
+      //Start again without a resume: The task table of the first attempt exists, all of its items are finalized
+      sendLambdaStepRequest(step, START_EXECUTION, true);
+
+      Assertions.assertNull(loadImportTriggerDefinition(rootTable),
+              "A step which got finalized while resetting its task items must not recreate the import trigger");
+      Assertions.assertEquals(40L, getStatistics(SPACE_ID).getCount().getValue());
+    }
+    finally {
+      deleteAllJobTables(List.of(step.getId()));
+    }
+  }
+
+  /**
+   * Starts the execution of the given step in-process with {@code resume = true}, like
+   * {@link LambdaBasedStep.LambdaBasedStepExecutor} does for a simulated START_EXECUTION request.
+   * NOTE: A real resume can not be triggered in a simulation, because its detection requires the execution history of
+   * the step function.
+   */
+  private void executeResumeSimulated(LambdaBasedStep step) throws Exception {
+    new LambdaFunctionRuntime(new SimulatedContext("localLambda", null), step.getGlobalStepId());
+    setField(step, "ownLambdaArn", new ARN(LAMBDA_ARN));
+    setField(step, "isSimulation", true);
+    step.execute(true);
+  }
+
+  private static void setField(LambdaBasedStep step, String fieldName, Object value) throws ReflectiveOperationException {
+    Field field = LambdaBasedStep.class.getDeclaredField(fieldName);
+    field.setAccessible(true);
+    field.set(step, value);
+  }
+
+  private long loadTargetVersionOfTaskItems(String jobTable) throws SQLException {
+    try (Connection connection = getTestDatabaseConnection();
+         Statement statement = connection.createStatement();
+         ResultSet rs = statement.executeQuery("SELECT DISTINCT (task_input->>'targetVersion')::BIGINT FROM public.\""
+                 + jobTable + "\"")) {
+      Assertions.assertTrue(rs.next());
+      long targetVersion = rs.getLong(1);
+      Assertions.assertFalse(rs.next(), "All task items are expected to share the same targetVersion");
+      return targetVersion;
+    }
+  }
+
+  /**
+   * @return The definition of the import trigger on the root table, or {@code null} if it does not exist.
+   */
+  private String loadImportTriggerDefinition(String rootTable) throws SQLException {
+    try (Connection connection = getTestDatabaseConnection();
+         PreparedStatement statement = connection.prepareStatement(
+                 "SELECT pg_get_triggerdef(oid) FROM pg_trigger WHERE tgname = 'inserttrigger' AND tgrelid = to_regclass(?)")) {
+      statement.setString(1, "public.\"" + rootTable + "\"");
+      try (ResultSet rs = statement.executeQuery()) {
+        return rs.next() ? rs.getString(1) : null;
+      }
+    }
+  }
+
+  private void runStatements(String... sqlStatements) throws SQLException {
+    try (Connection connection = getTestDatabaseConnection(); Statement statement = connection.createStatement()) {
+      for (String sql : sqlStatements)
+        statement.execute(sql);
+    }
   }
 
   protected void executeImportStep(Format format, int featureCountSource,

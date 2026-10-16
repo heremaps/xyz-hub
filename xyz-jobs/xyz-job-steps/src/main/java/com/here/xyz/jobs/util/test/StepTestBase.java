@@ -717,7 +717,7 @@ public class StepTestBase {
     }
 
     public SQLQuery buildDropAllTemporaryTablesByStepPrefixQuery() {
-      return new SQLQuery("""
+      SQLQuery query = new SQLQuery("""
             DO $$
             DECLARE
               r RECORD;
@@ -735,6 +735,8 @@ public class StepTestBase {
         """)
               .withNamedParameter("schema", schema)
               .withNamedParameter("tablePrefix", getTemporaryJobTableName());
+      //JDBC cannot bind parameters inside a dollar-quoted DO body.
+      return new SQLQuery(query.toExecutableQueryString());
     }
   }
 }
