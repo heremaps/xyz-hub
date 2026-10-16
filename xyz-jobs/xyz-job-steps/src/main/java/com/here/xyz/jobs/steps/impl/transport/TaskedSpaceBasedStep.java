@@ -136,6 +136,9 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   protected long minSpaceVersion = -1;
   @JsonView({Internal.class, Static.class})
   protected long maxSpaceVersion = -1;
+  //Whether the step got finalized (incl. its clean-up) while resetting the task items of a previous attempt
+  @JsonIgnore
+  private boolean finalizedOnTaskItemReset = false;
 
   public Ref getVersionRef() {
     return versionRef;
@@ -294,20 +297,48 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   protected abstract double calculateOverallNeededACUs();
 
   /**
-   * Performs initial setup before starting the job step execution.
+   * Prepares an execution attempt of the step before its task items get created or reset.
    * <p>
-   * This method can be overridden by subclasses to implement any required initialization logic,
-   * such as preparing resources, validating prerequisites, or configuring the environment.
-   * The hook is invoked for both fresh executions and resumed executions.
+   * Use this hook for decisions which have to be taken once per execution attempt, e.g., allocating the target
+   * version a fresh execution writes with, or restoring such a decision from the task items on a resume.
+   * </p>
+   * <p>
+   * <b>Do not create database objects here which the task queries rely on</b> (e.g., triggers, partitions or helper
+   * tables). Create them in {@link #ensureDbResources()} instead, which the framework calls on every path that
+   * starts tasks.
+   * </p>
+   * <p>
+   * On a resume, the task table may not exist anymore. In that case the hook may fail with an {@link SQLException}
+   * of state {@code 42P01}, upon which the framework falls back to a fresh execution and calls this hook once more
+   * with {@code resume = false}.
    * </p>
    *
-   * @param resume {@code true} when the step is resumed after a previous attempt and should restore
-   *               or rebuild any required state accordingly; {@code false} for a fresh execution.
+   * @param resume {@code true} when the step is resumed after a previous attempt; {@code false} for a fresh execution.
    * @throws SQLException If a database access error occurs.
    * @throws TooManyResourcesClaimed If too many resources are claimed during setup.
    * @throws WebClientException If an error occurs while interacting with the web client.
    */
-  protected void initialSetup(boolean resume) throws SQLException, TooManyResourcesClaimed, WebClientException {};
+  protected void prepareExecution(boolean resume) throws SQLException, TooManyResourcesClaimed, WebClientException {};
+
+  /**
+   * Ensures that all database objects the task queries rely on exist (e.g., triggers, partitions or helper tables).
+   * <p>
+   * The framework calls this hook right before it starts the first tasks - for a fresh execution as well as for
+   * every resume. Implementations therefore must be idempotent (e.g., {@code CREATE OR REPLACE ...},
+   * {@code CREATE ... IF NOT EXISTS}) and must <b>not</b> assume that objects created by a previous attempt still
+   * exist. Between a failure and a resume such objects may have been removed outside of the step, e.g., by the cleanup
+   * of an outdated SQL script version, which drops the script's functions together with all triggers using them.
+   * </p>
+   * <p>
+   * The hook is called after {@link #prepareExecution(boolean)}, so it can rely on the state restored there.
+   * It is not called if a resume detects that all task items are finalized already.
+   * </p>
+   *
+   * @throws SQLException If a database access error occurs.
+   * @throws TooManyResourcesClaimed If too many resources are claimed while creating the objects.
+   * @throws WebClientException If an error occurs while interacting with the web client.
+   */
+  protected void ensureDbResources() throws SQLException, TooManyResourcesClaimed, WebClientException {}
 
   /**
    * Performs final cleanup after all tasks have completed.
@@ -607,12 +638,12 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   public void execute(boolean resume) throws Exception {
     //The following code is running synchronously till the first task is getting started.
     if (!resume) {
-      initialSetup(false);
+      prepareExecution(false);
       createAndInsertTaskItems();
     }else{
       try {
         //we need to do the initialSetup here to be able to cover the case that the table does not already exists.
-        initialSetup(true);
+        prepareExecution(true);
         if (resetTaskItems()) return;
       }catch (SQLException e){
         if (e.getSQLState() != null && e.getSQLState().toUpperCase().equals("42P01")) {
@@ -628,12 +659,17 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
           }
           //Can not retrieve output - start from scratch
           infoLog(STEP_EXECUTE, "Reset of taskItems failed cause job_data table is missing! Recreating it!");
-          initialSetup(false);
+          prepareExecution(false);
           createAndInsertTaskItems();
         }else
           throw e;
       }
     }
+    //A fresh execution may find the task table of a previous attempt with all items finalized. Then the step got
+    //finalized and cleaned up already while resetting the task items, so nothing must be (re)created anymore.
+    if (!finalizedOnTaskItemReset)
+      ensureDbResources();
+
     startInitialTasks();
     noTasksCreated = taskItemCount == 0;
   }
@@ -650,6 +686,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
     //finalized, nothing needs to be (re)started - just collect the produced outputs and succeed directly.
     if (resetItemCount == 0 && getTaskProgress().isComplete()) {
       infoLog(STEP_EXECUTE, "All task items are already finalized on resume -> collect outputs and finalize.");
+      finalizedOnTaskItemReset = true;
       reportAsyncSuccess();
       return true;
     }

@@ -231,43 +231,62 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
   }
 
   @Override
-  protected void initialSetup(boolean resume) throws SQLException, TooManyResourcesClaimed, WebClientException {
-    if(resume){
-      //If we are not using the featureWriter, we are disabling the space before we start the import.
-      //In case of a resume the space is still inactive - so nobody is able to write in between => we are done here.
-      if(!useFeatureWriter())
-        return;
-
-      long persistedVersion = loadTargetVersionFromTaskInput();
-      long maxVersion = loadSpaceMaxVersion();
-      //check if the targetVersion is outdated
-      boolean versionIsOutdated = maxVersion > persistedVersion;
-
-      if(versionIsOutdated) {
-        //we need to get a new version to ensure consistency
-        targetVersion = increaseVersionSequence();
-        infoLog(STEP_EXECUTE, "initialSetup - resume: maxVersion (" + maxVersion + ") is higher than persisted "
-                + "targetVersion (" + persistedVersion + "). Allocated new targetVersion " + targetVersion
-                + " and resetting the task inputs.");
-        runWriteQuerySync(getQueryBuilder().buildUpdateTaskItemsTargetVersionStatement(targetVersion), db(), 0);
-      }else
-        infoLog(STEP_EXECUTE, "initialSetup - resume: reusing persisted targetVersion " + targetVersion
-                + " (maxVersion=" + maxVersion + ").");
-    }else{
-      //resume=false => retrieve new version
+  protected void prepareExecution(boolean resume) throws SQLException, TooManyResourcesClaimed, WebClientException {
+    if (!resume) {
+      //Fresh execution => retrieve a new version
       targetVersion = getOrIncreaseVersionSequence();
+      return;
     }
 
-    if(useFeatureWriter()){
-      infoLog(STEP_EXECUTE, "initialSetup - Using "
-          + (useExpressImport() ? "express writer" : "FeatureWriter") + " for import!");
+    //NOTE: On a resume, the targetVersion field is not part of the step's request payload anymore, so the version
+    //always has to be restored from the task items which are not finalized yet.
+    long persistedVersion = loadTargetVersionFromTaskInput();
+
+    //If we are not using the featureWriter, we are disabling the space before we start the import.
+    //In case of a resume the space is still inactive - so nobody is able to write in between => keep the version.
+    if (!useFeatureWriter()) {
+      targetVersion = persistedVersion;
+      infoLog(STEP_EXECUTE, "prepareExecution - resume: reusing persisted targetVersion " + targetVersion
+              + " for the import into an empty layer.");
+      return;
+    }
+
+    long maxVersion = loadSpaceMaxVersion();
+    //check if the targetVersion is outdated
+    boolean versionIsOutdated = maxVersion > persistedVersion;
+
+    if (versionIsOutdated) {
+      //we need to get a new version to ensure consistency
+      targetVersion = increaseVersionSequence();
+      infoLog(STEP_EXECUTE, "prepareExecution - resume: maxVersion (" + maxVersion + ") is higher than persisted "
+              + "targetVersion (" + persistedVersion + "). Allocated new targetVersion " + targetVersion
+              + " and resetting the task inputs.");
+      runWriteQuerySync(getQueryBuilder().buildUpdateTaskItemsTargetVersionStatement(targetVersion), db(), 0);
+    }
+    else {
+      targetVersion = persistedVersion;
+      infoLog(STEP_EXECUTE, "prepareExecution - resume: reusing persisted targetVersion " + targetVersion
+              + " (maxVersion=" + maxVersion + ").");
+    }
+  }
+
+  @Override
+  protected void ensureDbResources() throws SQLException, TooManyResourcesClaimed, WebClientException {
+    if (targetVersion < 0)
+      throw new StepException("Invalid targetVersion: " + targetVersion + "! Can not prepare the import resources.");
+
+    if (useFeatureWriter()) {
+      infoLog(STEP_EXECUTE, "ensureDbResources - Using "
+              + (useExpressImport() ? "express writer" : "FeatureWriter") + " for import!");
       //Pre-create two spare history partitions to avoid concurrency issue with hub requests. (also for resumes)
       createSpareHistoryPartitions(targetVersion);
     }
-
-    if(!useFeatureWriter() && !format.equals(FAST_IMPORT_INTO_EMPTY)) {
-      infoLog(STEP_EXECUTE,  "initialSetup(" + resume + ") - Import into empty layer detected! Create Trigger.");
-      //import into an empty, non-composite, layer - targetVersion got persisted in trigger
+    else if (!format.equals(FAST_IMPORT_INTO_EMPTY)) {
+      //Import into an empty, non-composite, layer - the targetVersion gets persisted in the trigger.
+      //NOTE: The trigger is (re)created on every resume as well, because it might have been dropped in between,
+      //e.g., together with the outdated script version its trigger function belongs to.
+      infoLog(STEP_EXECUTE, "ensureDbResources - Import into empty layer detected! Create Trigger with targetVersion "
+              + targetVersion + ".");
       runWriteQuerySync(getQueryBuilder().buildCreateImportTriggerForEmptyLayers(space().getOwner(), targetVersion, retainMetadata),
               db(), 0);
     }
