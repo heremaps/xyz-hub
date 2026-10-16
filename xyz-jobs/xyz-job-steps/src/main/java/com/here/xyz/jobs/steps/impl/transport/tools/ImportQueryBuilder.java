@@ -181,11 +181,15 @@ public class ImportQueryBuilder extends TaskedSpaceBasedQueryBuilder {
     if (effectiveContext == SUPER)
       throw new IllegalArgumentException("Importing data with context SUPER is not supported.");
     String visibleSuperTable = effectiveContext == DEFAULT ? superRootTable : null;
+    //Only relevant while the base is actually visible, and only if it is bound to a specific version
+    Long superBoundVersion = visibleSuperTable == null || space.getExtension() == null
+            ? null : space.getExtension().getVersion();
 
     return new SQLQuery(
             "SELECT perform_express_import_from_tmp_table_task(#{taskId}, to_regclass(#{sourceTable}), "
                     + "to_regclass(#{targetTable}), to_regclass(#{superTable}), #{spaceContext}, "
                     + "#{rangeStart}, #{targetMb}, #{author}, #{currentVersion}, #{historyEnabled}, "
+                    + "#{superBoundVersion}, "
                     + "#{stepPayload}::JSON->'step', #{lambdaFunctionArn}, #{lambdaRegion}, '${{failureCallback}}')")
             .withContext(getQueryContext())
             .withAsync(true)
@@ -200,6 +204,7 @@ public class ImportQueryBuilder extends TaskedSpaceBasedQueryBuilder {
             .withNamedParameter("author", author)
             .withNamedParameter("currentVersion", currentVersion)
             .withNamedParameter("historyEnabled", historyEnabled)
+            .withNamedParameter("superBoundVersion", superBoundVersion)
             .withNamedParameter("stepPayload", serializedImportStep)
             .withNamedParameter("lambdaFunctionArn", lambdaArn)
             .withNamedParameter("lambdaRegion", ownLambdaRegion)

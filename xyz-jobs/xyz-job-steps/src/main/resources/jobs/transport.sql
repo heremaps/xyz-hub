@@ -1149,6 +1149,8 @@ $BODY$;
  *       land in which batch, and the byte budget boundary has no test coverage yet, because every
  *       scenario of the reused FeatureWriter suites writes a single feature per batch.
  */
+--super_bound_version was added; without dropping the old signature, a reused versioned schema keeps both overloads and 9-arg calls become ambiguous
+DROP FUNCTION IF EXISTS execute_express_import_batch(REGCLASS, REGCLASS, REGCLASS, TEXT, BIGINT, NUMERIC, TEXT, BIGINT, BOOLEAN);
 CREATE OR REPLACE FUNCTION execute_express_import_batch(
         source_tbl REGCLASS,
         target_tbl REGCLASS,
@@ -1158,7 +1160,8 @@ CREATE OR REPLACE FUNCTION execute_express_import_batch(
         target_mb NUMERIC,
         author TEXT,
         current_version BIGINT,
-        history_enabled BOOLEAN
+        history_enabled BOOLEAN,
+        super_bound_version BIGINT DEFAULT NULL
     )
 RETURNS TABLE(
         pulled_count INT,
@@ -1180,6 +1183,7 @@ DECLARE
     target_schema TEXT;
     target_table TEXT;
     super_join TEXT;
+    super_version_predicate TEXT;
     sql_text TEXT;
     has_stale_head BOOLEAN;
     is_composite BOOLEAN := super_tbl IS NOT NULL;
@@ -1330,6 +1334,12 @@ BEGIN
                   ERRCODE = 'XYZ49';
     END IF;
 
+    -- A base space bound to a specific version exposes the rows which were live at that version, not its current HEAD
+    super_version_predicate := CASE
+        WHEN super_bound_version IS NULL THEN 'st.next_version = max_bigint()'
+        ELSE format('st.version <= %s AND st.next_version > %s', super_bound_version, super_bound_version)
+    END;
+
     super_join := CASE
         WHEN super_tbl IS NULL THEN
             'LEFT JOIN LATERAL (SELECT NULL::TEXT AS id WHERE false) s ON true'
@@ -1338,11 +1348,11 @@ BEGIN
                  SELECT st.id
                    FROM %s st
                   WHERE st.id = f.feature_id
-                    AND st.next_version = max_bigint()
+                    AND %s
                     AND st.operation != ''D''
                   LIMIT 1
              ) s ON true',
-            super_tbl
+            super_tbl, super_version_predicate
         )
     END;
 
@@ -1559,6 +1569,8 @@ $BODY$;
  * Executes one default-import range through the PostgreSQL express writer and
  * reports progress using the existing tasked-import callback protocol.
  */
+--super_bound_version was added; drop the old signature so a reused versioned schema does not keep a stale overload
+DROP FUNCTION IF EXISTS perform_express_import_from_tmp_table_task(INT, REGCLASS, REGCLASS, REGCLASS, TEXT, BIGINT, NUMERIC, TEXT, BIGINT, BOOLEAN, JSON, TEXT, TEXT, TEXT);
 CREATE OR REPLACE FUNCTION perform_express_import_from_tmp_table_task(
         task_id INT,
         source_tbl REGCLASS,
@@ -1570,6 +1582,7 @@ CREATE OR REPLACE FUNCTION perform_express_import_from_tmp_table_task(
         author TEXT,
         current_version BIGINT,
         history_enabled BOOLEAN,
+        super_bound_version BIGINT,
         step_payload JSON,
         lambda_function_arn TEXT,
         lambda_region TEXT,
@@ -1596,6 +1609,8 @@ BEGIN
         author TEXT := '$wrappedouter$||author||$wrappedouter$'::TEXT;
         current_version BIGINT := $wrappedouter$||current_version||$wrappedouter$::BIGINT;
         history_enabled BOOLEAN := $wrappedouter$||history_enabled||$wrappedouter$::BOOLEAN;
+        -- COALESCE to the literal NULL, so that an unbound base does not collapse the whole generated statement
+        super_bound_version BIGINT := $wrappedouter$||COALESCE(super_bound_version::TEXT, 'NULL')||$wrappedouter$::BIGINT;
         step_payload JSON := '$wrappedouter$||step_payload::TEXT||$wrappedouter$'::JSON;
         lambda_function_arn TEXT := '$wrappedouter$||lambda_function_arn||$wrappedouter$'::TEXT;
         lambda_region TEXT := '$wrappedouter$||lambda_region||$wrappedouter$'::TEXT;
@@ -1611,7 +1626,8 @@ BEGIN
               target_mb,
               author,
               current_version,
-              history_enabled
+              history_enabled,
+              super_bound_version
           );
 
         IF batch_result.finished THEN
