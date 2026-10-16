@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ package com.here.xyz.psql.factory;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
 
 import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.util.DhString;
@@ -30,6 +31,12 @@ import org.json.JSONObject;
 
 public class IterateSortSQL {
 
+  private static final Pattern DISALLOWED_KEY_CHARACTERS = Pattern.compile("[^a-zA-Z0-9@:.,_!=\\-<>]");
+
+  private static String escapeSqlString(String value) {
+    return value == null ? null : value.replace("'", "''");
+  }
+
   private static boolean isDescending(String sortproperty) { return sortproperty.toLowerCase().endsWith(":desc"); }
 
   private static String jpathFromSortProperty(String sortproperty)
@@ -37,7 +44,12 @@ public class IterateSortSQL {
     sortproperty = sortproperty.replaceAll(":(?i)(asc|desc)$", "");
 
     for (String p : sortproperty.split("\\."))
+    {
+      // Validate property name to prevent SQL injection
+      if (DISALLOWED_KEY_CHARACTERS.matcher(p).find())
+        throw new IllegalArgumentException("Invalid property name in sort: " + p);
       jpth = DhString.format(jformat, jpth, p);
+    }
 
     return jpth;  
   }
@@ -110,7 +122,7 @@ public class IterateSortSQL {
    }
 
    if( h.has("h") ) // start handle partitioned by id
-   { ret.add(DhString.format(" and (jsondata->>'id') >= '%s'",h.get("h").toString())); 
+   { ret.add(DhString.format(" and (jsondata->>'id') >= '%s'", escapeSqlString(h.get("h").toString()))); 
      return ret;
    }
 
@@ -119,7 +131,7 @@ public class IterateSortSQL {
      Object v = h.get(hkey);
      boolean bNull = PropertyDoesNotExistIndikator.equals(v.toString());
      JSONObject jo = new JSONObject();
-     jo.put(hkey, v);
+     jo.put(hkey, !bNull ? escapeSqlString(v.toString()) : v);
      
 
      descendingLast = isDescending(s);
@@ -132,7 +144,7 @@ public class IterateSortSQL {
       sqlWhereContinuation += DhString.format(" and %s is null", jpathFromSortProperty(s) );
     }
 
-   sqlWhereContinuation += DhString.format(" and (jsondata->>'id') %s '%s'", ( descendingLast ? "<" : ">" ) ,h.get("h0").toString());
+   sqlWhereContinuation += DhString.format(" and (jsondata->>'id') %s '%s'", ( descendingLast ? "<" : ">" ), escapeSqlString(h.get("h0").toString()));
 
    ret.add( sqlWhereContinuation );
 
@@ -152,7 +164,7 @@ public class IterateSortSQL {
        boolean bNull = PropertyDoesNotExistIndikator.equals(v.toString());
                        
        JSONObject jo = new JSONObject();
-       jo.put(hkey, v);
+       jo.put(hkey, !bNull ? escapeSqlString(v.toString()) : v);
   
        descendingLast = isDescending(s);
        
