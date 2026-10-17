@@ -52,6 +52,11 @@ public class Config extends com.here.xyz.jobs.steps.Config {
   public String STEPS_DYNAMODB_TABLE_ARN;
 
   /**
+   * ARN of the DynamoDB table keeping the feature statistics of finished jobs. Optional: without it nothing is recorded.
+   */
+  public String STATISTICS_DYNAMODB_TABLE_ARN;
+
+  /**
    * The ARN of the step lambda being called by the step functions
    */
   public ARN STEP_LAMBDA_ARN;
