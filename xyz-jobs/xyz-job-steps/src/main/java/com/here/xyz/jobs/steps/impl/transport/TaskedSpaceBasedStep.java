@@ -318,7 +318,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
    * @throws TooManyResourcesClaimed If too many resources are claimed during setup.
    * @throws WebClientException If an error occurs while interacting with the web client.
    */
-  protected void prepareExecution(boolean resume) throws SQLException, TooManyResourcesClaimed, WebClientException {};
+  protected void prepareExecution(boolean resume) throws SQLException, TooManyResourcesClaimed, WebClientException {}
 
   /**
    * Ensures that all database objects the task queries rely on exist (e.g., triggers, partitions or helper tables).
@@ -642,7 +642,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
       createAndInsertTaskItems();
     }else{
       try {
-        //we need to do the initialSetup here to be able to cover the case that the table does not already exists.
+        //we need to do the preparation here to be able to cover the case that the table does not already exists.
         prepareExecution(true);
         if (resetTaskItems()) return;
       }catch (SQLException e){
