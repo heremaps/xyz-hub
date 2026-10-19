@@ -1327,6 +1327,15 @@ public class SQLQuery {
             remainingQueryTimeout, e);
         return true;
       }
+      /*
+      38000 - external_routine_exception: only retryable if caused by a dropped TLS connection
+      (e.g. inside dblink / aws_lambda calls), which is a transient network issue.
+       */
+      if (e instanceof SQLException sqlEx && "38000".equals(sqlEx.getSQLState()) && sqlEx.getMessage() != null
+          && sqlEx.getMessage().contains("peer closed connection without sending TLS close_notify:")) {
+        logger.warn("{} Retryable TLS connection loss detected! RemainingTime: {}", getQueryId(), remainingQueryTimeout, e);
+        return true;
+      }
       if (e instanceof SQLException sqlEx && sqlEx.getSQLState() != null && (
           /*
           If a timeout occurs right after the invocation, it could be caused
