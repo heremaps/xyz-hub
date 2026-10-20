@@ -209,6 +209,10 @@ $BODY$;
  *     e.g. on S3 503 SlowDown. NOTE: aws_s3 raises the same message for permanent problems
  *     (missing IAM role, wrong bucket / region). The cause is only visible in the engine log,
  *     so those are retried as well and fail after max_attempts.
+ *   - 38000 external_routine_exception "S3 stream failed '...'" (import / export)
+ *     aws_s3 raises it if the connection to S3 breaks while the object is being streamed,
+ *     e.g. "peer closed connection without sending TLS close_notify". 38000 itself is a generic code
+ *     used by extensions and PL handlers, so only the aws_s3 stream failures are matched by message.
  */
 CREATE OR REPLACE FUNCTION is_retryable_s3_error(state TEXT, message TEXT)
     RETURNS BOOLEAN
@@ -225,7 +229,8 @@ AS $BODY$
         '22P02', '22P04',
         '58000'
     )
-    OR (state = 'XX000' AND COALESCE(message, '') ILIKE '%pre-signed url%');
+    OR (state = 'XX000' AND COALESCE(message, '') ILIKE '%pre-signed url%')
+    OR (state = '38000' AND COALESCE(message, '') ILIKE 'S3 stream failed%');
 $BODY$;
 
 /**
