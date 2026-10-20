@@ -46,6 +46,7 @@ import com.here.xyz.jobs.config.JobConfigClient;
 import com.here.xyz.jobs.RuntimeInfo;
 import com.here.xyz.jobs.RuntimeInfo.State;
 import com.here.xyz.jobs.steps.Step;
+import com.here.xyz.jobs.steps.execution.ErrorCauseResolver;
 import com.here.xyz.jobs.steps.execution.JobExecutor;
 import com.here.xyz.jobs.steps.execution.SFNInspector;
 import com.here.xyz.jobs.steps.outputs.Output;
@@ -69,14 +70,8 @@ public class JobAdminApi extends JobApiBase {
   private static final String ADMIN_JOB_STEP_STATUS = ADMIN_JOB_STEP + "/status";
   private static final String ADMIN_STATE_MACHINE_EVENTS = "/admin/state/events";
   private static final String ADMIN_SERVICE_SCHEDULER_STATE = "/admin/service/scheduler/state";
-  private final EmrErrorInfoResolver emrErrorInfoResolver;
 
   public JobAdminApi(Router router) {
-    this(router, new EmrErrorInfoResolver());
-  }
-
-  JobAdminApi(Router router, EmrErrorInfoResolver emrErrorInfoResolver) {
-    this.emrErrorInfoResolver = emrErrorInfoResolver;
     router.route(GET, ADMIN_JOBS).handler(handleErrors(this::getJobs));
     router.route(GET, ADMIN_JOB).handler(handleErrors(this::getJob));
     router.route(GET, ADMIN_JOB_OUTPUTS).handler(handleErrors(this::getJobOutputs));
@@ -259,7 +254,6 @@ public class JobAdminApi extends JobApiBase {
               if (newJobState == SUCCEEDED)
                 JobExecutor.getInstance().deleteExecution(job.getExecutionId());
               else if (newJobState == FAILED) {
-                EmrFailureContext emrFailureContext = parseEmrFailureContext(detail);
                 if ("TIMED_OUT".equals(sfnStatus))
                   future = failCausingStep(job, "Timeout was exceeded of step", future, executionArn);
                 else if ("States.Timeout".equals(detail.getString("error")))
@@ -271,12 +265,6 @@ public class JobAdminApi extends JobApiBase {
                   job.getStatus().setErrorMessage("An EMR step failed because of an issue with the AWSEMRServerless service.");
                   future = failCausingStep(job, detail.getString("cause"), future, executionArn);
                 }
-                else if (emrFailureContext != null) {
-                  RuntimeInfo failureStatus = new RuntimeInfo().withState(FAILED);
-                  future = populateEmrErrorInformation(emrFailureContext.applicationId(), emrFailureContext.jobRunName(),
-                          emrFailureContext.jobRunId(), emrFailureContext.stateDetails(), failureStatus)
-                      .compose(status -> failCausingStep(job, null, Future.succeededFuture(), executionArn, status));
-                }
                 else {
                   /*
                   NOTE: This case handles any other failures of the SFN that are nothing unusual.
@@ -284,7 +272,7 @@ public class JobAdminApi extends JobApiBase {
                   This handling only acts as a safeguard to ensure that the causing SFN step failure gets reflected in the job's step.
                   (e.g., in case of there would be issues with the step-sync)
                    */
-                  future = failCausingStep(job, null, future, executionArn);
+                  future = failCausingStep(job, null, future, executionArn, true);
                   logger.info("[{}] Received job failure from SFN. Cause: {}", job.getId(), detail.getString("cause"));
                 }
                 future = setStepsToCancelled(job, future);
@@ -328,28 +316,6 @@ public class JobAdminApi extends JobApiBase {
     }
   }
 
-  static EmrFailureContext parseEmrFailureContext(JsonObject detail) {
-    String cause = detail.getString("cause");
-    if (cause == null || cause.isBlank())
-      return null;
-
-    try {
-      JsonObject causeJson = new JsonObject(cause);
-      if (!"FAILED".equals(causeJson.getString("State")))
-        return null;
-
-      String applicationId = causeJson.getString("ApplicationId");
-      String jobRunId = causeJson.getString("JobRunId");
-      String jobRunName = causeJson.getString("JobRunName", causeJson.getString("Name"));
-      if (applicationId == null || jobRunId == null || jobRunName == null)
-        return null;
-      return new EmrFailureContext(applicationId, jobRunId, jobRunName, causeJson.getString("StateDetails"));
-    }
-    catch (Exception e) {
-      return null;
-    }
-  }
-
   private static Future<Void> setStepsToCancelled(Job job, Future<Void> future) {
     //Set all PENDING steps to CANCELLED
     future = future.compose(v -> cancelSteps(job, PENDING));
@@ -359,25 +325,25 @@ public class JobAdminApi extends JobApiBase {
   }
 
   private static Future<Void> failCausingStep(Job job, String errCausePrefixText, Future<Void> future, String executionArn) {
-    return failCausingStep(job, errCausePrefixText, future, executionArn, null);
+    return failCausingStep(job, errCausePrefixText, future, executionArn, false);
   }
 
   private static Future<Void> failCausingStep(Job job, String errCausePrefixText, Future<Void> future, String executionArn,
-      RuntimeInfo failureStatus) {
+      boolean useSfnFailureDetails) {
     //Find the causing step within the SFN ...
-    future = future.compose(v -> SFNInspector.findCausingStepIdInHistory(executionArn))
-        .compose(causingStepId -> {
-          if (failureStatus != null)
-            applyErrorInformation(job.getStatus(), failureStatus);
+    future = future.compose(v -> SFNInspector.findCausingStepFailureInHistory(executionArn))
+        .compose(failureInfo -> {
+          String causingStepId = failureInfo.stepId();
+          if (useSfnFailureDetails)
+            applyFailureInformationIfMissing(job.getStatus(), failureInfo);
           //Patch the error cause on the *job* status
           patchErrorCause(job.getStatus(), errCausePrefixText == null ? null :  errCausePrefixText + " \"" + causingStepId + "\"");
           Step causingStep = job.getStepById(causingStepId);
           if (causingStep == null)
             return Future.failedFuture(new NullPointerException("No step with ID \"" + causingStepId + "\" was found in job \"" +  job.getId() + "\"."));
-          if (failureStatus != null)
-            applyErrorInformation(causingStep.getStatus(), failureStatus);
+          boolean failureInformationChanged = useSfnFailureDetails && applyFailureInformationIfMissing(causingStep.getStatus(), failureInfo);
           //... and reflect that failure in the local job's step
-          return failStep(job, causingStep, errCausePrefixText, failureStatus != null);
+          return failStep(job, causingStep, errCausePrefixText, failureInformationChanged);
         })
         //Set all RUNNING steps to CANCELLED, because the steps themselves might not have been informed
         .compose(v -> cancelSteps(job, RUNNING));
@@ -425,10 +391,23 @@ public class JobAdminApi extends JobApiBase {
     }
   }
 
-  static void applyErrorInformation(RuntimeInfo target, RuntimeInfo source) {
-    target
-        .withErrorMessage(source.getErrorMessage())
-        .withErrorCause(source.getErrorCause());
+  static boolean applyFailureInformationIfMissing(RuntimeInfo target, SFNInspector.StepFailureInfo failureInfo) {
+    boolean changed = false;
+    if ((target.getErrorMessage() == null || target.getErrorMessage().isBlank())
+        && failureInfo.error() != null && !failureInfo.error().isBlank()) {
+      target.setErrorMessage(failureInfo.error());
+      changed = true;
+    }
+
+    if (target.getErrorCause() == null || target.getErrorCause().isBlank()) {
+      String codedCause = ErrorCauseResolver.extractCodedMessage(failureInfo.cause());
+      String cause = codedCause != null ? codedCause : ErrorCauseResolver.truncate(failureInfo.cause());
+      if (cause != null && !cause.isBlank()) {
+        target.setErrorCause(cause);
+        changed = true;
+      }
+    }
+    return changed;
   }
 
   static Future<Void> notifyFinalizationObserversAfterStatusUpdate(Job job, Future<Void> statusUpdate) {
@@ -494,7 +473,7 @@ public class JobAdminApi extends JobApiBase {
 
             RuntimeInfo status = new RuntimeInfo().withState(newStepState);
             Future<RuntimeInfo> statusFuture = newStepState == FAILED
-                ? populateEmrErrorInformation(emrApplicationId, emrJobName, emrJobRunId, null, status)
+                ? populateEmrErrorInformation(emrApplicationId, emrJobName, emrJobRunId, status)
                 : Future.succeededFuture(status);
             return statusFuture.compose(resolvedStatus -> job.updateStepStatus(stepId, resolvedStatus, false));
           })
@@ -504,32 +483,24 @@ public class JobAdminApi extends JobApiBase {
       logger.error("The EMR job {} - {} is not associated with a step", emrJobName, emrJobRunId);
   }
 
-  private Future<RuntimeInfo> populateEmrErrorInformation(String emrApplicationId, String emrJobName, String emrJobRunId,
-      String providedStateDetails, RuntimeInfo status) {
+  private Future<RuntimeInfo> populateEmrErrorInformation(String emrApplicationId, String emrJobName, String emrJobRunId, RuntimeInfo status) {
     status.setErrorMessage("EMR Job " + emrJobName + " with run ID " + emrJobRunId + " failed.");
-    Future<String> stateDetailsFuture = providedStateDetails != null
-        ? Future.succeededFuture(providedStateDetails)
-        : Core.vertx.executeBlocking(() -> {
+    return Core.vertx.<String>executeBlocking(() -> {
           JobRun jobRun = emrServerlessClient().getJobRun(GetJobRunRequest.builder()
               .applicationId(emrApplicationId)
               .jobRunId(emrJobRunId)
               .build()).jobRun();
           return jobRun.stateDetails();
-        });
-
-    return stateDetailsFuture
+        })
         .recover(t -> {
           logger.warn("Could not load EMR state details for application {} and job run {}.", emrApplicationId, emrJobRunId, t);
-          return Future.succeededFuture();
+          return Future.succeededFuture((String) null);
         })
-        .compose(stateDetails -> emrErrorInfoResolver.resolveCause(emrApplicationId, emrJobRunId, stateDetails))
-        .map(cause -> {
-          status.setErrorCause(cause);
+        .map(stateDetails -> {
+          status.setErrorCause(stateDetails);
           return status;
         });
   }
-
-  record EmrFailureContext(String applicationId, String jobRunId, String jobRunName, String stateDetails) {}
 
   private Step getStepFromBody(RoutingContext context) throws HttpException {
     return deserializeFromBody(context, Step.class);

@@ -41,7 +41,7 @@
 
   <groupId>com.here.xyz</groupId>
   <artifactId>xyz-hub</artifactId>
-  <version>3.24.7-SNAPSHOT</version>
+  <version>3.24.9-SNAPSHOT</version>
   <packaging>pom</packaging>
 
   <modules>
