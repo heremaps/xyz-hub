@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,6 +23,11 @@ import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.models.geojson.coordinates.WKTHelper;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.models.geojson.implementation.Geometry;
+import com.here.xyz.models.geojson.implementation.GeometryCollection;
+import com.here.xyz.models.geojson.implementation.MultiLineString;
+import com.here.xyz.models.geojson.implementation.MultiPoint;
+import com.here.xyz.models.geojson.implementation.MultiPolygon;
 import com.here.xyz.util.db.SQLQuery;
 import java.sql.SQLException;
 
@@ -50,5 +55,30 @@ public class GetFeaturesByGeometry extends Spatial<GetFeaturesByGeometryEvent, F
               .withQueryFragment("wrappedGeoFilter", geoFilter)
               .withNamedParameter("radius", radius);
     return geoFilter;
+  }
+
+  @Override
+  protected SQLQuery buildGeoPredicate(GetFeaturesByGeometryEvent event, SQLQuery geoFilter) {
+    if (!isMultiPartFilter(event))
+      return super.buildGeoPredicate(event, geoFilter);
+
+    //The bounding box of a multi-part geometry with parts spread over a large area covers much more than the parts.
+    //Probe the index once per part instead of once with that bounding box. The exact test stays on the whole geoFilter.
+    //_ST_Intersects is the non-indexed variant of ST_Intersects, so the planner can't fall back to the whole-bbox probe.
+    //(SELECT ...) evaluates the geoFilter once per (sub-)query instead of once per candidate row, also in generic plans.
+    return new SQLQuery("""
+        (ST_isvalid(${{geoFilter}})
+          AND geo && ANY(ARRAY(SELECT (ST_Dump(${{geoFilter}})).geom))
+          AND _ST_Intersects(geo, (SELECT ${{geoFilter}})))""")
+        .withQueryFragment("geoFilter", geoFilter);
+  }
+
+  static boolean isMultiPartFilter(GetFeaturesByGeometryEvent event) {
+    //h3Index takes precedence over the geometry, see buildGeoFilter()
+    if (event.getH3Index() != null)
+      return false;
+    Geometry geometry = event.getGeometry();
+    return geometry instanceof MultiPoint || geometry instanceof MultiLineString || geometry instanceof MultiPolygon
+        || geometry instanceof GeometryCollection;
   }
 }

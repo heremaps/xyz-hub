@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,16 +40,21 @@ public abstract class Spatial<E extends SpatialQueryEvent, R extends XyzResponse
 
   @Override
   protected SQLQuery buildFilterWhereClause(E event) {
-    SQLQuery geoQuery = geoFilter != null
-        ? new SQLQuery("(ST_isvalid(${{geoFilter}}) AND ST_Intersects(geo, ${{geoFilter}}))")
-            .withQueryFragment("geoFilter", geoFilter)
-        : new SQLQuery("TRUE");
+    SQLQuery geoQuery = geoFilter != null ? buildGeoPredicate(event, geoFilter) : new SQLQuery("TRUE");
 
     final SQLQuery filterWhereClause = super.buildFilterWhereClause(event);
     return new SQLQuery("${{geoQuery}} AND ${{searchQuery}}")
         .withQueryFragment("geoQuery", geoQuery)
         //Use the existing clause as searchQuery (from the base query)
         .withQueryFragment("searchQuery", filterWhereClause);
+  }
+
+  /**
+   * Returns the predicate which selects the rows whose geometry intersects the provided geoFilter.
+   */
+  protected SQLQuery buildGeoPredicate(E event, SQLQuery geoFilter) {
+    return new SQLQuery("(ST_isvalid(${{geoFilter}}) AND ST_Intersects(geo, ${{geoFilter}}))")
+        .withQueryFragment("geoFilter", geoFilter);
   }
 
   protected abstract SQLQuery buildGeoFilter(E event);
