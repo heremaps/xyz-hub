@@ -50,9 +50,11 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -71,11 +73,15 @@ public class DynamoJobConfigClient extends JobConfigClient {
   private final StepConfigClient stepConfigClient;
 
   public DynamoJobConfigClient(String tableArn, String resourceKeysTableArn, String stepConfigsTableArn) {
+    this(tableArn, resourceKeysTableArn, new StepConfigClient(stepConfigsTableArn));
+  }
+
+  DynamoJobConfigClient(String tableArn, String resourceKeysTableArn, StepConfigClient stepConfigClient) {
     dynamoClient = new DynamoClient(tableArn, null);
     logger.debug("Instantiating a reference to Dynamo Table {}", dynamoClient.tableName);
     jobTable = dynamoClient.db.getTable(dynamoClient.tableName);
     resourceKeyTable = dynamoClient.db.getTable(new ARN(resourceKeysTableArn).getResourceWithoutType());
-    stepConfigClient = new StepConfigClient(stepConfigsTableArn);
+    this.stepConfigClient = stepConfigClient;
   }
 
   public static class Provider extends JobConfigClient.Provider {
@@ -228,6 +234,20 @@ public class DynamoJobConfigClient extends JobConfigClient {
   }
 
   @Override
+  public Future<Set<Job>> loadJobsByPrimaryResourceKey(String resourceKey, FilteredValues<State> states) {
+    if (resourceKey == null)
+      return Future.succeededFuture(Set.of());
+
+    //Filter by state before loading the steps, so that steps are only loaded for the returned jobs
+    return dynamoClient.executeQueryAsync(() -> queryIndex(jobTable, RESOURCE_KEY_GSI, resourceKey)
+        .stream()
+        .map(jobItem -> deserializeJobIfMatching(jobItem.asMap(), job -> matchesFilteredValues(states, job.getStatus().getState()),
+            true))
+        .filter(Objects::nonNull)
+        .collect(Collectors.toSet()));
+  }
+
+  @Override
   public Future<List<Job>> loadJobs(String resourceKey, State state) {
     if (resourceKey != null)
       return loadJobs(Set.of(resourceKey), state).map(jobs -> jobs.stream().toList());
@@ -239,22 +259,37 @@ public class DynamoJobConfigClient extends JobConfigClient {
 
   @Override
   public Future<Set<Job>> loadJobs(Set<String> resourceKeys, State state) {
-    return loadJobs(resourceKeys)
-        .map(jobs -> jobs.stream()
-            .filter(job -> state == null || job.getStatus().getState() == state)
-            .collect(Collectors.toSet()));
+    return loadJobs(resourceKeys, hasState(state), true);
+  }
+
+  @Override
+  public Future<Set<Job>> loadJobsWithoutSteps(Set<String> resourceKeys, State state) {
+    return loadJobs(resourceKeys, hasState(state), false);
+  }
+
+  private static Predicate<Job> hasState(State state) {
+    return job -> state == null || job.getStatus().getState() == state;
   }
 
   //TODO: Remove resourceKey GSIs after migration
 
-  private Future<Set<Job>> loadJobs(Set<String> resourceKeys) {
+  /**
+   * Loads all jobs related to any of the specified resource keys that match the filter.
+   * The filter is applied to the job without its steps, so the steps are only loaded for jobs that are actually returned.
+   *
+   * @param resourceKeys The resource keys for which to load the jobs
+   * @param filter The filter to apply to the jobs (the jobs' steps are not available to it)
+   * @param withSteps Whether to load the steps of the returned jobs
+   * @return The matching jobs
+   */
+  private Future<Set<Job>> loadJobs(Set<String> resourceKeys, Predicate<Job> filter, boolean withSteps) {
     return findJobIds(resourceKeys).compose(jobIds -> {
 
       //Do parallel batch request to dynamo in case more than 100 job IDs
       List<List<String>> batchedJobIds = Lists.partition(jobIds.stream().toList(), 100);
       List<Future<Set<Job>>> futureList = new ArrayList<>();
       for (List<String> batch : batchedJobIds) {
-        futureList.add(batchLoadJobsById(batch));
+        futureList.add(batchLoadJobsById(batch, filter, withSteps));
       }
 
       return Future.all(futureList)
@@ -264,7 +299,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
     });
   }
 
-  private Future<Set<Job>> batchLoadJobsById(List<String> jobIds) {
+  private Future<Set<Job>> batchLoadJobsById(List<String> jobIds, Predicate<Job> filter, boolean withSteps) {
     if(jobIds == null || jobIds.isEmpty())
       return Future.succeededFuture(Set.of());
 
@@ -284,7 +319,8 @@ public class DynamoJobConfigClient extends JobConfigClient {
       List<Map<String, AttributeValue>> rawItems = result.getResponses().get(jobTable.getTableName());
 
       return ItemUtils.toItemList(rawItems).stream()
-          .map(jobItem -> deserializeJob(jobItem.asMap()))
+          .map(jobItem -> deserializeJobIfMatching(jobItem.asMap(), filter, withSteps))
+          .filter(Objects::nonNull)
           .collect(Collectors.toSet());
     });
   }
@@ -452,6 +488,28 @@ public class DynamoJobConfigClient extends JobConfigClient {
       jobItem.put("steps", StepGraphReferences.dereference(steps, stepsById));
     }
     return XyzSerializable.fromMap(jobItem, Job.class);
+  }
+
+  /**
+   * Deserializes the job item without its step graph ({@link Job#getSteps()} is {@code null}).
+   * No query to the step table is performed. The provided job item is not modified.
+   */
+  private static Job deserializeJobWithoutSteps(Map<String, Object> jobItem) {
+    Map<String, Object> jobItemWithoutSteps = new HashMap<>(jobItem);
+    jobItemWithoutSteps.remove("steps");
+    return XyzSerializable.fromMap(jobItemWithoutSteps, Job.class);
+  }
+
+  /**
+   * Applies the filter to the job item without its steps and only loads the steps (if requested) if the job matches.
+   *
+   * @return The job or {@code null} if it does not match the filter
+   */
+  private Job deserializeJobIfMatching(Map<String, Object> jobItem, Predicate<Job> filter, boolean withSteps) {
+    Job jobWithoutSteps = deserializeJobWithoutSteps(jobItem);
+    if (!filter.test(jobWithoutSteps))
+      return null;
+    return withSteps ? deserializeJob(jobItem) : jobWithoutSteps;
   }
 
   @Override

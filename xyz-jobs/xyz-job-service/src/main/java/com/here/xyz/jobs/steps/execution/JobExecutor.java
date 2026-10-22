@@ -44,6 +44,7 @@ import com.here.xyz.util.service.Initializable;
 import io.vertx.core.Future;
 import io.vertx.core.impl.ConcurrentHashSet;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Executors;
@@ -440,14 +441,10 @@ public abstract class JobExecutor implements Initializable {
     //NOTE: All resource keys (incl. base resources) have to be used for loading. Otherwise, a PENDING job operating directly
     // on a base resource would be invisible for a job only inheriting that base resource. Jobs that merely share inherited
     // base resources are filtered out afterward.
-    return JobConfigClient.getInstance().loadJobs(resourceKeys, PENDING)
+    //The jobs are loaded without their steps, because only their IDs, creation times and resource keys are read.
+    return JobConfigClient.getInstance().loadJobsWithoutSteps(resourceKeys, PENDING)
         .map(pendingJobs -> {
-          List<Job> olderPendingConflicts = pendingJobs.stream()
-              .filter(other -> !job.getId().equals(other.getId()))
-              .filter(other -> other.getCreatedAt() < job.getCreatedAt())
-              .filter(other -> resourcesConflict(job, other))
-              .sorted(comparingLong(Job::getCreatedAt))
-              .toList();
+          List<Job> olderPendingConflicts = olderPendingConflicts(job, pendingJobs);
 
           if (olderPendingConflicts.isEmpty())
             return true;
@@ -457,6 +454,24 @@ public abstract class JobExecutor implements Initializable {
               olderPendingConflicts.stream().map(Job::getId).collect(Collectors.joining(", ")));
           return false;
         });
+  }
+
+  /**
+   * Returns the PENDING jobs that are older than the given job and conflict with it on at least one resource.
+   * See {@link #resourcesConflict(Job, Job)} for the conflict semantics. Only the jobs' IDs, creation times and
+   * resource keys are read, so the pending jobs do not need to have their steps loaded.
+   *
+   * @param job The job to be checked
+   * @param pendingJobs The PENDING jobs sharing at least one resource key with the job
+   * @return The older conflicting PENDING jobs, sorted by their creation time (oldest first)
+   */
+  public static List<Job> olderPendingConflicts(Job job, Collection<Job> pendingJobs) {
+    return pendingJobs.stream()
+        .filter(other -> !job.getId().equals(other.getId()))
+        .filter(other -> other.getCreatedAt() < job.getCreatedAt())
+        .filter(other -> resourcesConflict(job, other))
+        .sorted(comparingLong(Job::getCreatedAt))
+        .toList();
   }
 
   /**
