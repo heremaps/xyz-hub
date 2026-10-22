@@ -121,6 +121,19 @@ public abstract class JobConfigClient implements Initializable {
    */
   public abstract Future<Set<Job>> loadJobs(Set<String> resourceKeys, State state);
 
+  /**
+   * Returns the same jobs as {@link #loadJobs(Set, State)}, but implementations may leave out the step graph
+   * ({@link Job#getSteps()} may be {@code null}) to avoid loading it.
+   * Meant for checks that only read the jobs' ID, status, creation time, source / target and resource keys.
+   *
+   * @param resourceKeys A set of resource keys for which to find the jobs
+   * @param state A state by which to filter the resulting jobs
+   * @return The jobs, possibly without their steps
+   */
+  public Future<Set<Job>> loadJobsWithoutSteps(Set<String> resourceKeys, State state) {
+    return loadJobs(resourceKeys, state);
+  }
+
   public abstract Future<Void> storeJob(Job job);
 
   /**
