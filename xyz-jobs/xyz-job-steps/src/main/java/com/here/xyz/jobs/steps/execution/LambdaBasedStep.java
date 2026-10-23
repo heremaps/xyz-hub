@@ -589,8 +589,10 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     return executionId == null ? EXECUTION_ID_TEMPLATE : null;
   }
 
-  private void setExecutionIdTemplate(String executionId) {
-    this.executionId = executionId;
+  @JsonProperty("executionId")
+  private void setExecutionId(String executionId) {
+    //"$$.Execution.Id" is the unresolved SFN template, never an actual execution ARN
+    this.executionId = EXECUTION_ID_TEMPLATE.equals(executionId) ? null : executionId;
   }
 
   @JsonProperty("redriveCount.$")
@@ -598,11 +600,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   private String getRedriveCountTemplate() {
     return (redriveCount == -1 && !isSimulation) ? REDRIVE_COUNT_TEMPLATE : null;
   }
-
-  private void setRedriveCountCount(int redriveCount) {
-    this.redriveCount = redriveCount;
-  }
-
+  
   @JsonProperty("retryCount.$")
   @JsonInclude(Include.NON_NULL)
   private String getRetryCountTemplate() {
