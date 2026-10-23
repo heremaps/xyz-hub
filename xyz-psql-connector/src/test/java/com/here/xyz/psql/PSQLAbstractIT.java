@@ -27,26 +27,33 @@ import static io.restassured.path.json.JsonPath.with;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.collect.ImmutableMap;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.HealthCheckEvent;
 import com.here.xyz.events.ModifySpaceEvent;
+import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.psql.tools.Helper;
 import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.util.db.ECPSTool;
+import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.runtime.LambdaFunctionRuntime;
 import com.here.xyz.util.service.aws.lambda.SimulatedContext;
 import java.sql.Connection;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.BeforeAll;
@@ -164,6 +171,44 @@ public abstract class PSQLAbstractIT extends Helper {
       return result.getLong(1);
     }
   }
+
+  /**
+   * Reads the raw rows of a space table, so that tests can assert on the physical result of a write instead of only on what a
+   * read event exposes.
+   */
+  protected List<FeatureRow> getAllRowFromTable(String tableName) throws SQLException {
+    return new SQLQuery("SELECT id, version, operation FROM ${schema}.${table} ")
+        .withVariable("schema", PG_SCHEMA)
+        .withVariable("table", tableName)
+        .run(getDataSourceProvider(), rs -> {
+          List<FeatureRow> allFeatureIdAndVersion = new ArrayList<>();
+          while (rs.next()) {
+            allFeatureIdAndVersion.add(new FeatureRow(rs.getString("id"), rs.getLong("version"), rs.getString("operation")));
+          }
+          return allFeatureIdAndVersion;
+        });
+  }
+
+  protected Set<String> extractFeatureIds(FeatureCollection featureCollection) throws JsonProcessingException {
+    if (featureCollection == null || featureCollection.getFeatures() == null)
+      return Set.of();
+    return featureCollection.getFeatures()
+        .stream()
+        .map(feature -> feature.getId())
+        .collect(Collectors.toSet());
+  }
+
+  protected Set<String> extractFeatureIds(List<FeatureRow> featureRows) {
+    return featureRows.stream().map(featureRow -> featureRow.id()).collect(Collectors.toSet());
+  }
+
+  protected void executeReadFeaturesEvent(Event event, Set<String> expectedFeatureIds) throws Exception {
+    FeatureCollection fc = deserializeResponse(invokeLambda(event));
+    Set<String> actualFeatureIds = extractFeatureIds(fc);
+    assertEquals(expectedFeatureIds, actualFeatureIds);
+  }
+
+  public record FeatureRow(String id, long version, String operation) {}
 
   protected String invokeLambdaFromFile(String file) throws Exception {
     return invokeLambda(XyzSerializable.deserialize(PSQLAbstractIT.class.getResourceAsStream(file), Event.class));
