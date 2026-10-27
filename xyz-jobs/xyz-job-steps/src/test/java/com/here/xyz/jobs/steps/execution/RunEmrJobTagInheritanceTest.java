@@ -1,0 +1,177 @@
+/*
+ * Copyright (C) 2017-2026 HERE Europe B.V.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ * License-Filename: LICENSE
+ */
+
+package com.here.xyz.jobs.steps.execution;
+
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import com.here.xyz.jobs.steps.Config;
+import java.net.URI;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import software.amazon.awssdk.services.emrserverless.model.ResourceNotFoundException;
+
+class RunEmrJobTagInheritanceTest {
+  private static final String ODIN_APP_ID = "odin_app_id";
+  private static final AtomicInteger loadCount = new AtomicInteger();
+  private Config previousConfig;
+
+  @BeforeEach
+  void setUp() {
+    previousConfig = Config.instance;
+    new Config();
+    Config.instance.LOCALSTACK_ENDPOINT = null;
+    RunEmrJob.clearApplicationTagsCache();
+    loadCount.set(0);
+  }
+
+  @AfterEach
+  void tearDown() {
+    RunEmrJob.clearApplicationTagsCache();
+    Config.instance = previousConfig;
+  }
+
+  @Test
+  void inheritsOdinAppIdOfApplication() throws Exception {
+    RunEmrJob step = emrStep("app1", Map.of(ODIN_APP_ID, "2963", "Project", "other"));
+
+    step.prepare("someOwner", null);
+
+    assertEquals(Map.of(ODIN_APP_ID, "2963"), step.getTags());
+  }
+
+  @Test
+  void keepsExistingTags() throws Exception {
+    RunEmrJob step = emrStep("app1", Map.of(ODIN_APP_ID, "2963"));
+    step.getTags().put("owner", "someOwner");
+
+    step.prepare("someOwner", null);
+
+    assertEquals(Map.of("owner", "someOwner", ODIN_APP_ID, "2963"), step.getTags());
+  }
+
+  @Test
+  void explicitTagTakesPrecedence() throws Exception {
+    RunEmrJob step = emrStep("app1", Map.of(ODIN_APP_ID, "2963"));
+    step.getTags().put(ODIN_APP_ID, "1234");
+
+    step.prepare("someOwner", null);
+
+    assertEquals("1234", step.getTags().get(ODIN_APP_ID));
+  }
+
+  @Test
+  void applicationWithoutOdinAppIdDoesNotFail() {
+    RunEmrJob step = emrStep("app1", Map.of("Project", "other"));
+
+    assertDoesNotThrow(() -> step.prepare("someOwner", null));
+    assertTrue(step.getTags().isEmpty());
+  }
+
+  @Test
+  void applicationWithoutAnyTagsDoesNotFail() {
+    RunEmrJob step = emrStep("app1", null);
+
+    assertDoesNotThrow(() -> step.prepare("someOwner", null));
+    assertTrue(step.getTags().isEmpty());
+  }
+
+  @Test
+  void failingLookupDoesNotFailAndIsRetried() {
+    RunEmrJob failingStep = new TestEmrJob(null, true).withApplicationId("app1");
+
+    assertDoesNotThrow(() -> failingStep.prepare("someOwner", null));
+    assertTrue(failingStep.getTags().isEmpty());
+
+    //The failure must not be cached
+    RunEmrJob step = emrStep("app1", Map.of(ODIN_APP_ID, "2963"));
+    assertDoesNotThrow(() -> step.prepare("someOwner", null));
+    assertEquals("2963", step.getTags().get(ODIN_APP_ID));
+    assertEquals(2, loadCount.get());
+  }
+
+  @Test
+  void applicationTagsAreCachedPerApplication() throws Exception {
+    emrStep("app1", Map.of(ODIN_APP_ID, "2963")).prepare("someOwner", null);
+    emrStep("app1", Map.of(ODIN_APP_ID, "2963")).prepare("someOwner", null);
+    assertEquals(1, loadCount.get());
+
+    emrStep("app2", Map.of(ODIN_APP_ID, "2963")).prepare("someOwner", null);
+    assertEquals(2, loadCount.get());
+  }
+
+  @Test
+  void nullTagsAreInitialized() throws Exception {
+    RunEmrJob step = emrStep("app1", Map.of(ODIN_APP_ID, "2963")).withTags(null);
+
+    step.prepare("someOwner", null);
+
+    assertEquals(Map.of(ODIN_APP_ID, "2963"), step.getTags());
+  }
+
+  @Test
+  void noLookupWithoutApplicationId() throws Exception {
+    RunEmrJob step = emrStep(null, Map.of(ODIN_APP_ID, "2963"));
+
+    step.prepare("someOwner", null);
+
+    assertTrue(step.getTags().isEmpty());
+    assertEquals(0, loadCount.get());
+  }
+
+  @Test
+  void noLookupWhenRunningLocally() throws Exception {
+    Config.instance.LOCALSTACK_ENDPOINT = new URI("http://localhost:4566");
+    RunEmrJob step = emrStep("app1", Map.of(ODIN_APP_ID, "2963"));
+
+    step.prepare("someOwner", null);
+
+    assertFalse(step.getTags().containsKey(ODIN_APP_ID));
+    assertEquals(0, loadCount.get());
+  }
+
+  private static RunEmrJob emrStep(String applicationId, Map<String, String> applicationTags) {
+    return new TestEmrJob(applicationTags, false).withApplicationId(applicationId);
+  }
+
+  private static class TestEmrJob extends RunEmrJob {
+    private final Map<String, String> applicationTags;
+    private final boolean fail;
+
+    TestEmrJob(Map<String, String> applicationTags, boolean fail) {
+      this.applicationTags = applicationTags == null ? null : new HashMap<>(applicationTags);
+      this.fail = fail;
+    }
+
+    @Override
+    protected Map<String, String> loadApplicationTags(String applicationId) {
+      loadCount.incrementAndGet();
+      if (fail)
+        throw ResourceNotFoundException.builder().message("Application not found").build();
+      return applicationTags;
+    }
+  }
+}

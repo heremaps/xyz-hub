@@ -25,14 +25,18 @@ import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SY
 import static java.util.regex.Matcher.quoteReplacement;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.here.xyz.jobs.JobClientInfo;
+import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.StepExecution;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.resources.Load;
+import com.here.xyz.jobs.util.AwsClientFactory;
 import com.here.xyz.jobs.util.S3Client;
 import com.here.xyz.util.Hasher;
 import com.here.xyz.util.KeyValue;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
+import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.aws.s3.S3ObjectSummary;
 import java.io.BufferedReader;
 import java.io.File;
@@ -48,11 +52,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import software.amazon.awssdk.core.ResponseInputStream;
+import software.amazon.awssdk.services.emrserverless.model.GetApplicationRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
@@ -66,6 +73,9 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
       Pattern.quote(INPUT_SET_REF_PREFIX) + "([a-zA-Z0-9._=-]+)" + Pattern.quote(DATA_SET_REF_SUFFIX));
   private static final Pattern OUTPUT_SET_REF_PATTERN = Pattern.compile(
       Pattern.quote(OUTPUT_SET_REF_PREFIX) + "([a-zA-Z0-9._=-]+)" + Pattern.quote(DATA_SET_REF_SUFFIX));
+  static final Set<String> INHERITED_APPLICATION_TAGS = Set.of("odin_app_id");
+  private static final long APPLICATION_TAGS_CACHE_TTL_MS = 60 * 60 * 1000;
+  private static final Map<String, CachedApplicationTags> applicationTagsCache = new ConcurrentHashMap<>();
 
   private String applicationId;
   private String executionRoleArn;
@@ -103,6 +113,75 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
   public String getDescription() {
     return "Runs a serverless EMR job on application " + applicationId;
   }
+
+  /**
+   * Lets the EMR job run inherit the tags listed in {@link #INHERITED_APPLICATION_TAGS} from the EMR application it will run on.
+   * The inheritance is best-effort: If the application can not be read or does not carry a tag, a warning is logged and the
+   * job run gets created without it.
+   */
+  @Override
+  public void prepare(String owner, JobClientInfo ownerAuth) throws ValidationException {
+    super.prepare(owner, ownerAuth);
+    inheritApplicationTags();
+  }
+
+  void inheritApplicationTags() {
+    //When running locally, the step is executed as a lambda step and there is no EMR application
+    if (Config.instance.LOCALSTACK_ENDPOINT != null || applicationId == null)
+      return;
+
+    Map<String, String> applicationTags = getApplicationTags(applicationId);
+    if (applicationTags == null)
+      return;
+
+    if (tags == null)
+      tags = new HashMap<>();
+
+    for (String tagKey : INHERITED_APPLICATION_TAGS) {
+      String tagValue = applicationTags.get(tagKey);
+      if (tagValue == null)
+        logger.warn("[{}] EMR application {} has no tag \"{}\". The EMR job run will be created without it.",
+            getGlobalStepId(), applicationId, tagKey);
+      else
+        //Tags which have been set explicitly on the step take precedence
+        tags.putIfAbsent(tagKey, tagValue);
+    }
+  }
+
+  /**
+   * @return The (cached) tags of the specified EMR application or <code>null</code> if they could not be loaded
+   */
+  private Map<String, String> getApplicationTags(String applicationId) {
+    CachedApplicationTags cached = applicationTagsCache.get(applicationId);
+    if (cached != null && Core.currentTimeMillis() - cached.loadedAt() < APPLICATION_TAGS_CACHE_TTL_MS)
+      return cached.tags();
+
+    try {
+      Map<String, String> applicationTags = loadApplicationTags(applicationId);
+      applicationTags = applicationTags == null ? Map.of() : Map.copyOf(applicationTags);
+      applicationTagsCache.put(applicationId, new CachedApplicationTags(applicationTags, Core.currentTimeMillis()));
+      return applicationTags;
+    }
+    catch (Exception e) {
+      //Failures are not cached, so the lookup is retried for the next step
+      logger.warn("[{}] Unable to load the tags of EMR application {}. The EMR job run will be created without the inherited tags {}.",
+          getGlobalStepId(), applicationId, INHERITED_APPLICATION_TAGS, e);
+      return null;
+    }
+  }
+
+  protected Map<String, String> loadApplicationTags(String applicationId) {
+    return AwsClientFactory.emrServerlessClient()
+        .getApplication(GetApplicationRequest.builder().applicationId(applicationId).build())
+        .application()
+        .tags();
+  }
+
+  static void clearApplicationTagsCache() {
+    applicationTagsCache.clear();
+  }
+
+  private record CachedApplicationTags(Map<String, String> tags, long loadedAt) {}
 
   //Gets only executed when running locally (see GraphTransformer)
   @Override
