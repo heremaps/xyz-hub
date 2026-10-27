@@ -22,6 +22,7 @@ package com.here.xyz.jobs.steps.execution;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.here.xyz.jobs.steps.Config;
@@ -31,6 +32,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.FutureTask;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -84,6 +88,26 @@ class RunEmrJobTagInheritanceTest {
     step.prepare("someOwner", null);
 
     assertEquals("1234", step.getTags().get(ODIN_APP_ID));
+  }
+
+  @Test
+  void inheritsTagWithImmutableExistingTags() throws Exception {
+    Map<String, String> explicitTags = Map.of("owner", "someOwner");
+    RunEmrJob step = emrStep("app1", Map.of(ODIN_APP_ID, "2963")).withTags(explicitTags);
+
+    step.prepare("someOwner", null);
+
+    assertEquals(Map.of("owner", "someOwner", ODIN_APP_ID, "2963"), step.getTags());
+    assertEquals(Map.of("owner", "someOwner"), explicitTags);
+  }
+
+  @Test
+  void immutableExplicitTagTakesPrecedence() throws Exception {
+    RunEmrJob step = emrStep("app1", Map.of(ODIN_APP_ID, "2963")).withTags(Map.of(ODIN_APP_ID, "1234"));
+
+    step.prepare("someOwner", null);
+
+    assertEquals(Map.of(ODIN_APP_ID, "1234"), step.getTags());
   }
 
   @Test
@@ -187,25 +211,60 @@ class RunEmrJobTagInheritanceTest {
     assertEquals(Map.of(ODIN_APP_ID, "2963"), laterStep.getTags());
   }
 
+  @Test
+  void concurrentPreparationPropagatesWorkerFailures() {
+    CountDownLatch release = new CountDownLatch(1);
+    AssertionError failure = new AssertionError("Lookup failed unexpectedly");
+    RunEmrJob step = new BlockingEmrJob(null, false, release) {
+      @Override
+      protected Map<String, String> loadApplicationTags(String applicationId) {
+        super.loadApplicationTags(applicationId);
+        throw failure;
+      }
+    }.withApplicationId("app1");
+
+    ExecutionException exception = assertThrows(ExecutionException.class,
+        () -> prepareConcurrently(List.of(step), release));
+
+    assertEquals(failure, exception.getCause());
+  }
+
   /**
    * Prepares all steps in parallel and releases the (blocked) lookup only after all threads are waiting,
    * i.e., one thread is waiting within the lookup and all others are waiting for its result.
    */
   private static void prepareConcurrently(List<RunEmrJob> steps, CountDownLatch release) throws Exception {
-    List<Thread> threads = steps.stream()
-        .map(step -> new Thread(() -> assertDoesNotThrow(() -> step.prepare("someOwner", null))))
+    List<FutureTask<Void>> preparations = steps.stream()
+        .map(step -> new FutureTask<Void>(() -> {
+          step.prepare("someOwner", null);
+          return null;
+        }))
         .toList();
-    threads.forEach(Thread::start);
+    List<Thread> threads = preparations.stream().map(Thread::new).toList();
+    try {
+      threads.forEach(Thread::start);
 
-    long deadline = System.currentTimeMillis() + 5_000;
-    while (threads.stream().anyMatch(thread -> thread.getState() != Thread.State.WAITING)) {
-      assertTrue(System.currentTimeMillis() < deadline, "Not all threads are waiting for the lookup");
-      Thread.sleep(10);
+      long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+      while (threads.stream().anyMatch(thread -> thread.getState() != Thread.State.WAITING)) {
+        for (FutureTask<Void> preparation : preparations)
+          if (preparation.isDone())
+            preparation.get(5, TimeUnit.SECONDS);
+        assertTrue(System.nanoTime() < deadline, "Not all threads are waiting for the lookup");
+        Thread.sleep(10);
+      }
+
+      release.countDown();
+      for (FutureTask<Void> preparation : preparations)
+        preparation.get(5, TimeUnit.SECONDS);
     }
-
-    release.countDown();
-    for (Thread thread : threads)
-      thread.join(5_000);
+    finally {
+      release.countDown();
+      preparations.forEach(preparation -> preparation.cancel(true));
+      for (Thread thread : threads) {
+        thread.join(5_000);
+        assertFalse(thread.isAlive(), "Preparation thread did not terminate");
+      }
+    }
   }
 
   private static RunEmrJob emrStep(String applicationId, Map<String, String> applicationTags) {
