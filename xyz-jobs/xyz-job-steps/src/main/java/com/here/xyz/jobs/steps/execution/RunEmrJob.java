@@ -46,6 +46,7 @@ import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -53,6 +54,8 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.regex.Pattern;
@@ -75,6 +78,7 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
       Pattern.quote(OUTPUT_SET_REF_PREFIX) + "([a-zA-Z0-9._=-]+)" + Pattern.quote(DATA_SET_REF_SUFFIX));
   static final Set<String> INHERITED_APPLICATION_TAGS = Set.of("odin_app_id");
   private static final long APPLICATION_TAGS_CACHE_TTL_MS = 60 * 60 * 1000;
+  private static final Duration APPLICATION_TAGS_LOOKUP_TIMEOUT = Duration.ofSeconds(1);
   private static final Map<String, CachedApplicationTags> applicationTagsCache = new ConcurrentHashMap<>();
 
   private String applicationId;
@@ -152,27 +156,47 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
    * @return The (cached) tags of the specified EMR application or <code>null</code> if they could not be loaded
    */
   private Map<String, String> getApplicationTags(String applicationId) {
-    CachedApplicationTags cached = applicationTagsCache.get(applicationId);
-    if (cached != null && Core.currentTimeMillis() - cached.loadedAt() < APPLICATION_TAGS_CACHE_TTL_MS)
-      return cached.tags();
+    /*
+    The steps of a job are prepared in parallel. The pending lookup is cached as well, so that concurrent steps
+    running on the same application share one lookup instead of performing one each.
+     */
+    CompletableFuture<Map<String, String>> newLookup = new CompletableFuture<>();
+    CachedApplicationTags cached = applicationTagsCache.compute(applicationId, (id, existing) ->
+        existing != null && Core.currentTimeMillis() - existing.loadedAt() < APPLICATION_TAGS_CACHE_TTL_MS
+            ? existing
+            : new CachedApplicationTags(newLookup, Core.currentTimeMillis()));
+
+    if (cached.tags() == newLookup) {
+      try {
+        Map<String, String> applicationTags = loadApplicationTags(applicationId);
+        newLookup.complete(applicationTags == null ? Map.of() : Map.copyOf(applicationTags));
+      }
+      catch (Throwable t) {
+        //Failures are not cached, so the lookup is retried for the next step
+        applicationTagsCache.remove(applicationId, cached);
+        //Always complete the lookup, so that concurrent steps waiting for it are not blocked
+        newLookup.completeExceptionally(t);
+        if (t instanceof Error error)
+          throw error;
+      }
+    }
 
     try {
-      Map<String, String> applicationTags = loadApplicationTags(applicationId);
-      applicationTags = applicationTags == null ? Map.of() : Map.copyOf(applicationTags);
-      applicationTagsCache.put(applicationId, new CachedApplicationTags(applicationTags, Core.currentTimeMillis()));
-      return applicationTags;
+      return cached.tags().join();
     }
-    catch (Exception e) {
-      //Failures are not cached, so the lookup is retried for the next step
+    catch (CompletionException e) {
       logger.warn("[{}] Unable to load the tags of EMR application {}. The EMR job run will be created without the inherited tags {}.",
-          getGlobalStepId(), applicationId, INHERITED_APPLICATION_TAGS, e);
+          getGlobalStepId(), applicationId, INHERITED_APPLICATION_TAGS, e.getCause());
       return null;
     }
   }
 
   protected Map<String, String> loadApplicationTags(String applicationId) {
     return AwsClientFactory.emrServerlessClient()
-        .getApplication(GetApplicationRequest.builder().applicationId(applicationId).build())
+        .getApplication(GetApplicationRequest.builder()
+            .applicationId(applicationId)
+            .overrideConfiguration(config -> config.apiCallTimeout(APPLICATION_TAGS_LOOKUP_TIMEOUT))
+            .build())
         .application()
         .tags();
   }
@@ -181,7 +205,7 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
     applicationTagsCache.clear();
   }
 
-  private record CachedApplicationTags(Map<String, String> tags, long loadedAt) {}
+  private record CachedApplicationTags(CompletableFuture<Map<String, String>> tags, long loadedAt) {}
 
   //Gets only executed when running locally (see GraphTransformer)
   @Override
