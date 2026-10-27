@@ -26,8 +26,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.here.xyz.jobs.steps.Config;
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -153,8 +156,80 @@ class RunEmrJobTagInheritanceTest {
     assertEquals(0, loadCount.get());
   }
 
+  @Test
+  void concurrentStepsShareOneLookup() throws Exception {
+    CountDownLatch release = new CountDownLatch(1);
+    List<RunEmrJob> steps = new ArrayList<>();
+    for (int i = 0; i < 8; i++)
+      steps.add(new BlockingEmrJob(Map.of(ODIN_APP_ID, "2963"), false, release).withApplicationId("app1"));
+
+    prepareConcurrently(steps, release);
+
+    assertEquals(1, loadCount.get());
+    steps.forEach(step -> assertEquals(Map.of(ODIN_APP_ID, "2963"), step.getTags()));
+  }
+
+  @Test
+  void concurrentStepsShareFailedLookupWhichIsRetriedAfterwards() throws Exception {
+    CountDownLatch release = new CountDownLatch(1);
+    List<RunEmrJob> steps = new ArrayList<>();
+    for (int i = 0; i < 8; i++)
+      steps.add(new BlockingEmrJob(null, true, release).withApplicationId("app1"));
+
+    prepareConcurrently(steps, release);
+
+    assertEquals(1, loadCount.get());
+    steps.forEach(step -> assertTrue(step.getTags().isEmpty()));
+
+    RunEmrJob laterStep = emrStep("app1", Map.of(ODIN_APP_ID, "2963"));
+    laterStep.prepare("someOwner", null);
+    assertEquals(2, loadCount.get());
+    assertEquals(Map.of(ODIN_APP_ID, "2963"), laterStep.getTags());
+  }
+
+  /**
+   * Prepares all steps in parallel and releases the (blocked) lookup only after all threads are waiting,
+   * i.e., one thread is waiting within the lookup and all others are waiting for its result.
+   */
+  private static void prepareConcurrently(List<RunEmrJob> steps, CountDownLatch release) throws Exception {
+    List<Thread> threads = steps.stream()
+        .map(step -> new Thread(() -> assertDoesNotThrow(() -> step.prepare("someOwner", null))))
+        .toList();
+    threads.forEach(Thread::start);
+
+    long deadline = System.currentTimeMillis() + 5_000;
+    while (threads.stream().anyMatch(thread -> thread.getState() != Thread.State.WAITING)) {
+      assertTrue(System.currentTimeMillis() < deadline, "Not all threads are waiting for the lookup");
+      Thread.sleep(10);
+    }
+
+    release.countDown();
+    for (Thread thread : threads)
+      thread.join(5_000);
+  }
+
   private static RunEmrJob emrStep(String applicationId, Map<String, String> applicationTags) {
     return new TestEmrJob(applicationTags, false).withApplicationId(applicationId);
+  }
+
+  private static class BlockingEmrJob extends TestEmrJob {
+    private final CountDownLatch release;
+
+    BlockingEmrJob(Map<String, String> applicationTags, boolean fail, CountDownLatch release) {
+      super(applicationTags, fail);
+      this.release = release;
+    }
+
+    @Override
+    protected Map<String, String> loadApplicationTags(String applicationId) {
+      try {
+        release.await();
+      }
+      catch (InterruptedException e) {
+        throw new RuntimeException(e);
+      }
+      return super.loadApplicationTags(applicationId);
+    }
   }
 
   private static class TestEmrJob extends RunEmrJob {
