@@ -67,8 +67,7 @@ public class SpatialMultiPartGeometryIT extends TestSpaceWithFeature {
 
   @BeforeClass
   public static void setup() {
-    remove(EXTENSION);
-    remove(BASE);
+    tearDown();
     createSpaceWithId(BASE);
     createSpaceWithExtension(BASE);
 
