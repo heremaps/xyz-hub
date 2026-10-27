@@ -138,8 +138,7 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
     if (applicationTags == null)
       return;
 
-    if (tags == null)
-      tags = new HashMap<>();
+    tags = tags == null ? new HashMap<>() : new HashMap<>(tags);
 
     for (String tagKey : INHERITED_APPLICATION_TAGS) {
       String tagValue = applicationTags.get(tagKey);
