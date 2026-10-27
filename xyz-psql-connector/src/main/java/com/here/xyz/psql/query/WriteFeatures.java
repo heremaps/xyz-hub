@@ -70,6 +70,7 @@ public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureColl
   protected SQLQuery buildQuery(WriteFeaturesEvent event) throws ErrorResponseException {
     List<String> tables = new ArrayList<>();
     List<Long> tableBaseVersions = null;
+    List<Long> tableBoundVersions = null;
     SpaceContext spaceContext = null;
     String rootTableName = getDefaultTable(event);
 
@@ -87,12 +88,26 @@ public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureColl
         spaceContext = event.getContext();
       }
       tables.add(rootTableName);
+
+      if (hasBoundBaseVersion(event)) {
+        /*
+        With context = SUPER the write target becomes the immediate base (see FeatureWriter._targetTable), which is exactly the
+        table the extension binds to a fixed version. FeatureApi rejects all SUPER modifications already, so this only guards
+        callers which bypass the hub.
+         */
+        if (spaceContext == SpaceContext.SUPER && getBaseVersion(event).isPresent())
+          throw new ErrorResponseException(XyzError.ILLEGAL_ARGUMENT, "Writing with context " + SpaceContext.SUPER
+              + " is not supported for a composite space which is bound to a specific version of its base space.");
+
+        tableBoundVersions = buildTableBoundVersions(event);
+      }
     }
 
     FeatureWriterQueryContextBuilder queryContextBuilder = new FeatureWriterQueryContextBuilder()
         .withSchema(getSchema())
         .withTables(tables)
         .withTableBaseVersions(tableBaseVersions)
+        .withTableBoundVersions(tableBoundVersions)
         .withSpaceContext(spaceContext)
         .withHistoryEnabled(event.getVersionsToKeep() > 1)
         .withBatchMode(true)
@@ -115,6 +130,20 @@ public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureColl
         .withNamedParameter("author", event.getAuthor())
         .withNamedParameter("responseDataExpected", event.isResponseDataExpected())
         .withRetryableErrorCodes(Set.of(RETRYABLE_VERSION_CONFLICT.errorCode));
+  }
+
+  /**
+   * Returns the bound version of each table, positionally aligned with the tables of the composite. The write target is never bound.
+   * In a two-level composite the outer extension's version binds the intermediate table, while the intermediate extension's version
+   * binds the root table.
+   */
+  private List<Long> buildTableBoundVersions(WriteFeaturesEvent event) {
+    List<Long> tableBoundVersions = new ArrayList<>();
+    if (is2LevelExtendedSpace(event))
+      tableBoundVersions.add(getIntermediateBaseVersion(event).orElse(null));
+    tableBoundVersions.add(getBaseVersion(event).orElse(null));
+    tableBoundVersions.add(null); //The write target itself is never bound
+    return tableBoundVersions;
   }
 
   @Override
