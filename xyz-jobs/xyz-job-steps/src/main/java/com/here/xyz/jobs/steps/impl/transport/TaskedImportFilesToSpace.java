@@ -41,6 +41,7 @@ import com.here.xyz.jobs.steps.execution.StepException;
 import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
 import com.here.xyz.jobs.steps.impl.transport.tasks.inputs.ImportInput;
 import com.here.xyz.jobs.steps.impl.transport.tasks.outputs.ImportOutput;
+import com.here.xyz.jobs.steps.impl.transport.tools.ImportFilesQuickValidator;
 import com.here.xyz.jobs.steps.impl.transport.tools.ImportQueryBuilder;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.inputs.InputFromOutput;
@@ -421,7 +422,14 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
       throw new ValidationException("Error loading resource " + getSpaceId(), e);
     }
 
-    return !isUserInputsExpected() || isUserInputsPresent(UploadUrl.class);
+    if (!isUserInputsExpected())
+      return true;
+    if (!isUserInputsPresent(UploadUrl.class))
+      return false;
+    //Detect a gzip-compressed input without the S3 metadata needed by the database import, check the first input found
+    for (UploadUrl input : loadInputsSample(1, UploadUrl.class))
+      ImportFilesQuickValidator.validateCompression(input);
+    return true;
   }
 
   @Override
