@@ -16,20 +16,22 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-
 package com.here.xyz.util.service;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import io.vertx.core.MultiMap;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpClient;
-import io.vertx.core.http.HttpClientResponse;
 import io.vertx.core.http.HttpHeaders;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServer;
 import io.vertx.core.http.HttpServerOptions;
 import io.vertx.core.http.RequestOptions;
+import io.vertx.core.json.JsonObject;
+import io.vertx.ext.web.Router;
+import io.vertx.ext.web.handler.CorsHandler;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -43,8 +45,13 @@ public class BaseHttpServerVerticleTest {
   @BeforeEach
   public void setUp() throws Exception {
     vertx = Vertx.vertx();
+    Router router = Router.router(vertx);
+    router.route("/cors").handler(CorsHandler.create(".*")).handler(context -> context.response().end("OK"));
+    router.route("/unexpected").handler(context -> context.fail(new RuntimeException("Unexpected failure")));
+    router.route("/").handler(context -> context.response().end());
+    router.route().failureHandler(new BaseHttpServerVerticle().createFailureHandler());
     server = vertx.createHttpServer(new HttpServerOptions(BaseHttpServerVerticle.SERVER_OPTIONS))
-        .requestHandler(request -> request.response().end())
+        .requestHandler(router)
         .listen(0, "localhost")
         .toCompletionStage().toCompletableFuture().get(10, SECONDS);
     client = vertx.createHttpClient();
@@ -58,24 +65,44 @@ public class BaseHttpServerVerticleTest {
   @Test
   public void largeCookieIsAccepted() throws Exception {
     //More than the Vert.x default maxHeaderSize of 8192 bytes, which answers with 431
-    assertEquals(200, sendWithCookieOfSize(12 * 1024));
+    assertEquals(200, send("/", MultiMap.caseInsensitiveMultiMap().add(HttpHeaders.COOKIE, "c=" + "x".repeat(12 * 1024))).status);
   }
 
   @Test
   public void tooLargeHeadersAreRejected() throws Exception {
-    assertEquals(431, sendWithCookieOfSize(17 * 1024));
+    assertEquals(431, send("/", MultiMap.caseInsensitiveMultiMap().add(HttpHeaders.COOKIE, "c=" + "x".repeat(17 * 1024))).status);
   }
 
-  private int sendWithCookieOfSize(int size) throws Exception {
+  @Test
+  public void invalidOriginIsRejectedWith403() throws Exception {
+    Response response = send("/cors", MultiMap.caseInsensitiveMultiMap().add(HttpHeaders.ORIGIN, "invalid-origin"));
+    assertEquals(403, response.status);
+    assertEquals(403, new JsonObject(response.body).getInteger("statusCode"));
+    assertEquals("CORS Rejected - Invalid origin", new JsonObject(response.body).getString("message"));
+  }
+
+  @Test
+  public void validOriginIsAccepted() throws Exception {
+    assertEquals(200, send("/cors", MultiMap.caseInsensitiveMultiMap().add(HttpHeaders.ORIGIN, "https://example.com")).status);
+  }
+
+  @Test
+  public void failureWithoutStatusReturns500() throws Exception {
+    assertEquals(500, send("/unexpected", MultiMap.caseInsensitiveMultiMap()).status);
+  }
+
+  private Response send(String path, MultiMap headers) throws Exception {
     RequestOptions options = new RequestOptions()
         .setMethod(HttpMethod.GET)
         .setHost("localhost")
         .setPort(server.actualPort())
-        .setURI("/")
-        .putHeader(HttpHeaders.COOKIE, "c=" + "x".repeat(size));
+        .setURI(path)
+        .setHeaders(headers);
     return client.request(options)
         .compose(request -> request.send())
-        .map(HttpClientResponse::statusCode)
+        .compose(response -> response.body().map(body -> new Response(response.statusCode(), body.toString())))
         .toCompletionStage().toCompletableFuture().get(10, SECONDS);
   }
+
+  private record Response(int status, String body) {}
 }
