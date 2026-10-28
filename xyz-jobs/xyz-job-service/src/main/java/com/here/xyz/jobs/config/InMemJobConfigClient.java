@@ -19,10 +19,13 @@
 
 package com.here.xyz.jobs.config;
 
+import com.amazonaws.services.dynamodbv2.model.ConditionalCheckFailedException;
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.XyzSerializable.Static;
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.RuntimeInfo;
 import com.here.xyz.jobs.RuntimeInfo.State;
+import com.here.xyz.jobs.RuntimeStatus;
 import com.here.xyz.jobs.steps.Step;
 import io.vertx.core.Future;
 import java.util.List;
@@ -30,6 +33,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class InMemJobConfigClient extends JobConfigClient {
   private Map<String, Job> jobMap = new ConcurrentHashMap<>();
@@ -46,21 +50,33 @@ public class InMemJobConfigClient extends JobConfigClient {
     }
   }
 
+  /**
+   * Like a real storage, this client stores and returns copies of the jobs.
+   * That way, the conditions of the conditional writes are checked against the stored state rather than the caller's instance.
+   */
+  private static Job copy(Job job) {
+    return job == null ? null : XyzSerializable.fromMap(job.toMap(Static.class), Job.class);
+  }
+
+  private Stream<Job> storedJobs() {
+    return jobMap.values().stream().map(InMemJobConfigClient::copy);
+  }
+
   @Override
   public Future<Job> loadJob(String jobId) {
-    return Future.succeededFuture(jobMap.get(jobId));
+    return Future.succeededFuture(copy(jobMap.get(jobId)));
   }
 
   @Override
   public Future<List<Job>> loadJobs() {
-    return Future.succeededFuture(List.copyOf(jobMap.values()));
+    return Future.succeededFuture(storedJobs().toList());
   }
 
   public Future<List<Job>> loadJobs(FilteredValues<Long> newerThan, FilteredValues<Long> olderThan, FilteredValues<String> sourceTypes,
       FilteredValues<String> targetTypes, FilteredValues<String> processTypes, FilteredValues<String> resourceKeys,
       FilteredValues<State> stateTypes) {
     return Future.succeededFuture(
-        jobMap.values().stream()
+        storedJobs()
             .filter(job -> {
               if (newerThan == null || newerThan.values().isEmpty())
                 return true;
@@ -108,7 +124,7 @@ public class InMemJobConfigClient extends JobConfigClient {
           boolean newerThan, long createdAt, String sourceType,
           String targetType, String processType, String resourceKey, State state
   ) {
-    return Future.succeededFuture(jobMap.values().stream()
+    return Future.succeededFuture(storedJobs()
             .filter(job -> newerThan ? job.getCreatedAt() > createdAt : job.getCreatedAt() < createdAt)
             .filter(job -> processType == null || processType.isEmpty() ||
                     (job.getProcess() != null && processType.equals(job.getProcess().getClass().getSimpleName())))
@@ -126,7 +142,7 @@ public class InMemJobConfigClient extends JobConfigClient {
 
   @Override
   public Future<List<Job>> loadJobs(RuntimeInfo.State state) {
-    List<Job> jobs = jobMap.values().stream()
+    List<Job> jobs = storedJobs()
         .filter(job -> job.getStatus().getState() == state)
         .collect(Collectors.toList());
     return Future.succeededFuture(jobs);
@@ -163,30 +179,60 @@ public class InMemJobConfigClient extends JobConfigClient {
             .collect(Collectors.toSet()));
   }
 
+  //NOTE: All writes are synchronized and replace the stored instance by an updated copy, so that the stored instances are never modified
+
   @Override
-  public Future<Void> storeJob(Job job) {
-    jobMap.put(job.getId(), job);
+  public synchronized Future<Void> storeJob(Job job) {
+    jobMap.put(job.getId(), copy(job));
     return Future.succeededFuture();
   }
 
   @Override
-  public Future<Void> updateState(Job job, State expectedPreviousState) {
-    return storeJob(job);
+  public synchronized Future<Void> updateState(Job job, State expectedPreviousState) {
+    if (expectedPreviousState == job.getStatus().getState())
+      return Future.succeededFuture();
+
+    Job storedJob = copy(jobMap.get(job.getId()));
+    if (storedJob == null || storedJob.getStatus().getState() != expectedPreviousState)
+      return Future.failedFuture(stateConflict(job, expectedPreviousState));
+
+    Map<String, Object> status = storedJob.getStatus().toMap();
+    status.put("state", job.getStatus().getState().toString());
+    jobMap.put(job.getId(), storedJob.withStatus(XyzSerializable.fromMap(status, RuntimeStatus.class)));
+    return Future.succeededFuture();
   }
 
   @Override
-  public Future<Void> updateStatus(Job job, State expectedPreviousState) {
-    return storeJob(job);
+  public synchronized Future<Void> updateStatus(Job job, State expectedPreviousState) {
+    Job storedJob = copy(jobMap.get(job.getId()));
+    if (expectedPreviousState != null && (storedJob == null || storedJob.getStatus().getState() != expectedPreviousState))
+      return Future.failedFuture(stateConflict(job, expectedPreviousState));
+
+    RuntimeStatus status = XyzSerializable.fromMap(job.getStatus().toMap(), RuntimeStatus.class);
+    jobMap.put(job.getId(), storedJob == null ? copy(job) : storedJob.withStatus(status));
+    return Future.succeededFuture();
+  }
+
+  private static ConditionalCheckFailedException stateConflict(Job job, State expectedPreviousState) {
+    return new ConditionalCheckFailedException("The state of job " + job.getId() + " is not " + expectedPreviousState);
   }
 
   @Override
-  public Future<Void> updateStep(Job job, Step<?> newStep) {
-    return storeJob(job);
+  public synchronized Future<Void> updateStep(Job job, Step<?> newStep) {
+    Job storedJob = copy(jobMap.get(job.getId()));
+    Step<?> storedStep = storedJob == null || storedJob.getSteps() == null ? null : storedJob.getStepById(newStep.getId());
+    //Like the DynamoJobConfigClient, do not overwrite a step that is already in a final state
+    if (storedStep == null || storedStep.getStatus().getState().isFinal())
+      return Future.succeededFuture();
+
+    storedJob.getSteps().replaceStep(XyzSerializable.fromMap(newStep.toMap(Static.class), Step.class));
+    jobMap.put(job.getId(), storedJob);
+    return Future.succeededFuture();
   }
 
   @Override
   public Future<Step> loadStep(String jobId, String stepId) {
-    Job job = jobMap.get(jobId);
+    Job job = copy(jobMap.get(jobId));
     return Future.succeededFuture(job == null ? null : job.getStepById(stepId));
   }
 

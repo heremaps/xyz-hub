@@ -50,6 +50,7 @@ import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
@@ -113,6 +114,8 @@ public abstract class JobExecutor implements Initializable {
       return Future.succeededFuture();
     }
 
+    //The state of the job as it is stored, until this call stores the RUNNING state
+    AtomicReference<State> storedState = new AtomicReference<>(PENDING);
     //TODO: Care about concurrency between nodes when it comes to resource-load calculation within this thread
     return Future.succeededFuture()
         .compose(v -> formerExecutionId == null ? reuseExistingJobIfPossible(job) : Future.succeededFuture())
@@ -136,10 +139,13 @@ public abstract class JobExecutor implements Initializable {
 
           //TODO: Update / invalidate the reserved unit maps?
           return job.storeStatus(PENDING)
-              .compose(v -> job.isPipeline() ? setStepsRunning(job) : Future.succeededFuture())
-              .compose(v -> formerExecutionId != null ? resume(job, formerExecutionId) : execute(job))
-              //Execution was started successfully, store the execution ID.
-              .compose(executionId -> job.withExecutionId(executionId).store());
+              .compose(v -> {
+                storedState.set(RUNNING);
+                return (job.isPipeline() ? setStepsRunning(job) : Future.<Void>succeededFuture())
+                    .compose(v2 -> formerExecutionId != null ? resume(job, formerExecutionId) : execute(job))
+                    //Execution was started successfully, store the execution ID.
+                    .compose(executionId -> job.withExecutionId(executionId).store());
+              }, t -> JobConfigClient.isStateConflict(t) ? reloadStatusOfConcurrentlyChangedJob(job) : Future.failedFuture(t));
         })
         .onFailure(e -> {
           //E.g.: Resource got deleted during lifetime of job!
@@ -148,7 +154,25 @@ public abstract class JobExecutor implements Initializable {
               .withState(FAILED)
               .withErrorMessage("Unexpected error while trying to start the execution of the job.")
               .withErrorCause(e.getMessage());
-          job.storeStatus(null);
+          //Do not overwrite a state that was changed concurrently
+          job.storeStatus(storedState.get())
+              .onFailure(t -> logger.warn("[{}] Could not store the FAILED state of the job. Was its state changed concurrently?",
+                  job.getId(), t));
+        });
+  }
+
+  /**
+   * Called when the job's state was not PENDING anymore when trying to store it as RUNNING.
+   * That means another request or node started (or cancelled) the job concurrently, so this call must not start it nor fail it.
+   */
+  private static Future<Void> reloadStatusOfConcurrentlyChangedJob(Job job) {
+    logger.info("[{}] Not starting the job, because its state was changed concurrently. It is started by another request already.",
+        job.getId());
+    return Job.load(job.getId())
+        .map(storedJob -> {
+          if (storedJob != null)
+            job.setStatus(storedJob.getStatus());
+          return null;
         });
   }
 
