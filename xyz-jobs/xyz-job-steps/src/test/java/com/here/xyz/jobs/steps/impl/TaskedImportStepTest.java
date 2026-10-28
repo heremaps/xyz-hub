@@ -27,6 +27,7 @@ import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
 import com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace;
 import com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace.EntityPerLine;
 import com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace.Format;
+import com.here.xyz.jobs.steps.impl.transport.TaskedSpaceBasedStep;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
 import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
@@ -139,6 +140,7 @@ public class TaskedImportStepTest extends StepTest {
    * An import without any input creates no task items, so no task callback will ever arrive. The step has to succeed right
    * after its execution, instead of waiting for the first STATE_CHECK, which is sent a minute after the execution started.
    * Runs on the deployed step lambda, because only that one receives the success callback from the database.
+   * A second success report afterwards must be harmless.
    */
   @Test
   public void testEmptyImport_succeedsWithoutStateCheck() throws Exception {
@@ -166,6 +168,14 @@ public class TaskedImportStepTest extends StepTest {
       List<Output> userOutputs = step.loadUserOutputs();
       Assertions.assertEquals(1, userOutputs.size(), "The step has to register its statistics");
       checkStatistics(0, userOutputs);
+
+      //A second success report, e.g., a late success callback after the STATE_CHECK fallback, must neither fail the step
+      //(simulated failures are thrown) nor process the outputs again
+      Field noTasksCreated = TaskedSpaceBasedStep.class.getDeclaredField("noTasksCreated");
+      noTasksCreated.setAccessible(true);
+      noTasksCreated.set(step, true);
+      Assertions.assertDoesNotThrow(() -> sendLambdaStepRequest(step, SUCCESS_CALLBACK, true));
+      Assertions.assertEquals(1, step.loadUserOutputs().size(), "A second success report must not register outputs again");
     }
     finally {
       deleteStateCheckRule(stateCheckRuleName);

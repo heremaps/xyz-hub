@@ -109,6 +109,11 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   public static final long THREAD_SCALE_COOLDOWN_TIME = 2 * 60 * 1000L;
   /** Number of threads the concurrency limit grows by, per elapsed cooldown interval. */
   public static final int THREAD_SCALE_INCREMENT = 3;
+  /**
+   * Time a step without task items waits for its success callback, before a STATE_CHECK reports the success instead.
+   * See {@link #getExecutionState()}.
+   */
+  static final long NO_TASKS_SUCCESS_CALLBACK_TIMEOUT = 2 * 60 * 1000L;
   private TaskedSpaceBasedQueryBuilder taskedSpaceBasedQueryBuilder;
 
   {
@@ -120,6 +125,11 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
 
   @JsonView({Internal.class, Static.class})
   private boolean noTasksCreated = false;
+
+  //When a step without task items requested its success callback, 0 if it did not request one (see #getExecutionState()).
+  //NOTE: status.startedAt can not be used instead, it gets reset by every RUNNING heartbeat of a STATE_CHECK.
+  @JsonView({Internal.class, Static.class})
+  private long successCallbackRequestedAt = 0;
 
   @JsonIgnore
   private boolean finalizedOnResume = false;
@@ -674,12 +684,13 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
     noTasksCreated = taskItemCount == 0;
 
     //Without task items, no task callback will ever arrive. Let the database send the success callback right away, instead of
-    //waiting for the next STATE_CHECK, which would only report the success up to a minute later (see #getExecutionState()).
+    //waiting for a STATE_CHECK, which only reports the success if this callback did not arrive (see #getExecutionState()).
     //NOTE: The success is not reported from within this request. The step function may only start to wait for it once this
     //request has returned and then miss it (LocalStack does so, the step then fails with a heartbeat timeout).
     //A step which got finalized while resetting the task items of a previous attempt has succeeded already.
     if (noTasksCreated && !finalizedOnTaskItemReset) {
       infoLog(STEP_EXECUTE, "No task items were created -> request the success callback.");
+      successCallbackRequestedAt = System.currentTimeMillis();
       runWriteQueryAsync(new SQLQuery("PERFORM 1"), db(WRITER), 0);
     }
   }
@@ -770,8 +781,21 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
 
     infoLog(STEP_ON_ASYNC_SUCCESS, "Reached onAsyncSuccess! Start collecting task outputs!");
 
-    //Collect outputs and process them
-    processFinalizedTasks(collectOutputs());
+    List<FinalizedTaskItem<I,O>> finalizedTaskItems;
+    try {
+      finalizedTaskItems = collectOutputs();
+    }
+    catch (SQLException e) {
+      if (!"42P01".equalsIgnoreCase(e.getSQLState()) || !(noTasksCreated || isFinalizationMarkerPresent()))
+        throw e;
+      //The task table gets dropped only after the outputs were processed. So another success report (e.g., a late success
+      //callback after the fallback of #getExecutionState()) has finalized the step already, and nothing must be processed twice.
+      infoLog(STEP_ON_ASYNC_SUCCESS, "Task table does not exist anymore, the step was finalized already. Skip output collection.");
+      return;
+    }
+
+    //Process the collected outputs
+    processFinalizedTasks(finalizedTaskItems);
 
     infoLog(STEP_ON_ASYNC_SUCCESS, "End collecting task outputs!");
     //Clean up temporary resources
@@ -854,10 +878,14 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
     });
   }
 
+  private boolean isFinalizationMarkerPresent() {
+    return !loadStepOutputs(getOutputSet(FINALIZATION_MARKER)).isEmpty();
+  }
+
   @Override
   public AsyncExecutionState getExecutionState() throws UnknownStateException {
     if (noTasksCreated)
-      return AsyncExecutionState.SUCCEEDED;
+      return getExecutionStateWithoutTasks();
 
     try {
       TaskProgress<?> taskProgress = getTaskProgress();
@@ -871,6 +899,27 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
     catch (TooManyResourcesClaimed e) {
       throw new StepException("Unexpected error occurred during execution state check for step: " + getGlobalStepId() + " !", e);
     }
+  }
+
+  /**
+   * A step without task items reports its success through the success callback, which gets requested in {@link #execute(boolean)}.
+   * A STATE_CHECK only reports the success if that callback did not arrive within {@link #NO_TASKS_SUCCESS_CALLBACK_TIMEOUT},
+   * e.g., because it got lost. Otherwise, both would run the success handling at the same time.
+   * A step which did not request the callback (e.g., one started by a previous version) succeeds right away.
+   */
+  private AsyncExecutionState getExecutionStateWithoutTasks() {
+    if (successCallbackRequestedAt <= 0) {
+      infoLog(STEP_ON_STATE_CHECK, "No task items were created and no success callback was requested -> succeed.");
+      return AsyncExecutionState.SUCCEEDED;
+    }
+    long waitingTime = System.currentTimeMillis() - successCallbackRequestedAt;
+    if (waitingTime < NO_TASKS_SUCCESS_CALLBACK_TIMEOUT) {
+      infoLog(STEP_ON_STATE_CHECK, "No task items were created. Waiting for the success callback.");
+      return AsyncExecutionState.RUNNING;
+    }
+    infoLog(STEP_ON_STATE_CHECK, "No task items were created and the success callback did not arrive within "
+        + NO_TASKS_SUCCESS_CALLBACK_TIMEOUT + "ms -> succeed.");
+    return AsyncExecutionState.SUCCEEDED;
   }
 
   private AsyncExecutionState evaluateExecutionState(TaskProgress<?> taskProgress)
