@@ -46,6 +46,11 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
+import software.amazon.awssdk.services.cloudwatchevents.model.DeleteRuleRequest;
+import software.amazon.awssdk.services.cloudwatchevents.model.ListRulesRequest;
+import software.amazon.awssdk.services.cloudwatchevents.model.ListTargetsByRuleRequest;
+import software.amazon.awssdk.services.cloudwatchevents.model.RemoveTargetsRequest;
+import software.amazon.awssdk.services.cloudwatchevents.model.Target;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -58,13 +63,17 @@ import java.util.List;
 import java.util.Map;
 
 import static com.here.xyz.jobs.steps.Step.InputSet.USER_INPUTS;
+import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.HEART_BEAT_PREFIX;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.START_EXECUTION;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.SUCCESS_CALLBACK;
+import static com.here.xyz.jobs.util.AwsClientFactory.cloudwatchEventsClient;
 
 public class TaskedImportStepTest extends StepTest {
 
   private final String SPACE_ID_EXT = SPACE_ID + "_ext";
   private final String SPACE_ID_EXT_OF_EXT = SPACE_ID + "_ext_of_ext";
+  /** Clearly below the minute after which the first STATE_CHECK would report the success */
+  private static final long EMPTY_IMPORT_SUCCESS_TIMEOUT_MILLIS = 30_000;
 
   @BeforeEach
   public void setup() throws SQLException {
@@ -124,6 +133,69 @@ public class TaskedImportStepTest extends StepTest {
     step.prepare(null, null);
     step.validate();
     sendLambdaStepRequestBlock(step ,true);
+  }
+
+  /**
+   * An import without any input creates no task items, so no task callback will ever arrive. The step has to succeed right
+   * after its execution, instead of waiting for the first STATE_CHECK, which is sent a minute after the execution started.
+   * Runs on the deployed step lambda, because only that one receives the success callback from the database.
+   */
+  @Test
+  public void testEmptyImport_succeedsWithoutStateCheck() throws Exception {
+    TaskedImportFilesToSpace step = new TaskedImportFilesToSpace()
+            .withVersionRef(new Ref(Ref.HEAD))
+            .withJobId(JOB_ID)
+            .withSpaceId(SPACE_ID);
+    step.prepare(null, null);
+    step.validate();
+
+    String jobTable = "job_data_" + step.getId();
+    String stateCheckRuleName = HEART_BEAT_PREFIX + step.getGlobalStepId();
+    try {
+      long startedAt = System.currentTimeMillis();
+      //The invocation is synchronous, the step has created its task table and registered its state-check trigger once it returns
+      sendLambdaStepRequest(step, START_EXECUTION, false);
+
+      //The success handling drops the task table and unregisters the state-check trigger
+      while (jobTableExists(jobTable) || stateCheckRuleExists(stateCheckRuleName)) {
+        Assertions.assertTrue(System.currentTimeMillis() - startedAt < EMPTY_IMPORT_SUCCESS_TIMEOUT_MILLIS,
+            "The step did not succeed within " + EMPTY_IMPORT_SUCCESS_TIMEOUT_MILLIS + "ms");
+        Thread.sleep(200);
+      }
+
+      List<Output> userOutputs = step.loadUserOutputs();
+      Assertions.assertEquals(1, userOutputs.size(), "The step has to register its statistics");
+      checkStatistics(0, userOutputs);
+    }
+    finally {
+      deleteStateCheckRule(stateCheckRuleName);
+      deleteAllJobTables(List.of(step.getId()));
+    }
+  }
+
+  private static boolean stateCheckRuleExists(String ruleName) {
+    return cloudwatchEventsClient().listRules(ListRulesRequest.builder().namePrefix(ruleName).build()).rules().stream()
+        .anyMatch(rule -> rule.name().equals(ruleName));
+  }
+
+  private static void deleteStateCheckRule(String ruleName) {
+    if (!stateCheckRuleExists(ruleName))
+      return;
+    List<String> targetIds = cloudwatchEventsClient().listTargetsByRule(ListTargetsByRuleRequest.builder().rule(ruleName).build())
+        .targets().stream().map(Target::id).toList();
+    if (!targetIds.isEmpty())
+      cloudwatchEventsClient().removeTargets(RemoveTargetsRequest.builder().rule(ruleName).ids(targetIds).build());
+    cloudwatchEventsClient().deleteRule(DeleteRuleRequest.builder().name(ruleName).build());
+  }
+
+  private boolean jobTableExists(String jobTable) throws SQLException {
+    try (Connection connection = getTestDatabaseConnection();
+         PreparedStatement statement = connection.prepareStatement("SELECT to_regclass(?) IS NOT NULL")) {
+      statement.setString(1, "public.\"" + jobTable + "\"");
+      try (ResultSet rs = statement.executeQuery()) {
+        return rs.next() && rs.getBoolean(1);
+      }
+    }
   }
 
   //@Test
