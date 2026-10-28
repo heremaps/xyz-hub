@@ -63,6 +63,7 @@ import java.io.IOException;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -407,9 +408,14 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
         throw new ValidationException("Data can not be written to target " + space.getId()
                 + " as it is a composite space with more than one extension level, which is not supported for imports.");
 
-      if (loadTargetSpaceFeatureCount() > 0 && getUncompressedUploadBytesEstimation() > getMaxInputBytesForNonEmptyImport())
-        throw new ValidationException("An import into a non empty space is not possible. "
-                + "The uncompressed size of the provided files exceeds the limit of " + getMaxInputBytesForNonEmptyImport() + " bytes.");
+      //Only the target's own features count (context EXTENSION), not the ones of a base space
+      if (loadTargetSpaceFeatureCount() > 0 && getUncompressedUploadBytesEstimation() > getMaxInputBytesForNonEmptyImport()) {
+        String limit = toGigabytes(getMaxInputBytesForNonEmptyImport());
+        throw new ValidationException("An import into a non-empty layer is limited to " + limit + " of uncompressed input data. "
+                + "The estimated uncompressed size of the provided files is " + toGigabytes(getUncompressedUploadBytesEstimation()) + ". "
+                + "Split the input files into several imports of at most " + limit + " each, or, if the import replaces the content "
+                + "of the layer, clear the layer first and import into the empty layer, for which this limit does not apply.");
+      }
     }
     catch (WebClientException e) {
       throw new ValidationException("Error loading resource " + getSpaceId(), e);
@@ -630,6 +636,10 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
         && updateStrategy.onNotExists() == DEFAULT_UPDATE_STRATEGY.onNotExists()
         && updateStrategy.onVersionConflict() == null
         && updateStrategy.onMergeConflict() == null;
+  }
+
+  private static String toGigabytes(long bytes) {
+    return String.format(Locale.ROOT, "%.1f GB", bytes / (1024d * 1024 * 1024));
   }
 
   private long loadTargetSpaceFeatureCount() {
