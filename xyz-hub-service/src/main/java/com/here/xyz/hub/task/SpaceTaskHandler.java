@@ -98,6 +98,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
@@ -960,10 +961,19 @@ public class SpaceTaskHandler {
         })
         .onComplete(handler -> {
           if (handler.failed()) {
-            logger.error(task.getMarker(), "Failed to resolve dependencies during creation of {}", spaceId, handler.cause());
+            logger.log(dependencyResolutionFailureLevel(handler.cause()), task.getMarker(),
+                "Failed to resolve dependencies during creation of {}", spaceId, handler.cause());
           }
           callback.call(task);
         });
+  }
+
+  /**
+   * Client errors (4xx, e.g. a dependent resource that is not found) are expected and logged as warning, all other failures as error.
+   */
+  static Level dependencyResolutionFailureLevel(Throwable cause) {
+    return cause instanceof HttpException httpException && httpException.status != null
+        && httpException.status.code() >= 400 && httpException.status.code() <= 499 ? Level.WARN : Level.ERROR;
   }
 
   private static Future<List<Space>> getAllExtendingSpaces(Marker marker, String spaceId) {
