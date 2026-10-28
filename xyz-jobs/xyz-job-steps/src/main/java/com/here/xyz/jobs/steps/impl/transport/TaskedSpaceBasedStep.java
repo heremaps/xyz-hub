@@ -672,6 +672,16 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
 
     startInitialTasks();
     noTasksCreated = taskItemCount == 0;
+
+    //Without task items, no task callback will ever arrive. Let the database send the success callback right away, instead of
+    //waiting for the next STATE_CHECK, which would only report the success up to a minute later (see #getExecutionState()).
+    //NOTE: The success is not reported from within this request. The step function may only start to wait for it once this
+    //request has returned and then miss it (LocalStack does so, the step then fails with a heartbeat timeout).
+    //A step which got finalized while resetting the task items of a previous attempt has succeeded already.
+    if (noTasksCreated && !finalizedOnTaskItemReset) {
+      infoLog(STEP_EXECUTE, "No task items were created -> request the success callback.");
+      runWriteQueryAsync(new SQLQuery("PERFORM 1"), db(WRITER), 0);
+    }
   }
 
   private boolean resetTaskItems() throws TooManyResourcesClaimed, SQLException, WebClientException {
