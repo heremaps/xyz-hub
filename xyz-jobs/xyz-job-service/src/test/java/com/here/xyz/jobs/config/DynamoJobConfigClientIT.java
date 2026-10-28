@@ -28,8 +28,10 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.amazonaws.services.dynamodbv2.document.spec.UpdateItemSpec;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.XyzSerializable.Static;
 import com.here.xyz.jobs.Job;
@@ -44,6 +46,7 @@ import com.here.xyz.jobs.steps.StepGraph;
 import com.here.xyz.jobs.steps.execution.JobExecutor;
 import com.here.xyz.jobs.steps.execution.fusion.SimpleTestStep;
 import com.here.xyz.util.service.Core;
+import com.here.xyz.util.service.aws.dynamo.DynamoClient;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import java.lang.reflect.Field;
@@ -55,6 +58,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -66,6 +70,7 @@ import org.junit.jupiter.api.Test;
 /**
  * Checks that {@link DynamoJobConfigClient} filters the jobs by state before loading their steps (one step-table query per job),
  * with many jobs on a shared base resource key, as seen by the reuse and single-job-per-resource checks.
+ * One job item on the base resource key can not be deserialized, the job listings skip it (DS-2715).
  */
 public class DynamoJobConfigClientIT {
   private static final Logger logger = LogManager.getLogger();
@@ -80,6 +85,8 @@ public class DynamoJobConfigClientIT {
   private static final String COMPOSITE_LAYER = PREFIX + "-composite-a";
   private static final int FINISHED_COMPOSITE_JOBS = 30;
   private static final State[] FINISHED_STATES = {SUCCEEDED, FAILED, CANCELLED};
+  //A PENDING job on the base layer whose job item can not be deserialized (DS-2715), it is not part of storedJobs
+  private static final String BROKEN_JOB_ID = PREFIX + "_broken";
 
   private static CountingStepConfigClient stepConfigClient;
   private static DynamoJobConfigClient client;
@@ -117,13 +124,17 @@ public class DynamoJobConfigClientIT {
 
     succeededJobIds = idsInState(SUCCEEDED);
     pendingJobIds = idsInState(PENDING);
+
+    storeBrokenJob(createdAt);
   }
 
   @AfterAll
   public static void tearDown() throws Exception {
-    if (client != null)
+    if (client != null) {
       for (Job job : storedJobs)
         await(client.deleteJob(job.getId()));
+      await(client.deleteJob(BROKEN_JOB_ID));
+    }
   }
 
   @BeforeEach
@@ -198,6 +209,52 @@ public class DynamoJobConfigClientIT {
     //This is the number of step-table queries each of the checks did before DS-2817
     logStepLoads("loadJobs(resourceKeys, null)");
     assertEquals(allJobIds, stepConfigClient.loadedJobIds.keySet());
+  }
+
+  @Test
+  public void undeserializableJobIsSkippedInJobListings() throws Exception {
+    //Loading the broken job by its ID still fails
+    assertThrows(ExecutionException.class, () -> await(client.loadJob(BROKEN_JOB_ID)));
+
+    Set<String> allJobIds = ids(storedJobs);
+    Set<String> jobIdsOnBaseLayer = storedJobs.stream().filter(job -> BASE_LAYER.equals(job.getResourceKey())).map(Job::getId)
+        .collect(Collectors.toSet());
+
+    //The tables are kept between runs, only look at the jobs of this run
+    assertEquals(allJobIds, idsOfThisRun(await(client.loadJobs())));
+    assertEquals(pendingJobIds, idsOfThisRun(await(client.loadJobs(PENDING))));
+    assertEquals(jobIdsOnBaseLayer, ids(await(client.loadJobsByPrimaryResourceKey(BASE_LAYER))));
+    assertEquals(Set.of(pendingJobOnBaseLayerId), ids(await(client.loadJobsByPrimaryResourceKey(BASE_LAYER,
+        new FilteredValues<>(true, Set.of(PENDING))))));
+    assertEquals(pendingJobIds, ids(await(client.loadJobs(newCompositeJob().getResourceKeys(), PENDING))));
+    assertEquals(pendingJobIds, ids(await(client.loadJobsWithoutSteps(newCompositeJob().getResourceKeys(), PENDING))));
+    //The scan with filters, as used by the admin API (e.g. the job dashboard)
+    assertEquals(allJobIds, ids(await(client.loadJobs(null, null, null, null, null,
+        new FilteredValues<>(true, Set.of(BASE_LAYER)), null))));
+  }
+
+  /**
+   * Stores a PENDING job on the base layer and replaces its source in the job item with one of an unknown type.
+   */
+  private static void storeBrokenJob(long createdAt) throws Exception {
+    Job brokenJob = stored(new Job()
+        .withId(BROKEN_JOB_ID)
+        .withSource(space(BASE_LAYER))
+        .withTarget(new Files<>())
+        .withStatus(new RuntimeStatus().withState(PENDING))
+        .withCreatedAt(createdAt)
+        .withKeepUntil(System.currentTimeMillis() + 3_600_000)
+        .withSteps(new StepGraph().addExecution(new SimpleTestStep<>("param").withJobId(BROKEN_JOB_ID))));
+    await(client.storeJob(brokenJob));
+    new DynamoClient(TABLE_ARN_PREFIX + "jobs", null).getTable().updateItem(new UpdateItemSpec()
+        .withPrimaryKey("id", BROKEN_JOB_ID)
+        .withUpdateExpression("SET #source = :source")
+        .withNameMap(Map.of("#source", "source"))
+        .withValueMap(Map.of(":source", Map.of("type", "UnknownDatasetType"))));
+  }
+
+  private static Set<String> idsOfThisRun(Collection<Job> jobs) {
+    return ids(jobs).stream().filter(jobId -> jobId.startsWith(PREFIX + "_")).collect(Collectors.toSet());
   }
 
   private static void logStepLoads(String call) {
