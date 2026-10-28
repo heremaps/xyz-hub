@@ -113,7 +113,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
       List<Job> jobs = new LinkedList<>();
       jobTable.scan()
           .pages()
-          .forEach(page -> page.forEach(jobItem -> jobs.add(deserializeJob(jobItem.asMap()))));
+          .forEach(page -> page.forEach(jobItem -> addIfDeserializable(jobs, jobItem.asMap())));
       return jobs;
     });
   }
@@ -167,7 +167,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
 
     jobTable.scan(filterExpr, attrNames, attrValues)
         .pages()
-        .forEach(page -> page.forEach(item -> jobs.add(deserializeJob(item.asMap()))));
+        .forEach(page -> page.forEach(item -> addIfDeserializable(jobs, item.asMap())));
 
     return Future.succeededFuture(jobs);
   }
@@ -218,7 +218,8 @@ public class DynamoJobConfigClient extends JobConfigClient {
   public Future<List<Job>> loadJobs(State state) {
     return dynamoClient.executeQueryAsync(() -> queryIndex(jobTable, STATE_GSI, state.toString())
         .stream()
-        .map(jobItem -> deserializeJob(jobItem.asMap()))
+        .map(jobItem -> deserializeListedJob(jobItem.asMap()))
+        .filter(Objects::nonNull)
         .toList());
   }
 
@@ -229,7 +230,8 @@ public class DynamoJobConfigClient extends JobConfigClient {
 
     return dynamoClient.executeQueryAsync(() -> queryIndex(jobTable, RESOURCE_KEY_GSI, resourceKey)
             .stream()
-            .map(jobItem -> deserializeJob(jobItem.asMap()))
+            .map(jobItem -> deserializeListedJob(jobItem.asMap()))
+            .filter(Objects::nonNull)
             .collect(Collectors.toSet()));
   }
 
@@ -502,14 +504,48 @@ public class DynamoJobConfigClient extends JobConfigClient {
 
   /**
    * Applies the filter to the job item without its steps and only loads the steps (if requested) if the job matches.
+   * A job item that can not be deserialized is skipped, see {@link #deserializeListedJob(Map)}.
    *
-   * @return The job or {@code null} if it does not match the filter
+   * @return The job or {@code null} if it does not match the filter or can not be deserialized
    */
   private Job deserializeJobIfMatching(Map<String, Object> jobItem, Predicate<Job> filter, boolean withSteps) {
-    Job jobWithoutSteps = deserializeJobWithoutSteps(jobItem);
-    if (!filter.test(jobWithoutSteps))
+    try {
+      Job jobWithoutSteps = deserializeJobWithoutSteps(jobItem);
+      if (!filter.test(jobWithoutSteps))
+        return null;
+      return withSteps ? deserializeJob(jobItem) : jobWithoutSteps;
+    }
+    catch (IllegalArgumentException | IllegalStateException e) {
+      logSkippedJob(jobItem, e);
       return null;
-    return withSteps ? deserializeJob(jobItem) : jobWithoutSteps;
+    }
+  }
+
+  /**
+   * Deserializes a job item of a job listing.
+   * A job item that can not be deserialized (e.g. an unknown type or a missing step config) is logged and skipped, so that one broken
+   * job does not make the whole listing fail. Errors when accessing DynamoDB are not caught.
+   *
+   * @return The job or {@code null} if the job item can not be deserialized
+   */
+  private Job deserializeListedJob(Map<String, Object> jobItem) {
+    try {
+      return deserializeJob(jobItem);
+    }
+    catch (IllegalArgumentException | IllegalStateException e) {
+      logSkippedJob(jobItem, e);
+      return null;
+    }
+  }
+
+  private void addIfDeserializable(List<Job> jobs, Map<String, Object> jobItem) {
+    Job job = deserializeListedJob(jobItem);
+    if (job != null)
+      jobs.add(job);
+  }
+
+  private static void logSkippedJob(Map<String, Object> jobItem, Exception e) {
+    logger.error("Skipping job {} in the job listing, its job item can not be deserialized.", jobItem.get("id"), e);
   }
 
   @Override
