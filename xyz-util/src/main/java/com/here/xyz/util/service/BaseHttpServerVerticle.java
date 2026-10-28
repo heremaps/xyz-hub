@@ -112,6 +112,7 @@ public class BaseHttpServerVerticle extends AbstractVerticle {
       .setTcpQuickAck(true)
       .setTcpFastOpen(true)
       .setMaxInitialLineLength(16 * 1024)
+      .setMaxHeaderSize(16 * 1024)
       .setIdleTimeout(300);
   public static final String STREAM_INFO_CTX_KEY = "streamInfo";
   public static final HttpResponseStatus CLIENT_CLOSED_REQUEST = new HttpResponseStatus(499, "Client closed request");
