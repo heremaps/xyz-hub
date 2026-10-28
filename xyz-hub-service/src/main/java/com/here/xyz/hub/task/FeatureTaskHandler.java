@@ -1659,10 +1659,13 @@ public class FeatureTaskHandler {
       return null;
 
     final boolean useVersion = task.space.getVersionsToKeep() > 1;
+    //Without conflict detection, the write is applied against HEAD, so the version in the input must not be loaded as base state
+    final boolean loadInputVersion = task.getEvent().isConflictDetectionEnabled();
     final HashMap<String, String> idsMap = new HashMap<>();
     for (FeatureEntry entry : task.modifyOp.entries) {
       if (entry.input.get("id") instanceof String)
-        idsMap.put((String) entry.input.get("id"), entry.inputVersion == -1 ? null : String.valueOf(entry.inputVersion));
+        idsMap.put((String) entry.input.get("id"),
+            !loadInputVersion || entry.inputVersion == -1 ? null : String.valueOf(entry.inputVersion));
     }
     if (idsMap.size() == 0) {
       return null;
