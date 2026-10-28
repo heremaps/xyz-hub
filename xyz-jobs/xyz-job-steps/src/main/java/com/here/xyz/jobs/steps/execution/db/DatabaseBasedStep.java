@@ -174,52 +174,79 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
    *
    * "dummy_output" can by used for ignoring outputs. This is for example needed in CTE queries.
    *
+   * The success callback is only sent after the transaction of the step query has been committed, so that a successor
+   * step cannot start before the data of this step is visible.
+   *
    * @see LambdaBasedStep
    * @param stepQuery The query that was provided by the step implementation of the subclass
    * @return The wrapped query. A query that takes care of reporting the state back to this implementation asynchronously.
    */
   private SQLQuery wrapQuery(SQLQuery stepQuery) {
+    SQLQuery wrappedQuery = wrapQuery(stepQuery, buildSuccessCallbackQuery(), buildFailureCallbackQuery())
+        .withQueryFragment("jobId", getJobId())
+        .withQueryFragment("stepId", getId());
 
-    SQLQuery wrappedQuery = new SQLQuery("""
+    return stepQuery.getContext() == null ?  wrappedQuery : wrappedQuery.withContext(stepQuery.getContext());
+  }
+
+  /**
+   * Builds the outer query of {@link #wrapQuery(SQLQuery)}.
+   *
+   * <i>SET CONSTRAINTS ALL IMMEDIATE</i> checks all deferred constraints (and runs all deferred constraint triggers) before
+   * the success callback is registered. Without it, a violation would only be raised by the COMMIT, outside the exception
+   * handler, so neither of the callbacks would be sent.
+   *
+   * @param stepQuery The query that was provided by the step implementation of the subclass
+   * @param successCallback A PL/pgSQL statement that is executed after the step query has succeeded
+   * @param failureCallback A PL/pgSQL statement that is executed if the step query (or one of the deferred constraint checks) failed
+   * @return The wrapped query
+   */
+  static SQLQuery wrapQuery(SQLQuery stepQuery, SQLQuery successCallback, SQLQuery failureCallback) {
+    return new SQLQuery("""
         DO
         $wrapped$
         DECLARE
            dummy_output INTEGER;
         BEGIN
           ${{stepQuery}};
+          SET CONSTRAINTS ALL IMMEDIATE;
           ${{successCallback}}
           EXCEPTION WHEN OTHERS THEN
             ${{failureCallback}}
         END
         $wrapped$;
         """) //TODO: Move RAISE WARNING expression back to generic #buildFailureCallbackQuery() to ensure consistent error reporting & logging across all step implementations
-        .withQueryFragment("jobId", getJobId())
-        .withQueryFragment("stepId", getId())
         .withQueryFragment("stepQuery", stepQuery)
-        .withQueryFragment("successCallback", buildSuccessCallbackQuery())
-        .withQueryFragment("failureCallback", buildFailureCallbackQuery());
-
-    return stepQuery.getContext() == null ?  wrappedQuery : wrappedQuery.withContext(stepQuery.getContext());
+        .withQueryFragment("successCallback", successCallback)
+        .withQueryFragment("failureCallback", failureCallback);
   }
 
   protected final SQLQuery buildSuccessCallbackQuery() {
     SQLQuery lambdaSuccessInvoke = isSimulation
-        ? new SQLQuery("PERFORM 'Success callback will be simulated';")
-        : new SQLQuery("PERFORM aws_lambda.invoke(aws_commons.create_lambda_function_arn('${{lambdaArn}}', '${{lambdaRegion}}'), '${{successRequestBody}}'::JSON, 'Event');")
+        ? new SQLQuery("SELECT 'Success callback will be simulated'")
+        : new SQLQuery("SELECT aws_lambda.invoke(aws_commons.create_lambda_function_arn('${{lambdaArn}}', '${{lambdaRegion}}'), "
+            + "'${{successRequestBody}}'::JSON, 'Event')")
             .withQueryFragment("lambdaArn", getwOwnLambdaArn().toString()) //TODO: Use named params instead of query fragments
             .withQueryFragment("lambdaRegion", getwOwnLambdaArn().getRegion())
             //TODO: Re-use the request body for success / failure cases and simply inject the request type in the query
             .withQueryFragment("successRequestBody", new LambdaStepRequest().withType(SUCCESS_CALLBACK).withStep(this).serialize());
 
-    return new SQLQuery("""
-        DO
-        $success$
-        BEGIN
-          ${{performLambdaSuccessInvoke}}
-        END
-        $success$;
-        """)
-        .withQueryFragment("performLambdaSuccessInvoke", lambdaSuccessInvoke);
+    return deferAfterCommit(lambdaSuccessInvoke);
+  }
+
+  /**
+   * Builds a PL/pgSQL statement that registers the provided query to be run once the current transaction has been committed.
+   * The query is run by a new thread that is started by the asyncify() block after its COMMIT
+   * (see _create_asyncify_query_block() in ext.sql). If the transaction is rolled back, or its COMMIT fails, the query is not run.
+   *
+   * NOTE: Only one such query can be registered per asyncify() thread. A later registration replaces an earlier one.
+   *
+   * @param query A plain SQL statement
+   * @return The PL/pgSQL statement which registers the query
+   */
+  static SQLQuery deferAfterCommit(SQLQuery query) {
+    return new SQLQuery("PERFORM asyncify($deferred$${{deferredQuery}}$deferred$, true);")
+        .withQueryFragment("deferredQuery", query);
   }
 
   protected final SQLQuery buildFailureCallbackQuery() {
