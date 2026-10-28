@@ -440,6 +440,8 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
     catch (ExecutionException e) {
       if(e.getCause() instanceof AmazonServiceException ase)
         throw new IllegalArgumentException("Unable to access the bucket resources. Reason: " + ase.getErrorMessage());
+      else if (e.getCause() instanceof S3Exception s3Exception)
+        throw s3Exception;
       else
         throw new RuntimeException(e);
     }

@@ -42,6 +42,7 @@ import com.here.xyz.jobs.steps.JobCompiler.CompilationError;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.inputs.InputsFromJob;
 import com.here.xyz.jobs.steps.inputs.InputsFromS3;
+import com.here.xyz.jobs.steps.inputs.InputsFromS3.BucketAccessDeniedException;
 import com.here.xyz.jobs.steps.inputs.ModelBasedInput;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.Output;
@@ -109,6 +110,9 @@ public class JobApi extends JobApiBase {
     final Throwable rootCause = rootCause(error);
     final Map<String, Object> errorDetails = Map.of("jobId", jobId);
 
+    if (isBucketAccessDenied(error))
+      return new DetailedHttpException("E319011", null, errorDetails, error);
+
     if (error instanceof CompilationError)
       return new DetailedHttpException("E319002", placeholdersFor(error), errorDetails, error);
 
@@ -129,6 +133,19 @@ public class JobApi extends JobApiBase {
     while (current.getCause() != null && current.getCause() != current)
       current = current.getCause();
     return current;
+  }
+
+  private static boolean isBucketAccessDenied(Throwable error) {
+    for (Throwable current = error; current != null; current = current.getCause())
+      if (current instanceof BucketAccessDeniedException)
+        return true;
+    return false;
+  }
+
+  protected Throwable normalizeInputRegistrationError(Throwable error, String jobId) {
+    if (isBucketAccessDenied(error))
+      return new DetailedHttpException("E319011", null, Map.of("jobId", jobId), error);
+    return error;
   }
 
   private static Map<String, String> placeholdersFor(Throwable error) {
@@ -193,6 +210,7 @@ public class JobApi extends JobApiBase {
     Future<Input> inputCreatedFuture = loadJob(context, jobId).compose(job -> registerInput(context, job, input, inputSetName));
 
     inputCreatedFuture
+        .recover(t -> Future.failedFuture(normalizeInputRegistrationError(t, jobId)))
         .onSuccess(res -> sendResponse(context, CREATED.code(), res))
         .onFailure(err -> sendErrorResponse(context, err));
   }
