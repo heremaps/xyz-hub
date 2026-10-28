@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -62,13 +62,22 @@ public class InputsFromS3 extends Input<InputsFromS3> {
       inputs = loadInputsInParallel(getBucket(), getPrefix());
     }
     catch (S3Exception e) {
-      if (e.awsErrorDetails().sdkHttpResponse().statusCode() == 403)
-        throw new IllegalArgumentException("Error accessing \"" + new S3Uri(getBucket(), getPrefix()) + "\": " + e.getMessage(), e);
+      if (e.statusCode() == 403)
+        throw new BucketAccessDeniedException(new S3Uri(getBucket(), getPrefix()), e);
       else
         throw e;
     }
     inputs.forEach(input -> input.setS3Bucket(getBucket()));
     //Store the metadata for the job that accesses the bucket
     storeMetadata(forJob, inputs, null, new S3Uri(getBucket(), getPrefix()), setName);
+  }
+
+  /**
+   * Thrown if the service is not allowed to access the provided bucket, e.g. because its bucket policy does not grant the access.
+   */
+  public static class BucketAccessDeniedException extends RuntimeException {
+    public BucketAccessDeniedException(S3Uri s3Uri, S3Exception cause) {
+      super("Access to \"" + s3Uri + "\" was denied: " + cause.getMessage(), cause);
+    }
   }
 }

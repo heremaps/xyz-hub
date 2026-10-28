@@ -68,5 +68,12 @@
     "status": 400,
     "cause": "A JSON object with type \"${jsonType}\" was provided, but an object of type \"${expectedType}\" was expected in the request payload.",
     "action": "Please, provide a JSON object with the correct type: \"${expectedType}\""
+  },
+  {
+    "title": "Service has no permissions to access the provided bucket.",
+    "code": "E319011",
+    "status": 412,
+    "cause": "Access to the provided S3 bucket was denied, e.g. because its bucket policy does not grant the service access.",
+    "action": "Please, grant the service the permissions to list the bucket and to read its objects under the provided prefix in the bucket policy"
   }
 ]
