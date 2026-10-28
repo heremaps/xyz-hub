@@ -20,6 +20,7 @@
 package com.here.xyz.jobs.steps.impl;
 
 import com.google.common.io.ByteStreams;
+import com.here.xyz.Payload;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
@@ -272,6 +273,23 @@ public class TaskedImportStepTest extends StepTest {
 
     ValidationException exception = Assertions.assertThrows(ValidationException.class, step::validate);
     Assertions.assertTrue(exception.getMessage().contains("more than one extension level"), exception.getMessage());
+  }
+
+  /**
+   * The database import only decompresses a gzip-compressed input if its S3 object has the metadata "Content-Encoding: gzip", otherwise
+   * it fails with "invalid byte sequence for encoding UTF8: 0x8b" (DS-1602). The validation detects such an input.
+   */
+  @Test
+  public void testImport_gzipInputWithoutContentEncoding_isRejected() throws Exception {
+    uploadInputFile(JOB_ID, Payload.compress(ByteStreams.toByteArray(this.getClass().getResourceAsStream("/testFiles/file1.geojson"))),
+        S3ContentType.APPLICATION_JSON);
+    TaskedImportFilesToSpace step = new TaskedImportFilesToSpace()
+        .withJobId(JOB_ID)
+        .withSpaceId(SPACE_ID)
+        .withInputSets(List.of(USER_INPUTS.get()));
+    ValidationException exception = Assertions.assertThrows(ValidationException.class, step::validate);
+    Assertions.assertTrue(exception.getMessage().contains("is gzip-compressed, but its S3 object has no 'Content-Encoding: gzip' metadata"),
+        exception.getMessage());
   }
 
   /**
