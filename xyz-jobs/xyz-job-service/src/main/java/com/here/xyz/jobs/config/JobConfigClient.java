@@ -125,6 +125,7 @@ public abstract class JobConfigClient implements Initializable {
    * Returns the same jobs as {@link #loadJobs(Set, State)}, but implementations may leave out the step graph
    * ({@link Job#getSteps()} may be {@code null}) to avoid loading it.
    * Meant for checks that only read the jobs' ID, status, creation time, source / target and resource keys.
+   * The returned jobs must not be stored, as that would drop their step graph.
    *
    * @param resourceKeys A set of resource keys for which to find the jobs
    * @param state A state by which to filter the resulting jobs
