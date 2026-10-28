@@ -225,7 +225,7 @@ public class JobAdminApi extends JobApiBase {
    * }
    *
    */
-  private void processSfnStateChangeEvent(JsonObject event) {
+  static Future<Void> processSfnStateChangeEvent(JsonObject event) {
     /*
     Right now we set JobId as "name" of the state machine execution.
     If for some reason it changes, we should add the jobId to the "input" param and read it from there.
@@ -240,7 +240,7 @@ public class JobAdminApi extends JobApiBase {
     else if (sfnStatus == null)
       logger.error("The state machine event does not include a status: {}", event);
     else
-      loadJob(jobId)
+      return loadJob(jobId)
           .compose(job -> {
             State newJobState = switch (sfnStatus) {
               case "SUCCEEDED" -> SUCCEEDED;
@@ -284,12 +284,40 @@ public class JobAdminApi extends JobApiBase {
               if (oldState != newJobState && !oldState.isFinal())
                 job.getStatus().setState(newJobState);
 
-              future = future.compose(v -> job.storeStatus(oldState));
+              future = future
+                  .compose(v -> {
+                    //Concurrent step updates may have overwritten each other's count
+                    job.recountSucceededSteps();
+                    return job.storeStatus(oldState);
+                  })
+                  .recover(t -> JobConfigClient.isStateConflict(t) ? retryStoringStateFromSfnEvent(jobId, newJobState)
+                      : Future.failedFuture(t));
             }
 
             return notifyFinalizationObserversAfterStatusUpdate(job, future);
           })
           .onFailure(t -> logger.error("[{}] Error updating the state of the job after receiving an event from its state machine:", jobId, t));
+    return Future.succeededFuture();
+  }
+
+  /**
+   * Sets the state that was received from the job's state machine on the reloaded job, after the job's state was changed concurrently
+   * (e.g., by a step update).
+   */
+  private static Future<Void> retryStoringStateFromSfnEvent(String jobId, State newJobState) {
+    return loadJob(jobId).compose(job -> {
+      State currentState = job.getStatus().getState();
+      if (currentState == newJobState || !currentState.isValidSuccessor(newJobState)) {
+        logger.info("[{}] Not setting the job's state to {} after receiving an event from its state machine, because it was set to {} "
+            + "concurrently.", jobId, newJobState, currentState);
+        return Future.succeededFuture();
+      }
+      logger.info("[{}] The job's state was set to {} concurrently. Retrying to set it to {} after receiving an event from its state "
+          + "machine ...", jobId, currentState, newJobState);
+      job.getStatus().setState(newJobState);
+      job.recountSucceededSteps();
+      return job.storeStatus(currentState);
+    });
   }
 
   private static boolean isNativeEmrServiceError(JsonObject detail) {

@@ -21,7 +21,10 @@ package com.here.xyz.jobs.config;
 
 import static com.here.xyz.jobs.RuntimeInfo.State.CANCELLED;
 import static com.here.xyz.jobs.RuntimeInfo.State.FAILED;
+import static com.here.xyz.jobs.RuntimeInfo.State.NOT_READY;
 import static com.here.xyz.jobs.RuntimeInfo.State.PENDING;
+import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
+import static com.here.xyz.jobs.RuntimeInfo.State.SUBMITTED;
 import static com.here.xyz.jobs.RuntimeInfo.State.SUCCEEDED;
 import static com.here.xyz.util.Random.randomAlpha;
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -42,6 +45,7 @@ import com.here.xyz.jobs.datasets.DatasetDescription;
 import com.here.xyz.jobs.datasets.DatasetDescription.Space;
 import com.here.xyz.jobs.datasets.Files;
 import com.here.xyz.jobs.service.Config;
+import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.StepGraph;
 import com.here.xyz.jobs.steps.execution.JobExecutor;
 import com.here.xyz.jobs.steps.execution.fusion.SimpleTestStep;
@@ -58,10 +62,15 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.LogEvent;
+import org.apache.logging.log4j.core.appender.AbstractAppender;
+import org.apache.logging.log4j.core.config.Property;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -71,6 +80,7 @@ import org.junit.jupiter.api.Test;
  * Checks that {@link DynamoJobConfigClient} filters the jobs by state before loading their steps (one step-table query per job),
  * with many jobs on a shared base resource key, as seen by the reuse and single-job-per-resource checks.
  * One job item on the base resource key can not be deserialized, the job listings skip it (DS-2715).
+ * Also checks the conditions of the status and step writes.
  */
 public class DynamoJobConfigClientIT {
   private static final Logger logger = LogManager.getLogger();
@@ -91,6 +101,7 @@ public class DynamoJobConfigClientIT {
   private static CountingStepConfigClient stepConfigClient;
   private static DynamoJobConfigClient client;
   private static final List<Job> storedJobs = new ArrayList<>();
+  private static final List<Job> jobsForConditions = new CopyOnWriteArrayList<>();
   private static Set<String> succeededJobIds;
   private static Set<String> pendingJobIds;
   private static String pendingJobOnBaseLayerId;
@@ -134,6 +145,8 @@ public class DynamoJobConfigClientIT {
       for (Job job : storedJobs)
         await(client.deleteJob(job.getId()));
       await(client.deleteJob(BROKEN_JOB_ID));
+      for (Job job : jobsForConditions)
+        await(client.deleteJob(job.getId()));
     }
   }
 
@@ -255,6 +268,87 @@ public class DynamoJobConfigClientIT {
 
   private static Set<String> idsOfThisRun(Collection<Job> jobs) {
     return ids(jobs).stream().filter(jobId -> jobId.startsWith(PREFIX + "_")).collect(Collectors.toSet());
+  }
+
+  @Test
+  public void updateStatusOnlyWritesTheExpectedPreviousState() throws Exception {
+    Job job = storeJobForConditions("_status", NOT_READY, NOT_READY);
+    Job submission1 = await(client.loadJob(job.getId()));
+    Job submission2 = await(client.loadJob(job.getId()));
+    submission1.getStatus().setState(SUBMITTED);
+    submission2.getStatus().setState(SUBMITTED);
+
+    await(client.updateStatus(submission1, NOT_READY));
+    ExecutionException conflict = assertThrows(ExecutionException.class, () -> await(client.updateStatus(submission2, NOT_READY)));
+
+    assertTrue(JobConfigClient.isStateConflict(conflict), "Unexpected error: " + conflict);
+    assertEquals(SUBMITTED, await(client.loadJob(job.getId())).getStatus().getState());
+  }
+
+  @Test
+  public void nonFinalUpdateOfAFinalStepIsIgnoredWithoutError() throws Exception {
+    Job job = storeJobForConditions("_step", RUNNING, SUCCEEDED);
+    Step<?> step = job.getSteps().stepStream().findFirst().get();
+    //An update that was sent before the final one, but arrived after it
+    Map<String, Object> stepMap = step.toMap(Static.class);
+    ((Map<String, Object>) stepMap.get("status")).put("state", RUNNING.toString());
+    Step<?> outOfOrderUpdate = XyzSerializable.fromMap(stepMap, Step.class);
+
+    CapturingAppender appender = new CapturingAppender();
+    org.apache.logging.log4j.core.Logger clientLogger = (org.apache.logging.log4j.core.Logger) LogManager.getLogger(
+        DynamoJobConfigClient.class);
+    appender.start();
+    clientLogger.addAppender(appender);
+    try {
+      await(client.updateStep(job, outOfOrderUpdate));
+
+      assertEquals(SUCCEEDED, await(client.loadStep(job.getId(), step.getId())).getStatus().getState());
+      //The logging is asynchronous
+      long deadline = System.currentTimeMillis() + 10_000;
+      while (appender.events.stream().noneMatch(event -> event.getLevel() == Level.INFO) && System.currentTimeMillis() < deadline)
+        Thread.sleep(50);
+      assertTrue(appender.events.stream().anyMatch(event -> event.getLevel() == Level.INFO
+          && event.getMessage().getFormattedMessage().contains("Ignored the update")), "The ignored update must be logged");
+      assertTrue(appender.events.stream().noneMatch(event -> event.getLevel().isMoreSpecificThan(Level.WARN)),
+          "No warning or error must be logged");
+    }
+    finally {
+      clientLogger.removeAppender(appender);
+      appender.stop();
+    }
+  }
+
+  /**
+   * Stores a job on its own resource, so it is not found by the other tests of this class.
+   */
+  private static Job storeJobForConditions(String suffix, State state, State stepState) throws Exception {
+    String jobId = PREFIX + suffix;
+    SimpleTestStep<?> step = new SimpleTestStep<>("param").withJobId(jobId);
+    step.getStatus().setState(stepState);
+    Job job = stored(new Job()
+        .withId(jobId)
+        .withSource(space(PREFIX + "-conditions"))
+        .withTarget(new Files<>())
+        .withStatus(new RuntimeStatus().withState(state))
+        .withCreatedAt(System.currentTimeMillis())
+        .withKeepUntil(System.currentTimeMillis() + 3_600_000)
+        .withSteps(new StepGraph().addExecution(step)));
+    jobsForConditions.add(job);
+    await(client.storeJob(job));
+    return job;
+  }
+
+  private static class CapturingAppender extends AbstractAppender {
+    private final List<LogEvent> events = new CopyOnWriteArrayList<>();
+
+    CapturingAppender() {
+      super(DynamoJobConfigClientIT.class.getSimpleName() + "-" + randomAlpha(5), null, null, true, Property.EMPTY_ARRAY);
+    }
+
+    @Override
+    public void append(LogEvent event) {
+      events.add(event.toImmutable());
+    }
   }
 
   private static void logStepLoads(String call) {

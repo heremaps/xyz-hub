@@ -22,7 +22,7 @@ package com.here.xyz.jobs.service;
 import static com.here.xyz.jobs.RuntimeInfo.State.FAILED;
 import static com.here.xyz.jobs.RuntimeInfo.State.NOT_READY;
 import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
-import static com.here.xyz.jobs.RuntimeStatus.Action.CANCEL;
+import static com.here.xyz.jobs.RuntimeStatus.Action.START;
 import static com.here.xyz.jobs.service.JobApiBase.ApiParam.Path.SPACE_ID;
 import static com.here.xyz.jobs.service.JobApiBase.ApiParam.getPathParam;
 import static com.here.xyz.jobs.steps.Step.InputSet.DEFAULT_SET_NAME;
@@ -429,9 +429,11 @@ public class JobApi extends JobApiBase {
       case RESUME -> job.resume();
     })
         .onSuccess(actionExecuted -> {
-          if (status.getDesiredAction() != CANCEL || actionExecuted) {
+          //A START of a job that was submitted already (e.g., by a concurrent request) did nothing, so nothing must be stored
+          if (actionExecuted || status.getDesiredAction() == START && job.getStatus().getState() == NOT_READY) {
             job.getStatus().setDesiredAction(null);
-            job.storeStatus(null);
+            //Do not overwrite a state that was changed concurrently (e.g., by a step update)
+            job.storeStatus(job.getStatus().getState());
           }
         })
         .map(res -> job.getStatus());

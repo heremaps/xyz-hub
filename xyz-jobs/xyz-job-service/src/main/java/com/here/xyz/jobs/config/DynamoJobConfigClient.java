@@ -29,6 +29,7 @@ import com.amazonaws.services.dynamodbv2.document.spec.UpdateItemSpec;
 import com.amazonaws.services.dynamodbv2.model.AttributeValue;
 import com.amazonaws.services.dynamodbv2.model.BatchGetItemRequest;
 import com.amazonaws.services.dynamodbv2.model.BatchGetItemResult;
+import com.amazonaws.services.dynamodbv2.model.ConditionalCheckFailedException;
 import com.amazonaws.services.dynamodbv2.model.DeleteRequest;
 import com.amazonaws.services.dynamodbv2.model.KeysAndAttributes;
 import com.amazonaws.services.dynamodbv2.model.PutRequest;
@@ -453,6 +454,11 @@ public class DynamoJobConfigClient extends JobConfigClient {
     return dynamoClient.executeQueryAsync(() -> {
       try {
         stepConfigClient.storeStep(newStep, job.getKeepUntil() / 1000);
+      }
+      catch (ConditionalCheckFailedException e) {
+        //E.g., an update that was sent before the final one, but arrived after it
+        logger.info("[{}] Ignored the update of the step to state {}, because the step is in a final state already.",
+            newStep.getGlobalStepId(), newStep.getStatus().getState());
       }
       catch (Exception e) {
         logger.error(e);
