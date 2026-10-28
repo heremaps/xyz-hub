@@ -70,7 +70,10 @@ import org.junit.jupiter.api.Test;
 public class DynamoJobConfigClientIT {
   private static final Logger logger = LogManager.getLogger();
   private static final String DYNAMO_HOST = System.getProperty("job.host", "localhost");
-  private static final String TABLE_ARN_PREFIX = "arn:aws:dynamodb:" + DYNAMO_HOST + ":000000008000:table/";
+  //Dedicated tables, so that a job service using the same DynamoDB local does not see the test jobs (it can't deserialize
+  // their test-only steps, which would break its check of the PENDING jobs)
+  private static final String TABLE_ARN_PREFIX = "arn:aws:dynamodb:" + DYNAMO_HOST + ":000000008000:table/"
+      + DynamoJobConfigClientIT.class.getSimpleName() + "-";
   private static final String PREFIX = DynamoJobConfigClientIT.class.getSimpleName() + "_" + randomAlpha(5);
   //Base resource (detected by the "-stable-" naming convention), shared by all jobs of this test
   private static final String BASE_LAYER = PREFIX + "-stable-base";
@@ -97,8 +100,7 @@ public class DynamoJobConfigClientIT {
     //Must be created after Core.vertx is set
     stepConfigClient = new CountingStepConfigClient();
     //Creates the local tables if they do not exist yet
-    client = new DynamoJobConfigClient(TABLE_ARN_PREFIX + "xyz-jobs-local", TABLE_ARN_PREFIX + "xyz-job-resources-local",
-        stepConfigClient);
+    client = new DynamoJobConfigClient(TABLE_ARN_PREFIX + "jobs", TABLE_ARN_PREFIX + "job-resources", stepConfigClient);
     await(client.init());
 
     long createdAt = System.currentTimeMillis() - 3_600_000;
@@ -274,7 +276,7 @@ public class DynamoJobConfigClientIT {
     private final Map<String, Integer> loadedJobIds = new ConcurrentHashMap<>();
 
     CountingStepConfigClient() {
-      super(TABLE_ARN_PREFIX + "xyz-job-steps-local");
+      super(TABLE_ARN_PREFIX + "job-steps");
     }
 
     @Override
