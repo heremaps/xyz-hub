@@ -146,6 +146,31 @@ public class TaskedImportStepTest extends StepTest {
     executeImportStep(TaskedImportFilesToSpace.Format.GEOJSON, existingFeatureCount, EntityPerLine.Feature);
   }
 
+  /**
+   * The size limit only applies to an import into a non-empty layer (DS-1651).
+   */
+  @Test
+  public void testImport_exceedingTheSizeLimit_isOnlyRejectedForNonEmptyLayer() throws Exception {
+    //Empty layer: accepted, the validation only returns false as no input file was uploaded
+    Assertions.assertFalse(importStepExceedingTheSizeLimit().validate());
+
+    putRandomFeatureCollectionToSpace(SPACE_ID, 10);
+    ValidationException exception = Assertions.assertThrows(ValidationException.class, importStepExceedingTheSizeLimit()::validate);
+    Assertions.assertEquals("An import into a non-empty layer is limited to 10.0 GB of uncompressed input data. "
+        + "The estimated uncompressed size of the provided files is 10.5 GB. "
+        + "Split the input files into several imports of at most 10.0 GB each, or, if the import replaces the content of the layer, "
+        + "clear the layer first and import into the empty layer, for which this limit does not apply.", exception.getMessage());
+  }
+
+  private TaskedImportFilesToSpace importStepExceedingTheSizeLimit() {
+    return new TaskedImportFilesToSpace()
+        .withJobId(JOB_ID)
+        .withSpaceId(SPACE_ID)
+        .withInputSets(List.of(USER_INPUTS.get()))
+        .withMaxInputBytesForNonEmptyImport(10L * 1024 * 1024 * 1024)
+        .withUncompressedUploadBytesEstimation(21L * 512 * 1024 * 1024);
+  }
+
   //TODO: fix statistics
   @Disabled
   public void testImport_inNonEmpty_GEOJSON_Entity_FeatureCollection() throws Exception {
