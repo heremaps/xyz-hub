@@ -41,6 +41,7 @@ services:
             - LOCALSTACK_ENDPOINT=http://localstack:4566
             - JOBS_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-jobs-local
             - STEPS_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-job-steps-local
+            - STATISTICS_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-job-statistics-local
             - PARALLEL_STEPS_SUPPORTED=false
         depends_on:
             xyz-hub:

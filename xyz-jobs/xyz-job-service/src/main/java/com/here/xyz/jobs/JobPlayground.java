@@ -151,6 +151,7 @@ public class JobPlayground {
     Config.instance.AWS_REGION = "us-east-1";
     Config.instance.JOBS_DYNAMODB_TABLE_ARN = "arn:aws:dynamodb:localhost:000000008000:table/xyz-jobs-local";
     Config.instance.STEPS_DYNAMODB_TABLE_ARN = "arn:aws:dynamodb:localhost:000000008000:table/xyz-job-steps-local";
+    Config.instance.STATISTICS_DYNAMODB_TABLE_ARN = "arn:aws:dynamodb:localhost:000000008000:table/xyz-job-statistics-local";
     Config.instance.STEP_LAMBDA_ARN = new ARN("arn:aws:lambda:us-east-1:000000000000:function:job-step");
     hubWebClient = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT);
     try {
