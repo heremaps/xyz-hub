@@ -21,6 +21,7 @@ package com.here.xyz.psql;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -105,7 +106,7 @@ public class PSQLHistoryPartitionRecoveryIT extends PSQLAbstractIT {
     assertEquals(1, connector.getDatabaseSettings().getDbMaxPoolSize(), "The test must run with the Lambda pool size of 1");
 
     FeatureCollection result = deserializeResponse(update.response());
-    assertEquals(Set.copyOf(FEATURE_IDS), Set.copyOf(result.getUpdated()));
+    assertUpdated(result, FEATURE_IDS);
     assertTrue(result.getFailed() == null || result.getFailed().isEmpty(), "Unexpected failures: " + update.response());
     assertFasterThanLimit(update);
     assertTrue(isAttachedPartition(partition3()), "The partition _p3 must have been created and attached");
@@ -113,7 +114,7 @@ public class PSQLHistoryPartitionRecoveryIT extends PSQLAbstractIT {
 
     TimedResponse nextUpdate = invoke(new PSQLXyzConnector(), updateEvent(true, FEATURE_IDS));
     FeatureCollection nextResult = deserializeResponse(nextUpdate.response());
-    assertEquals(Set.copyOf(FEATURE_IDS), Set.copyOf(nextResult.getUpdated()));
+    assertUpdated(nextResult, FEATURE_IDS);
     assertFasterThanLimit(nextUpdate);
   }
 
@@ -123,14 +124,14 @@ public class PSQLHistoryPartitionRecoveryIT extends PSQLAbstractIT {
     TimedResponse update = invoke(new PSQLXyzConnector(), updateEvent(false, List.of("NX", "F1", "F2", "F3")));
 
     FeatureCollection result = deserializeResponse(update.response());
-    assertEquals(Set.copyOf(FEATURE_IDS), Set.copyOf(result.getUpdated()), "Unexpected result: " + update.response());
+    assertUpdated(result, FEATURE_IDS);
     assertEquals(List.of("NX"), failedIds(result.getFailed()));
     assertFasterThanLimit(update);
     assertTrue(isAttachedPartition(partition3()), "The partition _p3 must have been created and attached");
 
     TimedResponse nextUpdate = invoke(new PSQLXyzConnector(), updateEvent(false, FEATURE_IDS));
     FeatureCollection nextResult = deserializeResponse(nextUpdate.response());
-    assertEquals(Set.copyOf(FEATURE_IDS), Set.copyOf(nextResult.getUpdated()), "Unexpected result: " + nextUpdate.response());
+    assertUpdated(nextResult, FEATURE_IDS);
     assertEquals(List.of(), failedIds(nextResult.getFailed()));
     assertFasterThanLimit(nextUpdate);
   }
@@ -171,6 +172,12 @@ public class PSQLHistoryPartitionRecoveryIT extends PSQLAbstractIT {
     long millis = (System.nanoTime() - start) / 1_000_000;
     LOGGER.info("ModifyFeaturesEvent (transaction: {}) took {} ms", event.getTransaction(), millis);
     return new TimedResponse(response, millis);
+  }
+
+  private static void assertUpdated(FeatureCollection result, List<String> expectedIds) throws Exception {
+    String response = result.serialize();
+    assertNotNull(result.getUpdated(), "No feature was updated: " + response);
+    assertEquals(Set.copyOf(expectedIds), Set.copyOf(result.getUpdated()), "Unexpected result: " + response);
   }
 
   private static void assertFasterThanLimit(TimedResponse timedResponse) {
