@@ -98,6 +98,9 @@ public abstract class DatabaseHandler extends StorageConnector {
      **/
     static final int MIN_REMAINING_TIME_FOR_RETRY_SECONDS = 3;
 
+    private static final String NO_TIME_LEFT_SQL_STATE = "54000";
+    private static final String DUPLICATE_TABLE_SQL_STATE = "42P07";
+
     private static String INCLUDE_OLD_STATES = "includeOldStates"; // read from event params
 
     private boolean retryAttempted;
@@ -226,6 +229,8 @@ public abstract class DatabaseHandler extends StorageConnector {
 
         Map<String, String> deletes = Optional.ofNullable(event.getDeleteFeatures()).orElse(new HashMap<>());
         List<FeatureCollection.ModificationFailure> fails = Optional.ofNullable(event.getFailed()).orElse(new ArrayList<>());
+        //The failures the event came with, see the retry after the recovery of a missing history partition
+        final int incomingFailCount = fails.size();
 
         List<String> originalUpdates = updates.stream().map(Feature::getId).collect(Collectors.toList());
         List<String> originalDeletes = new ArrayList<>(deletes.keySet());
@@ -349,11 +354,17 @@ public abstract class DatabaseHandler extends StorageConnector {
                 /** Add objects which are responsible for the failed operation */
                 event.setFailed(fails);
 
-                boolean missingHistoryPartition = DatabaseWriter.isMissingHistoryPartitionException(e);
-                boolean historyPartitionLockNotAvailable = DatabaseWriter.isLockNotAvailableException(e);
-                if ((missingHistoryPartition || historyPartitionLockNotAvailable)
-                    && recoverHistoryPartition(event, version, connection, historyPartitionLockNotAvailable)) {
-                    logger.warn("{} triggered retry after history partition recovery.", traceItem, e);
+                if (canRecoverHistoryPartition() && DatabaseWriter.isMissingHistoryPartitionException(e)) {
+                    recoverHistoryPartition(event, version, connection);
+                    //The retry writes all features again, so it must only see the failures the event came with
+                    fails.subList(incomingFailCount, fails.size()).clear();
+                    if (!connection.isClosed()) {
+                        connection.setAutoCommit(previousAutoCommitState);
+                        //Release the connection before the retry, Lambda connectors have a pool size of 1
+                        connection.close();
+                    }
+                    retryAttempted = true;
+                    logger.warn("{} Retrying the write after the recovery of a missing history partition.", traceItem);
                     return executeModifyFeatures(event);
                 }
 
@@ -457,45 +468,60 @@ public abstract class DatabaseHandler extends StorageConnector {
         }
     }
 
-    private boolean recoverHistoryPartition(ModifyFeaturesEvent event, long version, Connection connection, boolean createNextPartition)
-        throws SQLException {
-        if (missingPartitionRecoveryAttempted)
-            return false;
+    /**
+     * Whether a write that fails on a missing history partition is still aborted, so that this handler creates the partition and
+     * retries the write. That happens at most once per invocation, afterwards the error fails the write like any other one.
+     */
+    boolean canRecoverHistoryPartition() {
+        return !missingPartitionRecoveryAttempted;
+    }
+
+    /**
+     * Creates the history partition that the write at the specified version is missing, before the caller retries the write once.
+     * Errors of the creation are logged, not thrown. The retry then fails like any other write, unless another writer has created
+     * the partition in the meantime. Only a lack of remaining time is thrown (54000), like everywhere else in the write.
+     */
+    private void recoverHistoryPartition(ModifyFeaturesEvent event, long version, Connection connection) throws SQLException {
+        missingPartitionRecoveryAttempted = true;
 
         int remainingSeconds = FunctionRuntime.getInstance().getRemainingTime() / 1000;
         if (!isRemainingTimeSufficient(remainingSeconds))
-            throw new SQLException("No time left to create missing history partition.", "54000");
+            throw new SQLException("No time left to create the missing history partition.", "54000");
 
-        missingPartitionRecoveryAttempted = true;
-        retryAttempted = true;
+        String schema = dbSettings.getSchema();
+        String table = readBranchTableFromEvent(event);
+        long partitionNo = Math.floorDiv(version, PARTITION_SIZE);
+        //Do not log the write's exception, the one of a batch contains the statement with all its parameters
+        logger.warn("{} History partition {} of {}.{} is missing for version {}. Creating it before the retry.",
+            traceItem, partitionNo, schema, table, version);
 
         boolean previousAutoCommitState = connection.getAutoCommit();
-        if (!previousAutoCommitState)
-            connection.rollback();
-
-        String table = readBranchTableFromEvent(event);
-        long partitionNo = Math.floorDiv(version, PARTITION_SIZE) + (createNextPartition ? 1 : 0);
-        SQLQuery createPartitionQuery = XyzSpaceTableHelper.buildCreateHistoryPartitionQuery(dbSettings.getSchema(), table, partitionNo, true);
-
-        logger.warn("{} History partition recovery triggered for {}.{} and version {}. Creating partition no {} before retry.",
-            traceItem, dbSettings.getSchema(), table, version, partitionNo);
-
         try {
+            if (!previousAutoCommitState)
+                connection.rollback();
             connection.setAutoCommit(true);
             advisoryLock(table, connection);
             try (Statement statement = connection.createStatement()) {
                 statement.setQueryTimeout(calculateTimeout());
-                statement.execute(createPartitionQuery.toExecutableQueryString());
+                statement.execute(XyzSpaceTableHelper.buildCreateHistoryPartitionQuery(schema, table, partitionNo, true)
+                    .toExecutableQueryString());
             }
             finally {
                 advisoryUnlock(table, connection);
             }
         }
+        catch (SQLException ce) {
+            if (NO_TIME_LEFT_SQL_STATE.equals(ce.getSQLState()))
+                throw ce;
+            if (DUPLICATE_TABLE_SQL_STATE.equals(ce.getSQLState()))
+                logger.info("{} History partition {} of {}.{} was created concurrently.", traceItem, partitionNo, schema, table);
+            else
+                logger.warn("{} Failed to create history partition {} of {}.{}, SQL-state: {}. Retrying the write anyway.",
+                    traceItem, partitionNo, schema, table, ce.getSQLState(), ce);
+        }
         finally {
             connection.setAutoCommit(previousAutoCommitState);
         }
-
-        return true;
     }
 
     /**

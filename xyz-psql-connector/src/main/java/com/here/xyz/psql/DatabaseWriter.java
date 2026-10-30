@@ -285,9 +285,9 @@ public class DatabaseWriter {
                     if (transactional)
                         throw e;
 
-                    SQLException retryableException = getRetryableTableMaintenanceException(e);
-                    if (retryableException != null)
-                        throw retryableException;
+                    SQLException abortCause = findNonTransactionalAbortCause(e, dbh.canRecoverHistoryPartition());
+                    if (abortCause != null)
+                        throw abortCause;
 
                     fails.add(new FeatureCollection.ModificationFailure().withId(getIdFromInput(action, inputDatum))
                         .withMessage(e instanceof WriteFeatureException ? e.getMessage() : getFailedRowErrorMsg(action, event)));
@@ -296,7 +296,8 @@ public class DatabaseWriter {
             }
 
             if (transactional) {
-                executeBatchesAndCheckOnFailures(idList, modificationQuery.getPreparedStatement(connection), fails, event, action);
+                executeBatchesAndCheckOnFailures(idList, modificationQuery.getPreparedStatement(connection), fails, event, action,
+                    dbh.canRecoverHistoryPartition());
 
                 if (fails.size() > 0) {
                     logException(null, action, event);
@@ -408,7 +409,7 @@ public class DatabaseWriter {
 
     private static void executeBatchesAndCheckOnFailures(List<String> idList, PreparedStatement batchStmt,
         List<FeatureCollection.ModificationFailure> fails,
-        ModifyFeaturesEvent event, ModificationType type) throws SQLException {
+        ModifyFeaturesEvent event, ModificationType type, boolean partitionRecoverable) throws SQLException {
 
         try {
             if (idList.size() > 0) {
@@ -419,7 +420,7 @@ public class DatabaseWriter {
             }
         }
         catch (Exception e) {
-            if (getRetryableTableMaintenanceException(e) != null)
+            if (isRethrownFromBatch(e, partitionRecoverable))
                 //Re-throw, as a missing table will be handled by DatabaseHandler.
                 throw e;
 
@@ -446,25 +447,49 @@ public class DatabaseWriter {
                 fails.add(new FeatureCollection.ModificationFailure().withId(idList.get(i)).withMessage(getFailedRowErrorMsg(action, event)));
     }
 
+    /**
+     * Finds the check violation (23514) "no partition of relation" that a versioned write raises when the history partition of
+     * its version is missing. Follows the causes and {@link SQLException#getNextException()}, where pgjdbc puts the server
+     * error of a failed batch.
+     */
+    static SQLException findMissingHistoryPartitionException(Throwable e) {
+        return findSqlException(e, DatabaseWriter::isMissingHistoryPartition);
+    }
+
     static boolean isMissingHistoryPartitionException(Throwable e) {
-        return anySqlExceptionMatches(e, sqlException -> CHECK_VIOLATION_SQL_STATE.equalsIgnoreCase(sqlException.getSQLState())
-            && sqlException.getMessage() != null
-            && sqlException.getMessage().toLowerCase().contains("no partition of relation"));
+        return findMissingHistoryPartitionException(e) != null;
     }
 
-    static boolean isLockNotAvailableException(Throwable e) {
-        return anySqlExceptionMatches(e, sqlException -> LOCK_NOT_AVAILABLE_SQL_STATE.equalsIgnoreCase(sqlException.getSQLState()));
+    /**
+     * Finds the error that aborts a non-transactional write instead of failing only the current feature: a missing table
+     * (42P01), and a missing history partition while {@link DatabaseHandler} can still create it and retry the write.
+     * A lock timeout (55P03) only fails the current feature, because it also comes from row locks of concurrent writes.
+     */
+    static SQLException findNonTransactionalAbortCause(Throwable e, boolean partitionRecoverable) {
+        return findSqlException(e, sqlException -> isUndefinedTable(sqlException)
+            || partitionRecoverable && isMissingHistoryPartition(sqlException));
     }
 
-    private static SQLException getRetryableTableMaintenanceException(Throwable e) {
-        return findSqlException(e, sqlException ->
-            UNDEFINED_TABLE_SQL_STATE.equalsIgnoreCase(sqlException.getSQLState())
-                || isLockNotAvailableException(sqlException)
-                || isMissingHistoryPartitionException(sqlException));
+    /**
+     * Whether a failed batch is rethrown to {@link DatabaseHandler} instead of failing all its features: a missing table
+     * (42P01), a lock timeout (55P03), and a missing history partition while it can still be created.
+     */
+    static boolean isRethrownFromBatch(Throwable e, boolean partitionRecoverable) {
+        return findSqlException(e, sqlException -> isUndefinedTable(sqlException) || isLockNotAvailable(sqlException)
+            || partitionRecoverable && isMissingHistoryPartition(sqlException)) != null;
     }
 
-    private static boolean anySqlExceptionMatches(Throwable e, Predicate<SQLException> matcher) {
-        return findSqlException(e, matcher) != null;
+    private static boolean isUndefinedTable(SQLException e) {
+        return UNDEFINED_TABLE_SQL_STATE.equalsIgnoreCase(e.getSQLState());
+    }
+
+    private static boolean isLockNotAvailable(SQLException e) {
+        return LOCK_NOT_AVAILABLE_SQL_STATE.equalsIgnoreCase(e.getSQLState());
+    }
+
+    private static boolean isMissingHistoryPartition(SQLException e) {
+        return CHECK_VIOLATION_SQL_STATE.equalsIgnoreCase(e.getSQLState()) && e.getMessage() != null
+            && e.getMessage().toLowerCase().contains("no partition of relation");
     }
 
     private static SQLException findSqlException(Throwable e, Predicate<SQLException> matcher) {

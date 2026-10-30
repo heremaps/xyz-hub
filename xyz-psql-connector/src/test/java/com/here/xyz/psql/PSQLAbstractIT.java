@@ -215,6 +215,14 @@ public abstract class PSQLAbstractIT extends Helper {
   }
 
   protected static String invokeLambda(Event event) throws Exception {
+    return invokeLambda(LAMBDA, event);
+  }
+
+  /**
+   * Like {@link #invokeLambda(Event)}, but on the specified connector. Lambda creates a connector per invocation (see
+   * EntryConnectorHandler), so passing a fresh instance also starts the invocation with a fresh retry state.
+   */
+  protected static String invokeLambda(PSQLXyzConnector connector, Event event) throws Exception {
     //TODO: Remove this injection of "connectorId" connector-param when the hash of ECPS is used as cache key for any connections in the PSQL connector
     //TODO: Return events instead of strings
     Map<String, Object> connectorParams = event.getConnectorParams() != null ? new HashMap<>(event.getConnectorParams()) : new HashMap<>();
@@ -229,7 +237,7 @@ public abstract class PSQLAbstractIT extends Helper {
     LOGGER.info("Request to lambda - {}", event.toString());
     String response = null;
     try {
-      response = LAMBDA.handleEvent(event).serialize();
+      response = connector.handleEvent(event).serialize();
     }catch (Exception e) {
       if(e instanceof ErrorResponseException ee) {
         return ee.getErrorResponse().serialize();
