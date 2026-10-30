@@ -607,7 +607,7 @@
       <dependency>
         <artifactId>guava</artifactId>
         <groupId>com.google.guava</groupId>
-        <version>32.0.0-jre</version>
+        <version>33.7.1-jre</version>
       </dependency>
       <dependency>
         <groupId>org.apache.commons</groupId>
