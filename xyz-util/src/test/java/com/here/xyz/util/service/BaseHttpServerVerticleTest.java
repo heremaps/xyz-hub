@@ -21,6 +21,8 @@ package com.here.xyz.util.service;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.here.xyz.util.service.BaseHttpServerVerticle.RequestCancelledException;
+import io.vertx.core.Handler;
 import io.vertx.core.MultiMap;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpClient;
@@ -31,10 +33,13 @@ import io.vertx.core.http.HttpServerOptions;
 import io.vertx.core.http.RequestOptions;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
+import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.CorsHandler;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class BaseHttpServerVerticleTest {
 
@@ -46,10 +51,23 @@ public class BaseHttpServerVerticleTest {
   public void setUp() throws Exception {
     vertx = Vertx.vertx();
     Router router = Router.router(vertx);
+    Handler<RoutingContext> failureHandler = new BaseHttpServerVerticle().createFailureHandler();
     router.route("/cors").handler(CorsHandler.create(".*")).handler(context -> context.response().end("OK"));
     router.route("/unexpected").handler(context -> context.fail(new RuntimeException("Unexpected failure")));
+    //Same handler order as BaseHttpServerVerticle#addDefaultHandlers
+    router.route("/form").handler(CorsHandler.create(".*")).handler(BaseHttpServerVerticle.createBodyHandler())
+        .handler(context -> context.response().end("OK"));
+    router.route("/unavailable").handler(context -> context.fail(503, new RuntimeException("Backend unavailable")));
+    router.route("/illegal-state").handler(context -> context.fail(new IllegalStateException()));
+    router.route("/cancelled").handler(context -> context.fail(new RequestCancelledException()))
+        .failureHandler(context -> {
+          failureHandler.handle(context);
+          //sendErrorResponse() sends nothing for a cancelled request, end the response here to make that visible
+          if (!context.response().ended())
+            context.response().end("No error response");
+        });
     router.route("/").handler(context -> context.response().end());
-    router.route().failureHandler(new BaseHttpServerVerticle().createFailureHandler());
+    router.route().failureHandler(failureHandler);
     server = vertx.createHttpServer(new HttpServerOptions(BaseHttpServerVerticle.SERVER_OPTIONS))
         .requestHandler(router)
         .listen(0, "localhost")
@@ -91,15 +109,52 @@ public class BaseHttpServerVerticleTest {
     assertEquals(500, send("/unexpected", MultiMap.caseInsensitiveMultiMap()).status);
   }
 
+  @ParameterizedTest
+  @ValueSource(strings = {"application/x-www-form-urlencoded", "multipart/form-data; boundary=xyz"})
+  public void getWithFormBodyIsRejectedWith405(String contentType) throws Exception {
+    MultiMap headers = MultiMap.caseInsensitiveMultiMap().add(HttpHeaders.CONTENT_TYPE, contentType);
+    Response response = send(HttpMethod.GET, "/form", headers, "a=bc");
+    assertEquals(405, response.status);
+    assertEquals(405, new JsonObject(response.body).getInteger("statusCode"));
+    assertEquals("Request method must be one of POST, PUT, PATCH or DELETE to decode a multipart request",
+        new JsonObject(response.body).getString("message"));
+  }
+
+  @Test
+  public void failureWithExplicitStatusKeepsIt() throws Exception {
+    Response response = send("/unavailable", MultiMap.caseInsensitiveMultiMap());
+    assertEquals(503, response.status);
+    assertEquals(503, new JsonObject(response.body).getInteger("statusCode"));
+    assertEquals("Backend unavailable", new JsonObject(response.body).getString("message"));
+  }
+
+  @Test
+  public void cancelledRequestGetsNoErrorResponse() throws Exception {
+    Response response = send("/cancelled", MultiMap.caseInsensitiveMultiMap());
+    assertEquals(200, response.status);
+    assertEquals("No error response", response.body);
+  }
+
+  @Test
+  public void illegalStateWithoutMessageReturns500() throws Exception {
+    Response response = send("/illegal-state", MultiMap.caseInsensitiveMultiMap());
+    assertEquals(500, response.status);
+    assertEquals(500, new JsonObject(response.body).getInteger("statusCode"));
+  }
+
   private Response send(String path, MultiMap headers) throws Exception {
+    return send(HttpMethod.GET, path, headers, null);
+  }
+
+  private Response send(HttpMethod method, String path, MultiMap headers, String requestBody) throws Exception {
     RequestOptions options = new RequestOptions()
-        .setMethod(HttpMethod.GET)
+        .setMethod(method)
         .setHost("localhost")
         .setPort(server.actualPort())
         .setURI(path)
         .setHeaders(headers);
     return client.request(options)
-        .compose(request -> request.send())
+        .compose(request -> requestBody == null ? request.send() : request.send(requestBody))
         .compose(response -> response.body().map(body -> new Response(response.statusCode(), body.toString())))
         .toCompletionStage().toCompletableFuture().get(10, SECONDS);
   }

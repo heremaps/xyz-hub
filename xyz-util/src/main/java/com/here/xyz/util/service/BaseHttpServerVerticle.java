@@ -165,7 +165,8 @@ public class BaseHttpServerVerticle extends AbstractVerticle {
     //If the request was canceled, neither a response has to be sent nor the error should be logged.
     if (exception instanceof RequestCancelledException)
       return;
-    if (exception instanceof IllegalStateException && exception.getMessage().startsWith("Request method must be one of"))
+    if (exception instanceof IllegalStateException && exception.getMessage() != null
+        && exception.getMessage().startsWith("Request method must be one of"))
       exception = new HttpException(METHOD_NOT_ALLOWED, exception.getMessage(), exception);
     if (exception instanceof ErrorResponseException errorResponseException) {
       final HttpResponse<byte[]> errorResponse = errorResponseException.getErrorResponse();
@@ -348,8 +349,10 @@ public class BaseHttpServerVerticle extends AbstractVerticle {
         }
         else if (t instanceof BadRequestException)
           sendErrorResponse(context, new HttpException(BAD_REQUEST, "Invalid request."));
-        else if (!(t instanceof HttpException) && context.statusCode() >= 400)
-          //Keep the status of the failing handler (e.g., the CorsHandler fails with 403 for an invalid origin)
+        else if (!(t instanceof HttpException) && context.statusCode() >= 400 && context.statusCode() != INTERNAL_SERVER_ERROR.code())
+          //Keep the status of the failing handler (e.g., the CorsHandler fails with 403 for an invalid origin).
+          //500 is what RoutingContext#fail(Throwable) sets for any exception, so sendErrorResponse() gets those unwrapped
+          //and can still map them, e.g., the IllegalStateException of a GET with a form body to 405.
           sendErrorResponse(context, new HttpException(HttpResponseStatus.valueOf(context.statusCode()),
               t.getMessage() != null ? t.getMessage() : message, t));
         else
