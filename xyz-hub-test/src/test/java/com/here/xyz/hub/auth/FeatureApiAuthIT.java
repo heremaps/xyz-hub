@@ -49,7 +49,7 @@ public class FeatureApiAuthIT extends TestSpaceWithFeature {
         accept(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_2)).
         when().
-        get(getSpacesPath() + "/x-psql-test/features/Q2838923").
+        get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/features/Q2838923").
         then().
         statusCode(FORBIDDEN.code());
   }
@@ -60,7 +60,7 @@ public class FeatureApiAuthIT extends TestSpaceWithFeature {
         accept(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_2)).
         when().
-        get(getSpacesPath() + "/x-psql-test/bbox?north=23.13&west=113.32&south=23.14&east=113.33").
+        get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/bbox?north=23.13&west=113.32&south=23.14&east=113.33").
         then().
         statusCode(FORBIDDEN.code());
   }
@@ -71,7 +71,7 @@ public class FeatureApiAuthIT extends TestSpaceWithFeature {
         accept(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_2)).
         when().
-        get(getSpacesPath() + "/x-psql-test/search?limit=100").
+        get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/search?limit=100").
         then().
         statusCode(FORBIDDEN.code());
   }
@@ -82,7 +82,7 @@ public class FeatureApiAuthIT extends TestSpaceWithFeature {
         accept(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_2)).
         when().
-        get(getSpacesPath() + "/x-psql-test/iterate?limit=500").
+        get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/iterate?limit=500").
         then().
         statusCode(FORBIDDEN.code());
   }
@@ -93,7 +93,7 @@ public class FeatureApiAuthIT extends TestSpaceWithFeature {
         accept(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_2)).
         when().
-        get(getSpacesPath() + "/x-psql-test/tile/quadkey/2100300120310022.geojson").
+        get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/tile/quadkey/2100300120310022.geojson").
         then().
         statusCode(FORBIDDEN.code());
   }
@@ -106,7 +106,7 @@ public class FeatureApiAuthIT extends TestSpaceWithFeature {
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_2)).
         body(content("/xyz/hub/updateFeature.json")).
         when().
-        put(getSpacesPath() + "/x-psql-test/features/Q2838923?addTags=baseball&removeTags=soccer").
+        put(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/features/Q2838923?addTags=baseball&removeTags=soccer").
         then().
         statusCode(FORBIDDEN.code());
   }
@@ -119,7 +119,7 @@ public class FeatureApiAuthIT extends TestSpaceWithFeature {
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_2)).
         body(content("/xyz/hub/updateFeatureById.json")).
         when().
-        post(getSpacesPath() + "/x-psql-test/features?addTags=baseball&removeTags=soccer").
+        post(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/features?addTags=baseball&removeTags=soccer").
         then().
         statusCode(FORBIDDEN.code());
   }
@@ -130,7 +130,7 @@ public class FeatureApiAuthIT extends TestSpaceWithFeature {
         .accept(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_2))
         .when()
-        .delete(getSpacesPath() + "/x-psql-test/features/Q4201688")
+        .delete(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/features/Q4201688")
         .then()
         .statusCode(FORBIDDEN.code());
   }

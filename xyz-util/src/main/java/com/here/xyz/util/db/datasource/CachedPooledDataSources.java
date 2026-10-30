@@ -30,7 +30,7 @@ import org.apache.logging.log4j.Logger;
 
 public class CachedPooledDataSources extends PooledDataSources {
 
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(CachedPooledDataSources.class);
 
   private static final Map<String, Map<String, StaticDataSources>> cache = new ConcurrentHashMap<>();
 

@@ -57,8 +57,6 @@ import com.here.xyz.util.service.aws.lambda.SimulatedContext;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
-import io.vertx.core.json.JsonArray;
-import io.vertx.core.json.JsonObject;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -67,7 +65,6 @@ import java.net.http.HttpResponse;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import software.amazon.awssdk.services.cloudwatchevents.model.ConcurrentModificationException;
@@ -103,20 +100,20 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   protected boolean isSimulation = false; //TODO: Remove testing code
   private static final Logger logger = LogManager.getLogger();
 
-  @JsonView(Internal.class)
+  @JsonView({Internal.class, Static.class})
   private String taskToken = TASK_TOKEN_TEMPLATE; //Will be defined by the Step Function
 
-  @JsonView(Internal.class)
+  @JsonView({Internal.class, Static.class})
   private String executionId = null; //Will be defined by the Step Function
 
-  @JsonView(Internal.class)
+  @JsonView({Internal.class, Static.class})
   private int retryCount = -1; //Will be defined by the Step Function
 
   //RedriveCount is not available in localstack!
-  @JsonView(Internal.class)
+  @JsonView({Internal.class, Static.class})
   private int redriveCount = Config.instance.LOCALSTACK_ENDPOINT != null ? 0 : -1; //Will be defined by the Step Function
 
-  @JsonView(Internal.class)
+  @JsonView({Internal.class, Static.class})
   private int stepExecutionHeartBeatTimeoutOverride;
 
   /**
@@ -199,12 +196,20 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
           .description("Heartbeat trigger for Step " + getGlobalStepId())
           .build());
 
+      /* The trigger only carries the identifiers of the step rather than the whole step config. The step config
+      gets loaded on demand when a SATE_CHECK is received.
+       */
+      final String stateCheckInput = new LambdaStepRequest()
+          .withType(STATE_CHECK)
+          .withStateCheckRef(new LambdaStepRequest.StateCheckRef(getJobId(), getId()))
+          .serialize(Internal.class);
+
       cloudwatchEventsClient().putTargets(PutTargetsRequest.builder()
           .rule(getStateCheckRuleName())
           .targets(Target.builder()
               .id(getGlobalStepId())
               .arn(ownLambdaArn.toString())
-              .input(compactStateCheckInput(new LambdaStepRequest().withType(STATE_CHECK).withStep(this).serialize()))
+              .input(stateCheckInput)
               .build())
           .build());
     }
@@ -216,27 +221,6 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
 
   private void unregisterStateCheckTrigger() {
     _unregisterStateCheckTriggerDeferred(0, 1);
-  }
-
-  static String compactStateCheckInput(String input) {
-    JsonObject payload = new JsonObject(input);
-    stripLargeFilters(payload);
-    return payload.encode();
-  }
-
-  private static void stripLargeFilters(Object node) {
-    if (node instanceof JsonObject jsonObject) {
-      // SpatialFilter fields can be very large (e.g., huge multipolygons) and are
-      // not needed for heartbeat/state-checks.
-      jsonObject.remove("spatialFilter");
-      for (String fieldName : List.copyOf(jsonObject.fieldNames()))
-        stripLargeFilters(jsonObject.getValue(fieldName));
-      return;
-    }
-
-    if (node instanceof JsonArray jsonArray)
-      for (int i = 0; i < jsonArray.size(); i++)
-        stripLargeFilters(jsonArray.getValue(i));
   }
 
   private void _unregisterStateCheckTriggerDeferred(long waitMs, int attempt) {
@@ -332,24 +316,6 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     reportAsyncHeartbeat(false);
     if(request.getStep().getStatus().getState() != RUNNING) {
       return;
-    }
-
-    //Special handling for ExportChangedTiles step to avoid too many updates of the job.
-    //Can happen if there are many tasks with very short execution times.
-    if(!isCompleted && request.getStep() instanceof TaskedSpaceBasedStep<?,?,?>){
-      float progress = request.getStep().getStatus().getEstimatedProgress();
-
-      //ignore very small progress
-      if (progress < 0.05f) {
-        return;
-      }
-
-      //check if near a 5% boundary
-      float scaled = progress * 20f; // 20 buckets = 5%
-      if (Math.abs(scaled - Math.round(scaled)) > 0.01f) {
-        //only update state every 10s to avoid too many updates of the job config
-        return;
-      }
     }
 
     if (isSimulation)
@@ -501,7 +467,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     if (e != null) {
       getStatus()
           .withErrorMessage(e.getMessage())
-          .withErrorCause(e.getCause() != null ? e.getCause().getClass().getSimpleName() + ": " + e.getCause().getMessage() : null)
+          .withErrorCause(ErrorCauseResolver.resolve(e))
           .withErrorCode(e instanceof StepException stepException ? stepException.getCode() : null);
 
       if (e instanceof ErrorResponseException responseException)
@@ -623,8 +589,10 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     return executionId == null ? EXECUTION_ID_TEMPLATE : null;
   }
 
-  private void setExecutionIdTemplate(String executionId) {
-    this.executionId = executionId;
+  @JsonProperty("executionId")
+  private void setExecutionId(String executionId) {
+    //"$$.Execution.Id" is the unresolved SFN template, never an actual execution ARN
+    this.executionId = EXECUTION_ID_TEMPLATE.equals(executionId) ? null : executionId;
   }
 
   @JsonProperty("redriveCount.$")
@@ -632,11 +600,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   private String getRedriveCountTemplate() {
     return (redriveCount == -1 && !isSimulation) ? REDRIVE_COUNT_TEMPLATE : null;
   }
-
-  private void setRedriveCountCount(int redriveCount) {
-    this.redriveCount = redriveCount;
-  }
-
+  
   @JsonProperty("retryCount.$")
   @JsonInclude(Include.NON_NULL)
   private String getRetryCountTemplate() {
@@ -696,10 +660,14 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
         //Read the incoming request
         request = XyzSerializable.deserialize(inputStream, LambdaStepRequest.class);
 
-        new LambdaFunctionRuntime(context, request.getStep().getGlobalStepId());
+        //Load required step config by using the stored reference.
+        if (request.getType() == STATE_CHECK)
+          request.setStep(resolveStepWithStateCheckRef(request));
 
         if (request.getStep() == null)
           throw new NullPointerException("Malformed step request, missing step definition.");
+
+        new LambdaFunctionRuntime(context, request.getStep().getGlobalStepId());
 
         //Set the userAgent of the web clients correctly
         HubWebClient.userAgent = StepWebClient.userAgent = "XYZ-JobStep-" + request.getStep().getClass().getSimpleName();
@@ -780,6 +748,21 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
       return System.getenv();
     }
 
+    protected LambdaBasedStep resolveStepWithStateCheckRef(LambdaStepRequest request) {
+      final LambdaStepRequest.StateCheckRef ref = request.getStateCheckRef();
+      if (ref == null)
+        throw new NullPointerException("Malformed step request of type STATE_CHECK, missing the stateCheckRef.");
+
+      try {
+        logger.info("[{}.{}] Loading step config from the job service ...", ref.jobId(), ref.stepId());
+        Step<?> step = StepWebClient.getInstance(Config.instance.JOB_API_ENDPOINT.toString()).getStep(ref.jobId(), ref.stepId());
+        return step instanceof LambdaBasedStep lambdaBasedStep ? lambdaBasedStep : null;
+      }
+      catch (WebClientException e) {
+        throw new RuntimeException("Error loading step config " + ref.jobId() + "." + ref.stepId() + " from the job service.", e);
+      }
+    }
+
     protected static void loadPlugins() {
       for (String plugin : Config.instance.stepPlugins())
         try {
@@ -795,6 +778,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     private RequestType type;
     private LambdaBasedStep step;
     private ProcessUpdate processUpdate;
+    private StateCheckRef stateCheckRef;
 
     public RequestType getType() {
       return type;
@@ -835,6 +819,19 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
       return this;
     }
 
+    public StateCheckRef getStateCheckRef() {
+      return stateCheckRef;
+    }
+
+    public void setStateCheckRef(StateCheckRef stateCheckRef) {
+      this.stateCheckRef = stateCheckRef;
+    }
+
+    public LambdaStepRequest withStateCheckRef(StateCheckRef stateCheckRef) {
+      setStateCheckRef(stateCheckRef);
+      return this;
+    }
+
     public enum RequestType {
       START_EXECUTION, //Sent by Step Function when the actual execution should be started (ASYNC) / performed (SYNC)
       STATE_CHECK, //For ASYNC mode only: Sent periodically by a CW Events Rule to check the inner step state and report heartbeats to the Step Function
@@ -849,5 +846,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     public static class ProcessUpdate<T extends ProcessUpdate> implements Typed {
 
     }
+
+    public record StateCheckRef(String jobId, String stepId) implements Typed {}
   }
 }

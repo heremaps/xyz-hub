@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,12 +19,14 @@
 
 package com.here.xyz.hub.task;
 
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.hub.auth.XyzHubActionMatrix.ADMIN_SPACES;
 import static com.here.xyz.hub.auth.XyzHubActionMatrix.CREATE_FEATURES;
 import static com.here.xyz.hub.auth.XyzHubActionMatrix.DELETE_FEATURES;
 import static com.here.xyz.hub.auth.XyzHubActionMatrix.MANAGE_SPACES;
 import static com.here.xyz.hub.auth.XyzHubActionMatrix.READ_FEATURES;
 import static com.here.xyz.hub.auth.XyzHubActionMatrix.UPDATE_FEATURES;
+import static com.here.xyz.models.hub.Ref.HEAD;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
@@ -41,6 +43,7 @@ import com.here.xyz.hub.Config;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.auth.Authorization;
 import com.here.xyz.hub.config.BranchConfigClient;
+import com.here.xyz.hub.config.DataReferenceConfigClient;
 import com.here.xyz.hub.config.SpaceConfigClient.SpaceSelectionCondition;
 import com.here.xyz.hub.config.settings.SpaceStorageMatchingMap;
 import com.here.xyz.hub.connectors.RpcClient;
@@ -48,6 +51,7 @@ import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.connectors.models.Space.SpaceWithRights;
 import com.here.xyz.hub.rest.ApiResponseType;
+import com.here.xyz.hub.rest.FeatureQueryApi;
 import com.here.xyz.hub.rest.TagApi;
 import com.here.xyz.hub.task.FeatureTask.ModifySpaceQuery;
 import com.here.xyz.hub.task.ModifyOp.Entry;
@@ -58,8 +62,10 @@ import com.here.xyz.hub.task.SpaceTask.ReadQuery;
 import com.here.xyz.hub.task.SpaceTask.View;
 import com.here.xyz.hub.task.TaskPipeline.C1;
 import com.here.xyz.hub.task.TaskPipeline.Callback;
+import com.here.xyz.hub.util.SpaceTableResolver;
 import com.here.xyz.hub.util.diff.Difference;
 import com.here.xyz.hub.util.diff.Patcher;
+import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space.ConnectorRef;
 import com.here.xyz.models.hub.Tag;
 import com.here.xyz.models.hub.jwt.ActionMatrix;
@@ -67,6 +73,7 @@ import com.here.xyz.models.hub.jwt.AttributeMap;
 import com.here.xyz.models.hub.jwt.JWTPayload;
 import com.here.xyz.responses.ChangesetsStatisticsResponse;
 import com.here.xyz.util.Async;
+import com.here.xyz.util.Hasher;
 import com.here.xyz.util.service.BaseHttpServerVerticle;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.HttpException;
@@ -91,6 +98,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
@@ -597,6 +605,13 @@ public class SpaceTaskHandler {
 
     //Load the space being extended
     Space.resolveSpace(task.getMarker(), space.getExtension().getSpaceId())
+      .compose(extendedSpace -> {
+        if (extendedSpace != null && space.getExtension().getVersion() != null) {
+          return validateExtensionVersion(task.getMarker(), extendedSpace, space.getExtension().getVersion())
+                  .map(v -> extendedSpace);
+        }
+        return Future.succeededFuture(extendedSpace);
+      })
       .onFailure(t -> onExtensionResolveError(task, t, callback))
       .onSuccess(extendedSpace -> {
         // check for existing space to be extended
@@ -619,7 +634,7 @@ public class SpaceTaskHandler {
           //Override the storage config by copying it from the extended space
           space.setStorage(new ConnectorRef()
                   .withId(extendedConnector.getId())
-                  .withParams(extendedConnector.getParams() != null ? extendedConnector.getParams() : new HashMap<>()));
+                  .withParams(SpaceTableResolver.withoutTableName(extendedConnector.getParams())));
         }
         else if (!Objects.equals(space.getStorage().getId(), extendedConnector.getId()) && !task.modifyOp.forceStorage) {
           callback.exception(new DetailedHttpException("E318408",
@@ -650,6 +665,8 @@ public class SpaceTaskHandler {
                   callback.exception(new HttpException(BAD_REQUEST, "The space " + space.getId() + " cannot extend the space "
                       + extendedSpace.getId() + " because the maximum extension level is 2."));
                 else{
+                  extendedSpace.getExtension().resolvedSpace = secondLvlExtendedSpace;
+                  task.resolvedExtensions = space.resolveCompositeParams(extendedSpace);
                   //Store searchableProperties from base (but without storing them later)
                   if (task.isCreate())
                     task.resolvedSearchableProperties = secondLvlExtendedSpace.getSearchableProperties();
@@ -662,10 +679,65 @@ public class SpaceTaskHandler {
       });
   }
 
+
+  /**
+   * Assigns a new, unique physical table name to a space that is about to be created.
+   * NOTE: This step must run *before* the {@link ModifySpaceEvent} is sent (see {@link #sendEvents}), because the
+   * table creation is performed based on that name.
+   */
+
+  static void assignTableName(ConditionalOperation task, Callback<ConditionalOperation> callback) {
+    if (task.isUpdate()) {
+      Entry<Space> entry = task.modifyOp.entries.get(0);
+      SpaceTableResolver.preserveTableName(entry.head, entry.result);
+      callback.call(task);
+      return;
+    }
+
+    if (!task.isCreate() || !Service.configuration.ENABLE_UNIQUE_PHYSICAL_TABLE_NAMES) {
+      callback.call(task);
+      return;
+    }
+
+    Space space = task.modifyOp.entries.get(0).result;
+    if (space == null) {
+      callback.call(task);
+      return;
+    }
+
+    final String spaceId = space.getId();
+
+    String tableName = SpaceTableResolver.assignTableName(space);
+    logger.info(task.getMarker(), "space[{}]: Assigned physical table name \"{}\"",spaceId, tableName);
+    callback.call(task);
+  }
+
+  /**
+   * Validates the version an extension binds its base space to, on creation as well as on update.
+   *
+   * NOTE: {@code extends.version} is functionally immutable - changing it makes the composite expose a different dataset,
+   * which invalidates anything a client derived from it. That is deliberately not rejected - the risk is left to the caller.
+   */
+  private static Future<Void> validateExtensionVersion(Marker marker, Space baseSpace, Long baseVersion) {
+    //Without a version history the extended space can not provide a stable snapshot, as an update replaces the bound row
+    if (baseSpace.getVersionsToKeep() <= 1)
+      return Future.failedFuture(new HttpException(BAD_REQUEST, "The space " + baseSpace.getId()
+          + " cannot be extended on a specific version, because it does not keep a version history."));
+
+    return FeatureQueryApi.getStatistics(marker, baseSpace.getId(), DEFAULT, new Ref(HEAD), true, false)
+          .compose(statistics -> {
+            if (baseVersion < statistics.getMinVersion().getValue() || baseVersion > statistics.getMaxVersion().getValue()) {
+              return Future.failedFuture(new HttpException(BAD_REQUEST, "The provided base space version " + baseVersion +
+                      " is not in the range of available versions [" + statistics.getMinVersion().getValue() + ", " + statistics.getMaxVersion().getValue() + "]"));
+            }
+            return Future.succeededFuture();
+          });
+  }
+
   private static void onExtensionResolveError(ConditionalOperation task, Throwable error, Callback<ConditionalOperation> callback) {
     String errMsg = "Error during resolving extensions.";
     logger.error(task.getMarker(), errMsg, error);
-    callback.exception(new HttpException(INTERNAL_SERVER_ERROR, errMsg, error));
+    callback.exception(error instanceof HttpException ? error : new HttpException(INTERNAL_SERVER_ERROR, errMsg, error));
   }
 
   static void sendEvents(ConditionalOperation task, Callback<ConditionalOperation> callback) {
@@ -683,6 +755,7 @@ public class SpaceTaskHandler {
     Entry<Space> entry = task.modifyOp.entries.get(0);
 
     Space space = task.isDelete() ? entry.head : entry.result;
+    Space tableNameSource = task.isUpdate() ? entry.head : space;
 
     if (task.isDelete() && space.notSendDeleteMse) {
       callback.call(task);
@@ -729,6 +802,8 @@ public class SpaceTaskHandler {
             entry.result = DatabindCodec.mapper().readValue(Json.encode(resultClone), Space.class);
           }
         }
+        if (task.isCreate() || task.isUpdate())
+          SpaceTableResolver.preserveTableName(tableNameSource, entry.result);
         //remove searchable properties from the result if the space has an extension
         if(entry.result != null)
           entry.result.withSearchableProperties(entry.result.getExtension() != null ? null : entry.result.getSearchableProperties());
@@ -805,7 +880,8 @@ public class SpaceTaskHandler {
   private static Future<Void> updateReadOnlyHeadVersion(Marker marker, Space space) {
     GetChangesetStatisticsEvent event = new GetChangesetStatisticsEvent().withSpace(space.getId());
     Promise<Void> p = Promise.promise();
-    Space.resolveConnector(marker, space.getStorage().getId())
+    SpaceConnectorBasedHandler.injectStorageParams(marker, event, space)
+        .compose(v -> Space.resolveConnector(marker, space.getStorage().getId()))
         .onSuccess(connector -> RpcClient.getInstanceFor(connector).execute(marker, event, ar -> {
           if (ar.failed()) {
             p.fail(ar.cause());
@@ -844,7 +920,13 @@ public class SpaceTaskHandler {
         .map(Future::all)
         .mapEmpty();
 
-    Future.all(tagsFuture, deactivateFuture)
+    //Expire all data references linked to the space
+    final Future<Void> expireReferencesFuture = DataReferenceConfigClient.getInstance()
+        .expireForEntity(task.getMarker(), spaceId)
+        .onFailure(e -> logger.error(task.getMarker(),
+            "Failed to expire DataReferences for space {}", spaceId,  e));
+
+    Future.all(tagsFuture, deactivateFuture, expireReferencesFuture)
         .onComplete(v -> {
           if (v.failed())
             logger.error(task.getMarker(), "Failed to complete clean dependent resources for space {}", spaceId, v.cause());
@@ -879,10 +961,19 @@ public class SpaceTaskHandler {
         })
         .onComplete(handler -> {
           if (handler.failed()) {
-            logger.error(task.getMarker(), "Failed to resolve dependencies during creation of {}", spaceId, handler.cause());
+            logger.log(dependencyResolutionFailureLevel(handler.cause()), task.getMarker(),
+                "Failed to resolve dependencies during creation of {}", spaceId, handler.cause());
           }
           callback.call(task);
         });
+  }
+
+  /**
+   * Client errors (4xx, e.g. a dependent resource that is not found) are expected and logged as warning, all other failures as error.
+   */
+  static Level dependencyResolutionFailureLevel(Throwable cause) {
+    return cause instanceof HttpException httpException && httpException.status != null
+        && httpException.status.code() >= 400 && httpException.status.code() <= 499 ? Level.WARN : Level.ERROR;
   }
 
   private static Future<List<Space>> getAllExtendingSpaces(Marker marker, String spaceId) {

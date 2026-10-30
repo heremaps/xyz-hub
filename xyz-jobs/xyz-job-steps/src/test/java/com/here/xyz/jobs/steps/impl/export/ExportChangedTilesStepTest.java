@@ -20,6 +20,12 @@ package com.here.xyz.jobs.steps.impl.export;
 
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.PropertiesQuery;
+import com.here.xyz.jobs.steps.impl.transport.ExportChangedTiles;
+import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
+import com.here.xyz.jobs.steps.outputs.DownloadUrl;
+import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
+import com.here.xyz.jobs.steps.outputs.Output;
+import com.here.xyz.jobs.steps.outputs.TileInvalidations;
 import com.here.xyz.models.filters.SpatialFilter;
 import com.here.xyz.jobs.steps.impl.transport.ExportChangedTiles.QuadType;
 import com.here.xyz.models.geojson.coordinates.LinearRingCoordinates;
@@ -31,15 +37,24 @@ import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Polygon;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
+
+import static com.here.xyz.jobs.steps.Step.Visibility.SYSTEM;
+import static com.here.xyz.jobs.steps.Step.Visibility.USER;
 
 public class ExportChangedTilesStepTest extends ExportTestBase {
+    private static final Logger logger = LogManager.getLogger();
     private final static int VERSIONS_TO_KEEP = 100;
     private final String SPACE_ID_EXT = SPACE_ID + "_ext";
 
@@ -364,4 +379,65 @@ public class ExportChangedTilesStepTest extends ExportTestBase {
                         .withClip(false), null,
                 List.of(), new FeatureCollection());
     }
+
+  protected void executeExportChangedTilesStepAndCheckResults(String spaceId, int targetLevel,
+                                                              ExportChangedTiles.QuadType quadType, Ref versionRef,
+                                                              List<String> expectedTileInvalidations, FeatureCollection expectedFeatures)
+          throws IOException, InterruptedException {
+    executeExportChangedTilesStepAndCheckResults(spaceId, targetLevel, quadType, versionRef, null, null, expectedTileInvalidations, expectedFeatures);
+  }
+
+  protected void executeExportChangedTilesStepAndCheckResults(String spaceId, int targetLevel,
+                                                              ExportChangedTiles.QuadType quadType, Ref versionRef, SpatialFilter spatialFilter, PropertiesQuery propertiesQuery,
+                                                              List<String> expectedTileInvalidations, FeatureCollection expectedFeatures)
+          throws IOException, InterruptedException {
+
+    //Create Step definition
+    ExportSpaceToFiles step = new ExportChangedTiles()
+            .withQuadType(quadType)
+            .withTargetLevel(targetLevel)
+            .withVersionRef(versionRef)
+            .withPropertyFilter(propertiesQuery)
+            .withSpatialFilter(spatialFilter)
+            .withSpaceId(spaceId)
+            .withJobId(JOB_ID);
+
+    //Send Lambda Requests
+    sendLambdaStepRequestBlock(step, true);
+    checkExportChangedTilesOutputs(expectedFeatures, step.loadOutputs(USER), step.loadOutputs(SYSTEM), expectedTileInvalidations);
+  }
+
+  protected void checkExportChangedTilesOutputs(FeatureCollection expectedFeatures, List<Output> userOutputs,
+                                                List<Output> systemOutputs, List<String> expectedTileInvalidations) throws IOException {
+    List<Feature> exportedFeatures = new ArrayList<>();
+    boolean foundTileInvalidations = false;
+
+    List<Output> allOutputs = new ArrayList<>();
+    allOutputs.addAll(userOutputs);
+    allOutputs.addAll(systemOutputs);
+
+    for (Output output : allOutputs) {
+      if (output instanceof DownloadUrl downloadUrl)
+        exportedFeatures.addAll(downloadFileAndDeserializeFeatures(downloadUrl));
+        //TODO: FeatureStatistics could get only checked if we also support during simulation "UPDATE_CALLBACK"
+      else if (output instanceof FeatureStatistics statistics) {
+        System.out.println(statistics.getFeatureCount());
+        Assertions.assertEquals(expectedFeatures.getFeatures().size(), statistics.getFeatureCount());
+      } else if (output instanceof TileInvalidations tileInvalidations) {
+        foundTileInvalidations = true;
+        logger.info("TileInvalidations {} vs {}", expectedTileInvalidations, tileInvalidations.getTileIds());
+        Assertions.assertEquals(expectedTileInvalidations.size(), tileInvalidations.getTileIds().size());
+        Assertions.assertTrue(expectedTileInvalidations.containsAll(tileInvalidations.getTileIds()));
+      }
+    }
+    if (!expectedTileInvalidations.isEmpty())
+      Assertions.assertTrue(foundTileInvalidations);
+
+    List<String> expectedFeaturesIdList = expectedFeatures.getFeatures().stream().map(Feature::getId).collect(Collectors.toList());
+    List<String> exportedFeaturesFeaturesIdList = exportedFeatures.stream().map(Feature::getId).collect(Collectors.toList());
+
+    logger.info("FeaturesFeaturesIdList {} vs {}", expectedFeaturesIdList, exportedFeaturesFeaturesIdList);
+    Assertions.assertEquals(expectedFeaturesIdList.size(), exportedFeaturesFeaturesIdList.size());
+    Assertions.assertTrue(exportedFeaturesFeaturesIdList.containsAll(expectedFeaturesIdList));
+  }
 }

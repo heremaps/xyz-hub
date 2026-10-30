@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2017-2026 HERE Europe B.V.
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -18,34 +19,46 @@
 
 package com.here.xyz.jobs.steps.impl.transport;
 
+import static com.here.xyz.FeatureChange.Operation;
+import static com.here.xyz.FeatureChange.Operation.DELETE;
+import static com.here.xyz.FeatureChange.Operation.INSERT;
+import static com.here.xyz.FeatureChange.Operation.UPDATE;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.X;
+import static com.here.xyz.jobs.steps.Step.Visibility.SYSTEM;
 import static com.here.xyz.jobs.steps.Step.Visibility.USER;
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.JOB_EXECUTOR;
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.JOB_VALIDATE;
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_EXECUTE;
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_ON_ASYNC_SUCCESS;
+import static com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles.PatchOutputType.CONSISTENT;
+import static com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles.PatchOutputType.LEGACY;
+import static com.here.xyz.psql.query.IterateChangesetsBuilder.IterateChangesetsInput;
 
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.PropertiesQuery;
-import com.here.xyz.models.filters.SpatialFilter;
 import com.here.xyz.jobs.steps.StepExecution;
 import com.here.xyz.jobs.steps.execution.StepException;
 import com.here.xyz.jobs.steps.execution.db.Database;
 import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
 import com.here.xyz.jobs.steps.impl.transport.tasks.inputs.ExportInput;
 import com.here.xyz.jobs.steps.impl.transport.tasks.outputs.ExportOutput;
+import com.here.xyz.jobs.steps.impl.transport.tools.ExportQueryBuilder;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
 import com.here.xyz.jobs.steps.resources.IOResource;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
+import com.here.xyz.models.filters.SpatialFilter;
 import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.psql.query.GetFeaturesByGeometryBuilder;
 import com.here.xyz.psql.query.GetFeaturesByGeometryBuilder.GetFeaturesByGeometryInput;
+import com.here.xyz.psql.query.IterateChangesetsBuilder;
 import com.here.xyz.psql.query.QueryBuilder.QueryBuildingException;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.SQLQuery;
@@ -53,7 +66,6 @@ import com.here.xyz.util.geo.GeoTools;
 import com.here.xyz.util.geo.GeometryValidator;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
-
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -63,7 +75,6 @@ import java.util.UUID;
 import javax.xml.crypto.dsig.TransformException;
 import org.geotools.api.referencing.FactoryException;
 import org.locationtech.jts.geom.Geometry;
-
 
 /**
  * The {@code ExportSpaceToFiles} class represents a step in a data processing workflow that exports data
@@ -83,13 +94,15 @@ import org.locationtech.jts.geom.Geometry;
  * <p>This step produces outputs of type {@link FeatureStatistics} and {@link DownloadUrl}.</p>
  */
 public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles, ExportInput, ExportOutput> {
+  private ExportQueryBuilder exportQueryBuilder;
+
   public static final String STATISTICS = "statistics";
   public static final String EXPORTED_DATA = "exportedData";
 
   //Defines how many features a source layer need to have to start parallelization.
-  public static final int PARALLELIZATION_MIN_THRESHOLD = 100_000;
+  private static final int PARALLELIZATION_MIN_THRESHOLD = 100_000;
   //Defines how many threads are getting used
-  public static final int PARALLELIZATION_THREAD_COUNT = 8;
+  private static final int PARALLELIZATION_THREAD_COUNT = 8;
 
   //Defines how large the area of a defined spatialFilter can be
   //If a point is defined - the maximum radius can be 17898 meters
@@ -97,11 +110,16 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
   //Currently only used if there is no filter set
   private static final long MAX_TASK_COUNT = 1_000;
   private static final long MAX_BYTES_PER_TASK = 200L * 1024 * 1024; // 200MB in bytes
-  public static final double ESTIMATED_SPATIAL_FILTERED_PEAK_ACUS = 0.05;
-  public static final int ESTIMATED_SPATIAL_FILTERED_IO_BYTES = 100 * 1024 * 1024;
+  private static final double ESTIMATED_SPATIAL_FILTERED_PEAK_ACUS = 0.05;
+  protected static final int ESTIMATED_SPATIAL_FILTERED_IO_BYTES = 100 * 1024 * 1024;
 
   @JsonView({Internal.class, Static.class})
   private int estimatedSeconds = -1;
+
+  @JsonView({Internal.class, Static.class})
+  protected boolean squashedData = true;
+  @JsonView({Internal.class, Static.class})
+  protected PatchOutputType outputType = LEGACY;
 
   @JsonView({Internal.class, Static.class})
   protected SpatialFilter spatialFilter;
@@ -146,8 +164,8 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
   }
 
   {
-    setOutputSets(List.of(
-        new OutputSet(STATISTICS, USER, true),
+    addOutputSets(List.of(
+        new OutputSet(STATISTICS, SYSTEM, true),
         new OutputSet(EXPORTED_DATA, USER, false)
     ));
   }
@@ -181,6 +199,19 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
   @Override
   protected boolean queryRunsOnWriter() throws WebClientException, SQLException, TooManyResourcesClaimed {
     return false;
+  }
+
+  public PatchOutputType getOutputType() {
+    return outputType;
+  }
+
+  public void setOutputType(PatchOutputType outputType) {
+    this.outputType = outputType;
+  }
+
+  public ExportSpaceToFiles withOutputType(PatchOutputType outputType) {
+    setOutputType(outputType);
+    return this;
   }
 
   /**
@@ -321,6 +352,17 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
     try {
       if (!space().isActive())
         throw new ValidationException("The resource was deactivated. Could not export data from it.");
+
+      /*
+      The ref reaching this step says nothing about which space it was resolved against, or whether it was resolved at all - that can
+      happen in TaskedSpaceBasedStep#prepare, in a compiler (see SpaceCopy) or in the caller. So a SUPER export of a bound composite
+      can not be interpreted soundly; the base space can be exported directly by its own ID instead.
+      TODO: Check whether this should be extended to composites without a bound base version - the same ambiguity applies there, it
+       just has no bound version to contradict.
+       */
+      if (context == SUPER && boundBaseVersion() != null)
+        throw new ValidationException("Exporting with context=" + SUPER + " is not supported for a resource which extends a specific base version."
+                + " Export the base directly instead.");
     }
     catch (WebClientException e) {
       throw new ValidationException("Error loading the space: " + getSpaceId(), e);
@@ -395,9 +437,28 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
       taskListCount = (int) Math.min(calculatedTaskCount, MAX_TASK_COUNT);
     }
 
+    //Resolve the i-range once and pre-calculate the i-range boundaries per task, persisting startI / endI into each task
+    //input. This keeps the thread partitioning stable across resumes, even if writes happened in between, instead of
+    //recomputing it against a changed table state (see generateContentQueryForExportPlugin).
+    IRange iRange = resolveIRange();
+    long iRangeSize = (long) Math.ceil((double) (iRange.maxI() - iRange.minI() + 1) / (double) taskListCount);
+
+    return createExportInputs(taskListCount, iRange, iRangeSize);
+  }
+
+  private List<ExportInput> createExportInputs(int taskListCount, IRange iRange, long iRangeSize) {
     List<ExportInput> taskDataList = new ArrayList<>();
+
     for (int i = 0; i < taskListCount; i++) {
-      taskDataList.add(new ExportInput(i));
+      long startI = iRange.minI() + i * iRangeSize;
+      long endI = startI + iRangeSize - 1;
+      if (outputType == CONSISTENT) {
+        taskDataList.add(new ExportInput(i, startI, endI, INSERT));
+        taskDataList.add(new ExportInput(i, startI, endI, UPDATE));
+        taskDataList.add(new ExportInput(i, startI, endI, DELETE));
+      }
+      else
+        taskDataList.add(new ExportInput(i, startI, endI));
     }
     return taskDataList;
   }
@@ -417,8 +478,30 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
   @Override
   protected SQLQuery buildTaskQuery(Integer taskId, ExportInput taskInput, String failureCallback)
           throws QueryBuildingException, TooManyResourcesClaimed, WebClientException, InvalidGeometryException {
-    return buildExportToS3PluginQuery(getSchema(db()), taskId,
+    return buildExportToS3PluginQuery(
+            buildDownloadUrlForTaskInput(taskInput),
+            taskId,
             generateContentQueryForExportPlugin(taskInput), failureCallback);
+  }
+
+  private DownloadUrl buildDownloadUrlForTaskInput(ExportInput taskInput) {
+    if (outputType == LEGACY)
+      return new DownloadUrl().withS3Key(
+          toS3Path(getOutputSet(EXPORTED_DATA)) + "/" + taskInput.threadId() + "/" + UUID.randomUUID() + ".json");
+    else if (outputType == CONSISTENT)
+      return new DownloadUrl().withS3Key(
+          toS3Path(getOutputSet(EXPORTED_DATA)) + "/" + toFolderName(taskInput.operation()) + "/" + taskInput.threadId() + "/"
+              + UUID.randomUUID() + ".json");
+    else
+      throw new StepException("Invalid outputType: " + outputType);
+  }
+
+  private static String toFolderName(Operation operation) {
+    return switch (operation) {
+      case INSERT -> "inserted";
+      case UPDATE -> "updated";
+      case DELETE -> "deleted";
+    };
   }
 
   @Override
@@ -440,48 +523,45 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
                     .withFeatureCount(transportStatistics.rowCount)
                     .withByteSize(transportStatistics.byteSize)
                     .withVersionRef(providedVersionRef)
+                    .withFileName(STATISTICS + ".json")
     ), STATISTICS);
   }
 
-  protected GetFeaturesByGeometryInput createGetFeaturesByGeometryInput(SpaceContext context, SpatialFilter spatialFilter, Ref versionRef)
+  protected GetFeaturesByGeometryInput createGetFeaturesByGeometryInput(Space space, SpaceContext targetContext, SpatialFilter spatialFilter, Ref versionRef)
       throws WebClientException {
-    Space space = context == SUPER ? superSpace() : space();
 
     return new GetFeaturesByGeometryInput(space.getId(), hubWebClient().loadConnector(space.getStorage().getId()).params,
-        space().getExtension() != null ? space().resolveCompositeParams(superSpace()) : null, context, space.getVersionsToKeep(), minSpaceVersion,
+        resolveSpaceParams(space), targetContext, space.getVersionsToKeep(), minSpaceVersion,
         versionRef, spatialFilter != null ? spatialFilter.getGeometry() : null, spatialFilter != null ? spatialFilter.getRadius() : 0,
         spatialFilter != null && spatialFilter.isClip(), propertyFilter);
   }
 
-  private SQLQuery buildExportToS3PluginQuery(String schema, int taskId, String contentQuery, String failureCallback) throws WebClientException {
-    //TODO Group by threadId
-    DownloadUrl downloadUrl = new DownloadUrl().withS3Key(toS3Path(getOutputSet(EXPORTED_DATA)) + "/" + taskId + "/" + UUID.randomUUID() + ".json");
-    return new SQLQuery(
-            "SELECT export_to_s3_perform(#{taskId},  #{s3_bucket}, #{s3_path}, #{s3_region}, #{step_payload}::JSON->'step', " +
-                    "#{lambda_function_arn}, #{lambda_region}, #{contentQuery}, '${{failureCallback}}');")
-            .withContext(getQueryContext(schema))
-            .withAsyncProcedure(false)
-            .withNamedParameter("taskId", taskId)
-            .withNamedParameter("s3_bucket", downloadUrl.getS3Bucket())
-            .withNamedParameter("s3_path", downloadUrl.getS3Key())
-            .withNamedParameter("s3_region", bucketRegion())
-            .withNamedParameter("step_payload", new LambdaStepRequest().withStep(this).serialize())
-            .withNamedParameter("lambda_function_arn", getwOwnLambdaArn().toString())
-            .withNamedParameter("lambda_region", getwOwnLambdaArn().getRegion())
-            .withNamedParameter("contentQuery", contentQuery)
-            .withQueryFragment("failureCallback",  failureCallback);
+  private SQLQuery buildExportToS3PluginQuery(DownloadUrl downloadUrl, int taskId, String contentQuery, String failureCallback) {
+    return getQueryBuilder().buildExportToS3PluginQuery(
+            taskId,
+            downloadUrl,
+            bucketRegion(),
+            new LambdaStepRequest().withStep(this).serialize(),
+            getwOwnLambdaArn().toString(),
+            getwOwnLambdaArn().getRegion(),
+            contentQuery,
+            failureCallback);
   }
 
-  private void loadIRange() {
+  private IRange resolveIRange() {
     try {
       String table = getRootTableName(context == SUPER ? superSpace() : space());
       IRange iRange = loadIRange(table);
-      if (space().getExtension() != null && (context == DEFAULT || context == null)) {
+      if (space().getExtension() != null && (context == DEFAULT || context == null
+              //TODO: Hack because of internal usage of Context.X
+              || context == EXTENSION)) {
         IRange superIRange = loadIRange(getRootTableName(superSpace()));
         iRange = new IRange(Math.min(iRange.minI, superIRange.minI), Math.max(iRange.maxI, superIRange.maxI));
       }
+      //just to display calculated ranges in admin view.
       this.minI = iRange.minI;
       this.maxI = iRange.maxI;
+      return iRange;
     }
     catch (Exception e) {
       throw new StepException(e.getMessage(), e);
@@ -490,9 +570,7 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
 
   private IRange loadIRange(String table) throws WebClientException, SQLException, TooManyResourcesClaimed {
     Database dbReader = dbReader();
-    return runReadQuerySync(new SQLQuery("SELECT min(i) AS min_i, max(i) AS max_i FROM ${schema}.${table}")
-        .withVariable("schema", getSchema(dbReader))
-        .withVariable("table", table), dbReader, 0d, rs -> {
+    return runReadQuerySync(getQueryBuilder().buildIRangeQuery(table), dbReader, 0d, rs -> {
       if (!rs.next())
         throw new StepException("Error while loading min / max i values.");
       return new IRange(rs.getLong("min_i"), rs.getLong("max_i"));
@@ -500,19 +578,6 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
   }
 
   private record IRange(long minI, long maxI) {}
-
-  private long loadMinI() {
-    if (minI == -1)
-      loadIRange();
-    return minI;
-  }
-
-  private long loadMaxI() {
-    if (maxI == -1)
-      loadIRange();
-    return maxI;
-  }
-
 
   /**
    * Generates a content query for the export plugin based on the task data and context. This method
@@ -528,29 +593,78 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
    */
   protected String generateContentQueryForExportPlugin(ExportInput taskInput) throws WebClientException, TooManyResourcesClaimed,
       QueryBuildingException, InvalidGeometryException {
+    Space space = context == SUPER ? superSpace() : space();
+    SpaceContext targetContext = context == null ? DEFAULT : context == EXTENSION ? X : context;
 
-    //We use the thread number as a condition for the query
-    int taskNumber = taskInput.threadId();
+    return outputType == CONSISTENT
+        ? getFolderPatchQuery(space, targetContext, taskInput) : getFlatPatchQuery(space, targetContext, taskInput);
+  }
 
+  /**
+   * The version this space binds its base space to, or null if it does not extend a specific version.
+   */
+  private Long boundBaseVersion() throws WebClientException {
+    return space().getExtension() == null ? null : space().getExtension().getVersion();
+  }
+
+  private String getFlatPatchQuery(Space space, SpaceContext targetContext, ExportInput taskInput) throws TooManyResourcesClaimed, WebClientException, QueryBuildingException {
     GetFeaturesByGeometryBuilder queryBuilder = new GetFeaturesByGeometryBuilder()
         .withDataSourceProvider(requestResource(dbReader(), 0));
 
-    GetFeaturesByGeometryInput input = createGetFeaturesByGeometryInput(context == null ? DEFAULT : context, spatialFilter, versionRef);
+    GetFeaturesByGeometryInput input = createGetFeaturesByGeometryInput(space, targetContext, spatialFilter, versionRef);
+    return queryBuilder
+            //Thread Condition (based on I)
+            .withAdditionalFilterFragment(getQueryBuilder().buildIRangeFragment(taskInput.startI(), taskInput.endI()))
+            .buildQuery(input)
+            .toExecutableQueryString();
+  }
 
-    long minI = loadMinI();
-    long maxI = loadMaxI();
-    long iRangeSize = (long) Math.ceil((double) (maxI - minI + 1) / (double) taskItemCount);
+  private String getFolderPatchQuery(Space space, SpaceContext targetContext, ExportInput taskInput)
+      throws TooManyResourcesClaimed, WebClientException, QueryBuildingException {
+    IterateChangesetsBuilder queryBuilder = new IterateChangesetsBuilder()
+        .withDataSourceProvider(requestResource(dbReader(), 0));
 
-    SQLQuery threadCondition = new SQLQuery("i >= #{minI} + #{taskNumber} * #{iRangeSize} AND i < #{minI} + (#{taskNumber} + 1) * #{iRangeSize}")
-        .withNamedParameter("minI", minI)
-        .withNamedParameter("taskNumber", taskNumber)
-        .withNamedParameter("iRangeSize", iRangeSize);
+    IterateChangesetsInput input = createIterateChangesetsInput(space, targetContext, versionRef, taskInput.operation(), taskInput.startI(),
+        taskInput.endI());
 
     return queryBuilder
-        .withAdditionalFilterFragment(threadCondition)
         .buildQuery(input)
         .toExecutableQueryString();
   }
 
+  private IterateChangesetsInput createIterateChangesetsInput(Space space, SpaceContext targetContext, Ref versionRef, Operation operation,
+      long startI, long endI) throws WebClientException {
+    return new IterateChangesetsInput(
+        space.getId(),
+        hubWebClient().loadConnector(space.getStorage().getId()).params,
+        resolveSpaceParams(space),
+        targetContext,
+        space.getVersionsToKeep(),
+        minSpaceVersion,
+        versionRef,
+        -1L, //startTime TBD
+        -1L, //endTime TBD
+        squashedData,
+        operation,
+        startI,
+        endI);
+  }
+
+  private ExportQueryBuilder getQueryBuilder() {
+    if (exportQueryBuilder == null)
+      exportQueryBuilder = initQueryBuilder(ExportQueryBuilder::new);
+    return exportQueryBuilder;
+  }
+
   private record TransportStatistics(long rowCount, long byteSize, int fileCount) {}
+
+  public enum PatchOutputType {
+    CONSISTENT,
+
+    /**
+     * @deprecated Use {@link #CONSISTENT} instead. The LEGACY output type is deprecated and may be removed in future versions.
+     */
+    @Deprecated
+    LEGACY
+  }
 }

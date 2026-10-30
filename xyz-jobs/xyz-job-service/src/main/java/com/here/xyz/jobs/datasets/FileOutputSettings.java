@@ -35,12 +35,15 @@ public class FileOutputSettings {
   private FileFormat format = new GeoJson();
   private Partitioning partitioning = new FeatureKey();
   private FileChunking chunking = new FileChunking();
+  private S3Destination s3Destination;
 
   //Legacy fields:
   private String partitionKey = "tileid";
   private int tileLevel = 12;
   private boolean clipped = false;
   private int maxTilesPerFile = 512;
+
+  public record S3Destination(String bucket, String prefix) {}
 
   public FileFormat getFormat() {
     return format;
@@ -145,6 +148,19 @@ public class FileOutputSettings {
 
   public FileOutputSettings withMaxTilesPerFile(int maxTilesPerFile) {
     setMaxTilesPerFile(maxTilesPerFile);
+    return this;
+  }
+
+  public S3Destination getS3Destination() {
+    return s3Destination;
+  }
+
+  public void setS3Destination(S3Destination s3Destination) {
+    this.s3Destination = s3Destination;
+  }
+
+  public FileOutputSettings withS3Destination(S3Destination s3Destination) {
+    setS3Destination(s3Destination);
     return this;
   }
 

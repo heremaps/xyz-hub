@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,18 +27,19 @@ import static com.here.xyz.util.db.pg.SQLError.MERGE_CONFLICT_ERROR;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
+import com.here.xyz.events.UpdateStrategy.OnExists;
+import com.here.xyz.events.UpdateStrategy.OnMergeConflict;
+import com.here.xyz.events.UpdateStrategy.OnNotExists;
+import com.here.xyz.events.UpdateStrategy.OnVersionConflict;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.test.featurewriter.SpaceWriter;
 import com.here.xyz.util.db.pg.SQLError;
+import com.here.xyz.util.service.BaseConfig;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
-import com.here.xyz.events.UpdateStrategy.OnExists;
-import com.here.xyz.events.UpdateStrategy.OnNotExists;
-import com.here.xyz.events.UpdateStrategy.OnVersionConflict;
-import com.here.xyz.events.UpdateStrategy.OnMergeConflict;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.List;
@@ -47,13 +48,44 @@ import java.util.Map;
 public class RestSpaceWriter extends SpaceWriter {
   private boolean history;
 
+  static {
+    new BaseConfig();
+  }
+
   public RestSpaceWriter(boolean composite, boolean history, String testSuiteName) {
-    super(composite, testSuiteName);
+    //Force the Hub to assign a decoupled physical table name (see SpaceTaskHandler.assignTableName):
+    //only ~5% of new spaces are sampled, but any space whose id contains "drgnstn" is always opted in.
+    //Without that, the physical table name would fall back to the connector's legacy naming and
+    //the direct SQL reads in the tests could not locate it via the Hub any more.
+    super(composite, testSuiteName == null ? null
+        : (testSuiteName.contains("drgnstn") ? testSuiteName : testSuiteName + "_drgnstn"));
     this.history = history;
   }
 
   private HubWebClient webClient(String author) {
     return HubWebClient.getInstance("http://localhost:8080/hub", Map.of("Author", author));
+  }
+
+  /**
+   * Resolves the physical table name via the Hub. Since the {@code tableDecouple} change the Hub
+   * may assign a table name that is completely independent of the space id (stored under
+   * {@code space.storage.params.tableName}). Direct SQL access in the tests must therefore go
+   * through the actual physical table name instead of assuming {@code tableName == spaceId}.
+   */
+  @Override
+  protected String doResolveTableName(String spaceId) {
+    try {
+      Space space = webClient(DEFAULT_AUTHOR).loadSpace(spaceId);
+      if (space != null && space.getStorage() != null && space.getStorage().getParams() != null) {
+        Object tableName = space.getStorage().getParams().get(Space.TABLE_NAME);
+        if (tableName instanceof String s && !s.isEmpty())
+          return s;
+      }
+    }
+    catch (WebClientException e) {
+      throw new RuntimeException("Unable to resolve physical table name for space " + spaceId, e);
+    }
+    return spaceId;
   }
 
   @Override
@@ -85,6 +117,7 @@ public class RestSpaceWriter extends SpaceWriter {
   }
 
   @Override
+  @SuppressWarnings("unchecked")
   public void writeFeatures(List<Feature> featureList, String author, OnExists onExists, OnNotExists onNotExists,
       OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict, boolean isPartial,
       SpaceContext spaceContext, boolean historyEnabled, SQLError expectedErrorCode)

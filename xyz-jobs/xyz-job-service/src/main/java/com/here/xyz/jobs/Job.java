@@ -63,6 +63,7 @@ import com.here.xyz.jobs.steps.StepGraph;
 import com.here.xyz.jobs.steps.execution.JobExecutor;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.inputs.ModelBasedInput;
+import com.here.xyz.jobs.util.S3BatchOperations;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.outputs.Output;
@@ -127,10 +128,12 @@ public class Job implements XyzSerializable {
   private Set<String> resourceKeys;
   @JsonView(Static.class)
   private List<StaticLoad> calculatedResourceLoads;
+  @JsonView({Internal.class, Static.class})
+  private boolean reusable = true;
 
   private static final Async ASYNC = new Async(100, Job.class);
   private static final Logger logger = LogManager.getLogger();
-  private static final long DEFAULT_JOB_TTL = TimeUnit.DAYS.toMillis(2 * 7); //4 weeks
+  private static final long DEFAULT_JOB_TTL = TimeUnit.DAYS.toMillis(2 * 7); //2 weeks
 
   /**
    * Creates a new Job.
@@ -177,9 +180,17 @@ public class Job implements XyzSerializable {
    *  - Validate if all preconditions are met (e.g. necessary user inputs are provided, all steps are configured properly, ...)
    *  - If all pre-conditions are met, transition the job to SUBMITTED state & store it, return false otherwise
    *  - Start the job and return true
-   * @return Whether submission was done. If submission was not done, the Job remains in state NOT_READY.
+   *
+   * Submitting a job that was submitted already (e.g., by a concurrent request) does nothing and returns false.
+   * In that case, the status of this job instance reflects the stored status.
+   * @return Whether submission was done. If submission was not done, the Job remains in state NOT_READY or was submitted already.
    */
   public Future<Boolean> submit() {
+    if (isSubmitted()) {
+      logger.info("[{}] Job was submitted already, its state is {}. Not submitting it again.", getId(), getStatus().getState());
+      return Future.succeededFuture(false);
+    }
+
     logger.info("[{}] Submitting job ...", getId());
     return JobCompiler.getInstance().compile(this)
         .compose(stepGraph -> {
@@ -190,14 +201,45 @@ public class Job implements XyzSerializable {
         })
         .compose(isReady -> {
           if (isPipeline() || isReady) {
+            State previousState = getStatus().getState();
             getStatus().setState(SUBMITTED);
-            return store().compose(v -> start()).map(true);
+            return claimSubmission(previousState)
+                .compose(claimed -> claimed ? store().compose(v -> start()).map(true) : Future.succeededFuture(false));
           }
           else {
             Input.clearInputsCache(getId());
             logger.info("{}: Job is not ready for submission yet. Not all pre-conditions are met.", getId());
             return store().map(false);
           }
+        });
+  }
+
+  private boolean isSubmitted() {
+    State state = getStatus().getState();
+    return state == SUBMITTED || state == PENDING || state == RUNNING;
+  }
+
+  /**
+   * Atomically transitions the stored job from the specified previous state to the SUBMITTED state, so that only one of several
+   * concurrent submissions (e.g., by the job creation and a START request) stores and starts the job.
+   *
+   * @param previousState The state of the job before the submission
+   * @return Whether this submission may proceed. If not, the status of this job instance is replaced by the stored one.
+   */
+  private Future<Boolean> claimSubmission(State previousState) {
+    return storeStatus(previousState)
+        .map(true)
+        .recover(t -> {
+          if (!JobConfigClient.isStateConflict(t))
+            return Future.failedFuture(t);
+          return load(getId()).map(storedJob -> {
+            if (storedJob == null)
+              //The job was not stored yet (e.g., it is being created), so no other request can know it
+              return true;
+            logger.info("[{}] Job was submitted by a concurrent request already. Not submitting it again.", getId());
+            setStatus(storedJob.getStatus());
+            return false;
+          });
         });
   }
 
@@ -345,21 +387,7 @@ public class Job implements XyzSerializable {
     if (existingStep == null)
       throw new IllegalArgumentException("The provided step with ID " + step.getGlobalStepId() + " was not found.");
 
-    /*
-    NOTE: The following is a hotfix to prevent the system from overloading when there is an incoming burst of parallel step updates
-    for the same step.
-     */
-    //---------------------------
-    RuntimeInfo newStepStatus = step.getStatus();
-    RuntimeInfo existingStepStatus = existingStep.getStatus();
-    final long TIME_TOLERANCE = 5_000;
-
-    if (newStepStatus.getState() == existingStepStatus.getState()
-        && newStepStatus.getUpdatedAt() - TIME_TOLERANCE < existingStepStatus.getUpdatedAt())
-      return Future.succeededFuture();
-    //---------------------------
-
-    return updateStep(step, existingStepStatus.getState(), true);
+    return updateStep(step, existingStep.getStatus().getState(), true);
   }
 
   //NOTE: This method is currently only used to update a step by its ID from incoming events (e.g., from EMR) rather than using an incoming step payload
@@ -386,10 +414,23 @@ public class Job implements XyzSerializable {
 
   private Future<Void> updateStep(Step step, State previousStepState, boolean cancelOnFailure) {
     State previousJobState = getStatus().getState();
+    if (!applyStepUpdate(step, previousStepState))
+      return Future.succeededFuture();
+
+    return storeUpdatedStep(step)
+        .compose(v -> storeStatusAfterStepUpdate(step, previousJobState, cancelOnFailure, true));
+  }
+
+  /**
+   * Applies the update of the specified step to the step graph and the status of this job instance.
+   *
+   * @return false, if the update was ignored, because it was a non-final update for a step in a final state
+   */
+  private boolean applyStepUpdate(Step step, State previousStepState) {
     //TODO: Once the state was SUCCEEDED it should not be mutable at all anymore
     if (previousStepState != null && !step.getStatus().getState().isFinal() && previousStepState.isFinal())
       //In case the step was already marked to have a final state, ignore any subsequent non-final updates to it
-      return Future.succeededFuture();
+      return false;
 
     if (step.getStatus().getState().isFinal())
       updatePreviousAttempts(step);
@@ -399,9 +440,7 @@ public class Job implements XyzSerializable {
       throw new IllegalArgumentException("The provided step with ID " + step.getGlobalStepId()
           + " could not be replaced in the StepGraph of job with ID " + getId() + " as it was not found.");
 
-    //If applicable, update the number of succeeded steps at the runtime status
-    if (step.getStatus().getState() == SUCCEEDED)
-      getStatus().setSucceededSteps((int) getSteps().stepStream().filter(s -> s.getStatus().getState() == SUCCEEDED).count());
+    recountSucceededSteps();
 
     //Update the job's progress with respect to the step's progress (weighted by the initial execution time estimation of each step)
     int completedWorkUnits = getSteps().stepStream()
@@ -417,17 +456,51 @@ public class Job implements XyzSerializable {
           .withErrorCause(step.getStatus().getErrorCause())
           .withErrorCode(step.getStatus().getErrorCode());
     }
+    return true;
+  }
 
-    return storeUpdatedStep(step)
-        .compose(v -> storeStatus(previousJobState)) //TODO: Retry on IllegalStateTransitions after re-loading the status?
+  private Future<Void> storeStatusAfterStepUpdate(Step step, State previousJobState, boolean cancelOnFailure, boolean retryOnConflict) {
+    return storeStatus(previousJobState)
         .compose(v -> getStatus().getState() == FAILED && cancelOnFailure ?
             JobExecutor.getInstance().cancel(getExecutionId(), "Cancelled due to failed step \"" + step.getId() + "\"")
                 .recover(t -> {
                   logger.error("[{}] Error cancelling the job execution. Was it already cancelled before?", getId(), t);
                   return Future.succeededFuture();
                 })
-            : Future.succeededFuture()
+            : Future.succeededFuture(),
+            t -> retryOnConflict && JobConfigClient.isStateConflict(t)
+                ? retryStatusUpdateAfterStepUpdate(step)
+                : Future.failedFuture(t)
         );
+  }
+
+  /**
+   * Applies the step update once more to the reloaded job, after the job's state was changed concurrently
+   * (e.g., by the event of its state machine or by another step update), to store the job's updated progress and step count.
+   * The state that was set concurrently is kept.
+   */
+  private Future<Void> retryStatusUpdateAfterStepUpdate(Step step) {
+    logger.info("[{}] The state of the job was changed concurrently while updating step {}. Retrying with the reloaded job ...", getId(),
+        step.getId());
+    return load(getId()).compose(job -> {
+      Step storedStep = job == null ? null : job.getStepById(step.getId());
+      if (storedStep == null || storedStep.getStatus().getState() != step.getStatus().getState())
+        //The step update was not stored (e.g., the step was in a final state already), so there is nothing to update at the job
+        return Future.succeededFuture();
+      State previousJobState = job.getStatus().getState();
+      job.applyStepUpdate(step, storedStep.getStatus().getState());
+      return job.storeStatusAfterStepUpdate(step, previousJobState, false, false);
+    });
+  }
+
+  /**
+   * Sets the number of succeeded steps at the status of this job to the number of SUCCEEDED steps in its step graph.
+   * Should be called on a freshly loaded job before storing its status, because concurrent status updates
+   * (e.g., of steps completing in parallel) may have overwritten each other's count.
+   */
+  public void recountSucceededSteps() {
+    if (getSteps() != null)
+      getStatus().setSucceededSteps((int) getSteps().stepStream().filter(s -> s.getStatus().getState() == SUCCEEDED).count());
   }
 
   private Future<Void> updatePreviousAttempts(Step step) {
@@ -497,6 +570,13 @@ public class Job implements XyzSerializable {
     return JobConfigClient.getInstance().loadJob(jobId);
   }
 
+  /**
+   * Loads a single step directly by {@code jobId} + {@code stepId} without loading the whole job.
+   */
+  public static Future<Step> loadStep(String jobId, String stepId) {
+    return JobConfigClient.getInstance().loadStep(jobId, stepId);
+  }
+
   public static Future<List<Job>> load(State state, String resourceKey) {
     if (state == null && resourceKey == null)
       return loadAll();
@@ -504,13 +584,18 @@ public class Job implements XyzSerializable {
       return JobConfigClient.getInstance().loadJobs(resourceKey, state);
   }
 
-  public static Future<List<Job>> load(FilteredValues<Long> newerThan, FilteredValues<String> sourceType, FilteredValues<String> targetType,
-                                               FilteredValues<String> processType, FilteredValues<String> resourceKeys, FilteredValues<State> stateTypes) {
-    return JobConfigClient.getInstance().loadJobs(newerThan, sourceType, targetType, processType, resourceKeys, stateTypes);
+  public static Future<List<Job>> load(FilteredValues<Long> newerThan, FilteredValues<Long> olderThan, FilteredValues<String> sourceType,
+      FilteredValues<String> targetType, FilteredValues<String> processType, FilteredValues<String> resourceKeys,
+      FilteredValues<State> stateTypes) {
+    return JobConfigClient.getInstance().loadJobs(newerThan, olderThan, sourceType, targetType, processType, resourceKeys, stateTypes);
   }
 
   public static Future<Set<Job>> loadByResourceKey(String resourceKey) {
     return JobConfigClient.getInstance().loadJobsByPrimaryResourceKey(resourceKey);
+  }
+
+  public static Future<Set<Job>> loadByResourceKey(String resourceKey, FilteredValues<State> states) {
+    return JobConfigClient.getInstance().loadJobsByPrimaryResourceKey(resourceKey, states);
   }
 
   public static Future<List<Job>> loadAll() {
@@ -533,30 +618,26 @@ public class Job implements XyzSerializable {
    */
   public Future<Void> deleteJobResources() {
     return JobExecutor.getInstance()
-            //Delete StateMachine if still existing
-            .deleteExecution(getExecutionId())
-            //Delete the inputs of this job
-            .compose(b -> deleteInputs())
-            //Delete the outputs of this job
-            .compose(v -> (hasRegisterDataReferencesStep() || isReleaseJob())
-                    //Temporary deletion deactivation for jobs with RegisterDataReferences step(s) or for release jobs.
-                    ? Future.succeededFuture()
-                    : Future.all(Job.forEach(getSteps().stepStream().toList(), Job::deleteStepOutputs)).mapEmpty());
+        //Delete StateMachine if still existing
+        .deleteExecution(getExecutionId())
+        //Schedule this job's S3 inputs/outputs for deletion via a single S3 Batch Operations job (tags them so the
+        //bucket's lifecycle rule removes them)
+        .compose(b -> scheduleResourcesForDeletion());
   }
 
-  private boolean hasRegisterDataReferencesStep() {
-    return getSteps() != null
-        && getSteps().stepStream().anyMatch(step -> step != null
-            && "RegisterDataReferences".equals(step.getClass().getSimpleName()));
-  }
-
-  private boolean isReleaseJob() {
-    return getProcess() != null && "Release".equalsIgnoreCase(getProcess().getClass().getSimpleName());
-  }
-
-  private static Future<Void> deleteStepOutputs(Step step) {
+  private Future<Void> scheduleResourcesForDeletion() {
     return ASYNC.run(() -> {
-      step.deleteOutputs();
+      List<String> prefixes;
+      if (Input.hasInputReferences(getId()))
+        //Inputs are referenced by another job, delete only the output folders.
+        prefixes = getSteps().stepStream().map(Step::getOutputS3Prefix).toList();
+      else
+        //If nothing under the job is shared with another job delete the whole job folder in one batch job.
+        prefixes = List.of(getId() + "/");
+
+      List<String> batchJobIds = S3BatchOperations.scheduleForDeletion(getId(), prefixes);
+      if (!batchJobIds.isEmpty())
+        logger.info("[{}] Created S3 Batch Operations job(s) {} to schedule resources for deletion.", getId(), batchJobIds);
       return null;
     });
   }
@@ -631,12 +712,6 @@ public class Job implements XyzSerializable {
     return JobExecutor.getInstance().sendInput(this, input);
   }
 
-  private Future<Void> deleteInputs() {
-    //TODO: Asyncify!
-    Input.deleteInputs(getId());
-    return Future.succeededFuture();
-  }
-
   public Future<List<Input>> loadInputs(String setName) {
     return ASYNC.run(() -> createInputsRetriever().getItems(new JobInputsRetriever.InputsParams().withSetName(setName)));
   }
@@ -651,6 +726,13 @@ public class Job implements XyzSerializable {
 
   public Future<List<Output>> loadOutputs() {
     return ASYNC.run(() -> createOutputsRetriever().getItems(new JobOutputsRetriever.OutputsParams()));
+  }
+
+  public Future<List<Output>> loadAllOutputs() {
+    return ASYNC.run(() -> getSteps().stepStream()
+        .map(step -> (List<Output>) step.loadOutputs())
+        .flatMap(List::stream)
+        .collect(Collectors.toList()));
   }
 
   public Future<Page<Output>> loadOutputs(String setName, String outputSetGroup, int limit, String nextPageToken) {
@@ -995,6 +1077,19 @@ public class Job implements XyzSerializable {
   @JsonIgnore
   public boolean isPipeline() {
     return getSource() instanceof DynamicStream;
+  }
+
+  public boolean isReusable() {
+    return reusable;
+  }
+
+  public void setReusable(boolean reusable) {
+    this.reusable = reusable;
+  }
+
+  public Job withReusable(boolean reusable) {
+    setReusable(reusable);
+    return this;
   }
 
   public void registerFinalizeObserver(Runnable finalizationObserver) {

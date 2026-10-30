@@ -103,9 +103,17 @@ class TestFeatureWriter {
 }
 
 // new TestFeatureWriter().run();
-if (process.argv.length > 2)
-  new TestFeatureWriter().runFromCommandLine(process.argv[2], process.argv[3])
-else
+if (process.argv.length > 2) {
+  //Read the (potentially very large) sqlQueryJson from stdin instead of from a command line argument.
+  let stdinChunks = [];
+  process.stdin.on("data", chunk => stdinChunks.push(chunk));
+  process.stdin.on("end", () => {
+    let sqlQueryJson = Buffer.concat(stdinChunks).toString("utf8");
+    new TestFeatureWriter().runFromCommandLine(process.argv[2], sqlQueryJson);
+    process.exit(0);
+  });
+}
+else {
   console.log("Returned result from FeatureWriter: ", new TestFeatureWriter().runFromSqlQueryJson());
-
-process.exit(0);
+  process.exit(0);
+}

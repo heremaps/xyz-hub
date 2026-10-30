@@ -6,6 +6,7 @@
       "onDemandIdxLimit": 8,
       "dbCheckoutTimeout": 12,
       "dbAcquireRetryAttempts": 10,
+      "dbMaxPoolSize": 16,
       "connectorId" : "psql",
       "ecps": "$encrypt({\"PSQL_HOST\":\"${PSQL_HOST}\",\"PSQL_REPLICA_HOST\":\"${PSQL_HOST}\",\"PSQL_REPLICA_USER\":\"ro_user\",\"PSQL_PORT\":\"${PSQL_PORT}\",\"PSQL_DB\":\"${PSQL_DB}\",\"PSQL_USER\":\"${PSQL_USER}\",\"PSQL_PASSWORD\":\"${PSQL_PASSWORD}\"})",
       "mvtSupport": true
@@ -50,6 +51,7 @@
       "onDemandIdxLimit": 8,
       "dbCheckoutTimeout": 12,
       "dbAcquireRetryAttempts": 10,
+      "dbMaxPoolSize": 16,
       "connectorId" : "psql",
       "ecps": "$encrypt({\"PSQL_HOST\":\"${PSQL_HOST}\",\"PSQL_REPLICA_HOST\":\"${PSQL_HOST}\",\"PSQL_REPLICA_USER\":\"ro_user\",\"PSQL_PORT\":\"${PSQL_PORT}\",\"PSQL_DB\":\"${PSQL_DB}\",\"PSQL_USER\":\"${PSQL_USER}\",\"PSQL_PASSWORD\":\"${PSQL_PASSWORD}\"})",
       "mvtSupport": true

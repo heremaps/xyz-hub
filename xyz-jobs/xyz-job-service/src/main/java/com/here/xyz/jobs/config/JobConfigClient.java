@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ package com.here.xyz.jobs.config;
 
 import static com.here.xyz.jobs.RuntimeInfo.State.FAILED;
 
+import com.amazonaws.services.dynamodbv2.model.ConditionalCheckFailedException;
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.RuntimeInfo.State;
 import com.here.xyz.jobs.service.JobService;
@@ -29,12 +30,34 @@ import com.here.xyz.util.di.ImplementationProvider;
 import com.here.xyz.util.service.Initializable;
 import io.vertx.core.Future;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public abstract class JobConfigClient implements Initializable {
 
   public static JobConfigClient getInstance() {
     return Provider.provideInstance();
+  }
+
+  /**
+   * Tells whether the specified error is the failure of a conditional write, e.g., of {@link #updateStatus(Job, State)}
+   * because the job's stored state did not match the expected previous state.
+   *
+   * @param error The error by which a write failed
+   * @return true, if the write failed because its condition was not met
+   */
+  public static boolean isStateConflict(Throwable error) {
+    for (Throwable t = error; t != null; t = t.getCause() == t ? null : t.getCause())
+      if (t instanceof ConditionalCheckFailedException)
+        return true;
+    return false;
+  }
+
+  protected static <T> boolean matchesFilteredValues(FilteredValues<T> filter, T actualValue) {
+    if (filter == null || filter.values().isEmpty()) return true;
+    boolean match = filter.values().contains(actualValue);
+    return filter.include() ? match : !match;
   }
 
   public static abstract class Provider implements ImplementationProvider {
@@ -74,8 +97,9 @@ public abstract class JobConfigClient implements Initializable {
    *                     otherwise, excludes them.
    * @return a {@link Future} containing the filtered list of jobs
    */
-  public abstract Future<List<Job>> loadJobs(FilteredValues<Long> newerThan, FilteredValues<String> sourceTypes, FilteredValues<String> targetTypes,
-                                               FilteredValues<String> processTypes, FilteredValues<String> resourceKeys, FilteredValues<State> stateTypes);
+  public abstract Future<List<Job>> loadJobs(FilteredValues<Long> newerThan, FilteredValues<Long> olderThan,
+      FilteredValues<String> sourceTypes, FilteredValues<String> targetTypes, FilteredValues<String> processTypes,
+      FilteredValues<String> resourceKeys, FilteredValues<State> stateTypes);
 
   /**
    * Load all jobs that are having the specified state.
@@ -90,6 +114,12 @@ public abstract class JobConfigClient implements Initializable {
    * @return
    */
   public abstract Future<Set<Job>> loadJobsByPrimaryResourceKey(String resourceKey);
+
+  public Future<Set<Job>> loadJobsByPrimaryResourceKey(String resourceKey, FilteredValues<State> states) {
+    return loadJobsByPrimaryResourceKey(resourceKey).map(jobs -> jobs.stream()
+        .filter(job -> matchesFilteredValues(states, job.getStatus().getState()))
+        .collect(Collectors.toSet()));
+  }
 
   /**
    * Load all jobs related to a specified resourceKey (e.g., space ID) that are having the specified state.
@@ -106,6 +136,20 @@ public abstract class JobConfigClient implements Initializable {
    */
   public abstract Future<Set<Job>> loadJobs(Set<String> resourceKeys, State state);
 
+  /**
+   * Returns the same jobs as {@link #loadJobs(Set, State)}, but implementations may leave out the step graph
+   * ({@link Job#getSteps()} may be {@code null}) to avoid loading it.
+   * Meant for checks that only read the jobs' ID, status, creation time, source / target and resource keys.
+   * The returned jobs must not be stored, as that would drop their step graph.
+   *
+   * @param resourceKeys A set of resource keys for which to find the jobs
+   * @param state A state by which to filter the resulting jobs
+   * @return The jobs, possibly without their steps
+   */
+  public Future<Set<Job>> loadJobsWithoutSteps(Set<String> resourceKeys, State state) {
+    return loadJobs(resourceKeys, state);
+  }
+
   public abstract Future<Void> storeJob(Job job);
 
   /**
@@ -121,19 +165,44 @@ public abstract class JobConfigClient implements Initializable {
    * @param job The job of which to update the status object
    * @param expectedPreviousState The previous state of the job's status or null if the previous state should not be checked
    * @return A future which succeeds if the update was performed and fails if there was an error or the previous state was not matching
+   *  (see {@link #isStateConflict(Throwable)})
    */
   public abstract Future<Void> updateStatus(Job job, State expectedPreviousState);
 
   /**
    * Updates only one step of the specified job without overwriting the whole job configuration.
+   * A step that is stored in a final state already is not overwritten.
    * @param job The job of which to update one step
    * @param newStep The step to be overwritten on the job
    * @return
    */
   public abstract Future<Void> updateStep(Job job, Step<?> newStep);
 
+  /**
+   * Loads a single step of a job directly by {@code jobId} + {@code stepId}
+   *
+   * @param jobId  the owning job id
+   * @param stepId the step id
+   * @return the step, or {@code null} if no such step exists
+   */
+  public abstract Future<Step> loadStep(String jobId, String stepId);
+
   public abstract Future<Void> deleteJob(String jobId);
 
+  /**
+   * Rebuilds a full {@link Job} from a stored (possibly {@code $ref}-form) job item map.
+   *
+   * @param jobItem the stored job item (its {@code steps} may be {@code $ref} placeholders)
+   * @return the fully-hydrated job
+   */
+  public abstract Future<Job> hydrateJob(Map<String, Object> jobItem);
+
+  /**
+   * Deletes only the separately-stored step configs of a job.
+   *
+   * @param jobId the job whose step configs to delete
+   */
+  public abstract Future<Void> deleteStepConfigs(String jobId);
 
   /*
   TODO: Provide a more generic variant of the method #loadJobs ...

@@ -34,7 +34,7 @@ public class EraseSpace extends XyzQueryRunner<ModifyFeaturesEvent, FeatureColle
 
       FeatureCollection fc = super.run(dataSourceProvider);
 
-      if( fc != null ) // s. handle(...)  -- with current used sql statements, fc will be always null 
+      if( fc != null ) // s. handle(...)  -- with current used sql statements, fc will be always null
        return fc; // just in case
 
       return new FeatureCollection();
@@ -49,9 +49,9 @@ public class EraseSpace extends XyzQueryRunner<ModifyFeaturesEvent, FeatureColle
     @Override
     public FeatureCollection handle(ResultSet rs) throws SQLException {
 
-      //handle function is not called when used with belows sql statements (non select) 
+      //handle function is not called when used with belows sql statements (non select)
       //TODO: throw new ErrorResponseException(NOT_IMPLEMENTED, "Unexpected call of method 'handle'");
-      
+
       throw new UnsupportedOperationException("Unexpected call of method 'handle'");
     }
 
@@ -66,9 +66,9 @@ public class EraseSpace extends XyzQueryRunner<ModifyFeaturesEvent, FeatureColle
                         with
                         indata as  ( select '%1$s' as in_schema, '%2$s' as in_table ),
                         iindata as ( select i.in_schema, relname::text, replace( relname::text, i.in_table || '_p', '' )::integer as pid
-                                     from pg_class c, indata i  
+                                     from pg_class c, indata i
                                      where 1 = 1
-                                       and relname like i.in_table || '_p%%' 
+                                       and relname like i.in_table || '_p%%'
                                        and relkind = 'r'
                                        and relnamespace = ( select n.oid from pg_namespace n where n.nspname = i.in_schema )),
                         iiindata as ( select ii.*, ( select max(pid) from iindata ) as max_pid from iindata ii )
@@ -78,7 +78,7 @@ public class EraseSpace extends XyzQueryRunner<ModifyFeaturesEvent, FeatureColle
 
                         if partition_list is not null then
                          execute format('DROP TABLE IF EXISTS %%s', partition_list);
-                        end if; 
+                        end if;
                     END $b2$
                 """, schema, table ); //TODO: use withNamedParameter when replacement issue is fixed.
 
@@ -90,14 +90,17 @@ public class EraseSpace extends XyzQueryRunner<ModifyFeaturesEvent, FeatureColle
 //MMSUP-1092
 
 
-        SQLQuery q = new SQLQuery("${{truncateTable}}; ${{dropOtherPartitions}}; ${{analyseTruncatedTable}}")
+        SQLQuery q = new SQLQuery("${{truncateTable}}; ${{resetISequence}}; ${{dropOtherPartitions}}; ${{analyseTruncatedTable}}")
             .withQueryFragment("truncateTable", "TRUNCATE TABLE ${schema}.${table}")
+            .withQueryFragment("resetISequence", "ALTER SEQUENCE ${schema}.${iSequence} RESTART WITH 1")
             .withQueryFragment("dropOtherPartitions", dropOtherPartitions )
             .withQueryFragment("analyseTruncatedTable", "ANALYSE ${schema}.${table}" );
 
         return q
             .withVariable(SCHEMA, schema)
-            .withVariable(TABLE, table);
+            .withVariable(TABLE, table)
+            .withVariable("iSequence", table + ModifySpace.I_SEQUENCE_SUFFIX)
+            ;
     }
 
     private static SQLQuery buildTruncateSpaceQueryResetVersionSeq(ModifyFeaturesEvent event, String schema, String table) {
@@ -109,22 +112,23 @@ public class EraseSpace extends XyzQueryRunner<ModifyFeaturesEvent, FeatureColle
                         partition_list text;
                     BEGIN
                         with indata as ( select '%1$s' as in_schema, '%2$s' as in_table )
-                        select string_agg( format('%%I.%%I',i.in_schema,relname::text ),',' ) into partition_list from pg_class c, indata i  
+                        select string_agg( format('%%I.%%I',i.in_schema,relname::text ),',' ) into partition_list from pg_class c, indata i
                         where 1 = 1
-                        and relname like i.in_table || '_p%%' 
-                            and relname != i.in_table || '_p0' 
+                        and relname like i.in_table || '_p%%'
+                            and relname != i.in_table || '_p0'
                             and relkind = 'r'
                             and relnamespace = ( select n.oid from pg_namespace n where n.nspname = i.in_schema );
 
                         if partition_list is not null then
                          execute format('DROP TABLE IF EXISTS %%s', partition_list);
-                        end if; 
+                        end if;
                     END $b2$
                 """, schema, table ); //TODO: use withNamedParameter when replacement issue is fixed.
-        
-        SQLQuery q = new SQLQuery("${{truncateTable}}; ${{resetVersionSequence}}; DO $b1$ BEGIN ${{recreateTableP0}}; END $b1$; ${{dropOtherPartitions}}; ${{analyseTruncatedTable}}")
+
+        SQLQuery q = new SQLQuery("${{truncateTable}}; ${{resetVersionSequence}}; ${{resetISequence}}; DO $b1$ BEGIN ${{recreateTableP0}}; END $b1$; ${{dropOtherPartitions}}; ${{analyseTruncatedTable}}")
             .withQueryFragment("truncateTable", "TRUNCATE TABLE ${schema}.${table} RESTART IDENTITY")
             .withQueryFragment("resetVersionSequence", "ALTER SEQUENCE ${schema}.${versionSequence} RESTART WITH 1")
+            .withQueryFragment("resetISequence", "ALTER SEQUENCE ${schema}.${iSequence} RESTART WITH 1")
             .withQueryFragment("recreateTableP0", XyzSpaceTableHelper.buildCreateHistoryPartitionQuery(schema, table, 0L,false))
             .withQueryFragment("dropOtherPartitions", dropOtherPartitions )
             .withQueryFragment("analyseTruncatedTable", "ANALYSE ${schema}.${table}" );
@@ -132,7 +136,9 @@ public class EraseSpace extends XyzQueryRunner<ModifyFeaturesEvent, FeatureColle
         return q
             .withVariable(SCHEMA, schema)
             .withVariable(TABLE, table)
-            .withVariable("versionSequence", table + GetNextVersion.VERSION_SEQUENCE_SUFFIX);
+            .withVariable("versionSequence", table + GetNextVersion.VERSION_SEQUENCE_SUFFIX)
+            .withVariable("iSequence", table + ModifySpace.I_SEQUENCE_SUFFIX)
+            ;
     }
 
     private static SQLQuery buildTruncateSpaceQuery(ModifyFeaturesEvent event, String schema, String table) {
@@ -141,7 +147,7 @@ public class EraseSpace extends XyzQueryRunner<ModifyFeaturesEvent, FeatureColle
 
       boolean resetVersionSequence = false;  // always keep current version, but might be subject of change.
 
-      return resetVersionSequence ? buildTruncateSpaceQueryResetVersionSeq( event, schema, table ) 
+      return resetVersionSequence ? buildTruncateSpaceQueryResetVersionSeq( event, schema, table )
                                   : buildTruncateSpaceQueryKeepVersionSeq( event, schema, table );
 
     }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -82,7 +82,7 @@ public class JobRouter implements AbstractRouterBuilder {
     }
   }
 
-  private void initializeJobApi(RouterBuilder rb) {
+  protected void initializeJobApi(RouterBuilder rb) {
     new JobApi(rb);
   }
 }

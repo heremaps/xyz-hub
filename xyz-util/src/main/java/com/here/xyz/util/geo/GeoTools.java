@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -212,7 +212,7 @@ public class GeoTools {
   { 
 
     Geometry degGeo = geometry.getJTSGeometry();
-             
+
     if (radius > 0) {
       MathTransform convertToMeter   = mathTransform("EPSG:4326", "EPSG:31300");
       MathTransform convertFromMeter = mathTransform("EPSG:31300", "EPSG:4326");
@@ -265,6 +265,10 @@ public class GeoTools {
    */
   public static Geometry applyBufferInMetersToGeometry(Geometry geometry, double distanceInMeters)
           throws FactoryException, javax.xml.crypto.dsig.TransformException, TransformException {
+    //skip transformation when radius/buffer not provided
+    if (distanceInMeters == 0) {
+      return geometry;
+    }
     MathTransform[] transforms = getTransforms(geometry);
     Geometry pGeom = JTS.transform(geometry, transforms[1]);
     Geometry pBufferedGeom = pGeom.buffer(distanceInMeters);

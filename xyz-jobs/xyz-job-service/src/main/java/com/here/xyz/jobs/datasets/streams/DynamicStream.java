@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,11 +20,17 @@
 package com.here.xyz.jobs.datasets.streams;
 
 import com.here.xyz.jobs.datasets.DatasetDescription;
+import java.util.Set;
 
 public abstract class DynamicStream extends DatasetDescription {
 
   @Override
   public String getKey() {
     return getClass().getSimpleName();
+  }
+
+  @Override
+  public Set<String> getResourceKeys() {
+    return Set.of();
   }
 }

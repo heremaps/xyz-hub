@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import static com.here.xyz.hub.task.FeatureTask.FeatureKey.BBOX;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.ID;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.PROPERTIES;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.TYPE;
+import static com.here.xyz.hub.util.SpaceTableResolver.getTableIdentity;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_VND_MAPBOX_VECTOR_TILE;
 import static com.here.xyz.util.service.rest.TooManyRequestsException.ThrottlingReason.MEMORY;
@@ -59,7 +60,6 @@ import com.here.xyz.events.SelectiveEvent;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.XYZHubRESTVerticle;
 import com.here.xyz.hub.cache.CacheClient;
-import com.here.xyz.hub.config.TagConfigClient;
 import com.here.xyz.hub.connectors.RpcClient;
 import com.here.xyz.hub.connectors.RpcClient.RpcContext;
 import com.here.xyz.hub.connectors.models.Connector;
@@ -90,7 +90,6 @@ import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.FeatureCollection.ModificationFailure;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.models.hub.Ref;
-import com.here.xyz.models.hub.Ref.InvalidRef;
 import com.here.xyz.models.hub.Space.Extension;
 import com.here.xyz.models.hub.Tag;
 import com.here.xyz.models.hub.jwt.JWTPayload;
@@ -203,6 +202,7 @@ public class FeatureTaskHandler {
      * @see Task#consumeEvent()
      */
     Event event = task.consumeEvent();
+    boolean isErase = event instanceof ModifyFeaturesEvent mfe && mfe.isEraseContent();
 
     if (!task.storage.active) {
       if (event instanceof ModifySpaceEvent && ((ModifySpaceEvent) event).getOperation() == ModifySpaceEvent.Operation.DELETE) {
@@ -308,8 +308,12 @@ public class FeatureTaskHandler {
       }
 
       //Update the contentUpdatedAt timestamp to indicate that the data in this space was modified
-      if (task instanceof FeatureTask.ConditionalOperation)
-        task.space.updateContentUpdatedAt(task.getMarker());
+      if (task instanceof FeatureTask.ConditionalOperation) {
+        if (isErase)
+          task.space.resetTimestamps(task.getMarker());
+        else
+          task.space.updateContentUpdatedAt(task.getMarker());
+      }
       //Send event to potentially registered request-listeners
       if (requestListenerPayload != null)
         notifyListeners(task, eventType, requestListenerPayload);
@@ -874,6 +878,18 @@ public class FeatureTaskHandler {
     task.getEvent().setSpace(space.getExtension().getSpaceId());
     //also overwrite the space context to be DEFAULT now ...
     ((ContextAwareEvent<?>) task.getEvent()).setContext(DEFAULT);
+
+    if (space.getExtension().getVersion() != null) {
+      //Only HEAD is accepted: refs are resolved later (FeatureTask#resolveVersionRef), so a tag can't be compared here
+      //TODO: Allow refs up to the bound version once that comparison happens after the ref was resolved
+      Ref requestedRef = ((ContextAwareEvent<?>) task.getEvent()).getRef();
+      if (requestedRef != null && !requestedRef.isHead())
+        return Future.failedFuture(new HttpException(BAD_REQUEST,
+            "versionRef is not supported with context=" + SUPER + " on a resource extending a specific version."));
+
+      ((ContextAwareEvent<?>) task.getEvent()).setRef(new Ref(space.getExtension().getVersion()));
+    }
+
     //... and resolve the extended (super) space instead
     return resolveSpace(task);
   }
@@ -925,12 +941,22 @@ public class FeatureTaskHandler {
               if (connector.capabilities.binaryTiles && task.getEvent() instanceof GetFeaturesByTileEvent getTileEvent) {
                 getTileEvent.setResponseType(BINARY);
                 task.responseType = ApiResponseType.BINARY;
+                getTileEvent.setConnectorCacheVersion(getConnectorCacheVersion(connector));
               }
 
               return Future.succeededFuture(connector);
             },
             t -> Future.failedFuture(new InvalidStorageException("Unable to load the definition for this storage."))
         );
+  }
+
+  /**
+   * Returns the cache version which is configured for the specified connector, or <code>null</code> if none is configured.
+   * Incrementing that value in the connector's configuration invalidates all cache-keys of the events being handled by that connector.
+   */
+  private static String getConnectorCacheVersion(Connector connector) {
+    Object cacheVersion = connector.params == null ? null : connector.params.get("cacheVersion");
+    return cacheVersion == null ? null : String.valueOf(cacheVersion);
   }
 
   private static <X extends FeatureTask> Future<Void> resolveListenersAndProcessors(final X task) {
@@ -1307,7 +1333,8 @@ public class FeatureTaskHandler {
       return;
     }
 
-    Long cachedCount = countCache.get(task.space.getId());
+    String tableIdentity = getTableIdentity(task.space);
+    Long cachedCount = countCache.get(tableIdentity);
     if (cachedCount != null) {
       checkFeaturesPerSpaceQuota(task, callback, maxFeaturesPerSpace, cachedCount);
       return;
@@ -1321,7 +1348,7 @@ public class FeatureTaskHandler {
       // Check the quota
       Long count = countResult.result();
       long ttl = (maxFeaturesPerSpace - count > 100_000) ? 60 : 10;
-      countCache.put(task.space.getId(), count, ttl, TimeUnit.SECONDS);
+      countCache.put(tableIdentity, count, ttl, TimeUnit.SECONDS);
       checkFeaturesPerSpaceQuota(task, callback, maxFeaturesPerSpace, count);
     });
   }
@@ -1632,10 +1659,13 @@ public class FeatureTaskHandler {
       return null;
 
     final boolean useVersion = task.space.getVersionsToKeep() > 1;
+    //Without conflict detection, the write is applied against HEAD, so the version in the input must not be loaded as base state
+    final boolean loadInputVersion = task.getEvent().isConflictDetectionEnabled();
     final HashMap<String, String> idsMap = new HashMap<>();
     for (FeatureEntry entry : task.modifyOp.entries) {
       if (entry.input.get("id") instanceof String)
-        idsMap.put((String) entry.input.get("id"), entry.inputVersion == -1 ? null : String.valueOf(entry.inputVersion));
+        idsMap.put((String) entry.input.get("id"),
+            !loadInputVersion || entry.inputVersion == -1 ? null : String.valueOf(entry.inputVersion));
     }
     if (idsMap.size() == 0) {
       return null;
@@ -1734,13 +1764,27 @@ public class FeatureTaskHandler {
   }
 
   static void injectMinVersion(final ConditionalOperation task, final Callback<ConditionalOperation> callback) {
-    if (task.getEvent() instanceof ModifyFeaturesEvent)
-      injectMinVersion(task.getMarker(), task.space.getId(), task.getEvent())
-          .onSuccess(tag -> callback.call(task))
-          .onFailure(t -> {
-            logger.error(task.getMarker(), "Error while injecting minVersion into event.", t);
-            callback.exception(t instanceof HttpException ? t : new HttpException(INTERNAL_SERVER_ERROR, "Unexpected error.", t));
-          });
+    if (!(task.getEvent() instanceof ModifyFeaturesEvent)) {
+      callback.call(task);
+      return;
+    }
+
+    /*
+    minVersion only reaches the database through the versioned write function, so for a non-versioned
+    space resolving it would mean a DynamoDB tag lookup per write request for a value never read.
+     */
+    if (task.space.getVersionsToKeep() <= 1) {
+      task.getEvent().setMinVersion(-1l);
+      callback.call(task);
+      return;
+    }
+
+    injectMinVersion(task.getMarker(), task.space.getId(), task.getEvent())
+        .onSuccess(tag -> callback.call(task))
+        .onFailure(t -> {
+          logger.error(task.getMarker(), "Error while injecting minVersion into event.", t);
+          callback.exception(t instanceof HttpException ? t : new HttpException(INTERNAL_SERVER_ERROR, "Unexpected error.", t));
+        });
   }
 
   public static Future<Long> injectMinVersion(Marker marker, String spaceId, ContextAwareEvent event) {

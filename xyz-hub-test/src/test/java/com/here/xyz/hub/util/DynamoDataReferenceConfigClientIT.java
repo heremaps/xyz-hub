@@ -437,6 +437,61 @@ class DynamoDataReferenceConfigClientIT extends DynamoDbIT {
       .containsExactlyElementsOf(expectedResults);
   }
 
+  @Test
+  void shouldLoadAllReferencesForEntityViaLoadByEntity() {
+    String entityA = "entity-A-" + UUID.randomUUID();
+    String entityB = "entity-B-" + UUID.randomUUID();
+
+    DataReference a1 = dataReference(UUID.randomUUID()).withEntityId(entityA).withEndVersion(1);
+    DataReference a2 = dataReference(UUID.randomUUID()).withEntityId(entityA).withEndVersion(2);
+    DataReference b1 = dataReference(UUID.randomUUID()).withEntityId(entityB).withEndVersion(1);
+    awaitResult(dataReferences.store(a1));
+    awaitResult(dataReferences.store(a2));
+    awaitResult(dataReferences.store(b1));
+
+    List<DataReference> result = awaitResult(dataReferences.loadByEntity(entityA));
+
+    assertThat(result)
+        .hasSize(2)
+        .extracting(DataReference::getEntityId)
+        .containsOnly(entityA);
+  }
+
+  @Test
+  void shouldExpireAllReferencesForEntityViaExpireForEntity() {
+    String entityA = "entity-A-" + UUID.randomUUID();
+    String entityB = "entity-B-" + UUID.randomUUID();
+
+    DataReference a1 = dataReference(UUID.randomUUID()).withEntityId(entityA).withEndVersion(1);
+    DataReference a2 = dataReference(UUID.randomUUID()).withEntityId(entityA).withEndVersion(2).withKeepUntil(1_000_000_000_000L);
+    DataReference b1 = dataReference(UUID.randomUUID()).withEntityId(entityB).withEndVersion(1);
+    awaitResult(dataReferences.store(a1));
+    awaitResult(dataReferences.store(a2));
+    awaitResult(dataReferences.store(b1));
+
+    long before = System.currentTimeMillis();
+    awaitResult(dataReferences.expireForEntity(null, entityA));
+    long after = System.currentTimeMillis();
+
+    DataReference a1Reloaded = awaitResult(dataReferences.load(a1.getId())).orElseThrow();
+    DataReference a2Reloaded = awaitResult(dataReferences.load(a2.getId())).orElseThrow();
+    DataReference b1Reloaded = awaitResult(dataReferences.load(b1.getId())).orElseThrow();
+
+    // Dynamo TTL stores seconds, so loaded keepUntil can be rounded to the lower second.
+    assertThat(a1Reloaded.getKeepUntil()).isBetween(before - 1_000L, after);
+    assertThat(a2Reloaded.getKeepUntil()).isBetween(before - 1_000L, after);
+    assertThat(b1Reloaded.getKeepUntil()).isNull();
+  }
+
+  @Test
+  void shouldCompleteSuccessfullyWhenExpireForEntityFindsNoReferences() {
+    String missingEntityId = "no-such-entity-" + UUID.randomUUID();
+
+    awaitResult(dataReferences.expireForEntity(null, missingEntityId));
+
+    assertThat(awaitResult(dataReferences.loadByEntity(missingEntityId))).isEmpty();
+  }
+
   private static <T> T awaitResult(Future<T> future) {
     return future.toCompletionStage().toCompletableFuture().join();
   }

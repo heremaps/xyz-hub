@@ -101,8 +101,10 @@ public class ExtendedJWTAuthHandler extends JWTAuthHandlerImpl {
         bytearray = Compression.decompressUsingInflate(bytearray);
         jwt = new String(bytearray);
       } catch (Exception e) {
-        logger.error(LogUtil.getMarker(context), "JWT Base64 decoding or decompression failed: " + jwt, e);
-        handler.handle(Future.failedFuture("Wrong auth credentials format."));
+        //A malformed token is a client error, so it must be reported as 401 rather than as an internal server error.
+        //NOTE: The raw token must not be logged, as it is a credential.
+        logger.warn(LogUtil.getMarker(context), "JWT Base64 decoding or decompression failed.", e);
+        handler.handle(Future.failedFuture(new HttpException(401, "Wrong auth credentials format.", e)));
         return;
       }
     }

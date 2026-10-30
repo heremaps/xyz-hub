@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,10 +37,24 @@ public class CompilationStepGraph extends StepGraph {
    * - Starting state: NOT_READY
    *
    * @param jobId The job ID of the job for which this step graph was created
+   * @return This StepGraph for chaining
    */
   public StepGraph enrich(String jobId) {
-    enrich(jobId, new HashSet<>());
+    enrich(this, jobId);
     return this;
+  }
+
+  /**
+   * This method should be called after the whole step graph was created to set the needed properties on the steps:
+   * - job ID
+   * - previous step IDs
+   * - Starting state: NOT_READY
+   *
+   * @param stepGraph The step graph to be enriched with the jobId
+   * @param jobId The job ID of the job for which this step graph was created
+   */
+  public static void enrich(StepGraph stepGraph, String jobId) {
+    enrich(stepGraph, jobId, new HashSet<>());
   }
 
   /**
@@ -51,28 +65,28 @@ public class CompilationStepGraph extends StepGraph {
    * @return The steps that should be treated as previous steps for the next sequential execution (sibling of this graph)
    *  in a potential parent graph
    */
-  private Set<String> enrich(String jobId, Set<String> previousSteps) {
+  private static Set<String> enrich(StepGraph stepGraph, String jobId, Set<String> previousSteps) {
     HashSet<String> previousStepsForNextSibling = new HashSet<>();
 
-    for (StepExecution child : getExecutions()) {
-      if (!isParallel())
+    for (StepExecution child : stepGraph.getExecutions()) {
+      if (!stepGraph.isParallel())
         previousStepsForNextSibling = new HashSet<>();
 
       previousStepsForNextSibling.addAll(enrichChild(child, jobId, previousSteps));
 
-      if (!isParallel())
+      if (!stepGraph.isParallel())
         previousSteps = previousStepsForNextSibling;
     }
 
     return previousStepsForNextSibling;
   }
 
-  private Set<String> enrichChild(StepExecution child, String jobId, Set<String> previousSteps) {
+  private static Set<String> enrichChild(StepExecution child, String jobId, Set<String> previousSteps) {
     return child instanceof Step step ? enrichChild(step, jobId, previousSteps)
-        : ((CompilationStepGraph) child).enrich(jobId, previousSteps);
+        : enrich(((StepGraph) child), jobId, previousSteps);
   }
 
-  private Set<String> enrichChild(Step step, String jobId, Set<String> previousSteps) {
+  private static Set<String> enrichChild(Step step, String jobId, Set<String> previousSteps) {
     step.withJobId(jobId)
         .withPreviousStepIds(previousSteps);
     return Set.of(step.getId());

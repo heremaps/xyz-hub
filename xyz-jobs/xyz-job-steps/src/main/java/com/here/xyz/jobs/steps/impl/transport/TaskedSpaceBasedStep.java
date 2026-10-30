@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,43 +19,7 @@
 
 package com.here.xyz.jobs.steps.impl.transport;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonView;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.here.xyz.XyzSerializable;
-import com.here.xyz.events.ContextAwareEvent.SpaceContext;
-import com.here.xyz.jobs.JobClientInfo;
-import com.here.xyz.jobs.steps.Step;
-import com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.ProcessUpdate;
-import com.here.xyz.jobs.steps.execution.StepException;
-import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
-import com.here.xyz.jobs.steps.impl.transport.tasks.TaskPayload;
-import com.here.xyz.jobs.steps.impl.transport.tasks.TaskProgress;
-import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
-import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
-import com.here.xyz.models.hub.Ref;
-import com.here.xyz.models.hub.Space;
-import com.here.xyz.psql.query.QueryBuilder.QueryBuildingException;
-import com.here.xyz.responses.StatisticsResponse;
-import com.here.xyz.util.db.SQLQuery;
-import com.here.xyz.util.db.pg.FeatureWriterQueryBuilder.FeatureWriterQueryContextBuilder;
-import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
-import com.here.xyz.util.web.XyzWebClient;
-import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
-import java.io.IOException;
-import java.math.BigDecimal;
-import java.math.RoundingMode;
-import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
-import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
+import static com.here.xyz.jobs.steps.Step.Visibility.SYSTEM;
 import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_EXECUTE;
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_ON_ASYNC_FAILURE;
@@ -64,6 +28,49 @@ import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_ON_ASYNC
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_ON_STATE_CHECK;
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.UNKNOWN;
 import static com.here.xyz.util.web.XyzWebClient.WebClientException;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonView;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.here.xyz.XyzSerializable;
+import com.here.xyz.events.ContextAwareEvent.SpaceContext;
+import com.here.xyz.jobs.JobClientInfo;
+import com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.ProcessUpdate;
+import com.here.xyz.jobs.steps.execution.StepException;
+import com.here.xyz.jobs.steps.execution.db.Database;
+import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
+import com.here.xyz.jobs.steps.impl.transport.tasks.TaskPayload;
+import com.here.xyz.jobs.steps.impl.transport.tasks.TaskProgress;
+import com.here.xyz.jobs.steps.impl.transport.tools.DatabaseStepQueryBuilder;
+import com.here.xyz.jobs.steps.impl.transport.tools.TaskedSpaceBasedQueryBuilder;
+import com.here.xyz.jobs.steps.outputs.Output;
+import com.here.xyz.jobs.steps.outputs.S3Marker;
+import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
+import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
+import com.here.xyz.models.hub.Ref;
+import com.here.xyz.models.hub.Space;
+import com.here.xyz.psql.query.QueryBuilder.QueryBuildingException;
+import com.here.xyz.responses.StatisticsResponse;
+import com.here.xyz.util.db.SQLQuery;
+import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
+import com.here.xyz.util.web.XyzWebClient;
+import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
+import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.sql.Array;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Abstract base class for space-based job steps that execute tasks in parallel.
@@ -77,33 +84,55 @@ import static com.here.xyz.util.web.XyzWebClient.WebClientException;
  * </ul>
  *
  * @param <T> The concrete subclass type.
- * @param <I> The input payload type for each task.fail
+ * @param <I> The input payload type for each task.
  * @param <O> The output payload type for each task.
  */
 public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I extends TaskPayload, O extends TaskPayload>
         extends SpaceBasedStep<T> {
-  private static final String JOB_DATA_PREFIX = "job_data_";
   private static final Logger logger = LogManager.getLogger();
-  protected static final Set<String> RETRYABLE_SQL_CODES = Set.of(
-          "40001", // serialization_failure
-          "40P01", // deadlock_detected
-          "55P03", // lock_not_available
-          "23505", // unique_violation
-          "23P01", // exclusion_violation, same caveat
-          "53300", // too_many_connections
-          "08000", // connection_exception
-          "08001", // sqlclient_unable_to_establish_sqlconnection
-          "08003", // connection_does_not_exist
-          "08006", // connection_failure
-          "08004", // sqlserver_rejected_establishment_of_sqlconnection
-          "57P01"  // admin_shutdown
-          );
+  /** Marker output-set key/file prefix used to indicate successful step finalization. */
+  public static final String FINALIZATION_MARKER = "finalized_marker";
+  /** Suffix of the label identifier used to tag task queries with their taskId in {@code pg_stat_activity}. */
+  private static final String TASK_ID_LABEL_SUFFIX = "#taskId";
+  /** Number of consecutive unknown running-query checks before a task is considered retryable. */
+  public static final Integer MAX_UNKNOWN_TASK_QUERY_CHECKS = 3;
+  /** Maximum number of retry attempts, for a server side killed single, before failing retry handling. */
+  public static final Integer MAX_TASK_RETRY_ATTEMPTS = 3;
+  /** Hard ceiling for the concurrency of a single step, regardless of its configured {@link #threadCount}. */
+  public static final int MAX_THREAD_COUNT = 25;
+  /**
+   * Number of tasks a step is allowed to run concurrently right after it was started or resumed. Never exceeds the
+   * {@link #threadCount} configured for the step, see {@link #getCurrentMaxThreadCount(long)}.
+   */
+  public static final int INITIAL_THREAD_COUNT = 3;
+  /** Time that has to pass before the concurrency limit is raised again. */
+  public static final long THREAD_SCALE_COOLDOWN_TIME = 2 * 60 * 1000L;
+  /** Number of threads the concurrency limit grows by, per elapsed cooldown interval. */
+  public static final int THREAD_SCALE_INCREMENT = 3;
+  /**
+   * Time a step without task items waits for its success callback, before a STATE_CHECK reports the success instead.
+   * See {@link #getExecutionState()}.
+   */
+  static final long NO_TASKS_SUCCESS_CALLBACK_TIMEOUT = 2 * 60 * 1000L;
+  private TaskedSpaceBasedQueryBuilder taskedSpaceBasedQueryBuilder;
+
+  {
+    setOutputSets(List.of(new OutputSet(FINALIZATION_MARKER, SYSTEM, true)));
+  }
 
   @JsonView({Internal.class, Static.class})
   protected int threadCount = 8;
 
   @JsonView({Internal.class, Static.class})
   private boolean noTasksCreated = false;
+
+  //When a step without task items requested its success callback, 0 if it did not request one (see #getExecutionState()).
+  //NOTE: status.startedAt can not be used instead, it gets reset by every RUNNING heartbeat of a STATE_CHECK.
+  @JsonView({Internal.class, Static.class})
+  private long successCallbackRequestedAt = 0;
+
+  @JsonIgnore
+  private boolean finalizedOnResume = false;
 
   @JsonView({Internal.class, Static.class})
   protected int taskItemCount = -1;
@@ -117,6 +146,9 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   protected long minSpaceVersion = -1;
   @JsonView({Internal.class, Static.class})
   protected long maxSpaceVersion = -1;
+  //Whether the step got finalized (incl. its clean-up) while resetting the task items of a previous attempt
+  @JsonIgnore
+  private boolean finalizedOnTaskItemReset = false;
 
   public Ref getVersionRef() {
     return versionRef;
@@ -275,17 +307,48 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   protected abstract double calculateOverallNeededACUs();
 
   /**
-   * Performs initial setup before starting the job step execution.
+   * Prepares an execution attempt of the step before its task items get created or reset.
    * <p>
-   * This method can be overridden by subclasses to implement any required initialization logic,
-   * such as preparing resources, validating prerequisites, or configuring the environment.
+   * Use this hook for decisions which have to be taken once per execution attempt, e.g., allocating the target
+   * version a fresh execution writes with, or restoring such a decision from the task items on a resume.
+   * </p>
+   * <p>
+   * <b>Do not create database objects here which the task queries rely on</b> (e.g., triggers, partitions or helper
+   * tables). Create them in {@link #ensureDbResources()} instead, which the framework calls on every path that
+   * starts tasks.
+   * </p>
+   * <p>
+   * On a resume, the task table may not exist anymore. In that case the hook may fail with an {@link SQLException}
+   * of state {@code 42P01}, upon which the framework falls back to a fresh execution and calls this hook once more
+   * with {@code resume = false}.
    * </p>
    *
+   * @param resume {@code true} when the step is resumed after a previous attempt; {@code false} for a fresh execution.
    * @throws SQLException If a database access error occurs.
    * @throws TooManyResourcesClaimed If too many resources are claimed during setup.
    * @throws WebClientException If an error occurs while interacting with the web client.
    */
-  protected void initialSetup() throws SQLException, TooManyResourcesClaimed, WebClientException {};
+  protected void prepareExecution(boolean resume) throws SQLException, TooManyResourcesClaimed, WebClientException {}
+
+  /**
+   * Ensures that all database objects the task queries rely on exist (e.g., triggers, partitions or helper tables).
+   * <p>
+   * The framework calls this hook right before it starts the first tasks - for a fresh execution as well as for
+   * every resume. Implementations therefore must be idempotent (e.g., {@code CREATE OR REPLACE ...},
+   * {@code CREATE ... IF NOT EXISTS}) and must <b>not</b> assume that objects created by a previous attempt still
+   * exist. Between a failure and a resume such objects may have been removed outside of the step, e.g., by the cleanup
+   * of an outdated SQL script version, which drops the script's functions together with all triggers using them.
+   * </p>
+   * <p>
+   * The hook is called after {@link #prepareExecution(boolean)}, so it can rely on the state restored there.
+   * It is not called if a resume detects that all task items are finalized already.
+   * </p>
+   *
+   * @throws SQLException If a database access error occurs.
+   * @throws TooManyResourcesClaimed If too many resources are claimed while creating the objects.
+   * @throws WebClientException If an error occurs while interacting with the web client.
+   */
+  protected void ensureDbResources() throws SQLException, TooManyResourcesClaimed, WebClientException {}
 
   /**
    * Performs final cleanup after all tasks have completed.
@@ -322,6 +385,12 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
    * <p>
    * This is the place to trigger follow-up async work (for example the next chunk query).
    * If a new async query is started here, it should use callback=false to avoid duplicate callback chains.
+   * </p>
+   * <p>
+   * <b>Important:</b> Any new async query started here that represents the ongoing work of the task must be
+   * labeled with the taskId via {@link #withTaskIdLabel(SQLQuery, int)} (or {@link #taskIdLabelIdentifier()}).
+   * Otherwise the execution-state check ({@link SQLQuery#areRunning}) cannot find the running query in
+   * {@code pg_stat_activity} and would wrongly consider the task to be in an unknown state and retry it.
    * </p>
    *
    * @param taskId The id of the task that reported progress.
@@ -404,42 +473,28 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   public boolean validate() throws ValidationException {
     super.validate();
     //Validate versionRef
-    if (this.versionRef == null)
+    if (versionRef == null)
       return true;
 
-    if (this.versionRef.isSingleVersion()) {
-      if (this.versionRef.getVersion() < minSpaceVersion)
-        throw new ValidationException("Invalid VersionRef! Version is smaller than min available version '" +
-                minSpaceVersion + "'!");
-      if (this.versionRef.getVersion() > maxSpaceVersion)
-        throw new ValidationException("Invalid VersionRef! Version is higher than max available version '" +
-                maxSpaceVersion + "'!");
-    } else if (this.versionRef.isRange()) {
-      if (this.versionRef.getStart().getVersion() < minSpaceVersion)
-        throw new ValidationException("Invalid VersionRef! StartVersion is smaller than min available version '" +
-                minSpaceVersion + "'!");
-      if (this.versionRef.getEnd().getVersion() > maxSpaceVersion)
-        throw new ValidationException("Invalid VersionRef! EndVersion is higher than max available version '" +
-                maxSpaceVersion + "'!");
+    if (versionRef.isSingleVersion()) {
+      if (versionRef.getVersion() < minSpaceVersion)
+        throw new ValidationException("Invalid VersionRef (" + versionRef + ")! Version is smaller than min available version '" +
+            minSpaceVersion + "'!");
+      if (versionRef.getVersion() > maxSpaceVersion)
+        throw new ValidationException("Invalid VersionRef (" + versionRef + ")! Version is higher than max available version '" +
+            maxSpaceVersion + "'!");
+    }
+    else if (versionRef.isRange()) {
+      if (versionRef.getStart().getVersion() < minSpaceVersion - 1)
+        throw new ValidationException("Invalid VersionRef! The first referenced version (" + (versionRef.getStart().getVersion() + 1)
+            + ") by version range (" + versionRef + ") is smaller than min available version '" + minSpaceVersion
+            + "'! [NOTE: The start version of a version range is exclusive, the end version however is inclusive]");
+      if (versionRef.getEnd().getVersion() > maxSpaceVersion)
+        throw new ValidationException("Invalid VersionRef (" + versionRef + ")! EndVersion is higher than max available version '"
+            + maxSpaceVersion + "'!");
     }
 
     return true;
-  }
-
-  private long resolveTag(String tag) throws ValidationException {
-    try {
-      return loadTag(getSpaceId(), tag).getVersion();
-    } catch (WebClientException e) {
-      throw handleWebClientException("Unable to resolve tag \"" + tag + "\" of " + getSpaceId(), e);
-    }
-  }
-
-  private long resolveHead() throws ValidationException {
-    try {
-      return spaceStatistics(context, true).getMaxVersion().getValue();
-    } catch (WebClientException e) {
-      throw handleWebClientException("Unable to resolve HEAD version of " + getSpaceId(), e);
-    }
   }
 
   private ValidationException handleWebClientException(String message, WebClientException e) throws ValidationException {
@@ -449,7 +504,49 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   }
 
   /**
-   * Starts the initial tasks for the process based on the calculated thread count.
+   * Calculates the number of tasks the step is allowed to run concurrently at the current point in time.
+   * <p>
+   * A step does not start with its configured {@link #threadCount} right away. It begins with
+   * {@link #INITIAL_THREAD_COUNT} concurrent tasks and is allowed to grow by {@link #THREAD_SCALE_INCREMENT} for
+   * every completed {@link #THREAD_SCALE_COOLDOWN_TIME} interval, until the configured thread count (capped at
+   * {@link #MAX_THREAD_COUNT}) is reached. That gives the database time to adapt to the additional load instead of
+   * being hit with the full parallelism of a step from the very first second.
+   * </p>
+   *
+   * @param scalingElapsedMillis Milliseconds elapsed since the concurrency ramp-up of the step started.
+   */
+  protected int getCurrentMaxThreadCount(long scalingElapsedMillis) {
+    long maxThreadCount = Math.min(threadCount, MAX_THREAD_COUNT);
+    long elapsedIntervals = scalingElapsedMillis / THREAD_SCALE_COOLDOWN_TIME;
+    long scaledThreadCount = INITIAL_THREAD_COUNT + elapsedIntervals * THREAD_SCALE_INCREMENT;
+
+    return (int) Math.max(Math.min(maxThreadCount, scaledThreadCount), 1);
+  }
+
+  /**
+   * Calculates how many additional tasks may be started right now.
+   * <p>
+   * Never returns more than the number of free concurrency slots, and never more than the number of tasks which are
+   * actually still waiting to be started. Returns 0 if the concurrency limit is already reached or exceeded - the
+   * limit only ever grows, but a running task is never interrupted because of it.
+   * </p>
+   *
+   * @param currentMaxThreadCount The concurrency limit valid right now.
+   * @param runningTasks The number of currently running (started but not finalized) tasks.
+   * @param unstartedTasks The number of tasks which were not started yet.
+   * @return The number of tasks that may additionally be started. Never negative.
+   */
+  public static int getStartableTaskCount(int currentMaxThreadCount, int runningTasks, int unstartedTasks) {
+    return Math.max(Math.min(currentMaxThreadCount - runningTasks, unstartedTasks), 0);
+  }
+
+  /**
+   * Starts the initial task set of the step.
+   * <p>
+   * Both a fresh execution and a resume restart the concurrency ramp-up beforehand, so this always starts
+   * {@link #INITIAL_THREAD_COUNT} tasks. The concurrency is raised from there during the periodic state checks,
+   * see {@link #scaleUpConcurrency(TaskProgress)}.
+   * </p>
    *
    * @throws TooManyResourcesClaimed If too many resources are claimed during the process.
    * @throws QueryBuildingException If an error occurs while building the SQL query.
@@ -459,9 +556,13 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   private void startInitialTasks() throws TooManyResourcesClaimed,
           QueryBuildingException, WebClientException, SQLException, InvalidGeometryException {
     List<TaskProgress<I>> claimedInitialTasks = new ArrayList<>();
+    int initialThreadCount = getCurrentMaxThreadCount(0);
+
+    infoLog(STEP_EXECUTE, "Starting with a concurrency of " + initialThreadCount + " (configured threadCount: "
+            + threadCount + ")");
 
     //Claim the initial task set
-    for (int i = 0; i < threadCount; i++) {
+    for (int i = 0; i < initialThreadCount; i++) {
       TaskProgress<I> taskProgressAndTaskItem = getTaskProgressAndNextTaskItem();
       if (taskProgressAndTaskItem.getTaskId() == -1)
         break;
@@ -509,37 +610,114 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
       prepareTaskQuery(taskProgressAndItem.getTaskId());
 
       runReadQueryAsync(buildTaskQuery(taskProgressAndItem.getTaskId(), (I) taskProgressAndItem.getTaskInput(), failureCallback)
-                         .withRetryableErrorCodes(RETRYABLE_SQL_CODES),
-                queryRunsOnWriter() ? dbWriter() : dbReader(), 0d/*perItemAcus.doubleValue()*/,  false);
+              .withLabel(taskIdLabelIdentifier(), String.valueOf(taskProgressAndItem.getTaskId())),
+              queryRunsOnWriter() ? dbWriter() : dbReader(), 0d/*perItemAcus.doubleValue()*/,  false);
     }
+  }
+
+  /**
+   * The label identifier used to tag task queries with their {@code taskId}, so that running task queries can be
+   * discovered in {@code pg_stat_activity} (see {@link SQLQuery#areRunning}).
+   * <p>
+   * Every asynchronous query that represents the ongoing work of a task - including follow-up queries started from
+   * hook methods such as {@link #onTaskProgress(int, TaskPayload)} - must be labeled with this identifier and the
+   * according taskId. Otherwise the state check would not be able to find the running query and would wrongly
+   * consider the task to be in an unknown state and retry it.
+   * </p>
+   *
+   * @return The label identifier for the taskId label of this step.
+   */
+  protected final String taskIdLabelIdentifier() {
+    return getId() + TASK_ID_LABEL_SUFFIX;
+  }
+
+  /**
+   * Attaches the taskId label (see {@link #taskIdLabelIdentifier()}) for the given taskId to the provided query.
+   * This must be used for every asynchronous query that represents the ongoing work of a task, so that the query
+   * can be discovered as running during the execution-state check.
+   *
+   * @param query The query representing (part of) the work of a task.
+   * @param taskId The id of the task the query belongs to.
+   * @return The same query instance, for chaining.
+   */
+  protected final SQLQuery withTaskIdLabel(SQLQuery query, int taskId) {
+    return query.withLabel(taskIdLabelIdentifier(), String.valueOf(taskId));
   }
 
   @Override
   public void execute(boolean resume) throws Exception {
     //The following code is running synchronously till the first task is getting started.
-    String schema = getSchema(db());
-    List<I> taskDataList = createTaskItems();
-    taskItemCount = taskDataList.size();
-
     if (!resume) {
-      insertTaskItemsInTaskTable(schema, this, taskDataList);
-      initialSetup();
+      prepareExecution(false);
+      createAndInsertTaskItems();
     }else{
       try {
-        //Reset all items which are not finalized to be able to restart them
-        runWriteQuerySyncUnkillable(resetTaskItemWhichAreNotFinalized(schema, this.getId()), db(WRITER), 0);
+        //we need to do the preparation here to be able to cover the case that the table does not already exists.
+        prepareExecution(true);
+        if (resetTaskItems()) return;
       }catch (SQLException e){
         if (e.getSQLState() != null && e.getSQLState().toUpperCase().equals("42P01")) {
-          //if the job_data table is not present anymore during a resume, we expect that the last execution completed
-          //after der StateMaschnine was already canceled. In this case only have to report success.
-          reportAsyncSuccess();
-          return;
+          Optional<Output> marker = loadStepOutputs(getOutputSet(FINALIZATION_MARKER)).stream().findFirst();
+
+          if(marker.isPresent()){
+            //if the job_data table is not present anymore during a resume and the finalizationMarker is present
+            //the step succeeded after der StateMaschnine was already canceled. In this case we only have to report success.
+            infoLog(STEP_EXECUTE, "Outputs are already present -> finalize");
+            finalizedOnResume = true;
+            reportAsyncSuccess();
+            return;
+          }
+          //Can not retrieve output - start from scratch
+          infoLog(STEP_EXECUTE, "Reset of taskItems failed cause job_data table is missing! Recreating it!");
+          prepareExecution(false);
+          createAndInsertTaskItems();
         }else
           throw e;
       }
     }
+    //A fresh execution may find the task table of a previous attempt with all items finalized. Then the step got
+    //finalized and cleaned up already while resetting the task items, so nothing must be (re)created anymore.
+    if (!finalizedOnTaskItemReset)
+      ensureDbResources();
+
     startInitialTasks();
     noTasksCreated = taskItemCount == 0;
+
+    //Without task items, no task callback will ever arrive. Let the database send the success callback right away, instead of
+    //waiting for a STATE_CHECK, which only reports the success if this callback did not arrive (see #getExecutionState()).
+    //NOTE: The success is not reported from within this request. The step function may only start to wait for it once this
+    //request has returned and then miss it (LocalStack does so, the step then fails with a heartbeat timeout).
+    //A step which got finalized while resetting the task items of a previous attempt has succeeded already.
+    if (noTasksCreated && !finalizedOnTaskItemReset) {
+      infoLog(STEP_EXECUTE, "No task items were created -> request the success callback.");
+      successCallbackRequestedAt = System.currentTimeMillis();
+      runWriteQueryAsync(new SQLQuery("PERFORM 1"), db(WRITER), 0);
+    }
+  }
+
+  private boolean resetTaskItems() throws TooManyResourcesClaimed, SQLException, WebClientException {
+    //Restart the concurrency ramp-up, so that a restarted step begins at INITIAL_THREAD_COUNT again instead of
+    //continuing with the concurrency the previous attempt had already reached
+    runWriteQuerySyncUnkillable(getQueryBuilder().buildResetScalingStartStatement(), db(WRITER), 0);
+
+    //Reset all items which are not finalized to be able to restart them
+    int resetItemCount = runWriteQuerySyncUnkillable(resetTaskItemWhichAreNotFinalized(), db(WRITER), 0);
+
+    //If no item got reset, there is no restartable work left. If additionally all task items are already
+    //finalized, nothing needs to be (re)started - just collect the produced outputs and succeed directly.
+    if (resetItemCount == 0 && getTaskProgress().isComplete()) {
+      infoLog(STEP_EXECUTE, "All task items are already finalized on resume -> collect outputs and finalize.");
+      finalizedOnTaskItemReset = true;
+      reportAsyncSuccess();
+      return true;
+    }
+    return false;
+  }
+
+  private void createAndInsertTaskItems() throws SQLException, TooManyResourcesClaimed, QueryBuildingException, WebClientException {
+    List<I> taskDataList = createTaskItems();
+    taskItemCount = taskDataList.size();
+    insertTaskItemsInTaskTable(taskDataList);
   }
 
   /**
@@ -558,21 +736,34 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
       infoLog(STEP_ON_ASYNC_UPDATE, "Received progress update: " + processUpdate.serialize());
 
       if (!isTaskFinalized(update.taskId, (O) update.taskOutput)){
-        updateQueryTaskItemOutput(update); //update taskItem output
+        if (!updateQueryTaskItemOutput(update)) {
+          infoLog(STEP_ON_ASYNC_UPDATE, "Ignoring duplicate or outdated progress update for taskId=" + update.taskId
+              + ". No follow-up query gets started for it.");
+          return false;
+        }
+
         onTaskProgress(update.taskId, (O) update.taskOutput);  //hook method
       }else{
         finalizeTaskQuery(update.taskId); //hook method
 
         TaskProgress taskProgressAndItem = finalizeCurrentTaskAndGetTaskProgressAndNextTaskItem(update);
+
+        //Calculate progress and set it on the step's status
+        getStatus().setEstimatedProgress((float) taskProgressAndItem.getFinalizedTasks() / (float) taskProgressAndItem.getTotalTasks());
+
         if (taskProgressAndItem.isComplete()) {
+          //All tasks are finalized - succeed!
           return true;
-        }else {
-          infoLog(STEP_ON_ASYNC_UPDATE, "Found existing tasks. Start new item:" + taskProgressAndItem);
-          //If we are not finished, start the next task
-          startTask(taskProgressAndItem);
-          //Calculate progress and set it on the step's status
-          getStatus().setEstimatedProgress((float) taskProgressAndItem.getFinalizedTasks() / (float) taskProgressAndItem.getTotalTasks());
         }
+
+        if (!taskProgressAndItem.hasTaskItem()) {
+          infoLog(STEP_ON_ASYNC_UPDATE,"No claimable task. Waiting for running tasks to finish: " + taskProgressAndItem);
+          return false;
+        }
+
+        infoLog(STEP_ON_ASYNC_UPDATE,"Found existing tasks. Start new item: " + taskProgressAndItem);
+        startTask(taskProgressAndItem);
+        return false;
       }
       return false;
     }catch (Exception e) {
@@ -582,16 +773,33 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
 
   @Override
   protected void onAsyncSuccess() throws Exception {
-    infoLog(STEP_ON_ASYNC_SUCCESS, "Reached onAsyncSuccess!");
-    finalizeStep();
-  }
+    if (finalizedOnResume) {
+      infoLog(STEP_ON_ASYNC_SUCCESS, "Step was already finalized during resume. Skip output collection.");
+      cleanUpDbResources(STEP_ON_ASYNC_SUCCESS);
+      return;
+    }
 
-  private void finalizeStep() throws IOException, WebClientException, SQLException, TooManyResourcesClaimed {
-    //Collect outputs and process them
-    processFinalizedTasks(collectOutputs());
+    infoLog(STEP_ON_ASYNC_SUCCESS, "Reached onAsyncSuccess! Start collecting task outputs!");
 
+    List<FinalizedTaskItem<I,O>> finalizedTaskItems;
+    try {
+      finalizedTaskItems = collectOutputs();
+    }
+    catch (SQLException e) {
+      if (!"42P01".equalsIgnoreCase(e.getSQLState()) || !(noTasksCreated || isFinalizationMarkerPresent()))
+        throw e;
+      //The task table gets dropped only after the outputs were processed. So another success report (e.g., a late success
+      //callback after the fallback of #getExecutionState()) has finalized the step already, and nothing must be processed twice.
+      infoLog(STEP_ON_ASYNC_SUCCESS, "Task table does not exist anymore, the step was finalized already. Skip output collection.");
+      return;
+    }
+
+    //Process the collected outputs
+    processFinalizedTasks(finalizedTaskItems);
+
+    infoLog(STEP_ON_ASYNC_SUCCESS, "End collecting task outputs!");
     //Clean up temporary resources
-    cleanUpDbResources(STEP_ON_ASYNC_UPDATE);
+    cleanUpDbResources(STEP_ON_ASYNC_SUCCESS);
   }
 
   @Override
@@ -617,7 +825,11 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
       finalCleanUp(noTasksCreated);
 
       infoLog(logPhase, "Cleanup temporary table");
-      runWriteQuerySyncUnkillable(buildTemporaryJobTableDropStatement(getSchema(db()), getTemporaryJobTableName(getId())), db(WRITER), 0);
+      runWriteQuerySyncUnkillable(getQueryBuilder().buildTemporaryJobTableDropStatement(), db(WRITER), 0);
+
+      registerOutputs(List.of(new S3Marker()
+              .withFinalized(true)
+              .withFileName(FINALIZATION_MARKER + ".json")), FINALIZATION_MARKER);
     }catch (SQLException e){
       if (e.getSQLState() != null) {
         switch (e.getSQLState().toUpperCase()) {
@@ -641,7 +853,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   }
 
   private List<FinalizedTaskItem<I,O>> collectOutputs() throws SQLException, TooManyResourcesClaimed, WebClientException {
-    return runReadQuerySync(retrieveTaskOutputsQuery(), db(WRITER), 0, rs -> {
+    return runReadQuerySync(getQueryBuilder().buildRetrieveTaskOutputsQuery(), db(WRITER), 0, rs -> {
       try {
         List<FinalizedTaskItem<I,O>> finalizedTaskItems = new ArrayList<>();
 
@@ -666,13 +878,17 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
     });
   }
 
+  private boolean isFinalizationMarkerPresent() {
+    return !loadStepOutputs(getOutputSet(FINALIZATION_MARKER)).isEmpty();
+  }
+
   @Override
   public AsyncExecutionState getExecutionState() throws UnknownStateException {
     if (noTasksCreated)
-      return AsyncExecutionState.SUCCEEDED;
+      return getExecutionStateWithoutTasks();
 
     try {
-      TaskProgress taskProgress = getTaskProgress();
+      TaskProgress<?> taskProgress = getTaskProgress();
       return evaluateExecutionState(taskProgress);
     }
     catch (SQLException e) {
@@ -685,18 +901,151 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
     }
   }
 
-  private AsyncExecutionState evaluateExecutionState(TaskProgress taskProgress) throws UnknownStateException {
-    if (taskProgress.isComplete()) {
+  /**
+   * A step without task items reports its success through the success callback, which gets requested in {@link #execute(boolean)}.
+   * A STATE_CHECK only reports the success if that callback did not arrive within {@link #NO_TASKS_SUCCESS_CALLBACK_TIMEOUT},
+   * e.g., because it got lost. Otherwise, both would run the success handling at the same time.
+   * A step which did not request the callback (e.g., one started by a previous version) succeeds right away.
+   */
+  private AsyncExecutionState getExecutionStateWithoutTasks() {
+    if (successCallbackRequestedAt <= 0) {
+      infoLog(STEP_ON_STATE_CHECK, "No task items were created and no success callback was requested -> succeed.");
       return AsyncExecutionState.SUCCEEDED;
-    }if (taskProgress.hasRunningTasks())
-      // Check if the expected queries are still running.
-      return super.getExecutionState();
+    }
+    long waitingTime = System.currentTimeMillis() - successCallbackRequestedAt;
+    if (waitingTime < NO_TASKS_SUCCESS_CALLBACK_TIMEOUT) {
+      infoLog(STEP_ON_STATE_CHECK, "No task items were created. Waiting for the success callback.");
+      return AsyncExecutionState.RUNNING;
+    }
+    infoLog(STEP_ON_STATE_CHECK, "No task items were created and the success callback did not arrive within "
+        + NO_TASKS_SUCCESS_CALLBACK_TIMEOUT + "ms -> succeed.");
+    return AsyncExecutionState.SUCCEEDED;
+  }
+
+  private AsyncExecutionState evaluateExecutionState(TaskProgress<?> taskProgress)
+      throws UnknownStateException, SQLException, WebClientException, TooManyResourcesClaimed {
+    if (taskProgress.isComplete()) {
+      //Only log and return RUNNING to avoid double success handling;
+      infoLog(STEP_ON_STATE_CHECK, "All tasks finalized!");
+    }
+    if (taskProgress.hasRunningTasks()) {
+      Set<Integer> expectedTaskIds = taskProgress.getStartedNotFinalizedTaskIds();
+      Set<String> expectedTaskIdStrings = expectedTaskIds.stream()
+          .map(String::valueOf)
+          .collect(Collectors.toSet());
+
+      if (expectedTaskIdStrings.isEmpty()) {
+        infoLog(STEP_ON_STATE_CHECK, "Started tasks are reported but started_not_finalized_task_ids is empty.");
+        throw new UnknownStateException("No started-not-finalized task ids available for step: " + getGlobalStepId() + " !");
+      }
+
+      boolean runsOnWriter = queryRunsOnWriter();
+      Database database = runsOnWriter ? dbWriter() : dbReader();
+      //Check if all expected TaskQueries areRunning. Collect all taskIds where we are not able
+      //to find a running query.
+      Set<String> runningTaskIds = SQLQuery.areRunning(
+          requestResource(database, 0d), database.getRole() != WRITER,
+              taskIdLabelIdentifier(), expectedTaskIdStrings
+      );
+
+      Set<Integer> unknownStateTaskIds = expectedTaskIds.stream()
+          .filter(taskId -> !runningTaskIds.contains(String.valueOf(taskId)))
+          .collect(Collectors.toSet());
+
+      if (unknownStateTaskIds.isEmpty())
+        return AsyncExecutionState.RUNNING;
+
+      Set<Integer> exceededTaskIds = incrementUnknownQueryStateForTasks(unknownStateTaskIds);
+      for(int exceededTaskId : exceededTaskIds){
+        infoLog(STEP_ON_STATE_CHECK, "Unknown queryState of taskId " + exceededTaskId + " has exceeded unknown query state threshold. Retry the task now!");
+        try {
+          TaskProgress<I> retryTaskProgress = resetTaskForRetry(exceededTaskId);
+          if (retryTaskProgress == null) {
+            throw new StepException("Retry threshold exceeded for taskId " + exceededTaskId + ".");
+          }
+          startTask(retryTaskProgress);
+        } catch (StepException e1){
+          throw e1;
+        } catch (Exception e2){
+          throw new StepException("Not able to retry taskId " + exceededTaskId, e2);
+        }
+      }
+
+      return AsyncExecutionState.RUNNING;
+    }
     if (taskProgress.hasNoRunningTasks()) {
       infoLog(STEP_ON_STATE_CHECK, "No running tasks detected. StartedTasks: " + taskProgress.getStartedTasks() + ","
           + " FinalizedTasks: " + taskProgress.getFinalizedTasks() + " !");
       throw new UnknownStateException("No running Tasks detected for step: " + getGlobalStepId() + " !");
     }
     return AsyncExecutionState.RUNNING;
+  }
+
+  /**
+   * Raises the concurrency of the step towards the limit which is valid at the current point in time.
+   */
+  @Override
+  protected void onStateCheck() {
+    if (noTasksCreated)
+      return;
+
+    try {
+      scaleUpConcurrency(getTaskProgress());
+    }
+    catch (Exception e) {
+      warnLog(STEP_ON_STATE_CHECK, "Could not scale up the concurrency. Retrying on the next state check."
+              + " Reason: " + e.getMessage());
+    }
+  }
+
+  /**
+   * Starts as many additional tasks as the concurrency limit valid right now allows for.
+   * <p>
+   * This is the only place where a step gains additional concurrency. Every other path which starts task work keeps
+   * the number of running tasks flat, which is what keeps the step below
+   * {@link #getCurrentMaxThreadCount(long)} without any further locking:
+   * </p>
+   * <ul>
+   *   <li>{@link #onAsyncUpdate(ProcessUpdate)} finalizes its own task before claiming a replacement, so it frees its
+   *       slot first - no matter how many callbacks are processed at the same time.</li>
+   *   <li>The {@link #onTaskProgress(int, TaskPayload)} hook starts follow-up work for a task which is already
+   *       counted as running, and which stays counted until it is finalized.</li>
+   *   <li>The retry handling in {@link #getExecutionState()} restarts tasks whose query vanished. Those task items
+   *       are still flagged as started, so restarting them restores a lost query instead of adding one.</li>
+   * </ul>
+   *
+   * @param taskProgress The current task progress of the step.
+   */
+  private void scaleUpConcurrency(TaskProgress<?> taskProgress) throws WebClientException, SQLException,
+          TooManyResourcesClaimed, QueryBuildingException, InvalidGeometryException {
+    if (taskProgress == null)
+      return;
+
+    int currentMaxThreadCount = getCurrentMaxThreadCount(taskProgress.getScalingElapsedMillis());
+    int runningTasks = taskProgress.getRunningTasks();
+    int startableTasks = getStartableTaskCount(currentMaxThreadCount, runningTasks, taskProgress.getUnstartedTasks());
+
+    if (startableTasks == 0)
+      return;
+
+    infoLog(STEP_ON_STATE_CHECK, "Raising concurrency to " + currentMaxThreadCount + " (configured threadCount: "
+        + threadCount + "): " + runningTasks + " tasks running, " + taskProgress.getUnstartedTasks()
+        + " tasks unstarted, " + taskProgress.getScalingElapsedMillis() + "ms since the ramp-up started."
+        + " Starting " + startableTasks + " additional task(s).");
+
+    List<TaskProgress<I>> claimedTasks = new ArrayList<>();
+
+    //Claim the additional task set
+    for (int i = 0; i < startableTasks; i++) {
+      TaskProgress<I> taskProgressAndTaskItem = getTaskProgressAndNextTaskItem();
+      if (taskProgressAndTaskItem.getTaskId() == -1)
+        break;
+      claimedTasks.add(taskProgressAndTaskItem);
+    }
+
+    //Start additional tasks
+    for (TaskProgress<I> claimedTask : claimedTasks)
+      startTask(claimedTask);
   }
 
   private UnknownStateException mapSqlException(SQLException e) {
@@ -718,7 +1067,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
    * @throws TooManyResourcesClaimed If too many resources are claimed during the process.
    */
   private TaskProgress getTaskProgressAndNextTaskItem() throws WebClientException, SQLException, TooManyResourcesClaimed {
-    return executeTaskItemQuery(retrieveTaskItemAndStatisticsQuery(getSchema(db(WRITER))));
+    return executeTaskItemQuery(getQueryBuilder().retrieveTaskItemAndStatisticsQuery(), null);
   }
 
   /**
@@ -732,6 +1081,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
    * @param update The callback payload containing the completed task id and output.
    * @return A {@link TaskProgress} instance containing total/started/finalized counters and the
    *         next task input; {@code taskId = -1} indicates that no further task is available.
+   *         Duplicate callbacks return current counters without claiming another task.
    * @throws WebClientException If context-dependent metadata retrieval fails.
    * @throws SQLException If the underlying SQL function execution fails.
    * @throws TooManyResourcesClaimed If DB resource claiming exceeds allowed limits.
@@ -739,7 +1089,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   private TaskProgress finalizeCurrentTaskAndGetTaskProgressAndNextTaskItem(SpaceBasedTaskUpdate update)
           throws WebClientException, SQLException, TooManyResourcesClaimed {
     infoLog(STEP_ON_ASYNC_UPDATE, "Update process table and claim next task with: " + update.serialize());
-    return  executeTaskItemQuery(retrieveTaskItemAndStatisticsAfterUpdateQuery(getSchema(db(WRITER)), update));
+    return executeTaskItemQuery(getQueryBuilder().buildRetrieveTaskItemAndStatisticsAfterUpdateQuery(update), update.taskId);
   }
 
   /**
@@ -750,38 +1100,64 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
    * and the update contains a {@code progress} field, the result will contain all three fields.
    * Fields in the update override fields with the same name in the existing output.
    * </p>
+   * <p>
+   * The query builder may reject duplicate or outdated updates using an additional condition.
+   * </p>
    *
    * @param update The in-progress task update carrying the complete payload.
+   * @return {@code true} if the update was applied, {@code false} if it was a duplicate / outdated update.
    */
-  private void updateQueryTaskItemOutput(SpaceBasedTaskUpdate update) throws WebClientException, SQLException, TooManyResourcesClaimed {
-    String schema = getSchema(db(WRITER));
-    SQLQuery query = new SQLQuery("""
-            UPDATE ${schema}.${table}
-            SET task_output = (
-                COALESCE(task_output, '{}'::JSONB) || #{taskUpdate}::JSONB
-            ) || jsonb_build_object(
-                'taskOutput',
-                COALESCE(task_output->'taskOutput', '{}'::JSONB)
-                || COALESCE((#{taskUpdate}::JSONB)->'taskOutput', '{}'::JSONB)
-            )
-            WHERE task_id = #{taskId};
-        """)
-        .withVariable("schema", schema)
-        .withVariable("table", getTemporaryJobTableName(getId()))
-        .withNamedParameter("taskId", update.taskId)
-        .withNamedParameter("taskUpdate", XyzSerializable.serialize(update))
-        .withRetryableErrorCodes(RETRYABLE_SQL_CODES);
-
-    runWriteQuerySyncUnkillable(query, db(WRITER), 0);
+  private boolean updateQueryTaskItemOutput(SpaceBasedTaskUpdate update)
+      throws WebClientException, SQLException, TooManyResourcesClaimed {
+    return runWriteQuerySyncUnkillable(getQueryBuilder().buildUpdateTaskItemOutputStatement(update)
+            , db(WRITER), 0) > 0;
   }
 
-  private TaskProgress executeTaskItemQuery(SQLQuery query) throws WebClientException, SQLException, TooManyResourcesClaimed {
+  private Set<Integer> incrementUnknownQueryStateForTasks(Set<Integer> unknownStateTaskIds)
+      throws WebClientException, SQLException, TooManyResourcesClaimed {
+    if (unknownStateTaskIds == null || unknownStateTaskIds.isEmpty())
+      return Set.of();
+
+    SQLQuery query = getQueryBuilder().buildIncrementUnknownQueryStateStatement(unknownStateTaskIds, MAX_UNKNOWN_TASK_QUERY_CHECKS);
+
+    return runReadQuerySync(query, db(WRITER), 0, rs -> {
+      Set<Integer> exceededTaskIds = new java.util.LinkedHashSet<>();
+      while (rs.next())
+        exceededTaskIds.add(rs.getInt("task_id"));
+      return exceededTaskIds;
+    });
+  }
+
+  private TaskProgress<I> resetTaskForRetry(int taskId) throws WebClientException, SQLException, TooManyResourcesClaimed {
+    return runReadQuerySync(getQueryBuilder().buildResetTaskForRetryStatement(taskId), db(WRITER), 0, rs -> {
+      if (!rs.next())
+        throw new SQLException("Task for retry not found: taskId=" + taskId);
+
+      int retryAttempt = rs.getInt("retry_attempts");
+      if (retryAttempt > MAX_TASK_RETRY_ATTEMPTS)
+        return null;
+
+      try {
+        return new TaskProgress<>(rs.getInt("task_id"),
+                XyzSerializable.deserialize(rs.getString("task_input"), new TypeReference<I>() {}));
+      }
+      catch (JsonProcessingException e) {
+        throw new StepException("Can not deserialize task_input for retry of taskId=" + taskId + "!", e);
+      }
+    });
+  }
+
+  private TaskProgress executeTaskItemQuery(SQLQuery query, Integer finalizedTaskId)
+      throws WebClientException, SQLException, TooManyResourcesClaimed {
     TaskProgress taskProgress;
     try {
       taskProgress = runReadQuerySync(query, db(WRITER), 0,
           rs -> {
             if (!rs.next())
               return null;
+            if (finalizedTaskId != null && !rs.getBoolean("update_applied"))
+              infoLog(STEP_ON_ASYNC_UPDATE, "Finalization update not applied for taskId=" + finalizedTaskId
+                  + " (duplicate callback or missing task). No further task claimed; checking completion from current counters.");
             try {
               return new TaskProgress(rs.getInt("total"), rs.getInt("started"), rs.getInt("finalized"),
                   rs.getInt("task_id"), XyzSerializable.deserialize(rs.getString("task_input"), new TypeReference<I>() {
@@ -804,83 +1180,28 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   }
 
   private TaskProgress getTaskProgress() throws WebClientException, SQLException, TooManyResourcesClaimed {
-    return runReadQuerySync(retrieveTaskStatisticsQuery(getSchema(db(WRITER)), this.getId()), db(WRITER), 0,
+    return runReadQuerySync(getQueryBuilder().retrieveTaskStatisticsQuery(), db(WRITER), 0,
               rs -> {
                 if (!rs.next())
                   return null;
-                return new TaskProgress(rs.getInt("total"), rs.getInt("started"), rs.getInt("finalized"));
+                return new TaskProgress(rs.getInt("total"), rs.getInt("started"), rs.getInt("finalized"),
+                    getIntegerList(rs, "started_not_finalized_task_ids"), rs.getLong("scaling_elapsed_ms"));
               });
   }
 
-  private static SQLQuery buildTaskTableStatement(String schema, Step step) {
-    return new SQLQuery("""
-            CREATE TABLE ${schema}.${table}
-            (
-            	task_id SERIAL,
-            	task_input JSONB,
-            	task_output JSONB,
-            	started BOOLEAN DEFAULT false,
-            	finalized BOOLEAN DEFAULT false,
-            	CONSTRAINT ${primaryKey} PRIMARY KEY (task_id)
-            );
-        """)
-            //TODO: CHECK CONSTRAINT!!
-            .withVariable("table", getTemporaryJobTableName(step.getId()))
-            .withVariable("schema", schema)
-            .withVariable("primaryKey", getTemporaryJobTableName(step.getId()) + "_primKey");
+  private Set<Integer> getIntegerList(ResultSet rs, String columnName) throws SQLException {
+    Array sqlArray = rs.getArray(columnName);
+
+    return sqlArray == null
+            ? Set.of()
+            : Arrays.stream((Object[]) sqlArray.getArray())
+            .map(value -> ((Number) value).intValue())
+            .collect(Collectors.toSet());
   }
 
-  private SQLQuery resetTaskItemWhichAreNotFinalized(String schema, String stepId) {
+  private SQLQuery resetTaskItemWhichAreNotFinalized() {
     infoLog(STEP_EXECUTE, "Reset task items for restart.");
-    return new SQLQuery("""
-            UPDATE ${schema}.${table} t
-                SET started = false
-                WHERE started = true AND finalized = false;
-        """)
-            .withVariable("schema", schema)
-            .withVariable("table", getTemporaryJobTableName(stepId));
-  }
-
-  private SQLQuery retrieveTaskStatisticsQuery(String schema, String stepId) {
-    return new SQLQuery("""
-            SELECT COUNT(1) as total,
-                SUM((started = true)::int) as started,
-                SUM((finalized = true)::int) as finalized
-                FROM ${schema}.${table};
-        """)
-            .withVariable("schema", schema)
-            .withVariable("table", getTemporaryJobTableName(stepId))
-            .withRetryableErrorCodes(RETRYABLE_SQL_CODES);
-  }
-
-  private SQLQuery retrieveTaskItemAndStatisticsQuery(String schema) throws WebClientException {
-    return new SQLQuery("SELECT total, started, finalized, task_id, task_input from get_task_item_and_statistics();")
-            .withContext(getQueryContext(schema))
-            .withRetryableErrorCodes(RETRYABLE_SQL_CODES);
-  }
-
-  private SQLQuery retrieveTaskItemAndStatisticsAfterUpdateQuery(String schema, SpaceBasedTaskUpdate update)
-      throws WebClientException {
-    return new SQLQuery("""
-            SELECT total, started, finalized, task_id, task_input
-            FROM update_task_item_and_get_task_item_and_statistics(
-                #{taskId},
-                #{taskOutput}::JSONB,
-                #{finalized}
-            );
-        """)
-        .withNamedParameter("taskId", update.taskId)
-        .withNamedParameter("taskOutput", XyzSerializable.serialize(update))
-        .withNamedParameter("finalized", true)
-        .withContext(getQueryContext(schema))
-        .withRetryableErrorCodes(RETRYABLE_SQL_CODES);
-  }
-
-  private SQLQuery retrieveTaskOutputsQuery() throws WebClientException {
-    return new SQLQuery("SELECT task_id, task_input, task_output->'taskOutput' as task_output FROM ${schema}.${tmpTable};")
-            .withVariable("schema", getSchema(db()))
-            .withVariable("tmpTable", getTemporaryJobTableName(getId()))
-            .withRetryableErrorCodes(RETRYABLE_SQL_CODES);
+    return getQueryBuilder().buildResetTaskItemWhichAreNotFinalizedStatement();
   }
 
   /**
@@ -895,17 +1216,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
    * @return The deserialized output payload of type {@code O}, or {@code null} if not available.
    */
   protected O loadTaskOutput(int taskId) throws WebClientException, SQLException, TooManyResourcesClaimed {
-    SQLQuery query = new SQLQuery("""
-              SELECT task_output->'taskOutput' AS task_output
-                FROM ${schema}.${tmpTable}
-               WHERE task_id = #{taskId};
-        """)
-            .withVariable("schema", getSchema(db()))
-            .withVariable("tmpTable", getTemporaryJobTableName(getId()))
-            .withNamedParameter("taskId", taskId)
-            .withRetryableErrorCodes(RETRYABLE_SQL_CODES);
-
-    return runReadQuerySync(query, db(WRITER), 0, rs -> {
+    return runReadQuerySync(getQueryBuilder().buildLoadOutputsQuery(taskId), db(WRITER), 0, rs -> {
       try {
         if (!rs.next()) return null;
         String taskOutput = rs.getString("task_output");
@@ -917,7 +1228,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
     });
   }
 
-  private boolean insertTaskItemsInTaskTable(String schema, Step step, List<I> taskInputs)
+  private boolean insertTaskItemsInTaskTable(List<I> taskInputs)
           throws WebClientException, SQLException, TooManyResourcesClaimed {
     List<SQLQuery> insertQueries = new ArrayList<>();
 
@@ -925,7 +1236,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
     boolean tableAlreadyExists = false;
     try{
       //Create process table
-      runWriteQuerySyncUnkillable(buildTaskTableStatement(schema, this), db(WRITER), 0);
+      runWriteQuerySyncUnkillable(getQueryBuilder().buildTaskTableStatement(), db(WRITER), 0);
     }catch (SQLException e){
       if(e.getSQLState() != null && e.getSQLState().equalsIgnoreCase("42P07")) {
         infoLog(UNKNOWN,  "Task table already exists. Assume it was created in a failed attempt and continue.");
@@ -937,22 +1248,12 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
 
     if(tableAlreadyExists) {
       //Reset all items which are not finalized to be able to restart them
-      runWriteQuerySyncUnkillable(resetTaskItemWhichAreNotFinalized(schema, this.getId()), db(WRITER), 0);
+      resetTaskItems();
     }else{
       infoLog(STEP_EXECUTE, "Add initial entries in process_table for " + taskInputs.size() + " tasks.");
-      for (I taskInput : taskInputs) {
-        String taskItem = taskInput.serialize();
+      for (I taskInput : taskInputs)
+        insertQueries.add(getQueryBuilder().buildInsertTaskItemStatement(taskInput.serialize()));
 
-        insertQueries.add(new SQLQuery("""
-            INSERT INTO  ${schema}.${table} AS t (task_input)
-                VALUES (#{taskItem}::JSONB);
-        """)
-                .withVariable("schema", schema)
-                .withVariable("table", getTemporaryJobTableName(step.getId()))
-                .withNamedParameter("taskItem", taskItem)
-                .withLoggingEnabled(false)
-        );
-      }
       if(!insertQueries.isEmpty()) {
         //Insert TaskItem into process table
         runBatchWriteQuerySyncUnkillable(SQLQuery.batchOf(insertQueries), db(WRITER), 0);
@@ -961,33 +1262,40 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
     return tableAlreadyExists;
   }
 
-  public static String getTemporaryJobTableName(String stepId) {
-    return JOB_DATA_PREFIX + stepId;
+  private TaskedSpaceBasedQueryBuilder getQueryBuilder() {
+    if (taskedSpaceBasedQueryBuilder == null)
+      taskedSpaceBasedQueryBuilder = createTaskQueryBuilder();
+    return taskedSpaceBasedQueryBuilder;
   }
 
-  //TODO: if ImportSpaceToFilesStep is removed make it private
-  protected static SQLQuery buildTemporaryJobTableDropStatement(String schema, String tableName) {
-    return new SQLQuery("DROP TABLE IF EXISTS ${schema}.${table};")
-            .withVariable("table", tableName)
-            .withVariable("schema", schema);
+  protected TaskedSpaceBasedQueryBuilder createTaskQueryBuilder() {
+    return initQueryBuilder(TaskedSpaceBasedQueryBuilder::new);
   }
 
-  @JsonIgnore
-  protected Map<String, Object> getQueryContext(String schema) throws WebClientException {
-    Space superSpace = superSpace();
-    List<String> tables = new ArrayList<>();
-    if (superSpace != null)
-      tables.add(getRootTableName(superSpace));
-    tables.add(getRootTableName(space()));
+  /**
+   * Creates a {@link DatabaseStepQueryBuilder} using the resources of this step. It centralizes the resolution of the
+   * step's schema, root table and (optional) super root table so that the concrete step implementations only have to
+   * provide the actual builder instantiation.
+   *
+   * @param factory the factory instantiating the concrete query builder
+   * @param <B> the concrete query builder type
+   * @return the newly created query builder
+   */
+  protected <B extends DatabaseStepQueryBuilder> B initQueryBuilder(QueryBuilderFactory<B> factory) {
+    try {
+      Space superSpace = superSpace();
+      return factory.create(space(), context, getId(), getSchema(db()), getRootTableName(space()),
+              superSpace == null ? null : getRootTableName(superSpace));
+    }
+    catch (WebClientException e) {
+      throw new StepException("Unable to load resource.", e);
+    }
+  }
 
-    return new FeatureWriterQueryContextBuilder()
-        .withSchema(schema)
-        .withTables(tables)
-        .withSpaceContext(DEFAULT)
-        .withHistoryEnabled(space().getVersionsToKeep() > 1)
-        .withBatchMode(true)
-        .with("stepId", getId())
-        .build();
+  @FunctionalInterface
+  protected interface QueryBuilderFactory<B extends DatabaseStepQueryBuilder> {
+    B create(Space space, SpaceContext context, String stepId, String schema, String rootTable, String superRootTable)
+            throws WebClientException;
   }
 
   public record FinalizedTaskItem<In extends TaskPayload, Out extends TaskPayload>(int taskId, In input, Out output) {}

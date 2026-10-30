@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,12 +21,10 @@ package com.here.xyz.hub.rest;
 
 import static com.here.xyz.events.PropertyQuery.QueryOperation.LESS_THAN;
 import static com.here.xyz.hub.rest.ApiParam.Path.VERSION;
-import static com.here.xyz.hub.rest.ApiParam.Query.END_VERSION;
-import static com.here.xyz.hub.rest.ApiParam.Query.START_VERSION;
-import static com.here.xyz.models.hub.Ref.HEAD;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 
+import com.here.xyz.FeatureChange.Operation;
 import com.here.xyz.events.DeleteChangesetsEvent;
 import com.here.xyz.events.GetChangesetStatisticsEvent;
 import com.here.xyz.events.IterateChangesetsEvent;
@@ -54,6 +52,9 @@ import org.apache.logging.log4j.Marker;
 
 public class ChangesetApi extends SpaceBasedApi {
 
+  public static final String SQUASHED = "squashed";
+  public static final String OPERATION = "operation";
+
   public ChangesetApi(RouterBuilder rb) {
     rb.getRoute("getChangesets").setDoValidation(false).addHandler(handleErrors(this::getChangesets));
     rb.getRoute("getChangeset").setDoValidation(false).addHandler(handleErrors(this::getChangeset));
@@ -65,18 +66,12 @@ public class ChangesetApi extends SpaceBasedApi {
    * Get changesets by version
    */
   private void getChangesets(final RoutingContext context) throws HttpException {
-    //TODO: check Space.minVersion and take it into account - We need to check before the NTF related parts.
-    // its possible that it needs to read versions before the Space.minVersion
-    long startVersion = getLongQueryParam(context, START_VERSION, 0);
-    long endVersion = getLongQueryParam(context, END_VERSION, -1);
-    Ref ref = getRef(context);
-    if (!ref.isRange())
-      ref = new Ref(new Ref(Math.max(0, startVersion - 1)), endVersion == -1 ? new Ref(HEAD) : new Ref(endVersion));
 
-    if (endVersion != -1 && startVersion > endVersion)
-      throw new IllegalArgumentException("The parameter \"" + START_VERSION + "\" needs to be smaller than or equal to \"" + END_VERSION + "\".");
+    Ref ref = getRef(context,true);
 
-    IterateChangesetsEvent event = buildIterateChangesetsEvent(context, ref);
+    IterateChangesetsEvent event = buildIterateChangesetsEvent(context, ref)
+        .withSquashed(isSquashed(context))
+        .withOperation(getOperation(context));
     //TODO: Add static caching to this endpoint, once the execution pipelines have been refactored.
     SpaceConnectorBasedHandler.execute(getMarker(context),
             space -> Authorization.authorizeManageSpacesRights(context, space.getId(), space.getOwner()).map(space), event)
@@ -206,26 +201,11 @@ public class ChangesetApi extends SpaceBasedApi {
     return event;
   }
 
-  private long getLongQueryParam(RoutingContext context, String paramName, long defaultValue) {
-    try {
-      long paramValue = Query.getLong(context, paramName);
-      if (paramValue < 0)
-        throw new IllegalArgumentException("The parameter \"" + paramName + "\" must be >= 0.");
-      return paramValue;
-    }
-    catch (NullPointerException e) {
-      return defaultValue;
-    }
-    catch (NumberFormatException e) {
-      throw new IllegalArgumentException("The parameter \"" + paramName + "\" is not a number.", e);
-    }
-  }
-
   private void sendResponse(final RoutingContext context, Object result) {
-    if (result instanceof Changeset && ((Changeset) result).getVersion() == -1)
+    if (result instanceof Changeset cs && cs.getVersion() == -1 && cs.getVersionRef() == null)
       sendErrorResponse(context, new HttpException(NOT_FOUND, "The requested resource does not exist."));
-    else if (result instanceof ChangesetCollection && ((ChangesetCollection) result).getStartVersion() == -1 &&
-        ((ChangesetCollection) result).getEndVersion() == -1)
+    else if (result instanceof ChangesetCollection csc && csc.getStartVersion() == -1 &&
+        csc.getEndVersion() == -1)
       sendErrorResponse(context, new HttpException(NOT_FOUND, "The requested resource does not exist."));
     else
       sendResponse(context, OK.code(), result);
@@ -247,5 +227,16 @@ public class ChangesetApi extends SpaceBasedApi {
   public static Future<ChangesetsStatisticsResponse> getChangesetStatistics(Marker marker,
       Function<Space, Future<Space>> authorizationFunction, String spaceId) {
     return SpaceConnectorBasedHandler.execute(marker, authorizationFunction, new GetChangesetStatisticsEvent().withSpace(spaceId));
+  }
+
+  protected boolean isSquashed(RoutingContext context) {
+    return Query.getBoolean(context, SQUASHED, false);
+  }
+
+  protected Operation getOperation(RoutingContext context) {
+    String operation = Query.getString(context, OPERATION, null);
+    if (operation == null)
+      return null;
+    return Operation.valueOf(operation.toUpperCase());
   }
 }

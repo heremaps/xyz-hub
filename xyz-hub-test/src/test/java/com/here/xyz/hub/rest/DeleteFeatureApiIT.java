@@ -57,7 +57,7 @@ public class DeleteFeatureApiIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .delete(getSpacesPath() + "/x-psql-test/features/Q4201688")
+        .delete(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/features/Q4201688")
         .then()
         .statusCode(NO_CONTENT.code());
 
@@ -70,7 +70,7 @@ public class DeleteFeatureApiIT extends TestSpaceWithFeature {
         .accept(acceptType)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .delete(getSpacesPath() + "/x-psql-test/features?id=Q1362236&id=Q4201688&id=Q336088&id=Q336088")
+        .delete(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/features?id=Q1362236&id=Q4201688&id=Q336088&id=Q336088")
         .then()
         .statusCode(OK.code())
         .body("deleted", hasItems("Q1362236", "Q4201688", "Q336088"));
@@ -94,7 +94,7 @@ public class DeleteFeatureApiIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .delete(getSpacesPath() + "/x-psql-test/features?id=Q1362236&id=Q4201688&id=Q336088&id=Q336088")
+        .delete(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/features?id=Q1362236&id=Q4201688&id=Q336088&id=Q336088")
         .then()
         .statusCode(NO_CONTENT.code());
 
@@ -107,7 +107,7 @@ public class DeleteFeatureApiIT extends TestSpaceWithFeature {
         .accept(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .delete(getSpacesPath() + "/x-psql-test/features/Q12345678")
+        .delete(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/features/Q12345678")
         .then()
         .statusCode(NOT_FOUND.code());
   }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,24 +25,35 @@ import static com.here.xyz.util.db.datasource.DatabaseSettings.PSQL_PASSWORD;
 import static com.here.xyz.util.db.datasource.DatabaseSettings.PSQL_USER;
 import static io.restassured.path.json.JsonPath.with;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.collect.ImmutableMap;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.HealthCheckEvent;
 import com.here.xyz.events.ModifySpaceEvent;
+import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.psql.tools.Helper;
 import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.util.db.ECPSTool;
+import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.runtime.LambdaFunctionRuntime;
 import com.here.xyz.util.service.aws.lambda.SimulatedContext;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.BeforeAll;
@@ -100,6 +111,11 @@ public abstract class PSQLAbstractIT extends Helper {
   }
 
   protected static void invokeCreateTestSpace(Map<String, Object>  connectorParameters, Space space) throws Exception {
+    invokeCreateTestSpace(connectorParameters, space, null);
+  }
+
+  protected static void invokeCreateTestSpace(Map<String, Object>  connectorParameters, Space space, Map<String, Object> params)
+      throws Exception {
     LOGGER.info("Create Test space ...");
 
     connectorParameters = connectorParameters == null ? defaultTestConnectorParams : connectorParameters;
@@ -107,6 +123,7 @@ public abstract class PSQLAbstractIT extends Helper {
             .withSpace(space.getId())
             .withOperation(ModifySpaceEvent.Operation.CREATE)
             .withConnectorParams(connectorParameters)
+            .withParams(params)
             .withSpaceDefinition(space);
 
     SuccessResponse response = XyzSerializable.deserialize(invokeLambda(mse));
@@ -127,21 +144,71 @@ public abstract class PSQLAbstractIT extends Helper {
 
   protected static void invokeDeleteTestSpaces(Map<String, Object>  connectorParameters, List<String> spaces) throws Exception {
     LOGGER.info("Cleanup spaces ...");
-
-    connectorParameters = connectorParameters == null ? defaultTestConnectorParams : connectorParameters;
-
-    for (String space : spaces) {
-      ModifySpaceEvent mse = new ModifySpaceEvent()
-              .withSpace(space)
-              .withOperation(ModifySpaceEvent.Operation.DELETE)
-              .withConnectorParams(connectorParameters);
-
-      String response = invokeLambda(mse);
-      assertEquals( "OK", with(response).get("status"),"Check response status");
-    }
-
+    for (String space : spaces)
+      invokeDeleteTestSpace(connectorParameters, space, null);
     LOGGER.info("Cleanup spaces Completed.");
   }
+
+  protected static void invokeDeleteTestSpace(Map<String, Object>  connectorParameters, String spaceId, Map<String, Object> params)
+      throws Exception {
+    connectorParameters = connectorParameters == null ? defaultTestConnectorParams : connectorParameters;
+    ModifySpaceEvent mse = new ModifySpaceEvent()
+            .withSpace(spaceId)
+            .withOperation(ModifySpaceEvent.Operation.DELETE)
+            .withConnectorParams(connectorParameters)
+            .withParams(params);
+
+    String response = invokeLambda(mse);
+    assertEquals( "OK", with(response).get("status"),"Check response status");
+  }
+
+  protected static long featureCount(String tableName, String featureId) throws Exception {
+    try (Connection connection = LAMBDA.dataSourceProvider.getWriter().getConnection();
+        Statement statement = connection.createStatement();
+        ResultSet result = statement.executeQuery(
+            "SELECT count(*) FROM public.\"" + tableName + "\" WHERE id = '" + featureId + "'")) {
+      assertTrue(result.next());
+      return result.getLong(1);
+    }
+  }
+
+  /**
+   * Reads the raw rows of a space table, so that tests can assert on the physical result of a write instead of only on what a
+   * read event exposes.
+   */
+  protected List<FeatureRow> getAllRowFromTable(String tableName) throws SQLException {
+    return new SQLQuery("SELECT id, version, operation FROM ${schema}.${table} ")
+        .withVariable("schema", PG_SCHEMA)
+        .withVariable("table", tableName)
+        .run(getDataSourceProvider(), rs -> {
+          List<FeatureRow> allFeatureIdAndVersion = new ArrayList<>();
+          while (rs.next()) {
+            allFeatureIdAndVersion.add(new FeatureRow(rs.getString("id"), rs.getLong("version"), rs.getString("operation")));
+          }
+          return allFeatureIdAndVersion;
+        });
+  }
+
+  protected Set<String> extractFeatureIds(FeatureCollection featureCollection) throws JsonProcessingException {
+    if (featureCollection == null || featureCollection.getFeatures() == null)
+      return Set.of();
+    return featureCollection.getFeatures()
+        .stream()
+        .map(feature -> feature.getId())
+        .collect(Collectors.toSet());
+  }
+
+  protected Set<String> extractFeatureIds(List<FeatureRow> featureRows) {
+    return featureRows.stream().map(featureRow -> featureRow.id()).collect(Collectors.toSet());
+  }
+
+  protected void executeReadFeaturesEvent(Event event, Set<String> expectedFeatureIds) throws Exception {
+    FeatureCollection fc = deserializeResponse(invokeLambda(event));
+    Set<String> actualFeatureIds = extractFeatureIds(fc);
+    assertEquals(expectedFeatureIds, actualFeatureIds);
+  }
+
+  public record FeatureRow(String id, long version, String operation) {}
 
   protected String invokeLambdaFromFile(String file) throws Exception {
     return invokeLambda(XyzSerializable.deserialize(PSQLAbstractIT.class.getResourceAsStream(file), Event.class));

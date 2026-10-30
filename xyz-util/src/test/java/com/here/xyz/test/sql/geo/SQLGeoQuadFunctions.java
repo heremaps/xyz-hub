@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,16 +17,17 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.test;
+package com.here.xyz.test.sql.geo;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.here.xyz.test.sql.base.SQLITBase;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import org.junit.jupiter.api.Test;
 
-public class SQLGeoQuadFunctions extends SQLITBase{
+public class SQLGeoQuadFunctions extends SQLITBase {
 
   @Test
   public void mercator_quad_lrc_to_qk() throws Exception {

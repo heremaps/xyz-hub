@@ -1,0 +1,96 @@
+/*
+ * Copyright (C) 2017-2026 HERE Europe B.V.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ * License-Filename: LICENSE
+ */
+package com.here.xyz.jobs.steps.impl.transport.tools;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.here.xyz.events.ContextAwareEvent;
+import com.here.xyz.models.hub.Space;
+import com.here.xyz.util.db.SQLQuery;
+import com.here.xyz.util.db.pg.FeatureWriterQueryBuilder;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
+
+public abstract class DatabaseStepQueryBuilder {
+  protected final Space space;
+  protected final ContextAwareEvent.SpaceContext context;
+  protected final String superRootTable;
+
+  protected static final String JOB_DATA_PREFIX = "job_data_";
+  protected final String stepId;
+  protected final String schema;
+  protected final String rootTable;
+
+  protected DatabaseStepQueryBuilder(Space space, ContextAwareEvent.SpaceContext context, String stepId, String schema,
+                                     String rootTable, String superRootTable) {
+    this.stepId = stepId;
+    this.schema = schema;
+
+    this.space = space;
+    this.context = context;
+
+    this.rootTable = rootTable;
+    this.superRootTable = superRootTable;
+  }
+
+  protected String getTemporaryJobTableName() {
+    return JOB_DATA_PREFIX + stepId;
+  }
+
+  @JsonIgnore
+  protected Map<String, Object> getQueryContext(){
+    List<String> tables = new ArrayList<>();
+    if (superRootTable != null)
+      tables.add(superRootTable);
+    tables.add(rootTable);
+
+    return new FeatureWriterQueryBuilder.FeatureWriterQueryContextBuilder()
+            .withSchema(schema)
+            .withTables(tables)
+            .withTableBoundVersions(buildTableBoundVersions())
+            //Honor a user-provided space context (e.g. EXTENSION) and fall back to DEFAULT if none was set
+            .withSpaceContext(context != null ? context : DEFAULT)
+            .withHistoryEnabled(space.getVersionsToKeep() > 1)
+            .withBatchMode(true)
+            .with("stepId", stepId)
+            .build();
+  }
+
+  /**
+   * The version each table is bound to, positionally aligned with the tables of {@link #getQueryContext()}. Returns null if nothing
+   * is bound, which leaves every table to be read at its HEAD.
+   *
+   * Only the base table of a composite space can be bound, by the extension's {@code extends.version}; the write target never is.
+   * A step only ever resolves one level of extension, so there is at most one bound table here.
+   */
+  private List<Long> buildTableBoundVersions() {
+    Long boundBaseVersion = superRootTable == null || space.getExtension() == null ? null : space.getExtension().getVersion();
+    if (boundBaseVersion == null)
+      return null;
+
+    List<Long> tableBoundVersions = new ArrayList<>();
+    tableBoundVersions.add(boundBaseVersion);
+    tableBoundVersions.add(null); //The write target itself is never bound
+    return tableBoundVersions;
+  }
+}

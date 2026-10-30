@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.annotation.JsonView;
+import com.here.xyz.models.hub.Ref;
 import com.here.xyz.responses.XyzResponse;
 import java.util.Map;
 
@@ -31,10 +32,20 @@ import java.util.Map;
 @JsonTypeName(value = "ChangesetCollection")
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 public class ChangesetCollection extends XyzResponse<ChangesetCollection> {
+  /**
+   * @deprecated Please use {@link #versionRef} instead
+   */
+  @Deprecated
   @JsonView({Public.class})
   private long startVersion;
+  /**
+   * @deprecated Please use {@link #versionRef} instead
+   */
+  @Deprecated
   @JsonView({Public.class})
   private long endVersion;
+  @JsonView({Public.class})
+  private Ref versionRef;
 
   @JsonView({Public.class})
   @JsonTypeInfo(use = JsonTypeInfo.Id.NONE)
@@ -58,29 +69,67 @@ public class ChangesetCollection extends XyzResponse<ChangesetCollection> {
     setNextPageToken(nextPageToken);
     return this;
   }
+
+  /**
+   * @deprecated Please use {@link #versionRef} instead
+   */
+  @Deprecated
   public long getStartVersion() {
     return startVersion;
   }
 
+  /**
+   * @deprecated Please use {@link #versionRef} instead
+   */
+  @Deprecated
   public void setStartVersion(long startVersion) {
     this.startVersion = startVersion;
   }
 
+  /**
+   * @deprecated Please use {@link #versionRef} instead
+   */
+  @Deprecated
   public ChangesetCollection withStartVersion(long startVersion) {
     setStartVersion(startVersion);
     return this;
   }
 
+  /**
+   * @deprecated Please use {@link #versionRef} instead
+   */
+  @Deprecated
   public long getEndVersion() {
     return endVersion;
   }
 
+  /**
+   * @deprecated Please use {@link #versionRef} instead
+   */
+  @Deprecated
   public void setEndVersion(long endVersion) {
     this.endVersion = endVersion;
   }
 
+  /**
+   * @deprecated Please use {@link #versionRef} instead
+   */
+  @Deprecated
   public ChangesetCollection withEndVersion(long withEndVersion) {
     setEndVersion(withEndVersion);
+    return this;
+  }
+
+  public Ref getVersionRef() {
+    return versionRef;
+  }
+
+  public void setVersionRef(Ref versionRef) {
+    this.versionRef = versionRef;
+  }
+
+  public ChangesetCollection withVersionRef(Ref versionRef) {
+    setVersionRef(versionRef);
     return this;
   }
 

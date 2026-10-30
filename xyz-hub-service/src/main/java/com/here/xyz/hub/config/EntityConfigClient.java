@@ -29,8 +29,17 @@ import java.util.UUID;
 
 public abstract class EntityConfigClient implements Initializable {
 
+  /*
+   * Single instance, like the other config clients: building one means building a new
+   * AmazonDynamoDBAsyncClient with its own connection pool, and this is reached from request paths.
+   */
+  private static final class InstanceHolder {
+    private static final EntityConfigClient instance =
+        new DynamoEntityConfigClient(Service.configuration.ENTITIES_DYNAMODB_TABLE_ARN);
+  }
+
   public static EntityConfigClient getInstance() {
-    return new DynamoEntityConfigClient(Service.configuration.ENTITIES_DYNAMODB_TABLE_ARN);
+    return InstanceHolder.instance;
   }
 
   public <E extends Typed> Future<UUID> store(E entity) {

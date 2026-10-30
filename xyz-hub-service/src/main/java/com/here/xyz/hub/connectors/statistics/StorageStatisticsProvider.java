@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ import com.here.xyz.hub.config.SpaceConfigClient.SpaceSelectionCondition;
 import com.here.xyz.hub.connectors.RpcClient;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Space;
+import com.here.xyz.hub.util.SpaceTableResolver;
 import com.here.xyz.responses.StorageStatistics;
 import com.here.xyz.util.service.Core;
 import io.vertx.core.CompositeFuture;
@@ -62,13 +63,38 @@ public class StorageStatisticsProvider {
     PropertiesQuery pq = new PropertiesQuery();
     pq.add(pql);
     return Service.spaceConfigClient.getSelected(marker, new SpaceAuthorizationCondition(), ssc, pq)
-        .compose(spaces -> sortByStorage(spaces))
-        .compose(spacesByStorage -> CompositeFuture.all(spacesByStorage
-            .entrySet()
-            .stream()
-            .map(e -> fetchFromStorage(marker, e.getKey(), e.getValue()))
-            .collect(Collectors.toList())))
+        .compose(spaces -> sortByStorage(spaces)
+            .compose(spacesByStorage -> {
+              //Resolve the physical table name of every space once, so the connector does not have to derive it
+              Map<String, String> spaceIdToTableName = resolveTableNames(spaces);
+              return CompositeFuture.all(spacesByStorage
+                  .entrySet()
+                  .stream()
+                  .map(e -> fetchFromStorage(marker, e.getKey(), e.getValue(), spaceIdToTableName))
+                  .collect(Collectors.toList()));
+            }))
         .compose(results -> Future.succeededFuture(mergeStats(results.list())));
+  }
+
+  /**
+   * @param spaces The spaces for which to resolve the physical table names
+   * @return The physical table names keyed by space ID. Legacy spaces without an explicit physical table name
+   *     are not contained in the result, because for those the connector still derives the name from the space ID.
+   */
+  static Map<String, String> resolveTableNames(List<Space> spaces) {
+    Map<String, String> spaceIdToTableName = new HashMap<>();
+    spaces.forEach(space -> {
+      String tableName = SpaceTableResolver.getTableName(space);
+      if (tableName != null)
+        spaceIdToTableName.put(space.getId(), tableName);
+    });
+    return spaceIdToTableName;
+  }
+
+  static Map<String, String> tableNamesForBatch(List<String> batchSpaceIds, Map<String, String> spaceIdToTableName) {
+    return batchSpaceIds.stream()
+        .filter(spaceIdToTableName::containsKey)
+        .collect(Collectors.toMap(spaceId -> spaceId, spaceIdToTableName::get));
   }
 
   private static StorageStatistics mergeStats(List<StorageStatistics> stats) {
@@ -95,49 +121,47 @@ public class StorageStatisticsProvider {
       final String storageId = space.getStorage().getId();
       if (!spacesByStorage.containsKey(storageId))
         spacesByStorage.put(storageId, new LinkedList<>());
-      spacesByStorage.get(storageId).add(resolveSpaceId(space));
+      spacesByStorage.get(storageId).add(space.getId());
     });
     p.complete(spacesByStorage);
   }
 
-  private static String resolveSpaceId(Space space) {
-    final String TABLE_NAME = "tableName";
-    if (space.getStorage().getParams() != null) {
-      Object tableName = space.getStorage().getParams().get(TABLE_NAME);
-      if (tableName instanceof String && ((String) tableName).length() > 0)
-        return (String) tableName;
-    }
-    return space.getId();
-  }
 
-  private static Future<StorageStatistics> fetchFromStorage(Marker marker, String storageId, List<String> spaceIds) {
+  private static Future<StorageStatistics> fetchFromStorage(Marker marker, String storageId, List<String> spaceIds,
+      Map<String, String> spaceIdToTableName) {
     return Space.resolveConnector(marker, storageId)
         //Ignore if the connector is not active or can not be resolved
         .compose(storage -> storage.active && storage.capabilities.storageUtilizationReporting ?
-              fetchFromStorage(marker, storage, spaceIds) : Future.succeededFuture(null), t -> Future.succeededFuture(null));
+              fetchFromStorage(marker, storage, spaceIds, spaceIdToTableName) : Future.succeededFuture(null),
+            t -> Future.succeededFuture(null));
   }
 
-  private static Future<StorageStatistics> fetchFromStorage(Marker marker, Connector storage, List<String> spaceIds) {
+  private static Future<StorageStatistics> fetchFromStorage(Marker marker, Connector storage, List<String> spaceIds,
+      Map<String, String> spaceIdToTableName) {
 
     int targetSize = spaceIds.size() > MAX_CONCURRENT_REQUEST_COUNT * MAX_SPACE_BATCH_SIZE
             ? (int) Math.ceil((double) spaceIds.size() / MAX_CONCURRENT_REQUEST_COUNT) : MAX_SPACE_BATCH_SIZE;
 
     return CompositeFuture.all(Lists.partition(spaceIds, targetSize)
             .stream()
-            .map(batchSpaceIds -> fetchFromStorageInBatches(marker, storage, batchSpaceIds))
+            .map(batchSpaceIds -> fetchFromStorageInBatches(marker, storage, batchSpaceIds, spaceIdToTableName))
             .collect(Collectors.toList()))
         .compose(results -> Future.succeededFuture(mergeStats(results.list())));
   }
 
-  private static Future<StorageStatistics> fetchFromStorageInBatches(Marker marker, Connector storage, List<String> spaceIds) {
+  private static Future<StorageStatistics> fetchFromStorageInBatches(Marker marker, Connector storage, List<String> spaceIds,
+      Map<String, String> spaceIdToTableName) {
     Future<List<StorageStatistics>> f = Future.succeededFuture(new ArrayList<>());
     for(List<String> batchSpaceIds : Lists.partition(spaceIds, MAX_SPACE_BATCH_SIZE)) {
       f = f.compose(statsLists -> {
         Promise<List<StorageStatistics>> p = Promise.promise();
 
+        Map<String, String> batchTableNames = tableNamesForBatch(batchSpaceIds, spaceIdToTableName);
+
         GetStorageStatisticsEvent event = new GetStorageStatisticsEvent()
                 .withStreamId(marker.getName())
-                .withSpaceIds(batchSpaceIds);
+                .withSpaceIds(batchSpaceIds)
+                .withSpaceIdToTableName(batchTableNames.isEmpty() ? null : batchTableNames);
         RpcClient.getInstanceFor(storage).execute(marker, event, true, ar -> {
           if (ar.failed()) p.fail(ar.cause());
           else {

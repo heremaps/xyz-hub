@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,16 +19,21 @@
 
 package com.here.xyz.psql.query;
 
+import static com.here.xyz.models.hub.Space.TABLE_NAME;
+
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.Event;
+import com.here.xyz.models.hub.Ref;
 import com.here.xyz.responses.XyzResponse;
 import java.sql.SQLException;
 import java.util.Map;
+import java.util.Optional;
 
 public abstract class ExtendedSpace<E extends Event, R extends XyzResponse> extends XyzQueryRunner<E, R> {
 
   private static final String EXTENDS = "extends";
   private static final String SPACE_ID = "spaceId";
+  private static final String EXTENDS_VERSION = "version";
 
   public ExtendedSpace(E event) throws SQLException, ErrorResponseException {
     super(event);
@@ -44,7 +49,7 @@ public abstract class ExtendedSpace<E extends Event, R extends XyzResponse> exte
 
   private static <E extends Event> String getFirstLevelExtendedTable(E event) {
     if (isExtendedSpace(event))
-      return XyzEventBasedQueryRunner.getTableNameForSpaceId(event, (String) ((Map<String, Object>) event.getParams().get(EXTENDS)).get(SPACE_ID));
+      return resolveExtendedTable(event, (Map<String, Object>) event.getParams().get(EXTENDS));
     return null;
   }
 
@@ -52,9 +57,24 @@ public abstract class ExtendedSpace<E extends Event, R extends XyzResponse> exte
     if (is2LevelExtendedSpace(event)) {
       Map<String, Object> extSpec = (Map<String, Object>) event.getParams().get(EXTENDS);
       Map<String, Object> baseExtSpec = (Map<String, Object>) extSpec.get(EXTENDS);
-      return XyzEventBasedQueryRunner.getTableNameForSpaceId(event, (String) baseExtSpec.get(SPACE_ID));
+      return resolveExtendedTable(event, baseExtSpec);
     }
     return null;
+  }
+
+  /**
+   * Resolves the physical table name of an extended space.
+   *
+   * @param event The event that is being processed
+   * @param extensionSpec The extension-spec that describes the extended space
+   * @return The physical table name of the extended space
+   */
+  private static <E extends Event> String resolveExtendedTable(E event, Map<String, Object> extensionSpec) {
+    if (extensionSpec == null)
+      return null;
+    if (extensionSpec.get(TABLE_NAME) instanceof String tableName && !tableName.isEmpty())
+      return tableName;
+    return XyzEventBasedQueryRunner.getTableNameForSpaceId(event, (String) extensionSpec.get(SPACE_ID));
   }
 
   public static <E extends Event> String getExtendedTable(E event) {
@@ -70,4 +90,36 @@ public abstract class ExtendedSpace<E extends Event, R extends XyzResponse> exte
       return getFirstLevelExtendedTable(event);
     return null;
   }
+
+  /**
+   * Returns the base version of the current space.
+   */
+  public static <E extends Event> Optional<Long> getBaseVersion(E event) {
+    if (isExtendedSpace(event)) {
+      return getVersionFromExtendsMap((Map<String, Object>) event.getParams().get(EXTENDS));
+    }
+    return Optional.empty();
+  }
+
+  /**
+   * Returns the base version of the intermediate space.
+   */
+  static <E extends Event> Optional<Long> getIntermediateBaseVersion(E event) {
+    if (is2LevelExtendedSpace(event)) {
+      return getVersionFromExtendsMap((Map<String, Object>) ((Map)event.getParams().get(EXTENDS)).get(EXTENDS));
+    }
+    return Optional.empty();
+  }
+
+  /**
+   * Returns whether any base-space edge in the resolved composite is bound to a version.
+   */
+  protected static <E extends Event> boolean hasBoundBaseVersion(E event) {
+    return getBaseVersion(event).isPresent() || getIntermediateBaseVersion(event).isPresent();
+  }
+
+  private static Optional<Long> getVersionFromExtendsMap(Map<String, Object> extendsObject) {
+    return Optional.ofNullable(extendsObject.get(EXTENDS_VERSION)).map(version -> ((Number) version).longValue());
+  }
+
 }

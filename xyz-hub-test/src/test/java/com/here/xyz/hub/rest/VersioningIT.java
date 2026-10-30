@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,17 +27,24 @@ import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
+import static org.junit.Assert.assertEquals;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.here.xyz.XyzSerializable;
+import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.stream.Collectors;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.FixMethodOrder;
@@ -49,11 +56,13 @@ import org.junit.runners.MethodSorters;
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 @Category(RestTests.class)
 public class VersioningIT extends TestSpaceWithFeature {
-  final String SPACE_ID_1 = "space1";
-  final String SPACE_ID_2 = "space2";
+  final String SPACE_ID_1 = "space1" + TEST_SUFFIX;
+  final String SPACE_ID_2 = "space2" + TEST_SUFFIX;
   final String FEATURE_ID_1 = "Q3495887";
   final String FEATURE_ID_2 = "Q929126";
+  final String SPACE_ID_3 = "space3" + TEST_SUFFIX;
   final String FEATURE_ID_3 = "Q1370732";
+  final String[] REINSERT_FEATURE_IDS = {"R1", "R2", "R3"};
   final String USER_1 = ACCESS_OWNER_1_ADMIN.payload.aid;
   final String USER_2 = AuthProfile.ACCESS_OWNER_2.payload.aid;
 
@@ -78,6 +87,7 @@ public class VersioningIT extends TestSpaceWithFeature {
   public void tearDown() {
     removeSpace(SPACE_ID_1);
     removeSpace(SPACE_ID_2);
+    removeSpace(SPACE_ID_3);
   }
 
   @Test
@@ -196,6 +206,97 @@ public class VersioningIT extends TestSpaceWithFeature {
         .statusCode(OK.code())
         .body("properties.name", equalTo("updated name"))
         .body("properties.@ns:com:here:xyz.version", equalTo(2));
+  }
+
+  @Test
+  public void testWriteWithOldVersionWithoutConflictDetection() {
+    //DS-1283: Without conflict detection the version in the input must be ignored and the change must be applied on HEAD
+    Feature f1 = new Feature().withId(FEATURE_ID_1).withProperties(new Properties().with("name", "conflicting change")
+        .withXyzNamespace(new XyzNamespace().withVersion(1)));
+    FeatureCollection fc = new FeatureCollection().withFeatures(Collections.singletonList(f1));
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .contentType(APPLICATION_GEO_JSON)
+        .when()
+        .body(fc.toString())
+        .post(getSpacesPath() + "/"+ SPACE_ID_1 +"/features")
+        .then()
+        .statusCode(OK.code());
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .when()
+        .get(getSpacesPath() + "/"+ SPACE_ID_1 +"/features/"+ FEATURE_ID_1)
+        .then()
+        .statusCode(OK.code())
+        .body("properties.name", equalTo("conflicting change"))
+        .body("properties.@ns:com:here:xyz.version", equalTo(3));
+  }
+
+  @Test
+  public void testReinsertDeletedFeatures() throws JsonProcessingException {
+    //DS-1280: Insert features, delete them and insert them again, once without and once with the versions of the first insert
+    createSpaceWithVersionsToKeep(SPACE_ID_3, 5);
+    FeatureCollection inserted = postReinsertTestFeatures(reinsertTestFeatures("first", null));
+    long firstVersion = inserted.getFeatures().get(0).getProperties().getXyzNamespace().getVersion();
+
+    deleteAndReinsertFeatures(reinsertTestFeatures("second", null), "second");
+    deleteAndReinsertFeatures(reinsertTestFeatures("third", firstVersion), "third");
+  }
+
+  private FeatureCollection reinsertTestFeatures(String name, Long version) {
+    return new FeatureCollection().withFeatures(Arrays.stream(REINSERT_FEATURE_IDS)
+        .map(id -> {
+          Properties properties = new Properties().with("name", name);
+          if (version != null)
+            properties.setXyzNamespace(new XyzNamespace().withVersion(version));
+          return new Feature().withId(id).withGeometry(new Point().withCoordinates(new PointCoordinates(8, 50)))
+              .withProperties(properties);
+        })
+        .collect(Collectors.toList()));
+  }
+
+  private FeatureCollection postReinsertTestFeatures(FeatureCollection features) throws JsonProcessingException {
+    String response = given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .contentType(APPLICATION_GEO_JSON)
+        .when()
+        .body(features.toString())
+        .post(getSpacesPath() + "/" + SPACE_ID_3 + "/features")
+        .then()
+        .statusCode(OK.code())
+        .body("features.size()", equalTo(3))
+        .extract()
+        .asString();
+    return XyzSerializable.deserialize(response, FeatureCollection.class);
+  }
+
+  private void deleteAndReinsertFeatures(FeatureCollection features, String expectedName) throws JsonProcessingException {
+    String idsQuery = Arrays.stream(REINSERT_FEATURE_IDS).map(id -> "id=" + id).collect(Collectors.joining("&"));
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .when()
+        .delete(getSpacesPath() + "/" + SPACE_ID_3 + "/features?" + idsQuery)
+        .then()
+        .statusCode(NO_CONTENT.code());
+
+    //The features must be written as new ones, not as updates of the deleted ones
+    for (Feature feature : postReinsertTestFeatures(features).getFeatures()) {
+      XyzNamespace ns = feature.getProperties().getXyzNamespace();
+      assertEquals(feature.getId(), ns.getUpdatedAt(), ns.getCreatedAt());
+    }
+
+    for (String path : new String[] {"/features?" + idsQuery, "/iterate"})
+      given()
+          .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+          .when()
+          .get(getSpacesPath() + "/" + SPACE_ID_3 + path)
+          .then()
+          .statusCode(OK.code())
+          .body("features.size()", equalTo(3))
+          .body("features.id", hasItems(REINSERT_FEATURE_IDS))
+          .body("features.properties.name", everyItem(equalTo(expectedName)));
   }
 
   @Test

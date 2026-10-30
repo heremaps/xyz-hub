@@ -23,15 +23,17 @@ import static com.google.common.net.HttpHeaders.CONTENT_TYPE;
 import static com.here.xyz.jobs.steps.Step.InputSet.DEFAULT_SET_NAME;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.START_EXECUTION;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.SUCCESS_CALLBACK;
-import static com.here.xyz.jobs.steps.impl.transport.TaskedSpaceBasedStep.getTemporaryJobTableName;
+import static com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace.Format;
 import static com.here.xyz.jobs.steps.inputs.Input.inputS3Prefix;
 import static com.here.xyz.psql.query.branching.BranchManager.branchTableName;
 import static com.here.xyz.util.Random.randomAlpha;
 import static com.here.xyz.util.db.pg.IndexHelper.buildSpaceTableDropIndexQueries;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.getTableNameFromSpaceParamsOrSpaceId;
 import static java.net.http.HttpClient.Redirect.NORMAL;
 
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.util.IOUtils;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.io.ByteStreams;
 import com.google.common.net.MediaType;
 import com.here.xyz.XyzSerializable;
@@ -52,19 +54,23 @@ import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Point;
+import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.hub.Branch;
+import com.here.xyz.models.hub.Connector;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Tag;
 import com.here.xyz.responses.StatisticsResponse;
+import com.here.xyz.util.db.ConnectorParameters;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import com.here.xyz.util.db.datasource.DatabaseSettings;
 import com.here.xyz.util.db.datasource.DatabaseSettings.ScriptResourcePath;
 import com.here.xyz.util.db.datasource.PooledDataSources;
+import com.here.xyz.util.db.pg.IndexHelper.Index;
 import com.here.xyz.util.db.pg.IndexHelper.OnDemandIndex;
 import com.here.xyz.util.db.pg.IndexHelper.SystemIndex;
-import com.here.xyz.util.db.pg.IndexHelper.Index;
+import com.here.xyz.util.service.BaseConfig;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.service.aws.lambda.SimulatedContext;
 import com.here.xyz.util.web.HubWebClient;
@@ -84,12 +90,15 @@ import java.net.URL;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -102,12 +111,17 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.lambda.LambdaClient;
 import software.amazon.awssdk.services.lambda.model.InvokeRequest;
 
-import static com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace.Format;
-
 public class StepTestBase {
 
   public static final Config config = new Config();
   protected static final String LAMBDA_ARN = "arn:aws:lambda:us-east-1:000000000000:function:job-step";
+  private static final long INITIAL_TASK_WAIT_MILLIS = 1_000;
+  private static final long TASK_POLL_INTERVAL_MILLIS = 100;
+  /** A task item is finalized through a lambda callback from the database. A lost one would wait forever. */
+  private static final long TASK_WAIT_TIMEOUT_MILLIS = 5 * 60 * 1_000;
+  private static final long INITIAL_QUERY_WAIT_MILLIS = 500;
+  private static final long QUERY_POLL_INTERVAL_MILLIS = 100;
+  private static final long QUERY_WAIT_TIMEOUT_MILLIS = 5 * 60 * 1_000;
   private static final Logger logger = LogManager.getLogger();
   private static final S3Client s3Client;
   private static final String PG_HOST = System.getProperty("pg.host", "localhost");
@@ -115,6 +129,7 @@ public class StepTestBase {
   private static final String PG_USER = "postgres";
   private static final String PG_PW = "password";
   private static final String SCHEMA = "public";
+  private static final long TASK_FINALIZATION_TIMEOUT_NANOS = TimeUnit.MINUTES.toNanos(2);
   private static LambdaClient lambdaClient;
   private static PooledDataSources testDatasource;
 
@@ -127,7 +142,7 @@ public class StepTestBase {
       Config.instance.HUB_ENDPOINT = "http://" + System.getProperty("hub.host", "localhost") + ":8080/hub";
       Config.instance.JOB_API_ENDPOINT = new URL("http://" + System.getProperty("job.host", "localhost") + ":7070");
       Config.instance.LOCALSTACK_ENDPOINT = new URI("http://" + System.getProperty("localstack.host", "localhost") + ":4566");
-      HubWebClient.STATISTICS_CACHE_TTL_SECONDS = 0;
+      BaseConfig.instance.HUB_WEB_CLIENT_CACHE_TTL = 0;
       s3Client = S3Client.getInstance();
       lambdaClient = LambdaClient.builder()
           .region(Region.of(Config.instance.AWS_REGION))
@@ -217,7 +232,7 @@ public class StepTestBase {
       hubWebClient().createBranch(spaceId, branch);
     }
     catch (XyzWebClient.WebClientException e) {
-      System.out.println("Hub Error: " + e.getMessage());
+      throw new AssertionError("Unable to create branch " + branch.getId() + " on space " + spaceId, e);
     }
   }
 
@@ -226,9 +241,8 @@ public class StepTestBase {
       return hubWebClient().loadBranch(spaceId, branchId, true);
     }
     catch (XyzWebClient.WebClientException e) {
-      System.out.println("Hub Error: " + e.getMessage());
+      throw new AssertionError("Unable to load branch " + branchId + " on space " + spaceId, e);
     }
-    return null;
   }
 
   protected StatisticsResponse getStatistics(String spaceId) {
@@ -271,9 +285,8 @@ public class StepTestBase {
       return hubWebClient().customReadFeaturesQuery(spaceId, customPath);
     }
     catch (XyzWebClient.WebClientException e) {
-      System.out.println("Hub Error: " + e.getMessage());
+      throw new AssertionError("Unable to read " + customPath + " from space " + spaceId, e);
     }
-    return null;
   }
 
   protected Feature simpleFeature(String id) {
@@ -375,15 +388,14 @@ public class StepTestBase {
     return testDatasource;
   }
 
+  protected Connection getTestDatabaseConnection() throws SQLException {
+    return getDataSourceProvider().getWriter().getConnection();
+  }
+
   protected void deleteAllJobTables(List<String> stepIds) throws SQLException {
     List<SQLQuery> dropQueries = new ArrayList<>();
     for (String stepId : stepIds) {
-      dropQueries.add(new SQLQuery("DROP TABLE IF EXISTS ${schema}.${table};")
-          .withVariable("schema", SCHEMA)
-          .withVariable("table", getTemporaryJobTableName(stepId))
-      );
-
-      dropQueries.add(new ImportQueryBuilder(stepId, SCHEMA)
+      dropQueries.add(new TestQueryBuilder(stepId, SCHEMA)
               .buildDropAllTemporaryTablesByStepPrefixQuery());
     }
     SQLQuery.join(dropQueries, ";").write(getDataSourceProvider());
@@ -427,9 +439,16 @@ public class StepTestBase {
     //Lambda calls from db to invoke new db thread calls.
     try{
       Integer i = -1;
+      //The first wait has to be long enough for the task table to exist, a missing one is read as "already finalized"
+      long waitMillis = INITIAL_TASK_WAIT_MILLIS;
+      long deadline = System.currentTimeMillis() + TASK_WAIT_TIMEOUT_MILLIS;
       while (i != 0) {
-        Thread.sleep(1000);
-        SQLQuery query = retrieveNumberOfNotFinalizedTasks("public", step);
+        if (System.currentTimeMillis() > deadline)
+          throw new IllegalStateException("Step " + step.getId() + " still has " + i
+              + " task items that were not finalized after " + TASK_WAIT_TIMEOUT_MILLIS + "ms");
+        Thread.sleep(waitMillis);
+        waitMillis = TASK_POLL_INTERVAL_MILLIS;
+        SQLQuery query = new TestQueryBuilder(step.getId(), SCHEMA).buildRetrieveNumberOfNotFinalizedTasksQuery();
         i = query.run(getDataSourceProvider(), rs -> rs.next() ? rs.getInt(1) : null);
         logger.info("{} Threads are not finished!", i);
       }
@@ -437,14 +456,19 @@ public class StepTestBase {
       //42P01 = relation does not exist - happens if the step is already finalized
       if(!e.getSQLState().equals("42P01"))
         throw new RuntimeException(e);
-    }catch (XyzWebClient.WebClientException e) {
-      throw new RuntimeException(e);
     }
   }
 
   protected void waitTillAllQueriesAreFinalized(Step step) throws InterruptedException{
+    //The first wait has to be long enough for the query to show up, an absent one is read as "already done"
+    long waitMillis = INITIAL_QUERY_WAIT_MILLIS;
+    long deadline = System.currentTimeMillis() + QUERY_WAIT_TIMEOUT_MILLIS;
     while (true) {
-      Thread.sleep(500);
+      if (System.currentTimeMillis() > deadline)
+        throw new IllegalStateException("Queries of job " + step.getJobId() + " are still running after "
+            + QUERY_WAIT_TIMEOUT_MILLIS + "ms");
+      Thread.sleep(waitMillis);
+      waitMillis = QUERY_POLL_INTERVAL_MILLIS;
       try {
         boolean running = SQLQuery.isRunning(getDataSourceProvider(), false, "jobId", step.getJobId());
         if (!running)
@@ -454,12 +478,6 @@ public class StepTestBase {
         break;
       }
     }
-  }
-
-  protected SQLQuery retrieveNumberOfNotFinalizedTasks(String schema, Step step) throws XyzWebClient.WebClientException {
-    return new SQLQuery("SELECT count(1) from ${schema}.${table} WHERE finalized = false;")
-            .withVariable("schema", schema)
-            .withVariable("table", getTemporaryJobTableName(step.getId()));
   }
 
   protected void sendLambdaStepRequest(LambdaBasedStep step, LambdaBasedStep.LambdaStepRequest.RequestType requestType, boolean simulate)
@@ -508,7 +526,7 @@ public class StepTestBase {
     uploadFileToS3(Output.stepOutputS3Prefix(jobId, stepId, outputSetName) + "/" + UUID.randomUUID(), contentType, bytes, false);
   }
 
-  protected List<Feature> downloadFileAndSerializeFeatures(DownloadUrl output) throws IOException {
+  protected List<Feature> downloadFileAndDeserializeFeatures(DownloadUrl output) throws IOException {
     logger.info("Check file: {}", output.getS3Key());
     List<Feature> features = new ArrayList<>();
 
@@ -653,6 +671,72 @@ public class StepTestBase {
 
   protected String getBranchTableName(String spaceId, String branchId) {
     Branch branch = loadBranch(spaceId, branchId);
-    return branchTableName(spaceId, branch.getBranchPath().get(branch.getBranchPath().size() - 1), branch.getNodeId());
+    return branchTableName(getRootTableName(spaceId), branch.getBranchPath().get(branch.getBranchPath().size() - 1), branch.getNodeId());
+  }
+
+  protected String getRootTableName(String spaceId) {
+    try {
+      Space space = hubWebClient().loadSpace(spaceId, true);
+      Connector connector = hubWebClient().loadConnector(space.getStorage().getId());
+      boolean hashedSpaceId = ConnectorParameters.fromMap(connector.params).isEnableHashedSpaceId();
+      return getTableNameFromSpaceParamsOrSpaceId(space.getStorage().getParams(), space.getId(), hashedSpaceId);
+    }
+    catch (XyzWebClient.WebClientException e) {
+      throw new AssertionError("Unable to resolve the physical table for space " + spaceId, e);
+    }
+  }
+
+  protected static FeatureCollection createKnownFeatures(String prefix, int count) {
+    List<Feature> features = new ArrayList<>();
+
+    for (int i = 0; i < count; i++)
+      features.add(new Feature()
+              .withId(prefix + "-" + i)
+              .withGeometry(new Point().withCoordinates(new PointCoordinates(8, 50, 0)))
+              .withProperties(new Properties().with("test", prefix + "-" + i)));
+
+    return new FeatureCollection().withFeatures(features);
+  }
+
+  protected static byte[] toGeoJsonLines(FeatureCollection fc) throws JsonProcessingException {
+    return fc.getFeatures().stream()
+            .map(f -> XyzSerializable.serialize(f))
+            .collect(Collectors.joining("\n"))
+            .getBytes();
+  }
+
+  private class TestQueryBuilder extends ImportQueryBuilder {
+    public TestQueryBuilder(String stepId, String schema) {
+      super(null, null, stepId, schema, null, null, 10);
+    }
+
+    public SQLQuery buildRetrieveNumberOfNotFinalizedTasksQuery(){
+      return new SQLQuery("SELECT count(1) from ${schema}.${table} WHERE finalized = false;")
+              .withVariable("schema", schema)
+              .withVariable("table", getTemporaryJobTableName());
+    }
+
+    public SQLQuery buildDropAllTemporaryTablesByStepPrefixQuery() {
+      SQLQuery query = new SQLQuery("""
+            DO $$
+            DECLARE
+              r RECORD;
+            BEGIN
+              FOR r IN
+                SELECT tablename
+                  FROM pg_tables
+                 WHERE schemaname = #{schema}
+                   AND left(tablename, length(#{tablePrefix})) = #{tablePrefix}
+              LOOP
+                EXECUTE format('DROP TABLE IF EXISTS %I.%I;', #{schema}, r.tablename);
+              END LOOP;
+            END
+            $$;
+        """)
+              .withNamedParameter("schema", schema)
+              .withNamedParameter("tablePrefix", getTemporaryJobTableName());
+      //JDBC cannot bind parameters inside a dollar-quoted DO body.
+      return new SQLQuery(query.toExecutableQueryString());
+    }
   }
 }

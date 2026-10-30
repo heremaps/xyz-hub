@@ -71,12 +71,12 @@ public class ModifyFeatureCompositeSpaceIT extends TestCompositeSpace {
   @Test
   public void getFromDelta() {
     Feature feature = newFeature();
-    postFeature("x-psql-test", feature);
+    postFeature(DEFAULT_SPACE_ID, feature);
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .get("/spaces/x-psql-test-ext/features/" + feature.getId())
+        .get("/spaces/" + EXTENSION_SPACE_ID + "/features/" + feature.getId())
         .then()
         .statusCode(OK.code())
         .body("id", equalTo(feature.getId()));
@@ -84,7 +84,7 @@ public class ModifyFeatureCompositeSpaceIT extends TestCompositeSpace {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .get("/spaces/x-psql-test-ext/features/" + feature.getId() + "?context=extension")
+        .get("/spaces/" + EXTENSION_SPACE_ID + "/features/" + feature.getId() + "?context=extension")
         .then()
         .statusCode(NOT_FOUND.code());
   }
@@ -92,13 +92,13 @@ public class ModifyFeatureCompositeSpaceIT extends TestCompositeSpace {
   @Test
   public void updateOnDelta() {
     Feature feature = newFeature();
-    postFeature("x-psql-test", feature.withProperties(new Properties().with("name", "abc")));
-    postFeature("x-psql-test-ext", feature.withProperties(new Properties().with("name", "xyz")));
+    postFeature(DEFAULT_SPACE_ID, feature.withProperties(new Properties().with("name", "abc")));
+    postFeature(EXTENSION_SPACE_ID, feature.withProperties(new Properties().with("name", "xyz")));
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .get("/spaces/x-psql-test/features/" + feature.getId())
+        .get("/spaces/" + DEFAULT_SPACE_ID + "/features/" + feature.getId())
         .then()
         .statusCode(OK.code())
         .body("id", equalTo(feature.getId()))
@@ -107,7 +107,7 @@ public class ModifyFeatureCompositeSpaceIT extends TestCompositeSpace {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .get("/spaces/x-psql-test-ext/features/" + feature.getId())
+        .get("/spaces/" + EXTENSION_SPACE_ID + "/features/" + feature.getId())
         .then()
         .statusCode(OK.code())
         .body("id", equalTo(feature.getId()))
@@ -117,13 +117,13 @@ public class ModifyFeatureCompositeSpaceIT extends TestCompositeSpace {
   @Test
   public void patchOnDelta() {
    Feature feature = newFeature();
-   postFeature("x-psql-test-ext", feature.withProperties(new Properties().with("name", "abc")));
-   patchFeature("x-psql-test-ext", feature.withProperties(new Properties().with("name2", "def")));
+   postFeature(EXTENSION_SPACE_ID, feature.withProperties(new Properties().with("name", "abc")));
+   patchFeature(EXTENSION_SPACE_ID, feature.withProperties(new Properties().with("name2", "def")));
 
    given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .get("/spaces/x-psql-test-ext/features/" + feature.getId())
+        .get("/spaces/" + EXTENSION_SPACE_ID + "/features/" + feature.getId())
         .then()
         .statusCode(OK.code())
         .body("id", equalTo(feature.getId()))
@@ -137,19 +137,19 @@ public class ModifyFeatureCompositeSpaceIT extends TestCompositeSpace {
   @Test
   public void getOnlyOnDelta() {
     Feature feature = newFeature();
-    postFeature("x-psql-test-ext", feature);
+    postFeature(EXTENSION_SPACE_ID, feature);
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .get("/spaces/x-psql-test/features/" + feature.getId())
+        .get("/spaces/" + DEFAULT_SPACE_ID + "/features/" + feature.getId())
         .then()
         .statusCode(NOT_FOUND.code());
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .get("/spaces/x-psql-test-ext/features/" + feature.getId())
+        .get("/spaces/" + EXTENSION_SPACE_ID + "/features/" + feature.getId())
         .then()
         .statusCode(OK.code())
         .body("id", equalTo(feature.getId()));
@@ -158,13 +158,13 @@ public class ModifyFeatureCompositeSpaceIT extends TestCompositeSpace {
   @Test
   public void getOnlyFromSuper() {
     Feature feature = newFeature();
-    postFeature("x-psql-test", feature.withProperties(new Properties().with("name", "abc")));
-    postFeature("x-psql-test-ext", feature.withProperties(new Properties().with("name", "xyz")));
+    postFeature(DEFAULT_SPACE_ID, feature.withProperties(new Properties().with("name", "abc")));
+    postFeature(EXTENSION_SPACE_ID, feature.withProperties(new Properties().with("name", "xyz")));
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .get("/spaces/x-psql-test-ext/features/" + feature.getId() + "?context=super")
+        .get("/spaces/" + EXTENSION_SPACE_ID + "/features/" + feature.getId() + "?context=super")
         .then()
         .statusCode(OK.code())
         .body("id", equalTo(feature.getId()))
@@ -179,7 +179,7 @@ public class ModifyFeatureCompositeSpaceIT extends TestCompositeSpace {
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .body(feature.serialize())
         .when()
-        .post("/spaces/x-psql-test-ext/features?context=super")
+        .post("/spaces/" + EXTENSION_SPACE_ID + "/features?context=super")
         .then()
         .statusCode(FORBIDDEN.code());
   }
@@ -187,14 +187,14 @@ public class ModifyFeatureCompositeSpaceIT extends TestCompositeSpace {
   @Test
   public void updateSuperNegative() {
     Feature feature = newFeature();
-    postFeature("x-psql-test", feature);
+    postFeature(DEFAULT_SPACE_ID, feature);
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .contentType("application/geo+json")
         .body(feature.withProperties(new Properties().with("name", "abc")).serialize())
         .when()
-        .patch("/spaces/x-psql-test-ext/features/" + feature.getId() + "?context=super")
+        .patch("/spaces/" + EXTENSION_SPACE_ID + "/features/" + feature.getId() + "?context=super")
         .then()
         .statusCode(FORBIDDEN.code());
   }
@@ -202,12 +202,12 @@ public class ModifyFeatureCompositeSpaceIT extends TestCompositeSpace {
   @Test
   public void deleteSuperNegative() {
     Feature feature = newFeature();
-    postFeature("x-psql-test", feature);
+    postFeature(DEFAULT_SPACE_ID, feature);
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .delete("/spaces/x-psql-test-ext/features/" + feature.getId() + "?context=super")
+        .delete("/spaces/" + EXTENSION_SPACE_ID + "/features/" + feature.getId() + "?context=super")
         .then()
         .statusCode(FORBIDDEN.code());
   }
@@ -215,34 +215,34 @@ public class ModifyFeatureCompositeSpaceIT extends TestCompositeSpace {
   @Test
   public void deleteFromDelta() {
     Feature feature = newFeature();
-    postFeature("x-psql-test", feature);
-    postFeature("x-psql-test-ext", feature.withProperties(new Properties().with("name", "xyz")));
+    postFeature(DEFAULT_SPACE_ID, feature);
+    postFeature(EXTENSION_SPACE_ID, feature.withProperties(new Properties().with("name", "xyz")));
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .delete("/spaces/x-psql-test-ext/features/" + feature.getId())
+        .delete("/spaces/" + EXTENSION_SPACE_ID + "/features/" + feature.getId())
         .then()
         .statusCode(NO_CONTENT.code());
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .get("/spaces/x-psql-test/features/" + feature.getId())
+        .get("/spaces/" + DEFAULT_SPACE_ID + "/features/" + feature.getId())
         .then()
         .statusCode(OK.code());
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .get("/spaces/x-psql-test-ext/features/" + feature.getId())
+        .get("/spaces/" + EXTENSION_SPACE_ID + "/features/" + feature.getId())
         .then()
         .statusCode(NOT_FOUND.code());
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .get("/spaces/x-psql-test-ext/features/" + feature.getId() + "?context=extension")
+        .get("/spaces/" + EXTENSION_SPACE_ID + "/features/" + feature.getId() + "?context=extension")
         .then()
         .statusCode(OK.code())
         .body("properties.name", nullValue())
@@ -251,14 +251,14 @@ public class ModifyFeatureCompositeSpaceIT extends TestCompositeSpace {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .delete("/spaces/x-psql-test-ext/features/" + feature.getId() + "?context=extension")
+        .delete("/spaces/" + EXTENSION_SPACE_ID + "/features/" + feature.getId() + "?context=extension")
         .then()
         .statusCode(NO_CONTENT.code());
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .get("/spaces/x-psql-test-ext/features/" + feature.getId() + "?context=extension")
+        .get("/spaces/" + EXTENSION_SPACE_ID + "/features/" + feature.getId() + "?context=extension")
         .then()
         .statusCode(NOT_FOUND.code());
   }
@@ -266,28 +266,28 @@ public class ModifyFeatureCompositeSpaceIT extends TestCompositeSpace {
   @Test
   public void deleteFromDeltaAndReinsert() {
     Feature feature = newFeature();
-    postFeature("x-psql-test", feature);
+    postFeature(DEFAULT_SPACE_ID, feature);
     feature.withProperties(new Properties().with("name", "aaa"));
-    postFeature("x-psql-test-ext", feature);
+    postFeature(EXTENSION_SPACE_ID, feature);
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .delete("/spaces/x-psql-test-ext/features/" + feature.getId())
+        .delete("/spaces/" + EXTENSION_SPACE_ID + "/features/" + feature.getId())
         .then()
         .statusCode(NO_CONTENT.code());
 
     // reinsert
-    postFeature("x-psql-test-ext", feature);
+    postFeature(EXTENSION_SPACE_ID, feature);
 
     // update
     feature.withProperties(new Properties().with("name", "bbb"));
-    postFeature("x-psql-test-ext", feature);
+    postFeature(EXTENSION_SPACE_ID, feature);
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .get("/spaces/x-psql-test-ext/features/" + feature.getId())
+        .get("/spaces/" + EXTENSION_SPACE_ID + "/features/" + feature.getId())
         .then()
         .statusCode(OK.code())
         .body("properties.name", equalTo("bbb"));
@@ -296,14 +296,14 @@ public class ModifyFeatureCompositeSpaceIT extends TestCompositeSpace {
   @Test
   public void getOnDeltaOfDelta() {
     Feature feature = newFeature();
-    postFeature("x-psql-test", feature.withProperties(new Properties().with("name", "a").with("level", "base")));
-    postFeature("x-psql-test-ext", feature.withProperties(new Properties().with("name", "b").with("size", "m")));
-    postFeature("x-psql-test-ext-ext", feature.withProperties(new Properties().with("name", "c").with("height", "2m")));
+    postFeature(DEFAULT_SPACE_ID, feature.withProperties(new Properties().with("name", "a").with("level", "base")));
+    postFeature(EXTENSION_SPACE_ID, feature.withProperties(new Properties().with("name", "b").with("size", "m")));
+    postFeature(EXTENSION_EXTENSION_SPACE_ID, feature.withProperties(new Properties().with("name", "c").with("height", "2m")));
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .get("/spaces/x-psql-test/features/" + feature.getId())
+        .get("/spaces/" + DEFAULT_SPACE_ID + "/features/" + feature.getId())
         .then()
         .statusCode(OK.code())
         .body("id", equalTo(feature.getId()))
@@ -315,7 +315,7 @@ public class ModifyFeatureCompositeSpaceIT extends TestCompositeSpace {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .get("/spaces/x-psql-test-ext/features/" + feature.getId())
+        .get("/spaces/" + EXTENSION_SPACE_ID + "/features/" + feature.getId())
         .then()
         .statusCode(OK.code())
         .body("id", equalTo(feature.getId()))
@@ -328,7 +328,7 @@ public class ModifyFeatureCompositeSpaceIT extends TestCompositeSpace {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .get("/spaces/x-psql-test-ext-ext/features/" + feature.getId())
+        .get("/spaces/" + EXTENSION_EXTENSION_SPACE_ID + "/features/" + feature.getId())
         .then()
         .statusCode(OK.code())
         .body("id", equalTo(feature.getId()))
@@ -342,14 +342,14 @@ public class ModifyFeatureCompositeSpaceIT extends TestCompositeSpace {
   public void bboxOnDelta() {
     Feature f1 = newFeature();
     Feature f2 = newFeature();
-    postFeature("x-psql-test", f1.withGeometry(new Point().withCoordinates(new PointCoordinates(1,1))));
-    postFeature("x-psql-test", f2.withGeometry(new Point().withCoordinates(new PointCoordinates(-30,-30))));
-    postFeature("x-psql-test-ext", f1.withGeometry(new Point().withCoordinates(new PointCoordinates(-1,-1))));
+    postFeature(DEFAULT_SPACE_ID, f1.withGeometry(new Point().withCoordinates(new PointCoordinates(1,1))));
+    postFeature(DEFAULT_SPACE_ID, f2.withGeometry(new Point().withCoordinates(new PointCoordinates(-30,-30))));
+    postFeature(EXTENSION_SPACE_ID, f1.withGeometry(new Point().withCoordinates(new PointCoordinates(-1,-1))));
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .get("/spaces/x-psql-test-ext/bbox?west=0&south=-1&east=1&north=0")
+        .get("/spaces/" + EXTENSION_SPACE_ID + "/bbox?west=0&south=-1&east=1&north=0")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(0));
@@ -357,7 +357,7 @@ public class ModifyFeatureCompositeSpaceIT extends TestCompositeSpace {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .get("/spaces/x-psql-test-ext/bbox?west=-35&south=-35&east=35&north=35")
+        .get("/spaces/" + EXTENSION_SPACE_ID + "/bbox?west=-35&south=-35&east=35&north=35")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(2));
@@ -365,7 +365,7 @@ public class ModifyFeatureCompositeSpaceIT extends TestCompositeSpace {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .get("/spaces/x-psql-test-ext/bbox?west=-35&south=-35&east=35&north=35&context=extension")
+        .get("/spaces/" + EXTENSION_SPACE_ID + "/bbox?west=-35&south=-35&east=35&north=35&context=extension")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
@@ -374,7 +374,7 @@ public class ModifyFeatureCompositeSpaceIT extends TestCompositeSpace {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .get("/spaces/x-psql-test-ext/bbox?west=-10&south=-10&east=10&north=10")
+        .get("/spaces/" + EXTENSION_SPACE_ID + "/bbox?west=-10&south=-10&east=10&north=10")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
@@ -385,14 +385,14 @@ public class ModifyFeatureCompositeSpaceIT extends TestCompositeSpace {
   public void tileOnDelta() {
     Feature f1 = newFeature();
     Feature f2 = newFeature();
-    postFeature("x-psql-test", f1.withGeometry(new Point().withCoordinates(new PointCoordinates(1,1))));
-    postFeature("x-psql-test", f2.withGeometry(new Point().withCoordinates(new PointCoordinates(-30,-30))));
-    postFeature("x-psql-test-ext", f1.withGeometry(new Point().withCoordinates(new PointCoordinates(-1,-1))));
+    postFeature(DEFAULT_SPACE_ID, f1.withGeometry(new Point().withCoordinates(new PointCoordinates(1,1))));
+    postFeature(DEFAULT_SPACE_ID, f2.withGeometry(new Point().withCoordinates(new PointCoordinates(-30,-30))));
+    postFeature(EXTENSION_SPACE_ID, f1.withGeometry(new Point().withCoordinates(new PointCoordinates(-1,-1))));
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .get("/spaces/x-psql-test-ext/tile/quadkey/0")
+        .get("/spaces/" + EXTENSION_SPACE_ID + "/tile/quadkey/0")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(0));
@@ -400,7 +400,7 @@ public class ModifyFeatureCompositeSpaceIT extends TestCompositeSpace {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .get("/spaces/x-psql-test-ext/tile/quadkey/2")
+        .get("/spaces/" + EXTENSION_SPACE_ID + "/tile/quadkey/2")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(2));
@@ -408,7 +408,7 @@ public class ModifyFeatureCompositeSpaceIT extends TestCompositeSpace {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .get("/spaces/x-psql-test-ext/tile/quadkey/2111")
+        .get("/spaces/" + EXTENSION_SPACE_ID + "/tile/quadkey/2111")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
@@ -424,16 +424,16 @@ public class ModifyFeatureCompositeSpaceIT extends TestCompositeSpace {
     Feature f1 = newFeature();
 
     // insert F1(p.name="a") into x-psql-test
-    postFeature("x-psql-test", f1.withProperties(new Properties().with("name", "a")));
+    postFeature(DEFAULT_SPACE_ID, f1.withProperties(new Properties().with("name", "a")));
 
     // insert F1(p.name="b") into x-psql-test-ext
-    postFeature("x-psql-test-ext", f1.withProperties(new Properties().with("name", "b")));
+    postFeature(EXTENSION_SPACE_ID, f1.withProperties(new Properties().with("name", "b")));
 
     // modify x-psql-test-ext-ext to point to x-psql-test
-    makeComposite("x-psql-test-ext-ext", "x-psql-test");
+    makeComposite(EXTENSION_EXTENSION_SPACE_ID, DEFAULT_SPACE_ID);
 
     // get F1 from x-psql-test-ext-ext -> assert F1(p.name="a")
-    getFeature("x-psql-test-ext-ext", f1.getId(), OK.code(), "properties.name", "a");
+    getFeature(EXTENSION_EXTENSION_SPACE_ID, f1.getId(), OK.code(), "properties.name", "a");
   }
 
   @Test
@@ -441,25 +441,25 @@ public class ModifyFeatureCompositeSpaceIT extends TestCompositeSpace {
     Feature f1 = newFeature();
 
     // insert F1(p.name="a") into x-psql-test
-    postFeature("x-psql-test", f1.withProperties(new Properties().with("name", "a")));
+    postFeature(DEFAULT_SPACE_ID, f1.withProperties(new Properties().with("name", "a")));
 
     // insert F1(p.name="b") into x-psql-test-ext
-    postFeature("x-psql-test-ext", f1.withProperties(new Properties().with("name", "b")));
+    postFeature(EXTENSION_SPACE_ID, f1.withProperties(new Properties().with("name", "b")));
 
     // delete F1 from x-psql-test-ext
-    deleteFeature("x-psql-test-ext", f1.getId());
+    deleteFeature(EXTENSION_SPACE_ID, f1.getId());
 
     // modify x-psql-test-ext-ext to point to x-psql-test
-    makeComposite("x-psql-test-ext-ext", "x-psql-test");
+    makeComposite(EXTENSION_EXTENSION_SPACE_ID, DEFAULT_SPACE_ID);
 
     // get F1 from x-psql-test-ext-ext -> assert F1(p.name="a")
-    getFeature("x-psql-test-ext-ext", f1.getId(), OK.code(), "properties.name", "a");
+    getFeature(EXTENSION_EXTENSION_SPACE_ID, f1.getId(), OK.code(), "properties.name", "a");
 
     // modify x-psql-test-ext-ext to point to x-psql-test-ext
-    makeComposite("x-psql-test-ext-ext", "x-psql-test-ext");
+    makeComposite(EXTENSION_EXTENSION_SPACE_ID, EXTENSION_SPACE_ID);
 
     // get F1 from x-psql-test-ext-ext -> assert 404
-    getFeature("x-psql-test-ext-ext", f1.getId(), NOT_FOUND.code());
+    getFeature(EXTENSION_EXTENSION_SPACE_ID, f1.getId(), NOT_FOUND.code());
   }
 
   @Test
@@ -467,21 +467,21 @@ public class ModifyFeatureCompositeSpaceIT extends TestCompositeSpace {
     Feature f1 = newFeature();
 
     // insert F1(p.name="a") into x-psql-test
-    postFeature("x-psql-test", f1.withProperties(new Properties().with("name", "a")));
+    postFeature(DEFAULT_SPACE_ID, f1.withProperties(new Properties().with("name", "a")));
 
     // insert F1(p.name="b") into x-psql-test-2
-    postFeature("x-psql-test-2", f1.withProperties(new Properties().with("name", "b")));
+    postFeature(SECOND_SPACE_ID, f1.withProperties(new Properties().with("name", "b")));
 
     // modify x-psql-test-ext to point to x-psql-test-2
-    makeComposite("x-psql-test-ext", "x-psql-test-2");
+    makeComposite(EXTENSION_SPACE_ID, SECOND_SPACE_ID);
 
     // get F1 from x-psql-test-ext-ext -> assert F1(p.name="b")
-    getFeature("x-psql-test-ext-ext", f1.getId(), OK.code(), "properties.name", "b");
+    getFeature(EXTENSION_EXTENSION_SPACE_ID, f1.getId(), OK.code(), "properties.name", "b");
 
     // modify x-psql-test-ext to point to x-psql-test
-    makeComposite("x-psql-test-ext", "x-psql-test");
+    makeComposite(EXTENSION_SPACE_ID, DEFAULT_SPACE_ID);
 
     // get F1 from x-psql-test-ext-ext -> assert F1(p.name="a")
-    getFeature("x-psql-test-ext-ext", f1.getId(), OK.code(), "properties.name", "a");
+    getFeature(EXTENSION_EXTENSION_SPACE_ID, f1.getId(), OK.code(), "properties.name", "a");
   }
 }

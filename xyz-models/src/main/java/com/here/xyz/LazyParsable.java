@@ -39,6 +39,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.here.xyz.models.geojson.implementation.Feature;
 import java.io.IOException;
 import java.io.StringReader;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 public class LazyParsable<T> {
@@ -86,15 +87,27 @@ public class LazyParsable<T> {
 
     @Override
     public Object deserialize(JsonParser jp, DeserializationContext ctxt) throws IOException {
+      final Object sourceRef = jp.getCurrentLocation().getSourceRef();
+
+      /*
+      A byte[]-backed source reports getCharOffset() as -1, so it missed the fast path below and
+      fell through to building a JsonNode tree. Offsets are byte offsets here.
+       */
+      if (sourceRef instanceof byte[] rawSource) {
+        int byteStart = (int) jp.getCurrentLocation().getByteOffset();
+        if (byteStart > 1 && rawSource[byteStart - 1] == '[') {
+          jp.skipChildren();
+          int byteEnd = (int) jp.getCurrentLocation().getByteOffset();
+          return new String(rawSource, byteStart - 1, byteEnd - byteStart + 1, StandardCharsets.UTF_8);
+        }
+      }
+
       int start = (int) jp.getCurrentLocation().getCharOffset();
 
       //TODO: Currently the object is parsed, in few cases when this could be avoided.
-      // 1. If getTokenLocation()/getCurrentLocation().getCharOffset() returns -1, the source reference is not a string, but an input
-      //  stream, byte array, etc. and the value could be still extracted as a string efficiently.
-      // 2.  If getTokenLocation()/getCurrentLocation().getCharOffset() larger than 0, but the location doesn't point to the position of
+      // 1. If getTokenLocation()/getCurrentLocation().getCharOffset() larger than 0, but the location doesn't point to the position of
       // the token, then it is possible to extract the value in some cases. For the rest (e.g. input stream without mark support, etc.)
       // the value must be parsed.
-      final Object sourceRef = jp.getCurrentLocation().getSourceRef();
       String source = (sourceRef instanceof String) ? (String) sourceRef
           : (sourceRef instanceof ProxyStringReader) ? ((ProxyStringReader) sourceRef).source : null;
 

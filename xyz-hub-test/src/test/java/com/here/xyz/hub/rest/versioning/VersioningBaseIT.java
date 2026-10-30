@@ -46,21 +46,21 @@ public class VersioningBaseIT extends TestSpaceWithFeature {
   }
 
   protected static void setup() {
-    String spaceId = "x-psql-test";
+    String spaceId = DEFAULT_SPACE_ID;
     removeSpace(spaceId);
     createSpace(spaceId, getCreateSpacePath(), 10);
     addFeatures(spaceId);
   }
 
   protected static void tearDown() {
-    removeSpace("x-psql-test");
+    removeSpace(DEFAULT_SPACE_ID);
   }
 
   protected static void countExpected(int expected) {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .get(getSpacesPath() + "/x-psql-test/iterate")
+        .get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/iterate")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(expected));

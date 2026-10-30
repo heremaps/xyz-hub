@@ -1,5 +1,5 @@
 {
-  "id": "x-auth-test-space-shared",
+  "id": "${authSharedSpaceId}",
   "title": "My Shared Demo Space",
   "tileMinLevel": 0,
   "tileMaxLevel": 20,

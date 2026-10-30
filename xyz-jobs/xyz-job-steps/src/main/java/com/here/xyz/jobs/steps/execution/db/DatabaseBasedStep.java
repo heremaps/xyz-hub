@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -53,8 +53,24 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
   private static final Logger logger = LogManager.getLogger();
   private String ASYNC_STEP_ID = "asyncStepId";
   private double claimedAcuLoad;
-  @JsonView(Internal.class)
+  @JsonView({Static.class, Internal.class})
   private List<RunningQuery> runningQueries = new ArrayList<>();
+
+  private static final int MAXIMUM_RETRIES = 10;
+  private static final Set<String> RETRYABLE_SQL_CODES = Set.of(
+          "40001", // serialization_failure
+          "40P01", // deadlock_detected
+          "55P03", // lock_not_available
+          "23505", // unique_violation
+          "23P01", // exclusion_violation, same caveat
+          "53300", // too_many_connections
+          "08000", // connection_exception
+          "08001", // sqlclient_unable_to_establish_sqlconnection
+          "08003", // connection_does_not_exist
+          "08006", // connection_failure
+          "08004", // sqlserver_rejected_establishment_of_sqlconnection
+          "57P01"  // admin_shutdown
+  );
 
   @Override
   protected final void onRuntimeShutdown() {
@@ -111,12 +127,11 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
   }
 
   private Object executeQuery(SQLQuery query, Database db, double estimatedMaxAcuLoad, ResultSetHandler<?> resultSetHandler,
-      boolean isWriteQuery, boolean async, boolean withCallbacks, boolean addLables) throws TooManyResourcesClaimed, SQLException {
-
-    if(addLables)
+      boolean isWriteQuery, boolean async, boolean withCallbacks, boolean killable) throws TooManyResourcesClaimed, SQLException {
+    if (killable)
       query
-        .withLabel("jobId", getJobId())
-        .withLabel("stepId", getId());
+          .withLabel("jobId", getJobId())
+          .withLabel("stepId", getId());
 
     if (async) {
       query = (withCallbacks ? wrapQuery(query) : query)
@@ -124,8 +139,15 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
           .withTimeout(10)
           .withLabel(ASYNC_STEP_ID, getId());
     }
-    else if (query.getTimeout() == Integer.MAX_VALUE)
-      query.setTimeout(300);
+    else {
+      if (query.getTimeout() == Integer.MAX_VALUE)
+        query.setTimeout(300);
+
+      //Add retry settings for synchronous queries.
+      query
+          .withRetryableErrorCodes(RETRYABLE_SQL_CODES)
+          .withMaximumRetries(MAXIMUM_RETRIES);
+    }
 
     Object result;
     if (query.isBatch() && isWriteQuery)
@@ -152,52 +174,79 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
    *
    * "dummy_output" can by used for ignoring outputs. This is for example needed in CTE queries.
    *
+   * The success callback is only sent after the transaction of the step query has been committed, so that a successor
+   * step cannot start before the data of this step is visible.
+   *
    * @see LambdaBasedStep
    * @param stepQuery The query that was provided by the step implementation of the subclass
    * @return The wrapped query. A query that takes care of reporting the state back to this implementation asynchronously.
    */
   private SQLQuery wrapQuery(SQLQuery stepQuery) {
+    SQLQuery wrappedQuery = wrapQuery(stepQuery, buildSuccessCallbackQuery(), buildFailureCallbackQuery())
+        .withQueryFragment("jobId", getJobId())
+        .withQueryFragment("stepId", getId());
 
-    SQLQuery wrappedQuery = new SQLQuery("""
+    return stepQuery.getContext() == null ?  wrappedQuery : wrappedQuery.withContext(stepQuery.getContext());
+  }
+
+  /**
+   * Builds the outer query of {@link #wrapQuery(SQLQuery)}.
+   *
+   * <i>SET CONSTRAINTS ALL IMMEDIATE</i> checks all deferred constraints (and runs all deferred constraint triggers) before
+   * the success callback is registered. Without it, a violation would only be raised by the COMMIT, outside the exception
+   * handler, so neither of the callbacks would be sent.
+   *
+   * @param stepQuery The query that was provided by the step implementation of the subclass
+   * @param successCallback A PL/pgSQL statement that is executed after the step query has succeeded
+   * @param failureCallback A PL/pgSQL statement that is executed if the step query (or one of the deferred constraint checks) failed
+   * @return The wrapped query
+   */
+  static SQLQuery wrapQuery(SQLQuery stepQuery, SQLQuery successCallback, SQLQuery failureCallback) {
+    return new SQLQuery("""
         DO
         $wrapped$
         DECLARE
            dummy_output INTEGER;
         BEGIN
           ${{stepQuery}};
+          SET CONSTRAINTS ALL IMMEDIATE;
           ${{successCallback}}
           EXCEPTION WHEN OTHERS THEN
             ${{failureCallback}}
         END
         $wrapped$;
         """) //TODO: Move RAISE WARNING expression back to generic #buildFailureCallbackQuery() to ensure consistent error reporting & logging across all step implementations
-        .withQueryFragment("jobId", getJobId())
-        .withQueryFragment("stepId", getId())
         .withQueryFragment("stepQuery", stepQuery)
-        .withQueryFragment("successCallback", buildSuccessCallbackQuery())
-        .withQueryFragment("failureCallback", buildFailureCallbackQuery());
-
-    return stepQuery.getContext() == null ?  wrappedQuery : wrappedQuery.withContext(stepQuery.getContext());
+        .withQueryFragment("successCallback", successCallback)
+        .withQueryFragment("failureCallback", failureCallback);
   }
 
   protected final SQLQuery buildSuccessCallbackQuery() {
     SQLQuery lambdaSuccessInvoke = isSimulation
-        ? new SQLQuery("PERFORM 'Success callback will be simulated';")
-        : new SQLQuery("PERFORM aws_lambda.invoke(aws_commons.create_lambda_function_arn('${{lambdaArn}}', '${{lambdaRegion}}'), '${{successRequestBody}}'::JSON, 'Event');")
+        ? new SQLQuery("SELECT 'Success callback will be simulated'")
+        : new SQLQuery("SELECT aws_lambda.invoke(aws_commons.create_lambda_function_arn('${{lambdaArn}}', '${{lambdaRegion}}'), "
+            + "'${{successRequestBody}}'::JSON, 'Event')")
             .withQueryFragment("lambdaArn", getwOwnLambdaArn().toString()) //TODO: Use named params instead of query fragments
             .withQueryFragment("lambdaRegion", getwOwnLambdaArn().getRegion())
             //TODO: Re-use the request body for success / failure cases and simply inject the request type in the query
             .withQueryFragment("successRequestBody", new LambdaStepRequest().withType(SUCCESS_CALLBACK).withStep(this).serialize());
 
-    return new SQLQuery("""
-        DO
-        $success$
-        BEGIN
-          ${{performLambdaSuccessInvoke}}
-        END
-        $success$;
-        """)
-        .withQueryFragment("performLambdaSuccessInvoke", lambdaSuccessInvoke);
+    return deferAfterCommit(lambdaSuccessInvoke);
+  }
+
+  /**
+   * Builds a PL/pgSQL statement that registers the provided query to be run once the current transaction has been committed.
+   * The query is run by a new thread that is started by the asyncify() block after its COMMIT
+   * (see _create_asyncify_query_block() in ext.sql). If the transaction is rolled back, or its COMMIT fails, the query is not run.
+   *
+   * NOTE: Only one such query can be registered per asyncify() thread. A later registration replaces an earlier one.
+   *
+   * @param query A plain SQL statement
+   * @return The PL/pgSQL statement which registers the query
+   */
+  static SQLQuery deferAfterCommit(SQLQuery query) {
+    return new SQLQuery("PERFORM asyncify($deferred$${{deferredQuery}}$deferred$, true);")
+        .withQueryFragment("deferredQuery", query);
   }
 
   protected final SQLQuery buildFailureCallbackQuery() {
@@ -241,7 +290,7 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
         ? """
             select t.* 
             from 
-            dblink( $icnt$ host=${{rmtHost}} dbname=${{rmtDb}} user=${{rmtUsr}} password=${{rmtPwd}} $icnt$, 
+            dblink( $icnt$ host=${{rmtHost}} dbname=${{rmtDb}} user=${{rmtUsr}} password=${{rmtPwd}} options=-csearch_path=${{rmtSearchPath}} $icnt$, 
                     $iqry$ select jsondata, jsondata#>>'{properties,@ns:com:here:xyz,author}' as author, geo from ( ${{innerContentQuery}} ) rcopy $iqry$
                   ) 
             as t( jsondata jsonb, author text, geo text )
@@ -249,7 +298,7 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
          : """
             select t.* 
             from 
-            dblink( $icnt$ host=${{rmtHost}} dbname=${{rmtDb}} user=${{rmtUsr}} password=${{rmtPwd}} $icnt$, 
+            dblink( $icnt$ host=${{rmtHost}} dbname=${{rmtDb}} user=${{rmtUsr}} password=${{rmtPwd}} options=-csearch_path=${{rmtSearchPath}} $icnt$, 
                     $iqry$ select id, operation, author, jsondata, geo from ( ${{innerContentQuery}} ) rcopy $iqry$
                   ) 
             as t( id text, operation character(1), author text, jsondata jsonb, geo geometry )
@@ -259,9 +308,23 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
        .withQueryFragment("rmtHost", dbSettings.getHost())
        .withQueryFragment("rmtDb", dbSettings.getDb())
        .withQueryFragment("rmtUsr", dbSettings.getUser())
-       .withQueryFragment("rmtPwd", dbSettings.getPassword());
+       .withQueryFragment("rmtPwd", dbSettings.getPassword())
+       .withQueryFragment("rmtSearchPath", buildRemoteSearchPath(dbSettings));
 
      return contentQuery;
+  }
+
+  /**
+   * The search path a dblink session has to be given explicitly. It does not inherit the one the
+   * connection customizer sets, so anything the inner content query resolves through the versioned
+   * script schemas - xyz_reduce_precision, for example - is otherwise not found on the remote side.
+   */
+  private static String buildRemoteSearchPath(DatabaseSettings dbSettings) {
+    List<String> schemas = new ArrayList<>(List.of(dbSettings.getSchema(), "public", "topology"));
+    if (dbSettings.getSearchPath() != null)
+      schemas.addAll(dbSettings.getSearchPath());
+    //No spaces: the value has to survive as a single libpq connection-string token.
+    return schemas.stream().map(schema -> "\"" + schema + "\"").collect(Collectors.joining(","));
   }
 
   @Override

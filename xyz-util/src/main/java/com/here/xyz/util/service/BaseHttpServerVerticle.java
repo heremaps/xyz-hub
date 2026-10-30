@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -82,14 +82,37 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 
 public class BaseHttpServerVerticle extends AbstractVerticle {
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(BaseHttpServerVerticle.class);
+
+  /**
+   * Deflate level for responses. Vert.x defaults to 6, a poor trade for multi-MB GeoJSON: level 3
+   * compresses in about a third of the time for roughly a tenth more bytes. Read from the
+   * environment because SERVER_OPTIONS is initialised at class-load, before the config is loaded.
+   */
+  private static final int DEFAULT_HTTP_COMPRESSION_LEVEL = 3;
+  private static final int HTTP_COMPRESSION_LEVEL = readCompressionLevel();
+
+  private static int readCompressionLevel() {
+    String raw = System.getProperty("HTTP_COMPRESSION_LEVEL", System.getenv("HTTP_COMPRESSION_LEVEL"));
+    if (raw == null || raw.isBlank())
+      return DEFAULT_HTTP_COMPRESSION_LEVEL;
+    try {
+      return Math.min(9, Math.max(1, Integer.parseInt(raw.trim())));
+    }
+    catch (NumberFormatException e) {
+      return DEFAULT_HTTP_COMPRESSION_LEVEL;
+    }
+  }
+
   public static final HttpServerOptions SERVER_OPTIONS = new HttpServerOptions()
       .setCompressionSupported(true)
+      .setCompressionLevel(HTTP_COMPRESSION_LEVEL)
       .setDecompressionSupported(true)
       .setHandle100ContinueAutomatically(true)
       .setTcpQuickAck(true)
       .setTcpFastOpen(true)
       .setMaxInitialLineLength(16 * 1024)
+      .setMaxHeaderSize(16 * 1024)
       .setIdleTimeout(300);
   public static final String STREAM_INFO_CTX_KEY = "streamInfo";
   public static final HttpResponseStatus CLIENT_CLOSED_REQUEST = new HttpResponseStatus(499, "Client closed request");
@@ -325,6 +348,10 @@ public class BaseHttpServerVerticle extends AbstractVerticle {
         }
         else if (t instanceof BadRequestException)
           sendErrorResponse(context, new HttpException(BAD_REQUEST, "Invalid request."));
+        else if (!(t instanceof HttpException) && context.statusCode() >= 400)
+          //Keep the status of the failing handler (e.g., the CorsHandler fails with 403 for an invalid origin)
+          sendErrorResponse(context, new HttpException(HttpResponseStatus.valueOf(context.statusCode()),
+              t.getMessage() != null ? t.getMessage() : message, t));
         else
           sendErrorResponse(context, t);
       }

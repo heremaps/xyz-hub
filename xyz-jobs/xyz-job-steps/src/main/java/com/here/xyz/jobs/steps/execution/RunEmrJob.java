@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,47 +19,67 @@
 
 package com.here.xyz.jobs.steps.execution;
 
+import static com.here.xyz.jobs.steps.Step.InputSet.GENERIC_PROVIDER;
+import static com.here.xyz.jobs.steps.Step.Visibility.SYSTEM;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
 import static java.util.regex.Matcher.quoteReplacement;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.here.xyz.jobs.JobClientInfo;
+import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.StepExecution;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.resources.Load;
+import com.here.xyz.jobs.util.AwsClientFactory;
 import com.here.xyz.jobs.util.S3Client;
+import com.here.xyz.util.Hasher;
 import com.here.xyz.util.KeyValue;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
+import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.aws.s3.S3ObjectSummary;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import software.amazon.awssdk.core.ResponseInputStream;
+import software.amazon.awssdk.services.emrserverless.model.GetApplicationRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
 public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
   public static final String EMR_JOB_NAME_PREFIX = "step:";
   private static final Logger logger = LogManager.getLogger();
+  private static final String OUTPUT_SET_REF_PREFIX = "${outputSet:";
   private static final String INPUT_SET_REF_PREFIX = "${inputSet:";
-  private static final String INPUT_SET_REF_SUFFIX = "}";
+  private static final String DATA_SET_REF_SUFFIX = "}";
   private static final Pattern INPUT_SET_REF_PATTERN = Pattern.compile(
-      Pattern.quote(INPUT_SET_REF_PREFIX) + "([a-zA-Z0-9._=-]+)" + Pattern.quote(INPUT_SET_REF_SUFFIX));
+      Pattern.quote(INPUT_SET_REF_PREFIX) + "([a-zA-Z0-9._=-]+)" + Pattern.quote(DATA_SET_REF_SUFFIX));
+  private static final Pattern OUTPUT_SET_REF_PATTERN = Pattern.compile(
+      Pattern.quote(OUTPUT_SET_REF_PREFIX) + "([a-zA-Z0-9._=-]+)" + Pattern.quote(DATA_SET_REF_SUFFIX));
+  static final Set<String> INHERITED_APPLICATION_TAGS = Set.of("odin_app_id");
+  private static final long APPLICATION_TAGS_CACHE_TTL_MS = 60 * 60 * 1000;
+  private static final Duration APPLICATION_TAGS_LOOKUP_TIMEOUT = Duration.ofSeconds(1);
+  private static final Map<String, CachedApplicationTags> applicationTagsCache = new ConcurrentHashMap<>();
 
   private String applicationId;
   private String executionRoleArn;
@@ -97,6 +117,94 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
   public String getDescription() {
     return "Runs a serverless EMR job on application " + applicationId;
   }
+
+  /**
+   * Lets the EMR job run inherit the tags listed in {@link #INHERITED_APPLICATION_TAGS} from the EMR application it will run on.
+   * The inheritance is best-effort: If the application can not be read or does not carry a tag, a warning is logged and the
+   * job run gets created without it.
+   */
+  @Override
+  public void prepare(String owner, JobClientInfo ownerAuth) throws ValidationException {
+    super.prepare(owner, ownerAuth);
+    inheritApplicationTags();
+  }
+
+  void inheritApplicationTags() {
+    //When running locally, the step is executed as a lambda step and there is no EMR application
+    if (Config.instance.LOCALSTACK_ENDPOINT != null || applicationId == null)
+      return;
+
+    Map<String, String> applicationTags = getApplicationTags(applicationId);
+    if (applicationTags == null)
+      return;
+
+    tags = tags == null ? new HashMap<>() : new HashMap<>(tags);
+
+    for (String tagKey : INHERITED_APPLICATION_TAGS) {
+      String tagValue = applicationTags.get(tagKey);
+      if (tagValue == null)
+        logger.warn("[{}] EMR application {} has no tag \"{}\". The EMR job run will be created without it.",
+            getGlobalStepId(), applicationId, tagKey);
+      else
+        //Tags which have been set explicitly on the step take precedence
+        tags.putIfAbsent(tagKey, tagValue);
+    }
+  }
+
+  /**
+   * @return The (cached) tags of the specified EMR application or <code>null</code> if they could not be loaded
+   */
+  private Map<String, String> getApplicationTags(String applicationId) {
+    /*
+    The steps of a job are prepared in parallel. The pending lookup is cached as well, so that concurrent steps
+    running on the same application share one lookup instead of performing one each.
+     */
+    CompletableFuture<Map<String, String>> newLookup = new CompletableFuture<>();
+    CachedApplicationTags cached = applicationTagsCache.compute(applicationId, (id, existing) ->
+        existing != null && Core.currentTimeMillis() - existing.loadedAt() < APPLICATION_TAGS_CACHE_TTL_MS
+            ? existing
+            : new CachedApplicationTags(newLookup, Core.currentTimeMillis()));
+
+    if (cached.tags() == newLookup) {
+      try {
+        Map<String, String> applicationTags = loadApplicationTags(applicationId);
+        newLookup.complete(applicationTags == null ? Map.of() : Map.copyOf(applicationTags));
+      }
+      catch (Throwable t) {
+        //Failures are not cached, so the lookup is retried for the next step
+        applicationTagsCache.remove(applicationId, cached);
+        //Always complete the lookup, so that concurrent steps waiting for it are not blocked
+        newLookup.completeExceptionally(t);
+        if (t instanceof Error error)
+          throw error;
+      }
+    }
+
+    try {
+      return cached.tags().join();
+    }
+    catch (CompletionException e) {
+      logger.warn("[{}] Unable to load the tags of EMR application {}. The EMR job run will be created without the inherited tags {}.",
+          getGlobalStepId(), applicationId, INHERITED_APPLICATION_TAGS, e.getCause());
+      return null;
+    }
+  }
+
+  protected Map<String, String> loadApplicationTags(String applicationId) {
+    return AwsClientFactory.emrServerlessClient()
+        .getApplication(GetApplicationRequest.builder()
+            .applicationId(applicationId)
+            .overrideConfiguration(config -> config.apiCallTimeout(APPLICATION_TAGS_LOOKUP_TIMEOUT))
+            .build())
+        .application()
+        .tags();
+  }
+
+  static void clearApplicationTagsCache() {
+    applicationTagsCache.clear();
+  }
+
+  private record CachedApplicationTags(CompletableFuture<Map<String, String>> tags, long loadedAt) {}
 
   //Gets only executed when running locally (see GraphTransformer)
   @Override
@@ -328,12 +436,23 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
     //Lambda allows writing to /tmp folder - Jar file could be bigger than 512MB
     try {
       logger.info("[EMR-local] Copy file: '{}' to local.", s3Path);
-      InputStream jarStream = S3Client.getInstance().streamObjectContent(s3Path);
 
       //Create local target Folder
       createLocalFolder(Paths.get(s3Path).getParent().toString(), false);
-      Files.copy(jarStream, Paths.get(getLocalTmpPath(s3Path)));
-      jarStream.close();
+
+      ResponseInputStream<GetObjectResponse> jarStream = S3Client.getInstance().streamObjectContent(s3Path);
+      try {
+        Files.copy(jarStream, Paths.get(getLocalTmpPath(s3Path)));
+        jarStream.close();
+      }
+      catch (IOException | RuntimeException e) {
+        /*
+        The copy did not read the stream to its end, so it is aborted rather than closed, because
+        closing would block until the SDK read the whole object.
+         */
+        S3Client.abortS3Streaming(jarStream);
+        throw e;
+      }
     }
     catch (FileAlreadyExistsException e) {
       logger.info("[EMR-local] File: '{}' already exists locally - skip download.", s3Path);
@@ -473,44 +592,78 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
   }
 
   public static String toInputSetReference(InputSet inputSet) {
-    return INPUT_SET_REF_PREFIX + toReferenceIdentifier(inputSet) + INPUT_SET_REF_SUFFIX;
+    return INPUT_SET_REF_PREFIX + toInputReferenceIdentifier(inputSet) + DATA_SET_REF_SUFFIX;
   }
 
-  private static String toReferenceIdentifier(InputSet inputSet) {
-    return inputSet.providerId() + "." + inputSet.name();
+  private static String toInputReferenceIdentifier(InputSet inputSet) {
+    return inputSet.providerId() + "." + inputSetReferenceName(inputSet);
   }
 
-  InputSet fromReferenceIdentifier(String referenceIdentifier) {
+  private static String inputSetReferenceName(InputSet inputSet) {
+    return inputSet.name() + (GENERIC_PROVIDER.equals(inputSet.providerId()) ? "_" + Hasher.getHash(inputSet.s3Uri().uri()).substring(0, 12) : "");
+  }
+
+  public String outputSetReference(OutputSet outputSet) {
+    if (!getOutputSets().contains(outputSet))
+      throw new IllegalArgumentException("The provided outputSet is not a part of this EMR step.");
+
+    return toOuputSetReference(outputSet);
+  }
+
+  public static String toOuputSetReference(OutputSet outputSet) {
+    return OUTPUT_SET_REF_PREFIX + toOutputReferenceIdentifier(outputSet) + DATA_SET_REF_SUFFIX;
+  }
+
+  private static String toOutputReferenceIdentifier(OutputSet outputSet) {
+    return outputSet.getStepId() + "." + outputSet.name;
+  }
+
+  InputSet fromInputReferenceIdentifier(String referenceIdentifier) {
     ReferenceIdentifier ref = ReferenceIdentifier.fromString(referenceIdentifier);
-    return getInputSet(ref.stepId(), ref.name());
+    return fromInputReferenceIdentifier(ref.stepId(), ref.name());
   }
 
-  protected InputSet getInputSet(String providerId, String name) {
+  OutputSet fromOutputReferenceIdentifier(String referenceIdentifier) {
+    ReferenceIdentifier ref = ReferenceIdentifier.fromString(referenceIdentifier);
+    if (!ref.stepId().equals(getId()))
+      throw new IllegalArgumentException("Output set reference \"" + referenceIdentifier
+          + "\" does not match the step ID of this EMR step.");
+    if ("".equals(ref.name()))
+      return new OutputSet(ref.name(), SYSTEM, false).withStepId(getId()).withJobId(getJobId());
+    return getOutputSet(ref.name());
+  }
+
+  protected InputSet fromInputReferenceIdentifier(String providerId, String refName) {
     try {
       return getInputSets().stream()
-          .filter(inputSet -> Objects.equals(inputSet.name(), name) && Objects.equals(inputSet.providerId(), providerId))
+          .filter(inputSet -> Objects.equals(inputSetReferenceName(inputSet), refName) && Objects.equals(inputSet.providerId(), providerId))
           .findFirst()
           .get();
     }
     catch (NoSuchElementException e) {
-      throw new IllegalArgumentException("No input set \"" + providerId + "." + name + "\" exists in step \"" + getId() + "\"");
+      throw new IllegalArgumentException("No input set \"" + providerId + "." + refName + "\" exists in step \"" + getId() + "\"");
     }
   }
 
   private Map<String, String> localInputRefMap = new HashMap<>();
   List<String> resolveLocalScriptParams() {
     return getScriptParams()
-            .stream()
-            .map(param -> mapInputReferencesIn(param, this::downloadInputReferenceData))
-            .collect(Collectors.toList());
+        .stream()
+        .map(param -> mapInputReferencesIn(param, this::downloadInputReferenceData))
+        .map(param -> replaceOutputSetReferences(param))
+        .toList();
+  }
+
+  private String getLocalTmpOutputPath(OutputSet outputSet) {
+    String s3Path = S3Client.getKeyFromS3Uri(outputSet.toS3Uri(getJobId()).toString());
+    return getLocalTmpPath(s3Path);
   }
 
   private String downloadInputReferenceData(String referenceIdentifier) {
-
-    if(localInputRefMap.containsKey(referenceIdentifier))
+    if (localInputRefMap.containsKey(referenceIdentifier))
       return localInputRefMap.get(referenceIdentifier);
 
-    String s3Uri = fromReferenceIdentifier(referenceIdentifier).toS3Uri(getJobId()).toString();
+    String s3Uri = fromInputReferenceIdentifier(referenceIdentifier).toS3Uri(getJobId()).toString();
     String tmpLocalDir = copyFolderFromS3ToLocal(S3Client.getKeyFromS3Uri(s3Uri));
     localInputRefMap.put(referenceIdentifier, tmpLocalDir);
     return tmpLocalDir;
@@ -518,18 +671,30 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
 
   List<String> getResolvedScriptParams() {
     //Replace potential inputSet references within the script params
-    return getScriptParams().stream().map(scriptParam -> replaceInputSetReferences(scriptParam)).toList();
+    return getScriptParams().stream()
+        .map(scriptParam -> replaceInputSetReferences(scriptParam))
+        .map(scriptParam -> replaceOutputSetReferences(scriptParam))
+        .toList();
   }
 
   private String replaceInputSetReferences(String scriptParam) {
-    return mapInputReferencesIn(scriptParam,
-        referenceIdentifier -> fromReferenceIdentifier(referenceIdentifier).toS3Uri(getJobId()).toString());
+    return mapReferencesIn(INPUT_SET_REF_PATTERN, scriptParam,
+        referenceIdentifier -> fromInputReferenceIdentifier(referenceIdentifier).toS3Uri(getJobId()).toString());
+  }
+
+  private String replaceOutputSetReferences(String scriptParam) {
+    return mapReferencesIn(OUTPUT_SET_REF_PATTERN, scriptParam,
+        referenceIdentifier -> fromOutputReferenceIdentifier(referenceIdentifier).toS3Uri(getJobId()).toString());
   }
 
   static String mapInputReferencesIn(String scriptParam, Function<String, String> mapper) {
+    return mapReferencesIn(INPUT_SET_REF_PATTERN, scriptParam, mapper);
+  }
+
+  private static String mapReferencesIn(Pattern placeholderPattern, String scriptParam, Function<String, String> mapper) {
     if (scriptParam == null)
       return null;
-    return INPUT_SET_REF_PATTERN.matcher(scriptParam)
+    return placeholderPattern.matcher(scriptParam)
         .replaceAll(match -> {
           String replacement = mapper.apply(match.group(1));
           if (replacement == null)

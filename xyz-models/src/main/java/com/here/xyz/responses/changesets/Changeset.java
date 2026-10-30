@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ package com.here.xyz.responses.changesets;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import com.fasterxml.jackson.annotation.JsonView;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.events.UpdateStrategy;
 import com.here.xyz.events.UpdateStrategy.OnExists;
@@ -28,8 +29,8 @@ import com.here.xyz.events.UpdateStrategy.OnMergeConflict;
 import com.here.xyz.events.UpdateStrategy.OnNotExists;
 import com.here.xyz.events.UpdateStrategy.OnVersionConflict;
 import com.here.xyz.events.WriteFeaturesEvent.Modification;
-import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.models.hub.Ref;
 import com.here.xyz.responses.XyzResponse;
 import java.util.HashSet;
 import java.util.Set;
@@ -40,8 +41,15 @@ import java.util.Set;
  */
 @JsonInclude(Include.NON_DEFAULT)
 public class Changeset extends XyzResponse<Changeset> {
+
+  /**
+   * @deprecated Please use {@link #versionRef} instead
+   */
+  @Deprecated
   @JsonView({Public.class})
   long version = -1;
+  @JsonView({Public.class})
+  Ref versionRef;
   @JsonView({Public.class})
   String author;
   @JsonView({Public.class})
@@ -55,16 +63,41 @@ public class Changeset extends XyzResponse<Changeset> {
   @JsonView({Public.class})
   private String nextPageToken;
 
+  /**
+   * @deprecated Please use {@link #versionRef} instead
+   */
+  @Deprecated
   public long getVersion() {
     return version;
   }
 
+  /**
+   * @deprecated Please use {@link #versionRef} instead
+   */
+  @Deprecated
   public void setVersion(long version) {
     this.version = version;
   }
 
+  /**
+   * @deprecated Please use {@link #versionRef} instead
+   */
+  @Deprecated
   public Changeset withVersion(long version) {
     setVersion(version);
+    return this;
+  }
+
+  public Ref getVersionRef() {
+    return versionRef;
+  }
+
+  public void setVersionRef(Ref versionRef) {
+    this.versionRef = versionRef;
+  }
+
+  public Changeset withVersionRef(Ref versionRef) {
+    setVersionRef(versionRef);
     return this;
   }
 

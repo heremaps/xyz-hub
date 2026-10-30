@@ -28,6 +28,12 @@ import org.junit.jupiter.api.AfterEach;
 
 public class TestWithSpaceCleanup extends RestAssuredTest {
 
+  /**
+   * The ID of the space that most of the tests are working on. Carries {@link #TEST_SUFFIX} so that test classes in
+   * concurrent failsafe forks do not share it.
+   */
+  protected static final String DEFAULT_SPACE_ID = "x-psql-test" + TEST_SUFFIX;
+
   static String cleanUpId;
 
   protected static void removeSpace(String spaceId) {
@@ -53,7 +59,7 @@ public class TestWithSpaceCleanup extends RestAssuredTest {
   }
 
   protected static String getSpaceId() {
-    return (System.getenv().containsKey("SPACE_ID") ? System.getenv("SPACE_ID") : "x-psql-test");
+    return (System.getenv().containsKey("SPACE_ID") ? System.getenv("SPACE_ID") : DEFAULT_SPACE_ID);
   }
 
   @After

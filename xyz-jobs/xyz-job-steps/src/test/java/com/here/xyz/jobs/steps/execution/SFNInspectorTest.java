@@ -36,6 +36,7 @@ import software.amazon.awssdk.services.sfn.model.GetExecutionHistoryResponse;
 import software.amazon.awssdk.services.sfn.model.HistoryEvent;
 import software.amazon.awssdk.services.sfn.model.HistoryEventType;
 import software.amazon.awssdk.services.sfn.model.StateEnteredEventDetails;
+import software.amazon.awssdk.services.sfn.model.TaskFailedEventDetails;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -125,6 +126,21 @@ class SFNInspectorTest {
   }
 
   @Test
+  void checkIfStepWasRunningBeforeShouldReturnFalseWhenOnlyStarted() throws Exception {
+    setAsyncSfnClient(createAsyncSfnClient(request -> GetExecutionHistoryResponse.builder()
+        .events(
+            entered(1L, "TaskedImportFilesToSpace.lgiateettp"),
+            event(2L, 1L, HistoryEventType.TASK_SCHEDULED),
+            event(3L, 2L, HistoryEventType.TASK_STARTED)
+        )
+        .build()));
+
+    Boolean resumable = await(SFNInspector.checkIfStepWasRunningBefore(EXECUTION_ARN, "TaskedImportFilesToSpace", "lgiateettp"));
+
+    assertFalse(resumable);
+  }
+
+  @Test
   void findStepProgressInHistoryShouldReturnNotReachedWhenChainIsBroken() throws Exception {
     setAsyncSfnClient(createAsyncSfnClient(request -> GetExecutionHistoryResponse.builder()
         .events(
@@ -153,6 +169,32 @@ class SFNInspectorTest {
     String stepId = await(SFNInspector.findCausingStepIdInHistory(EXECUTION_ARN));
 
     assertEquals("s_fnjkyu", stepId);
+  }
+
+  @Test
+  void findCausingStepFailureInHistoryShouldReturnTaskFailureDetails() throws Exception {
+    setAsyncSfnClient(createAsyncSfnClient(request -> GetExecutionHistoryResponse.builder()
+        .events(
+            entered(10L, "MapProcessingAsset.s_ylloyr"),
+            event(11L, 10L, HistoryEventType.TASK_SCHEDULED),
+            event(12L, 11L, HistoryEventType.TASK_STARTED),
+            HistoryEvent.builder()
+                .id(13L)
+                .previousEventId(12L)
+                .type(HistoryEventType.TASK_FAILED)
+                .taskFailedEventDetails(TaskFailedEventDetails.builder()
+                    .error("MicroBatchExecutionFailedException")
+                    .cause("E316052 Cannot parse configuration.")
+                    .build())
+                .build()
+        )
+        .build()));
+
+    SFNInspector.StepFailureInfo failure = await(SFNInspector.findCausingStepFailureInHistory(EXECUTION_ARN));
+
+    assertEquals("s_ylloyr", failure.stepId());
+    assertEquals("MicroBatchExecutionFailedException", failure.error());
+    assertEquals("E316052 Cannot parse configuration.", failure.cause());
   }
 
   @Test

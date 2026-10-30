@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,12 +22,12 @@ package com.here.xyz.jobs.service;
 import static com.here.xyz.jobs.RuntimeInfo.State.FAILED;
 import static com.here.xyz.jobs.RuntimeInfo.State.NOT_READY;
 import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
-import static com.here.xyz.jobs.RuntimeStatus.Action.CANCEL;
+import static com.here.xyz.jobs.RuntimeStatus.Action.START;
 import static com.here.xyz.jobs.service.JobApiBase.ApiParam.Path.SPACE_ID;
 import static com.here.xyz.jobs.service.JobApiBase.ApiParam.getPathParam;
 import static com.here.xyz.jobs.steps.Step.InputSet.DEFAULT_SET_NAME;
-import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.ACCEPTED;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 
@@ -42,6 +42,7 @@ import com.here.xyz.jobs.steps.JobCompiler.CompilationError;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.inputs.InputsFromJob;
 import com.here.xyz.jobs.steps.inputs.InputsFromS3;
+import com.here.xyz.jobs.steps.inputs.InputsFromS3.BucketAccessDeniedException;
 import com.here.xyz.jobs.steps.inputs.ModelBasedInput;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.Output;
@@ -65,6 +66,10 @@ public class JobApi extends JobApiBase {
   protected JobApi() {}
 
   public JobApi(RouterBuilder rb) {
+    initApi(rb);
+  }
+
+  protected void initApi(RouterBuilder rb) {
     rb.getRoute("postJob").setDoValidation(false).addHandler(handleErrors(this::postJob));
     rb.getRoute("getJobs").setDoValidation(false).addHandler(handleErrors(this::getJobs));
     rb.getRoute("getJob").setDoValidation(false).addHandler(handleErrors(this::getJob));
@@ -88,7 +93,8 @@ public class JobApi extends JobApiBase {
   }
 
   protected Future<Job> createNewJob(RoutingContext context, Job job) {
-    logger.info(getMarker(context), "Received job creation request: {}", job.serialize(true));
+    logger.info(getMarker(context), "Received job creation request: {} alongside the following inputs: {}"
+            , job.serialize(true), XyzSerializable.serialize(job.getInputs(), true));
     return job.create().submit()
         .compose(v -> applyInputReferences(job))
         .map(res -> job)
@@ -104,6 +110,9 @@ public class JobApi extends JobApiBase {
     final Throwable rootCause = rootCause(error);
     final Map<String, Object> errorDetails = Map.of("jobId", jobId);
 
+    if (isBucketAccessDenied(error))
+      return new DetailedHttpException("E319011", null, errorDetails, error);
+
     if (error instanceof CompilationError)
       return new DetailedHttpException("E319002", placeholdersFor(error), errorDetails, error);
 
@@ -114,7 +123,7 @@ public class JobApi extends JobApiBase {
       return new DetailedHttpException("E319003", placeholdersFor(rootCause), errorDetails, rootCause);
 
     if (error instanceof IllegalArgumentException || error instanceof IllegalStateException)
-      return new HttpException(BAD_REQUEST, error.getMessage(), errorDetails);
+      return new HttpException(BAD_REQUEST, error.getMessage(), error, errorDetails);
 
     return error;
   }
@@ -124,6 +133,19 @@ public class JobApi extends JobApiBase {
     while (current.getCause() != null && current.getCause() != current)
       current = current.getCause();
     return current;
+  }
+
+  private static boolean isBucketAccessDenied(Throwable error) {
+    for (Throwable current = error; current != null; current = current.getCause())
+      if (current instanceof BucketAccessDeniedException)
+        return true;
+    return false;
+  }
+
+  protected Throwable normalizeInputRegistrationError(Throwable error, String jobId) {
+    if (isBucketAccessDenied(error))
+      return new DetailedHttpException("E319011", null, Map.of("jobId", jobId), error);
+    return error;
   }
 
   private static Map<String, String> placeholdersFor(Throwable error) {
@@ -188,6 +210,7 @@ public class JobApi extends JobApiBase {
     Future<Input> inputCreatedFuture = loadJob(context, jobId).compose(job -> registerInput(context, job, input, inputSetName));
 
     inputCreatedFuture
+        .recover(t -> Future.failedFuture(normalizeInputRegistrationError(t, jobId)))
         .onSuccess(res -> sendResponse(context, CREATED.code(), res))
         .onFailure(err -> sendErrorResponse(context, err));
   }
@@ -406,9 +429,11 @@ public class JobApi extends JobApiBase {
       case RESUME -> job.resume();
     })
         .onSuccess(actionExecuted -> {
-          if (status.getDesiredAction() != CANCEL || actionExecuted) {
+          //A START of a job that was submitted already (e.g., by a concurrent request) did nothing, so nothing must be stored
+          if (actionExecuted || status.getDesiredAction() == START && job.getStatus().getState() == NOT_READY) {
             job.getStatus().setDesiredAction(null);
-            job.storeStatus(null);
+            //Do not overwrite a state that was changed concurrently (e.g., by a step update)
+            job.storeStatus(job.getStatus().getState());
           }
         })
         .map(res -> job.getStatus());

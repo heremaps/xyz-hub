@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ package com.here.xyz.psql.query;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.COMPOSITE_EXTENSION;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.X;
 import static com.here.xyz.models.hub.Ref.HEAD;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.DELETE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.INSERT_HIDE_COMPOSITE;
@@ -44,6 +45,7 @@ import com.here.xyz.util.db.SQLQuery;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -72,7 +74,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
       query = new SQLQuery(
           "SELECT * FROM (SELECT * FROM ("
-          + "     (SELECT ${{selectClause}} FROM ${schema}.${table} WHERE ${{filters}} ${{versionCheck}} ${{orderBy}})"
+          + "     (SELECT ${{selectClause}} FROM ${schema}.${table} e WHERE ${{filters}} ${{versionCheck}} ${{orderBy}})"
           + "   ${{unionAll}} "
           + "     SELECT * FROM (${{baseQuery}}) a"
           + "       ${{compositionFilter}}"
@@ -82,7 +84,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
           .withQueryFragment("orderBy", buildOrderByFragment(event))
           .withQueryFragment("versionCheck", versionCheckFragment)
           .withQueryFragment("unionAll", event.getContext() == COMPOSITE_EXTENSION ? "UNION DISTINCT" : "UNION ALL")
-          .withQueryFragment("compositionFilter", buildCompositionFilter(event, false, buildIdComparisonFragment(event, "a.", versionCheckFragment)))
+          .withQueryFragment("compositionFilter", buildCompositionFilter(event, false, buildIdComparisonFragment(event, "a.", versionCheckFragment, false)))
           .withQueryFragment("baseQuery", !is2LevelExtendedSpace(event)
               ? build1LevelBaseQuery(event, filterWhereClause) //1-level extension
               : build2LevelBaseQuery(event, filterWhereClause)); //2-level extension
@@ -125,14 +127,41 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
         .withQueryFragment("limit", buildLimitFragment(event));
   }
 
-  private SQLQuery buildCompositionFilter(E event, boolean isL2, SQLQuery idComparisonFragment) {
-    if (event instanceof SelectiveEvent selectiveEvent && selectiveEvent.getRef().isAllVersions())
+  protected SQLQuery buildCompositionFilter(E event, boolean isL2, SQLQuery idComparisonFragment) {
+    if (event instanceof SelectiveEvent selectiveEvent && selectiveEvent.getRef().isAllVersions()
+        //Keep the composition filter for a bound intermediate dataset.
+        && (!isL2 || !isBoundIntermediate(event)))
       return new SQLQuery("");
 
     String tableVariable = isL2 ? "intermediateExtensionTable" : "table";
     return new SQLQuery("WHERE ${{exists}} exists(SELECT 1 FROM ${schema}.${" + tableVariable + "} WHERE ${{idComparison}})")
-        .withQueryFragment("exists", event.getContext() == COMPOSITE_EXTENSION && !isL2 ? "" : "NOT")
+        .withQueryFragment("exists", (event.getContext() == COMPOSITE_EXTENSION || event.getContext() == X) && !isL2 ? "" : "NOT")
         .withQueryFragment("idComparison", idComparisonFragment);
+  }
+
+  /**
+   * Returns whether the selected base dataset is fixed to a configured version.
+   * The extension dataset itself is never bound.
+   * In a two-level composite, the outer extension version binds the intermediate dataset,
+   * while the intermediate extension version binds the root dataset.
+   */
+  protected boolean isBoundDataset(E event, boolean isExtension, int dataset) {
+    if (isExtension || !isCompositeQuery(event))
+      return false;
+
+    if (dataset == compositeDatasetNo(event, CompositeDataset.SUPER))
+      return (is2LevelExtendedSpace(event) ? getIntermediateBaseVersion(event) : getBaseVersion(event)).isPresent();
+
+    return is2LevelExtendedSpace(event)
+        && dataset == compositeDatasetNo(event, CompositeDataset.INTERMEDIATE)
+        && getBaseVersion(event).isPresent();
+  }
+
+  /**
+   * Returns whether the intermediate dataset of a two-level composite is fixed to a configured version.
+   */
+  protected boolean isBoundIntermediate(E event) {
+    return isBoundDataset(event, false, compositeDatasetNo(event, CompositeDataset.INTERMEDIATE));
   }
 
   protected SQLQuery buildBranchCompositionFilter() {
@@ -182,6 +211,14 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
   protected SQLQuery buildFilterWhereClause(E event) {
     return new SQLQuery("TRUE");
+  }
+
+  /**
+   * Builds an ID filter with a caller-specific parameter name to avoid collisions in composed queries.
+   */
+  protected SQLQuery buildIdsFilter(Collection<String> ids, String parameterName) {
+    return new SQLQuery("id = ANY(#{" + parameterName + "})")
+        .withNamedParameter(parameterName, ids.toArray(new String[0]));
   }
 
   protected SQLQuery buildSelectClause(E event, int dataset, long baseVersion) {
@@ -308,17 +345,23 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   }
 
   private SQLQuery build1LevelBaseQuery(E event, SQLQuery filterWhereClause) {
+    SQLQuery versionCheck = (is2LevelExtendedSpace(event) ? getIntermediateBaseVersion(event) : getBaseVersion(event))
+            .map(this::buildCompositeBaseVersionCheckFragment)
+            .orElse(buildBaseVersionCheckFragment("base1Version"));
+
     int dataset = compositeDatasetNo(event, CompositeDataset.SUPER);
     return new SQLQuery("SELECT ${{selectClause}} FROM ${schema}.${extendedTable} WHERE ${{filters}} ${{versionCheck}} ${{orderBy}}")
         .withVariable("extendedTable", getExtendedTable(event))
         .withQueryFragment("selectClause", buildSelectClause(event, dataset, 0))
         .withQueryFragment("filters", buildFiltersFragment(event, false, filterWhereClause, dataset)) //NOTE: We know that the base space is not an extended one
-        .withQueryFragment("versionCheck", buildBaseVersionCheckFragment("base1Version"))
+        .withQueryFragment("versionCheck", versionCheck)
         .withQueryFragment("orderBy", buildOrderByFragment(event));
   }
 
   private SQLQuery build2LevelBaseQuery(E event, SQLQuery filterWhereClause) {
-    SQLQuery versionCheckFragment = buildBaseVersionCheckFragment("base2Version");
+    SQLQuery versionCheckFragment = getBaseVersion(event)
+            .map(this::buildCompositeBaseVersionCheckFragment)
+            .orElse(buildBaseVersionCheckFragment("base2Version"));
 
     int dataset = compositeDatasetNo(event, CompositeDataset.INTERMEDIATE);
     return new SQLQuery("(SELECT ${{selectClause}}"
@@ -332,16 +375,29 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
         .withQueryFragment("versionCheck", versionCheckFragment)
         .withQueryFragment("orderBy", buildOrderByFragment(event))
         .withQueryFragment("baseQuery", build1LevelBaseQuery(event, filterWhereClause))
-        .withQueryFragment("compositionFilter", buildCompositionFilter(event, true, buildIdComparisonFragment(event, "b.", versionCheckFragment)));
+        .withQueryFragment("compositionFilter", buildCompositionFilter(event, true, buildIdComparisonFragment(event, "b.", versionCheckFragment, isBoundIntermediate(event))));
   }
 
-  private SQLQuery buildIdComparisonFragment(E event, String prefix, SQLQuery versionCheckFragment) {
+  /**
+   * Selects rows active at the configured physical base-space version.
+   */
+  protected SQLQuery buildCompositeBaseVersionCheckFragment(long baseVersion) {
+    return new SQLQuery("AND version <= ${{baseVersion}}::BIGINT AND next_version > ${{baseVersion}}::BIGINT")
+        .withQueryFragment("baseVersion", "" + baseVersion);
+  }
+
+  private SQLQuery buildIdComparisonFragment(E event, String prefix, SQLQuery versionCheckFragment, boolean boundIntermediate) {
+    boolean filterByVersion = event instanceof SelectiveEvent || boundIntermediate;
     return new SQLQuery("id = " + prefix + "id"
-        + (event instanceof SelectiveEvent ? " ${{versionCheck}} AND operation != 'D'" : ""))
-        .withQueryFragment("versionCheck", versionCheckFragment);
+        + (filterByVersion ? " ${{versionCheck}} ${{deletionInclusionFragment}}" : ""))
+        .withQueryFragment("versionCheck", versionCheckFragment)
+        .withQueryFragment("deletionInclusionFragment", event.getContext() == X ? "AND operation = 'D'" : "AND operation != 'D'");
   }
 
   private SQLQuery buildDeletionCheckFragment(E event, boolean isExtension) {
+    if (isExtension && event.getContext() == X)
+      return buildContextXDeletionCheckFragment(event);
+
     if (!historyEnabled && !isExtension
         || event instanceof SelectiveEvent selectiveEvent && selectiveEvent.getRef().isRange())
       return new SQLQuery("");
@@ -353,12 +409,26 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
             : new ModificationType[]{DELETE}).map(ModificationType::toString).toArray(String[]::new));
   }
 
+  private SQLQuery buildContextXDeletionCheckFragment(E event) {
+    return new SQLQuery("""
+        AND NOT (
+          operation = 'D'
+          AND EXISTS (
+            SELECT 1
+            FROM ${schema}.${extendedTable}
+            WHERE id = e.id
+          )
+        )
+        """)
+        .withVariable("extendedTable", getExtendedTable(event));
+  }
+
   protected SQLQuery buildLimitFragment(E event) {
     return new SQLQuery("");
   }
 
   protected boolean isCompositeQuery(E event) {
-    return isExtendedSpace(event) && (event.getContext() == DEFAULT || event.getContext() == COMPOSITE_EXTENSION);
+    return isExtendedSpace(event) && (event.getContext() == DEFAULT || event.getContext() == COMPOSITE_EXTENSION || event.getContext() == X);
   }
 
   /**
@@ -405,10 +475,29 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     return jsonData.replaceAll(namespacePattern, versionAuthor);
   }
 
+  /**
+   * The size at which accumulating more features is pointless. {@link #MAX_RESULT_SIZE} is a fixed
+   * 100 MiB, but the response is rejected further up at MAX_UNCOMPRESSED_RESPONSE_SIZE, so building
+   * past the smaller of the two only produces work that is thrown away.
+   */
+  private static long effectiveResultSizeLimit() {
+    String configured = System.getenv("MAX_UNCOMPRESSED_RESPONSE_SIZE");
+    if (configured == null || configured.isBlank())
+      return MAX_RESULT_SIZE;
+    try {
+      long limit = Long.parseLong(configured.trim());
+      return limit > 0 ? Math.min(limit, MAX_RESULT_SIZE) : MAX_RESULT_SIZE;
+    }
+    catch (NumberFormatException e) {
+      return MAX_RESULT_SIZE;
+    }
+  }
+
   protected static class LazyParsableFeatureCollection {
     public static final String PREFIX = "[";
     public static final String SUFFIX = "]";
 
+    private final long resultSizeLimit = effectiveResultSizeLimit();
     private StringBuilder content = new StringBuilder().append(PREFIX);
 
     public void addFeature(FeatureAppender featureAppender) throws ErrorResponseException, SQLException {
@@ -417,8 +506,8 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
       if( content.length() > PREFIX.length() && content.charAt(content.length() - 1) != ',' ) //prevent inserting additionals ',' in case featureAppender.appendFeature(content) does nop
        content = content.append(",");
 
-      if (content.length() > MAX_RESULT_SIZE)
-        throw new ErrorResponseException(PAYLOAD_TO_LARGE, "Maximum response char limit of " + MAX_RESULT_SIZE + " reached");
+      if (content.length() > resultSizeLimit)
+        throw new ErrorResponseException(PAYLOAD_TO_LARGE, "Maximum response char limit of " + resultSizeLimit + " reached");
     }
 
     public FeatureCollection build() {
@@ -448,10 +537,10 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
       selection.add("type");
 
       jsonData = selection.isEmpty() ? new SQLQuery("jsondata") : new SQLQuery("(SELECT "
-          + "CASE WHEN prj_build->'properties' IS NOT NULL THEN prj_build "
-          + "ELSE jsonb_set(prj_build, '{properties}', '{}'::jsonb) "
+          + "CASE WHEN projected::JSONB->'properties' IS NOT NULL THEN projected::JSONB "
+          + "ELSE jsonb_set(projected::JSONB, '{properties}', '{}'::jsonb) "
           + "END "
-          + "FROM prj_build(#{selection}, jsondata))")
+          + "FROM prj_build(#{selection}, jsondata::TEXT) AS projected)")
           .withNamedParameter("selection", selection.toArray(new String[0]));
     }
     return jsonData;
@@ -494,7 +583,8 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   }
 
   protected SQLQuery buildGeoJsonExpression(E event) {
-    return new SQLQuery("REGEXP_REPLACE(ST_AsGeojson(${{rawGeoExpression}}, ${{precision}}), 'nan', '0', 'gi')")
+    //xyz_as_geojson replaces a per-row REGEXP_REPLACE that also missed Infinity; see ext.sql.
+    return new SQLQuery("xyz_as_geojson(${{rawGeoExpression}}, ${{precision}})")
           .withQueryFragment("rawGeoExpression", buildRawGeoExpression(event))
           .withQueryFragment("precision", "" + GetFeatures.GEOMETRY_DECIMAL_DIGITS);
   }

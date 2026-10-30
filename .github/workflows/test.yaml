@@ -1,28 +1,57 @@
 name: Run XYZ Hub tests
 
-on: [push, pull_request, workflow_dispatch]
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+#Checking out the sources is all the workflow needs the token for
+permissions:
+  contents: read
 
 jobs:
-  test:
+  module-tests:
+    name: test (${{ matrix.name }})
     runs-on: ubuntu-latest
+    strategy:
+      #One stack per slice, so a failing slice does not hide the result of the others
+      fail-fast: false
+      matrix:
+        include:
+          - name: hub
+            modules: xyz-hub-test
+          - name: job-steps
+            modules: xyz-jobs/xyz-job-steps
+          - name: job-service
+            modules: xyz-jobs/xyz-job-service
+          #Everything the slices above do not claim, so a new module is covered without touching this list
+          - name: rest
+            modules: '!xyz-hub-test,!xyz-jobs/xyz-job-steps,!xyz-jobs/xyz-job-service'
     steps:
-      - uses: actions/checkout@v2
-      - name: Cache local Maven repository
-        uses: actions/cache@v4
-        with:
-          path: ~/.m2/repository
-          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
-          restore-keys: |
-            ${{ runner.os }}-maven-
+      - uses: actions/checkout@v4
       - name: Setup Java
-        uses: actions/setup-java@v1
+        uses: actions/setup-java@v4
         with:
           java-version: '17'
+          distribution: temurin
+          cache: maven
       - name: Add hosts to /etc/hosts
         run: |
           sudo echo "127.0.0.1 dynamodb postgres.local postgres postgres.replica" | sudo tee -a /etc/hosts
+      - name: Build the service jars
+        run: mvn clean install -DskipTests=true
+      #Only the services the tests talk to are started. The swagger, dynamodb-admin and s3-explorer
+      #containers of the compose file are user interfaces that no test addresses, so naming the
+      #services here leaves them and the image build of the s3 explorer out.
       - name: Start the XYZ Hub stack
-        run: mvn clean install -Pdocker -DskipTests=true -DdockerComposeFile=docker-compose-dynamodb.yml
+        run: |
+          docker compose -f docker-compose-dynamodb.yml build postgres xyz-hub xyz-job-service
+          docker compose -f docker-compose-dynamodb.yml up --detach --no-build xyz-job-service
       - name: Deploy StepLambda for Job API
         run: ./xyz-jobs/xyz-job-steps/src/main/bash/deployLocalLambda.sh
         env:
@@ -34,4 +63,17 @@ jobs:
         run: docker run --rm --entrypoint '' -v ./localSetup.sh:/aws/localSetup.sh --add-host host.docker.internal=host-gateway amazon/aws-cli ./localSetup.sh true
       - name: Run tests
         working-directory: ./
-        run: mvn verify -DskipTests=false
+        #The fat jars were already built and deployed by the steps above, no need to repackage them
+        run: mvn verify -DskipTests=false -Dshade.skip=true -pl '${{ matrix.modules }}'
+
+  #The check required by the branch protection of master. It has to keep reporting under the name
+  #"test", which is what the protection rule asks for, while the matrix above reports one result per
+  #slice under names that change whenever a slice is added.
+  test:
+    name: test
+    if: always()
+    needs: module-tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail unless every slice succeeded
+        run: '[ "${{ needs.module-tests.result }}" = "success" ]'

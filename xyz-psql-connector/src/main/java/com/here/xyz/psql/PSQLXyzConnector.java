@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -79,7 +79,6 @@ import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.StorageStatistics;
 import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.XyzResponse;
-import com.here.xyz.responses.changesets.ChangesetCollection;
 import com.here.xyz.util.db.SQLQuery;
 import java.sql.SQLException;
 import java.util.List;
@@ -89,7 +88,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public class PSQLXyzConnector extends DatabaseHandler {
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(PSQLXyzConnector.class);
   protected static final Pattern ERRVALUE_22P02 = Pattern.compile("invalid input syntax for type numeric:\\s+\"([^\"]*)\"\\s+Query:"),
       ERRVALUE_22P05 = Pattern.compile("ERROR:\\s+(.*)\\s+Detail:\\s+(.*)\\s+Where:");
 
@@ -229,8 +228,9 @@ public class PSQLXyzConnector extends DatabaseHandler {
   }
 
   @Override
-  protected ChangesetCollection processIterateChangesetsEvent(IterateChangesetsEvent event) throws Exception {
-    return run(new IterateChangesets(event));
+  protected XyzResponse processIterateChangesetsEvent(IterateChangesetsEvent event) throws Exception {
+    //TBD: check why the cast is necessary
+    return (XyzResponse) run(new IterateChangesets(event));
   }
 
   @Override

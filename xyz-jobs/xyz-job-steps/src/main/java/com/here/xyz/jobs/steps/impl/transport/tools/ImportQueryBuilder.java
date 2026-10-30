@@ -1,47 +1,66 @@
+/*
+ * Copyright (C) 2017-2026 HERE Europe B.V.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ * License-Filename: LICENSE
+ */
 package com.here.xyz.jobs.steps.impl.transport.tools;
 
+import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.UpdateStrategy;
 import com.here.xyz.jobs.steps.impl.transport.tasks.inputs.ImportInput;
+import com.here.xyz.models.hub.Space;
 import com.here.xyz.util.db.SQLQuery;
 
 import java.util.List;
-import java.util.Map;
 
-import static com.here.xyz.jobs.steps.impl.transport.TaskedSpaceBasedStep.getTemporaryJobTableName;
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
 import static com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace.Format;
 
-public class ImportQueryBuilder {
+public class ImportQueryBuilder extends TaskedSpaceBasedQueryBuilder {
   private static final String TMP_TABLE_SUFFIX = "_tmp_tbl_";
+  protected final double featureWriterBatchSizeInMb;
 
-  private final String stepId;
-  private final String schema;
-  private final double featureWriterBatchSizeInMb;
-
-  private String rootTable;
-
-  public static void main(String[] args) {}
-
-  public ImportQueryBuilder(String stepId, String schema){
-    this.stepId = stepId;
-    this.schema = schema;
-    this.featureWriterBatchSizeInMb = 10;
-  }
-
-  public ImportQueryBuilder(String stepId, String schema, String rootTable, long versionsToKeep, double featureWriterBatchSizeInMb) {
-    this.stepId = stepId;
-    this.schema = schema;
-    this.rootTable = rootTable;
+  public ImportQueryBuilder(Space space, ContextAwareEvent.SpaceContext context, String stepId,
+                               String schema, String rootTable, String superRootTable, double featureWriterBatchSizeInMb) {
+    super(space, context, stepId, schema, rootTable, superRootTable);
     this.featureWriterBatchSizeInMb = featureWriterBatchSizeInMb;
   }
 
-  public SQLQuery buildNextVersionQuery(){
+  @Override
+  protected SQLQuery buildTaskOutputUpdateCondition() {
+    //Missing progress represents phase 1, which is accepted only while no output has been stored.
+    return new SQLQuery("""
+        finalized = false
+        AND (
+          task_output IS NULL
+          OR COALESCE((task_output #>> '{taskOutput,progress,endI}')::BIGINT, -1)
+             < COALESCE((#{taskUpdate}::JSONB #>> '{taskOutput,progress,endI}')::BIGINT, -1)
+        )
+        """);
+  }
+
+  public SQLQuery buildNextVersionQuery(String versionTable){
     return new SQLQuery("SELECT nextval('${schema}.${sequence}')")
             .withVariable("schema", schema)
-            .withVariable("sequence", rootTable + "_version_seq");
+            .withVariable("sequence", versionTable + "_version_seq");
   }
 
   public SQLQuery buildImportTaskQuery(Format format, Integer taskId, ImportInput taskInput, String serializedImportStep,
-                                       String lambdaArn, String ownLambdaRegion, Map<String, Object> context,
+                                       String lambdaArn, String ownLambdaRegion,
                                        boolean useFeatureWriter, String failureCallback){
 
     String targetTable = useFeatureWriter ?
@@ -50,9 +69,10 @@ public class ImportQueryBuilder {
 
     return new SQLQuery(
             "SELECT perform_import_from_s3_task(#{taskId}, #{schema}, to_regclass(#{targetTable}), #{format}, " +
-                    "#{s3Bucket}, #{s3Key}, #{s3Region}, #{filesize}, #{stepPayload}::JSON->'step', " +
+                    "#{s3Bucket}, #{s3Key}, #{s3Region}, #{filesize}, #{targetVersion}, #{replaceTargetContents}, "
+                    + "#{stepPayload}::JSON->'step', " +
                     "#{lambdaFunctionArn}, #{lambdaRegion}, '${{failureCallback}}')")
-            .withContext(context)
+            .withContext(getQueryContext())
             .withAsync(true)
             .withNamedParameter("taskId", taskId)
             .withNamedParameter("schema", schema)
@@ -62,6 +82,8 @@ public class ImportQueryBuilder {
             .withNamedParameter("s3Key", taskInput.s3Key())
             .withNamedParameter("s3Region", taskInput.s3Region())
             .withNamedParameter("filesize", taskInput.fileByteSize())
+            .withNamedParameter("targetVersion",taskInput.targetVersion())
+            .withNamedParameter("replaceTargetContents", useFeatureWriter)
             .withNamedParameter("stepPayload", serializedImportStep)
             .withNamedParameter("lambdaFunctionArn", lambdaArn)
             .withNamedParameter("lambdaRegion", ownLambdaRegion)
@@ -80,9 +102,7 @@ public class ImportQueryBuilder {
   }
 
   public SQLQuery buildTemporaryDataTableForImportQuery(int taskId){
-    String tableFields =
-            "  jsondata TEXT," +
-                    " i BIGSERIAL PRIMARY KEY";
+    String tableFields ="  jsondata TEXT, i BIGSERIAL PRIMARY KEY";
     return new SQLQuery("CREATE TABLE IF NOT EXISTS ${schema}.${table} (${{tableFields}} )")
             .withQueryFragment("tableFields", tableFields)
             .withVariable("schema", schema )
@@ -95,52 +115,28 @@ public class ImportQueryBuilder {
             .withVariable("table", getTemporaryDataTableName(taskId));
   }
 
-  public SQLQuery buildCleanUpStatement(){
-    return SQLQuery.batchOf(
-            //Delete trigger - if present
-            new SQLQuery("DROP TRIGGER IF EXISTS insertTrigger ON ${schema}.${table};")
-              .withVariable("schema", schema)
-              .withVariable("table", rootTable),
-            //Delete all existing temporary tables
-            buildDropAllTemporaryTablesByStepPrefixQuery());
+  public SQLQuery buildTriggerCleanUpStatement(){
+    //Delete trigger - if present
+   return new SQLQuery("DROP TRIGGER IF EXISTS insertTrigger ON ${schema}.${table};")
+      .withVariable("schema", schema)
+      .withVariable("table", rootTable);
   }
 
-  public SQLQuery buildDropAllTemporaryDataTablesForImportQuery(int taskCount) {
-    if (taskCount <= 0) {
+  //perpetration for finalCleanUp
+  public SQLQuery buildDropAllTemporaryTablesByTaskItemCount(int taskItemCount) {
+    if (taskItemCount <= 0) {
       return SQLQuery.batchOf(List.of());
     }
 
     List<SQLQuery> dropQueries = new java.util.ArrayList<>();
-    for (int taskId = 1; taskId <= taskCount; taskId++) {
+    for (int taskId = 1; taskId <= taskItemCount; taskId++) {
       dropQueries.add(dropTemporaryDataTableForImportQuery(taskId));
     }
     return SQLQuery.batchOf(dropQueries);
   }
 
-  public SQLQuery buildDropAllTemporaryTablesByStepPrefixQuery() {
-    return new SQLQuery("""
-            DO $$
-            DECLARE
-              r RECORD;
-            BEGIN
-              FOR r IN
-                SELECT tablename
-                  FROM pg_tables
-                 WHERE schemaname = #{schema}
-                   AND left(tablename, length(#{tablePrefix})) = #{tablePrefix}
-              LOOP
-                EXECUTE format('DROP TABLE IF EXISTS %I.%I;', #{schema}, r.tablename);
-              END LOOP;
-            END
-            $$;
-        """)
-            .withNamedParameter("schema", schema)
-            .withNamedParameter("tablePrefix", getTemporaryJobTableName(this.stepId));
-  }
-
-
   public String getTemporaryDataTableName(int taskId) {
-    return getTemporaryJobTableName(this.stepId) + TMP_TABLE_SUFFIX + taskId;
+    return getTemporaryJobTableName() + TMP_TABLE_SUFFIX + taskId;
   }
 
   /**
@@ -149,13 +145,13 @@ public class ImportQueryBuilder {
   public SQLQuery buildImportFromTmpTableTaskQuery(Integer taskId, long rangeStart,
                                                    String author, long currentVersion, boolean isPartial, UpdateStrategy updateStrategy,
                                                    String serializedImportStep, String lambdaArn, String ownLambdaRegion,
-                                                   Map<String, Object> context, String failureCallback) {
+                                                   String failureCallback) {
 
     return new SQLQuery(
             "SELECT perform_import_from_tmp_table_task(#{taskId}, to_regclass(#{sourceTable}), #{rangeStart}, #{targetMb}, "
                     + "#{author}, #{currentVersion}, #{isPartial}, #{onExists}, #{onNotExists}, #{onVersionConflict}, "
                     + "#{onMergeConflict}, #{stepPayload}::JSON->'step', #{lambdaFunctionArn}, #{lambdaRegion}, '${{failureCallback}}')")
-            .withContext(context)
+            .withContext(getQueryContext())
             .withAsync(true)
             .withNamedParameter("taskId", taskId)
             .withNamedParameter("sourceTable", getTemporaryDataTableName(taskId))
@@ -172,5 +168,86 @@ public class ImportQueryBuilder {
             .withNamedParameter("lambdaFunctionArn", lambdaArn)
             .withNamedParameter("lambdaRegion", ownLambdaRegion)
             .withQueryFragment("failureCallback", failureCallback);
+  }
+
+  /**
+   * Builds the default import query which writes staged features directly with PostgreSQL.
+   */
+  public SQLQuery buildExpressImportFromTmpTableTaskQuery(Integer taskId, long rangeStart,
+                                                          String author, long currentVersion, boolean historyEnabled,
+                                                          String serializedImportStep, String lambdaArn,
+                                                          String ownLambdaRegion, String failureCallback) {
+    ContextAwareEvent.SpaceContext effectiveContext = context == null ? DEFAULT : context;
+    if (effectiveContext == SUPER)
+      throw new IllegalArgumentException("Importing data with context SUPER is not supported.");
+    String visibleSuperTable = effectiveContext == DEFAULT ? superRootTable : null;
+    //Only relevant while the base is actually visible, and only if it is bound to a specific version
+    Long superBoundVersion = visibleSuperTable == null || space.getExtension() == null
+            ? null : space.getExtension().getVersion();
+
+    return new SQLQuery(
+            "SELECT perform_express_import_from_tmp_table_task(#{taskId}, to_regclass(#{sourceTable}), "
+                    + "to_regclass(#{targetTable}), to_regclass(#{superTable}), #{spaceContext}, "
+                    + "#{rangeStart}, #{targetMb}, #{author}, #{currentVersion}, #{historyEnabled}, "
+                    + "#{superBoundVersion}, "
+                    + "#{stepPayload}::JSON->'step', #{lambdaFunctionArn}, #{lambdaRegion}, '${{failureCallback}}')")
+            .withContext(getQueryContext())
+            .withAsync(true)
+            .withNamedParameter("taskId", taskId)
+            .withNamedParameter("sourceTable", getTemporaryDataTableName(taskId))
+            .withNamedParameter("targetTable", schema + ".\"" + rootTable + "\"")
+            .withNamedParameter("superTable",
+                    visibleSuperTable == null ? null : schema + ".\"" + visibleSuperTable + "\"")
+            .withNamedParameter("spaceContext", effectiveContext.name())
+            .withNamedParameter("rangeStart", rangeStart)
+            .withNamedParameter("targetMb", featureWriterBatchSizeInMb)
+            .withNamedParameter("author", author)
+            .withNamedParameter("currentVersion", currentVersion)
+            .withNamedParameter("historyEnabled", historyEnabled)
+            .withNamedParameter("superBoundVersion", superBoundVersion)
+            .withNamedParameter("stepPayload", serializedImportStep)
+            .withNamedParameter("lambdaFunctionArn", lambdaArn)
+            .withNamedParameter("lambdaRegion", ownLambdaRegion)
+            .withQueryFragment("failureCallback", failureCallback);
+  }
+
+  /**
+   * Builds a query to load the target version from one non-finalized task item.
+   * <p>
+   * During resume, non-finalized task items may have a newer target version than finalized ones.
+   * Restricting the lookup to pending work ensures that resumed tasks keep writing with a consistent version.
+   * </p>
+   *
+   * @return The SQL query selecting a single pending task item's {@code targetVersion}.
+   */
+  public SQLQuery buildLoadTargetVersionFromTaskInputStatement() {
+    return new SQLQuery("""
+            SELECT (task_input->>'targetVersion')::BIGINT AS target_version
+                FROM ${schema}.${table}
+            WHERE finalized = false
+                LIMIT 1;
+        """)
+            .withVariable("schema", schema)
+            .withVariable("table", getTemporaryJobTableName());
+  }
+
+  /**
+   * Builds a query to update the target version in task inputs of all non-finalized task items.
+   * <p>
+   * Finalized items are intentionally excluded because their data was already written with their original version.
+   * </p>
+   *
+   * @param targetVersion The new target version to store in pending task inputs.
+   * @return The SQL query updating pending task items.
+   */
+  public SQLQuery buildUpdateTaskItemsTargetVersionStatement(long targetVersion) {
+    return new SQLQuery("""
+            UPDATE ${schema}.${table}
+                SET task_input = jsonb_set(task_input, '{targetVersion}', to_jsonb(#{targetVersion}::BIGINT))
+                WHERE finalized = false;
+        """)
+            .withVariable("schema", schema)
+            .withVariable("table", getTemporaryJobTableName())
+            .withNamedParameter("targetVersion", targetVersion);
   }
 }

@@ -11,7 +11,7 @@
     },
     "properties": {
         "@ns:com:here:xyz": {
-            "space": "x-psql-test",
+            "space": "${spaceId}",
             "createdAt": 1711038285360,
             "updatedAt": 1711038285360,
             "version": 1

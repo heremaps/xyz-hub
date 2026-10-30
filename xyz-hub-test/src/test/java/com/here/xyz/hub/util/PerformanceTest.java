@@ -146,7 +146,7 @@ public class PerformanceTest extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get("/spaces/x-psql-test/statistics")
+        .get("/spaces/" + DEFAULT_SPACE_ID + "/statistics")
         .then()
         .statusCode(OK.code());
   }
@@ -178,7 +178,7 @@ public class PerformanceTest extends TestSpaceWithFeature {
                   .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
                   .body(load(f.getAbsolutePath()))
                   .when()
-                  .post("/spaces/x-psql-test/features?transactional=false")
+                  .post("/spaces/" + DEFAULT_SPACE_ID + "/features?transactional=false")
                   .then()
                   .extract();
 
@@ -252,7 +252,7 @@ public class PerformanceTest extends TestSpaceWithFeature {
           ExtractableResponse<Response> r = given()
               .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
               .when()
-              .get("/spaces/x-psql-test/tile/quadkey/" + tileId + "?skipCache=true&clustering=quadbin&clustering.relativeResolution=3&clustering.countmode=mixed&margin=0&clip=true")
+              .get("/spaces/" + DEFAULT_SPACE_ID + "/tile/quadkey/" + tileId + "?skipCache=true&clustering=quadbin&clustering.relativeResolution=3&clustering.countmode=mixed&margin=0&clip=true")
               .then()
               .extract();
 
@@ -324,7 +324,7 @@ public class PerformanceTest extends TestSpaceWithFeature {
           ExtractableResponse<Response> r = given()
               .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
               .when()
-              .get("/spaces/x-psql-test/tile/quadkey/" + tileId + "?skipCache=true&clustering=hexbin&clustering.relativeResolution=0&clustering.countmode=mixed&margin=0&clip=true")
+              .get("/spaces/" + DEFAULT_SPACE_ID + "/tile/quadkey/" + tileId + "?skipCache=true&clustering=hexbin&clustering.relativeResolution=0&clustering.countmode=mixed&margin=0&clip=true")
               .then()
               .extract();
 
@@ -396,7 +396,7 @@ public class PerformanceTest extends TestSpaceWithFeature {
           ExtractableResponse<Response> r = given()
               .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
               .when()
-              .get("/spaces/x-psql-test/tile/quadkey/" + tileId + "?skipCache=true&mode=viz&vizSampling=high&margin=0&clip=true")
+              .get("/spaces/" + DEFAULT_SPACE_ID + "/tile/quadkey/" + tileId + "?skipCache=true&mode=viz&vizSampling=high&margin=0&clip=true")
               .then()
               .extract();
 
@@ -450,7 +450,7 @@ public class PerformanceTest extends TestSpaceWithFeature {
     return given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get("/spaces/x-psql-test/statistics")
+        .get("/spaces/" + DEFAULT_SPACE_ID + "/statistics")
         .then()
         .extract()
         .path("count.value");
@@ -475,7 +475,7 @@ public class PerformanceTest extends TestSpaceWithFeature {
           ExtractableResponse<Response> r = given()
               .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
               .when()
-              .get("/spaces/x-psql-test/tile/quadkey/" + tileId + "?skipCache=true&limit=1000")
+              .get("/spaces/" + DEFAULT_SPACE_ID + "/tile/quadkey/" + tileId + "?skipCache=true&limit=1000")
               .then()
               .extract();
 
@@ -549,7 +549,7 @@ public class PerformanceTest extends TestSpaceWithFeature {
           ExtractableResponse<Response> r = given()
               .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
               .when()
-              .delete("/spaces/x-psql-test/features?id=" + ids)
+              .delete("/spaces/" + DEFAULT_SPACE_ID + "/features?id=" + ids)
               .then()
               .extract();
 

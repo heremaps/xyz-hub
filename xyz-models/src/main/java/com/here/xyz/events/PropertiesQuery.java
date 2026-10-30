@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 package com.here.xyz.events;
 
 
+import com.here.xyz.events.PropertyQuery.QueryOperation;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.util.ArrayList;
@@ -28,6 +29,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class PropertiesQuery extends ArrayList<PropertyQueryList> {
@@ -66,6 +68,110 @@ public class PropertiesQuery extends ArrayList<PropertyQueryList> {
       }
     }
     return keyList;
+  }
+
+  /**
+   * Converts this {@link PropertiesQuery} into a JsonPath filter expression (Jayway syntax),
+   * e.g. {@code $[?(@.properties.type == 'building')]}.
+   *
+   * <p>The conversion follows the same boolean semantics that are used when translating a
+   * {@link PropertiesQuery} into a SQL predicate:
+   * <ul>
+   *   <li>the outer {@link PropertyQueryList}s are combined with a logical <b>OR</b></li>
+   *   <li>the {@link PropertyQuery}s inside one {@link PropertyQueryList} are combined with a logical <b>AND</b></li>
+   *   <li>the values of a single {@link PropertyQuery} are combined with a logical <b>OR</b></li>
+   * </ul>
+   *
+   * @return the JsonPath filter expression or {@code null} if this query is empty.
+   */
+  public String toJsonPath() {
+    if (isEmpty())
+      return null;
+
+    List<String> disjunctions = new ArrayList<>();
+    for (PropertyQueryList conjunctions : this) {
+      if (conjunctions == null || conjunctions.isEmpty())
+        continue;
+
+      List<String> conjunctionExpressions = new ArrayList<>();
+      for (PropertyQuery query : conjunctions) {
+        if (query == null || query.getKey() == null || query.getOperation() == null)
+          continue;
+        conjunctionExpressions.add(toJsonPathExpression(query));
+      }
+
+      if (!conjunctionExpressions.isEmpty())
+        disjunctions.add(String.join(" && ", conjunctionExpressions));
+    }
+
+    if (disjunctions.isEmpty())
+      return null;
+
+    boolean wrap = disjunctions.size() > 1;
+    String filter = disjunctions.stream()
+        .map(d -> wrap ? "(" + d + ")" : d)
+        .collect(Collectors.joining(" || "));
+
+    return "$[?(" + filter + ")]";
+  }
+
+  private static String toJsonPathExpression(PropertyQuery query) {
+    String path = "@." + query.getKey();
+    QueryOperation op = query.getOperation();
+    List<Object> values = query.getValues();
+
+    if (values == null || values.isEmpty())
+      return path;
+
+    List<String> valueExpressions = new ArrayList<>();
+    for (Object value : values)
+      valueExpressions.add(toJsonPathPredicate(path, op, value));
+
+    String joined = String.join(" || ", valueExpressions);
+    return valueExpressions.size() > 1 ? "(" + joined + ")" : joined;
+  }
+
+  @SuppressWarnings("deprecation")
+  private static String toJsonPathPredicate(String path, QueryOperation op, Object value) {
+    String formattedValue = formatJsonPathValue(value);
+
+    switch (op) {
+      case EQUALS:
+        return path + " == " + formattedValue;
+      case NOT_EQUALS:
+        return path + " != " + formattedValue;
+      case LESS_THAN:
+        return path + " < " + formattedValue;
+      case GREATER_THAN:
+        return path + " > " + formattedValue;
+      case LESS_THAN_OR_EQUALS:
+        return path + " <= " + formattedValue;
+      case GREATER_THAN_OR_EQUALS:
+        return path + " >= " + formattedValue;
+      case CONTAINS:
+        //CONTAINS checks whether an element is contained in an array. The Jayway JsonPath
+        //"contains" operator performs exactly this element-membership check when the left
+        //operand resolves to an array (e.g. @.properties.tags contains 'foo').
+        //Note: for scalar string properties Jayway interprets "contains" as a substring match,
+        //which slightly differs from the jsonb "@>" semantics used in the SQL translation.
+        return path + " contains " + formattedValue;
+      case BEGINS_WITH:
+        return path + " =~ /^" + escapeRegex(String.valueOf(value)) + ".*/";
+      default:
+        throw new IllegalArgumentException("Unsupported operation for JsonPath conversion: " + op);
+    }
+  }
+
+  private static String formatJsonPathValue(Object value) {
+    if (value == null)
+      return "null";
+    if (value instanceof Boolean || value instanceof Number)
+      return value.toString();
+    return "'" + value.toString().replace("\\", "\\\\").replace("'", "\\'") + "'";
+  }
+
+  private static String escapeRegex(String value) {
+    return value.replaceAll("([\\\\.\\[\\]{}()*+\\-?^$|/])", "\\\\$1");
   }
 
   public static PropertiesQuery fromString(String query) {

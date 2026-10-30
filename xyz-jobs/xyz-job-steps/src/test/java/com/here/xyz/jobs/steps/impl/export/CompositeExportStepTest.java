@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,11 +32,8 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
 import java.util.List;
-
-import org.junit.Ignore;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 public class CompositeExportStepTest extends ExportTestBase {
@@ -111,7 +108,7 @@ public class CompositeExportStepTest extends ExportTestBase {
         executeExportStepAndCheckResults(SPACE_ID_EXT, SpaceContext.SUPER, null, null,
             new Ref(HEAD), "/search?context=SUPER");
     }
-    
+
     @Test
     public void exportEmptyFile() throws Exception {
         exportWithContextAndWithPropertyFilter(SpaceContext.SUPER,

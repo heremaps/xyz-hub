@@ -47,7 +47,7 @@ import org.apache.logging.log4j.Logger;
  * e.g: java ECPSTool encrypt secret "{\"foo\":\"bar\"}"
  */
 public class ECPSTool {
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(ECPSTool.class);
   public static final String USAGE = "java ECPSTool encrypt|decrypt <ecps_phrase> <data>";
 
   public static void main(String[] args) throws GeneralSecurityException, UnsupportedEncodingException {

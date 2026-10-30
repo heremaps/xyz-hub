@@ -27,7 +27,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public interface ImplementationProvider {
-  Logger logger = LogManager.getLogger();
+  Logger logger = LogManager.getLogger(ImplementationProvider.class);
 
   /**
    * @return Whether this ImplementationProvider is suitable to be used in the current runtime environment

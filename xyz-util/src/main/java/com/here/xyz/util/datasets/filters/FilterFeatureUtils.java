@@ -39,7 +39,7 @@ import org.locationtech.jts.geom.prep.PreparedGeometryFactory;
 
 public class FilterFeatureUtils {
 
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(FilterFeatureUtils.class);
   private static final PreparedGeometryFactory GEOMETRY_FACTORY = new PreparedGeometryFactory();
 
   private FilterFeatureUtils() {

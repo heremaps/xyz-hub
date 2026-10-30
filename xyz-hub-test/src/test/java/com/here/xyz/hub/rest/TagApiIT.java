@@ -45,7 +45,14 @@ import org.junit.Ignore;
 import org.junit.Test;
 
 public class TagApiIT extends TestSpaceBranch {
-  private static final String SECOND_SPACE = "secondSpace";
+  private static final String SECOND_SPACE = "secondSpace" + TEST_SUFFIX;
+  /*
+  The tag IDs are fork local too, because "/spaces?tag=" lists across spaces and would otherwise
+  return the spaces of the other forks as well. The fork suffix is underscored here, as a hyphen
+  would have to be quoted in the GPath expressions that address a tag by name.
+   */
+  private static final String TAG_1 = "XYZ_1" + TEST_SUFFIX.replace('-', '_');
+  private static final String TAG_2 = "XYZ_2" + TEST_SUFFIX.replace('-', '_');
   private static final List<String> createdSpaces = new ArrayList<>();
 
   @BeforeClass
@@ -83,13 +90,13 @@ public class TagApiIT extends TestSpaceBranch {
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .get("/spaces/" + getSpaceId() + "/tags/XYZ_1")
+        .get("/spaces/" + getSpaceId() + "/tags/" + TAG_1)
         .then()
         .statusCode(NOT_FOUND.code());
   }
 
   private ValidatableResponse _createTag() {
-    return _createTagForId(getSpaceId(), "XYZ_1", false);
+    return _createTagForId(getSpaceId(), TAG_1, false);
   }
 
   private ValidatableResponse _createTagForId(String spaceId, String tagId, boolean system) {
@@ -105,12 +112,12 @@ public class TagApiIT extends TestSpaceBranch {
   public void createTag() {
     _createTag()
         .statusCode(OK.code())
-        .body("id", equalTo("XYZ_1"))
+        .body("id", equalTo(TAG_1))
         .body("version", equalTo(0));
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .get("/spaces/" + getSpaceId() + "/tags/XYZ_1")
+        .get("/spaces/" + getSpaceId() + "/tags/" + TAG_1)
         .then()
         .statusCode(OK.code());
   }
@@ -141,13 +148,13 @@ public class TagApiIT extends TestSpaceBranch {
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .delete("/spaces/" + getSpaceId() + "/tags/XYZ_1")
+        .delete("/spaces/" + getSpaceId() + "/tags/" + TAG_1)
         .then()
         .statusCode(OK.code());
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .delete("/spaces/" + getSpaceId() + "/tags/XYZ_1")
+        .delete("/spaces/" + getSpaceId() + "/tags/" + TAG_1)
         .then()
         .statusCode(NOT_FOUND.code());
   }
@@ -158,7 +165,7 @@ public class TagApiIT extends TestSpaceBranch {
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .get("/spaces/" + getSpaceId() + "/tags/XYZ_1")
+        .get("/spaces/" + getSpaceId() + "/tags/" + TAG_1)
         .then()
         .statusCode(OK.code())
         .body("version", equalTo(0));
@@ -172,13 +179,13 @@ public class TagApiIT extends TestSpaceBranch {
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .contentType(ContentType.JSON)
         .body(new Tag().withVersion(999).serialize())
-        .patch("/spaces/" + getSpaceId() + "/tags/XYZ_1")
+        .patch("/spaces/" + getSpaceId() + "/tags/" + TAG_1)
         .then()
         .statusCode(OK.code());
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .get("/spaces/" + getSpaceId() + "/tags/XYZ_1")
+        .get("/spaces/" + getSpaceId() + "/tags/" + TAG_1)
         .then()
         .statusCode(OK.code())
         .body("version", equalTo(999));
@@ -236,7 +243,7 @@ public class TagApiIT extends TestSpaceBranch {
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .get("/spaces?tag=XYZ_1")
+        .get("/spaces?tag=" + TAG_1)
         .then()
         .body("size()", is(0));
 
@@ -244,11 +251,11 @@ public class TagApiIT extends TestSpaceBranch {
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .get("/spaces?tag=XYZ_1")
+        .get("/spaces?tag=" + TAG_1)
         .then()
         .body("size()", is(1))
-        .body("[0].tags.XYZ_1.id", equalTo("XYZ_1"))
-        .body("[0].tags.XYZ_1.version", equalTo(0));
+        .body("[0].tags." + TAG_1 + ".id", equalTo(TAG_1))
+        .body("[0].tags." + TAG_1 + ".version", equalTo(0));
   }
 
   @Ignore("Disabled. Takes too long")
@@ -259,15 +266,15 @@ public class TagApiIT extends TestSpaceBranch {
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .get("/spaces?tag=XYZ_1")
+        .get("/spaces?tag=" + TAG_1)
         .then()
         .body("size()", is(0));
 
-    createdSpaces.stream().forEach(spaceId -> _createTagForId(spaceId, "XYZ_1", false));
+    createdSpaces.stream().forEach(spaceId -> _createTagForId(spaceId, TAG_1, false));
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .get("/spaces?tag=XYZ_1")
+        .get("/spaces?tag=" + TAG_1)
         .then()
         .body("size()", is(createdSpaces.size()));
   }
@@ -279,7 +286,7 @@ public class TagApiIT extends TestSpaceBranch {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .contentType(ContentType.JSON)
-        .patch("/spaces/" + getSpaceId() + "/tags/XYZ_1")
+        .patch("/spaces/" + getSpaceId() + "/tags/" + TAG_1)
         .then()
         .statusCode(BAD_REQUEST.code());
   }
@@ -292,7 +299,7 @@ public class TagApiIT extends TestSpaceBranch {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .contentType(ContentType.JSON)
-        .body(new Tag().withId("XYZ_1"))
+        .body(new Tag().withId(TAG_1))
         .post("/spaces/" + getSpaceId() + "/tags")
         .then()
         .body("version", equalTo(2));
@@ -307,7 +314,7 @@ public class TagApiIT extends TestSpaceBranch {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .contentType(ContentType.JSON)
-        .body(new Tag().withId("XYZ_1").withVersion(555))
+        .body(new Tag().withId(TAG_1).withVersion(555))
         .post("/spaces/" + getSpaceId() + "/tags")
         .then()
         .body("version", equalTo(555));
@@ -318,7 +325,7 @@ public class TagApiIT extends TestSpaceBranch {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .contentType(ContentType.JSON)
-        .body(new Tag().withId("XYZ_1").withVersion(-10))
+        .body(new Tag().withId(TAG_1).withVersion(-10))
         .post("/spaces/" + getSpaceId() + "/tags")
         .then()
         .statusCode(BAD_REQUEST.code());
@@ -330,7 +337,7 @@ public class TagApiIT extends TestSpaceBranch {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .contentType(ContentType.JSON)
-        .body(new Tag().withId("XYZ_1").withVersion(-1))
+        .body(new Tag().withId(TAG_1).withVersion(-1))
         .post("/spaces/" + getSpaceId() + "/tags")
         .then()
         .body("version", equalTo(-1));
@@ -344,7 +351,7 @@ public class TagApiIT extends TestSpaceBranch {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .contentType(ContentType.JSON)
-        .body(new Tag().withId("XYZ_1").withVersion(-1))
+        .body(new Tag().withId(TAG_1).withVersion(-1))
         .post("/spaces/" + getSpaceId() + "/tags")
         .then()
         .body("version", equalTo(-1));
@@ -355,7 +362,7 @@ public class TagApiIT extends TestSpaceBranch {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .contentType(ContentType.JSON)
-        .body(new Tag().withId("XYZ_1").withVersion(0))
+        .body(new Tag().withId(TAG_1).withVersion(0))
         .post("/spaces/" + getSpaceId() + "/tags")
         .then()
         .body("version", equalTo(0));
@@ -368,7 +375,7 @@ public class TagApiIT extends TestSpaceBranch {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .contentType(ContentType.JSON)
-        .body(new Tag().withId("XYZ_1").withVersion(0))
+        .body(new Tag().withId(TAG_1).withVersion(0))
         .post("/spaces/" + getSpaceId() + "/tags")
         .then()
         .body("version", equalTo(0));
@@ -382,7 +389,7 @@ public class TagApiIT extends TestSpaceBranch {
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .contentType(ContentType.JSON)
         .body(new Tag().withVersion(-10))
-        .patch("/spaces/" + getSpaceId() + "/tags/XYZ_1")
+        .patch("/spaces/" + getSpaceId() + "/tags/" + TAG_1)
         .then()
         .statusCode(BAD_REQUEST.code());
   }
@@ -393,7 +400,7 @@ public class TagApiIT extends TestSpaceBranch {
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .get("/spaces?contentUpdatedAt=gt=1&tag=XYZ_1&region=invalid_region")
+        .get("/spaces?contentUpdatedAt=gt=1&tag=" + TAG_1 + "&region=invalid_region")
         .then()
         .body("size()", is(0))
         .statusCode(OK.code());
@@ -401,24 +408,24 @@ public class TagApiIT extends TestSpaceBranch {
 
   @Test
   public void testGetSystemTag() {
-    _createTagForId(getSpaceId(), "XYZ_2", true);
-    _createTagForId(getSpaceId(), "XYZ_1", false);
+    _createTagForId(getSpaceId(), TAG_2, true);
+    _createTagForId(getSpaceId(), TAG_1, false);
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .get("/spaces/" + getSpaceId() + "/tags/XYZ_1")
+        .get("/spaces/" + getSpaceId() + "/tags/" + TAG_1)
         .then()
         .statusCode(OK.code())
-        .body("id", equalTo("XYZ_1"))
+        .body("id", equalTo(TAG_1))
         .body("version", equalTo(0))
         .body("$", not(hasKey("system")));
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .get("/spaces/" + getSpaceId() + "/tags/XYZ_2")
+        .get("/spaces/" + getSpaceId() + "/tags/" + TAG_2)
         .then()
         .statusCode(OK.code())
-        .body("id", equalTo("XYZ_2"))
+        .body("id", equalTo(TAG_2))
         .body("version", equalTo(0))
         .body("$", hasKey("system"))
         .body("system", equalTo(true));
@@ -436,22 +443,22 @@ public class TagApiIT extends TestSpaceBranch {
 
   @Test
   public void testListTags() {
-    _createTagForId(getSpaceId(), "XYZ_2", true);
-    _createTagForId(getSpaceId(), "XYZ_1", false);
+    _createTagForId(getSpaceId(), TAG_2, true);
+    _createTagForId(getSpaceId(), TAG_1, false);
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .get("/spaces/" + getSpaceId() + "/tags")
         .then()
         .body("size()", is(1))
-        .body("id", hasItems("XYZ_1"))
+        .body("id", hasItems(TAG_1))
         .statusCode(OK.code());
   }
 
   @Test
   public void testListSystemTags() {
-    _createTagForId(getSpaceId(), "XYZ_2", true);
-    _createTagForId(getSpaceId(), "XYZ_1", true);
+    _createTagForId(getSpaceId(), TAG_2, true);
+    _createTagForId(getSpaceId(), TAG_1, true);
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
@@ -470,7 +477,7 @@ public class TagApiIT extends TestSpaceBranch {
         .get("/spaces/" + getSpaceId() + "/tags?includeSystemTags=true")
         .then()
         .body("size()", is(2))
-        .body("id", hasItems("XYZ_1", "XYZ_2"))
+        .body("id", hasItems(TAG_1, TAG_2))
         .statusCode(OK.code());
   }
 
@@ -517,12 +524,12 @@ public class TagApiIT extends TestSpaceBranch {
   public void createTagAndCheckForAuthorAndCreatedAtAndDescription() {
     _createTag()
         .statusCode(OK.code())
-        .body("id", equalTo("XYZ_1"))
+        .body("id", equalTo(TAG_1))
         .body("version", equalTo(0));
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .get("/spaces/" + getSpaceId() + "/tags/XYZ_1")
+        .get("/spaces/" + getSpaceId() + "/tags/" + TAG_1)
         .then()
         .statusCode(OK.code())
         .body("$", hasKey("author"))
@@ -537,8 +544,8 @@ public class TagApiIT extends TestSpaceBranch {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .contentType(ContentType.JSON)
-        .body(new Tag().withId("XYZ_1").withVersion(1).withDescription("description"))
-        .patch("/spaces/" + getSpaceId() + "/tags/XYZ_1")
+        .body(new Tag().withId(TAG_1).withVersion(1).withDescription("description"))
+        .patch("/spaces/" + getSpaceId() + "/tags/" + TAG_1)
         .then()
         .statusCode(OK.code())
         .body("description", equalTo("description"));
@@ -546,9 +553,9 @@ public class TagApiIT extends TestSpaceBranch {
 
   @Test
   public void testListTagsSortedDesc() throws InterruptedException {
-    _createTagForId(getSpaceId(), "XYZ_1", false);
+    _createTagForId(getSpaceId(), TAG_1, false);
     Thread.sleep(10);
-    _createTagForId(getSpaceId(), "XYZ_2", false);
+    _createTagForId(getSpaceId(), TAG_2, false);
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
@@ -556,8 +563,8 @@ public class TagApiIT extends TestSpaceBranch {
         .then()
         .statusCode(OK.code())
         .body("size()", is(2))
-        .body("id[0]", equalTo("XYZ_2"))
-        .body("id[1]", equalTo("XYZ_1"));
+        .body("id[0]", equalTo(TAG_2))
+        .body("id[1]", equalTo(TAG_1));
   }
 
   @Test

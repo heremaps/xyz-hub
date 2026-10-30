@@ -243,10 +243,12 @@ public class DynamoTagConfigClient extends TagConfigClient {
     ).collect(Collectors.toList());
   }
 
+  //Built once rather than per call - this runs on the request path.
+  private static final Comparator<Tag> BY_CREATED_AT_DESC = Comparator.comparingLong(
+      (Tag tag) -> tag.getCreatedAt() == 0 ? Long.MIN_VALUE : tag.getCreatedAt()).reversed();
+
   private List<Tag> sortTagsByCreatedAtDesc(List<Tag> tags) {
-    tags.sort(Comparator.comparingLong((Tag tag) ->
-            tag.getCreatedAt() == 0 ? Long.MIN_VALUE : tag.getCreatedAt()
-    ).reversed());
+    tags.sort(BY_CREATED_AT_DESC);
     return tags;
   }
 }

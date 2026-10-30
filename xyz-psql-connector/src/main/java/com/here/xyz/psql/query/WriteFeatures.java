@@ -44,6 +44,7 @@ import com.here.xyz.util.db.pg.SQLError;
 import com.here.xyz.util.runtime.FunctionRuntime;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.sql.ResultSet;
@@ -56,7 +57,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureCollection> {
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(WriteFeatures.class);
   boolean responseDataExpected;
   boolean debug = "true".equalsIgnoreCase(System.getenv().get("DEBUG_FW"));
 
@@ -69,6 +70,7 @@ public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureColl
   protected SQLQuery buildQuery(WriteFeaturesEvent event) throws ErrorResponseException {
     List<String> tables = new ArrayList<>();
     List<Long> tableBaseVersions = null;
+    List<Long> tableBoundVersions = null;
     SpaceContext spaceContext = null;
     String rootTableName = getDefaultTable(event);
 
@@ -86,12 +88,26 @@ public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureColl
         spaceContext = event.getContext();
       }
       tables.add(rootTableName);
+
+      if (hasBoundBaseVersion(event)) {
+        /*
+        With context = SUPER the write target becomes the immediate base (see FeatureWriter._targetTable), which is exactly the
+        table the extension binds to a fixed version. FeatureApi rejects all SUPER modifications already, so this only guards
+        callers which bypass the hub.
+         */
+        if (spaceContext == SpaceContext.SUPER && getBaseVersion(event).isPresent())
+          throw new ErrorResponseException(XyzError.ILLEGAL_ARGUMENT, "Writing with context " + SpaceContext.SUPER
+              + " is not supported for a composite space which is bound to a specific version of its base space.");
+
+        tableBoundVersions = buildTableBoundVersions(event);
+      }
     }
 
     FeatureWriterQueryContextBuilder queryContextBuilder = new FeatureWriterQueryContextBuilder()
         .withSchema(getSchema())
         .withTables(tables)
         .withTableBaseVersions(tableBaseVersions)
+        .withTableBoundVersions(tableBoundVersions)
         .withSpaceContext(spaceContext)
         .withHistoryEnabled(event.getVersionsToKeep() > 1)
         .withBatchMode(true)
@@ -101,7 +117,8 @@ public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureColl
         .with("PARTITION_SIZE", PARTITION_SIZE)
         .with("minVersion", event.getMinVersion())
         .with("versionsToKeep", event.getVersionsToKeep())
-        .with("pw", getDataSourceProvider().getDatabaseSettings().getPassword());
+        .with("pw", getDataSourceProvider().getDatabaseSettings().getPassword())
+        .with("skipNonModified", true);
 
     if (event.getRef() != null && event.getRef().isSingleVersion() && !event.getRef().isHead())
       queryContextBuilder.withBaseVersion(event.getRef().getVersion());
@@ -113,6 +130,20 @@ public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureColl
         .withNamedParameter("author", event.getAuthor())
         .withNamedParameter("responseDataExpected", event.isResponseDataExpected())
         .withRetryableErrorCodes(Set.of(RETRYABLE_VERSION_CONFLICT.errorCode));
+  }
+
+  /**
+   * Returns the bound version of each table, positionally aligned with the tables of the composite. The write target is never bound.
+   * In a two-level composite the outer extension's version binds the intermediate table, while the intermediate extension's version
+   * binds the root table.
+   */
+  private List<Long> buildTableBoundVersions(WriteFeaturesEvent event) {
+    List<Long> tableBoundVersions = new ArrayList<>();
+    if (is2LevelExtendedSpace(event))
+      tableBoundVersions.add(getIntermediateBaseVersion(event).orElse(null));
+    tableBoundVersions.add(getBaseVersion(event).orElse(null));
+    tableBoundVersions.add(null); //The write target itself is never bound
+    return tableBoundVersions;
   }
 
   @Override
@@ -159,11 +190,22 @@ public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureColl
           NodeExecutableLocator.findNode(),
           "--inspect-brk=9229",
           "xyz-util/src/test/js/db/featurewriter/TestFeatureWriter.js",
-          dataSourceProvider.getDatabaseSettings().getJdbcUrl(false),
-          queryJson
+          dataSourceProvider.getDatabaseSettings().getJdbcUrl(false)
       );
 
       Process process = pb.start();
+
+      //Pipe the (potentially very large) queryJson into the process' stdin instead of passing it as a command line argument.
+      Thread stdinWriter = new Thread(() -> {
+        try (OutputStream os = process.getOutputStream()) {
+          os.write(queryJson.getBytes());
+          os.flush();
+        }
+        catch (IOException e) {
+          throw new RuntimeException("Error writing queryJson to process stdin.", e);
+        }
+      });
+      stdinWriter.start();
 
       try (InputStream is = process.getInputStream()) {
         String stdout;

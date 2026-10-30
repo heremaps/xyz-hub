@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -126,6 +126,11 @@ public class BaseConfig {
    * Additional application name variable.
    */
   public String APP_NAME;
+
+  /**
+   * The default cache TTL (in seconds) to be used by the {@link com.here.xyz.util.web.HubWebClient} to cache responses in memory.
+   */
+  public long HUB_WEB_CLIENT_CACHE_TTL = 30;
 
   /**
    * Helper method to split a string that is a comma separated list into a list of strings including

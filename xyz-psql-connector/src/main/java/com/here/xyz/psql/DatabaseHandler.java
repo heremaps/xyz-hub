@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,10 +20,13 @@
 package com.here.xyz.psql;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
+import static com.here.xyz.models.hub.Ref.HEAD;
 import static com.here.xyz.models.hub.Space.DEFAULT_VERSIONS_TO_KEEP;
+import static com.here.xyz.models.hub.Space.TABLE_NAME;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.DELETE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.INSERT;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE;
+import static com.here.xyz.psql.query.ExtendedSpace.getBaseVersion;
 import static com.here.xyz.psql.query.XyzEventBasedQueryRunner.readBranchTableFromEvent;
 import static com.here.xyz.responses.XyzError.NOT_IMPLEMENTED;
 import static com.here.xyz.util.db.pg.LockHelper.advisoryLock;
@@ -42,7 +45,8 @@ import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
-import com.here.xyz.psql.query.ExtendedSpace;
+import com.here.xyz.models.hub.Ref;
+import com.here.xyz.psql.query.GetFeatureIds;
 import com.here.xyz.psql.query.GetFeaturesById;
 import com.here.xyz.psql.query.helpers.FetchExistingIds;
 import com.here.xyz.psql.query.helpers.FetchExistingIds.FetchIdsInput;
@@ -72,8 +76,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import net.jodah.expiringmap.ExpirationPolicy;
+import net.jodah.expiringmap.ExpiringMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -81,7 +89,7 @@ public abstract class DatabaseHandler extends StorageConnector {
     //TODO - set scriptResourcePath if ext & h3 functions should get installed here.
     private static final List<ScriptResourcePath> SCRIPT_RESOURCE_PATHS = List.of(new ScriptResourcePath("/sql", "hub", "common"));
     public static final String ECPS_PHRASE = "ECPS_PHRASE";
-    private static final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger(DatabaseHandler.class);
 
     /**
      * Lambda Execution Time = 25s. We are actively canceling queries after STATEMENT_TIMEOUT_SECONDS
@@ -116,7 +124,18 @@ public abstract class DatabaseHandler extends StorageConnector {
             .withApplicationName(FunctionRuntime.getInstance().getApplicationName())
             .withScriptResourcePaths(SCRIPT_RESOURCE_PATHS);
 
+        applyConnectionPoolParams(dbSettings, connectorParams);
+
         initialize(dbSettings, null);
+    }
+
+    /**
+     * Applies the pool sizing from the connector params, taking precedence over the deprecated
+     * PSQL_MAX_CONN ECPS setting. A Lambda container serves one invocation, so its default stays 1.
+     */
+    private static void applyConnectionPoolParams(DatabaseSettings dbSettings, ConnectorParameters connectorParams) {
+        if (connectorParams.getDbMaxPoolSize() > 0)
+            dbSettings.withDbMaxPoolSize(connectorParams.getDbMaxPoolSize());
     }
 
     public void initialize(DatabaseSettings dbSettings, Context context) {
@@ -214,8 +233,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         if (isForExtendingSpace(event) && event.getContext() == DEFAULT) {
             if (!deletes.isEmpty()) {
                 //Transform the incoming deletes into upserts with deleted flag for features which exist in the extended layer (base)
-                List<String> existingIdsInBase = run(new FetchExistingIds(
-                    new FetchIdsInput(ExtendedSpace.getExtendedTable(event), originalDeletes)));
+                Set<String> existingIdsInBase = loadExistingBaseFeatureIds(event, originalDeletes);
 
                 for (String featureId : originalDeletes) {
                   if (existingIdsInBase.contains(featureId)) {
@@ -480,12 +498,36 @@ public abstract class DatabaseHandler extends StorageConnector {
         return true;
     }
 
+    /**
+     * Whether the target table carries its "_unique" constraint, which decides the shape of the
+     * upsert statement. Cached with a short expiry: it only changes when a table is created or
+     * migrated, but was looked up on every write request.
+     *
+     * Keyed by the cache key of the database settings rather than by their ID, so that a connector
+     * repointed at another database or schema does not read the answer for the previous one.
+     */
+    private static final Map<String, Boolean> UNIQUE_CONSTRAINT_CACHE = ExpiringMap.builder()
+        .maxSize(1024)
+        .expirationPolicy(ExpirationPolicy.CREATED)
+        .expiration(1, TimeUnit.MINUTES)
+        .build();
+
     private boolean checkUniqueTableConstraint(ModifyFeaturesEvent event) throws SQLException {
-        return new SQLQuery("SELECT 1 FROM pg_catalog.pg_constraint "
+        String table = readBranchTableFromEvent(event);
+        String cacheKey = getDatabaseSettings().getCacheKey() + "/" + table;
+
+        Boolean cached = UNIQUE_CONSTRAINT_CACHE.get(cacheKey);
+        if (cached != null)
+            return cached;
+
+        boolean exists = new SQLQuery("SELECT 1 FROM pg_catalog.pg_constraint "
             + "WHERE connamespace::regnamespace::text = #{schema} AND conname = #{constraintName}")
             .withNamedParameter("schema", getDatabaseSettings().getSchema())
-            .withNamedParameter("constraintName", readBranchTableFromEvent(event) + "_unique")
+            .withNamedParameter("constraintName", table + "_unique")
             .run(dataSourceProvider, rs -> rs.next());
+
+        UNIQUE_CONSTRAINT_CACHE.put(cacheKey, exists);
+        return exists;
     }
 
     private List<Feature> loadExistingFeatures(ModifyFeaturesEvent event, List<String> idsToFetch) throws SQLException,
@@ -507,6 +549,42 @@ public abstract class DatabaseHandler extends StorageConnector {
         logger.error("Error while fetching existing features during feature modification.", e);
         return Collections.emptyList();
       }
+    }
+
+    /**
+     * Loads IDs visible in the immediate effective base, honoring nested composition and configured base versions.
+     */
+    private Set<String> loadExistingBaseFeatureIds(ModifyFeaturesEvent event, List<String> idsToFetch)
+        throws SQLException, ErrorResponseException {
+      Map<String, Object> extension = (Map<String, Object>) event.getParams().get("extends");
+      Object nestedExtension = extension.get("extends");
+
+      Map<String, Object> baseParams = new HashMap<>();
+      // The base's table name is not necessarily the same as the extension's table name, so we need to pass it explicitly to the base query.
+      if (extension.get(TABLE_NAME) != null)
+        baseParams.put(TABLE_NAME, extension.get(TABLE_NAME));
+      if (nestedExtension != null)
+        baseParams.put("extends", nestedExtension);
+
+      Ref baseRef = getBaseVersion(event)
+          .map(Ref::new)
+          .orElse(new Ref(HEAD));
+
+      GetFeaturesByIdEvent fetchEvent = new GetFeaturesByIdEvent()
+          .withSpace((String) extension.get("spaceId"))
+          .withContext(DEFAULT)
+          .withRef(baseRef)
+          .withStreamId(event.getStreamId())
+          .withParams(baseParams)
+          .withConnectorParams(event.getConnectorParams())
+          .withIds(idsToFetch)
+          //The base's own retention is unknown here; this lookup just needs the history-enabled read shape
+          .withVersionsToKeep(Integer.MAX_VALUE);
+
+      GetFeatureIds baseIdsQuery = new GetFeatureIds(fetchEvent);
+      baseIdsQuery.setUseReadReplica(false);
+      baseIdsQuery.setMinVersionCheckEnabled(false);
+      return run(baseIdsQuery).getIds();
     }
 
     private List<String> getAllIds(List<Feature> inserts, List<Feature> updates, List<Feature> upserts, Map<String, ?> deletes) {

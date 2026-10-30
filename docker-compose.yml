@@ -9,9 +9,12 @@ services:
         ports:
             - "8080:8080"
         depends_on:
-            - "postgres"
-            - "redis"
-            - "aws-localstack"
+            postgres:
+                condition: service_healthy
+            redis:
+                condition: service_started
+            aws-localstack:
+                condition: service_started
     postgres:
         image: "xyz-postgres"
         build:
@@ -20,6 +23,14 @@ services:
         container_name: "postgres"
         ports:
             - "5432:5432"
+        #The hub waits for this, because depends_on alone only orders the container starts. A hub that
+        #reaches its database before the database accepts connections never installs the hub.* schemas,
+        #and every request then fails with a connector error.
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+            interval: 2s
+            timeout: 5s
+            retries: 45
     redis:
         image: "redis"
         container_name: "redis"

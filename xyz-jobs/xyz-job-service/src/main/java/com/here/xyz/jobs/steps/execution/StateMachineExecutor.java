@@ -38,9 +38,9 @@ import software.amazon.awssdk.services.sfn.model.CreateStateMachineResponse;
 import software.amazon.awssdk.services.sfn.model.DeleteStateMachineRequest;
 import software.amazon.awssdk.services.sfn.model.ExecutionAlreadyExistsException;
 import software.amazon.awssdk.services.sfn.model.RedriveExecutionRequest;
-import software.amazon.awssdk.services.sfn.model.StateMachineAlreadyExistsException;
 import software.amazon.awssdk.services.sfn.model.StartExecutionRequest;
 import software.amazon.awssdk.services.sfn.model.StartExecutionResponse;
+import software.amazon.awssdk.services.sfn.model.StateMachineAlreadyExistsException;
 import software.amazon.awssdk.services.sfn.model.StopExecutionRequest;
 
 class StateMachineExecutor extends JobExecutor {
@@ -51,7 +51,8 @@ class StateMachineExecutor extends JobExecutor {
   StateMachineExecutor() {}
 
   private GraphTransformer transformer(Job job) {
-    return new GraphTransformer(Config.instance.STEP_LAMBDA_ARN, Config.instance.STEP_LAMBDA_PIPELINE_ALIAS, job.isPipeline());
+    return new GraphTransformer(Config.instance.STEP_LAMBDA_ARN, Config.instance.STEP_LAMBDA_PIPELINE_ALIAS, job.isPipeline(),
+        Config.instance.getAlternativeStepLambdaMappings());
   }
 
   @Override
@@ -107,6 +108,8 @@ class StateMachineExecutor extends JobExecutor {
   public Future<Void> cancel(String executionId, String reason) {
     try {
       Future<Void> future = ASYNC.run(() -> {
+        if (executionId == null)
+          return null;
         sfnClient().stopExecution(StopExecutionRequest.builder()
             .executionArn(executionId)
             .cause(reason)

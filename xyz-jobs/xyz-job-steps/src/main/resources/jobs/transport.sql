@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,6 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-
 -- ####################################################################################################################
 -- Common helper functions ---
 
@@ -145,13 +144,12 @@ END;
 $BODY$;
 
 -- ####################################################################################################################
--- Retry helpers (shared between execute_import_from_s3 / execute_export_to_s3) ---
+-- Retry helpers (shared between execute_import_from_s3 / execute_export_to_s3 / report_task_progress) ---
 
 /**
- * is_retryable_s3_sqlstate(state TEXT)
+ * is_retryable_s3_error(state TEXT, message TEXT)
  *
- * Returns TRUE if the given SQLSTATE is considered a transient / retryable error
- * for aws_s3 import & export operations.
+ * Returns TRUE if the given error of an aws_s3 import / export is considered transient / retryable.
  *
  * Covered classes:
  *   - 40001 serialization_failure
@@ -161,11 +159,23 @@ $BODY$;
  *   - 23P01 exclusion_violation        (import only in practice)
  *   - 53300 too_many_connections
  *   - 08xxx connection_exception family
- *   - 57P01 admin_shutdown
  *   - 22P02 invalid_text_representation (import only in practice)
  *   - 22P04 bad_copy_file_format        (import only in practice)
+ *   - 58000 system_error / could not upload to Amazon S3  (export)
+ * Not covered (TBD: clarify):
+ *   - 57P01 admin_shutdown
+ * Special case:
+ *   - XX000 internal_error "Unable to generate pre-signed url, look at engine log for details." (import)
+ *     aws_s3 raises it once its own (sub-second) pre-signed URL validation retries are exhausted,
+ *     e.g. on S3 503 SlowDown. NOTE: aws_s3 raises the same message for permanent problems
+ *     (missing IAM role, wrong bucket / region). The cause is only visible in the engine log,
+ *     so those are retried as well and fail after max_attempts.
+ *   - 38000 external_routine_exception "S3 stream failed '...'" (import / export)
+ *     aws_s3 raises it if the connection to S3 breaks while the object is being streamed,
+ *     e.g. "peer closed connection without sending TLS close_notify". 38000 itself is a generic code
+ *     used by extensions and PL handlers, so only the aws_s3 stream failures are matched by message.
  */
-CREATE OR REPLACE FUNCTION is_retryable_s3_sqlstate(state TEXT)
+CREATE OR REPLACE FUNCTION is_retryable_s3_error(state TEXT, message TEXT)
     RETURNS BOOLEAN
     LANGUAGE 'sql'
     IMMUTABLE
@@ -177,20 +187,44 @@ AS $BODY$
         '53300',
         '08000', '08001', '08003', '08006', '08004',
        -- '57P01', TBD: clarify
-        '22P02', '22P04'
-    );
+        '22P02', '22P04',
+        '58000'
+    )
+    OR (state = 'XX000' AND COALESCE(message, '') ILIKE '%pre-signed url%')
+    OR (state = '38000' AND COALESCE(message, '') ILIKE 'S3 stream failed%');
 $BODY$;
 
 /**
- * s3_retry_backoff_ms(attempts INT, base_ms INT, cap_ms INT)
+ * is_retryable_lambda_error(state TEXT, message TEXT)
+ *
+ * Returns TRUE if the given error of an aws_lambda.invoke() call is considered transient / retryable.
+ *
+ * Covered:
+ *   - XX000 internal_error "invoke API failed"
+ *     aws_lambda raises it if the Invoke API request itself fails (e.g. "Unable to connect to endpoint").
+ *     In that case the event never reached Lambda, so Lambda's own async retries do not apply.
+ *     The actual cause is only contained in the error DETAIL.
+ *     XX000 is a catch-all code, so the decision is based on the message.
+ */
+CREATE OR REPLACE FUNCTION is_retryable_lambda_error(state TEXT, message TEXT)
+    RETURNS BOOLEAN
+    LANGUAGE 'sql'
+    IMMUTABLE
+    PARALLEL SAFE
+AS $BODY$
+    SELECT state = 'XX000' AND COALESCE(message, '') = 'invoke API failed';
+$BODY$;
+
+/**
+ * retry_backoff_ms(attempts INT, base_delay_ms INT, max_ms INT)
  *
  * Computes exponential backoff delay in milliseconds:
- *   delay = min(base_ms * 2^attempts, cap_ms)
+ *   delay = min(base_delay_ms * 2^attempts, max_ms)
  */
-CREATE OR REPLACE FUNCTION s3_retry_backoff_ms(
+CREATE OR REPLACE FUNCTION retry_backoff_ms(
         attempts INT,
         base_delay_ms INT DEFAULT 10000,
-        max_ms INT DEFAULT 60000
+        max_ms INT DEFAULT 600000
     )
     RETURNS INT
     LANGUAGE 'sql'
@@ -198,6 +232,50 @@ CREATE OR REPLACE FUNCTION s3_retry_backoff_ms(
     PARALLEL SAFE
 AS $BODY$
     SELECT LEAST(base_delay_ms * (2 ^ attempts), max_ms)::INT;
+$BODY$;
+
+/**
+ * wait_before_retry(label TEXT, state TEXT, message TEXT, detail TEXT, attempts INT, max_attempts INT,
+ *                   base_delay_ms INT, max_ms INT)
+ *
+ * To be called from the exception handler of a retrying function, once the caught error was classified
+ * as retryable.
+ *
+ * Behavior:
+ *   - If attempts >= max_attempts: raises the final error with the original SQLSTATE. The message contains
+ *     label, SQLSTATE, message and DETAIL of the last error, so the cause also ends up in the step's
+ *     error message (the failure callback only transports SQLSTATE and SQLERRM).
+ *   - Otherwise: sleeps for retry_backoff_ms(attempts, base_delay_ms, max_ms).
+ *
+ * The DETAIL has to be passed in by the caller, because GET STACKED DIAGNOSTICS only works inside
+ * the exception handler itself.
+ *
+ * Returns:
+ *   - VOID
+ */
+CREATE OR REPLACE FUNCTION wait_before_retry(
+        label TEXT,
+        state TEXT,
+        message TEXT,
+        detail TEXT,
+        attempts INT,
+        max_attempts INT,
+        base_delay_ms INT DEFAULT 10000,
+        max_ms INT DEFAULT 600000
+    )
+    RETURNS VOID
+    LANGUAGE 'plpgsql'
+    VOLATILE
+AS $BODY$
+BEGIN
+    IF attempts >= max_attempts THEN
+        RAISE EXCEPTION '% failed after % attempts. SQLSTATE: %, Message: %, Detail: %',
+            label, max_attempts, state, message, COALESCE(NULLIF(detail, ''), '-')
+                USING ERRCODE = state;
+    END IF;
+
+    PERFORM pg_sleep(retry_backoff_ms(attempts, base_delay_ms, max_ms) / 1000.0);
+END;
 $BODY$;
 
 -- ####################################################################################################################
@@ -248,7 +326,9 @@ BEGIN
 
     NEW.id = feature.new_id;
     NEW.operation = feature.new_operation;
-    NEW.geo = xyz_reduce_precision(feature.new_geo, false);
+    --NOTE: No xyz_reduce_precision here. import_from_s3_enrich_feature already reduced the precision, and applying
+    --it twice is a measurable waste: it round trips the geometry through WKT, which cost about 12% of this path.
+    NEW.geo = feature.new_geo;
     NEW.jsondata = feature.new_jsondata;
 
     RETURN NEW;
@@ -280,6 +360,11 @@ $BODY$
  *   - new_geo (geometry): The processed geometry.
  *   - new_operation (character): The operation type ('I' for insert).
  *   - new_id (TEXT): The feature ID.
+ *
+ * NOTE on inlining this into the trigger:
+ *   Doing so would save the per row SPI call plus the one row tuplestore of this SETOF function, but it was
+ *   measured to be worth only about 3% of the import (50k features: 5.74 s versus 5.54 s), while it would remove
+ *   the only separately testable unit of this path. Behavior is pinned by EmptyLayerEnrichmentIT.
  */
 CREATE OR REPLACE FUNCTION import_from_s3_enrich_feature(IN jsondata JSONB, geo geometry(GeometryZ,4326), retain_meta BOOLEAN DEFAULT FALSE)
     RETURNS TABLE(new_jsondata JSONB, new_geo geometry(GeometryZ,4326), new_operation character, new_id TEXT)
@@ -288,43 +373,53 @@ DECLARE
     fid TEXT := jsondata->>'id';
     createdAt BIGINT := FLOOR(EXTRACT(epoch FROM NOW()) * 1000);
     --TODO: Align with featureWriter. Currently we are also writing version and author there into the metadata.
-    meta JSONB := format(
-            '{
-                 "createdAt": %s,
-                 "updatedAt": %s
-            }', createdAt, createdAt
-                  );
+    meta JSONB := jsonb_build_object('createdAt', createdAt, 'updatedAt', createdAt);
+    properties JSONB;
+    geometry_json JSONB;
 BEGIN
     IF fid IS NULL THEN
-        fid = xyz_random_string(10);
-        jsondata := (jsondata || format('{"id": "%s"}', fid)::JSONB);
+        fid := xyz_random_string(10);
     END IF;
 
-    -- Remove bbox on root
-    jsondata := jsondata - 'bbox';
+    /*
+     * The properties have to be an object, otherwise the metadata below can not be attached to them.
+     * Without this coercion a feature whose properties are missing, null or a scalar would silently end up
+     * without createdAt and updatedAt, because jsonb_set does not create the intermediate level of a path.
+     */
+    properties := CASE
+        WHEN jsonb_typeof(jsondata->'properties') = 'object' THEN jsondata->'properties'
+        ELSE '{}'::JSONB
+    END;
 
-    -- Inject type
-    jsondata := jsonb_set(jsondata, '{type}', '"Feature"');
-
-    -- Inject meta
     IF retain_meta THEN
-        meta := coalesce(jsonb_set(meta, '{createdAt}', (jsondata->'properties'->'@ns:com:here:xyz'->>'createdAt')::JSONB), meta);
-        meta := coalesce(jsonb_set(meta, '{updatedAt}', (jsondata->'properties'->'@ns:com:here:xyz'->>'updatedAt')::JSONB), meta);
+        meta := coalesce(jsonb_set(meta, '{createdAt}', (properties->'@ns:com:here:xyz'->>'createdAt')::JSONB), meta);
+        meta := coalesce(jsonb_set(meta, '{updatedAt}', (properties->'@ns:com:here:xyz'->>'updatedAt')::JSONB), meta);
     END IF;
-    jsondata := jsonb_set(jsondata, '{properties,@ns:com:here:xyz}', meta);
 
-    IF jsondata->'geometry' IS NOT NULL THEN
+    geometry_json := jsondata->'geometry';
+    IF geometry_json IS NOT NULL THEN
         -- GeoJson Feature Import
-        new_geo := ST_Force3D(ST_GeomFromGeoJSON(
-            CASE WHEN (jsondata->'geometry') = 'null'::jsonb THEN NULL ELSE (jsondata->'geometry') END
-        ));
-        jsondata := jsondata - 'geometry';
+        new_geo := ST_Force3D(ST_GeomFromGeoJSON(NULLIF(geometry_json, 'null'::JSONB)));
     ELSE
         new_geo := ST_Force3D(geo);
     END IF;
-
+    --NOTE: The precision reduction happens here only. The caller must not apply it a second time, it is expensive
     new_geo := xyz_reduce_precision(new_geo, false);
-    new_jsondata := jsondata;
+
+    /*
+     * JSONB values are immutable, so every operator applied to one copies the whole document. The result is
+     * therefore built in a single construction: the keys which get authoritative values are removed in one pass
+     * (the array form of the delete operator) and the merge puts them back. The order of the keys in the output
+     * does not depend on this, because JSONB always stores object keys sorted.
+     * NOTE: As before, the xyz namespace is replaced rather than merged, so namespace entries of the input are
+     * intentionally not carried over.
+     */
+    new_jsondata := (jsondata - ARRAY['bbox', 'geometry', 'id', 'type', 'properties'])
+        || jsonb_build_object(
+            'id', fid,
+            'type', 'Feature',
+            'properties', properties || jsonb_build_object('@ns:com:here:xyz', meta)
+        );
     new_operation := 'I';
     new_id := fid;
 
@@ -334,13 +429,126 @@ $BODY$
 LANGUAGE plpgsql VOLATILE;
 
 /**
+ * Normalizes one GeoJSON feature for the default express import path.
+ *
+ * Geometry is extracted into the PostGIS column while the remaining feature is
+ * kept as JSONB. Timestamps are added later, after the target operation has
+ * been determined.
+ *
+ * id_was_generated reports whether the returned feature_id had to be generated because the input
+ * carried no usable one. The caller needs that information to persist the generated id back into
+ * the staging table, and returning it here avoids parsing the whole input document again just to
+ * re-answer a question which was already answered while normalizing.
+ *
+ * NOTE on why this stays a PL/pgSQL function which is called per row:
+ *   Turning this into a non volatile LANGUAGE sql function, so that the planner inlines it into a
+ *   set based statement, was tried and measured to be about twice as slow (50k features: 0.56 s as a
+ *   function versus 1.07 s inlined). The reason is that PostgreSQL offers no way to bind an
+ *   intermediate expression inside a query: subqueries and LATERAL subqueries get flattened by the
+ *   planner, which substitutes the expression at every reference. In the inlined variant the plan
+ *   contained the TEXT to JSONB cast of the input 15 times, so every row was parsed 15 times instead
+ *   of once. The local variables of this function are what provides that binding, and they are worth
+ *   more than the per call overhead they cost, which was measured at about 2.3 us per row (roughly
+ *   17% of the normalization time).
+ *   Behavior is pinned by ExpressNormalizationIT, so a future attempt can be validated cheaply.
+ */
+--CREATE OR REPLACE can not change the return type of an existing function, and id_was_generated was added to it
+DROP FUNCTION IF EXISTS normalize_default_import_feature(TEXT);
+CREATE OR REPLACE FUNCTION normalize_default_import_feature(input_jsondata TEXT)
+    RETURNS TABLE(
+        feature_id TEXT,
+        normalized_jsondata JSONB,
+        normalized_geo geometry(GeometryZ, 4326),
+        is_deleted BOOLEAN,
+        id_was_generated BOOLEAN
+    )
+    LANGUAGE 'plpgsql'
+    VOLATILE
+AS $BODY$
+DECLARE
+    feature JSONB := input_jsondata::JSONB;
+    properties JSONB;
+    metadata JSONB;
+    geometry_json JSONB;
+BEGIN
+    IF jsonb_typeof(feature) != 'object' THEN
+        RAISE EXCEPTION 'Imported entity must be a GeoJSON object.'
+            USING ERRCODE = 'XYZ40';
+    END IF;
+
+    feature_id := CASE
+        WHEN jsonb_typeof(feature->'id') = 'string' THEN NULLIF(feature->>'id', '')
+        ELSE NULL
+    END;
+    id_was_generated := feature_id IS NULL;
+    IF id_was_generated THEN
+        feature_id := xyz_random_string(16);
+    END IF;
+
+    properties := CASE
+        WHEN jsonb_typeof(feature->'properties') = 'object' THEN feature->'properties'
+        ELSE '{}'::JSONB
+    END;
+    metadata := CASE
+        WHEN jsonb_typeof(properties->'@ns:com:here:xyz') = 'object'
+            THEN properties->'@ns:com:here:xyz'
+        ELSE '{}'::JSONB
+    END;
+
+    /*
+     * Reading the flag off the namespace is equivalent to reading it off the fully rebuilt and null stripped
+     * document: ->> yields SQL NULL for a JSON null, so an explicit "deleted": null still ends up as false.
+     * Determining it this early lets a deletion skip the document reconstruction below entirely.
+     */
+    is_deleted := COALESCE((metadata->>'deleted')::BOOLEAN, false);
+    IF is_deleted THEN
+        normalized_jsondata := jsonb_build_object(
+            'type', 'Feature',
+            'id', feature_id,
+            'properties', jsonb_build_object(
+                '@ns:com:here:xyz', jsonb_build_object('deleted', true)
+            )
+        );
+        normalized_geo := NULL;
+        RETURN NEXT;
+        RETURN;
+    END IF;
+
+    geometry_json := feature->'geometry';
+    normalized_geo := CASE
+        WHEN geometry_json IS NULL OR geometry_json = 'null'::JSONB THEN NULL
+        ELSE xyz_reduce_precision(ST_Force3D(ST_GeomFromGeoJSON(geometry_json)), false)
+    END;
+
+    /*
+     * JSONB values are immutable, so every operator applied to one copies the whole document. Building the result
+     * in a single construction therefore matters: the keys which get authoritative values are removed in one pass
+     * (the array form of the delete operator), and the merge puts them back. Note that the order of the keys in
+     * the output does not depend on the construction, because JSONB always stores object keys sorted.
+     *
+     * Removing the geometry here rather than after the null stripping is equivalent, because a "geometry": null
+     * would be dropped by either of the two.
+     */
+    normalized_jsondata := jsonb_strip_nulls(
+        (feature - ARRAY['bbox', 'geometry', 'id', 'type', 'properties'])
+        || jsonb_build_object(
+            'id', feature_id,
+            'type', 'Feature',
+            'properties', properties || jsonb_build_object('@ns:com:here:xyz', metadata)
+        )
+    );
+    RETURN NEXT;
+END;
+$BODY$;
+
+/**
  * Function: execute_import_from_s3
  * (used for tasked import with retries)
  *
  * Purpose:
  *   Imports data from an S3 bucket into a target table using the AWS S3 extension.
  *   Supports automatic retries with exponential backoff for transient errors
- *   (see is_retryable_s3_sqlstate()).
+ *   (see is_retryable_s3_error() and wait_before_retry()).
  *
  * Arguments:
  *   - schema (TEXT): The schema name (not directly used in the function).
@@ -349,7 +557,7 @@ LANGUAGE plpgsql VOLATILE;
  *   - s3_bucket (TEXT): The S3 bucket name.
  *   - s3_key (TEXT): The S3 object key.
  *   - s3_region (TEXT): The AWS region of the S3 bucket.
- *   - max_attempts (INT, default 3): Maximum number of retry attempts.
+ *   - max_attempts (INT, default 6): Maximum number of retry attempts.
  *   - attempts (INT, default 0): Current attempt count (internal, for recursion).
  *
  * Returns:
@@ -360,7 +568,7 @@ CREATE OR REPLACE FUNCTION execute_import_from_s3(
         target_tbl REGCLASS,
         format TEXT,
         s3_bucket TEXT, s3_key TEXT, s3_region TEXT,
-        max_attempts INT DEFAULT 3,
+        max_attempts INT DEFAULT 6,
         attempts INT DEFAULT 0
 	)
 RETURNS TEXT
@@ -370,6 +578,7 @@ AS $BODY$
 DECLARE
     config RECORD;
     import_statistics TEXT;
+    error_detail TEXT;
 BEGIN
     SELECT * FROM s3_plugin_config(format) into config;
 
@@ -389,18 +598,14 @@ BEGIN
     RETURN import_statistics;
 
     EXCEPTION WHEN OTHERS THEN
-        IF NOT is_retryable_s3_sqlstate(SQLSTATE) THEN
+        IF NOT is_retryable_s3_error(SQLSTATE, SQLERRM) THEN
             RAISE;
         END IF;
 
-        IF attempts >= max_attempts THEN
-            RAISE EXCEPTION 'Import of ''%'' failed after ''%'' attempts. SQLSTATE: %, Message: %',
-                s3_key, max_attempts, SQLSTATE, SQLERRM
-                    USING ERRCODE = SQLSTATE;
-        END IF;
-
-        -- Exponential backoff: 10 s, 20 s, 40 s .. capped at 60 s
-        PERFORM pg_sleep(s3_retry_backoff_ms(attempts) / 1000.0);
+        GET STACKED DIAGNOSTICS error_detail = PG_EXCEPTION_DETAIL;
+        -- Raises once max_attempts is reached, otherwise exponential backoff: 10 s, 20 s, 40 s .. capped at 600 s
+        PERFORM wait_before_retry(format('Import of %L', s3_key), SQLSTATE, SQLERRM, error_detail,
+            attempts, max_attempts);
 
         RETURN execute_import_from_s3(
             schema,
@@ -422,14 +627,14 @@ $BODY$;
  * Purpose:
  *   Exports data from RDS to an S3 bucket using the AWS S3 extension.
  *   Supports automatic retries with exponential backoff for transient errors
- *   (see is_retryable_s3_sqlstate()).
+ *   (see is_retryable_s3_error() and wait_before_retry()).
  *
  * Arguments:
  *   - s3_bucket (TEXT): The target S3 bucket.
  *   - s3_path (TEXT): The target S3 object key/path.
  *   - s3_region (TEXT): The AWS region of the S3 bucket.
  *   - content_query (TEXT): SQL query producing the content to export.
- *   - max_attempts (INT, default 3): Maximum number of retry attempts.
+ *   - max_attempts (INT, default 6): Maximum number of retry attempts.
  *   - attempts (INT, default 0): Current attempt count (internal, for recursion).
  *
  * Returns:
@@ -439,7 +644,7 @@ $BODY$;
 CREATE OR REPLACE FUNCTION execute_export_to_s3(
         s3_bucket TEXT, s3_path TEXT, s3_region TEXT,
         content_query TEXT,
-        max_attempts INT DEFAULT 3,
+        max_attempts INT DEFAULT 6,
         attempts INT DEFAULT 0
     )
 RETURNS TABLE(rows_uploaded BIGINT, files_uploaded BIGINT, bytes_uploaded BIGINT)
@@ -449,6 +654,7 @@ AS $BODY$
 DECLARE
     config RECORD;
     export_statistics RECORD;
+    error_detail TEXT;
 BEGIN
     SELECT * FROM s3_plugin_config('GEOJSON') INTO config;
 
@@ -471,18 +677,14 @@ BEGIN
     RETURN NEXT;
 
     EXCEPTION WHEN OTHERS THEN
-        IF NOT is_retryable_s3_sqlstate(SQLSTATE) THEN
+        IF NOT is_retryable_s3_error(SQLSTATE, SQLERRM) THEN
             RAISE;
         END IF;
 
-        IF attempts >= max_attempts THEN
-            RAISE EXCEPTION 'Export to ''%'' failed after ''%'' attempts. SQLSTATE: %, Message: %',
-                s3_path, max_attempts, SQLSTATE, SQLERRM
-                    USING ERRCODE = SQLSTATE;
-        END IF;
-
-        -- Exponential backoff: 10 s, 20 s, 40 s .. capped at 60 s
-        PERFORM pg_sleep(s3_retry_backoff_ms(attempts) / 1000.0);
+        GET STACKED DIAGNOSTICS error_detail = PG_EXCEPTION_DETAIL;
+        -- Raises once max_attempts is reached, otherwise exponential backoff: 10 s, 20 s, 40 s .. capped at 600 s
+        PERFORM wait_before_retry(format('Export to %L', s3_path), SQLSTATE, SQLERRM, error_detail,
+            attempts, max_attempts);
 
         RETURN QUERY SELECT * FROM execute_export_to_s3(
             s3_bucket,
@@ -494,6 +696,25 @@ BEGIN
         );
 END;
 $BODY$;
+
+/*
+ * Copyright (C) 2017-2026 HERE Europe B.V.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ * License-Filename: LICENSE
+ */
 
 -- ####################################################################################################################
 -- Task related functions --
@@ -534,6 +755,8 @@ DECLARE
     ctx JSONB;
 BEGIN
     SELECT context() INTO ctx;
+    -- Use lock to serialize access to the critical section per step/job table
+    PERFORM pg_advisory_xact_lock(hashtext(ctx->>'stepId'));
 
     -- Get statistics
     EXECUTE format(
@@ -565,24 +788,26 @@ BEGIN
     IF task_item.task_id IS NOT NULL THEN
         EXECUTE format(
             'UPDATE %1$s C
-                SET started = true
+                SET started = true, started_at = now()
             WHERE C.task_id = %2$L;',
             get_table_reference(ctx->>'schema', ctx->>'stepId' ,'JOB_TABLE'),
             task_item.task_id
        );
 
-       RETURN QUERY SELECT v_total, v_started, v_finalized, task_item.task_id, task_item.task_input;
+       RETURN QUERY SELECT v_total, v_started + 1, v_finalized, task_item.task_id, task_item.task_input;
        RETURN;
     END IF;
 
-    IF v_total > v_finalized + v_started THEN
-        -- There are unstarted tasks, but all are locked -> Wait & retry
-        PERFORM pg_sleep(2);
-        RETURN QUERY SELECT * FROM get_task_item_and_statistics();
-    ELSE
-        -- No unstarted tasks exist -> return no work
-        RETURN QUERY SELECT v_total, v_started, v_finalized, -1, '{"type" : "Empty"}'::JSONB;
-    END IF;
+    -- no unstarted tasks exist
+    -- some started tasks are still running
+    -- so return task_id = -1 and let running tasks finish.
+    RETURN QUERY
+        SELECT
+            v_total,
+            v_started,
+            v_finalized,
+            -1,
+            '{"type":"Empty"}'::JSONB;
 END;
 $$ LANGUAGE plpgsql VOLATILE;
 
@@ -590,38 +815,67 @@ $$ LANGUAGE plpgsql VOLATILE;
  * Function: update_task_item_and_get_task_item_and_statistics
  *
  * Purpose:
- *   Atomically finalizes a task item and fetches updated task statistics plus the next task item.
+ *   Finalizes a task item and returns the updated task statistics together with
+ *   the next task item to process, if one is available.
  *
- * Behavior:
- *   1. Updates task_output/finalized for the provided task_id.
- *   2. Computes total/started/finalized statistics.
- *   3. If work remains, claims the next unstarted task using FOR UPDATE SKIP LOCKED.
- *   4. Returns statistics + claimed task (or task_id=-1 if nothing claimable).
+ * Concurrency:
+ *   The function acquires a transaction-scoped advisory lock based on the current
+ *   stepId. This serializes all callbacks for the same step/job table across
+ *   sessions and database connections.
+ *
+ *   The lock protects the complete finalization decision path:
+ *     1. merge the task output and mark the current task as finalized
+ *     2. recompute total/started/finalized counters
+ *     3. determine whether all tasks are finalized
+ *     4. claim the next unstarted task, if any
+ *
+ *   The lock is released automatically when the surrounding transaction ends.
+ *
+ * Parameters:
+ *   p_task_id:
+ *     ID of the task item to finalize.
+ *
+ *   p_task_output:
+ *     JSONB payload to merge into the task item's task_output column.
+ *
+ *   p_finalized:
+ *     Value to write to the finalized flag. Defaults to true.
  *
  * Returns:
  *   TABLE (
- *     total INT,
- *     started INT,
- *     finalized INT,
- *     task_id INT,
- *     task_input JSONB
+ *     total INT,        -- Total number of task items
+ *     started INT,      -- Number of task items marked as started
+ *     finalized INT,    -- Number of task items marked as finalized
+ *     task_id INT,      -- Claimed next task ID, or -1 if no task is available
+ *     task_input JSONB, -- Input payload of the claimed task, or {"type":"Empty"}
+ *     update_applied BOOLEAN -- Whether the callback updated a non-finalized task
  *   )
+ *   If no task is updated, returns the current counters with task_id = -1 without claiming another task.
+ *
+ * Notes:
+ *   The actual statistics calculation and next-task claiming are delegated to
+ *   get_task_item_and_statistics(), which uses the same advisory lock key. Re-
+ *   acquiring the same transaction-level advisory lock in the same transaction
+ *   is safe and does not block.
  */
+DROP FUNCTION IF EXISTS update_task_item_and_get_task_item_and_statistics(INT, JSONB, BOOLEAN);
 CREATE OR REPLACE FUNCTION update_task_item_and_get_task_item_and_statistics(
     p_task_id INT,
     p_task_output JSONB,
     p_finalized BOOLEAN DEFAULT true
 )
-    RETURNS TABLE (total INT, started INT, finalized INT, task_id INT, task_input JSONB) AS $$
+    RETURNS TABLE (total INT, started INT, finalized INT, task_id INT, task_input JSONB, update_applied BOOLEAN) AS $$
 DECLARE
+    v_updated_rows BIGINT;
     v_total INT := 0;
     v_started INT := 0;
     v_finalized INT := 0;
-    v_task_item RECORD;
     ctx JSONB;
 BEGIN
     SELECT context() INTO ctx;
     -- Set provided task as finalized and store output
+    PERFORM pg_advisory_xact_lock(hashtext(ctx->>'stepId'));
+
     EXECUTE format(
         'UPDATE %1$s t
             SET task_output = (
@@ -631,15 +885,31 @@ BEGIN
                     COALESCE(t.task_output->''taskOutput'', ''{}''::JSONB)
                     || COALESCE((%2$L::JSONB)->''taskOutput'', ''{}''::JSONB)
                 ),
-                finalized = %3$L
-          WHERE task_id = %4$L;',
+                updated_at = now(), finalized = %3$L
+          WHERE t.task_id = %4$L AND t.finalized = false;',
         get_table_reference(ctx->>'schema', ctx->>'stepId', 'JOB_TABLE'),
         p_task_output::TEXT,
         p_finalized,
         p_task_id
     );
+    GET DIAGNOSTICS v_updated_rows = ROW_COUNT;
 
-    RETURN QUERY SELECT * FROM get_task_item_and_statistics();
+    IF v_updated_rows = 0 THEN
+        -- Claim nothing, but allow a redelivered callback to recover a lost completion report.
+        EXECUTE format(
+            'SELECT COUNT(1)::int,
+                    COALESCE(SUM((A.started = true)::int), 0)::int,
+                    COALESCE(SUM((A.finalized = true)::int), 0)::int
+               FROM %1$s A;',
+            get_table_reference(ctx->>'schema', ctx->>'stepId', 'JOB_TABLE')
+        ) INTO v_total, v_started, v_finalized;
+
+        RETURN QUERY SELECT v_total, v_started, v_finalized, -1, '{"type":"Empty"}'::JSONB, false;
+        RETURN;
+    END IF;
+
+    RETURN QUERY SELECT n.total, n.started, n.finalized, n.task_id, n.task_input, true
+        FROM get_task_item_and_statistics() n;
 END;
 $$ LANGUAGE plpgsql VOLATILE;
 
@@ -658,8 +928,12 @@ $$ LANGUAGE plpgsql VOLATILE;
  *   - task_output (JSONB): Output data of the task.
  *
  * Behavior:
- *   - Calls report_progress with a JSON object containing type 'SpaceBasedTaskUpdate',
- *     the task ID, and the task output.
+ *   - Invokes the Lambda function asynchronously ('Event') with a JSON object containing
+ *     type 'SpaceBasedTaskUpdate', the task ID, and the task output.
+ *   - Retries transient Invoke API failures (see is_retryable_lambda_error()) with exponential backoff:
+ *     1 s, 2 s, 4 s, 8 s, 16 s. Afterwards the error is raised (see wait_before_retry()).
+ *     A retried call may lead to a duplicate UPDATE_CALLBACK, if the failed request reached Lambda nevertheless.
+ *     That is fine, as the step ignores duplicate task updates (Lambda delivers async events at least once anyway).
  *
  * Returns:
  *   - VOID
@@ -676,19 +950,38 @@ RETURNS VOID
     VOLATILE
 AS $BODY$
 DECLARE
-    lamda_response RECORD;
+    max_attempts CONSTANT INT := 5;
+    attempts INT := 0;
+    error_detail TEXT;
+    request_body JSON := json_build_object(
+        'type','UPDATE_CALLBACK',
+        'step', step_payload,
+        'processUpdate', json_build_object(
+            'type','SpaceBasedTaskUpdate',
+            'taskId', task_id,
+            'taskOutput', task_output
+        )
+    );
 BEGIN
-    --TODO: Add error handling
-    SELECT aws_lambda.invoke(aws_commons.create_lambda_function_arn(lambda_function_arn, lambda_region),
-         json_build_object(
-                 'type','UPDATE_CALLBACK',
-                 'step', step_payload,
-                 'processUpdate', json_build_object(
-                         'type','SpaceBasedTaskUpdate',
-                         'taskId', task_id,
-                         'taskOutput', task_output
-                )
-         ), 'Event') INTO lamda_response;
+    LOOP
+        BEGIN
+            PERFORM aws_lambda.invoke(aws_commons.create_lambda_function_arn(lambda_function_arn, lambda_region),
+                request_body, 'Event');
+            RETURN;
+
+            EXCEPTION WHEN OTHERS THEN
+                IF NOT is_retryable_lambda_error(SQLSTATE, SQLERRM) THEN
+                    RAISE;
+                END IF;
+
+                GET STACKED DIAGNOSTICS error_detail = PG_EXCEPTION_DETAIL;
+                -- Raises once max_attempts is reached, otherwise exponential backoff: 1 s, 2 s, 4 s, 8 s, 16 s
+                PERFORM wait_before_retry(format('Progress report of task %s', task_id), SQLSTATE, SQLERRM,
+                    error_detail, attempts, max_attempts, 1000, 16000);
+        END;
+
+        attempts := attempts + 1;
+    END LOOP;
 END
 $BODY$;
 
@@ -819,6 +1112,8 @@ CREATE OR REPLACE FUNCTION perform_import_from_s3_task(
         format TEXT,
         s3_bucket TEXT, s3_key TEXT, s3_region TEXT,
         file_bytes BIGINT,
+        target_version BIGINT,
+        replace_target_contents BOOLEAN,
         step_payload JSON,
         lambda_function_arn TEXT,
         lambda_region TEXT,
@@ -844,10 +1139,16 @@ BEGIN
 		s3_key TEXT := '$wrappedouter$||s3_key||$wrappedouter$'::TEXT;
 		s3_region TEXT := '$wrappedouter$||s3_region||$wrappedouter$'::TEXT;
         file_bytes BIGINT := '$wrappedouter$||file_bytes||$wrappedouter$'::BIGINT;
+        target_version BIGINT := '$wrappedouter$||target_version||$wrappedouter$'::BIGINT;
+        replace_target_contents BOOLEAN := '$wrappedouter$||replace_target_contents||$wrappedouter$'::BOOLEAN;
 		step_payload JSON := '$wrappedouter$||(step_payload::TEXT)||$wrappedouter$'::JSON;
 		lambda_function_arn TEXT := '$wrappedouter$||lambda_function_arn||$wrappedouter$'::TEXT;
 		lambda_region TEXT := '$wrappedouter$||lambda_region||$wrappedouter$'::TEXT;
 	BEGIN
+        IF replace_target_contents THEN
+            EXECUTE format('TRUNCATE TABLE %s RESTART IDENTITY', target_tbl);
+        END IF;
+
         SELECT execute_import_from_s3(
             schema,
             target_tbl,
@@ -865,6 +1166,7 @@ BEGIN
 		     jsonb_build_object(
                 'importStatistics', import_statistics,
                 'fileBytes', file_bytes,
+		        'targetVersion', target_version,
                 'type', 'ImportOutput'
             )
 		);
@@ -877,6 +1179,558 @@ BEGIN
 	END;
 	$wrappedinner$ $wrappedouter$;
 	EXECUTE sql_text;
+END;
+$BODY$;
+
+/**
+ * Writes one bounded range of staged features without invoking the PLV8 FeatureWriter.
+ *
+ * The function currently supports the OLD_LAYOUT table shape used by tasked imports.
+ * Duplicate IDs are collapsed to the last source row in this range and overwrite an
+ * existing row at the same target version.
+ *
+ * NOTE on optimizing this function:
+ *   The normalization and staging work below was optimized deliberately without touching the
+ *   transaction shape, the set of rows written, the batch boundaries or the stale head detection, so
+ *   that the behavior under concurrent readers and writers of the target space stays unchanged by
+ *   construction rather than by testing. Three further ideas were considered and left out for that
+ *   reason, since a target space is expected to be written to while an import runs:
+ *     - Enlarging the batch window (target_mb) multiplies the number of HEAD rows locked by the
+ *       UPDATE below and the time they are held, and it widens the window in which a concurrent
+ *       writer can push a HEAD above current_version and turn the batch into an XYZ49 retry.
+ *     - Merging the stale head probe into the writes query changes when and how that conflict is
+ *       detected, which is exactly the semantics to keep constant.
+ *     - Replacing the row loop by one set based statement is safe for locking but changes which rows
+ *       land in which batch, and the byte budget boundary has no test coverage yet, because every
+ *       scenario of the reused FeatureWriter suites writes a single feature per batch.
+ */
+--super_bound_version was added; without dropping the old signature, a reused versioned schema keeps both overloads and 9-arg calls become ambiguous
+DROP FUNCTION IF EXISTS execute_express_import_batch(REGCLASS, REGCLASS, REGCLASS, TEXT, BIGINT, NUMERIC, TEXT, BIGINT, BOOLEAN);
+CREATE OR REPLACE FUNCTION execute_express_import_batch(
+        source_tbl REGCLASS,
+        target_tbl REGCLASS,
+        super_tbl REGCLASS,
+        space_context TEXT,
+        range_start BIGINT,
+        target_mb NUMERIC,
+        author TEXT,
+        current_version BIGINT,
+        history_enabled BOOLEAN,
+        super_bound_version BIGINT DEFAULT NULL
+    )
+RETURNS TABLE(
+        pulled_count INT,
+        pulled_bytes BIGINT,
+        selected_range_start BIGINT,
+        selected_range_end BIGINT,
+        finished BOOLEAN
+    )
+    LANGUAGE 'plpgsql'
+    VOLATILE
+AS $BODY$
+DECLARE
+    source_row RECORD;
+    normalized RECORD;
+    row_bytes BIGINT;
+    target_bytes BIGINT;
+    generated_id_count BIGINT;
+    batch_timestamp BIGINT := FLOOR(EXTRACT(epoch FROM clock_timestamp()) * 1000);
+    target_schema TEXT;
+    target_table TEXT;
+    super_join TEXT;
+    super_version_predicate TEXT;
+    sql_text TEXT;
+    has_stale_head BOOLEAN;
+    is_composite BOOLEAN := super_tbl IS NOT NULL;
+    is_old_layout BOOLEAN;
+BEGIN
+    IF source_tbl IS NULL OR target_tbl IS NULL THEN
+        RAISE EXCEPTION 'source_tbl and target_tbl must be provided.'
+            USING ERRCODE = 'XYZ40';
+    END IF;
+    IF range_start IS NULL THEN
+        RAISE EXCEPTION 'range_start must be provided.'
+            USING ERRCODE = 'XYZ40';
+    END IF;
+    IF target_mb IS NULL OR target_mb <= 0 THEN
+        RAISE EXCEPTION 'target_mb must be provided and > 0.'
+            USING ERRCODE = 'XYZ40';
+    END IF;
+    IF current_version IS NULL OR current_version <= 0 THEN
+        RAISE EXCEPTION 'current_version must be provided and > 0.'
+            USING ERRCODE = 'XYZ40';
+    END IF;
+
+    space_context := COALESCE(UPPER(space_context), 'DEFAULT');
+    IF space_context NOT IN ('DEFAULT', 'EXTENSION') THEN
+        RAISE EXCEPTION 'Unsupported space context: %', space_context
+            USING ERRCODE = 'XYZ40';
+    END IF;
+
+    SELECT a.atttypid = 'jsonb'::REGTYPE
+      INTO is_old_layout
+      FROM pg_attribute a
+     WHERE a.attrelid = target_tbl
+       AND a.attname = 'jsondata'
+       AND a.attnum > 0
+       AND NOT a.attisdropped;
+    IF NOT COALESCE(is_old_layout, false) THEN
+        RAISE EXCEPTION 'Express import currently supports OLD_LAYOUT target tables only.'
+            USING ERRCODE = 'XYZ40';
+    END IF;
+
+    target_bytes := (target_mb * 1024 * 1024)::BIGINT;
+    pulled_count := 0;
+    pulled_bytes := 0;
+    generated_id_count := 0;
+    selected_range_start := NULL;
+    selected_range_end := NULL;
+    finished := false;
+
+    DROP TABLE IF EXISTS pg_temp.xyz_express_import_batch;
+    CREATE TEMP TABLE xyz_express_import_batch (
+        i BIGINT PRIMARY KEY,
+        feature_id TEXT NOT NULL,
+        normalized_jsondata JSONB NOT NULL,
+        normalized_geo geometry(GeometryZ, 4326),
+        is_deleted BOOLEAN NOT NULL,
+        feature_bytes BIGINT NOT NULL,
+        id_was_generated BOOLEAN NOT NULL
+    ) ON COMMIT DROP;
+
+    FOR source_row IN EXECUTE format(
+        'SELECT i, jsondata FROM %s WHERE jsondata IS NOT NULL AND i >= $1 ORDER BY i',
+        source_tbl
+    ) USING range_start
+    LOOP
+        row_bytes := octet_length(source_row.jsondata);
+        IF pulled_count > 0 AND pulled_bytes + row_bytes > target_bytes THEN
+            EXIT;
+        END IF;
+
+        SELECT *
+          INTO normalized
+          FROM normalize_default_import_feature(source_row.jsondata);
+
+        INSERT INTO pg_temp.xyz_express_import_batch(
+            i, feature_id, normalized_jsondata, normalized_geo, is_deleted, feature_bytes, id_was_generated
+        ) VALUES (
+            source_row.i,
+            normalized.feature_id,
+            normalized.normalized_jsondata,
+            normalized.normalized_geo,
+            normalized.is_deleted,
+            row_bytes,
+            normalized.id_was_generated
+        );
+
+        IF normalized.id_was_generated THEN
+            generated_id_count := generated_id_count + 1;
+        END IF;
+
+        pulled_count := pulled_count + 1;
+        pulled_bytes := pulled_bytes + row_bytes;
+        selected_range_start := COALESCE(selected_range_start, source_row.i);
+        selected_range_end := source_row.i;
+    END LOOP;
+
+    IF pulled_count = 0 THEN
+        finished := true;
+        RETURN NEXT;
+        RETURN;
+    END IF;
+
+    /*
+     * Persist the generated ids back into the staging table, so that a resume or a retry of the same
+     * range produces the same ids again. This is done as one set based statement after the pull loop
+     * instead of one statement per row, and it is skipped entirely for the common case of inputs which
+     * already carry their ids.
+     */
+    IF generated_id_count > 0 THEN
+        EXECUTE format(
+            'UPDATE %s s
+                SET jsondata = jsonb_set(s.jsondata::JSONB, ''{id}'', to_jsonb(b.feature_id), true)::TEXT
+               FROM pg_temp.xyz_express_import_batch b
+              WHERE b.i = s.i
+                AND b.id_was_generated',
+            source_tbl
+        );
+    END IF;
+
+    DROP TABLE IF EXISTS pg_temp.xyz_express_import_final;
+    CREATE TEMP TABLE xyz_express_import_final ON COMMIT DROP AS
+        SELECT DISTINCT ON (feature_id)
+               i, feature_id, normalized_jsondata, normalized_geo, is_deleted, feature_bytes
+          FROM pg_temp.xyz_express_import_batch
+         ORDER BY feature_id, i DESC;
+    CREATE UNIQUE INDEX ON xyz_express_import_final(feature_id);
+    /*
+     * A table created by CREATE TABLE AS carries no statistics, so the planner would fall back to
+     * default estimates when this batch gets joined against the target table below. Since the batch
+     * size varies by orders of magnitude between imports, those estimates decide between per row
+     * index probes and a hash join over the HEAD partition. Analyzing it is cheap compared to a
+     * badly planned join over the whole batch.
+     */
+    ANALYZE pg_temp.xyz_express_import_final;
+
+    EXECUTE format(
+        'SELECT EXISTS (
+             SELECT 1
+               FROM %s t
+               JOIN pg_temp.xyz_express_import_final f ON f.feature_id = t.id
+              WHERE t.next_version = max_bigint()
+                AND t.version > $1
+         )',
+        target_tbl
+    ) INTO has_stale_head USING current_version;
+    IF has_stale_head THEN
+        RAISE EXCEPTION 'The import target version % is older than an existing feature HEAD.', current_version
+            USING HINT = 'Retry the unfinished import with a newly allocated target version.',
+                  ERRCODE = 'XYZ49';
+    END IF;
+
+    -- A base space bound to a specific version exposes the rows which were live at that version, not its current HEAD
+    super_version_predicate := CASE
+        WHEN super_bound_version IS NULL THEN 'st.next_version = max_bigint()'
+        ELSE format('st.version <= %s AND st.next_version > %s', super_bound_version, super_bound_version)
+    END;
+
+    super_join := CASE
+        WHEN super_tbl IS NULL THEN
+            'LEFT JOIN LATERAL (SELECT NULL::TEXT AS id WHERE false) s ON true'
+        ELSE format(
+            'LEFT JOIN LATERAL (
+                 SELECT st.id
+                   FROM %s st
+                  WHERE st.id = f.feature_id
+                    AND %s
+                    AND st.operation != ''D''
+                  LIMIT 1
+             ) s ON true',
+            super_tbl, super_version_predicate
+        )
+    END;
+
+    DROP TABLE IF EXISTS pg_temp.xyz_express_import_writes;
+    IF history_enabled THEN
+        sql_text := format($fmt$
+            CREATE TEMP TABLE xyz_express_import_writes ON COMMIT DROP AS
+            WITH state AS (
+                SELECT f.*,
+                       p.id IS NOT NULL AS target_exists,
+                       p.id IS NOT NULL AND p.operation != 'D' AS target_live,
+                       p.operation AS target_operation,
+                       p.jsondata AS target_jsondata,
+                       current_row.id IS NOT NULL AS current_exists,
+                       current_row.jsondata AS current_jsondata,
+                       s.id IS NOT NULL AS super_exists
+                  FROM pg_temp.xyz_express_import_final f
+                  LEFT JOIN LATERAL (
+                      SELECT t.id, t.operation, t.jsondata
+                        FROM %1$s t
+                       WHERE t.id = f.feature_id
+                         AND t.version < $1
+                         AND t.next_version IN (max_bigint(), $1)
+                       ORDER BY t.version DESC
+                       LIMIT 1
+                  ) p ON true
+                  LEFT JOIN LATERAL (
+                      SELECT t.id, t.jsondata
+                        FROM %1$s t
+                       WHERE t.id = f.feature_id
+                         AND t.version = $1
+                         AND t.next_version = max_bigint()
+                       LIMIT 1
+                  ) current_row ON true
+                  %2$s
+            ),
+            classified AS (
+                SELECT state.*,
+                       CASE
+                           WHEN NOT is_deleted THEN 'UPSERT'
+                           WHEN $2 = 'DEFAULT' THEN 'UPSERT'
+                           WHEN target_live THEN 'UPSERT'
+                           ELSE 'NOOP'
+                       END AS action,
+                       CASE
+                           WHEN NOT is_deleted THEN CASE WHEN target_live THEN 'U' ELSE 'I' END
+                           WHEN $2 = 'DEFAULT' THEN
+                               CASE
+                                   WHEN NOT $4 THEN 'H'
+                                   WHEN target_live THEN CASE WHEN super_exists THEN 'J' ELSE 'D' END
+                                   ELSE 'H'
+                               END
+                           WHEN target_live THEN 'D'
+                           ELSE NULL
+                       END::CHAR AS operation
+                  FROM state
+            )
+            SELECT classified.*,
+                   CASE
+                       WHEN current_exists THEN
+                           COALESCE((current_jsondata#>>'{properties,@ns:com:here:xyz,createdAt}')::BIGINT, $3)
+                       WHEN operation IN ('I', 'H') THEN $3
+                       ELSE COALESCE(
+                           (target_jsondata#>>'{properties,@ns:com:here:xyz,createdAt}')::BIGINT,
+                           -1
+                       )
+                   END AS created_at
+              FROM classified
+        $fmt$, target_tbl, super_join);
+        EXECUTE sql_text USING current_version, space_context, batch_timestamp, is_composite;
+
+        SELECT n.nspname, c.relname
+          INTO target_schema, target_table
+          FROM pg_class c
+          JOIN pg_namespace n ON n.oid = c.relnamespace
+         WHERE c.oid = target_tbl;
+        PERFORM xyz_create_history_partition(
+            target_schema,
+            target_table,
+            FLOOR(current_version / 100000)::BIGINT,
+            100000::BIGINT
+        );
+
+        EXECUTE format(
+            'UPDATE %s t
+                SET next_version = $1
+               FROM pg_temp.xyz_express_import_writes w
+              WHERE w.action = ''UPSERT''
+                AND t.id = w.feature_id
+                AND t.next_version = max_bigint()
+                AND t.version < $1',
+            target_tbl
+        ) USING current_version;
+
+        EXECUTE format($fmt$
+            INSERT INTO %1$s AS tbl
+                (id, version, operation, author, jsondata, geo)
+            SELECT w.feature_id,
+                   $1,
+                   w.operation,
+                   $2,
+                   jsonb_set(
+                       w.normalized_jsondata,
+                       '{properties,@ns:com:here:xyz}',
+                       COALESCE(
+                           w.normalized_jsondata#>'{properties,@ns:com:here:xyz}',
+                           '{}'::JSONB
+                       ) || jsonb_build_object(
+                           'createdAt', w.created_at,
+                           'updatedAt', $3
+                       ),
+                       true
+                   ),
+                   w.normalized_geo
+              FROM pg_temp.xyz_express_import_writes w
+             WHERE w.action = 'UPSERT'
+            ON CONFLICT (id, version, next_version) DO UPDATE SET
+                operation = EXCLUDED.operation,
+                author = EXCLUDED.author,
+                jsondata = jsonb_set(
+                    EXCLUDED.jsondata,
+                    '{properties,@ns:com:here:xyz,createdAt}',
+                    COALESCE(
+                        tbl.jsondata#>'{properties,@ns:com:here:xyz,createdAt}',
+                        EXCLUDED.jsondata#>'{properties,@ns:com:here:xyz,createdAt}'
+                    )
+                ),
+                geo = EXCLUDED.geo
+        $fmt$, target_tbl) USING current_version, author, batch_timestamp;
+    ELSE
+        sql_text := format($fmt$
+            CREATE TEMP TABLE xyz_express_import_writes ON COMMIT DROP AS
+            SELECT f.*,
+                   t.id IS NOT NULL AS target_exists,
+                   t.id IS NOT NULL AND t.operation != 'D' AS target_live,
+                   s.id IS NOT NULL AS super_exists,
+                   CASE
+                       WHEN NOT f.is_deleted THEN 'UPSERT'
+                       WHEN $1 != 'DEFAULT' THEN CASE WHEN t.id IS NOT NULL THEN 'DELETE' ELSE 'NOOP' END
+                       WHEN NOT $2 THEN CASE WHEN t.id IS NOT NULL AND t.operation != 'D' THEN 'DELETE' ELSE 'UPSERT' END
+                       WHEN t.id IS NOT NULL AND t.operation != 'D' AND s.id IS NULL THEN 'DELETE'
+                       ELSE 'UPSERT'
+                   END AS action,
+                   CASE WHEN f.is_deleted THEN 'H' ELSE 'I' END::CHAR AS operation
+              FROM pg_temp.xyz_express_import_final f
+              LEFT JOIN LATERAL (
+                  SELECT tt.id, tt.operation
+                    FROM %1$s tt
+                   WHERE tt.id = f.feature_id
+                     AND tt.next_version = max_bigint()
+                   LIMIT 1
+              ) t ON true
+              %2$s
+        $fmt$, target_tbl, super_join);
+        EXECUTE sql_text USING space_context, is_composite;
+
+        EXECUTE format(
+            'DELETE FROM %s t
+                  USING pg_temp.xyz_express_import_writes w
+                  WHERE w.action = ''DELETE''
+                    AND t.id = w.feature_id',
+            target_tbl
+        );
+
+        EXECUTE format($fmt$
+            INSERT INTO %1$s AS tbl
+                (id, version, operation, author, jsondata, geo)
+            SELECT w.feature_id,
+                   $1,
+                   w.operation,
+                   $2,
+                   jsonb_set(
+                       w.normalized_jsondata,
+                       '{properties,@ns:com:here:xyz}',
+                       COALESCE(
+                           w.normalized_jsondata#>'{properties,@ns:com:here:xyz}',
+                           '{}'::JSONB
+                       ) || jsonb_build_object(
+                           'createdAt', $3,
+                           'updatedAt', $3
+                       ),
+                       true
+                   ),
+                   w.normalized_geo
+              FROM pg_temp.xyz_express_import_writes w
+             WHERE w.action = 'UPSERT'
+            ON CONFLICT (id, next_version) DO UPDATE SET
+                version = greatest(tbl.version, EXCLUDED.version),
+                operation = CASE WHEN EXCLUDED.operation = 'H' THEN 'J' ELSE 'U' END,
+                author = EXCLUDED.author,
+                jsondata = jsonb_set(
+                    EXCLUDED.jsondata,
+                    '{properties,@ns:com:here:xyz,createdAt}',
+                    tbl.jsondata#>'{properties,@ns:com:here:xyz,createdAt}'
+                ),
+                geo = EXCLUDED.geo
+            WHERE
+                EXCLUDED.jsondata #- ARRAY['properties', '@ns:com:here:xyz']
+                    IS DISTINCT FROM tbl.jsondata #- ARRAY['properties', '@ns:com:here:xyz']
+                OR EXCLUDED.geo IS DISTINCT FROM tbl.geo
+        $fmt$, target_tbl) USING current_version, author, batch_timestamp;
+    END IF;
+
+    RETURN NEXT;
+EXCEPTION
+    WHEN unique_violation THEN
+        RAISE EXCEPTION 'The import target version % became stale while writing the batch.', current_version
+            USING HINT = 'Retry the unfinished import with a newly allocated target version.',
+                  ERRCODE = 'XYZ49';
+END;
+$BODY$;
+
+/**
+ * Executes one default-import range through the PostgreSQL express writer and
+ * reports progress using the existing tasked-import callback protocol.
+ */
+--super_bound_version was added; drop the old signature so a reused versioned schema does not keep a stale overload
+DROP FUNCTION IF EXISTS perform_express_import_from_tmp_table_task(INT, REGCLASS, REGCLASS, REGCLASS, TEXT, BIGINT, NUMERIC, TEXT, BIGINT, BOOLEAN, JSON, TEXT, TEXT, TEXT);
+CREATE OR REPLACE FUNCTION perform_express_import_from_tmp_table_task(
+        task_id INT,
+        source_tbl REGCLASS,
+        target_tbl REGCLASS,
+        super_tbl REGCLASS,
+        space_context TEXT,
+        range_start BIGINT,
+        target_mb NUMERIC,
+        author TEXT,
+        current_version BIGINT,
+        history_enabled BOOLEAN,
+        super_bound_version BIGINT,
+        step_payload JSON,
+        lambda_function_arn TEXT,
+        lambda_region TEXT,
+        failure_callback TEXT
+    )
+    RETURNS void
+    LANGUAGE 'plpgsql'
+    VOLATILE
+AS $BODY$
+DECLARE
+    sql_text TEXT;
+BEGIN
+    sql_text = $wrappedouter$ DO
+    $wrappedinner$
+    DECLARE
+        batch_result RECORD;
+        task_id INT := $wrappedouter$||task_id||$wrappedouter$::INT;
+        source_tbl REGCLASS := to_regclass('$wrappedouter$||source_tbl::TEXT||$wrappedouter$');
+        target_tbl REGCLASS := to_regclass('$wrappedouter$||target_tbl::TEXT||$wrappedouter$');
+        super_tbl REGCLASS := to_regclass('$wrappedouter$||COALESCE(super_tbl::TEXT, '')||$wrappedouter$');
+        space_context TEXT := '$wrappedouter$||space_context||$wrappedouter$'::TEXT;
+        range_start BIGINT := $wrappedouter$||range_start||$wrappedouter$::BIGINT;
+        target_mb NUMERIC := $wrappedouter$||target_mb||$wrappedouter$::NUMERIC;
+        author TEXT := '$wrappedouter$||author||$wrappedouter$'::TEXT;
+        current_version BIGINT := $wrappedouter$||current_version||$wrappedouter$::BIGINT;
+        history_enabled BOOLEAN := $wrappedouter$||history_enabled||$wrappedouter$::BOOLEAN;
+        -- COALESCE to the literal NULL, so that an unbound base does not collapse the whole generated statement
+        super_bound_version BIGINT := $wrappedouter$||COALESCE(super_bound_version::TEXT, 'NULL')||$wrappedouter$::BIGINT;
+        step_payload JSON := '$wrappedouter$||step_payload::TEXT||$wrappedouter$'::JSON;
+        lambda_function_arn TEXT := '$wrappedouter$||lambda_function_arn||$wrappedouter$'::TEXT;
+        lambda_region TEXT := '$wrappedouter$||lambda_region||$wrappedouter$'::TEXT;
+    BEGIN
+        SELECT *
+          INTO batch_result
+          FROM execute_express_import_batch(
+              source_tbl,
+              target_tbl,
+              super_tbl,
+              space_context,
+              range_start,
+              target_mb,
+              author,
+              current_version,
+              history_enabled,
+              super_bound_version
+          );
+
+        IF batch_result.finished THEN
+            PERFORM report_task_progress(
+                lambda_function_arn,
+                lambda_region,
+                step_payload,
+                task_id,
+                jsonb_build_object(
+                    'progress', jsonb_build_object(
+                        'type', 'ImportOutput$ImportProgress',
+                        'tmpTableLoaded', true
+                    ),
+                    'type', 'ImportOutput'
+                )
+            );
+        ELSE
+            PERFORM report_task_progress(
+                lambda_function_arn,
+                lambda_region,
+                step_payload,
+                task_id,
+                jsonb_build_object(
+                    'progress', jsonb_build_object(
+                        'type', 'ImportOutput$ImportProgress',
+                        'tmpTableLoaded', false,
+                        'startI', batch_result.selected_range_start,
+                        'endI', batch_result.selected_range_end
+                    ),
+                    'expressImport', true,
+                    'rows', batch_result.pulled_count,
+                    'bytes', batch_result.pulled_bytes,
+                    'oversizedSingleton',
+                        batch_result.pulled_count = 1
+                        AND batch_result.pulled_bytes > (target_mb * 1024 * 1024)::BIGINT,
+                    'targetVersion', current_version,
+                    'type', 'ImportOutput'
+                )
+            );
+        END IF;
+    EXCEPTION
+        WHEN OTHERS THEN
+            BEGIN
+                $wrappedouter$ || failure_callback || $wrappedouter$
+            END;
+    END;
+    $wrappedinner$ $wrappedouter$;
+    EXECUTE sql_text;
 END;
 $BODY$;
 
@@ -1061,6 +1915,7 @@ BEGIN
                     'startI', selected_range_start,
                     'endI', selected_range_end
                 ),
+		        'targetVersion', currentVersion,
                 'type', 'ImportOutput'
             )
 		);

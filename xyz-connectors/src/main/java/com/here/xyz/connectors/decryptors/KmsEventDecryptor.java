@@ -37,7 +37,7 @@ public class KmsEventDecryptor extends EventDecryptor {
   /**
    * Logger for the class
    */
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(KmsEventDecryptor.class);
 
   /**
    * Algorithm used for asymmetric (private/public key) encryption.

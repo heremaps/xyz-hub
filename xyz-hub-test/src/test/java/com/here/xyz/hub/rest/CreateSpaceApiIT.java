@@ -50,14 +50,14 @@ public class CreateSpaceApiIT extends TestSpaceWithFeature {
 
   @Test
   public void basicCreateSpace() {
-    cleanUpId = "x-psql-test";
+    cleanUpId = DEFAULT_SPACE_ID;
     createSpace();
   }
 
 
   @Test
   public void createSpaceWithTheSameId() {
-    cleanUpId = "x-psql-test";
+    cleanUpId = DEFAULT_SPACE_ID;
     given()
         .contentType(APPLICATION_JSON)
         .accept(APPLICATION_JSON)
@@ -67,7 +67,7 @@ public class CreateSpaceApiIT extends TestSpaceWithFeature {
         .post("/spaces")
         .then()
         .statusCode(OK.code())
-        .body("id", equalTo("x-psql-test"))
+        .body("id", equalTo(DEFAULT_SPACE_ID))
         .body("title", equalTo("My Demo Space"))
         .body("storage.id", equalTo("psql"));
 

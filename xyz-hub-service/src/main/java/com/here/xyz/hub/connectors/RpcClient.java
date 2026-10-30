@@ -65,6 +65,7 @@ import io.vertx.core.Handler;
 import io.vertx.core.json.DecodeException;
 import io.vertx.core.json.JsonObject;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -449,14 +450,18 @@ public class RpcClient {
         return;
       }
 
-      stringResponse = new String(bytes);
-      bytes = null; //GC may collect the bytes now.
+      /*
+      Handed to the deserializer as bytes on purpose: going via a String decoded the whole payload
+      up front and used Jackson's slower parser. Only the paths below that report errors need text.
+       */
+      final byte[] responseBytes = bytes;
 
       Typed payload;
       try {
-        payload = XyzSerializable.deserialize(stringResponse);
+        payload = XyzSerializable.deserialize(responseBytes);
       }
       catch (InvalidTypeIdException e) {
+        stringResponse = new String(responseBytes, StandardCharsets.UTF_8);
         JsonObject response = new JsonObject(stringResponse);
 
         if (!isOldHealthStatus(response)) throw e;
@@ -487,10 +492,12 @@ public class RpcClient {
       callback.handle(Future.failedFuture(new HttpException(BAD_GATEWAY, "Received an empty response from the connector.")));
     }
     catch (JsonMappingException e) {
+      stringResponse = decodeForDiagnostics(stringResponse, bytes);
       logger.warn(marker, "Mapping error in the provided content {} from connector \"{}\".", stringResponse, getConnector().id, e);
       callback.handle(Future.failedFuture(getJsonMappingErrorMessage(stringResponse)));
     }
     catch (JsonParseException | DecodeException e) {
+      stringResponse = decodeForDiagnostics(stringResponse, bytes);
       logger.warn(marker, "Parsing error in the provided content {} from connector \"{}\".", stringResponse, getConnector().id, e);
       callback.handle(Future.failedFuture(new HttpException(BAD_GATEWAY, "Invalid content provided by the connector: Invalid JSON string. "
           + (e instanceof JsonParseException ? "Error at line " + ((JsonParseException) e).getLocation().getLineNr() + ", column "
@@ -501,10 +508,21 @@ public class RpcClient {
       callback.handle(Future.failedFuture(e));
     }
     catch (Exception e) {
+      stringResponse = decodeForDiagnostics(stringResponse, bytes);
       logger.warn(marker, "Unexpected exception while processing connector \"{}\" response: {}.", getConnector().id, stringResponse, e);
       callback.handle(
           Future.failedFuture(new HttpException(BAD_GATEWAY, "Unexpected exception while processing connector response.")));
     }
+  }
+
+  /**
+   * Decodes the response to text only where an error has to be reported, reusing what an earlier
+   * branch already decoded.
+   */
+  private static String decodeForDiagnostics(String alreadyDecoded, byte[] bytes) {
+    if (alreadyDecoded != null)
+      return alreadyDecoded;
+    return bytes == null ? null : new String(bytes, StandardCharsets.UTF_8);
   }
 
   /**

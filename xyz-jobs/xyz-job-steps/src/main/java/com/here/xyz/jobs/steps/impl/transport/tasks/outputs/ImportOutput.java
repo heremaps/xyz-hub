@@ -27,15 +27,15 @@ import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_DEFAULT;
 
 @JsonInclude(NON_DEFAULT)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record ImportOutput(String importStatistics, long fileBytes,
+public record ImportOutput(String importStatistics, long fileBytes,  long targetVersion,
                            ImportProgress progress) implements TaskPayload {
 
-  public ImportOutput(String importStatistics, long fileBytes) {
-    this(importStatistics, fileBytes, null);
+  public ImportOutput(String importStatistics, long fileBytes,  long targetVersion) {
+    this(importStatistics, fileBytes, targetVersion, null);
   }
 
   public ImportOutput(ImportProgress progress) {
-    this(null, -1, progress);
+    this(null, -1, -1, progress);
   }
 
   //@TODO: shift this extraction to SQL function "perform_import_from_s3_task()"

@@ -21,6 +21,7 @@ package com.here.xyz.jobs;
 import static com.here.xyz.util.Random.randomAlpha;
 import com.here.xyz.jobs.datasets.DatasetDescription;
 import com.here.xyz.jobs.processes.CopyViaFiles;
+import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Tag;
@@ -100,8 +101,10 @@ public class ExportToFilesAndImportIT extends JobTest {
     checkSucceededJob(job);
 
     List<Map> outputs = getJobOutputs(job.getId());
-    Assertions.assertEquals(3, outputs.size());
-    Assertions.assertEquals(30, outputs.get(0).get("featureCount"));
+    Assertions.assertEquals(5, outputs.size());
+    outputs.stream().filter(o -> o instanceof FeatureStatistics).forEach(o ->
+      Assertions.assertEquals(30, o.get("featureCount")
+    ));
 
     // Verify that the target space actually contains the features
     StatisticsResponse targetStats = getStatistics(TRG_SPACE);
@@ -123,8 +126,10 @@ public class ExportToFilesAndImportIT extends JobTest {
     checkSucceededJob(job);
 
     List<Map> outputs = getJobOutputs(job.getId());
-    Assertions.assertEquals(3, outputs.size());
-    Assertions.assertEquals(20, outputs.get(0).get("featureCount"));
+    Assertions.assertEquals(5, outputs.size());
+    outputs.stream().filter(o -> o instanceof FeatureStatistics).forEach(o ->
+            Assertions.assertEquals(20, o.get("featureCount")
+    ));
 
     // Target should contain the 5 original + 20 imported features
     StatisticsResponse targetStats = getStatistics(TRG_SPACE);
@@ -148,9 +153,11 @@ public class ExportToFilesAndImportIT extends JobTest {
     checkSucceededJob(job);
 
     List<Map> outputs = getJobOutputs(job.getId());
-    Assertions.assertEquals(3, outputs.size());
+    Assertions.assertEquals(5, outputs.size());
     // Only the features up to the tagged version should be exported
-    Assertions.assertEquals(15, outputs.get(0).get("featureCount"));
+    outputs.stream().filter(o -> o instanceof FeatureStatistics).forEach(o ->
+            Assertions.assertEquals(15, o.get("featureCount")
+    ));
 
     StatisticsResponse targetStats = getStatistics(TRG_SPACE);
     Assertions.assertNotNull(targetStats);
@@ -169,8 +176,10 @@ public class ExportToFilesAndImportIT extends JobTest {
     checkSucceededJob(job);
 
     List<Map> outputs = getJobOutputs(job.getId());
-    Assertions.assertEquals(2, outputs.size());
-    Assertions.assertEquals(0, outputs.get(0).get("featureCount"));
+    Assertions.assertEquals(4, outputs.size());
+    outputs.stream().filter(o -> o instanceof FeatureStatistics).forEach(o ->
+      Assertions.assertEquals(0, o.get("featureCount")
+    ));
 
     StatisticsResponse targetStats = getStatistics(TRG_SPACE);
     Assertions.assertNotNull(targetStats);

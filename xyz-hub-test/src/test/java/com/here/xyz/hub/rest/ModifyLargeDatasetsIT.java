@@ -72,7 +72,7 @@ public class ModifyLargeDatasetsIT extends TestSpaceWithFeature {
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
         body(featureCollection.serialize()).
         when().
-        post("/spaces/x-psql-test/features").
+        post("/spaces/" + DEFAULT_SPACE_ID + "/features").
         then().
         statusCode(OK.code());
   }

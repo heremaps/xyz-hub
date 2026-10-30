@@ -18,17 +18,26 @@
  */
 package com.here.xyz.jobs.steps.impl.transport.tasks;
 
+import java.util.Set;
+
 public class TaskProgress<I> {
   private int totalTasks;
   private int startedTasks;
   private int finalizedTasks;
   private Integer taskId;
   private I taskInput;
+  private Set<Integer> startedNotFinalizedTaskIds = Set.of();
+  private long scalingElapsedMillis;
 
   public TaskProgress() {}
 
   public TaskProgress(Integer taskId) {
     this.taskId = taskId;
+  }
+
+  public TaskProgress(Integer taskId, I taskInput) {
+    this.taskId = taskId;
+    this.taskInput = taskInput;
   }
 
   public TaskProgress(int totalTasks, int startedTasks, int finalizedTasks) {
@@ -43,6 +52,19 @@ public class TaskProgress<I> {
     this.finalizedTasks = finalizedTasks;
     this.taskId = taskId;
     this.taskInput = taskInput;
+  }
+
+  public TaskProgress(int totalTasks, int startedTasks, int finalizedTasks, Set<Integer> startedNotFinalizedTaskIds) {
+    this.totalTasks = totalTasks;
+    this.startedTasks = startedTasks;
+    this.finalizedTasks = finalizedTasks;
+    this.startedNotFinalizedTaskIds = startedNotFinalizedTaskIds;
+  }
+
+  public TaskProgress(int totalTasks, int startedTasks, int finalizedTasks, Set<Integer> startedNotFinalizedTaskIds,
+      long scalingElapsedMillis) {
+    this(totalTasks, startedTasks, finalizedTasks, startedNotFinalizedTaskIds);
+    this.scalingElapsedMillis = scalingElapsedMillis;
   }
 
   public int getTotalTasks() {
@@ -85,8 +107,36 @@ public class TaskProgress<I> {
     this.taskInput = taskInput;
   }
 
+  public Set<Integer> getStartedNotFinalizedTaskIds() {
+    return startedNotFinalizedTaskIds;
+  }
+
+  public void setStartedNotFinalizedTaskIds(Set<Integer> startedNotFinalizedTaskIds) {
+    this.startedNotFinalizedTaskIds = startedNotFinalizedTaskIds;
+  }
+
+  public long getScalingElapsedMillis() {
+    return scalingElapsedMillis;
+  }
+
+  public void setScalingElapsedMillis(long scalingElapsedMillis) {
+    this.scalingElapsedMillis = scalingElapsedMillis;
+  }
+
+  public int getRunningTasks() {
+    return Math.max(startedTasks - finalizedTasks, 0);
+  }
+
+  public int getUnstartedTasks() {
+    return Math.max(totalTasks - startedTasks, 0);
+  }
+
   public boolean isComplete() {
     return totalTasks == finalizedTasks;
+  }
+
+  public boolean hasTaskItem() {
+    return taskId != null && taskId > 0;
   }
 
   public boolean hasRunningTasks() {
@@ -105,6 +155,8 @@ public class TaskProgress<I> {
             "totalTasks=" + totalTasks +
             ", startedTasks=" + startedTasks +
             ", finalizedTasks=" + finalizedTasks +
+            ", startedNotFinalizedTaskIds=" + startedNotFinalizedTaskIds +
+            ", scalingElapsedMillis=" + scalingElapsedMillis +
             ", taskId=" + taskId +
             ", taskInput=" + taskInput +
             '}';

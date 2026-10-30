@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2017-2026 HERE Europe B.V.
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -38,6 +39,7 @@ import com.here.xyz.models.geojson.coordinates.WKTHelper;
 import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
+import com.here.xyz.jobs.steps.impl.transport.tools.ContentPartitioning;
 import com.here.xyz.psql.query.GetFeaturesByGeometryBuilder;
 import com.here.xyz.psql.query.GetFeaturesByGeometryBuilder.GetFeaturesByGeometryInput;
 import com.here.xyz.psql.query.QueryBuilder.QueryBuildingException;
@@ -305,7 +307,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
   private long loadTargetFeatureCount() {
     if (estimatedTargetFeatureCount < 0) {
       try {
-        estimatedTargetFeatureCount = loadSpaceStatistics(getTargetSpaceId(), space().getExtension() != null ? EXTENSION : null)
+        estimatedTargetFeatureCount = loadSpaceStatistics(getTargetSpaceId(), targetSpace().getExtension() != null ? EXTENSION : null)
             .getCount().getValue();
       }
       catch (WebClientException e) {
@@ -334,6 +336,9 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
 
       int threadId = getThreadInfo()[0],
           threadCount = getThreadInfo()[1];
+
+      if( threadCount > 1 )
+       Thread.sleep( 30_000); // MMSUP-2840 - consistency, wait on multiple thread to assure "old" versions written by rest persists in db
 
       infoLog(resume ? STEP_RESUME : STEP_EXECUTE,  "Start ImlCopy thread number: " + threadId + " / " + threadCount
           + "; target version: " + getTargetVersion());
@@ -422,12 +427,19 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
       return new SQLQuery("""
       WITH ins_data as
       (
-        INSERT INTO ${schema}.${table} (jsondata, operation, author, geo, id, version, next_version )
+        INSERT INTO ${schema}.${table} AS tbl (jsondata, operation, author, geo, id, version, next_version )
           SELECT idata.jsondata, case when idata.operation = 'U' then 'I' else idata.operation end AS operation, idata.author, idata.geo, idata.id, ${{versionToBeUsed}} as version, max_bigint() as next_version
           FROM
           (
             ${{contentQuery}}
           ) idata
+        ON CONFLICT (id, version, next_version) DO UPDATE SET
+          jsondata  = EXCLUDED.jsondata,
+          author    = EXCLUDED.author,
+          operation = EXCLUDED.operation,
+          geo       = EXCLUDED.geo
+          WHERE (EXCLUDED.jsondata#>>'{properties,@ns:com:here:xyz,updatedAt}')::bigint
+              > (tbl.jsondata#>>'{properties,@ns:com:here:xyz,updatedAt}')::bigint
         RETURNING id
       ),
       count_data as
@@ -439,44 +451,6 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     .withQueryFragment("versionToBeUsed", "" + getTargetVersion())
     .withQueryFragment("contentQuery", contentQuery);
     }
-  }
-
-  private SQLQuery buildThreadIdFilter( int threadCount, int threadId )
-  {
-    final long VIZ_ID_COUNT = 0xfffffL + 1,
-               blockRange = (long) Math.ceil((double) VIZ_ID_COUNT / (double) threadCount);
-
-    final String VIZ_IDX_FKT   = "left(md5((''::text || i)), 5)";
-
-    SQLQuery lowerBoundCondition = null,
-             upperBoundCondition = null;
-
-    if( threadId > 0)
-     lowerBoundCondition =
-      new SQLQuery("${{vizIdxFkt1}} >= #{vizLowerBound}")
-          .withQueryFragment("vizIdxFkt1", VIZ_IDX_FKT)
-          .withNamedParameter("vizLowerBound", String.format("%05x", threadId * blockRange));
-
-    if( threadId < threadCount - 1)
-     upperBoundCondition =
-       new SQLQuery("${{vizIdxFkt2}} < #{vizUpperBound}")
-           .withQueryFragment("vizIdxFkt2", VIZ_IDX_FKT)
-           .withNamedParameter("vizUpperBound", String.format("%05x", (threadId + 1) * blockRange));
-
-    if(lowerBoundCondition != null || upperBoundCondition != null)
-    {
-     SQLQuery additionalFilterFragment = new SQLQuery( (lowerBoundCondition != null && upperBoundCondition != null) ? "${{Bound1}} AND ${{Bound2}}" : "${{Bound1}}" );
-
-     if(lowerBoundCondition != null)
-      additionalFilterFragment.withQueryFragment("Bound1", lowerBoundCondition);
-
-     if(upperBoundCondition != null)
-      additionalFilterFragment.withQueryFragment(lowerBoundCondition != null ? "Bound2" : "Bound1", upperBoundCondition);
-
-     return additionalFilterFragment;
-    }
-
-    return null;
   }
 
   private SQLQuery buildGeoFragment() {
@@ -511,7 +485,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     GetFeaturesByGeometryInput input = new GetFeaturesByGeometryInput(
         space().getId(),
         hubWebClient().loadConnector(space().getStorage().getId()).params,
-        space().getExtension() != null ? space().resolveCompositeParams(superSpace()) : null,
+        resolveSpaceParams(space()),
         EXTENSION,
         space().getVersionsToKeep(),
         minSpaceVersion,
@@ -522,10 +496,10 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
         propertyFilter
     );
 
-    SQLQuery threadIdFilter = buildThreadIdFilter(threadCount, threadId);
+    SQLQuery bucketIdFilter = ContentPartitioning.buildBucketIdFilter(threadCount, threadId);
 
-    if( threadIdFilter != null )
-     queryBuilder.withAdditionalFilterFragment(threadIdFilter);
+    if( bucketIdFilter != null )
+     queryBuilder.withAdditionalFilterFragment(bucketIdFilter);
 
     if(! useTableCopy() )
      return queryBuilder.buildQuery(input); //TODO: with author, operation provided in selection the parsing of those values in buildCopySpaceQuery would be obsolete

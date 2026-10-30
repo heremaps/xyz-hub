@@ -35,6 +35,10 @@ import org.junit.Test;
 
 import java.util.Random;
 
+/**
+ * Runs in the exclusive failsafe execution: ACCESS_OWNER_1_WITH_LIMITS carries maxSpaces=1, which is counted over all
+ * spaces of that owner. Any other test creating a space at the same time makes the space creation here fail with 403.
+ */
 public class LimitsTestIT extends TestSpaceWithFeature {
 
   private String cleanUpId;
@@ -57,7 +61,7 @@ public class LimitsTestIT extends TestSpaceWithFeature {
         body(content("/xyz/hub/createSpace.json")).
         when().post("/spaces").then().
         statusCode(OK.code()).
-        body("id", equalTo("x-psql-test"));
+        body("id", equalTo(DEFAULT_SPACE_ID));
   }
 
   @After
@@ -92,7 +96,7 @@ public class LimitsTestIT extends TestSpaceWithFeature {
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_WITH_LIMITS)).
         body(content("/xyz/hub/processedData.json")).
         when().
-        put("/spaces/x-psql-test/features").
+        put("/spaces/" + DEFAULT_SPACE_ID + "/features").
         then().
         statusCode(FORBIDDEN.code());
   }
@@ -107,7 +111,7 @@ public class LimitsTestIT extends TestSpaceWithFeature {
         contentType(APPLICATION_GEO_JSON).
         headers(headers).
         body(content).
-        when().post("/spaces/x-psql-test/features");
+        when().post("/spaces/" + DEFAULT_SPACE_ID + "/features");
     response.then().statusCode(OK.code());
   }
 
@@ -136,7 +140,7 @@ public class LimitsTestIT extends TestSpaceWithFeature {
         contentType(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_WITH_LIMITS)).
         body(content("/xyz/hub/createFeatureById.json")).
-        when().post("/spaces/x-psql-test/features").then().
+        when().post("/spaces/" + DEFAULT_SPACE_ID + "/features").then().
         statusCode(OK.code()).
         body("features[0].id", equalTo("Q271455"));
   }

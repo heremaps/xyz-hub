@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ package com.here.xyz.events;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonTypeName;
+import com.here.xyz.FeatureChange.Operation;
 import java.util.List;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -29,6 +30,8 @@ public final class IterateChangesetsEvent extends IterateFeaturesEvent<IterateCh
   private List<String> authors;
   private long startTime;
   private long endTime;
+  private Operation operation;
+  private boolean squashed;
 
   public List<String> getAuthors() {
     return authors;
@@ -66,6 +69,32 @@ public final class IterateChangesetsEvent extends IterateFeaturesEvent<IterateCh
 
   public IterateChangesetsEvent withEndTime(long endTime) {
     setEndTime(endTime);
+    return this;
+  }
+
+  public Operation getOperation() {
+    return operation;
+  }
+
+  public void setOperation(Operation operation) {
+    this.operation = operation;
+  }
+
+  public IterateChangesetsEvent withOperation(Operation operation) {
+    setOperation(operation);
+    return this;
+  }
+
+  public boolean isSquashed() {
+    return squashed;
+  }
+
+  public void setSquashed(boolean squashed) {
+    this.squashed = squashed;
+  }
+
+  public IterateChangesetsEvent withSquashed(boolean squashed) {
+    setSquashed(squashed);
     return this;
   }
 }

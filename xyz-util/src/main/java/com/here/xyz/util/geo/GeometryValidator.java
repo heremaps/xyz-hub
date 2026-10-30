@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,6 +40,8 @@ public class GeometryValidator {
   ); // Define the canonical world bbox positions (counter-clockwise)
 
   public static void validateGeometry(Geometry geometry, int radius) throws GeometryException {
+    //TODO: Geometry validation is temporarily disabled. Re-enable and rework off later
+    /*
     if (geometry == null)
       throw new GeometryException("Invalid arguments! Geometry cant be null!");
 
@@ -58,6 +60,7 @@ public class GeometryValidator {
     catch (Exception e){
       throw new GeometryException("Invalid filter geometry!");
     }
+    */
   }
 
   public static void validateSpatialFilter(SpatialFilter spatialFilter) throws BaseHttpServerVerticle.ValidationException {

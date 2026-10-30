@@ -17,24 +17,6 @@
  * License-Filename: LICENSE
  */
 
-/*
- * Copyright (C) 2017-2025 HERE Europe B.V.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- *
- * SPDX-License-Identifier: Apache-2.0
- * License-Filename: LICENSE
- */
 
 ---------------------------------------------------------------------------------
 -- xyz_index_status							:	select * from xyz_index_status();
@@ -140,7 +122,9 @@ BEGIN
    RETURN geo;
   end if;
 
-  sgeo := st_geomfromtext(st_astext(ST_SnapToGrid(geo, 0.00000001),8),4326); -- ST_ReducePrecision(geo, 0.00000001);
+  --Replaces a st_geomfromtext(st_astext(..., 8), 4326) round trip that cost 535 of this function's 600 ms per 50k.
+  --Both the six argument form and the ST_SetSRID are needed to keep the previous output, see ReducePrecisionIT.
+  sgeo := ST_SetSRID(ST_SnapToGrid(geo, ST_MakePoint(0,0,0,0), 0.00000001, 0.00000001, 0.00000001, 0.00000001), 4326);
 
   IF GeometryType(sgeo) = GeometryType(geo) THEN
    RETURN sgeo;  -- only if type did not changed
@@ -158,6 +142,41 @@ BEGIN
 END
 $BODY$
 LANGUAGE plpgsql immutable parallel safe;
+------------------------------------------------
+------------------------------------------------
+/**
+ * Clips geo to clip_to, repairing the input only when GEOS actually refuses to overlay it.
+ * Reaching ST_MakeValid through the exception handler is far cheaper than paying it per row.
+ */
+CREATE OR REPLACE FUNCTION xyz_clip_geometry(geo GEOMETRY, clip_to GEOMETRY)
+    RETURNS GEOMETRY AS
+$BODY$
+BEGIN
+  RETURN ST_Intersection(geo, clip_to);
+
+  EXCEPTION WHEN OTHERS THEN
+    --Reached only for geometry GEOS refuses to overlay as-is.
+    RETURN ST_Intersection(ST_MakeValid(geo), clip_to);
+
+END
+$BODY$
+LANGUAGE plpgsql immutable parallel safe;
+------------------------------------------------
+------------------------------------------------
+/**
+ * ST_AsGeojson with non-finite ordinates neutralised to 0, so the output is always valid JSON.
+ * A geometry can carry NaN or +/-Infinity, which ST_AsGeojson emits verbatim. The strpos probe
+ * keeps clean rows off the regex, which the previous guard ran per row while missing Infinity.
+ */
+CREATE OR REPLACE FUNCTION xyz_as_geojson(geo GEOMETRY, prec INTEGER)
+    RETURNS TEXT AS
+$BODY$
+  SELECT CASE WHEN strpos(t, 'NaN') > 0 OR strpos(t, 'Infinity') > 0
+              THEN regexp_replace(t, '-?(NaN|Infinity)', '0', 'gi')
+              ELSE t END
+  FROM ST_AsGeojson(geo, prec) AS t;
+$BODY$
+LANGUAGE sql immutable parallel safe;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR  REPLACE FUNCTION xyz_random_string(length integer)
@@ -1637,99 +1656,81 @@ $body$
  select * from _prj_flatten( jdoc, 100 )
 $body$
 LANGUAGE sql IMMUTABLE PARALLEL SAFE;
+
 ------------------------------------------------
 ------------------------------------------------
 
-create or replace function prj_build(jpaths text[], indata jsonb)
-returns jsonb as
+CREATE OR REPLACE FUNCTION prj_build(jpaths TEXT[], indata TEXT)
+RETURNS TEXT AS
 $body$
-  /**
-   * Extract and preserve only properties from a JSON object that match
-   * given JSONPath-like expressions (supports $.a.b.0.c)
-   * and merges overlapping paths.
-   */
-	function removePrefixedStrings(strings) {
 
-  const uniqueStrings = [...new Set(strings)];
+  function buildPathTree(allowedPaths) {
+    const root = { terminal: false, children: {} };
 
-  uniqueStrings.sort((a, b) => a.localeCompare(b));
-
-  const result = [];
-
-  for (const current of uniqueStrings) {
-    const isPrefixed = result.some(prefix => current.startsWith(prefix));
-    if (!isPrefixed) {
-      result.push(current);
-    }
-  }
-
-  return result;
-  }
-
-  function includePaths(obj, allowedPaths) {
-    const result = {};
-
-    const inputPaths = removePrefixedStrings(allowedPaths);
-
-    for (const path of inputPaths || []) {
+    for (const path of allowedPaths || []) {
       const parts = path
-        .replace(/^\$\./, '')        // remove leading "$."
-        .split(/\./)                 // split by .
+        .split('.')                  // normal dot-path, e.g. "a.b.c"
         .filter(Boolean);
 
-      let src = obj;
-      let exists = true;
+      if (parts.length === 0) continue;
 
-      // Check if path fully exists in source
+      let node = root;
       for (const key of parts) {
-        const isIndex = /^\d+$/.test(key);
-        const srcKey = isIndex ? parseInt(key, 10) : key;
-        if (src == null || (Array.isArray(src) && src[srcKey] === undefined) || (!Array.isArray(src) && !(srcKey in src))) {
-          exists = false;
-          break;
-        }
-        src = src[srcKey];
+        // A terminal ancestor already preserves this whole subtree,
+        // so there is no need to descend any deeper.
+        if (node.terminal) break;
+        if (!node.children[key])
+          node.children[key] = { terminal: false, children: {} };
+        node = node.children[key];
       }
-
-      if (!exists) continue; // skip missing leaf paths
-
-      // Reset traversal for building result
-      src = obj;
-      let dst = result;
-
-      for (let i = 0; i < parts.length; i++) {
-        const key = parts[i];
-        const isIndex = /^\d+$/.test(key);
-        const srcKey = isIndex ? parseInt(key, 10) : key;
-        const isLast = i === parts.length - 1;
-
-        if (isLast) {
-          // assign only if leaf exists (checked earlier)
-            dst[srcKey] = src[srcKey];
-        } else {
-          // create or reuse existing branch
-          const nextIsArray = /^\d+$/.test(parts[i + 1]);
-          if (Array.isArray(dst)) {
-            dst[srcKey] = dst[srcKey] ?? (nextIsArray ? [] : {});
-          } else {
-            if (!(srcKey in dst)) {
-              dst[srcKey] = nextIsArray ? [] : {};
-            }
-          }
-
-          src = src[srcKey];
-          dst = dst[srcKey];
-        }
-      }
+      node.terminal = true; // whole subtree below this path is preserved
     }
 
-    return result;
+    return root;
   }
 
-  return includePaths(indata, jpaths);
+  function prune(obj, node) {
+    // A terminal node means: keep this value (and everything below) untouched.
+    if (node.terminal) return;
+    if (obj == null || typeof obj !== 'object') return;
+
+    if (Array.isArray(obj)) {
+      // Array aware: keep only the explicitly allowed indices (e.g. "b.1")
+      // and compact the array so the kept elements move to the front.
+      const keepKeys = Object.keys(node.children)
+        .filter(key => /^\d+$/.test(key) && key < obj.length)
+        .sort((a, b) => a - b); // numeric order via implicit coercion
+
+      const kept = [];
+      for (const key of keepKeys) {
+        // On an allowed path -> descend and prune deeper.
+        prune(obj[key], node.children[key]);
+        kept.push(obj[key]);
+      }
+
+      obj.length = 0;
+      obj.push(...kept);
+      return;
+    }
+
+    for (const key of Object.keys(obj)) {
+      const child = node.children[key];
+      if (child === undefined) {
+        // Not on any allowed path -> drop it.
+        delete obj[key];
+      }
+      else
+        // On an allowed path -> descend and prune deeper.
+        prune(obj[key], child);
+    }
+  }
+
+  const data = JSON.parse(indata);
+  prune(data, buildPathTree(jpaths));
+  return JSON.stringify(data);
 
 $body$
-language plv8 immutable PARALLEL SAFE;
+LANGUAGE plv8 IMMUTABLE PARALLEL SAFE;
 
 
 ------------------------------------------------
@@ -1925,8 +1926,9 @@ $BODY$
                 END IF;
 
                 EXECUTE
-                    format('UPDATE %I.%I SET next_version = %L WHERE id = %L AND next_version = %L AND version = %L',
-                           schema, tableName, version, id, max_bigint(), baseVersion);
+                    format('UPDATE %I.%I SET next_version = $1 WHERE id = $2 AND next_version = $3 AND version = $4',
+                           schema, tableName)
+                    USING version, id, max_bigint(), baseVersion;
 
                 GET DIAGNOSTICS updated_rows = ROW_COUNT;
                 IF updated_rows != 1 THEN
@@ -1936,8 +1938,9 @@ $BODY$
                 END IF;
             ELSE
                 EXECUTE
-                    format('UPDATE %I.%I SET next_version = %L WHERE id = %L AND next_version = %L AND version < %L',
-                           schema, tableName, version, id, max_bigint(), version);
+                    format('UPDATE %I.%I SET next_version = $1 WHERE id = $2 AND next_version = $3 AND version < $4',
+                           schema, tableName)
+                    USING version, id, max_bigint(), version;
 
                 GET DIAGNOSTICS updated_rows = ROW_COUNT;
                 IF updated_rows != 1 THEN
@@ -1951,14 +1954,16 @@ $BODY$
             -- Ignore concurrency check for inserts and try to update the previous versions
             --TODO: Activate concurrency check for inserts as well
             EXECUTE
-                format('UPDATE %I.%I SET next_version = %L WHERE id = %L AND next_version = %L AND version < %L',
-                       schema, tableName, version, id, max_bigint(), version);
+                format('UPDATE %I.%I SET next_version = $1 WHERE id = $2 AND next_version = $3 AND version < $4',
+                       schema, tableName)
+                USING version, id, max_bigint(), version;
         END IF;
 
         -- Now actually insert the new version of the feature (NOTE: The order is important here to not violate the (id, next_version) uniqueness constraint)
         EXECUTE
-            format('INSERT INTO %I.%I (id, version, operation, author, jsondata, geo) VALUES (%L, %L, %L, %L, %L, %L)',
-                   schema, tableName, id, version, operation, author, jsondata, xyz_geoFromWkb(geo) );
+            format('INSERT INTO %I.%I (id, version, operation, author, jsondata, geo) '
+                   'VALUES ($1, $2, $3, $4, $5, xyz_geoFromWkb($6))', schema, tableName)
+            USING id, version, operation, author, jsondata, geo;
 
         -- Create the next history partition proactively. Start once the current partition is half full,
         -- then repeat at regular intervals (~100 attempts per second half for the default partition size).
@@ -1994,6 +1999,9 @@ $BODY$
 LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
+-- EXECUTE ... USING here and in the write functions below: the statement text stays dynamic
+-- because the table is a parameter, but format(%L) rendered the whole jsondata into that text and
+-- had the SQL parser re-read it for every feature written.
 CREATE OR REPLACE FUNCTION xyz_simple_upsert(id TEXT, version BIGINT, operation CHAR, author TEXT, jsondata JSONB, geo GEOMETRY, schema TEXT, tableName TEXT, concurrencyCheck BOOLEAN, uniqueConstraintExists BOOLEAN)
     RETURNS INTEGER AS
 $BODY$
@@ -2001,27 +2009,20 @@ $BODY$
         insertQuery TEXT;
         updated_rows INTEGER;
     BEGIN
-        insertQuery = 'INSERT INTO %I.%I AS tbl (id, version, operation, author, jsondata, geo) VALUES (%L, %L, %L, %L, %L, %L)';
-        IF concurrencyCheck THEN
-            -- This query will throw an error in case of a conflict
-            EXECUTE
-                format(insertQuery,
-                       schema, tableName, id, version, operation, author, jsondata, xyz_geoFromWkb(geo));
-        ELSE
-            IF uniqueConstraintExists THEN
-                -- This query will perform an update instead of throwing an error in case of a conflict
-                insertQuery = insertQuery || ' ON CONFLICT (id, next_version) DO UPDATE SET ' ||
-                              'version = greatest(tbl.version, EXCLUDED.version), ' ||
-                              'operation = CASE WHEN xyz_isHideOperation(EXCLUDED.operation) THEN ''J'' ELSE ''U'' END, ' ||
-                              'author = EXCLUDED.author, ' ||
-                              'jsondata = EXCLUDED.jsondata, ' ||
-                              'geo = EXCLUDED.geo';
-            END IF;
+        insertQuery = format('INSERT INTO %I.%I AS tbl (id, version, operation, author, jsondata, geo) '
+                             'VALUES ($1, $2, $3, $4, $5, xyz_geoFromWkb($6))', schema, tableName);
 
-            EXECUTE
-                format(insertQuery,
-                       schema, tableName, id, version, operation, author, jsondata, xyz_geoFromWkb(geo));
+        IF NOT concurrencyCheck AND uniqueConstraintExists THEN
+            -- This query will perform an update instead of throwing an error in case of a conflict
+            insertQuery = insertQuery || ' ON CONFLICT (id, next_version) DO UPDATE SET ' ||
+                          'version = greatest(tbl.version, EXCLUDED.version), ' ||
+                          'operation = CASE WHEN xyz_isHideOperation(EXCLUDED.operation) THEN ''J'' ELSE ''U'' END, ' ||
+                          'author = EXCLUDED.author, ' ||
+                          'jsondata = EXCLUDED.jsondata, ' ||
+                          'geo = EXCLUDED.geo';
         END IF;
+
+        EXECUTE insertQuery USING id, version, operation, author, jsondata, geo;
 
         GET DIAGNOSTICS updated_rows = ROW_COUNT;
         RETURN updated_rows;
@@ -2049,9 +2050,11 @@ $BODY$
         updated_rows INTEGER;
     BEGIN
         EXECUTE
-            format('UPDATE %I.%I SET version = %L, operation = %L, author = %L, jsondata = %L, geo = %L WHERE id = %L'
+            format('UPDATE %I.%I SET version = $1, operation = $2, author = $3, jsondata = $4, '
+                       'geo = xyz_geoFromWkb($5) WHERE id = $6'
                        || xyz_simple_conflictCheck(concurrencyCheck, baseVersion),
-                schema, tableName, version, operation, author, jsondata, xyz_geoFromWkb(geo), id);
+                schema, tableName)
+            USING version, operation, author, jsondata, geo, id;
 
         GET DIAGNOSTICS updated_rows = ROW_COUNT;
 
@@ -2085,9 +2088,10 @@ $BODY$
         updated_rows INTEGER;
     BEGIN
         EXECUTE
-            format('DELETE FROM %I.%I WHERE id = %L'
+            format('DELETE FROM %I.%I WHERE id = $1'
                        || xyz_simple_conflictCheck(concurrencyCheck, baseVersion),
-                   schema, tableName, id);
+                   schema, tableName)
+            USING id;
 
         GET DIAGNOSTICS updated_rows = ROW_COUNT;
 

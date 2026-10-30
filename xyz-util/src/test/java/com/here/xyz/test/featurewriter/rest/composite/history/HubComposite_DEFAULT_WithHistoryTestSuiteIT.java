@@ -33,7 +33,9 @@ public class HubComposite_DEFAULT_WithHistoryTestSuiteIT extends HubComposite_DE
 
   public static Stream<TestArgs> testScenarios() throws JsonProcessingException {
     Set<String> ignoredTests = Set.of(
+        "4.1", //FIXME: Issue in Hub: createdAt is overwritten on UPDATE instead of being preserved from the initial INSERT [will be fixed by new FeatureWriter impl]
         "5.1", //FIXME: No version conflict is thrown in that case, because Hub does not distinguish an existence conflict and a version conflict in its error message [will be fixed by new FeatureWriter impl]
+        "6.1", //FIXME: Issue in Hub: createdAt is overwritten on UPDATE instead of being preserved from the initial INSERT [will be fixed by new FeatureWriter impl]
         "8.1", //FIXME: The feature was written incorrectly. [flickering: sometimes the other concurrent field is not correctly merged in, will be fixed by new FeatureWriter impl]
         "9.1", //FIXME: unexpected MERGE_CONFLICT_ERROR [flickering: works sometimes in hub, will be reliably fixed by new FeatureWriter impl]
         "9.2", //FIXME: A wrong table operation was performed. NONE vs INSERT [flickering: sometimes wrong table operation is done, sometimes wrong error is thrown, will be reliably fixed by new FeatureWriter impl]

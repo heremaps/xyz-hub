@@ -56,7 +56,7 @@ public class PropertiesSearch2IT extends TestSpaceWithFeature {
             .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
             .body(content("/xyz/hub/mixedGeometryTypes.json"))
             .when()
-            .put(getSpacesPath() + "/x-psql-test/features")
+            .put(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/features")
             .then()
             .statusCode(OK.code())
             .body("features.size()", equalTo(11));
@@ -73,35 +73,35 @@ public class PropertiesSearch2IT extends TestSpaceWithFeature {
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
             when().
-            get(getSpacesPath() + "/x-psql-test/search?p.bar=.null").
+            get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/search?p.bar=.null").
             then().
             body("features.size()", equalTo(10));
     given().
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
             when().
-            get(getSpacesPath() + "/x-psql-test/search?p.foo.nested=.null").
+            get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/search?p.foo.nested=.null").
             then().
             body("features.size()", equalTo(11));
     given().
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
             when().
-            get(getSpacesPath() + "/x-psql-test/search?f.id=.null").
+            get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/search?f.id=.null").
             then().
             body("features.size()", equalTo(0));
     given().
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
             when().
-            get(getSpacesPath() + "/x-psql-test/search?f.fooroot=.null").
+            get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/search?f.fooroot=.null").
             then().
             body("features.size()", equalTo(9));
     given().
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
             when().
-            get(getSpacesPath() + "/x-psql-test/search?f.fooroot.nested=.null").
+            get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/search?f.fooroot.nested=.null").
             then().
             body("features.size()", equalTo(11));
   }
@@ -112,35 +112,35 @@ public class PropertiesSearch2IT extends TestSpaceWithFeature {
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
             when().
-            get(getSpacesPath() + "/x-psql-test/search?p.bar!=.null").
+            get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/search?p.bar!=.null").
             then().
             body("features.size()", equalTo(1));
     given().
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
             when().
-            get(getSpacesPath() + "/x-psql-test/search?p.foo.nested!=.null").
+            get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/search?p.foo.nested!=.null").
             then().
             body("features.size()", equalTo(0));
     given().
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
             when().
-            get(getSpacesPath() + "/x-psql-test/search?f.id!=.null").
+            get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/search?f.id!=.null").
             then().
             body("features.size()", equalTo(11));
     given().
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
             when().
-            get(getSpacesPath() + "/x-psql-test/search?f.fooroot!=.null").
+            get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/search?f.fooroot!=.null").
             then().
             body("features.size()", equalTo(2));
     given().
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
             when().
-            get(getSpacesPath() + "/x-psql-test/search?f.fooroot.nested!=.null").
+            get(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/search?f.fooroot.nested!=.null").
             then().
             body("features.size()", equalTo(0));
   }

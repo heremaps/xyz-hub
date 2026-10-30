@@ -25,8 +25,8 @@ import static com.here.xyz.jobs.RuntimeInfo.State.FAILED;
 import static com.here.xyz.jobs.RuntimeInfo.State.PENDING;
 import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
 import static com.here.xyz.jobs.RuntimeInfo.State.SUCCEEDED;
-import static com.here.xyz.jobs.steps.execution.JobExecutor.SchedulerState.SchedulerRuntimeState.PAUSED;
 import static com.here.xyz.jobs.steps.execution.GraphFusionTool.fuseGraphs;
+import static com.here.xyz.jobs.steps.execution.JobExecutor.SchedulerState.SchedulerRuntimeState.PAUSED;
 import static java.util.Comparator.comparingLong;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -44,12 +44,13 @@ import com.here.xyz.util.service.Initializable;
 import io.vertx.core.Future;
 import io.vertx.core.impl.ConcurrentHashSet;
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
@@ -65,7 +66,7 @@ public abstract class JobExecutor implements Initializable {
   /**
    * Live scheduler configuration.
    * <p>Defaults: state={@code RUNNING}, singleJobAllowedPoliciesEnabled={@code true},
-   * singleJobPerResourceEnabled={@code true}.
+   * singleJobPerResourceEnabled={@code false}.
    */
   private static volatile SchedulerState schedulerState = new SchedulerState(
       SchedulerState.SchedulerRuntimeState.RUNNING, true, true
@@ -113,6 +114,8 @@ public abstract class JobExecutor implements Initializable {
       return Future.succeededFuture();
     }
 
+    //The state of the job as it is stored, until this call stores the RUNNING state
+    AtomicReference<State> storedState = new AtomicReference<>(PENDING);
     //TODO: Care about concurrency between nodes when it comes to resource-load calculation within this thread
     return Future.succeededFuture()
         .compose(v -> formerExecutionId == null ? reuseExistingJobIfPossible(job) : Future.succeededFuture())
@@ -136,16 +139,40 @@ public abstract class JobExecutor implements Initializable {
 
           //TODO: Update / invalidate the reserved unit maps?
           return job.storeStatus(PENDING)
-              .compose(v -> job.isPipeline() ? setStepsRunning(job) : Future.succeededFuture())
-              .compose(v -> formerExecutionId != null ? resume(job, formerExecutionId) : execute(job))
-              //Execution was started successfully, store the execution ID.
-              .compose(executionId -> job.withExecutionId(executionId).store());
+              .compose(v -> {
+                storedState.set(RUNNING);
+                return (job.isPipeline() ? setStepsRunning(job) : Future.<Void>succeededFuture())
+                    .compose(v2 -> formerExecutionId != null ? resume(job, formerExecutionId) : execute(job))
+                    //Execution was started successfully, store the execution ID.
+                    .compose(executionId -> job.withExecutionId(executionId).store());
+              }, t -> JobConfigClient.isStateConflict(t) ? reloadStatusOfConcurrentlyChangedJob(job) : Future.failedFuture(t));
         })
         .onFailure(e -> {
           //E.g.: Resource got deleted during lifetime of job!
-          logger.error("Start Execution of job '{}' is failed!", job.getId(), e);
-          job.getStatus().setState(FAILED);
-          job.storeStatus(null);
+          logger.error("Error starting execution of job '{}'", job.getId(), e);
+          job.getStatus()
+              .withState(FAILED)
+              .withErrorMessage("Unexpected error while trying to start the execution of the job.")
+              .withErrorCause(e.getMessage());
+          //Do not overwrite a state that was changed concurrently
+          job.storeStatus(storedState.get())
+              .onFailure(t -> logger.warn("[{}] Could not store the FAILED state of the job. Was its state changed concurrently?",
+                  job.getId(), t));
+        });
+  }
+
+  /**
+   * Called when the job's state was not PENDING anymore when trying to store it as RUNNING.
+   * That means another request or node started (or cancelled) the job concurrently, so this call must not start it nor fail it.
+   */
+  private static Future<Void> reloadStatusOfConcurrentlyChangedJob(Job job) {
+    logger.info("[{}] Not starting the job, because its state was changed concurrently. It is started by another request already.",
+        job.getId());
+    return Job.load(job.getId())
+        .map(storedJob -> {
+          if (storedJob != null)
+            job.setStatus(storedJob.getStatus());
+          return null;
         });
   }
 
@@ -401,8 +428,8 @@ public abstract class JobExecutor implements Initializable {
   }
 
   /**
-   * If the {@code singleJobPerResourceEnabled} flag is on, ensures no other RUNNING job shares any
-   * resource key (source/target) with the given job.
+   * If the {@code singleJobPerResourceEnabled} flag is on, ensures no other RUNNING job occupies a
+   * resource (source/target) of the given job. See {@link #resourcesConflict(Job, Job)} for the conflict semantics.
    *
    * @return A future that resolves to true if the job may execute, false if another RUNNING job
    *         already occupies one of its resources or an older PENDING job exists for overlapping
@@ -416,11 +443,11 @@ public abstract class JobExecutor implements Initializable {
     if (resourceKeys == null || resourceKeys.isEmpty())
       return Future.succeededFuture(true);
 
-    //Filter the pre-loaded RUNNING jobs to those sharing at
-    //least one resource key (and excluding the job itself)
+    //Filter the pre-loaded RUNNING jobs to those conflicting
+    //on at least one resource (and excluding the job itself)
     List<Job> conflictingRunning = runningJobs.stream()
-        .filter(other -> !job.getId().equals(other.getId()))
-        .filter(other -> other.getResourceKeys() != null && !Collections.disjoint(other.getResourceKeys(), resourceKeys))
+        .filter(otherRunningJob -> !otherRunningJob.getId().equals(job.getId()))
+        .filter(otherRunningJob -> resourcesConflict(job, otherRunningJob))
         .toList();
 
     if (!conflictingRunning.isEmpty()) {
@@ -435,13 +462,13 @@ public abstract class JobExecutor implements Initializable {
     //NOTE: This check is still needed even though checkPendingJobs() sorts by createdAt, because:
     // 1. A job directly submitted via startExecution() (outside the poll loop) has no ordering guarantee.
     // 2. An older job blocked by insufficient virtual units stays PENDING while a newer job could otherwise jump ahead.
-    return JobConfigClient.getInstance().loadJobs(resourceKeys, PENDING)
+    //NOTE: All resource keys (incl. base resources) have to be used for loading. Otherwise, a PENDING job operating directly
+    // on a base resource would be invisible for a job only inheriting that base resource. Jobs that merely share inherited
+    // base resources are filtered out afterward.
+    //The jobs are loaded without their steps, because only their IDs, creation times and resource keys are read.
+    return JobConfigClient.getInstance().loadJobsWithoutSteps(resourceKeys, PENDING)
         .map(pendingJobs -> {
-          List<Job> olderPendingConflicts = pendingJobs.stream()
-              .filter(other -> !job.getId().equals(other.getId()))
-              .filter(other -> other.getCreatedAt() < job.getCreatedAt())
-              .sorted(comparingLong(Job::getCreatedAt))
-              .toList();
+          List<Job> olderPendingConflicts = olderPendingConflicts(job, pendingJobs);
 
           if (olderPendingConflicts.isEmpty())
             return true;
@@ -451,6 +478,55 @@ public abstract class JobExecutor implements Initializable {
               olderPendingConflicts.stream().map(Job::getId).collect(Collectors.joining(", ")));
           return false;
         });
+  }
+
+  /**
+   * Returns the PENDING jobs that are older than the given job and conflict with it on at least one resource.
+   * See {@link #resourcesConflict(Job, Job)} for the conflict semantics. Only the jobs' IDs, creation times and
+   * resource keys are read, so the pending jobs do not need to have their steps loaded.
+   *
+   * @param job The job to be checked
+   * @param pendingJobs The PENDING jobs sharing at least one resource key with the job
+   * @return The older conflicting PENDING jobs, sorted by their creation time (oldest first)
+   */
+  public static List<Job> olderPendingConflicts(Job job, Collection<Job> pendingJobs) {
+    return pendingJobs.stream()
+        .filter(other -> !job.getId().equals(other.getId()))
+        .filter(other -> other.getCreatedAt() < job.getCreatedAt())
+        .filter(other -> resourcesConflict(job, other))
+        .sorted(comparingLong(Job::getCreatedAt))
+        .toList();
+  }
+
+  /**
+   * Checks whether two jobs must not run in parallel, because they share at least one resource.
+   * <p>
+   * A shared non-base resource is always a conflict.
+   * A shared base resource (e.g., a global layer extended by composite layers) is only a conflict, if it is the primary
+   * resource ({@link Job#getResourceKey()}) of at least one of both jobs. If both jobs only inherit it (e.g., jobs on two
+   * different composite layers extending the same base layer), they may run in parallel.
+   *
+   * @return true, if the jobs must not run in parallel
+   */
+  static boolean resourcesConflict(Job job, Job otherJob) {
+    Set<String> resourceKeys = job.getResourceKeys();
+    Set<String> otherResourceKeys = otherJob.getResourceKeys();
+    if (resourceKeys == null || otherResourceKeys == null)
+      return false;
+
+    String primaryResourceKey = job.getResourceKey();
+    String otherPrimaryResourceKey = otherJob.getResourceKey();
+
+    return resourceKeys.stream()
+        .filter(otherResourceKeys::contains)
+        .anyMatch(sharedResourceKey -> !isBaseResource(sharedResourceKey)
+            || sharedResourceKey.equals(primaryResourceKey)
+            || sharedResourceKey.equals(otherPrimaryResourceKey));
+  }
+
+  private static boolean isBaseResource(String resourceKey) {
+    //TODO: Remove this hotfix, once the base resource-keys were separated from the rest of the resource-keys
+    return resourceKey.contains("-stable-");
   }
 
   private static Future<Boolean> enoughResourcesAvailable(Job job) {
@@ -514,6 +590,7 @@ public abstract class JobExecutor implements Initializable {
         .compose(candidates -> {
           Set<String> candidateIds = candidates.stream().map(candidate -> candidate.getId()).collect(Collectors.toSet());
           return Future.succeededFuture(candidates.stream()
+              .filter(candidate -> candidate.isReusable())
               .filter(candidate -> !job.getId().equals(candidate.getId())) //Do not try to compare the job to itself
               .filter(candidate -> filterByExistingReferees(candidate, candidateIds))
               .map(candidate -> fuseGraphs(job, candidate.getSteps()))

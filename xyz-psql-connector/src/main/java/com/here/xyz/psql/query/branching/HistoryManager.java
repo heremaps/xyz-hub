@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 package com.here.xyz.psql.query.branching;
 
 import static com.here.xyz.models.hub.Ref.HEAD;
+import static com.here.xyz.models.hub.Space.TABLE_NAME;
 import static com.here.xyz.psql.query.branching.BranchManager.getNodeId;
 
 import com.here.xyz.connectors.ErrorResponseException;
@@ -77,13 +78,11 @@ public class HistoryManager {
           .withNextPageToken(changesets == null ? null : changesets.getNextPageToken())
           .withNodeId(getNodeId(rangeRef))
           .withStreamId(branchManager.streamId)
-          .withVersionsToKeep(1000); //TODO: Read from original event?
-          //.withMinVersion() //TODO:
-          //.withConnectorParams() //TODO:
-          //.withParams(); //TODO:
+          .withVersionsToKeep(1000)
+          .withParams(Map.of(TABLE_NAME, branchManager.rootTable));
 
       try {
-        changesets = new IterateChangesets(event)
+        changesets = (ChangesetCollection) new IterateChangesets(event)
             .withDataSourceProvider(branchManager.dataSourceProvider)
             .run();
       }

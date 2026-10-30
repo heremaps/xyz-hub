@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,8 +19,9 @@
 
 package com.here.xyz.hub.task;
 
-import static com.here.xyz.hub.task.FeatureTaskHandler.injectMinVersion;
 import static com.here.xyz.hub.task.FeatureTask.resolveBranchFor;
+import static com.here.xyz.hub.task.FeatureTaskHandler.injectMinVersion;
+import static com.here.xyz.hub.util.SpaceTableResolver.getTableIdentity;
 import static com.here.xyz.util.service.rest.TooManyRequestsException.ThrottlingReason.MEMORY;
 import static com.here.xyz.util.service.rest.TooManyRequestsException.ThrottlingReason.STORAGE_QUEUE_FULL;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
@@ -165,13 +166,8 @@ public class FeatureHandler {
       if (space.getStorage().getParams() != null)
         storageParams.putAll(space.getStorage().getParams());
 
-      if (space.getExtension() != null) {
-        Map<String, Object> extendsMap = space.getExtension().toMap();
-        //Check if the extended space itself is extending some other space (2-level extension)
-        if (space.getExtension().resolvedSpace.getExtension() != null)
-          extendsMap.put("extends", space.getExtension().resolvedSpace.getExtension().toMap());
-        storageParams.putAll(Map.of("extends", extendsMap));
-      }
+      if (space.getExtension() != null)
+        storageParams.putAll(space.resolveCompositeParams(space.getExtension().resolvedSpace));
 
       event.setParams(storageParams);
       return Future.succeededFuture();
@@ -180,7 +176,8 @@ public class FeatureHandler {
 
   public static Future<Long> getCountForSpace(Marker marker, Space space, SpaceContext spaceContext, String requesterId,
       long maxFeaturesPerSpace) {
-    Long cachedCount = countCache.get(space.getId());
+    String tableIdentity = getTableIdentity(space);
+    Long cachedCount = countCache.get(tableIdentity);
     if (cachedCount != null)
       return Future.succeededFuture(cachedCount);
 
@@ -189,26 +186,33 @@ public class FeatureHandler {
         .withContext(spaceContext);
 
     try {
-      Promise<Long> promise = Promise.promise();
-      getRpcClient(space.getResolvedStorageConnector())
-          .execute(marker, countEvent, (AsyncResult<XyzResponse> eventHandler) -> {
-            if (eventHandler.failed()) {
-              promise.fail(eventHandler.cause());
-              return;
-            }
-            long count;
-            XyzResponse response = eventHandler.result();
-            if (response instanceof StatisticsResponse)
-              count = ((StatisticsResponse) response).getCount().getValue();
-            else {
-              promise.fail(Api.responseToHttpException(response));
-              return;
-            }
-            long ttl = maxFeaturesPerSpace - count > 100_000 ? 30_000 : 500;
-            countCache.put(space.getId(), count, ttl, MILLISECONDS);
-            promise.complete(count);
-          }, space, requesterId);
-      return promise.future();
+      return injectSpaceParams(countEvent, space).compose(v -> {
+        Promise<Long> promise = Promise.promise();
+        try {
+          getRpcClient(space.getResolvedStorageConnector())
+              .execute(marker, countEvent, (AsyncResult<XyzResponse> eventHandler) -> {
+                if (eventHandler.failed()) {
+                  promise.fail(eventHandler.cause());
+                  return;
+                }
+                long count;
+                XyzResponse response = eventHandler.result();
+                if (response instanceof StatisticsResponse)
+                  count = ((StatisticsResponse) response).getCount().getValue();
+                else {
+                  promise.fail(Api.responseToHttpException(response));
+                  return;
+                }
+                long ttl = maxFeaturesPerSpace - count > 100_000 ? 30_000 : 500;
+                countCache.put(tableIdentity, count, ttl, MILLISECONDS);
+                promise.complete(count);
+              }, space, requesterId);
+        }
+        catch (Exception e) {
+          promise.fail(e);
+        }
+        return promise.future();
+      });
     }
     catch (Exception e) {
       return Future.failedFuture(e);

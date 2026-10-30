@@ -61,7 +61,9 @@ public class SFNInspector {
     }
 
     public boolean isResumable() {
-      return !isSucceeded() && this.ordinal() >= STARTED.ordinal();
+      // TASK_STARTED can occur although the worker did not effectively begin step logic.
+      // Require TASK_SUBMITTED to avoid resuming steps that never really executed.
+      return !isSucceeded() && hasBeenSubmitted();
     }
   }
 
@@ -74,18 +76,40 @@ public class SFNInspector {
    * @return The ID of the causing step if found
    */
   public static Future<String> findCausingStepIdInHistory(String executionArn) {
+    return findCausingStepFailureInHistory(executionArn).map(StepFailureInfo::stepId);
+  }
+
+  /**
+   * Fetches the causing step together with error information supplied by Step Functions. The failure information acts as a fallback
+   * when a Lambda step could not synchronize its status with the job service.
+   *
+   * @param executionArn The ARN of the state machine execution
+   * @return The causing step and the most specific failure details available in the event chain
+   */
+  public static Future<StepFailureInfo> findCausingStepFailureInHistory(String executionArn) {
     return getFullExecutionHistoryByPaging(executionArn, null, new HashMap<>())
-            .compose(eventsById -> {
+            .map(eventsById -> {
               //Last element in the history should be the failing event
               HistoryEvent failingEvent = eventsById.values().stream()
                       .max((a, b) -> Long.compare(a.id(), b.id()))
                       .orElse(null);
+              String error = null;
+              String cause = null;
 
               //we start from there and go backwards until finding a TaskStateEntered event
-              while (failingEvent != null
-                      && failingEvent.previousEventId() != null
-                      && failingEvent.previousEventId() > 0
-                      && failingEvent.type() != TASK_STATE_ENTERED) {
+              while (failingEvent != null && failingEvent.type() != TASK_STATE_ENTERED) {
+                FailureDetails details = failureDetails(failingEvent);
+                if (details != null) {
+                  if (details.error() != null && !details.error().isBlank())
+                    error = details.error();
+                  if (details.cause() != null && !details.cause().isBlank())
+                    cause = details.cause();
+                }
+
+                if (failingEvent.previousEventId() == null || failingEvent.previousEventId() <= 0) {
+                  failingEvent = null;
+                  break;
+                }
                 failingEvent = eventsById.get(failingEvent.previousEventId());
               }
 
@@ -98,13 +122,28 @@ public class SFNInspector {
                       : null;
 
               if (causingStepName == null) {
-                return Future.failedFuture(
-                        new RuntimeException("Causing stepId not found in SFN execution with ARN: " + executionArn));
+                throw new IllegalStateException("Causing stepId not found in SFN execution with ARN: " + executionArn);
               }
 
-              return Future.succeededFuture(getStepIdFromStepName(causingStepName));
+              return new StepFailureInfo(getStepIdFromStepName(causingStepName), error, cause);
             });
   }
+
+  private static FailureDetails failureDetails(HistoryEvent event) {
+    return switch (event.type()) {
+      case TASK_FAILED -> event.taskFailedEventDetails() == null ? null
+          : new FailureDetails(event.taskFailedEventDetails().error(), event.taskFailedEventDetails().cause());
+      case LAMBDA_FUNCTION_FAILED -> event.lambdaFunctionFailedEventDetails() == null ? null
+          : new FailureDetails(event.lambdaFunctionFailedEventDetails().error(), event.lambdaFunctionFailedEventDetails().cause());
+      case EXECUTION_FAILED -> event.executionFailedEventDetails() == null ? null
+          : new FailureDetails(event.executionFailedEventDetails().error(), event.executionFailedEventDetails().cause());
+      default -> null;
+    };
+  }
+
+  public record StepFailureInfo(String stepId, String error, String cause) {}
+
+  private record FailureDetails(String error, String cause) {}
 
   public static Future<StepProgress> findStepProgressInHistory(
           String executionArn, String stepClassName, String stepId) {

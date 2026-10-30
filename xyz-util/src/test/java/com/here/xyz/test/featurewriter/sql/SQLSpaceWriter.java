@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,8 +33,8 @@ import com.here.xyz.events.UpdateStrategy.OnVersionConflict;
 import com.here.xyz.events.WriteFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.test.SQLITBase;
 import com.here.xyz.test.featurewriter.SpaceWriter;
+import com.here.xyz.test.sql.base.SQLITBase;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import com.here.xyz.util.db.pg.FeatureWriterQueryBuilder.FeatureWriterQueryContextBuilder;
@@ -45,8 +45,6 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import static com.here.xyz.util.db.ConnectorParameters.TableLayout.OLD_LAYOUT;
 
 public class SQLSpaceWriter extends SpaceWriter {
   private static final Logger logger = LogManager.getLogger();

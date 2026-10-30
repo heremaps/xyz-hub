@@ -485,4 +485,15 @@ public class Config extends BaseConfig {
   public ConnectorMapping DEFAULT_CONNECTOR_MAPPING_STRATEGY = RANDOM;
 
   public boolean USE_WRITE_FEATURES_EVENT = false;
+
+  /**
+   * If set to true, a unique physical table name (independent of the space ID) is generated and persisted
+   * within {@code space.storage.params.tableName} whenever a new space is created.
+   * <p>
+   * That decouples the logical layer from its physical table and allows to re-create a space with the same ID
+   * even if the physical table of the previously deleted space still exists (e.g., because it was not dropped yet).
+   * <p>
+   * Existing (legacy) spaces are not affected. Their table name keeps being derived from the space ID.
+   */
+  public boolean ENABLE_UNIQUE_PHYSICAL_TABLE_NAMES = true;
 }

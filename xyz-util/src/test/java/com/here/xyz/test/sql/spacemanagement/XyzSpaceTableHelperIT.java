@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,12 +17,15 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.test;
+package com.here.xyz.test.sql.spacemanagement;
+
+import static com.here.xyz.util.Random.randomAlpha;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.test.featurewriter.SpaceWriter;
 import com.here.xyz.test.featurewriter.sql.SQLSpaceWriter;
+import com.here.xyz.test.sql.base.SQLITBase;
 import com.here.xyz.util.db.ConnectorParameters.TableLayout;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
@@ -32,8 +35,6 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-
-import static com.here.xyz.util.Random.randomAlpha;
 
 public class XyzSpaceTableHelperIT extends SQLITBase {
     private final String SCHEMA = "public";

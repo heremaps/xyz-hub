@@ -40,7 +40,7 @@ import org.junit.runners.MethodSorters;
 @Category(RestTests.class)
 public class VersioningCompositeGetFeaturesIT extends VersioningGetFeaturesIT {
 
-  private static final String BASE = "base";
+  private static final String BASE = "base" + TEST_SUFFIX;
   private static final String DELTA = SPACE_ID;
 
   @Before

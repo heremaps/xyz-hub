@@ -33,7 +33,7 @@ import org.xbill.DNS.Name;
 
 public class DBClusterResolver {
 
-  private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger(DBClusterResolver.class);
   private static final Pattern RDS_CLUSTER_HOSTNAME_PATTERN = Pattern.compile("(.+).cluster-.*.rds.amazonaws.com.*");
 
   public static String getClusterIdFromHostname(String hostname) {

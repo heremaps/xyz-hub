@@ -72,7 +72,7 @@ public class StoreFeaturesApiIT extends TestSpaceWithFeature {
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .body(content("/xyz/hub/processedData.json"))
         .when()
-        .put(getSpacesPath() + "/x-psql-test/features")
+        .put(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/features")
         .then()
         .statusCode(NO_CONTENT.code());
   }
@@ -87,7 +87,7 @@ public class StoreFeaturesApiIT extends TestSpaceWithFeature {
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .body("{\"features\":[{\"geometry\":{\"coordinates\":[-2.960777,53.430777],\"type\":\"Point\"}}],\"type\":\"FeatureCollection\"}")
         .when()
-        .put(getSpacesPath() + "/x-psql-test/features")
+        .put(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/features")
         .then()
         .statusCode(OK.code());
   }
@@ -105,7 +105,7 @@ public class StoreFeaturesApiIT extends TestSpaceWithFeature {
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .body(fc.serialize())
         .when()
-        .put(getSpacesPath() + "/x-psql-test/features")
+        .put(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/features")
         .then()
         .statusCode(OK.code());
 
@@ -117,7 +117,7 @@ public class StoreFeaturesApiIT extends TestSpaceWithFeature {
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .body(fcUpdate.serialize())
         .when()
-        .post(getSpacesPath() + "/x-psql-test/features?ne=retain&e=error&transactional=false")
+        .post(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/features?ne=retain&e=error&transactional=false")
         .then()
         .statusCode(OK.code())
         .body("failed[0].id", equalTo("T1"));
@@ -137,7 +137,7 @@ public class StoreFeaturesApiIT extends TestSpaceWithFeature {
         }})
         .body("{\"features\":[{\"geometry\":{\"coordinates\":[-2.960777,53.430777],\"type\":\"Point\"}}],\"type\":\"FeatureCollection\"}")
         .when()
-        .put(getSpacesPath() + "/x-psql-test/features")
+        .put(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/features")
         .then()
         .statusCode(REQUEST_ENTITY_TOO_LARGE.code());
 
@@ -147,7 +147,7 @@ public class StoreFeaturesApiIT extends TestSpaceWithFeature {
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .body("{\"features\":[{\"geometry\":{\"coordinates\":[-2.960777,53.430777],\"type\":\"Point\"}}],\"type\":\"FeatureCollection\"}")
         .when()
-        .put(getSpacesPath() + "/x-psql-test/features")
+        .put(getSpacesPath() + "/" + DEFAULT_SPACE_ID + "/features")
         .then()
         .statusCode(NO_CONTENT.code());
   }
