@@ -1965,9 +1965,11 @@ $BODY$
                    'VALUES ($1, $2, $3, $4, $5, xyz_geoFromWkb($6))', schema, tableName)
             USING id, version, operation, author, jsondata, geo;
 
-        -- If the current history partition is nearly full, create the next one already
-        IF version % partitionSize > partitionSize - 50 THEN
-            EXECUTE xyz_create_history_partition(schema, tableName, (floor(version / partitionSize) + 1)::BIGINT, partitionSize);
+        -- Create the next history partition in advance (DS-2341): in the last 49 versions of the current one and, once
+        -- that is half full, at every (partitionSize / 200)th version. Best-effort, see xyz_try_create_next_history_partition().
+        IF version % partitionSize > partitionSize - 50
+            OR (version % partitionSize >= partitionSize / 2 AND version % greatest(partitionSize / 200, 1) = 0) THEN
+            PERFORM xyz_try_create_next_history_partition(schema, tableName, version, partitionSize);
         END IF;
 
         -- Delete old changesets from the history to keep only as many versions as specified through "versionsToKeep" if necessary
@@ -2149,6 +2151,42 @@ BEGIN
             partitionSize * partitionNo, partitionSize * (partitionNo + 1));
     RAISE NOTICE 'Partition no % was successfully created (or existed already) for %.%.',
         partitionNo, schema, rootTable;
+END
+$BODY$
+LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
+-- Best-effort creation of the history partition after the one of the specified version (DS-2341).
+-- * At most one attempt per table and version and session. All rows of a write share its version, and the non-transactional
+--   ModifyFeatures path commits every row on its own, so a transaction-local guard would let every row wait again. A later
+--   write always has a higher version, so a guard left on a pooled connection never matches it.
+-- * The creation needs an ACCESS EXCLUSIVE lock on the root table, which a long-running reader can block. The attempt waits at
+--   most 200 ms for it, so the write and the readers queued behind the attempt wait no longer than that.
+-- * Only lock_not_available (55P03) and duplicate_table (42P07, created concurrently) are tolerated. Every other error, in
+--   particular query_canceled (57014), aborts the write.
+-- The BEGIN ... EXCEPTION block runs as a subtransaction. A caught error rolls it back, which also reverts its SET LOCAL of
+-- lock_timeout. If the block succeeds, its SET LOCAL stays in effect until the end of the transaction, so the block restores
+-- the previous value itself. The guard is set outside of the block, so that the rollback of the block keeps it.
+CREATE OR REPLACE FUNCTION xyz_try_create_next_history_partition(schema TEXT, rootTable TEXT, version BIGINT, partitionSize BIGINT)
+    RETURNS VOID AS
+$BODY$
+DECLARE
+    attempt TEXT := schema || '.' || rootTable || ':' || version;
+    previousLockTimeout TEXT := current_setting('lock_timeout');
+BEGIN
+    IF current_setting('xyz.history_partition_attempt', true) = attempt THEN
+        RETURN;
+    END IF;
+    PERFORM set_config('xyz.history_partition_attempt', attempt, false);
+
+    BEGIN
+        PERFORM set_config('lock_timeout', '200ms', true);
+        PERFORM xyz_create_history_partition(schema, rootTable, (floor(version / partitionSize) + 1)::BIGINT, partitionSize);
+        PERFORM set_config('lock_timeout', previousLockTimeout, true);
+    EXCEPTION WHEN lock_not_available OR duplicate_table THEN
+        RAISE WARNING 'Could not create the next history partition of %.% in advance at version %: %',
+            schema, rootTable, version, SQLERRM;
+    END;
 END
 $BODY$
 LANGUAGE plpgsql VOLATILE;

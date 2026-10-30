@@ -50,6 +50,19 @@ class DatabaseWriter {
    */
   TX_START = Date.now();
 
+  /**
+   * The table and version for which the next history partition has been attempted already.
+   * Static, because this class is declared anew in every call of write_features(). So one call makes at most one attempt per
+   * table and version, also across the DatabaseWriter instances of multiple modifications.
+   * @type {string}
+   */
+  static _historyPartitionAttempt = null;
+
+  /**
+   * @type {string} How long an attempt to create the next history partition waits for the lock on the root table
+   */
+  static HISTORY_PARTITION_LOCK_TIMEOUT = "200ms";
+
   constructor(schema, table, tableBaseVersion, batchMode = false, tableLayout) {
     this.schema = schema;
     this.table = table;
@@ -372,15 +385,40 @@ class DatabaseWriter {
   }
 
   /**
-   * If the current history partition is nearly full, create the next one already
+   * Creates the next history partition in advance (DS-2341): in the last 49 versions of the current one and, once that is
+   * half full, at every (PARTITION_SIZE / 200)th version.
+   * Best-effort: at most one attempt per table and version (see _historyPartitionAttempt), which waits at most
+   * HISTORY_PARTITION_LOCK_TIMEOUT for the lock on the root table. Only a lock timeout or a concurrent creation is tolerated.
    * @param version The version that is about to be written
    * @private
    */
   _createHistoryPartition(version) {
     const PARTITION_SIZE = this._PARTITION_SIZE();
-    if (version % PARTITION_SIZE > PARTITION_SIZE - 50)
-      plv8.execute(`SELECT xyz_create_history_partition($1, $2, $3::BIGINT, $4::BIGINT);`,
+    const partitionOffset = version % PARTITION_SIZE;
+    const nearlyFull = partitionOffset > PARTITION_SIZE - 50;
+    const halfFullInterval = partitionOffset >= Math.floor(PARTITION_SIZE / 2)
+        && version % Math.max(Math.floor(PARTITION_SIZE / 200), 1) === 0;
+    const attempt = `${this.schema}.${this.table}:${version}`;
+    if ((!nearlyFull && !halfFullInterval) || DatabaseWriter._historyPartitionAttempt === attempt)
+      return;
+    DatabaseWriter._historyPartitionAttempt = attempt;
+
+    const previousLockTimeout = plv8.execute("SELECT current_setting('lock_timeout') AS lock_timeout")[0].lock_timeout;
+    plv8.execute("SELECT set_config('lock_timeout', $1, true)", [DatabaseWriter.HISTORY_PARTITION_LOCK_TIMEOUT]);
+    try {
+      plv8.execute("SELECT xyz_create_history_partition($1, $2, $3::BIGINT, $4::BIGINT)",
           [this.schema, this.table, Math.floor(version / PARTITION_SIZE) + 1, PARTITION_SIZE]);
+    }
+    catch (e) {
+      //Everything else, in particular the cancellation by the statement timeout (57014), must abort the write
+      if (e.sqlerrcode !== SQLErrors.LOCK_NOT_AVAILABLE && e.sqlerrcode !== SQLErrors.DUPLICATE_TABLE)
+        throw e;
+      plv8.elog(WARNING, `FW_LOG [${queryContext().queryId}] Could not create the next history partition of `
+          + `${this.schema}.${this.table} in advance at version ${version}: ${e.message}`);
+    }
+    //Every plv8.execute() runs in its own subtransaction, so a failed creation did not revert the SET LOCAL above.
+    //A rethrown error needs no restore, the rollback of the failing statement reverts it.
+    plv8.execute("SELECT set_config('lock_timeout', $1, true)", [previousLockTimeout]);
   }
 
   _purgeOldChangesets(version) {
