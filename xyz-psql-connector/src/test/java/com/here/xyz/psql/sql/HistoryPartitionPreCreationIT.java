@@ -214,7 +214,7 @@ public class HistoryPartitionPreCreationIT extends QueryTestBase {
         long start = System.nanoTime();
         SQLException e = assertThrows(SQLException.class, () -> writeFeatures(writer, 56_500, 5));
         long millis = millisSince(start);
-        //write_features() wraps the error, so its SQL state is not the one of the cancellation
+        assertEquals("57014", e.getSQLState(), "Expected the statement timeout, but got: " + e.getMessage());
         assertTrue(e.getMessage().contains("canceling statement due to statement timeout"), "Unexpected error: " + e.getMessage());
         assertTrue(millis < MAX_BLOCKED_MILLIS, "The cancellation took " + millis + " ms");
         writer.rollback();
