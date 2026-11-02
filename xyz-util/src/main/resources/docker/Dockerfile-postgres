@@ -23,30 +23,28 @@ RUN git clone https://github.com/mchrza/postgres-aws-s3.git --branch v.1.0.9 .
 RUN make install
 
 
-ARG PGCONFFILE=/opt/bitnami/postgresql/conf/postgresql.conf
+ARG PGCONFDIR=/opt/bitnami/postgresql/conf/conf.d
 
-#Add mocked aws settings during initializiation phase
-RUN echo -e "#!/bin/sh -e \n\
-echo aws_s3.endpoint_url='http://localstack:4566' >> $PGCONFFILE \n\
-echo aws_s3.access_key_id='localstack' >> $PGCONFFILE \n\
-echo aws_s3.secret_access_key='localstack' >> $PGCONFFILE \n\
-psql -a -d postgres -U postgres -c \"SELECT pg_reload_conf();DROP USER IF EXISTS ro_user;CREATE USER ro_user WITH SUPERUSER ENCRYPTED PASSWORD 'password';GRANT pg_read_all_data TO ro_user;GRANT pg_write_server_files TO ro_user;\" > /dev/null \n\
-psql -a -d postgres -U postgres -c \"DROP DATABASE IF EXISTS postgres_db2;\" > /dev/null \n\
-psql -a -d postgres -U postgres -c \"CREATE DATABASE postgres_db2;\" > /dev/null \n\
-" > /docker-entrypoint-initdb.d/cfg_s3_dummy.sh
+#Settings needed on every start (mocked aws settings, increased log level). Written at build time into the include dir
+#of postgresql.conf (include_dir = 'conf.d'), because /docker-entrypoint-initdb.d only runs on the first initialization
+#of /bitnami/postgresql, while /opt/bitnami/postgresql/conf is fresh in every new container.
+RUN mkdir -p $PGCONFDIR && \
+    printf '%s\n' \
+      "aws_s3.endpoint_url = 'http://localstack:4566'" \
+      "aws_s3.access_key_id = 'localstack'" \
+      "aws_s3.secret_access_key = 'localstack'" \
+      > $PGCONFDIR/aws_s3.conf && \
+    printf '%s\n' \
+      "log_min_messages = info" \
+      "log_min_error_statement = info" \
+      "log_statement = 'all'" \
+      > $PGCONFDIR/logging.conf
 
-RUN chmod 755 /docker-entrypoint-initdb.d/cfg_s3_dummy.sh
-
-#Increase Database Loglevel
-RUN echo -e "#!/bin/sh -e\n\
-\n\n\
-sed -i.org \
- -e \"s/#log_min_messages = warning/log_min_messages = info/\" \
- -e \"s/#log_min_error_statement = error/log_min_error_statement = info/\" \
- -e \"s/#log_statement = 'none'/log_statement = 'all'/\" \
- $PGCONFFILE\n\n\
-\n\n\
-" > /docker-entrypoint-initdb.d/cfg_postgresql.conf.sh
-
-RUN chmod 755 /docker-entrypoint-initdb.d/cfg_postgresql.conf.sh
-
+#One-time database setup, persisted in the data dir together with the database
+RUN printf '%s\n' \
+      '#!/bin/sh -e' \
+      "psql -a -d postgres -U postgres -c \"DROP USER IF EXISTS ro_user;CREATE USER ro_user WITH SUPERUSER ENCRYPTED PASSWORD 'password';GRANT pg_read_all_data TO ro_user;GRANT pg_write_server_files TO ro_user;\" > /dev/null" \
+      "psql -a -d postgres -U postgres -c \"DROP DATABASE IF EXISTS postgres_db2;\" > /dev/null" \
+      "psql -a -d postgres -U postgres -c \"CREATE DATABASE postgres_db2;\" > /dev/null" \
+      > /docker-entrypoint-initdb.d/cfg_s3_dummy.sh && \
+    chmod 755 /docker-entrypoint-initdb.d/cfg_s3_dummy.sh
