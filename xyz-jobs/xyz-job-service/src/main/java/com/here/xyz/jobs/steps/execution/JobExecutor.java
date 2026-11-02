@@ -166,8 +166,8 @@ public abstract class JobExecutor implements Initializable {
    * That means another request or node started (or cancelled) the job concurrently, so this call must not start it nor fail it.
    */
   private static Future<Void> reloadStatusOfConcurrentlyChangedJob(Job job) {
-    logger.info("[{}] Not starting the job, because its state was changed concurrently. It is started by another request already.",
-        job.getId());
+    logger.info("[{}] Not starting the job, because its state was changed concurrently, e.g., it was started or cancelled by another "
+        + "request.", job.getId());
     return Job.load(job.getId())
         .map(storedJob -> {
           if (storedJob != null)

@@ -433,7 +433,9 @@ public class JobApi extends JobApiBase {
           if (actionExecuted || status.getDesiredAction() == START && job.getStatus().getState() == NOT_READY) {
             job.getStatus().setDesiredAction(null);
             //Do not overwrite a state that was changed concurrently (e.g., by a step update)
-            job.storeStatus(job.getStatus().getState());
+            job.storeStatus(job.getStatus().getState())
+                .onFailure(t -> logger.warn("[{}] Could not clear the desired action {} of the job. Was its state changed concurrently?",
+                    job.getId(), status.getDesiredAction(), t));
           }
         })
         .map(res -> job.getStatus());
