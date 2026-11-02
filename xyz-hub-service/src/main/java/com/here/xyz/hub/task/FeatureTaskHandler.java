@@ -435,12 +435,11 @@ public class FeatureTaskHandler {
     String cacheKey = null;
     byte[] cacheValue = null;
     if (cacheProfile.serviceTTL > 0 || cacheProfile.staticTTL > 0) {
-      cacheKey = task.getCacheKey();
-      if (cacheKey == null) {
-        String npe = "cacheKey is null. Couldn't write cache.";
-        logger.error(task.getMarker(), npe);
-        throw new NullPointerException(npe);
-      }
+      //The event was consumed by invoke, so only the key computed by readCache can be used here
+      cacheKey = task.getComputedCacheKey();
+      //No key means readCache did not use the cache, e.g. because the space became cacheable while the request was running
+      if (cacheKey == null)
+        return;
       cacheValue = transformCacheValue(response);
     }
     //Prefer the static cache over the volatile cache for values which are immutable
