@@ -253,6 +253,14 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
   }
 
   /**
+   * Returns the cache key if {@link #getCacheKey()} computed it already, otherwise null. Unlike {@link #getCacheKey()}, this method can
+   * still be called after the event was consumed.
+   */
+  String getComputedCacheKey() {
+    return cacheKey;
+  }
+
+  /**
    * The hook which will be called once all pre-processors have been called. The hook will get the pre-processed event as parameter. The
    * hook will *not* be called if no pre-processors have been defined for the space. The hook may be overridden in sub-classes.
    */
