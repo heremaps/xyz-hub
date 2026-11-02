@@ -250,6 +250,8 @@ public class JobAdminApi extends JobApiBase {
             };
 
             Future<Void> future = Future.succeededFuture();
+            //Provides the job as it is stored after handling this event, for the finalization observers
+            Future<Job> statusUpdate = Future.succeededFuture(job);
             if (newJobState != null) {
               if (newJobState == SUCCEEDED)
                 JobExecutor.getInstance().deleteExecution(job.getExecutionId());
@@ -282,19 +284,20 @@ public class JobAdminApi extends JobApiBase {
 
               State oldState = job.getStatus().getState();
               if (oldState != newJobState && !oldState.isFinal())
-                job.getStatus().setState(newJobState);
+                setStateFromSfnEvent(job.getStatus(), newJobState);
 
-              future = future
+              statusUpdate = future
                   .compose(v -> {
                     //Concurrent step updates may have overwritten each other's count
                     job.recountSucceededSteps();
                     return job.storeStatus(oldState);
                   })
-                  .recover(t -> JobConfigClient.isStateConflict(t) ? retryStoringStateFromSfnEvent(jobId, newJobState)
+                  .map(job)
+                  .recover(t -> JobConfigClient.isStateConflict(t) ? retryStoringStateFromSfnEvent(jobId, newJobState, job.getStatus())
                       : Future.failedFuture(t));
             }
 
-            return notifyFinalizationObserversAfterStatusUpdate(job, future);
+            return notifyFinalizationObserversAfterStatusUpdate(statusUpdate);
           })
           .onFailure(t -> logger.error("[{}] Error updating the state of the job after receiving an event from its state machine:", jobId, t));
     return Future.succeededFuture();
@@ -303,21 +306,54 @@ public class JobAdminApi extends JobApiBase {
   /**
    * Sets the state that was received from the job's state machine on the reloaded job, after the job's state was changed concurrently
    * (e.g., by a step update).
+   *
+   * @param statusOfEvent The status of the job instance that handled the event. For a FAILED state, its error details are applied to
+   *  the reloaded job where that has none.
+   * @return The reloaded job as it is stored after the retry
    */
-  private static Future<Void> retryStoringStateFromSfnEvent(String jobId, State newJobState) {
+  private static Future<Job> retryStoringStateFromSfnEvent(String jobId, State newJobState, RuntimeInfo statusOfEvent) {
     return loadJob(jobId).compose(job -> {
       State currentState = job.getStatus().getState();
-      if (currentState == newJobState || !currentState.isValidSuccessor(newJobState)) {
+      if (currentState == newJobState || !isValidStateFromSfnEvent(currentState, newJobState)) {
         logger.info("[{}] Not setting the job's state to {} after receiving an event from its state machine, because it was set to {} "
             + "concurrently.", jobId, newJobState, currentState);
-        return Future.succeededFuture();
+        return Future.succeededFuture(job);
       }
       logger.info("[{}] The job's state was set to {} concurrently. Retrying to set it to {} after receiving an event from its state "
           + "machine ...", jobId, currentState, newJobState);
-      job.getStatus().setState(newJobState);
+      setStateFromSfnEvent(job.getStatus(), newJobState);
+      if (newJobState == FAILED)
+        applyErrorDetailsIfMissing(job.getStatus(), statusOfEvent);
       job.recountSucceededSteps();
-      return job.storeStatus(currentState);
+      return job.storeStatus(currentState).map(job);
     });
+  }
+
+  /**
+   * Sets the state that was received from the job's state machine.
+   * An execution that was stopped outside the job service (e.g., in the AWS console) reports ABORTED for a job that was not cancelled
+   * through the service. Such a job goes through CANCELLING first, as it would with {@link Job#cancel()}.
+   */
+  private static void setStateFromSfnEvent(RuntimeInfo status, State newJobState) {
+    if (newJobState == CANCELLED && status.getState().isValidSuccessor(CANCELLING))
+      status.setState(CANCELLING);
+    status.setState(newJobState);
+  }
+
+  /**
+   * @return Whether {@link #setStateFromSfnEvent(RuntimeInfo, State)} can set the specified new state for a job in the current state
+   */
+  private static boolean isValidStateFromSfnEvent(State currentState, State newJobState) {
+    return currentState.isValidSuccessor(newJobState) || newJobState == CANCELLED && currentState.isValidSuccessor(CANCELLING);
+  }
+
+  private static void applyErrorDetailsIfMissing(RuntimeInfo target, RuntimeInfo source) {
+    if (target.getErrorMessage() == null)
+      target.setErrorMessage(source.getErrorMessage());
+    if (target.getErrorCause() == null)
+      target.setErrorCause(source.getErrorCause());
+    if (target.getErrorCode() == null)
+      target.setErrorCode(source.getErrorCode());
   }
 
   private static boolean isNativeEmrServiceError(JsonObject detail) {
@@ -438,12 +474,18 @@ public class JobAdminApi extends JobApiBase {
     return changed;
   }
 
-  static Future<Void> notifyFinalizationObserversAfterStatusUpdate(Job job, Future<Void> statusUpdate) {
-    return statusUpdate.onSuccess(v -> {
-      //Call finalize observers after all statuses have been updated
-      if (job.getStatus().getState().isFinal())
-        JobService.callFinalizeObservers(job);
-    });
+  /**
+   * @param statusUpdate Provides the job as it is stored after the status update. That is not necessarily the instance that was
+   *  updated, e.g., if the update was retried on the reloaded job.
+   */
+  static Future<Void> notifyFinalizationObserversAfterStatusUpdate(Future<Job> statusUpdate) {
+    return statusUpdate
+        .onSuccess(job -> {
+          //Call finalize observers after all statuses have been updated
+          if (job.getStatus().getState().isFinal())
+            JobService.callFinalizeObservers(job);
+        })
+        .mapEmpty();
   }
 
   /**
