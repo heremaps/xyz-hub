@@ -122,6 +122,11 @@ public class JDBCTagConfigClient extends TagConfigClient {
   }
 
   @Override
+  public Future<Void> storeSharedTags(Marker marker, List<Tag> sharedTags) {
+    return Future.all(sharedTags.stream().map(tag -> storeTag(marker, tag)).toList()).mapEmpty();
+  }
+
+  @Override
   public Future<Tag> deleteTag(Marker marker, String id, String spaceId) {
     final SQLQuery query = client.getQuery("DELETE FROM ${schema}.${table} WHERE id = #{tagId} AND space = #{spaceId}")
         .withNamedParameter("tagId", id)
