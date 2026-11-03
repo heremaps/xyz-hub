@@ -113,7 +113,11 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
             req.exceptionHandler(t -> handleFailure(fc.marker, callback, t));
             req.send(bh.body)
                 .onSuccess(response -> {
-                  if (fc.fireAndForget) return;
+                  if (fc.fireAndForget) {
+                    //Nobody reads the response, but the call must complete to free its connection (like a Lambda Event invocation)
+                    callback.handle(Future.succeededFuture(new byte[0]));
+                    return;
+                  }
                   try {
                     validateHttpStatus(response.statusCode(), response.statusMessage());
                     response.body(ar -> {

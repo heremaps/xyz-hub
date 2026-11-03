@@ -22,6 +22,7 @@ package com.here.xyz.hub.connectors;
 import static com.here.xyz.util.service.rest.TooManyRequestsException.ThrottlingReason.QUOTA;
 import static com.here.xyz.util.service.rest.TooManyRequestsException.ThrottlingReason.STORAGE_QUEUE_FULL;
 import static io.netty.handler.codec.http.HttpResponseStatus.GATEWAY_TIMEOUT;
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -34,6 +35,7 @@ import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.RemoteFunctionClient.FunctionCall;
 import com.here.xyz.hub.connectors.RpcClient.RpcContext;
 import com.here.xyz.hub.connectors.models.Connector;
+import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Http;
 import com.here.xyz.models.hub.Connector.ConnectionSettings;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.HttpException;
@@ -43,12 +45,17 @@ import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.Vertx;
+import io.vertx.core.http.HttpServer;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
 import org.junit.jupiter.api.AfterAll;
@@ -73,7 +80,7 @@ class RemoteFunctionClientConnectionCountTest {
   private static Vertx previousVertx;
   private static Vertx vertx;
 
-  private final List<TestClient> clients = new ArrayList<>();
+  private final List<RemoteFunctionClient> clients = new ArrayList<>();
 
   @BeforeAll
   static void setUpAll() {
@@ -84,6 +91,8 @@ class RemoteFunctionClientConnectionCountTest {
     config.GLOBAL_MAX_QUEUE_SIZE = 1; //MB
     config.REMOTE_FUNCTION_MAX_CONNECTIONS = 512;
     config.REMOTE_FUNCTION_CONNECTION_HIGH_UTILIZATION_THRESHOLD = 1;
+    config.REMOTE_FUNCTION_REQUEST_TIMEOUT = 10; //seconds
+    config.MAX_GLOBAL_HTTP_CLIENT_CONNECTIONS = 2 * MAX_CONNECTIONS;
     Service.configuration = config;
 
     previousVertx = Core.vertx;
@@ -362,16 +371,63 @@ class RemoteFunctionClientConnectionCountTest {
     assertCountersAreZero(client, otherRequester);
   }
 
+  @Test
+  void successfulHttpFireAndForgetCallsReleaseTheirConnections() throws Exception {
+    AtomicInteger receivedRequests = new AtomicInteger();
+    HttpServer server = Core.vertx.createHttpServer()
+        .requestHandler(request -> request.body().onComplete(body -> {
+          receivedRequests.incrementAndGet();
+          request.response().end();
+        }))
+        .listen(0, "127.0.0.1")
+        .toCompletionStage().toCompletableFuture().get(10, SECONDS);
+    try {
+      Connector connector = newConnector(HIGH_REQUESTER_LIMIT);
+      Http remoteFunction = new Http();
+      remoteFunction.id = connector.id;
+      remoteFunction.url = new URL("http://127.0.0.1:" + server.actualPort() + "/");
+      connector.setRemoteFunction(remoteFunction);
+      HTTPFunctionClient client = register(new HTTPFunctionClient(connector));
+
+      //Twice as many notifications as the client has connections, so half of them are queued
+      int notifications = 2 * MAX_CONNECTIONS;
+      List<AsyncResult<byte[]>> results = new CopyOnWriteArrayList<>();
+      CountDownLatch completed = new CountDownLatch(notifications);
+      for (int i = 0; i < notifications; i++)
+        client.submit(MARKER, "{}".getBytes(), true, false, r -> {
+          results.add(r);
+          completed.countDown();
+        }, new RpcContext(connector));
+
+      assertTrue(completed.await(10, SECONDS), () -> "Notifications not completed: " + completed.getCount() + ", queued: "
+          + client.getQueueSize() + ", used connections: " + client.getUsedConnections());
+      results.forEach(r -> assertTrue(r.succeeded(), () -> "Notification failed: " + r.cause()));
+      assertEquals(notifications, receivedRequests.get(), "requests received by the HTTP server");
+      assertEquals(0, client.getQueueSize(), "queued calls");
+      assertEquals(0, client.getUsedConnections(), "used connections of the client");
+    }
+    finally {
+      server.close().toCompletionStage().toCompletableFuture().get(10, SECONDS);
+    }
+  }
+
   private TestClient newClient(int maxConnectionsPerRequester) {
-    Connector connector = new Connector();
-    connector.id = getClass().getSimpleName() + "_" + UUID.randomUUID();
-    connector.connectionSettings = new ObjectMapper().convertValue(Map.of("maxConnections", MAX_CONNECTIONS,
-        "minConnections", MAX_CONNECTIONS, "maxConnectionsPerRequester", maxConnectionsPerRequester), ConnectionSettings.class);
-    TestClient client = new TestClient(connector);
+    return register(new TestClient(newConnector(maxConnectionsPerRequester)));
+  }
+
+  private <T extends RemoteFunctionClient> T register(T client) {
     clients.add(client);
     //A new client only sizes the queues of the clients created before it, so size its own queue as well
-    client.setConnectorConfig(connector);
+    client.setConnectorConfig(client.getConnectorConfig());
     return client;
+  }
+
+  private static Connector newConnector(int maxConnectionsPerRequester) {
+    Connector connector = new Connector();
+    connector.id = RemoteFunctionClientConnectionCountTest.class.getSimpleName() + "_" + UUID.randomUUID();
+    connector.connectionSettings = new ObjectMapper().convertValue(Map.of("maxConnections", MAX_CONNECTIONS,
+        "minConnections", MAX_CONNECTIONS, "maxConnectionsPerRequester", maxConnectionsPerRequester), ConnectionSettings.class);
+    return connector;
   }
 
   private static String newRequesterId() {
