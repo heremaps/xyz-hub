@@ -20,6 +20,7 @@
 package com.here.xyz.util.service;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.here.xyz.util.geo.GeometryValidator;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.List;
@@ -131,6 +132,13 @@ public class BaseConfig {
    * The default cache TTL (in seconds) to be used by the {@link com.here.xyz.util.web.HubWebClient} to cache responses in memory.
    */
   public long HUB_WEB_CLIENT_CACHE_TTL = 30;
+
+  /**
+   * The maximum number of positions of a spatial filter geometry, summed over all parts and rings: the geometry of a spatial query,
+   * the geometry of a referenced feature, or the spatial filter of a subscription or an export. Larger geometries are rejected
+   * before any other validation.
+   */
+  public int MAX_SPATIAL_FILTER_COORDINATES = GeometryValidator.MAX_NUMBER_OF_COORDNIATES;
 
   /**
    * Helper method to split a string that is a comma separated list into a list of strings including
