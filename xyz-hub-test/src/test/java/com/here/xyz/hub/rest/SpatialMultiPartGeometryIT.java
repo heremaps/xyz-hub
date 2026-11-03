@@ -19,9 +19,12 @@
 
 package com.here.xyz.hub.rest;
 
+import static com.here.xyz.util.geo.GeometryValidator.MAX_NUMBER_OF_COORDNIATES;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_GEO_JSON;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.restassured.RestAssured.given;
+import static org.hamcrest.Matchers.containsString;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -32,6 +35,7 @@ import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.models.geojson.implementation.Properties;
+import io.restassured.response.ValidatableResponse;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -42,12 +46,15 @@ import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
+import org.locationtech.jts.geom.LineString;
+import org.locationtech.jts.geom.MultiLineString;
 import org.locationtech.jts.geom.Point;
 import org.locationtech.jts.geom.Polygon;
 import org.locationtech.jts.geom.PrecisionModel;
 
 /**
- * Spatial queries with multi-part filter geometries whose parts are far apart, e.g. a MULTIPOINT spread over a continent.
+ * Spatial queries with multi-part filter geometries whose parts are far apart, e.g. a MULTIPOINT spread over a continent, and the
+ * limit on the number of coordinates of a filter geometry, for posted and for referenced geometries.
  */
 @Category(RestTests.class)
 public class SpatialMultiPartGeometryIT extends TestSpaceWithFeature {
@@ -139,6 +146,37 @@ public class SpatialMultiPartGeometryIT extends TestSpaceWithFeature {
     assertEquals(expectedNearAnchors(), ids(deserialize(body)));
   }
 
+  @Test
+  public void postOverCoordinateLimit() {
+    MultiLineString filter = JTS.createMultiLineString(new LineString[]{
+        zigzag(MAX_NUMBER_OF_COORDNIATES / 2, -40, -50),
+        zigzag(MAX_NUMBER_OF_COORDNIATES / 2 + 1, -40, -51)});
+    postSpatialResponse(BASE, filter, "radius=100")
+        .statusCode(BAD_REQUEST.code())
+        .body("errorMessage", containsString(String.valueOf(MAX_NUMBER_OF_COORDNIATES + 1)))
+        .body("errorMessage", containsString("maximum of " + MAX_NUMBER_OF_COORDNIATES));
+  }
+
+  @Test
+  public void postAtCoordinateLimit() {
+    postSpatialResponse(BASE, zigzag(MAX_NUMBER_OF_COORDNIATES, -40, -50), "radius=100")
+        .statusCode(OK.code());
+  }
+
+  @Test
+  public void referencedGeometryOverCoordinateLimit() {
+    String featureId = "ref-over-coordinate-limit";
+    writeFeatures(BASE, List.of(feature(featureId, zigzag(MAX_NUMBER_OF_COORDNIATES + 1, -40, -55))));
+    given()
+        .accept(APPLICATION_GEO_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .when()
+        .get(getSpacesPath() + "/" + BASE + "/spatial?refSpaceId=" + BASE + "&refFeatureId=" + featureId)
+        .then()
+        .statusCode(BAD_REQUEST.code())
+        .body("errorMessage", containsString(String.valueOf(MAX_NUMBER_OF_COORDNIATES + 1)));
+  }
+
   //The feature near every anchor plus the referenced MultiPoint, which consists of the anchors
   private static Set<String> expectedNearAnchors() {
     Set<String> expected = new TreeSet<>();
@@ -151,17 +189,21 @@ public class SpatialMultiPartGeometryIT extends TestSpaceWithFeature {
   }
 
   private static FeatureCollection postSpatial(String spaceId, org.locationtech.jts.geom.Geometry filter, String query) {
-    String body = given()
+    String body = postSpatialResponse(spaceId, filter, query)
+        .statusCode(OK.code())
+        .extract().body().asString();
+    return deserialize(body);
+  }
+
+  private static ValidatableResponse postSpatialResponse(String spaceId, org.locationtech.jts.geom.Geometry filter, String query) {
+    return given()
         .contentType(APPLICATION_GEO_JSON)
         .accept(APPLICATION_GEO_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .body(((Geometry) Geometry.convertJTSGeometry(filter)).serialize())
         .when()
         .post(getSpacesPath() + "/" + spaceId + "/spatial?" + query)
-        .then()
-        .statusCode(OK.code())
-        .extract().body().asString();
-    return deserialize(body);
+        .then();
   }
 
   private static FeatureCollection deserialize(String body) {
@@ -213,6 +255,14 @@ public class SpatialMultiPartGeometryIT extends TestSpaceWithFeature {
 
   private static Point point(double[] lonLat) {
     return JTS.createPoint(new Coordinate(lonLat[0], lonLat[1]));
+  }
+
+  //A LineString of n positions going east from (lon, lat) in steps of 0.002 degrees, alternating 0.002 degrees in latitude
+  private static LineString zigzag(int n, double lon, double lat) {
+    Coordinate[] coordinates = new Coordinate[n];
+    for (int i = 0; i < n; i++)
+      coordinates[i] = new Coordinate(lon + i * 0.002, lat + (i % 2) * 0.002);
+    return JTS.createLineString(coordinates);
   }
 
   //An axis-aligned square with the given side length around the center
