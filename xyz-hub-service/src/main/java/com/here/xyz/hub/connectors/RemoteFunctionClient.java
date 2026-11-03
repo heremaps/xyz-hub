@@ -48,11 +48,13 @@ import io.vertx.core.impl.ConcurrentHashSet;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
@@ -195,6 +197,7 @@ public abstract class RemoteFunctionClient {
         enqueue(fc);
         return fc;
       }
+      fc.holdsConnection.set(true);
     }
 
     _invoke(fc, context);
@@ -413,7 +416,9 @@ public abstract class RemoteFunctionClient {
     However, this behavior will be optimized in the future.
      */
     //TODO: Improve the calculation with respect to the throughput and do the adjustments when necessary at run-time
-    clientInstances.forEach(c -> c.queue.setMaxByteSize((long) (c.getPriority() * GLOBAL_MAX_QUEUE_BYTE_SIZE)));
+    clientInstances.forEach(c -> c.queue.setMaxByteSize((long) (c.getPriority() * GLOBAL_MAX_QUEUE_BYTE_SIZE))
+        //Calls discarded by a smaller queue will never be invoked
+        .forEach(FunctionCall::release));
   }
 
   public static long getGlobalUsedQueueMemory() {
@@ -454,21 +459,17 @@ public abstract class RemoteFunctionClient {
 
   private void _invoke(final FunctionCall fc, RpcClient.RpcContext context) {
     //long start = System.nanoTime();
-    invoke(fc, r -> {
+    Handler<AsyncResult<byte[]>> responseHandler = r -> {
       //long end = System.nanoTime();
       //TODO: Activate performance calculation once it's implemented completely
       //recalculatePerformance(end - start, TimeUnit.NANOSECONDS);
       //Look into queue if there is something further to do
       FunctionCall nextFc = queue.remove();
-      if (nextFc == null && !fc.hasPriority) {
-        if(usedConnections.intValue() > 0) {
-          usedConnections.getAndDecrement(); //Free the connection only in case it's not needed for the next invocation
-          if (fc.requesterKey != null) {
-            Optional.ofNullable(usedConnectionsByRequesterAndClusterRole.get(fc.requesterKey))
-                .ifPresent(connectionCount -> compareAndDecrement(0, connectionCount));
-          }
-        }
-      }
+      if (nextFc != null)
+        nextFc.takeOverConnectionFrom(fc);
+      else
+        fc.releaseConnection();
+      fc.releaseRequesterConnection();
       try {
         if (!fc.cancelled)
           fc.callback.handle(r);
@@ -480,7 +481,15 @@ public abstract class RemoteFunctionClient {
       if (nextFc != null) {
         _invoke(nextFc, context);
       }
-    });
+    };
+    try {
+      invoke(fc, responseHandler);
+    }
+    catch (RuntimeException | Error e) {
+      //The response handler might never be called, so free what the call holds (a no-op if the handler ran already)
+      fc.release();
+      throw e;
+    }
   }
 
 //  private void recalculatePerformance(long executionTime, TimeUnit timeUnit) {
@@ -567,11 +576,11 @@ public abstract class RemoteFunctionClient {
     }*/
 
     //In any case add the element to the queue
-    queue.add(fc)
-        //Send timeout for discarded (old) calls
-        .forEach(timeoutFc ->
-            timeoutFc.callback
-                .handle(Future.failedFuture(new TooManyRequestsException("Remote function is busy or cannot be invoked.", STORAGE_QUEUE_FULL))));
+    List<FunctionCall> discardedCalls = queue.add(fc);
+    discardedCalls.forEach(FunctionCall::release);
+    //Send timeout for discarded (old) calls
+    discardedCalls.forEach(timeoutFc -> timeoutFc.callback
+        .handle(Future.failedFuture(new TooManyRequestsException("Remote function is busy or cannot be invoked.", STORAGE_QUEUE_FULL))));
   }
 
   public class FunctionCall implements ByteSizeAware {
@@ -586,6 +595,15 @@ public abstract class RemoteFunctionClient {
     private Runnable cancelHandler;
     private volatile boolean cancelled;
     private String requesterKey;
+    /**
+     * Whether this call holds one of the client's used connections. A call takes one when it starts directly or when it is started from
+     * the queue, and frees it exactly once.
+     */
+    private final AtomicBoolean holdsConnection = new AtomicBoolean();
+    /**
+     * Whether the connection counted for the requester (see {@code requesterKey}) was freed already.
+     */
+    private final AtomicBoolean requesterConnectionReleased = new AtomicBoolean();
 
     public FunctionCall(Marker marker, byte[] bytes, boolean fireAndForget, boolean hasPriority, Handler<AsyncResult<byte[]>> callback) {
       this.marker = marker;
@@ -617,14 +635,37 @@ public abstract class RemoteFunctionClient {
         logger.error(marker, "Error cancelling call to Remote Function.");
       }
       finally {
-        if(!hasPriority && usedConnections.intValue() > 0) {
-          usedConnections.getAndDecrement(); //Free the connection
-          if (requesterKey != null) {
-            Optional.ofNullable(usedConnectionsByRequesterAndClusterRole.get(requesterKey))
-                .ifPresent(connectionCount -> compareAndDecrement(0, connectionCount));
-          }
-        }
+        release();
       }
+    }
+
+    /**
+     * Starts this queued call on the connection of the finished call. If the finished call holds no connection (because it is a priority
+     * call or was cancelled), this call takes a new one, as it is started anyway.
+     */
+    private void takeOverConnectionFrom(FunctionCall finishedFc) {
+      if (!finishedFc.holdsConnection.compareAndSet(true, false))
+        usedConnections.incrementAndGet();
+      holdsConnection.set(true);
+    }
+
+    private void releaseConnection() {
+      if (holdsConnection.compareAndSet(true, false))
+        compareAndDecrement(0, usedConnections);
+    }
+
+    private void releaseRequesterConnection() {
+      if (requesterKey != null && requesterConnectionReleased.compareAndSet(false, true))
+        Optional.ofNullable(usedConnectionsByRequesterAndClusterRole.get(requesterKey))
+            .ifPresent(connectionCount -> compareAndDecrement(0, connectionCount));
+    }
+
+    /**
+     * Frees whatever this call still holds. Can be called multiple times.
+     */
+    private void release() {
+      releaseConnection();
+      releaseRequesterConnection();
     }
   }
 }
