@@ -33,6 +33,7 @@ import com.here.xyz.hub.config.SpaceConfigClient;
 import com.here.xyz.hub.config.SubscriptionConfigClient;
 import com.here.xyz.hub.config.TagConfigClient;
 import com.here.xyz.hub.connectors.ConfigUpdateThread;
+import com.here.xyz.hub.connectors.RemoteFunctionPreparation;
 import com.here.xyz.hub.connectors.WarmupRemoteFunctionThread;
 import com.here.xyz.hub.rest.admin.MessageBroker;
 import com.here.xyz.hub.rest.admin.Node;
@@ -187,6 +188,7 @@ public class Service extends Core {
         .compose(Service::initializeClients)
         .compose(config -> Future.fromCompletionStage(ConfigUpdateThread.initialize()).map(config))
         .compose(config -> Future.fromCompletionStage(WarmupRemoteFunctionThread.initialize()).map(config))
+        .compose(Service::prepareRemoteFunctions)
         .compose(Service::initializeService)
         .onFailure(t -> logger.error("Service startup failed", t))
         .onSuccess(v -> logger.info("Service startup succeeded"));
@@ -245,6 +247,16 @@ public class Service extends Core {
         .map(config)
         .onFailure(t -> logger.error("initializeClients failed", t))
         .onSuccess(v -> logger.info("initializeClients succeeded"));
+  }
+
+  /**
+   * Lets the connectors prepare themselves before this node serves requests, if {@link Config#PREPARE_REMOTE_FUNCTIONS_ON_STARTUP} is set.
+   * Runs after the first connector update, which created the RPC clients.
+   */
+  static Future<JsonObject> prepareRemoteFunctions(JsonObject config) {
+    if (!configuration.PREPARE_REMOTE_FUNCTIONS_ON_STARTUP)
+      return Future.succeededFuture(config);
+    return RemoteFunctionPreparation.prepareAll(vertx).map(config);
   }
 
   private static Future<Void> initializeService(JsonObject config) {

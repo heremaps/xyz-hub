@@ -204,6 +204,18 @@ public class Config extends BaseConfig {
   public boolean ENABLE_CONNECTOR_HEALTH_CHECKS;
 
   /**
+   * If set to true, the service sends one health check to each active AWS Lambda connector at startup, before it serves requests, and
+   * waits up to {@link #PREPARE_REMOTE_FUNCTIONS_TIMEOUT_MS} for the answers. That lets each connector prepare its database, e.g., install
+   * its SQL scripts, before the first request arrives.
+   */
+  public boolean PREPARE_REMOTE_FUNCTIONS_ON_STARTUP;
+
+  /**
+   * The maximum time in milliseconds the startup waits for the answers of the connectors, see {@link #PREPARE_REMOTE_FUNCTIONS_ON_STARTUP}.
+   */
+  public int PREPARE_REMOTE_FUNCTIONS_TIMEOUT_MS = 40_000;
+
+  /**
    * If true HERE Tiles are get handled as Base 4 encoded. Default is false (Base 10).
    */
   public boolean USE_BASE_4_H_TILES;
