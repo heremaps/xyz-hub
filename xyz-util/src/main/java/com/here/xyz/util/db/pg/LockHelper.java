@@ -54,6 +54,18 @@ public class LockHelper {
     return buildLockQuery(key, false, true, "PERFORM");
   }
 
+  /**
+   * Builds a PL/pgSQL statement that takes a transaction-level advisory lock, which is held until the transaction commits or
+   * rolls back. It uses the same key expression as {@link #buildAdvisoryLockQuery(String)}, so it also conflicts with the
+   * session-level lock on the same key.
+   *
+   * @param key The advisory lock key
+   * @return The PERFORM statement taking the lock
+   */
+  public static SQLQuery buildAdvisoryXactLockQuery(String key) {
+    return new SQLQuery("PERFORM pg_advisory_xact_lock(('x' || left(md5('" + key.replace("'", "''") + "'), 15))::bit(60)::bigint);");
+  }
+
   public static void advisoryLock(String key, Connection connection) throws SQLException {
     advisory(key, connection, true, true);
   }

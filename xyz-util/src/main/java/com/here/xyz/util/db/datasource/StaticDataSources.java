@@ -51,7 +51,8 @@ public class StaticDataSources extends DataSourceProvider implements AutoCloseab
     ds.setUser(replica ? dbSettings.getReplicaUser() : dbSettings.getUser());
     ds.setPassword(dbSettings.getPassword());
     ds.setApplicationName(dbSettings.getApplicationName());
-    ds.setConnectTimeout(dbSettings.getDbCheckoutTimeout());
+    //NOTE: The checkout timeout is in milliseconds, the connect timeout in seconds
+    ds.setConnectTimeout(Math.max(1, dbSettings.getDbCheckoutTimeout() / 1000));
     ds.setCurrentSchema(dbSettings.getSchema());
     return ds;
   }
