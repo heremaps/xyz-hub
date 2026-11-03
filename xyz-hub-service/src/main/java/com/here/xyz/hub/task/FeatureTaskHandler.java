@@ -22,6 +22,8 @@ package com.here.xyz.hub.task;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
 import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.BINARY;
+import static com.here.xyz.hub.cache.QueryTimeoutCache.Decision.RUN;
+import static com.here.xyz.hub.cache.QueryTimeoutCache.Decision.SHORT_CUT;
 import static com.here.xyz.hub.rest.ApiResponseType.MVT;
 import static com.here.xyz.hub.rest.ApiResponseType.MVT_FLATTENED;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.BBOX;
@@ -60,6 +62,7 @@ import com.here.xyz.events.SelectiveEvent;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.XYZHubRESTVerticle;
 import com.here.xyz.hub.cache.CacheClient;
+import com.here.xyz.hub.cache.QueryTimeoutCache;
 import com.here.xyz.hub.connectors.RpcClient;
 import com.here.xyz.hub.connectors.RpcClient.RpcContext;
 import com.here.xyz.hub.connectors.models.Connector;
@@ -74,6 +77,7 @@ import com.here.xyz.hub.rest.ApiParam;
 import com.here.xyz.hub.rest.ApiResponseType;
 import com.here.xyz.hub.rest.FeatureApi;
 import com.here.xyz.hub.task.FeatureTask.ConditionalOperation;
+import com.here.xyz.hub.task.FeatureTask.GeometryQuery;
 import com.here.xyz.hub.task.FeatureTask.ReadQuery;
 import com.here.xyz.hub.task.FeatureTask.TileQuery;
 import com.here.xyz.hub.task.FeatureTask.TileQuery.TransformationContext;
@@ -253,6 +257,7 @@ public class FeatureTaskHandler {
         responseContext.rpcContext = getRpcClient(task.storage).execute(task.getMarker(), eventToExecute, storageResult -> {
           if (task.getState().isFinal()) return;
           addConnectorPerformanceInfo(task, Core.currentTimeMillis() - storageRequestStart, responseContext.rpcContext, "S");
+          recordQueryTimeoutOutcome(task, storageResult);
           if (storageResult.failed()) {
             callback.exception(storageResult.cause());
             return;
@@ -411,13 +416,64 @@ public class FeatureTaskHandler {
             }
           }
           XYZHubRESTVerticle.addStreamInfo(task.context, "CTime", Core.currentTimeMillis() - cacheRequestStart);
-          callback.call(task);
+          if (task.isCacheHit())
+            callback.call(task);
+          else
+            readQueryTimeoutMarker(task, cacheKey, callback);
         })
         .onFailure(t -> {
           //Treating an error as a Cache MISS
           logger.info(task.getMarker(), "Cache MISS (as of error) on all caches {} {}", cacheKey, t);
-          callback.call(task);
+          readQueryTimeoutMarker(task, cacheKey, callback);
         });
+  }
+
+  /**
+   * Replies with the connector's timeout error without running the query, if the same spatial query timed out in the database repeatedly
+   * just before. See {@link QueryTimeoutCache}.
+   */
+  private static <T extends FeatureTask> void readQueryTimeoutMarker(T task, String cacheKey, Callback<T> callback) {
+    if (!(task instanceof GeometryQuery) || Service.queryTimeoutCache == null || !Service.queryTimeoutCache.isEnabled()) {
+      callback.call(task);
+      return;
+    }
+
+    Service.queryTimeoutCache.lookUp(cacheKey, task.storage.id).onComplete(ar -> {
+      QueryTimeoutCache.Lookup lookup = ar.succeeded() ? ar.result() : null;
+      if (lookup == null || lookup.decision == RUN) {
+        task.queryTimeoutLookup = lookup;
+        callback.call(task);
+        return;
+      }
+      //Add "Negative-Cache" stream-info: S = short-cut (the query did not run), P = probe (the query ran after a short-cut period)
+      XYZHubRESTVerticle.addStreamInfo(task.context, "NC", lookup.decision == SHORT_CUT ? "S" : "P");
+      //Add the time since the last statement timeout of the query
+      XYZHubRESTVerticle.addStreamInfo(task.context, "NCAge", lookup.markerAge);
+      if (lookup.decision == SHORT_CUT) {
+        logger.info(task.getMarker(), "Query timeout marker HIT for cache key {}, replying with a timeout without running the query",
+            cacheKey);
+        callback.exception(new DetailedHttpException("E318540"));
+      }
+      else {
+        logger.info(task.getMarker(), "Query timeout marker PROBE for cache key {}, running the query", cacheKey);
+        task.queryTimeoutLookup = lookup;
+        callback.call(task);
+      }
+    });
+  }
+
+  /**
+   * Lets the {@link QueryTimeoutCache} count the outcome of a query for which readCache read the timeout marker.
+   */
+  static <T extends FeatureTask> void recordQueryTimeoutOutcome(T task, AsyncResult<?> storageResult) {
+    QueryTimeoutCache.Lookup lookup = task.queryTimeoutLookup;
+    if (lookup == null)
+      return;
+    task.queryTimeoutLookup = null;
+    if (storageResult.succeeded())
+      Service.queryTimeoutCache.onSuccess(lookup);
+    else
+      Service.queryTimeoutCache.onFailure(lookup, storageResult.cause());
   }
 
   public static <T extends FeatureTask> void writeCache(T task, Callback<T> callback) {

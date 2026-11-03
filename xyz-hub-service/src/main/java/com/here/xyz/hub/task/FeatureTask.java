@@ -48,6 +48,7 @@ import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.auth.Authorization;
 import com.here.xyz.hub.auth.FeatureAuthorization;
+import com.here.xyz.hub.cache.QueryTimeoutCache;
 import com.here.xyz.hub.config.BranchConfigClient;
 import com.here.xyz.hub.config.TagConfigClient;
 import com.here.xyz.hub.connectors.RpcClient;
@@ -116,6 +117,11 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
    * The calculated cache key.
    */
   private String cacheKey;
+
+  /**
+   * The timeout marker of the query as read by readCache, if the query timeout cache applies to this task.
+   */
+  QueryTimeoutCache.Lookup queryTimeoutLookup;
 
   /**
    * The number of bytes the request body is / was having initially.
