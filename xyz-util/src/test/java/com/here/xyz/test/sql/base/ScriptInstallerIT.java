@@ -20,6 +20,7 @@
 package com.here.xyz.test.sql.base;
 
 import static com.here.xyz.util.Random.randomAlpha;
+import static com.here.xyz.util.db.pg.ScriptInstaller.State.PERMANENT;
 import static com.here.xyz.util.db.pg.ScriptInstaller.State.TRANSIENT;
 import static com.here.xyz.util.db.pg.ScriptInstaller.State.VERIFIED;
 import static org.junit.Assert.assertEquals;
@@ -48,13 +49,16 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.function.IntSupplier;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.Logger;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
+import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.logging.log4j.core.config.Property;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 public class ScriptInstallerIT extends SQLITBase {
@@ -65,15 +69,33 @@ public class ScriptInstallerIT extends SQLITBase {
   private static final int VERSIONS_TO_KEEP = 5;
   private static final String FUNCTIONS_0 = "/functions0/functions.sql";
   private static final String FUNCTIONS_2 = "/functions2/functions.sql";
+  private static final String FUNCTIONS_BROKEN = "/functionsBroken/functions.sql";
   private static final String SQL_SAMPLES = "/sqlSamples/functions.sql";
+  private static final List<String> CAPTURED_LOGGERS = List.of(Script.class.getName(), ScriptInstaller.class.getName());
+  private static final List<Level> PREVIOUS_LEVELS = new ArrayList<>();
+
+  @BeforeAll
+  public static void enableWarnings() {
+    //The tests count the WARNs of the installer, which the default configuration does not log
+    for (String logger : CAPTURED_LOGGERS) {
+      PREVIOUS_LEVELS.add(LogManager.getLogger(logger).getLevel());
+      Configurator.setLevel(logger, Level.WARN);
+    }
+  }
 
   @AfterAll
   public static void dropSchemas() throws Exception {
-    for (String prefix : PREFIXES)
-      try (SingleConnectionDataSources dsp = newProvider()) {
-        for (String schema : listSchemas(prefix))
-          new SQLQuery("DROP SCHEMA IF EXISTS ${schema} CASCADE").withVariable("schema", schema).write(dsp);
-      }
+    try {
+      for (String prefix : PREFIXES)
+        try (SingleConnectionDataSources dsp = newProvider()) {
+          for (String schema : listSchemas(prefix))
+            new SQLQuery("DROP SCHEMA IF EXISTS ${schema} CASCADE").withVariable("schema", schema).write(dsp);
+        }
+    }
+    finally {
+      for (int i = 0; i < PREVIOUS_LEVELS.size(); i++)
+        Configurator.setLevel(CAPTURED_LOGGERS.get(i), PREVIOUS_LEVELS.get(i));
+    }
   }
 
   private static String newPrefix() {
@@ -98,8 +120,13 @@ public class ScriptInstallerIT extends SQLITBase {
 
   private static Outcome checkAndInstall(DataSourceProvider dsp, String resource, String version, String prefix, int installTimeoutSeconds,
       int versionsToKeep) {
+    return checkAndInstall(dsp, resource, version, prefix, installTimeoutSeconds, versionsToKeep, null);
+  }
+
+  private static Outcome checkAndInstall(DataSourceProvider dsp, String resource, String version, String prefix, int installTimeoutSeconds,
+      int versionsToKeep, IntSupplier remainingMillis) {
     return ScriptInstaller.checkAndInstall(List.of(new Script(resource, dsp, version, prefix)), dsp, version, versionsToKeep,
-        installTimeoutSeconds, null);
+        installTimeoutSeconds, remainingMillis);
   }
 
   private static Outcome checkAndInstall(String resource, String version, String prefix) {
@@ -153,6 +180,24 @@ public class ScriptInstallerIT extends SQLITBase {
     }
   }
 
+  private static CapturingAppender startCapturing() {
+    CapturingAppender appender = new CapturingAppender();
+    appender.start();
+    CAPTURED_LOGGERS.forEach(logger -> ((Logger) LogManager.getLogger(logger)).addAppender(appender));
+    return appender;
+  }
+
+  private static void stopCapturing(CapturingAppender appender) {
+    CAPTURED_LOGGERS.forEach(logger -> ((Logger) LogManager.getLogger(logger)).removeAppender(appender));
+    appender.stop();
+  }
+
+  private static long countInstallations(List<String> messages, String schema) {
+    return messages.stream()
+        .filter(message -> message.startsWith("Installed script ") && message.contains(" into schema " + schema + " in "))
+        .count();
+  }
+
   @Test
   public void installOnceThenCheckWithOneQueryOnOneConnection() throws Exception {
     String prefix = newPrefix();
@@ -161,7 +206,13 @@ public class ScriptInstallerIT extends SQLITBase {
       Outcome outcome = checkAndInstall(dsp, SQL_SAMPLES, "1.0.1", prefix, INSTALL_TIMEOUT_SECONDS, VERSIONS_TO_KEEP);
       assertEquals(VERIFIED, outcome.state());
       assertEquals(List.of(prefix + ".functions:1.0.1"), outcome.schemas());
-      assertEquals("Check, timeouts, versioned schema, unversioned schema, re-check", 5, outcome.statements());
+      assertEquals("Check, timeouts, versioned schema, unversioned schema, timeout reset, re-check", 6, outcome.statements());
+      assertEquals(1, dsp.getOpenedConnectionCount());
+      //The re-check after the installation must run with the check's timeout, not with the one of the install statements
+      assertEquals(CHECK_TIMEOUT_SECONDS + "s", new SQLQuery("SHOW statement_timeout").run(dsp, rs -> rs.next() ? rs.getString(1) : null));
+      assertEquals(Boolean.TRUE, new SQLQuery("""
+          SELECT bool_and(setting = reset_val) FROM pg_settings WHERE name IN ('statement_timeout', 'lock_timeout')
+          """).run(dsp, rs -> rs.next() ? rs.getBoolean(1) : null));
       assertEquals(1, dsp.getOpenedConnectionCount());
     }
     assertEquals(List.of(prefix + ".functions", prefix + ".functions:1.0.1"), listSchemas(prefix));
@@ -205,6 +256,7 @@ public class ScriptInstallerIT extends SQLITBase {
     int installers = 8;
     CountDownLatch start = new CountDownLatch(1);
     ExecutorService executor = Executors.newFixedThreadPool(installers);
+    CapturingAppender appender = startCapturing();
     try {
       List<Future<Outcome>> outcomes = new ArrayList<>();
       for (int i = 0; i < installers; i++)
@@ -219,7 +271,18 @@ public class ScriptInstallerIT extends SQLITBase {
     }
     finally {
       executor.shutdownNow();
+      stopCapturing(appender);
     }
+
+    //Without a lock that is held until the commit, a waiting installer would run its DDL before it can see the winner's schema
+    //and fail, e.g., with a duplicate key on CREATE SCHEMA, or install the same schema once more
+    List<String> warnings = appender.messages(Level.WARN, prefix);
+    assertEquals("No installer must fail", List.of(),
+        warnings.stream().filter(message -> message.startsWith("Unable to install")).toList());
+    assertEquals("Exactly one installer must install the versioned schema", 1, countInstallations(warnings, prefix + ".functions:1.0.1"));
+    assertEquals("Exactly one installer must rewrite the unversioned schema", 1, countInstallations(warnings, prefix + ".functions"));
+    assertEquals("Only the two schemas must be installed", 2,
+        warnings.stream().filter(message -> message.startsWith("Installed script ")).count());
 
     Script script = new Script(FUNCTIONS_2, null, "1.0.1", prefix);
     try (SingleConnectionDataSources dsp = newProvider()) {
@@ -262,6 +325,101 @@ public class ScriptInstallerIT extends SQLITBase {
   }
 
   @Test
+  public void installStatementsLeaveTheReservedTimeForTheRequest() throws Exception {
+    String prefix = newPrefix();
+    String targetSchema = prefix + ".functions:1.0.1";
+
+    try (SingleConnectionDataSources lockDsp = newProvider()) {
+      Connection lockConnection = lockDsp.getWriter().getConnection();
+      LockHelper.advisoryLock(targetSchema, lockConnection);
+
+      long start = System.currentTimeMillis();
+      try (SingleConnectionDataSources dsp = newProvider()) {
+        //With 15 s remaining, the install statement may only take 15 s - 10 s = 5 s instead of the install timeout of 15 s
+        Outcome outcome = checkAndInstall(dsp, SQL_SAMPLES, "1.0.1", prefix, INSTALL_TIMEOUT_SECONDS, VERSIONS_TO_KEEP, () -> 15_000);
+        assertEquals(TRANSIENT, outcome.state());
+        assertEquals(List.of(prefix + ".functions"), outcome.schemas());
+      }
+      long duration = System.currentTimeMillis() - start;
+      assertTrue("The install statement must give up after the remaining time minus the reserved time, took " + duration + " ms",
+          duration >= 4_500 && duration < 10_000);
+      assertEquals(List.of(), listSchemas(prefix));
+
+      LockHelper.advisoryUnlock(targetSchema, lockConnection);
+    }
+  }
+
+  @Test
+  public void tooLittleRemainingTimeLeadsToTransientStateWithoutInstallation() throws Exception {
+    String prefix = newPrefix();
+
+    try (SingleConnectionDataSources dsp = newProvider()) {
+      Outcome outcome = checkAndInstall(dsp, SQL_SAMPLES, "1.0.1", prefix, INSTALL_TIMEOUT_SECONDS, VERSIONS_TO_KEEP, () -> 14_000);
+      assertEquals(TRANSIENT, outcome.state());
+      assertEquals("No install statement must be started with less than 15 s remaining", 1, outcome.statements());
+      assertEquals(List.of(prefix + ".functions"), outcome.schemas());
+    }
+    assertEquals(List.of(), listSchemas(prefix));
+  }
+
+  @Test
+  public void permanentErrorFallsBackToTheNewestInstalledVersion() throws Exception {
+    String prefix = newPrefix();
+    assertEquals(VERIFIED, checkAndInstall(FUNCTIONS_2, "1.0.0", prefix).state());
+
+    Outcome outcome = checkAndInstall(FUNCTIONS_BROKEN, "1.0.1", prefix);
+
+    assertEquals(PERMANENT, outcome.state());
+    assertEquals(List.of(prefix + ".functions:1.0.0"), outcome.schemas());
+    assertEquals(List.of(prefix + ".functions", prefix + ".functions:1.0.0"), listSchemas(prefix));
+    assertEquals("The unversioned schema must not be rewritten after the versioned one failed", "1.0.0",
+        outcome.snapshot().getUnversionedVersion(prefix + ".functions"));
+    assertEquals("Hello, TestUser", callFunction(prefix + ".functions:1.0.0"));
+  }
+
+  @Test
+  public void permanentErrorOnASchemaThatIsNoTargetDoesNotMakeATransientMissPermanent() throws Exception {
+    String rewriteFailsPrefix = newPrefix();
+    String lockedPrefix = newPrefix();
+    String unversionedSchema = rewriteFailsPrefix + ".functions";
+    String lockedSchema = lockedPrefix + ".functions:1.0.1";
+    try (SingleConnectionDataSources dsp = newProvider()) {
+      //A procedure with the signature of the script's function lets every rewrite of the unversioned schema fail permanently
+      new SQLQuery("CREATE SCHEMA ${schema}").withVariable("schema", unversionedSchema).write(dsp);
+      new SQLQuery("CREATE PROCEDURE ${schema}.myTestFunction(input text) LANGUAGE sql AS 'SELECT 1'")
+          .withVariable("schema", unversionedSchema)
+          .write(dsp);
+    }
+
+    CapturingAppender appender = startCapturing();
+    Outcome outcome;
+    try (SingleConnectionDataSources lockDsp = newProvider()) {
+      Connection lockConnection = lockDsp.getWriter().getConnection();
+      LockHelper.advisoryLock(lockedSchema, lockConnection);
+      try (SingleConnectionDataSources dsp = newProvider()) {
+        List<Script> scripts = List.of(new Script(FUNCTIONS_2, dsp, "1.0.1", rewriteFailsPrefix),
+            new Script(SQL_SAMPLES, dsp, "1.0.1", lockedPrefix));
+        outcome = ScriptInstaller.checkAndInstall(scripts, dsp, "1.0.1", VERSIONS_TO_KEEP, 1, null);
+      }
+      LockHelper.advisoryUnlock(lockedSchema, lockConnection);
+    }
+    finally {
+      stopCapturing(appender);
+    }
+
+    assertEquals("The rewrite of the unversioned schema must have failed with a permanent error", 1,
+        appender.messages(Level.WARN, " into schema " + unversionedSchema + " on DB ").stream()
+            .filter(message -> message.startsWith("Unable to install") && message.contains("(permanent error)"))
+            .count());
+    assertEquals("The locked schema must have failed with a transient error", 1,
+        appender.messages(Level.WARN, " into schema " + lockedSchema + " on DB ").stream()
+            .filter(message -> message.startsWith("Unable to install") && message.contains("(transient error)"))
+            .count());
+    assertEquals("Only the failed installation of a missing target may be permanent", TRANSIENT, outcome.state());
+    assertEquals(List.of(rewriteFailsPrefix + ".functions:1.0.1", lockedPrefix + ".functions"), outcome.schemas());
+  }
+
+  @Test
   public void unreachableDbLeadsToTransientStateWithoutInstallation() throws Exception {
     String prefix = newPrefix();
 
@@ -294,17 +452,13 @@ public class ScriptInstallerIT extends SQLITBase {
       assertTrue(new Script(FUNCTIONS_2, dsp, "1.0.1", prefix).installSchema(false));
     }
 
-    CapturingAppender appender = new CapturingAppender();
-    List<Logger> loggers = List.of((Logger) LogManager.getLogger(Script.class), (Logger) LogManager.getLogger(ScriptInstaller.class));
-    appender.start();
-    loggers.forEach(logger -> logger.addAppender(appender));
+    CapturingAppender appender = startCapturing();
     Outcome outcome;
     try {
       outcome = checkAndInstall(FUNCTIONS_2, "1.0.7", prefix);
     }
     finally {
-      loggers.forEach(logger -> logger.removeAppender(appender));
-      appender.stop();
+      stopCapturing(appender);
     }
 
     assertEquals(VERIFIED, outcome.state());
@@ -318,12 +472,7 @@ public class ScriptInstallerIT extends SQLITBase {
       assertFalse("An uninstallation of a missing schema must be skipped under the lock",
           new Script(FUNCTIONS_2, dsp, "1.0.7", prefix).uninstallVersion("1.0.2"));
     }
-    assertEquals("No ERROR must be logged for the version in use", List.of(),
-        appender.events.stream()
-            .filter(event -> event.getLevel().isMoreSpecificThan(Level.ERROR))
-            .map(event -> event.getMessage().getFormattedMessage())
-            .filter(message -> message.contains(prefix))
-            .toList());
+    assertEquals("No ERROR must be logged for the version in use", List.of(), appender.messages(Level.ERROR, prefix));
   }
 
   @Test
@@ -341,7 +490,7 @@ public class ScriptInstallerIT extends SQLITBase {
     outcome = checkAndInstall(FUNCTIONS_2, null, prefix);
     assertEquals(VERIFIED, outcome.state());
     assertEquals(List.of(prefix + ".functions"), outcome.schemas());
-    assertEquals("Check, timeouts, unversioned schema, re-check", 4, outcome.statements());
+    assertEquals("Check, timeouts, unversioned schema, timeout reset, re-check", 5, outcome.statements());
     assertEquals(List.of(prefix + ".functions"), listSchemas(prefix));
     assertEquals("Hello, TestUser", callFunction(prefix + ".functions"));
     assertEquals(1, countFunctions(prefix + ".functions", "mytestfunction"));
@@ -357,6 +506,17 @@ public class ScriptInstallerIT extends SQLITBase {
     @Override
     public void append(LogEvent event) {
       events.add(event.toImmutable());
+    }
+
+    /**
+     * @return The messages of the captured events of the provided level or a more severe one, which contain the provided text
+     */
+    List<String> messages(Level minimumLevel, String containing) {
+      return events.stream()
+          .filter(event -> event.getLevel().isMoreSpecificThan(minimumLevel))
+          .map(event -> event.getMessage().getFormattedMessage())
+          .filter(message -> message.contains(containing))
+          .toList();
     }
   }
 }

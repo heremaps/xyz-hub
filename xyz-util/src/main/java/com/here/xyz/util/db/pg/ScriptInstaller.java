@@ -29,6 +29,8 @@ import com.here.xyz.util.db.datasource.DataSourceProvider;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.sql.SQLTimeoutException;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.IntSupplier;
@@ -59,7 +61,8 @@ public class ScriptInstaller {
       "53300", //too_many_connections
       "40001", //serialization_failure
       "40P01", //deadlock_detected
-      "23505" //unique_violation, e.g., a concurrent installer which released its lock before committing created the schema
+      "23505", //unique_violation, e.g., a concurrent installer which released its lock before committing created the schema
+      "25006" //read_only_sql_transaction, e.g., the writer endpoint still points to a read-only instance during a failover
   );
 
   public enum State {
@@ -68,7 +71,7 @@ public class ScriptInstaller {
      */
     VERIFIED,
     /**
-     * An installation failed with an error that is not expected to go away and the schema of at least one script is missing.
+     * The schema of at least one script is missing and its installation failed with an error that is not expected to go away.
      */
     PERMANENT,
     /**
@@ -149,7 +152,11 @@ public class ScriptInstaller {
     private int statements;
     private long ddlTimeoutMillis = -1;
     private boolean ddlExecuted;
-    private boolean permanentFailure;
+    /**
+     * The scripts whose target schema (the versioned one if there is a version, the unversioned one otherwise) failed to install
+     * with a permanent error
+     */
+    private final Set<Script> permanentlyFailedTargets = new HashSet<>();
 
     private Check(List<Script> scripts, DataSourceProvider dataSourceProvider, String softwareVersion, int versionsToKeep,
         int installTimeoutSeconds, IntSupplier remainingMillis) {
@@ -172,14 +179,20 @@ public class ScriptInstaller {
 
       InstalledScripts finalSnapshot = snapshot;
       if (ddlExecuted) {
+        //The re-check must run with the timeout of the check, not with the one of the install statements
+        if (!resetDdlTimeouts())
+          return finish(TRANSIENT, snapshot);
         finalSnapshot = loadSnapshot();
         if (finalSnapshot == null)
           return finish(TRANSIENT, snapshot);
       }
 
-      if (allTargetsInstalled(finalSnapshot))
+      List<Script> missingTargets = missingTargets(finalSnapshot);
+      if (missingTargets.isEmpty())
         return finish(VERIFIED, cleanup(finalSnapshot));
-      return finish(permanentFailure ? PERMANENT : TRANSIENT, finalSnapshot);
+      //Only a permanent error on a missing target itself is permanent. E.g., an error while rewriting the unversioned schema of a
+      //script whose versioned schema exists must not keep another script's transient miss for the lifetime of the JVM.
+      return finish(missingTargets.stream().anyMatch(permanentlyFailedTargets::contains) ? PERMANENT : TRANSIENT, finalSnapshot);
     }
 
     private InstalledScripts loadSnapshot() {
@@ -203,7 +216,7 @@ public class ScriptInstaller {
         }
         catch (IOException | RuntimeException e) {
           logger.error("Unable to read script {} for the installation on DB {}.", script.getScriptName(), dbId, e);
-          permanentFailure = true;
+          permanentlyFailedTargets.add(script);
           continue;
         }
         if (!needsInstallation)
@@ -251,10 +264,35 @@ public class ScriptInstaller {
     }
 
     /**
+     * Restores the statement timeout of the check and removes the lock timeout, which both were set for the install statements.
+     *
+     * @return Whether the timeouts could be reset
+     */
+    private boolean resetDdlTimeouts() {
+      if (ddlTimeoutMillis < 0)
+        return true;
+      try {
+        statements++;
+        //NOTE: RESET restores the value of the connection's startup options
+        new SQLQuery("RESET statement_timeout; RESET lock_timeout")
+            .withLoggingEnabled(false)
+            .write(dataSourceProvider);
+        ddlTimeoutMillis = -1;
+        return true;
+      }
+      catch (SQLException e) {
+        logger.warn("Unable to reset the timeouts after installing scripts on DB {}.", dbId, e);
+        return false;
+      }
+    }
+
+    /**
      * @return Whether the installation succeeded
      */
     private boolean installSchema(Script script, boolean versioned) {
       String schema = versioned ? script.getScriptId() + ":" + script.getScriptVersion() : script.getScriptId();
+      //The target is the schema the script resolves to: the versioned one if there is a version, the unversioned one otherwise
+      boolean target = versioned == (script.getScriptVersion() != null);
       try {
         applyDdlTimeouts();
         statements++;
@@ -264,30 +302,35 @@ public class ScriptInstaller {
       }
       catch (SQLException e) {
         boolean transientError = isTransient(e);
-        if (!transientError)
-          permanentFailure = true;
+        if (!transientError && target)
+          permanentlyFailedTargets.add(script);
         logger.warn("Unable to install script {} into schema {} on DB {} ({} error).", script.getScriptName(), schema, dbId,
             transientError ? "transient" : "permanent", e);
         return false;
       }
       catch (IOException | RuntimeException e) {
-        permanentFailure = true;
+        if (target)
+          permanentlyFailedTargets.add(script);
         logger.warn("Unable to install script {} into schema {} on DB {} (permanent error).", script.getScriptName(), schema, dbId, e);
         return false;
       }
     }
 
-    private boolean allTargetsInstalled(InstalledScripts snapshot) {
+    /**
+     * @return The scripts whose target schema is not installed according to the snapshot
+     */
+    private List<Script> missingTargets(InstalledScripts snapshot) {
+      List<Script> missingTargets = new ArrayList<>();
       for (Script script : scripts) {
         try {
           if (!script.isTargetInstalled(snapshot))
-            return false;
+            missingTargets.add(script);
         }
         catch (IOException | RuntimeException e) {
-          return false;
+          missingTargets.add(script);
         }
       }
-      return true;
+      return missingTargets;
     }
 
     /**
