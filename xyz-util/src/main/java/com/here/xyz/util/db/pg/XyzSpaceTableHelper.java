@@ -293,16 +293,12 @@ public class XyzSpaceTableHelper {
             .withVariable(SCHEMA, schema);
 
     if(layout == TableLayout.OLD_LAYOUT) {
-      //MMSUP-1092  tmp workaroung on db9 - skip deletion from spaceMetaTable
+
       //TODO: remove spaceMetaTable from overall code
-      String storageID = event.getSpaceDefinition() != null && event.getSpaceDefinition().getStorage() != null
-                      ? event.getSpaceDefinition().getStorage().getId()
-                      : "no-connector-info-available";
       //Remove also event as parameter and cleanUp deleteSpaceMetaEntry
-      //MMSUP-1092
 
       // Gets removed
-      SQLQuery deleteSpaceMetaEntry = "psql-db9-eu-west-1".equals(storageID) ? new SQLQuery("") :
+      SQLQuery deleteSpaceMetaEntry =
               new SQLQuery("DELETE FROM xyz_config.space_meta WHERE h_id = #{table} AND schem = #{schema};")
               .withNamedParameter(SCHEMA, schema)
               .withNamedParameter(TABLE, table);
