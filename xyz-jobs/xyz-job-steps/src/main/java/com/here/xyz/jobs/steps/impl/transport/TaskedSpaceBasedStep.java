@@ -36,6 +36,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.jobs.JobClientInfo;
+import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.ProcessUpdate;
 import com.here.xyz.jobs.steps.execution.StepException;
 import com.here.xyz.jobs.steps.execution.db.Database;
@@ -94,6 +95,8 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   public static final String FINALIZATION_MARKER = "finalized_marker";
   /** Suffix of the label identifier used to tag task queries with their taskId in {@code pg_stat_activity}. */
   private static final String TASK_ID_LABEL_SUFFIX = "#taskId";
+  /** Timeout of the query which counts the running task queries on a database, see {@link Config#TASKED_STEP_MAX_TASKS_PER_DB}. */
+  private static final int TASK_COUNT_QUERY_TIMEOUT_SECONDS = 10;
   /** Number of consecutive unknown running-query checks before a task is considered retryable. */
   public static final Integer MAX_UNKNOWN_TASK_QUERY_CHECKS = 3;
   /** Maximum number of retry attempts, for a server side killed single, before failing retry handling. */
@@ -541,11 +544,73 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   }
 
   /**
+   * Limits the number of tasks to be started by the free task slots of the database the step runs on
+   * (see {@link Config#TASKED_STEP_MAX_TASKS_PER_DB}).
+   * <p>
+   * The concurrency limit of a step only applies to the step itself. Several steps (e.g., the imports of one job into
+   * several layers) can run on the same database at the same time, so their task queries are additionally limited per database.
+   * A step without running tasks may always start one task, also if the database limit is reached. Otherwise, its state
+   * check would not find any running task and the step would fail after the heartbeat timeout
+   * (see {@link #getExecutionState()}).
+   * </p>
+   *
+   * @param startableTasks The number of tasks the step may start according to its own concurrency limit.
+   * @param runningTasksOfStep The number of running tasks of the step.
+   * @param maxTasksPerDb The maximum number of running task queries on the database, a value {@code <= 0} for no limit.
+   * @param runningTasksOnDb The number of running task queries of all steps on the database, {@code null} if it is unknown.
+   *  An unknown number is treated as if the limit was reached.
+   * @return The number of tasks that may be started. Never negative and never more than {@code startableTasks}.
+   */
+  public static int limitByDatabaseTaskSlots(int startableTasks, int runningTasksOfStep, int maxTasksPerDb,
+      Integer runningTasksOnDb) {
+    if (startableTasks <= 0)
+      return 0;
+    if (maxTasksPerDb <= 0)
+      return startableTasks;
+
+    int freeSlots = runningTasksOnDb == null ? 0 : Math.max(maxTasksPerDb - runningTasksOnDb, 0);
+    if (runningTasksOfStep <= 0)
+      freeSlots = Math.max(freeSlots, 1);
+    return Math.min(startableTasks, freeSlots);
+  }
+
+  /**
+   * Limits the number of tasks to be started by the free task slots of the database the step's task queries run on.
+   * See {@link #limitByDatabaseTaskSlots(int, int, int, Integer)}.
+   */
+  private int limitByDatabaseTaskSlots(int startableTasks, int runningTasksOfStep, LogPhase phase) {
+    Integer configuredLimit = Config.instance == null ? null : Config.instance.TASKED_STEP_MAX_TASKS_PER_DB;
+    int maxTasksPerDb = configuredLimit == null ? 0 : configuredLimit;
+    if (startableTasks <= 0 || maxTasksPerDb <= 0)
+      return Math.max(startableTasks, 0);
+
+    Integer runningTasksOnDb = null;
+    String dbName = "the database";
+    try {
+      Database db = queryRunsOnWriter() ? dbWriter() : dbReader();
+      dbName = db.getName() + ":" + db.getRole();
+      runningTasksOnDb = SQLQuery.countRunningWithLabelSuffix(requestResource(db, 0d), db.getRole() != WRITER, TASK_ID_LABEL_SUFFIX,
+          TASK_COUNT_QUERY_TIMEOUT_SECONDS);
+    }
+    catch (Exception e) {
+      warnLog(phase, "Could not count the running task queries on " + dbName + ". Treating the database task limit as reached."
+          + " Reason: " + e.getMessage());
+    }
+
+    int limitedTasks = limitByDatabaseTaskSlots(startableTasks, runningTasksOfStep, maxTasksPerDb, runningTasksOnDb);
+    if (limitedTasks < startableTasks)
+      infoLog(phase, "Database task limit: " + (runningTasksOnDb == null ? "unknown" : runningTasksOnDb) + " of " + maxTasksPerDb
+          + " task queries are running on " + dbName + ". Starting " + limitedTasks + " instead of " + startableTasks + " task(s).");
+    return limitedTasks;
+  }
+
+  /**
    * Starts the initial task set of the step.
    * <p>
-   * Both a fresh execution and a resume restart the concurrency ramp-up beforehand, so this always starts
-   * {@link #INITIAL_THREAD_COUNT} tasks. The concurrency is raised from there during the periodic state checks,
-   * see {@link #scaleUpConcurrency(TaskProgress)}.
+   * Both a fresh execution and a resume restart the concurrency ramp-up beforehand, so this starts
+   * {@link #INITIAL_THREAD_COUNT} tasks, or fewer (at least one) if the database task limit is reached
+   * (see {@link #limitByDatabaseTaskSlots(int, int, int, Integer)}). The concurrency is raised from there during the periodic
+   * state checks, see {@link #scaleUpConcurrency(TaskProgress)}.
    * </p>
    *
    * @throws TooManyResourcesClaimed If too many resources are claimed during the process.
@@ -556,7 +621,8 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   private void startInitialTasks() throws TooManyResourcesClaimed,
           QueryBuildingException, WebClientException, SQLException, InvalidGeometryException {
     List<TaskProgress<I>> claimedInitialTasks = new ArrayList<>();
-    int initialThreadCount = getCurrentMaxThreadCount(0);
+    //No task of this step is running yet, also not on a resume, which resets the task items that were not finalized
+    int initialThreadCount = limitByDatabaseTaskSlots(getCurrentMaxThreadCount(0), 0, STEP_EXECUTE);
 
     infoLog(STEP_EXECUTE, "Starting with a concurrency of " + initialThreadCount + " (configured threadCount: "
             + threadCount + ")");
@@ -1024,6 +1090,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
     int currentMaxThreadCount = getCurrentMaxThreadCount(taskProgress.getScalingElapsedMillis());
     int runningTasks = taskProgress.getRunningTasks();
     int startableTasks = getStartableTaskCount(currentMaxThreadCount, runningTasks, taskProgress.getUnstartedTasks());
+    startableTasks = limitByDatabaseTaskSlots(startableTasks, runningTasks, STEP_ON_STATE_CHECK);
 
     if (startableTasks == 0)
       return;

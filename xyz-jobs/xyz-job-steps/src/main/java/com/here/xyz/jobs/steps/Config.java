@@ -80,6 +80,14 @@ public class Config extends BaseConfig {
    */
   public String STEP_PLUGINS;
 
+  /**
+   * The maximum number of task queries of tasked steps that may run on one database instance at the same time,
+   * counted over all steps and jobs. Unset or <= 0: no limit.
+   * A step only starts additional tasks while the limit is not reached. A running task is never interrupted because of it,
+   * and a step without running tasks may always start one.
+   */
+  public Integer TASKED_STEP_MAX_TASKS_PER_DB;
+
   public List<String> stepPlugins() {
     return fromCommaSeparatedList(STEP_PLUGINS);
   }

@@ -980,6 +980,32 @@ public class SQLQuery {
         }, useReplica);
   }
 
+  /**
+   * Counts the running queries on the target database which carry a label whose identifier ends with the specified suffix,
+   * e.g., the taskId labels of all tasked steps, which are named "{stepId}#taskId".
+   * Only the queries of sessions that are visible to the current database role are counted.
+   *
+   * @param labelIdentifierSuffix The suffix of the label identifiers to count
+   * @param timeoutSeconds The timeout of this query in seconds
+   * @return The number of running queries carrying such a label
+   */
+  public static int countRunningWithLabelSuffix(DataSourceProvider dataSourceProvider, boolean useReplica,
+      String labelIdentifierSuffix, int timeoutSeconds) throws SQLException {
+    //NOTE: The labels are matched as text, so that a query with an unparsable (e.g., truncated) labels comment does not fail the count
+    return new SQLQuery("""
+        SELECT count(1) AS running
+          FROM pg_stat_activity
+         WHERE state = 'active'
+           AND pid != pg_backend_pid()
+           AND strpos(query, '/*labels(') > 0
+           AND strpos(query, #{labelIdentifierSuffix}) > 0
+        """)
+        .withNamedParameter("labelIdentifierSuffix", labelIdentifierSuffix + "\":")
+        .withTimeout(timeoutSeconds)
+        .withLoggingEnabled(false)
+        .run(dataSourceProvider, rs -> rs.next() ? rs.getInt("running") : 0, useReplica);
+  }
+
   private static SQLQuery buildLabelValuesQuery(Set<String> labelValues) {
     if (labelValues == null || labelValues.isEmpty())
       return new SQLQuery("SELECT NULL::text AS label_value WHERE FALSE");
