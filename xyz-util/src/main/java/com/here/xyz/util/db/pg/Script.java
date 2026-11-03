@@ -251,11 +251,14 @@ public class Script {
   private SQLQuery buildInstallationStatement(String targetSchema, boolean versioned) throws IOException {
     SQLQuery scriptContent = loadSubstitutedScriptContent();
     List<SQLQuery> installationQueries = new ArrayList<>();
-    if (!versioned) {
-      //TODO: Remove following workaround once "drop schema cascade"-bug creating orphaned functions is fixed in postgres
+    //Before reinstalling the unversioned schema, all functions in it are dropped, so that functions removed from the script do not
+    //linger. The drop cascades, so objects that depend on one of these functions are dropped too, also outside the schema (e.g., a
+    //trigger calling one of them). The schema and its other objects are kept on purpose: the schema can hold objects the script did
+    //not create (e.g., an extension registered in it, a table or a materialized view), and DROP SCHEMA ... CASCADE would drop them
+    //together with every object outside the schema that depends on them. The script's own types are created only if missing, so a
+    //changed type definition is not applied to this schema and needs its own migration.
+    if (!versioned)
       installationQueries.add(buildDeleteFunctionsLoop(targetSchema));
-      installationQueries.add(buildDeleteSchemaQuery(getTargetSchema(targetSchema)));
-    }
     installationQueries.addAll(List.of(buildCreateSchemaQuery(targetSchema), buildSetCurrentSearchPathQuery(targetSchema),
         buildHashFunctionQuery(), buildVersionFunctionQuery(), scriptContent));
 
@@ -353,11 +356,6 @@ public class Script {
 
   private SQLQuery buildCreateSchemaQuery(String schemaName) {
     return new SQLQuery("CREATE SCHEMA IF NOT EXISTS ${schema}")
-        .withVariable("schema", schemaName);
-  }
-
-  private SQLQuery buildDeleteSchemaQuery(String schemaName) {
-    return new SQLQuery("DROP SCHEMA IF EXISTS ${schema} CASCADE")
         .withVariable("schema", schemaName);
   }
 

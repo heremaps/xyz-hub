@@ -27,6 +27,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertAll;
 
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
@@ -177,6 +178,37 @@ public class ScriptInstallerIT extends SQLITBase {
           .withNamedParameter("schema", schema)
           .withNamedParameter("functionName", functionName)
           .run(dsp, rs -> rs.next() ? rs.getInt(1) : -1);
+    }
+  }
+
+  private static long schemaOid(String schema) throws SQLException {
+    try (SingleConnectionDataSources dsp = newProvider()) {
+      return new SQLQuery("SELECT oid FROM pg_namespace WHERE nspname = #{schema}")
+          .withNamedParameter("schema", schema)
+          .run(dsp, rs -> rs.next() ? rs.getLong(1) : -1L);
+    }
+  }
+
+  /**
+   * @return The tables, materialized views, views and composite types of both schemas with their kind and columns, sorted
+   */
+  private static List<String> listRelations(String schema, String otherSchema) throws SQLException {
+    try (SingleConnectionDataSources dsp = newProvider()) {
+      return new SQLQuery("""
+          SELECT n.nspname || '.' || c.relname || ' ' || c.relkind::text || ' (' || coalesce((SELECT string_agg(a.attname || ' '
+              || format_type(a.atttypid, a.atttypmod), ', ' ORDER BY a.attnum) FROM pg_attribute a
+              WHERE a.attrelid = c.oid AND a.attnum > 0 AND NOT a.attisdropped), '') || ')'
+            FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE n.nspname IN (#{schema}, #{otherSchema}) AND c.relkind IN ('r', 'm', 'v', 'c')
+          """)
+          .withNamedParameter("schema", schema)
+          .withNamedParameter("otherSchema", otherSchema)
+          .run(dsp, rs -> {
+            List<String> relations = new ArrayList<>();
+            while (rs.next())
+              relations.add(rs.getString(1));
+            return relations.stream().sorted().toList();
+          });
     }
   }
 
@@ -494,6 +526,67 @@ public class ScriptInstallerIT extends SQLITBase {
     assertEquals(List.of(prefix + ".functions"), listSchemas(prefix));
     assertEquals("Hello, TestUser", callFunction(prefix + ".functions"));
     assertEquals(1, countFunctions(prefix + ".functions", "mytestfunction"));
+  }
+
+  @Test
+  public void reinstallKeepsTheUnversionedSchemaAndObjectsTheScriptDidNotCreate() throws Exception {
+    String prefix = newPrefix();
+    String schema = prefix + ".functions";
+    //Not covered by the prefix cleanup, which only drops the schemas "<prefix>.*"
+    String outsideSchema = prefix + "_outside";
+    try {
+      assertEquals(VERIFIED, checkAndInstall(FUNCTIONS_0, null, prefix).state());
+      long schemaOid = schemaOid(schema);
+
+      //Objects in the script schema which the script did not create, and objects outside of it which depend on them
+      try (SingleConnectionDataSources dsp = newProvider()) {
+        for (String statement : List.of(
+            "CREATE TABLE ${schema}.foreign_table (id int)",
+            "INSERT INTO ${schema}.foreign_table VALUES (1)",
+            "CREATE MATERIALIZED VIEW ${schema}.foreign_mv AS SELECT id FROM ${schema}.foreign_table",
+            "CREATE TYPE ${schema}.foreign_type AS (a int)",
+            "CREATE SCHEMA ${outsideSchema}",
+            "CREATE TABLE ${outsideSchema}.dependent_table (v ${schema}.foreign_type, w ${schema}.foreign_type[])",
+            "INSERT INTO ${outsideSchema}.dependent_table VALUES (ROW(1), ARRAY[ROW(2)::${schema}.foreign_type])",
+            "CREATE VIEW ${outsideSchema}.dependent_view AS SELECT id FROM ${schema}.foreign_table"))
+          new SQLQuery(statement).withVariable("schema", schema).withVariable("outsideSchema", outsideSchema).write(dsp);
+      }
+      List<String> relations = listRelations(schema, outsideSchema);
+      String quotedSchema = "\"" + schema + "\"";
+      assertEquals(List.of(
+          schema + ".foreign_mv m (id integer)",
+          schema + ".foreign_table r (id integer)",
+          schema + ".foreign_type c (a integer)",
+          outsideSchema + ".dependent_table r (v " + quotedSchema + ".foreign_type, w " + quotedSchema + ".foreign_type[])",
+          outsideSchema + ".dependent_view v (id integer)"), relations);
+
+      //Changed content with the same script ID, so the unversioned schema gets reinstalled
+      assertEquals(VERIFIED, checkAndInstall(FUNCTIONS_2, null, prefix).state());
+
+      //All checks run, so a failure reports everything the reinstallation dropped
+      assertAll(
+          () -> assertEquals("The new content must be installed", "Hello, TestUser", callFunction(schema)),
+          () -> assertEquals(1, countFunctions(schema, "mytestfunction")),
+          () -> assertEquals("The unversioned schema must not be dropped", schemaOid, schemaOid(schema)),
+          () -> assertEquals("No object in or outside the schema must be dropped or lose a column", relations,
+              listRelations(schema, outsideSchema)),
+          () -> {
+            try (SingleConnectionDataSources dsp = newProvider()) {
+              assertEquals("The rows in and outside the schema must be kept", "1 1 1 1", new SQLQuery("""
+                  SELECT (SELECT count(*) FROM ${schema}.foreign_table) || ' ' || (SELECT count(*) FROM ${schema}.foreign_mv) || ' '
+                      || (SELECT count(v) || ' ' || count(w) FROM ${outsideSchema}.dependent_table)
+                  """)
+                  .withVariable("schema", schema)
+                  .withVariable("outsideSchema", outsideSchema)
+                  .run(dsp, rs -> rs.next() ? rs.getString(1) : null));
+            }
+          });
+    }
+    finally {
+      try (SingleConnectionDataSources dsp = newProvider()) {
+        new SQLQuery("DROP SCHEMA IF EXISTS ${schema} CASCADE").withVariable("schema", outsideSchema).write(dsp);
+      }
+    }
   }
 
   private static class CapturingAppender extends AbstractAppender {

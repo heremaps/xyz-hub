@@ -10,3 +10,8 @@ it has changes in the current software version 1.0.1:
 
 - common:1.0.1
 - common
+
+When changed content is installed into the "latest" schema, all functions in that schema are dropped first, with CASCADE,
+so objects that depend on one of them are dropped too, also outside the schema. Then the script's functions are created
+again. The schema and its other objects are kept. The scripts create their types only if they are missing, so a changed
+type definition is not applied to the "latest" schema and needs its own migration there.
