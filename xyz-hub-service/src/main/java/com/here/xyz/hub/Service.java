@@ -22,6 +22,7 @@ package com.here.xyz.hub;
 import com.here.xyz.hub.cache.CacheClient;
 import com.here.xyz.hub.cache.InMemoryCacheClient;
 import com.here.xyz.hub.cache.MultiLevelCacheClient;
+import com.here.xyz.hub.cache.QueryTimeoutCache;
 import com.here.xyz.hub.cache.RedisCacheClient;
 import com.here.xyz.hub.cache.S3CacheClient;
 import com.here.xyz.hub.config.BranchConfigClient;
@@ -151,6 +152,11 @@ public class Service extends Core {
   public static CacheClient staticCacheClient;
 
   /**
+   * The markers of queries which timed out in the database repeatedly.
+   */
+  public static QueryTimeoutCache queryTimeoutCache;
+
+  /**
    * The node's MessageBroker which is used to send AdminMessages.
    */
   public static MessageBroker messageBroker;
@@ -212,6 +218,8 @@ public class Service extends Core {
   private static Future<JsonObject> initializeClients(JsonObject config) {
     volatileCacheClient = new MultiLevelCacheClient(InMemoryCacheClient.getInstance(), RedisCacheClient.getInstance());
     staticCacheClient = new MultiLevelCacheClient(InMemoryCacheClient.getInstance(), S3CacheClient.getInstance());
+    //Redis only: an in-memory copy would not see that another node removed a marker
+    queryTimeoutCache = new QueryTimeoutCache(RedisCacheClient.getInstance(), Core::currentTimeMillis);
     MessageBroker.getInstance().onSuccess(mb -> {
       messageBroker = mb;
       Node.initialize();

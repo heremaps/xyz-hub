@@ -298,6 +298,7 @@ public class RpcClient {
       if (context.cancelled)
         return;
       if (bytesResult.failed()) {
+        reportFailure(connector, bytesResult.cause());
         callback.handle(Future.failedFuture(bytesResult.cause()));
         return;
       }
@@ -307,6 +308,7 @@ public class RpcClient {
       parseResponse(marker, bytesResult.result(), expectBinaryResponse, r -> {
         if (r.failed()) {
           logger.warn(marker, "Error while handling the response from connector \"{}\".", connector.id, r.cause());
+          reportFailure(connector, r.cause());
           callback.handle(Future.failedFuture(r.cause()));
           return;
         }
@@ -314,6 +316,15 @@ public class RpcClient {
       });
     });
     return context;
+  }
+
+  /**
+   * Lets the query timeout cache see every failed call of the connector, so that it can pause while the connector has timeouts other than
+   * statement timeouts.
+   */
+  private static void reportFailure(Connector connector, Throwable cause) {
+    if (Service.queryTimeoutCache != null)
+      Service.queryTimeoutCache.onConnectorFailure(connector.id, cause);
   }
 
   //TODO: Remove this injection of "connectorId" connector-param when the hash of ECPS is used as cache key for any connections in the PSQL connector
@@ -420,6 +431,8 @@ public class RpcClient {
         case ILLEGAL_ARGUMENT:
           throw new HttpException(BAD_REQUEST, errorResponse.getErrorMessage(), errorResponse.getErrorDetails());
         case TIMEOUT:
+          if (StatementTimeoutException.CONNECTOR_MESSAGE.equals(errorResponse.getErrorMessage()))
+            throw new StatementTimeoutException();
           throw new DetailedHttpException("E318540");
         case EXCEPTION:
         case BAD_GATEWAY:

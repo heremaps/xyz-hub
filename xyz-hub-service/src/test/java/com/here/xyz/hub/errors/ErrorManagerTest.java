@@ -35,7 +35,14 @@ public class ErrorManagerTest {
 
   @BeforeAll
   public static void setUp() {
-    ErrorManager.loadErrors("hub-errors.json");
+    try {
+      ErrorManager.loadErrors("hub-errors.json");
+    }
+    catch (RuntimeException e) {
+      //Another test class in the same JVM loaded them already
+      if (!(e.getCause() instanceof IllegalStateException) || !e.getCause().getMessage().contains("already registered"))
+        throw e;
+    }
     Map<String, String> defaults = new HashMap<>();
     defaults.put("featureContainerResource", "TestResource");
     defaults.put("versionRef", "v1.0");
