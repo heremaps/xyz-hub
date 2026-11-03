@@ -581,6 +581,14 @@ public class DynamoJobConfigClient extends JobConfigClient {
     });
   }
 
+  @Override
+  public Future<Void> deleteStepConfigs(String jobId, List<String> stepIds) {
+    return dynamoClient.executeQueryAsync(() -> {
+      stepConfigClient.deleteSteps(jobId, stepIds);
+      return null;
+    });
+  }
+
   private void deleteResourceKeys(String jobId) {
     deleteResourceKeys(jobId, loadAllResourceKeys(jobId));
   }

@@ -192,6 +192,11 @@ public class Job implements XyzSerializable {
     }
 
     logger.info("[{}] Submitting job ...", getId());
+    //A job that was not started yet might have been submitted before, e.g., while waiting for its inputs. In that case, the stored steps of
+    //the previous compilation are replaced by the ones of this compilation. Steps of started jobs may have been executed, they are kept.
+    Set<String> replacedStepIds = getStatus().getState() == NOT_READY && getSteps() != null
+        ? getSteps().stepStream().map(Step::getId).collect(Collectors.toSet())
+        : Set.of();
     return JobCompiler.getInstance().compile(this)
         .compose(stepGraph -> {
           setSteps(stepGraph);
@@ -204,14 +209,36 @@ public class Job implements XyzSerializable {
             State previousState = getStatus().getState();
             getStatus().setState(SUBMITTED);
             return claimSubmission(previousState)
-                .compose(claimed -> claimed ? store().compose(v -> start()).map(true) : Future.succeededFuture(false));
+                .compose(claimed -> claimed
+                    ? store().compose(v -> {
+                      deleteReplacedSteps(replacedStepIds);
+                      return start();
+                    }).map(true)
+                    : Future.succeededFuture(false));
           }
           else {
             Input.clearInputsCache(getId());
             logger.info("{}: Job is not ready for submission yet. Not all pre-conditions are met.", getId());
-            return store().map(false);
+            return store().onSuccess(v -> deleteReplacedSteps(replacedStepIds)).map(false);
           }
         });
+  }
+
+  /**
+   * Deletes the stored steps of the step graph that was replaced by the newly compiled one, as the stored job does not reference them
+   * anymore. This does not delay the job and does not fail the submission, because the steps expire together with the job anyway.
+   *
+   * @param replacedStepIds The IDs of the steps of the previously compiled step graph
+   */
+  private void deleteReplacedSteps(Set<String> replacedStepIds) {
+    Set<String> currentStepIds = getSteps().stepStream().map(Step::getId).collect(Collectors.toSet());
+    List<String> obsoleteStepIds = replacedStepIds.stream().filter(stepId -> !currentStepIds.contains(stepId)).toList();
+    if (obsoleteStepIds.isEmpty())
+      return;
+
+    JobConfigClient.getInstance().deleteStepConfigs(getId(), obsoleteStepIds)
+        .onFailure(t -> logger.warn("[{}] Could not delete the {} steps of the previous compilation of the job.", getId(),
+            obsoleteStepIds.size(), t));
   }
 
   private boolean isSubmitted() {
