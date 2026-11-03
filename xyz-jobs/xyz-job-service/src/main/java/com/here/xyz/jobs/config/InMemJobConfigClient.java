@@ -251,4 +251,10 @@ public class InMemJobConfigClient extends JobConfigClient {
   public Future<Void> deleteStepConfigs(String jobId) {
     return Future.succeededFuture();
   }
+
+  @Override
+  public Future<Void> deleteStepConfigs(String jobId, List<String> stepIds) {
+    //The steps are stored as part of the job, so there are no separately stored step configs to delete
+    return Future.succeededFuture();
+  }
 }

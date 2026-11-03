@@ -204,6 +204,15 @@ public abstract class JobConfigClient implements Initializable {
    */
   public abstract Future<Void> deleteStepConfigs(String jobId);
 
+  /**
+   * Deletes only the specified separately-stored step configs of a job, e.g., the steps of a step graph that was replaced
+   * by a new compilation of the job.
+   *
+   * @param jobId the job whose step configs to delete
+   * @param stepIds the IDs of the steps to delete
+   */
+  public abstract Future<Void> deleteStepConfigs(String jobId, List<String> stepIds);
+
   /*
   TODO: Provide a more generic variant of the method #loadJobs ...
   E.g.:
