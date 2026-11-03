@@ -149,7 +149,9 @@ public class Api {
         error = XyzError.EXCEPTION;
 
       //This is an exception sent by intention and nothing special, no need for stacktrace logging.
-      logger.log(httpException.status.code() >= 500 ? Level.ERROR : Level.WARN, Api.getMarker(context),
+      //A 513 means the request hit the response size limit, so like a 4xx it is logged as a warning.
+      boolean serverError = httpException.status.code() >= 500 && httpException.status.code() != RESPONSE_PAYLOAD_TOO_LARGE.code();
+      logger.log(serverError ? Level.ERROR : Level.WARN, Api.getMarker(context),
           "Error was handled by Api and will be sent as response: {}", httpException.status.code());
       logger.info(Api.getMarker(context), "Handled exception was:", httpException);
       sendErrorResponse(context, httpException, error);
