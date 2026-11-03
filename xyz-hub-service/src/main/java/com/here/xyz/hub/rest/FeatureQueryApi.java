@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -540,6 +540,8 @@ public class FeatureQueryApi extends SpaceBasedApi {
       Geometry geometry;
       if (input instanceof Geometry) {
         geometry = (Geometry) input;
+        //Reject an oversized geometry before any work that grows with its positions
+        GeometryValidator.validateCoordinateCount(geometry);
         geometry.validate();
       } else {
         throw new HttpException(BAD_REQUEST,
@@ -556,6 +558,8 @@ public class FeatureQueryApi extends SpaceBasedApi {
       throw new HttpException(BAD_REQUEST, "Cannot read input JSON string.");
     } catch (InvalidGeometryException e) {
       throw new HttpException(BAD_REQUEST, "Geometry isn't valid!");
+    } catch (GeometryValidator.GeometryException e) {
+      throw new HttpException(BAD_REQUEST, e.getMessage());
     }
   }
 }

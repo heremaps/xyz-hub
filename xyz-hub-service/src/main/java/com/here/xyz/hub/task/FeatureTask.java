@@ -463,10 +463,15 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
 
         if (features.size() == 1) {
           Geometry geometry = features.get(0).getGeometry();
-          GeometryValidator.validateGeometry(geometry, getEvent().getRadius());
-          getEvent().setGeometry(features.get(0).getGeometry());
+          //A referenced feature without a geometry stays a 404, see verifyResourceExists
+          if (geometry != null)
+            GeometryValidator.validateGeometry(geometry, getEvent().getRadius());
+          getEvent().setGeometry(geometry);
         }
         callback.call(this);
+      }
+      catch (GeometryValidator.GeometryException e) {
+        callback.exception(new HttpException(BAD_REQUEST, e.getMessage()));
       }
       catch (Exception e) {
         callback.exception(e);
