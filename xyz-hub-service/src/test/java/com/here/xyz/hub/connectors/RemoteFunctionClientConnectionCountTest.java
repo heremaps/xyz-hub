@@ -52,10 +52,17 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.LockSupport;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
 import org.junit.jupiter.api.AfterAll;
@@ -282,6 +289,35 @@ class RemoteFunctionClientConnectionCountTest {
   }
 
   @Test
+  void cancelledCallWhoseResponseStartsAQueuedCallIsCountedOnce() {
+    TestClient client = newClient(HIGH_REQUESTER_LIMIT);
+    String requester = newRequesterId();
+
+    List<Call> running = submit(client, requester, MAX_CONNECTIONS);
+    Call cancelled = running.get(0);
+    cancelled.fc.cancel();
+    //The cancelled call freed its connection, so the next call takes it and the one after is queued
+    Call next = submit(client, requester, EMPTY);
+    Call queued = submit(client, requester, EMPTY);
+    assertTrue(client.isInFlight(next));
+    assertEquals(1, client.getQueueSize());
+    assertEquals(MAX_CONNECTIONS, client.getUsedConnections());
+    assertEquals(MAX_CONNECTIONS + 1, requesterConnections(client, requester));
+
+    //The response of the cancelled call still arrives and starts the queued call, which takes a new connection
+    client.respond(cancelled, Future.failedFuture(new HttpException(GATEWAY_TIMEOUT, "Aborted")));
+    assertTrue(client.isInFlight(queued));
+    assertTrue(cancelled.results.isEmpty(), "The cancelled call got a response");
+    assertEquals(MAX_CONNECTIONS + 1, client.getUsedConnections());
+    assertEquals(MAX_CONNECTIONS + 1, requesterConnections(client, requester));
+
+    running.subList(1, MAX_CONNECTIONS).forEach(client::respond);
+    client.respond(next);
+    client.respond(queued);
+    assertCountersAreZero(client, requester);
+  }
+
+  @Test
   void callWhoseInvocationThrowsReleasesItsConnections() {
     TestClient client = newClient(HIGH_REQUESTER_LIMIT);
     String requester = newRequesterId();
@@ -411,6 +447,80 @@ class RemoteFunctionClientConnectionCountTest {
     }
   }
 
+  @Test
+  void countersReturnToZeroAfterConcurrentResponsesCancelsAndQueueResizes() throws Exception {
+    ExecutorService responders = Executors.newFixedThreadPool(4);
+    ExecutorService submitters = Executors.newFixedThreadPool(4);
+    ExecutorService cancellers = Executors.newFixedThreadPool(2);
+    ExecutorService resizer = Executors.newSingleThreadExecutor();
+    try {
+      //Each of the two requesters may have 6 calls queued or running, so some calls also hit the requester limit
+      ConcurrentTestClient client = register(new ConcurrentTestClient(newConnector(6), responders));
+      List<String> requesters = List.of(newRequesterId(), newRequesterId());
+      int queueBytes = queueByteSize(client);
+      //Three of them fit into the queue, but only one into the queue halved by a resize
+      byte[] large = new byte[queueBytes / 3];
+      byte[] tooLarge = new byte[queueBytes + 1];
+      Map<ThrottlingReason, AtomicInteger> rejections = new ConcurrentHashMap<>();
+
+      AtomicBoolean submitting = new AtomicBoolean(true);
+      CompletableFuture<Void> resizes = CompletableFuture.runAsync(() -> {
+        while (submitting.get())
+          //Another client takes half of the global queue memory, so the queue of the client shrinks and can drop calls
+          new TestClient(newConnector(HIGH_REQUESTER_LIMIT)).destroy();
+      }, resizer);
+
+      List<CompletableFuture<Void>> submissions = new ArrayList<>();
+      for (int s = 0; s < 4; s++)
+        submissions.add(CompletableFuture.runAsync(() -> {
+          ThreadLocalRandom random = ThreadLocalRandom.current();
+          for (int i = 0; i < 1_000; i++) {
+            //Submit at about the rate of the responses, so that most calls run instead of being rejected
+            LockSupport.parkNanos(random.nextLong(50_000));
+            int kind = random.nextInt(100);
+            boolean hasPriority = kind >= 95;
+            RpcContext context = new RpcContext(client.getConnectorConfig());
+            context.setRequesterId(hasPriority ? null : requesters.get(random.nextInt(requesters.size())));
+            FunctionCall fc = client.submit(MARKER, kind < 10 ? large : kind < 12 ? tooLarge : EMPTY, false, hasPriority, r -> {
+              if (r.failed() && r.cause() instanceof TooManyRequestsException e)
+                rejections.computeIfAbsent(e.reason, reason -> new AtomicInteger()).incrementAndGet();
+            }, context);
+            //Cancel some calls while they are queued, running or already finished
+            if (random.nextInt(4) == 0)
+              cancellers.execute(() -> {
+                LockSupport.parkNanos(ThreadLocalRandom.current().nextLong(50_000));
+                fc.cancel();
+              });
+          }
+        }, submitters));
+
+      CompletableFuture.allOf(submissions.toArray(CompletableFuture[]::new)).get(60, SECONDS);
+      submitting.set(false);
+      resizes.get(60, SECONDS);
+      cancellers.shutdown();
+      assertTrue(cancellers.awaitTermination(60, SECONDS), "Cancellers did not finish");
+      client.awaitNothingInFlight();
+      //A call queued just after the last call in flight finished waits for the next response, so one more call starts the queue
+      for (int i = 0; i < 10 && client.getQueueSize() > 0; i++) {
+        client.submit(MARKER, EMPTY, false, false, r -> {}, new RpcContext(client.getConnectorConfig()));
+        client.awaitNothingInFlight();
+      }
+
+      String outcome = "Invoked calls: " + client.invoked + ", rejections: " + rejections;
+      assertTrue(client.failures.isEmpty(), () -> "Response handling failed: " + client.failures);
+      assertEquals(0, client.getQueueSize(), () -> "queued calls. " + outcome);
+      assertEquals(0, client.getUsedConnections(), () -> "used connections of the client. " + outcome);
+      for (String requester : requesters)
+        assertEquals(0, requesterConnections(client, requester), () -> "connections of the requester. " + outcome);
+    }
+    finally {
+      submitters.shutdownNow();
+      cancellers.shutdownNow();
+      resizer.shutdownNow();
+      responders.shutdownNow();
+    }
+  }
+
   private TestClient newClient(int maxConnectionsPerRequester) {
     return register(new TestClient(newConnector(maxConnectionsPerRequester)));
   }
@@ -434,7 +544,7 @@ class RemoteFunctionClientConnectionCountTest {
     return "requester-" + UUID.randomUUID();
   }
 
-  private static int queueByteSize(TestClient client) {
+  private static int queueByteSize(RemoteFunctionClient client) {
     long queueBytes = client.getMaxQueueByteSize();
     assertTrue(queueBytes > 1 && queueBytes < Integer.MAX_VALUE, "Unexpected queue byte size " + queueBytes);
     return (int) queueBytes;
@@ -459,7 +569,7 @@ class RemoteFunctionClientConnectionCountTest {
     return call;
   }
 
-  private static int requesterConnections(TestClient client, String requesterId) {
+  private static int requesterConnections(RemoteFunctionClient client, String requesterId) {
     return client.getUsedConnectionsByRequester().entrySet().stream()
         .filter(entry -> entry.getKey().endsWith("-" + requesterId))
         .mapToInt(entry -> entry.getValue().get())
@@ -520,6 +630,50 @@ class RemoteFunctionClientConnectionCountTest {
       Handler<AsyncResult<byte[]>> callback = inFlight.remove(call.fc);
       assertNotNull(callback, "The call is not in flight");
       callback.handle(response);
+    }
+  }
+
+  /**
+   * Answers every invoked call from a thread pool after a short random delay, with a success or a timeout.
+   */
+  private static class ConcurrentTestClient extends RemoteFunctionClient {
+    private final ExecutorService responders;
+    private final AtomicInteger inFlight = new AtomicInteger();
+    private final AtomicInteger invoked = new AtomicInteger();
+    private final List<Throwable> failures = new CopyOnWriteArrayList<>();
+
+    ConcurrentTestClient(Connector connector, ExecutorService responders) {
+      super(connector);
+      this.responders = responders;
+    }
+
+    @Override
+    protected void invoke(FunctionCall fc, Handler<AsyncResult<byte[]>> callback) {
+      inFlight.incrementAndGet();
+      invoked.incrementAndGet();
+      responders.execute(() -> {
+        try {
+          ThreadLocalRandom random = ThreadLocalRandom.current();
+          LockSupport.parkNanos(random.nextLong(50_000));
+          callback.handle(random.nextInt(4) == 0 ? Future.failedFuture(new HttpException(GATEWAY_TIMEOUT, "Timeout"))
+              : Future.succeededFuture(EMPTY));
+        }
+        catch (Throwable t) {
+          failures.add(t);
+        }
+        finally {
+          //The handler starts the next queued call before this decrement, so the count only reaches 0 once nothing is in flight
+          inFlight.decrementAndGet();
+        }
+      });
+    }
+
+    private void awaitNothingInFlight() throws InterruptedException {
+      long deadline = System.nanoTime() + SECONDS.toNanos(60);
+      while (inFlight.get() > 0) {
+        assertTrue(System.nanoTime() < deadline, "Calls still in flight: " + inFlight.get());
+        Thread.sleep(1);
+      }
     }
   }
 }
