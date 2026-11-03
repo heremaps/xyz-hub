@@ -32,7 +32,6 @@ import org.geotools.api.referencing.operation.TransformException;
 import org.geotools.geometry.jts.JTS;
 import org.geotools.referencing.CRS;
 import org.geotools.referencing.crs.DefaultGeographicCRS;
-import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.LineString;
 import org.locationtech.jts.geom.LinearRing;
@@ -207,29 +206,16 @@ public class GeoTools {
     }
   }
 
-  public static boolean geometryCrossesDateline(com.here.xyz.models.geojson.implementation.Geometry geometry, int radius) 
-   throws NullPointerException, FactoryException, MismatchedDimensionException, TransformException
-  { 
-
-    Geometry degGeo = geometry.getJTSGeometry();
-
-    if (radius > 0) {
-      MathTransform convertToMeter   = mathTransform("EPSG:4326", "EPSG:31300");
-      MathTransform convertFromMeter = mathTransform("EPSG:31300", "EPSG:4326");
-
-      Geometry mtrGeo = JTS.transform( degGeo, convertToMeter );
-      mtrGeo = mtrGeo.buffer(radius);
-      degGeo = JTS.transform(mtrGeo, convertFromMeter);
-    }
-
-    Envelope envelope = degGeo.getEnvelopeInternal();
-
-    boolean r1 = envelope.intersects( 179.999995, envelope.centre().y),
-            r2 = envelope.intersects(-179.999995, envelope.centre().y),
-            r3 = ( envelope.getMinX() * envelope.getMaxX() ) < 0;
-    
-    return (r1 || r2) && r3; 
- }
+  /**
+   * Checks whether the geometry, buffered by the radius in meters, crosses the antimeridian. Works on the GeoJSON positions only, without
+   * a projection or a buffer. The declared exceptions are kept for source compatibility, none of them is thrown.
+   *
+   * @see GeometryValidator#crossesAntimeridian(com.here.xyz.models.geojson.implementation.Geometry, int)
+   */
+  public static boolean geometryCrossesDateline(com.here.xyz.models.geojson.implementation.Geometry geometry, int radius)
+      throws NullPointerException, FactoryException, MismatchedDimensionException, TransformException {
+    return GeometryValidator.crossesAntimeridian(geometry, radius);
+  }
 
   /**
    * Computes the MathTransform objects required to transform between the given geometry's coordinate reference system (CRS)
