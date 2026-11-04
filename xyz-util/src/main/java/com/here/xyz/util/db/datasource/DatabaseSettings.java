@@ -628,6 +628,14 @@ public class DatabaseSettings extends Payload {
         return SCRIPT_CHECK_RETRY_AFTER.get(settingsId);
     }
 
+    /**
+     * Ends the retry interval after a transient failure for the provided settings ID now, if there is one.
+     * Only to be used by tests.
+     */
+    static void expireScriptCheckRetry(String settingsId) {
+        SCRIPT_CHECK_RETRY_AFTER.computeIfPresent(settingsId, (id, retryAfter) -> System.currentTimeMillis());
+    }
+
 
     /**
      * Provides the settings to be used for the connection that checks & installs the SQL scripts.
