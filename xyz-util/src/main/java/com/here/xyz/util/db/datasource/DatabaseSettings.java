@@ -33,6 +33,7 @@ import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.IntSupplier;
 import org.apache.logging.log4j.LogManager;
@@ -54,6 +55,11 @@ public class DatabaseSettings extends Payload {
      * The time per settings ID before which no script check is done after a transient failure
      */
     private static final Map<String, Long> SCRIPT_CHECK_RETRY_AFTER = new ConcurrentHashMap<>();
+    /**
+     * The IDs of the scripts per settings ID and software version, whose installation failed with a permanent error in a check that
+     * still has to be retried because of a transient failure. The retries do not attempt them again.
+     */
+    private static final Map<String, Set<String>> PERMANENTLY_FAILED_SCRIPTS = new ConcurrentHashMap<>();
     private volatile boolean initialized = false;
 
     /**
@@ -552,9 +558,10 @@ public class DatabaseSettings extends Payload {
 
         FunctionRuntime runtime = FunctionRuntime.getInstance();
         String softwareVersion = runtime == null ? null : runtime.getSoftwareVersion();
-        List<String> scriptSchemas = RESOLVED_SCRIPT_SCHEMAS.get(getId() + "|" + softwareVersion);
+        String checkKey = getId() + "|" + softwareVersion;
+        List<String> scriptSchemas = RESOLVED_SCRIPT_SCHEMAS.get(checkKey);
         if (scriptSchemas == null)
-            scriptSchemas = checkAndInstallScripts(softwareVersion, runtime == null ? null : runtime::getRemainingTime);
+            scriptSchemas = checkAndInstallScripts(checkKey, softwareVersion, runtime == null ? null : runtime::getRemainingTime);
 
         List<String> extendedSearchPath = new ArrayList<>(getSearchPath() == null ? List.of() : getSearchPath());
         extendedSearchPath.addAll(scriptSchemas);
@@ -562,7 +569,7 @@ public class DatabaseSettings extends Payload {
         setSearchPath(extendedSearchPath);
     }
 
-    private List<String> checkAndInstallScripts(String softwareVersion, IntSupplier remainingMillis) {
+    private List<String> checkAndInstallScripts(String checkKey, String softwareVersion, IntSupplier remainingMillis) {
         Long retryAfter = SCRIPT_CHECK_RETRY_AFTER.get(getId());
         if (retryAfter != null && System.currentTimeMillis() < retryAfter) {
             logger.info("Skipping the script check for connector {} until {} after a transient failure.", getId(), retryAfter);
@@ -573,14 +580,15 @@ public class DatabaseSettings extends Payload {
         try (SingleConnectionDataSources dataSourceProvider = new SingleConnectionDataSources(getScriptInstallationSettings(),
             getScriptCheckTimeoutSeconds(), getScriptInstallTimeoutSeconds() + 5)) {
             List<Script> scripts = loadScripts(dataSourceProvider, softwareVersion);
+            Set<String> permanentlyFailedScripts = PERMANENTLY_FAILED_SCRIPTS.getOrDefault(checkKey, Set.of());
             Outcome outcome;
             try {
                 outcome = ScriptInstaller.checkAndInstall(scripts, dataSourceProvider, softwareVersion, SCRIPT_VERSIONS_TO_KEEP,
-                    getScriptInstallTimeoutSeconds(), remainingMillis);
+                    getScriptInstallTimeoutSeconds(), remainingMillis, permanentlyFailedScripts);
             }
             catch (RuntimeException e) {
                 logger.error("Error checking / installing scripts.", e);
-                outcome = new Outcome(ScriptInstaller.State.TRANSIENT, null, 0, null);
+                outcome = new Outcome(ScriptInstaller.State.TRANSIENT, null, 0, null, permanentlyFailedScripts);
             }
 
             if (outcome.snapshot() != null)
@@ -588,13 +596,19 @@ public class DatabaseSettings extends Payload {
 
             if (outcome.state() == ScriptInstaller.State.TRANSIENT) {
                 SCRIPT_CHECK_RETRY_AFTER.put(getId(), System.currentTimeMillis() + SCRIPT_CHECK_RETRY_INTERVAL_MS);
+                //The retry must not repeat the installations that failed permanently
+                if (outcome.permanentlyFailedScripts().isEmpty())
+                    PERMANENTLY_FAILED_SCRIPTS.remove(checkKey);
+                else
+                    PERMANENTLY_FAILED_SCRIPTS.put(checkKey, outcome.permanentlyFailedScripts());
                 //Fall back to the newest installed versions of the last snapshot that could be loaded, if any
                 return outcome.snapshot() != null ? outcome.schemas()
                     : ScriptInstaller.resolveSchemas(scripts, softwareVersion, LAST_SCRIPT_SNAPSHOT.get(getId()));
             }
 
             SCRIPT_CHECK_RETRY_AFTER.remove(getId());
-            RESOLVED_SCRIPT_SCHEMAS.put(getId() + "|" + softwareVersion, outcome.schemas());
+            PERMANENTLY_FAILED_SCRIPTS.remove(checkKey);
+            RESOLVED_SCRIPT_SCHEMAS.put(checkKey, outcome.schemas());
             return outcome.schemas();
         }
     }
@@ -618,6 +632,7 @@ public class DatabaseSettings extends Payload {
         RESOLVED_SCRIPT_SCHEMAS.clear();
         LAST_SCRIPT_SNAPSHOT.clear();
         SCRIPT_CHECK_RETRY_AFTER.clear();
+        PERMANENTLY_FAILED_SCRIPTS.clear();
     }
 
     /**

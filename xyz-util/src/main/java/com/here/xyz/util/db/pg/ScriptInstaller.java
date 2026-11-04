@@ -30,10 +30,12 @@ import java.io.IOException;
 import java.sql.SQLException;
 import java.sql.SQLTimeoutException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.IntSupplier;
+import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -71,11 +73,13 @@ public class ScriptInstaller {
      */
     VERIFIED,
     /**
-     * The schema of at least one script is missing and its installation failed with an error that is not expected to go away.
+     * The schema of at least one script is missing, and the installation of each missing schema failed with an error that is not
+     * expected to go away, in this check or in an earlier one.
      */
     PERMANENT,
     /**
-     * The check or an installation failed with an error that may go away (e.g., a connection error or a timeout).
+     * The check failed with an error that may go away (e.g., a connection error or a timeout), or at least one missing schema did not
+     * fail with a permanent error: its installation failed with an error that may go away or was not attempted.
      */
     TRANSIENT
   }
@@ -85,8 +89,11 @@ public class ScriptInstaller {
    * @param schemas The schema for each script to be used in the search path, in the order of the scripts
    * @param statements The number of statements that were executed
    * @param snapshot The latest snapshot of the installed schemas, <code>null</code> if no snapshot could be loaded
+   * @param permanentlyFailedScripts The IDs of the scripts whose missing schema failed to install with a permanent error in this check
+   *  or in an earlier one. A later check of the same software version should pass them, so that it does not attempt them again.
    */
-  public record Outcome(State state, List<String> schemas, int statements, InstalledScripts snapshot) {}
+  public record Outcome(State state, List<String> schemas, int statements, InstalledScripts snapshot,
+      Set<String> permanentlyFailedScripts) {}
 
   private ScriptInstaller() {}
 
@@ -99,11 +106,14 @@ public class ScriptInstaller {
    * @param versionsToKeep The number of the newest versions to keep per script
    * @param installTimeoutSeconds The statement and lock timeout for each install and uninstall statement
    * @param remainingMillis Provides the remaining time of the invocation, <code>null</code> if there is no limit
+   * @param permanentlyFailedScripts The IDs of the scripts that failed with a permanent error in an earlier check of the same software
+   *  version (see {@link Outcome#permanentlyFailedScripts()}). They are not installed again.
    * @return The outcome of the check
    */
   public static Outcome checkAndInstall(List<Script> scripts, DataSourceProvider dataSourceProvider, String softwareVersion,
-      int versionsToKeep, int installTimeoutSeconds, IntSupplier remainingMillis) {
-    return new Check(scripts, dataSourceProvider, softwareVersion, versionsToKeep, installTimeoutSeconds, remainingMillis).run();
+      int versionsToKeep, int installTimeoutSeconds, IntSupplier remainingMillis, Set<String> permanentlyFailedScripts) {
+    return new Check(scripts, dataSourceProvider, softwareVersion, versionsToKeep, installTimeoutSeconds, remainingMillis,
+        permanentlyFailedScripts).run();
   }
 
   /**
@@ -154,12 +164,12 @@ public class ScriptInstaller {
     private boolean ddlExecuted;
     /**
      * The scripts whose target schema (the versioned one if there is a version, the unversioned one otherwise) failed to install
-     * with a permanent error
+     * with a permanent error, in this check or in an earlier one
      */
     private final Set<Script> permanentlyFailedTargets = new HashSet<>();
 
     private Check(List<Script> scripts, DataSourceProvider dataSourceProvider, String softwareVersion, int versionsToKeep,
-        int installTimeoutSeconds, IntSupplier remainingMillis) {
+        int installTimeoutSeconds, IntSupplier remainingMillis, Set<String> permanentlyFailedScripts) {
       this.scripts = scripts;
       this.dataSourceProvider = dataSourceProvider;
       this.softwareVersion = softwareVersion;
@@ -167,13 +177,15 @@ public class ScriptInstaller {
       this.installTimeoutSeconds = Math.max(1, installTimeoutSeconds);
       this.remainingMillis = remainingMillis;
       dbId = dataSourceProvider.getDatabaseSettings() == null ? "unknown" : dataSourceProvider.getDatabaseSettings().getId();
+      if (permanentlyFailedScripts != null)
+        scripts.stream().filter(script -> permanentlyFailedScripts.contains(script.getScriptId())).forEach(permanentlyFailedTargets::add);
     }
 
     private Outcome run() {
       InstalledScripts snapshot = loadSnapshot();
       if (snapshot == null)
-        //A failing check never leads to an installation
-        return finish(TRANSIENT, null);
+        //A failing check never leads to an installation. Without a snapshot, the earlier permanent failures are kept.
+        return finish(TRANSIENT, null, scriptIds(permanentlyFailedTargets));
 
       installMissingSchemas(snapshot);
 
@@ -181,18 +193,33 @@ public class ScriptInstaller {
       if (ddlExecuted) {
         //The re-check must run with the timeout of the check, not with the one of the install statements
         if (!resetDdlTimeouts())
-          return finish(TRANSIENT, snapshot);
+          return finish(TRANSIENT, snapshot, permanentlyFailedScripts(missingTargets(snapshot)));
         finalSnapshot = loadSnapshot();
         if (finalSnapshot == null)
-          return finish(TRANSIENT, snapshot);
+          return finish(TRANSIENT, snapshot, permanentlyFailedScripts(missingTargets(snapshot)));
       }
 
       List<Script> missingTargets = missingTargets(finalSnapshot);
       if (missingTargets.isEmpty())
-        return finish(VERIFIED, cleanup(finalSnapshot));
+        return finish(VERIFIED, cleanup(finalSnapshot), Set.of());
       //Only a permanent error on a missing target itself is permanent. E.g., an error while rewriting the unversioned schema of a
       //script whose versioned schema exists must not keep another script's transient miss for the lifetime of the JVM.
-      return finish(missingTargets.stream().anyMatch(permanentlyFailedTargets::contains) ? PERMANENT : TRANSIENT, finalSnapshot);
+      //Any missing target without a permanent error keeps the whole check retryable. The retry gets the scripts that failed
+      //permanently and does not attempt them again.
+      Set<String> permanentlyFailedScripts = permanentlyFailedScripts(missingTargets);
+      return finish(permanentlyFailedScripts.size() == missingTargets.size() ? PERMANENT : TRANSIENT, finalSnapshot,
+          permanentlyFailedScripts);
+    }
+
+    /**
+     * @return The IDs of the provided missing targets which failed with a permanent error, in this check or in an earlier one
+     */
+    private Set<String> permanentlyFailedScripts(List<Script> missingTargets) {
+      return scriptIds(missingTargets.stream().filter(permanentlyFailedTargets::contains).toList());
+    }
+
+    private static Set<String> scriptIds(Collection<Script> scripts) {
+      return scripts.stream().map(Script::getScriptId).collect(Collectors.toUnmodifiableSet());
     }
 
     private InstalledScripts loadSnapshot() {
@@ -221,6 +248,12 @@ public class ScriptInstaller {
         }
         if (!needsInstallation)
           continue;
+        if (permanentlyFailedTargets.contains(script)) {
+          //A permanently failing installation is not repeated with every retry of another script's transient failure
+          logger.info("Skipping the installation of script {} on DB {} after a permanent error in an earlier check.",
+              script.getScriptName(), dbId);
+          continue;
+        }
 
         //Install the versioned schema first, then the unversioned one. If the versioned one fails, skip the unversioned one.
         boolean versionedFailed = false;
@@ -361,16 +394,16 @@ public class ScriptInstaller {
       return result;
     }
 
-    private Outcome finish(State state, InstalledScripts snapshot) {
+    private Outcome finish(State state, InstalledScripts snapshot, Set<String> permanentlyFailedScripts) {
       List<String> schemas = resolveSchemas(scripts, softwareVersion, snapshot);
       long duration = System.currentTimeMillis() - start;
       if (state == VERIFIED)
         logger.info("Script check on DB {} for version {}: {} in {} ms with {} statements, schemas: {}", dbId, softwareVersion, state,
             duration, statements, schemas);
       else
-        logger.warn("Script check on DB {} for version {}: {} in {} ms with {} statements, schemas: {}", dbId, softwareVersion, state,
-            duration, statements, schemas);
-      return new Outcome(state, schemas, statements, snapshot);
+        logger.warn("Script check on DB {} for version {}: {} in {} ms with {} statements, schemas: {}, permanently failed scripts: {}",
+            dbId, softwareVersion, state, duration, statements, schemas, permanentlyFailedScripts);
+      return new Outcome(state, schemas, statements, snapshot, permanentlyFailedScripts);
     }
   }
 }

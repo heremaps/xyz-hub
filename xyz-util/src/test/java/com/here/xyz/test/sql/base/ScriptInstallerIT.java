@@ -127,7 +127,7 @@ public class ScriptInstallerIT extends SQLITBase {
   private static Outcome checkAndInstall(DataSourceProvider dsp, String resource, String version, String prefix, int installTimeoutSeconds,
       int versionsToKeep, IntSupplier remainingMillis) {
     return ScriptInstaller.checkAndInstall(List.of(new Script(resource, dsp, version, prefix)), dsp, version, versionsToKeep,
-        installTimeoutSeconds, remainingMillis);
+        installTimeoutSeconds, remainingMillis, Set.of());
   }
 
   private static Outcome checkAndInstall(String resource, String version, String prefix) {
@@ -402,6 +402,7 @@ public class ScriptInstallerIT extends SQLITBase {
     Outcome outcome = checkAndInstall(FUNCTIONS_BROKEN, "1.0.1", prefix);
 
     assertEquals(PERMANENT, outcome.state());
+    assertEquals(Set.of(prefix + ".functions"), outcome.permanentlyFailedScripts());
     assertEquals(List.of(prefix + ".functions:1.0.0"), outcome.schemas());
     assertEquals(List.of(prefix + ".functions", prefix + ".functions:1.0.0"), listSchemas(prefix));
     assertEquals("The unversioned schema must not be rewritten after the versioned one failed", "1.0.0",
@@ -431,7 +432,7 @@ public class ScriptInstallerIT extends SQLITBase {
       try (SingleConnectionDataSources dsp = newProvider()) {
         List<Script> scripts = List.of(new Script(FUNCTIONS_2, dsp, "1.0.1", rewriteFailsPrefix),
             new Script(SQL_SAMPLES, dsp, "1.0.1", lockedPrefix));
-        outcome = ScriptInstaller.checkAndInstall(scripts, dsp, "1.0.1", VERSIONS_TO_KEEP, 1, null);
+        outcome = ScriptInstaller.checkAndInstall(scripts, dsp, "1.0.1", VERSIONS_TO_KEEP, 1, null, Set.of());
       }
       LockHelper.advisoryUnlock(lockedSchema, lockConnection);
     }
@@ -449,6 +450,56 @@ public class ScriptInstallerIT extends SQLITBase {
             .count());
     assertEquals("Only the failed installation of a missing target may be permanent", TRANSIENT, outcome.state());
     assertEquals(List.of(rewriteFailsPrefix + ".functions:1.0.1", lockedPrefix + ".functions"), outcome.schemas());
+    assertEquals("The script whose target exists must be attempted again by the retry", Set.of(), outcome.permanentlyFailedScripts());
+  }
+
+  private static Outcome checkBrokenAndLocked(String brokenPrefix, String lockedPrefix, Set<String> permanentlyFailedScripts) {
+    try (SingleConnectionDataSources dsp = newProvider()) {
+      List<Script> scripts = List.of(new Script(FUNCTIONS_BROKEN, dsp, "1.0.1", brokenPrefix),
+          new Script(SQL_SAMPLES, dsp, "1.0.1", lockedPrefix));
+      return ScriptInstaller.checkAndInstall(scripts, dsp, "1.0.1", VERSIONS_TO_KEEP, 1, null, permanentlyFailedScripts);
+    }
+  }
+
+  @Test
+  public void permanentlyFailedScriptIsNotAttemptedAgainWhenATransientFailureIsRetried() throws Exception {
+    String brokenPrefix = newPrefix();
+    String lockedPrefix = newPrefix();
+    String brokenSchema = brokenPrefix + ".functions:1.0.1";
+    String lockedSchema = lockedPrefix + ".functions:1.0.1";
+
+    CapturingAppender appender = startCapturing();
+    Outcome first;
+    Outcome retry;
+    try {
+      try (SingleConnectionDataSources lockDsp = newProvider()) {
+        Connection lockConnection = lockDsp.getWriter().getConnection();
+        LockHelper.advisoryLock(lockedSchema, lockConnection);
+        first = checkBrokenAndLocked(brokenPrefix, lockedPrefix, Set.of());
+        LockHelper.advisoryUnlock(lockedSchema, lockConnection);
+      }
+      retry = checkBrokenAndLocked(brokenPrefix, lockedPrefix, first.permanentlyFailedScripts());
+    }
+    finally {
+      stopCapturing(appender);
+    }
+
+    assertEquals("The transient failure of the locked script must keep the check retryable", TRANSIENT, first.state());
+    assertEquals(Set.of(brokenPrefix + ".functions"), first.permanentlyFailedScripts());
+    assertEquals(List.of(brokenPrefix + ".functions", lockedPrefix + ".functions"), first.schemas());
+
+    assertEquals("Only the broken script is missing after the retry", PERMANENT, retry.state());
+    assertEquals(Set.of(brokenPrefix + ".functions"), retry.permanentlyFailedScripts());
+    assertEquals(List.of(brokenPrefix + ".functions", lockedSchema), retry.schemas());
+    assertEquals("Check, timeouts, versioned and unversioned schema of the locked script, timeout reset, re-check", 6,
+        retry.statements());
+    assertEquals("The broken script must be attempted only by the first check", 1,
+        appender.messages(Level.WARN, " into schema " + brokenSchema + " on DB ").stream()
+            .filter(message -> message.startsWith("Unable to install"))
+            .count());
+    assertEquals(1, countInstallations(appender.messages(Level.WARN, lockedPrefix), lockedSchema));
+    assertEquals(List.of(lockedPrefix + ".functions", lockedSchema), listSchemas(lockedPrefix));
+    assertEquals(List.of(), listSchemas(brokenPrefix));
   }
 
   @Test
