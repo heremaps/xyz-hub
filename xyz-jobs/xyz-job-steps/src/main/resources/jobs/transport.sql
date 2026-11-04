@@ -1830,8 +1830,9 @@ BEGIN
                        (%3$s::NUMERIC * 1024 * 1024)::BIGINT AS target_bytes
             ),
             ordered AS (
+                --jsondata stays TEXT here, it is only parsed for the selected rows (octet_length() does not detoast it)
                 SELECT i,
-                       jsondata::jsonb AS feature,
+                       jsondata,
                        octet_length(jsondata) AS feature_bytes,
                        SUM(octet_length(jsondata)) OVER (ORDER BY i) AS running_bytes
                   FROM (
@@ -1852,14 +1853,17 @@ BEGIN
                  WHERE o.running_bytes <= p.target_bytes
             ),
             first_row AS (
-                SELECT o.i, o.feature_bytes, (o.feature->>'id') AS feature_id
-                  FROM ordered o
-                 ORDER BY o.i
+                --The first remaining row, read on its own, so that only this row is parsed for the ID in the error message
+                SELECT i, octet_length(jsondata) AS feature_bytes, (jsondata::jsonb->>'id') AS feature_id
+                  FROM %1$s
+                 WHERE jsondata IS NOT NULL
+                   AND i >= %2$s
+                 ORDER BY i
                  LIMIT 1
             )
             SELECT jsonb_build_object(
                        'type', 'FeatureCollection',
-                       'features', COALESCE(jsonb_agg(s.feature ORDER BY s.i), '[]'::jsonb)
+                       'features', COALESCE(jsonb_agg(s.jsondata::jsonb ORDER BY s.i), '[]'::jsonb)
                    )::text as feature_collection,
                    COALESCE(COUNT(s.i), 0)::INT as pulled_count,
                    COALESCE(SUM(s.feature_bytes), 0)::BIGINT as pulled_bytes,
