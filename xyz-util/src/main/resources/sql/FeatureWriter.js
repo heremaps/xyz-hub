@@ -672,11 +672,13 @@ class FeatureWriter {
    * Whether a deletion without conflict detection can check the existence of the feature within its write
    * (see DatabaseWriter.deleteHeadWithHistoryRow()) instead of loading the feature before.
    * That is possible for a single table in OLD_LAYOUT, where an existing feature always gets a D row, if a missing feature is
-   * not written at all (onNotExists RETAIN or ERROR).
+   * retained (onNotExists RETAIN), as by the imports of deleted features.
+   * NOTE: Not for onNotExists ERROR: The write only finds out at its execution whether the feature exists, so a missing feature
+   * would fail a batch-mode write later than now, and the second of two deletions of the same feature in one batch would fail.
    */
   _canDeleteWithoutLoading() {
     return this._isDeletionWithoutConflictDetection()
-        && (this.onNotExists == "RETAIN" || this.onNotExists == "ERROR")
+        && this.onNotExists == "RETAIN"
         && this.tables.length == 1
         && this.tableBoundVersions[0] == null
         && this.context != "SUPER"
@@ -692,7 +694,7 @@ class FeatureWriter {
     this.operation = "D";
     this._transformToDeletedFeature();
     return FeatureWriter.dbWriter.deleteHeadWithHistoryRow(this.inputFeature, this.version - this.tableBaseVersions.at(-1),
-        this.author, this.onNotExists == "ERROR");
+        this.author);
   }
 
   /**

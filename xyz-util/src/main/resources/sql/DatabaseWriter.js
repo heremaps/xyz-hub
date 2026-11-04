@@ -391,20 +391,19 @@ class DatabaseWriter {
   }
 
   /**
-   * Deletes a feature from the HEAD by writing a D row into the history, if the feature exists.
+   * Deletes a feature from the HEAD by writing a D row into the history, if the feature exists. A missing feature is retained.
    * Like insertHistoryRow() for a deletion without conflict detection, but the write itself checks whether the feature exists,
    * so it does not have to be loaded before. The D row takes over the creation timestamp of the HEAD row.
    * Only for a single table in OLD_LAYOUT.
    *
    * If nothing was written, a separate query checks whether the feature exists in HEAD:
-   *  - If it does not, nothing is written, or a FeatureNotExistsException is thrown, if requested.
+   *  - If it does not, nothing is written.
    *  - If it does, its HEAD was changed concurrently, or it has a version that is not lower than the written one. Like the unique
    *    violation that insertHistoryRow() gets in that case, the write is retried once with the next version (see _executePlan()).
    *
-   * @param {boolean} throwIfNotExists Whether to throw a FeatureNotExistsException if the feature does not exist
    * @returns {FeatureModificationExecutionResult}
    */
-  deleteHeadWithHistoryRow(inputFeature, version, author, throwIfNotExists) {
+  deleteHeadWithHistoryRow(inputFeature, version, author) {
     this.enrichTimestamps(inputFeature);
 
     const sql = `WITH head AS (
@@ -444,8 +443,6 @@ class DatabaseWriter {
             author);
       if (this._headExists(id))
         throw this._headConflict(id);
-      if (throwIfNotExists)
-        this._throwFeatureNotExistsError(id);
       return null;
     });
     this.queryOptions[method].push({
