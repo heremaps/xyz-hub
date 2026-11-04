@@ -19,6 +19,7 @@
 
 package com.here.xyz.psql.query.helpers;
 
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.HEAD_TABLE_SUFFIX;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SCHEMA;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.TABLE;
 
@@ -37,15 +38,25 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 
 public class GetIndexList extends QueryRunner<String, List<String>> {
   private static final Integer BIG_SPACE_THRESHOLD = 10000;
   private static final Map<String, IndexList> cachedIndices = new HashMap<>();
   private String tableName;
+  private List<String> baseTables;
+  private String cacheKey;
 
-  public GetIndexList(String tableName) throws SQLException, ErrorResponseException {
+  /**
+   * @param tableName The table of the space
+   * @param baseTables The tables of the spaces the space extends (empty if the space is not a composite space)
+   */
+  public GetIndexList(String tableName, List<String> baseTables) throws SQLException, ErrorResponseException {
     super(tableName);
     this.tableName = tableName;
+    this.baseTables = baseTables;
+    //The base tables are part of the key, because they contribute to the row count the threshold gets checked against
+    cacheKey = String.join(",", Stream.concat(Stream.of(tableName), baseTables.stream()).toList());
   }
 
   @Override
@@ -55,7 +66,7 @@ public class GetIndexList extends QueryRunner<String, List<String>> {
     catch (NullPointerException e)
     { setDataSourceProvider(dataSourceProvider);  }  // this.dataSourceProvider must not be null in order to use "getSchema()" in buildQuery()
 
-    IndexList indexList = cachedIndices.get(tableName);
+    IndexList indexList = cachedIndices.get(cacheKey);
     if (indexList != null && indexList.expiry >= System.currentTimeMillis())
       return indexList.indices;
     return super.run(dataSourceProvider);
@@ -72,28 +83,26 @@ public class GetIndexList extends QueryRunner<String, List<String>> {
           from xyz_index_list_all_available( #{schema},#{table} )
           where true and
           #{threshold} <=
-          ( select sum( coalesce( reltuples::bigint, 0 ) ) from pg_class 
-            where true
-            and relkind = 'r'
-            and relname in 
-            ( select unnest( array_remove( array[m.h_id || '_head', m.meta#>>'{extends,intermediateTable}' || '_head', m.meta#>>'{extends,extendedTable}' || '_head'], null ) ) as tbl 
-              from xyz_config.space_meta m 
-              where m.schem = #{schema} and m.h_id = #{table}
-            )
+          ( select sum( coalesce( c.reltuples::bigint, 0 ) )
+            from unnest( #{headTables}::text[] ) t(n)
+            join pg_class c on c.oid = to_regclass( format( '%I.%I', #{schema}::text, t.n ) )
+            where c.relkind = 'r'
           )
          ) o
         ),
         iindata as ( select json_agg( idx_available )::jsonb as idx_available from indata )
         select idx_available from iindata where 0 < ( select count(*) from indata )
       """
-/*      
+/*
           "SELECT coalesce(idx_available,'[]'::jsonb) as idx_available FROM " + ModifySpace.IDX_STATUS_TABLE_FQN
         + " WHERE spaceid = #{table} "
         + "  AND (select coalesce( (count->'value')::bigint, 0 ) from xyz_statistic_space(#{schema},#{table}, false)) >= #{threshold} "
-*/        
+*/
         )
         .withNamedParameter(TABLE, tableName)
         .withNamedParameter(SCHEMA, getSchema())
+        .withNamedParameter("headTables", Stream.concat(Stream.of(tableName), baseTables.stream())
+            .map(table -> table + HEAD_TABLE_SUFFIX).toArray(String[]::new))
         .withNamedParameter("threshold", BIG_SPACE_THRESHOLD);
   }
 
@@ -130,7 +139,7 @@ public class GetIndexList extends QueryRunner<String, List<String>> {
     catch (Exception e) {
       indexList = new IndexList(null);
     }
-    cachedIndices.put(tableName, indexList);
+    cachedIndices.put(cacheKey, indexList);
 
     return indexList.indices;
   }

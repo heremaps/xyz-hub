@@ -20,20 +20,34 @@
 package com.here.xyz.psql;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import com.amazonaws.util.IOUtils;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.Event;
+import com.here.xyz.events.ModifyFeaturesEvent;
+import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.models.geojson.implementation.Point;
+import com.here.xyz.models.geojson.implementation.Properties;
+import com.here.xyz.models.geojson.implementation.XyzNamespace;
+import com.here.xyz.responses.ErrorResponse;
+import com.here.xyz.responses.XyzError;
+import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.util.Random;
+import java.sql.Connection;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -335,5 +349,55 @@ public class PSQLSearchIT extends PSQLAbstractIT {
     event.put("nextPageToken", nextPageToken);
     event.remove("limit");
     invokeAndAssert(event, 3, "Tesla", "Ducati", "BikeX");
+  }
+
+  @Test
+  public void propertySearchOnBigSpaceNeedsIndex() throws Exception {
+    String baseSpaceId = "search-big-base-" + Random.randomAlpha(5);
+    String extensionSpaceId = "search-big-extension-" + Random.randomAlpha(5);
+    try {
+      invokeCreateTestSpace(defaultTestConnectorParams, baseSpaceId);
+      invokeCreateTestSpace(defaultTestConnectorParams, extensionSpaceId);
+
+      ModifyFeaturesEvent insertEvent = new ModifyFeaturesEvent()
+          .withConnectorParams(defaultTestConnectorParams)
+          .withSpace(baseSpaceId)
+          .withTransaction(true)
+          .withInsertFeatures(Stream.generate(() -> new Feature()
+              .withGeometry(new Point().withCoordinates(new PointCoordinates(0d, 0d)))
+              .withProperties(new Properties().withXyzNamespace(new XyzNamespace().withSpace(baseSpaceId))))
+              .limit(11000).collect(Collectors.toList()));
+      invokeLambda(insertEvent);
+
+      //The threshold check reads pg_class.reltuples, which ANALYZE updates
+      try (Connection connection = LAMBDA.dataSourceProvider.getWriter().getConnection();
+          Statement stmt = connection.createStatement()) {
+        stmt.execute("ANALYZE \"" + baseSpaceId + "\"");
+      }
+
+      assertPropertySearchRejected(baseSpaceId, Map.of(), true);
+      //The extension itself is empty, so only the rows of its base table can exceed the threshold
+      assertPropertySearchRejected(extensionSpaceId, Map.of(), false);
+      assertPropertySearchRejected(extensionSpaceId, Map.of("extends", Map.of("spaceId", baseSpaceId)), true);
+    }
+    finally {
+      invokeDeleteTestSpaces(defaultTestConnectorParams, List.of(extensionSpaceId, baseSpaceId));
+    }
+  }
+
+  private void assertPropertySearchRejected(String spaceId, Map<String, Object> params, boolean rejected) throws Exception {
+    Map<String, Object> event = MAPPER.readValue(ORIGINAL_EVENT, TYPE_REFERENCE);
+    event.put("space", spaceId);
+    event.put("params", params);
+    addPropertiesQueryToSearchObject(event, false, Map.of("key", "properties.notIndexed", "operation", "EQUALS",
+        "values", List.of("value")));
+
+    XyzResponse response = XyzSerializable.deserialize(invokeLambda(XyzSerializable.fromMap(event, Event.class)));
+    if (rejected) {
+      assertTrue("Check rejection", response instanceof ErrorResponse);
+      assertEquals("Check error", XyzError.ILLEGAL_ARGUMENT, ((ErrorResponse) response).getError());
+    }
+    else
+      assertTrue("Check search result", response instanceof FeatureCollection);
   }
 }

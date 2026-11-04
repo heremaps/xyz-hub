@@ -37,7 +37,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /*
 NOTE: All subclasses of QueryEvent are deprecated except SearchForFeaturesEvent.
@@ -109,6 +111,8 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
       return true;
 
     try {
+      List<String> baseTables = Stream.of(getIntermediateTable(event), getExtendedTable(event)).filter(Objects::nonNull).toList();
+
       List<String> keys = query.stream().flatMap(List::stream)
           .filter(k -> k.getKey() != null && k.getKey().length() > 0).map(PropertyQuery::getKey).collect(Collectors.toList());
 
@@ -123,7 +127,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
           return true;
 
         //Check if custom Indices are available. E.g., properties.foo1
-        List<String> indices = new GetIndexList(tableName).run(dataSourceProvider);
+        List<String> indices = new GetIndexList(tableName, baseTables).run(dataSourceProvider);
 
         //The table does not have too many records - Indices are not required
         if (indices == null)
@@ -144,7 +148,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
         return true;
 
       //TODO: Why is that 2nd extra call needed? Could we remove it?
-      return new GetIndexList(tableName).run(dataSourceProvider) == null;
+      return new GetIndexList(tableName, baseTables).run(dataSourceProvider) == null;
     }
     catch (Exception e) {
       // In all cases, when something with the check went wrong, allow the search
