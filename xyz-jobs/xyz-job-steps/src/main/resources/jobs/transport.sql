@@ -1746,7 +1746,9 @@ $BODY$;
  * Notes:
  *   - Rows are not deleted by this function.
  *   - Expects an i column (serial/bigserial) in the source table.
- *   - Selection starts at range_start and stops before cumulative bytes exceed target_mb.
+ *   - Selection starts at range_start and stops before cumulative bytes exceed target_mb or after max_features rows
+ *     (no count limit if max_features is NULL). The batch is always a contiguous range of i, so a task resumes at the
+ *     reported endI + 1.
  *   - Expects source rows to contain one GeoJSON Feature per jsondata entry.
  */
 CREATE OR REPLACE FUNCTION perform_import_from_tmp_table_task(
@@ -1754,6 +1756,7 @@ CREATE OR REPLACE FUNCTION perform_import_from_tmp_table_task(
         source_tbl REGCLASS,
         range_start BIGINT,
         target_mb NUMERIC,
+        max_features INT,
         author TEXT,
         currentVersion BIGINT,
         isPartial BOOLEAN,
@@ -1791,6 +1794,7 @@ BEGIN
         source_tbl REGCLASS := '$wrappedouter$||coalesce(source_tbl::TEXT, $v$null$v$)||$wrappedouter$'::REGCLASS;
         range_start BIGINT := $wrappedouter$||coalesce(range_start::TEXT, $v$NULL$v$)||$wrappedouter$::BIGINT;
         target_mb NUMERIC := $wrappedouter$||coalesce(target_mb::TEXT, $v$NULL$v$)||$wrappedouter$::NUMERIC;
+        max_features INT := $wrappedouter$||coalesce(max_features::TEXT, $v$NULL$v$)||$wrappedouter$::INT;
         author TEXT := '$wrappedouter$||author||$wrappedouter$'::TEXT;
         currentVersion BIGINT := $wrappedouter$||coalesce(currentVersion::TEXT, $v$NULL$v$)||$wrappedouter$::BIGINT;
         isPartial BOOLEAN := $wrappedouter$||coalesce(isPartial::TEXT, $v$NULL$v$)||$wrappedouter$::BOOLEAN;
@@ -1808,6 +1812,9 @@ BEGIN
 
         IF target_mb IS NULL OR target_mb <= 0 THEN
             RAISE EXCEPTION 'target_mb must be provided and > 0.' USING ERRCODE = 'XYZ40';
+        END IF;
+        IF max_features IS NOT NULL AND max_features <= 0 THEN
+            RAISE EXCEPTION 'max_features must be > 0 if provided.' USING ERRCODE = 'XYZ40';
         END IF;
 
         onExists = CASE WHEN onExists = 'null' THEN NULL ELSE onExists END;
@@ -1827,10 +1834,16 @@ BEGIN
                        jsondata::jsonb AS feature,
                        octet_length(jsondata) AS feature_bytes,
                        SUM(octet_length(jsondata)) OVER (ORDER BY i) AS running_bytes
-                  FROM %1$s
-                 CROSS JOIN params p
-                 WHERE jsondata IS NOT NULL
-                   AND i >= p.start_i
+                  FROM (
+                    --At most max_features rows, scanned along the primary key, so that neither the batch nor the scan of the
+                    --remaining rows grows with the number of features
+                    SELECT i, jsondata
+                      FROM %1$s
+                     WHERE jsondata IS NOT NULL
+                       AND i >= %2$s
+                     ORDER BY i
+                     LIMIT %4$s
+                  ) limited_rows
             ),
             selected AS (
                 SELECT o.*
@@ -1857,7 +1870,7 @@ BEGIN
                    MIN(fr.feature_id) as first_available_id
               FROM selected s
               FULL JOIN first_row fr ON true
-        $fmt$, source_tbl, range_start, target_mb)
+        $fmt$, source_tbl, range_start, target_mb, coalesce(max_features::TEXT, 'ALL'))
         INTO feature_collection, pulled_count, pulled_bytes, selected_range_start, selected_range_end, first_available_i, first_available_bytes, first_available_id;
 
         -- No more rows in the source table at or after range_start -> tmp table fully processed

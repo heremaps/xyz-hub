@@ -32,12 +32,26 @@ import static com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace.Fo
 
 public class ImportQueryBuilder extends TaskedSpaceBasedQueryBuilder {
   private static final String TMP_TABLE_SUFFIX = "_tmp_tbl_";
+  /**
+   * The default maximum number of features per batch of a FeatureWriter import, see perform_import_from_tmp_table_task() in
+   * transport.sql.
+   */
+  public static final int DEFAULT_FEATURE_WRITER_BATCH_MAX_FEATURES = 50_000;
   protected final double featureWriterBatchSizeInMb;
+  protected final int featureWriterBatchMaxFeatures;
 
   public ImportQueryBuilder(Space space, ContextAwareEvent.SpaceContext context, String stepId,
                                String schema, String rootTable, String superRootTable, double featureWriterBatchSizeInMb) {
+    this(space, context, stepId, schema, rootTable, superRootTable, featureWriterBatchSizeInMb,
+        DEFAULT_FEATURE_WRITER_BATCH_MAX_FEATURES);
+  }
+
+  public ImportQueryBuilder(Space space, ContextAwareEvent.SpaceContext context, String stepId,
+                               String schema, String rootTable, String superRootTable, double featureWriterBatchSizeInMb,
+                               int featureWriterBatchMaxFeatures) {
     super(space, context, stepId, schema, rootTable, superRootTable);
     this.featureWriterBatchSizeInMb = featureWriterBatchSizeInMb;
+    this.featureWriterBatchMaxFeatures = featureWriterBatchMaxFeatures;
   }
 
   @Override
@@ -148,7 +162,7 @@ public class ImportQueryBuilder extends TaskedSpaceBasedQueryBuilder {
                                                    String failureCallback) {
 
     return new SQLQuery(
-            "SELECT perform_import_from_tmp_table_task(#{taskId}, to_regclass(#{sourceTable}), #{rangeStart}, #{targetMb}, "
+            "SELECT perform_import_from_tmp_table_task(#{taskId}, to_regclass(#{sourceTable}), #{rangeStart}, #{targetMb}, #{maxFeatures}, "
                     + "#{author}, #{currentVersion}, #{isPartial}, #{onExists}, #{onNotExists}, #{onVersionConflict}, "
                     + "#{onMergeConflict}, #{stepPayload}::JSON->'step', #{lambdaFunctionArn}, #{lambdaRegion}, '${{failureCallback}}')")
             .withContext(getQueryContext())
@@ -157,6 +171,7 @@ public class ImportQueryBuilder extends TaskedSpaceBasedQueryBuilder {
             .withNamedParameter("sourceTable", getTemporaryDataTableName(taskId))
             .withNamedParameter("rangeStart", rangeStart)
             .withNamedParameter("targetMb", featureWriterBatchSizeInMb)
+            .withNamedParameter("maxFeatures", featureWriterBatchMaxFeatures)
             .withNamedParameter("author", author)
             .withNamedParameter("currentVersion", currentVersion)
             .withNamedParameter("isPartial", isPartial)
