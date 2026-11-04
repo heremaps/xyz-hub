@@ -18,87 +18,73 @@
  */
 package com.here.xyz.hub.util.health.checks;
 
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static com.here.xyz.hub.util.health.schema.Status.Result.CRITICAL;
 import static com.here.xyz.hub.util.health.schema.Status.Result.ERROR;
 import static com.here.xyz.hub.util.health.schema.Status.Result.OK;
+import static com.here.xyz.hub.util.health.schema.Status.Result.TIMEOUT;
 import static com.here.xyz.hub.util.health.schema.Status.Result.UNKNOWN;
 
 import com.here.xyz.hub.cache.RedisCacheClient;
 import com.here.xyz.hub.util.health.schema.Response;
 import com.here.xyz.hub.util.health.schema.Status;
 import java.util.Arrays;
-
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeoutException;
 
 public class RedisHealthCheck extends ExecutableCheck {
 
-	private static final String HC_CACHE_KEY = "__SAMPLE_HEALTH_CHECK_KEY";
-	private static final byte[] HC_CACHE_VALUE = "someValue".getBytes();
-	private final String uri;
-	private RedisCacheClient client;
-	private volatile byte[] lastReceivedValue;
+  private static final String HC_CACHE_KEY = "__SAMPLE_HEALTH_CHECK_KEY";
+  private static final byte[] HC_CACHE_VALUE = "someValue".getBytes();
+  private final String uri;
+  private RedisCacheClient client;
 
-	public RedisHealthCheck(String uri) {
-		this.uri = uri;
-		setName("Redis");
-		setRole(Role.CACHE);
-		setTarget(Target.REMOTE);
-	}
+  public RedisHealthCheck(String uri) {
+    this.uri = uri;
+    setName("Redis");
+    setRole(Role.CACHE);
+    setTarget(Target.REMOTE);
+  }
 
-	@Override
-	public Status execute() {
-		Status s = new Status();
-		Response r = new Response();
-		r.setNode(uri);
-		if (uri == null) {
-			setResponse(r.withMessage("No Redis URI given."));
-			return s.withResult(UNKNOWN);
-		}
+  @Override
+  public Status execute() {
+    Status s = new Status();
+    Response r = new Response();
+    r.setNode(uri);
+    if (uri == null) {
+      setResponse(r.withMessage("No Redis URI given."));
+      return s.withResult(UNKNOWN);
+    }
 
-		try {
-			if (client == null) {
-				client = (RedisCacheClient) RedisCacheClient.getInstance();
-			}
-		}
-		catch (Throwable t) {
-      setResponse(r.withMessage("Error when trying to create Redis client: " + t.getMessage()));
-			return s.withResult(ERROR);
-		}
+    try {
+      if (client == null) {
+        client = (RedisCacheClient) RedisCacheClient.getInstance();
+      }
+    } catch (RuntimeException e) {
+      setResponse(r.withMessage("Error when trying to create Redis client: " + e.getMessage()));
+      return s.withResult(ERROR);
+    }
 
-		//Try setting a value
-		try {
-			client.set(HC_CACHE_KEY, HC_CACHE_VALUE, 10);
-		}
-		catch (Throwable t) {
-      setResponse(r.withMessage("Error when trying to set the sample health check record."));
-			return s.withResult(ERROR);
-		}
-
-		//Try getting the value back
-		lastReceivedValue = null;
-		try {
-			client.get(HC_CACHE_KEY).onSuccess(result -> {
-				lastReceivedValue = result;
-				synchronized (this) {
-					this.notify();
-				}
-			});
-		}
-		catch (Throwable t) {
-      setResponse(r.withMessage("Error when trying to get the sample health check record back."));
-			return s.withResult(ERROR);
-		}
-		try {
-			synchronized (this) {
-				this.wait(timeout);
-			}
-		} catch (InterruptedException e) {
-			return s.withResult(UNKNOWN);
-		}
-		if (Arrays.equals(HC_CACHE_VALUE, lastReceivedValue)) {
-			setResponse(null);
-			return s.withResult(OK);
-		}
-		setResponse(r.withMessage("Wasn't able to retrieve the sample health check record back correctly."));
-		return s.withResult(CRITICAL);
-	}
+    try {
+      byte[] receivedValue = client.setAsync(HC_CACHE_KEY, HC_CACHE_VALUE, 10)
+          .compose(ignored -> client.get(HC_CACHE_KEY))
+          .toCompletionStage().toCompletableFuture().get(timeout, MILLISECONDS);
+      if (Arrays.equals(HC_CACHE_VALUE, receivedValue)) {
+        setResponse(null);
+        return s.withResult(OK);
+      }
+      setResponse(r.withMessage("Wasn't able to retrieve the sample health check record back correctly."));
+      return s.withResult(CRITICAL);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      setResponse(r.withMessage("Redis health check was interrupted."));
+      return s.withResult(UNKNOWN);
+    } catch (TimeoutException e) {
+      setResponse(r.withMessage("Timed out while checking Redis."));
+      return s.withResult(TIMEOUT);
+    } catch (ExecutionException | RuntimeException e) {
+      setResponse(r.withMessage("Error when checking Redis: " + e.getMessage()));
+      return s.withResult(ERROR);
+    }
+  }
 }
