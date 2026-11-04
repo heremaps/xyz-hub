@@ -119,6 +119,13 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
 
   @JsonView({Internal.class, Static.class})
   private double featureWriterBatchSizeInMb = 37;
+  /**
+   * The maximum number of features per batch of a FeatureWriter import, in addition to featureWriterBatchSizeInMb.
+   * Small features (e.g., the deletions of a changeset) would otherwise make batches of several 100,000 features, whose
+   * memory in PLV8 and transaction size grow with the number of features rather than with the bytes.
+   */
+  @JsonView({Internal.class, Static.class})
+  private int featureWriterBatchMaxFeatures = ImportQueryBuilder.DEFAULT_FEATURE_WRITER_BATCH_MAX_FEATURES;
 
   @JsonView({Internal.class, Static.class})
   private Boolean expressImport;
@@ -216,6 +223,21 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
 
   public TaskedImportFilesToSpace withFeatureWriterBatchSizeInMb(double featureWriterBatchSizeInMb) {
     setFeatureWriterBatchSizeInMb(featureWriterBatchSizeInMb);
+    return this;
+  }
+
+  public void setFeatureWriterBatchMaxFeatures(int featureWriterBatchMaxFeatures) {
+    if (featureWriterBatchMaxFeatures <= 0)
+      throw new IllegalArgumentException("featureWriterBatchMaxFeatures must be > 0, but was " + featureWriterBatchMaxFeatures);
+    this.featureWriterBatchMaxFeatures = featureWriterBatchMaxFeatures;
+  }
+
+  public int getFeatureWriterBatchMaxFeatures() {
+    return featureWriterBatchMaxFeatures;
+  }
+
+  public TaskedImportFilesToSpace withFeatureWriterBatchMaxFeatures(int featureWriterBatchMaxFeatures) {
+    setFeatureWriterBatchMaxFeatures(featureWriterBatchMaxFeatures);
     return this;
   }
 
@@ -672,7 +694,8 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
   private ImportQueryBuilder getQueryBuilder() {
     if (importQueryBuilder == null)
       importQueryBuilder = initQueryBuilder((space, context, stepId, schema, rootTable, superRootTable) ->
-              new ImportQueryBuilder(space, context, stepId, schema, rootTable, superRootTable, featureWriterBatchSizeInMb));
+              new ImportQueryBuilder(space, context, stepId, schema, rootTable, superRootTable, featureWriterBatchSizeInMb,
+                  featureWriterBatchMaxFeatures));
     return importQueryBuilder;
   }
 
