@@ -22,7 +22,6 @@ package com.here.xyz.hub;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.here.xyz.hub.auth.AuthorizationType;
-import com.here.xyz.hub.cache.QueryTimeoutCache.TtlMode;
 import com.here.xyz.hub.task.SpaceTask.ConnectorMapping;
 import com.here.xyz.util.ARN;
 import com.here.xyz.util.Hasher;
@@ -499,36 +498,9 @@ public class Config extends BaseConfig {
   public boolean ENABLE_UNIQUE_PHYSICAL_TABLE_NAMES = true;
 
   /**
-   * If set to true, a spatial query whose statement timed out in the database {@link #QUERY_TIMEOUT_CACHE_THRESHOLD} times in a row gets
-   * the same 504 reply for a while without running again. See {@link com.here.xyz.hub.cache.QueryTimeoutCache}.
+   * If set to true, a spatial query whose statement timed out in the database
+   * {@link com.here.xyz.hub.cache.QueryTimeoutCache#QUERY_TIMEOUT_CACHE_THRESHOLD} times in a row gets the same 504 reply for a while
+   * without running again. See {@link com.here.xyz.hub.cache.QueryTimeoutCache}.
    */
   public boolean QUERY_TIMEOUT_CACHE_ENABLED = false;
-
-  /**
-   * The number of statement timeouts in a row of the same query after which the reply is served without running the query.
-   */
-  public int QUERY_TIMEOUT_CACHE_THRESHOLD = 3;
-
-  /**
-   * FIXED: the timeout marker of a query expires {@link #QUERY_TIMEOUT_CACHE_TTL} seconds after its last statement timeout.
-   * SLIDING: each reply served from the marker renews it for {@link #QUERY_TIMEOUT_CACHE_TTL} seconds.
-   */
-  public TtlMode QUERY_TIMEOUT_CACHE_TTL_MODE = TtlMode.FIXED;
-
-  /**
-   * The lifetime of a timeout marker in seconds, see {@link #QUERY_TIMEOUT_CACHE_TTL_MODE}.
-   */
-  public int QUERY_TIMEOUT_CACHE_TTL = 600; //seconds
-
-  /**
-   * The time in seconds after the last statement timeout of a query after which the next request runs the query again (probe).
-   * A probe that succeeds removes the marker. A probe that times out again restarts the period. 0 disables probes.
-   */
-  public int QUERY_TIMEOUT_CACHE_PROBE_AFTER = 300; //seconds
-
-  /**
-   * The time in seconds for which a service node neither records nor serves timeout markers of a connector after that connector had any
-   * other timeout (e.g., the connector did not answer in time). 0 disables that pause.
-   */
-  public int QUERY_TIMEOUT_CACHE_GUARD_HOLD = 600; //seconds
 }

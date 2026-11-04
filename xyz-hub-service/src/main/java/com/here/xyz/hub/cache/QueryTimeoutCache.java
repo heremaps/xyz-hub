@@ -22,7 +22,6 @@ package com.here.xyz.hub.cache;
 import static com.here.xyz.hub.cache.QueryTimeoutCache.Decision.PROBE;
 import static com.here.xyz.hub.cache.QueryTimeoutCache.Decision.RUN;
 import static com.here.xyz.hub.cache.QueryTimeoutCache.Decision.SHORT_CUT;
-import static com.here.xyz.hub.cache.QueryTimeoutCache.TtlMode.SLIDING;
 import static io.netty.handler.codec.http.HttpResponseStatus.GATEWAY_TIMEOUT;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -48,10 +47,10 @@ import org.apache.logging.log4j.Logger;
  * <ul>
  *   <li>Only statement timeouts ({@link StatementTimeoutException}) are counted. A request which started before the last counted timeout
  *   ended is not counted again.</li>
- *   <li>From {@link Config#QUERY_TIMEOUT_CACHE_THRESHOLD} timeouts on, requests get the 504 without running the query. After
- *   {@link Config#QUERY_TIMEOUT_CACHE_PROBE_AFTER} seconds since the last timeout, the next request runs the query again (probe).</li>
+ *   <li>From {@link #QUERY_TIMEOUT_CACHE_THRESHOLD} timeouts on, requests get the 504 without running the query. After
+ *   {@link #QUERY_TIMEOUT_CACHE_PROBE_AFTER} seconds since the last timeout, the next request runs the query again (probe).</li>
  *   <li>A success removes the marker, as does any other server error. Client errors (4xx, incl. 429) leave it as it is.</li>
- *   <li>For {@link Config#QUERY_TIMEOUT_CACHE_GUARD_HOLD} seconds after any other timeout of a connector, e.g., the connector not answering
+ *   <li>For {@link #QUERY_TIMEOUT_CACHE_GUARD_HOLD} seconds after any other timeout of a connector, e.g., the connector not answering
  *   in time during a database outage, this node neither counts nor serves markers for that connector.</li>
  * </ul>
  *
@@ -62,6 +61,25 @@ public class QueryTimeoutCache {
   private static final Logger logger = LogManager.getLogger();
   private static final String KEY_PREFIX = "QUERY_TIMEOUT:";
 
+  /**
+   * The number of statement timeouts in a row of the same query after which the reply is served without running the query.
+   */
+  public static final int QUERY_TIMEOUT_CACHE_THRESHOLD = 3;
+  /**
+   * The lifetime of a timeout marker in seconds. A marker expires that long after the last statement timeout of its query.
+   */
+  public static final int QUERY_TIMEOUT_CACHE_TTL = 600; //seconds
+  /**
+   * The time in seconds after the last statement timeout of a query after which the next request runs the query again (probe).
+   * A probe that succeeds removes the marker. A probe that times out again restarts the period.
+   */
+  public static final int QUERY_TIMEOUT_CACHE_PROBE_AFTER = 300; //seconds
+  /**
+   * The time in seconds for which a service node neither records nor serves timeout markers of a connector after that connector had any
+   * other timeout (e.g., the connector did not answer in time).
+   */
+  public static final int QUERY_TIMEOUT_CACHE_GUARD_HOLD = 600; //seconds
+
   private final CacheClient markers;
   private final LongSupplier clock;
 
@@ -69,17 +87,6 @@ public class QueryTimeoutCache {
    * The time of the last timeout of each connector which was not a statement timeout, as seen by this node. The key is the connector ID.
    */
   private final ConcurrentHashMap<String, Long> otherTimeouts = new ConcurrentHashMap<>();
-
-  public enum TtlMode {
-    /**
-     * A marker expires {@link Config#QUERY_TIMEOUT_CACHE_TTL} seconds after the last statement timeout.
-     */
-    FIXED,
-    /**
-     * Each reply served from a marker renews it for {@link Config#QUERY_TIMEOUT_CACHE_TTL} seconds.
-     */
-    SLIDING
-  }
 
   public enum Decision {
     /**
@@ -125,12 +132,7 @@ public class QueryTimeoutCache {
     final String key = KEY_PREFIX + cacheKey;
     return markers.get(key)
         .otherwise((byte[]) null)
-        .map(value -> {
-          Lookup lookup = new Lookup(key, connectorId, clock.getAsLong(), TimeoutMarker.fromBytes(value));
-          if (lookup.decision == SHORT_CUT && config().QUERY_TIMEOUT_CACHE_TTL_MODE == SLIDING)
-            markers.set(key, value, config().QUERY_TIMEOUT_CACHE_TTL);
-          return lookup;
-        });
+        .map(value -> new Lookup(key, connectorId, clock.getAsLong(), TimeoutMarker.fromBytes(value)));
   }
 
   /**
@@ -165,7 +167,7 @@ public class QueryTimeoutCache {
     Long previous = otherTimeouts.put(connectorId, now);
     if (previous == null || now - previous >= guardHoldMillis())
       logger.info("Connector {} did not respond in time, pausing the query timeout cache for it for {} s on this node.", connectorId,
-          config().QUERY_TIMEOUT_CACHE_GUARD_HOLD);
+          QUERY_TIMEOUT_CACHE_GUARD_HOLD);
   }
 
   private void countTimeout(Lookup lookup) {
@@ -178,7 +180,7 @@ public class QueryTimeoutCache {
           if (current != null && current.lastTimeoutEnd > lookup.startedAt)
             return;
           int count = current == null ? 1 : current.count + 1;
-          markers.set(lookup.key, new TimeoutMarker(count, clock.getAsLong()).toBytes(), config().QUERY_TIMEOUT_CACHE_TTL);
+          markers.set(lookup.key, new TimeoutMarker(count, clock.getAsLong()).toBytes(), QUERY_TIMEOUT_CACHE_TTL);
         });
   }
 
@@ -196,7 +198,7 @@ public class QueryTimeoutCache {
   }
 
   private static long guardHoldMillis() {
-    return SECONDS.toMillis(config().QUERY_TIMEOUT_CACHE_GUARD_HOLD);
+    return SECONDS.toMillis(QUERY_TIMEOUT_CACHE_GUARD_HOLD);
   }
 
   private static Config config() {
@@ -228,10 +230,9 @@ public class QueryTimeoutCache {
     }
 
     private Decision decide() {
-      if (marker == null || marker.count < config().QUERY_TIMEOUT_CACHE_THRESHOLD)
+      if (marker == null || marker.count < QUERY_TIMEOUT_CACHE_THRESHOLD)
         return RUN;
-      long probeAfter = SECONDS.toMillis(config().QUERY_TIMEOUT_CACHE_PROBE_AFTER);
-      return probeAfter > 0 && markerAge >= probeAfter ? PROBE : SHORT_CUT;
+      return markerAge >= SECONDS.toMillis(QUERY_TIMEOUT_CACHE_PROBE_AFTER) ? PROBE : SHORT_CUT;
     }
   }
 

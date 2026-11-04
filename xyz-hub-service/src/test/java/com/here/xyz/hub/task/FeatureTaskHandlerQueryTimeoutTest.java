@@ -44,7 +44,6 @@ import com.here.xyz.hub.Config;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.cache.CacheClient;
 import com.here.xyz.hub.cache.QueryTimeoutCache;
-import com.here.xyz.hub.cache.QueryTimeoutCache.TtlMode;
 import com.here.xyz.hub.connectors.StatementTimeoutException;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Space;
@@ -100,6 +99,10 @@ class FeatureTaskHandlerQueryTimeoutTest {
   private QueryTimeoutCache previousQueryTimeoutCache;
   private Space space;
   private Connector storage;
+  /**
+   * Whether the stand-in for invoke reports the failures of the connector as RpcClient does, which pauses the cache after other timeouts.
+   */
+  private boolean reportConnectorFailures = true;
 
   @BeforeAll
   static void loadErrors() {
@@ -180,7 +183,7 @@ class FeatureTaskHandlerQueryTimeoutTest {
   @Test
   void timeoutsOtherThanStatementTimeoutsAreNeverCounted() {
     //Without the pause that such timeouts cause, so that only the counting is tested here
-    Service.configuration.QUERY_TIMEOUT_CACHE_GUARD_HOLD = 0;
+    reportConnectorFailures = false;
     List<IntFunction<Throwable>> otherTimeouts = List.of(
         //Connector Lambda timeout and "No time for retry left", see RpcClientTimeoutTest
         attempt -> new DetailedHttpException("E318540"),
@@ -283,22 +286,6 @@ class FeatureTaskHandlerQueryTimeoutTest {
   }
 
   @Test
-  void slidingMarkersAreRenewedByEachShortCut() {
-    Service.configuration.QUERY_TIMEOUT_CACHE_TTL_MODE = TtlMode.SLIDING;
-    Service.configuration.QUERY_TIMEOUT_CACHE_TTL = 300;
-    Service.configuration.QUERY_TIMEOUT_CACHE_PROBE_AFTER = 0;
-    retry(3, attempt -> new StatementTimeoutException());
-
-    //Each request comes 200 s after the previous one, so a marker without renewal would expire at the 2nd one
-    for (int i = 0; i < 4; i++) {
-      now.addAndGet(SECONDS.toMillis(200));
-      assertShortCut(send(new StatementTimeoutException()));
-    }
-    now.addAndGet(SECONDS.toMillis(300));
-    assertTrue(send(new StatementTimeoutException()).queryRan);
-  }
-
-  @Test
   void nothingChangesWhenTheCacheIsSwitchedOff() {
     Service.configuration.QUERY_TIMEOUT_CACHE_ENABLED = false;
 
@@ -364,7 +351,8 @@ class FeatureTaskHandlerQueryTimeoutTest {
               }
               else {
                 //RpcClient reports each failure of the connector first
-                Service.queryTimeoutCache.onConnectorFailure(CONNECTOR_ID, queryFailure);
+                if (reportConnectorFailures)
+                  Service.queryTimeoutCache.onConnectorFailure(CONNECTOR_ID, queryFailure);
                 FeatureTaskHandler.recordQueryTimeoutOutcome(t, Future.failedFuture(queryFailure));
                 callback.exception(queryFailure);
               }
