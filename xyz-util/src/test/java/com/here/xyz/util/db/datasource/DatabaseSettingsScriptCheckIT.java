@@ -27,6 +27,8 @@ import static org.junit.Assert.assertTrue;
 
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DatabaseSettings.ScriptResourcePath;
+import com.here.xyz.util.db.pg.LockHelper;
+import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
@@ -41,15 +43,27 @@ public class DatabaseSettingsScriptCheckIT {
   private static final String PREFIX = "it" + randomAlpha(5).toLowerCase();
   private static final String SCHEMA = PREFIX + ".functions";
   private static final String BROKEN_PREFIX = "it" + randomAlpha(5).toLowerCase();
+  private static final String BROKEN_NEXT_TO_BLOCKED_PREFIX = "it" + randomAlpha(5).toLowerCase();
+  private static final String BLOCKED_PREFIX = "it" + randomAlpha(5).toLowerCase();
+  private static final String REUSED_PREFIX = "it" + randomAlpha(5).toLowerCase();
 
   @AfterAll
   public static void dropSchemas() throws Exception {
     try (SingleConnectionDataSources dsp = new SingleConnectionDataSources(settings(newId(), PG_PW, 5432, null, null), 5, 20)) {
-      for (String schema : listSchemas(dsp, PREFIX))
-        new SQLQuery("DROP SCHEMA IF EXISTS ${schema} CASCADE").withVariable("schema", schema).write(dsp);
-      for (String schema : listSchemas(dsp, BROKEN_PREFIX))
-        new SQLQuery("DROP SCHEMA IF EXISTS ${schema} CASCADE").withVariable("schema", schema).write(dsp);
+      for (String prefix : List.of(PREFIX, BROKEN_PREFIX, BROKEN_NEXT_TO_BLOCKED_PREFIX, BLOCKED_PREFIX, REUSED_PREFIX))
+        for (String schema : listSchemas(dsp, prefix))
+          new SQLQuery("DROP SCHEMA IF EXISTS ${schema} CASCADE").withVariable("schema", schema).write(dsp);
     }
+  }
+
+  private static SingleConnectionDataSources newProvider() {
+    return new SingleConnectionDataSources(settings(newId(), PG_PW, 5432, null, null), 5, 20);
+  }
+
+  private static String callMyTestFunction(DataSourceProvider dsp) throws SQLException {
+    return new SQLQuery("SELECT myTestFunction(#{param})")
+        .withNamedParameter("param", "TestUser")
+        .run(dsp, rs -> rs.next() ? rs.getString(1) : null);
   }
 
   private static List<String> listSchemas(DataSourceProvider dsp, String prefix) throws SQLException {
@@ -157,5 +171,88 @@ public class DatabaseSettingsScriptCheckIT {
     new PooledDataSources(second).close();
     assertEquals(first.getSearchPath(), second.getSearchPath());
     assertNull("A check with the wrong password would have delayed the next check", DatabaseSettings.getScriptCheckRetryAfter(id));
+  }
+
+  private static DatabaseSettings brokenAndBlockedSettings(String id, String password) {
+    return settings(id, password, 5432, null, null)
+        .withScriptResourcePaths(List.of(new ScriptResourcePath("/functionsBroken", BROKEN_NEXT_TO_BLOCKED_PREFIX),
+            new ScriptResourcePath("/sqlSamples", BLOCKED_PREFIX)))
+        .withScriptInstallTimeoutSeconds(1);
+  }
+
+  @Test
+  public void permanentFailureOfOneScriptDoesNotStopTheRetryOfABlockedScript() throws Exception {
+    String id = newId();
+    String brokenSchema = BROKEN_NEXT_TO_BLOCKED_PREFIX + ".functions";
+    String blockedSchema = BLOCKED_PREFIX + ".functions";
+    List<String> searchPath = List.of(brokenSchema, blockedSchema);
+
+    try (SingleConnectionDataSources lockDsp = newProvider()) {
+      //Another installer holds the lock on the second script's schema, so its installation fails with a transient error
+      Connection lockConnection = lockDsp.getWriter().getConnection();
+      LockHelper.advisoryLock(blockedSchema, lockConnection);
+      DatabaseSettings first = brokenAndBlockedSettings(id, PG_PW);
+      new PooledDataSources(first).close();
+      assertEquals(searchPath, first.getSearchPath());
+      assertNotNull("The transient failure of the blocked script must be retried", DatabaseSettings.getScriptCheckRetryAfter(id));
+      assertEquals("The blocked script must not be installed", List.of(), listSchemas(lockDsp, BLOCKED_PREFIX));
+
+      LockHelper.advisoryUnlock(blockedSchema, lockConnection);
+      //Another attempt to install the broken script would now wait for this lock and fail with a transient error
+      LockHelper.advisoryLock(brokenSchema, lockConnection);
+      DatabaseSettings.expireScriptCheckRetry(id);
+
+      //New settings with the same ID after the retry interval, as the connector creates them for each invocation
+      DatabaseSettings second = brokenAndBlockedSettings(id, PG_PW);
+      try (PooledDataSources dsp = new PooledDataSources(second)) {
+        assertEquals(searchPath, second.getSearchPath());
+        assertEquals("The blocked script must be installed and used after the retry", "Hello World, TestUser", callMyTestFunction(dsp));
+      }
+      assertNull("The retry must not attempt the broken script again, and the remaining permanent failure must not be retried",
+          DatabaseSettings.getScriptCheckRetryAfter(id));
+      LockHelper.advisoryUnlock(brokenSchema, lockConnection);
+      assertEquals("The broken script must not be installed", List.of(), listSchemas(lockDsp, BROKEN_NEXT_TO_BLOCKED_PREFIX));
+    }
+
+    //Settings with the same ID must use the cached result without connecting, which would fail with the wrong password
+    DatabaseSettings third = brokenAndBlockedSettings(id, "wrongPassword");
+    new PooledDataSources(third).close();
+    assertEquals(searchPath, third.getSearchPath());
+    assertNull("A check with the wrong password would have delayed the next check", DatabaseSettings.getScriptCheckRetryAfter(id));
+  }
+
+  @Test
+  public void reusedSettingsCheckAgainAfterTheRetryInterval() throws Exception {
+    String schema = REUSED_PREFIX + ".functions";
+    //The DB holds an older content of the script
+    new PooledDataSources(settings(newId(), PG_PW, 5432, "/functions0", REUSED_PREFIX)).close();
+
+    String id = newId();
+    //One settings object for all pools, as the job steps keep it while they close and create pools
+    DatabaseSettings reused = settings(id, PG_PW, 5432, "/functions2", REUSED_PREFIX).withScriptInstallTimeoutSeconds(1);
+    try (SingleConnectionDataSources lockDsp = newProvider()) {
+      //Another installer holds the lock on the schema, so the installation of the new content fails with a transient error
+      Connection lockConnection = lockDsp.getWriter().getConnection();
+      LockHelper.advisoryLock(schema, lockConnection);
+      new PooledDataSources(reused).close();
+      LockHelper.advisoryUnlock(schema, lockConnection);
+    }
+    Long retryAfter = DatabaseSettings.getScriptCheckRetryAfter(id);
+    assertNotNull("The blocked installation must be retried", retryAfter);
+    assertEquals(List.of(schema), reused.getSearchPath());
+
+    //Within the retry interval, a new pool must not check again. A check would now install the new content.
+    try (PooledDataSources dsp = new PooledDataSources(reused)) {
+      assertEquals("Within the retry interval the older content must be used", "Hello Friend, TestUser", callMyTestFunction(dsp));
+    }
+    assertEquals("Within the retry interval the check must not run", retryAfter, DatabaseSettings.getScriptCheckRetryAfter(id));
+
+    DatabaseSettings.expireScriptCheckRetry(id);
+    try (PooledDataSources dsp = new PooledDataSources(reused)) {
+      assertEquals("After the retry interval a new pool must check again and use the new content", "Hello, TestUser",
+          callMyTestFunction(dsp));
+    }
+    assertNull("The successful check must end the retries", DatabaseSettings.getScriptCheckRetryAfter(id));
+    assertEquals("The search path must contain the script schema once", List.of(schema), reused.getSearchPath());
   }
 }
