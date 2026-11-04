@@ -189,6 +189,9 @@ class FeatureWriter {
       }
     }
 
+    if (this._canDeleteWithoutLoading())
+      return this._deleteHeadWithHistoryRow();
+
     //A deletion without conflict detection does not need the content of the existing feature
     let existingFeature = this._isDeletionWithoutConflictDetection()
         ? this._loadFeatureForDeletion(this.inputFeature.id)
@@ -663,6 +666,33 @@ class FeatureWriter {
 
     let feature = {type: "Feature", id: res[0].id, properties: {[XYZ_NS]: {createdAt: res[0].created_at}}};
     return this._applyLoadedRowMetadata(feature, res[0]);
+  }
+
+  /**
+   * Whether a deletion without conflict detection can check the existence of the feature within its write
+   * (see DatabaseWriter.deleteHeadWithHistoryRow()) instead of loading the feature before.
+   * That is possible for a single table in OLD_LAYOUT, where an existing feature always gets a D row, if a missing feature is
+   * not written at all (onNotExists RETAIN or ERROR).
+   */
+  _canDeleteWithoutLoading() {
+    return this._isDeletionWithoutConflictDetection()
+        && (this.onNotExists == "RETAIN" || this.onNotExists == "ERROR")
+        && this.tables.length == 1
+        && this.tableBoundVersions[0] == null
+        && this.context != "SUPER"
+        && queryContext().tableLayout !== "NEW_LAYOUT"
+        && !this.headFeatureLoaded;
+  }
+
+  /**
+   * @returns {FeatureModificationExecutionResult}
+   * @private
+   */
+  _deleteHeadWithHistoryRow() {
+    this.operation = "D";
+    this._transformToDeletedFeature();
+    return FeatureWriter.dbWriter.deleteHeadWithHistoryRow(this.inputFeature, this.version - this.tableBaseVersions.at(-1),
+        this.author, this.onNotExists == "ERROR");
   }
 
   /**

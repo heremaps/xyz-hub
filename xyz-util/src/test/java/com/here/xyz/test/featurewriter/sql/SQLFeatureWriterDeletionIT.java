@@ -36,6 +36,7 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -88,7 +89,12 @@ public class SQLFeatureWriterDeletionIT extends SQLITBase {
         new Row("f1", 1, false, "I", 1000),
         new Row("f1", 2, true, "D", 1000),
         new Row("f2", 1, true, "I", 2000)), rows(table));
-    assertTrue(deletedRowContent(table, "f1").getJsonObject("properties").getJsonObject(XYZ_NS).getBoolean("deleted"));
+    JsonObject deletedRow = deletedRowContent(table, "f1");
+    assertEquals(Set.of("type", "id", "properties"), deletedRow.fieldNames());
+    assertEquals(Set.of(XYZ_NS), deletedRow.getJsonObject("properties").fieldNames());
+    JsonObject xyzNs = deletedRow.getJsonObject("properties").getJsonObject(XYZ_NS);
+    assertEquals(Set.of("deleted", "createdAt", "updatedAt"), xyzNs.fieldNames());
+    assertTrue(xyzNs.getBoolean("deleted"));
   }
 
   @ParameterizedTest
@@ -100,6 +106,31 @@ public class SQLFeatureWriterDeletionIT extends SQLITBase {
 
     assertEquals("XYZ44", e.getSQLState());
     assertEquals(List.of(new Row("f1", 1, true, "I", 1000)), rows(table));
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void featureDeletedTwiceInOneWriteIsDeletedOnce(boolean batchMode) throws Exception {
+    insertRow(table, "f1", 1, "I", 1000);
+
+    JsonObject result = delete(List.of(table), List.of("f1", "f1"), 2, "RETAIN", batchMode);
+
+    assertEquals(List.of("f1"), result.getJsonArray("deleted").getList());
+    assertEquals(List.of(
+        new Row("f1", 1, false, "I", 1000),
+        new Row("f1", 2, true, "D", 1000)), rows(table));
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void headWithoutCreationTimestampGetsMinusOne(boolean batchMode) throws Exception {
+    insertRow(table, "f1", 1, "I", null);
+
+    delete(List.of(table), List.of("f1"), 2, "RETAIN", batchMode);
+
+    assertEquals(List.of(
+        new Row("f1", 1, false, "I", 0),
+        new Row("f1", 2, true, "D", -1)), rows(table));
   }
 
   @ParameterizedTest
@@ -144,6 +175,13 @@ public class SQLFeatureWriterDeletionIT extends SQLITBase {
   }
 
   private void insertRow(String targetTable, String id, long version, String operation, long createdAt) throws SQLException {
+    insertRow(targetTable, id, version, operation, Long.valueOf(createdAt));
+  }
+
+  /**
+   * @param createdAt The creation timestamp of the row, null for none
+   */
+  private void insertRow(String targetTable, String id, long version, String operation, Long createdAt) throws SQLException {
     new SQLQuery("""
         INSERT INTO ${schema}.${table} (id, version, operation, author, jsondata, geo)
         VALUES (#{id}, #{version}, #{operation}, 'writer',

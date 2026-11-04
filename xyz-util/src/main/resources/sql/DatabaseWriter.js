@@ -44,6 +44,11 @@ class DatabaseWriter {
    * @type {{<string>: object[]}}
    */
   queryOptions = {};
+  /**
+   * The prepared query of _headExists(), freed at the end of execute()
+   * @type {PreparedPlan}
+   */
+  _headExistsPlan = null;
 
   /**
    * @type {number} The timestamp of when the transaction started
@@ -77,8 +82,13 @@ class DatabaseWriter {
    */
   execute() {
     let results = [];
-    for (let method in this.plans)
-      results = results.concat(this._executePlan(this.plans[method], this.parameterSets[method], this.resultParsers[method], this.queryOptions[method]));
+    try {
+      for (let method in this.plans)
+        results = results.concat(this._executePlan(this.plans[method], this.parameterSets[method], this.resultParsers[method], this.queryOptions[method]));
+    }
+    finally {
+      this._freeHeadExistsPlan();
+    }
 
     this.clear();
     return results;
@@ -378,6 +388,101 @@ class DatabaseWriter {
 
     if (!this.batchMode)
       return this.execute()[0];
+  }
+
+  /**
+   * Deletes a feature from the HEAD by writing a D row into the history, if the feature exists.
+   * Like insertHistoryRow() for a deletion without conflict detection, but the write itself checks whether the feature exists,
+   * so it does not have to be loaded before. The D row takes over the creation timestamp of the HEAD row.
+   * Only for a single table in OLD_LAYOUT.
+   *
+   * If nothing was written, a separate query checks whether the feature exists in HEAD:
+   *  - If it does not, nothing is written, or a FeatureNotExistsException is thrown, if requested.
+   *  - If it does, its HEAD was changed concurrently, or it has a version that is not lower than the written one. Like the unique
+   *    violation that insertHistoryRow() gets in that case, the write is retried once with the next version (see _executePlan()).
+   *
+   * @param {boolean} throwIfNotExists Whether to throw a FeatureNotExistsException if the feature does not exist
+   * @returns {FeatureModificationExecutionResult}
+   */
+  deleteHeadWithHistoryRow(inputFeature, version, author, throwIfNotExists) {
+    this.enrichTimestamps(inputFeature);
+
+    const sql = `WITH head AS (
+                   UPDATE "${this.schema}"."${this.table}"
+                      SET next_version = $2
+                    WHERE id = $1
+                      AND next_version = ${MAX_BIG_INT}
+                      AND operation != 'D'
+                      AND version < $2
+                   RETURNING jsondata->'properties'->'${XYZ_NS}'->'createdAt' AS created_at
+                 )
+                 INSERT INTO "${this.schema}"."${this.table}" (id, version, operation, author, jsondata, geo)
+                 SELECT $1, $2, 'D', $3,
+                        jsonb_set($4::JSONB - 'geometry', '{properties, ${XYZ_NS}, createdAt}',
+                            --Like enrichTimestamps(): -1 for a missing (or falsy) creation timestamp of the HEAD
+                            CASE WHEN created_at IS NULL OR created_at IN ('0', 'false', 'null', '""') THEN '-1' ELSE created_at END),
+                        NULL
+                   FROM head
+                 RETURNING 1`;
+
+    this._createHistoryPartition(version);
+    this._purgeOldChangesets(version);
+
+    let method = "deleteHeadWithHistoryRow";
+    if (!this.plans[method]) {
+      this.plans[method] = this._preparePlan(sql, ["TEXT", "BIGINT", "TEXT", "JSONB"]);
+      this.parameterSets[method] = [];
+      this.resultParsers[method] = [];
+      this.queryOptions[method] = [];
+    }
+
+    const id = inputFeature.id;
+    this.parameterSets[method].push([id, version, author, inputFeature]);
+    this.resultParsers[method].push((result, usedParameters) => {
+      if (result.length)
+        return new FeatureModificationExecutionResult(ExecutionAction.DELETED, inputFeature, usedParameters[1] + this.tableBaseVersion,
+            author);
+      if (this._headExists(id))
+        throw this._headConflict(id);
+      if (throwIfNotExists)
+        this._throwFeatureNotExistsError(id);
+      return null;
+    });
+    this.queryOptions[method].push({
+      versionParameterIndex: 1
+    });
+
+    if (!this.batchMode)
+      return this.execute()[0];
+  }
+
+  /**
+   * @returns {boolean} Whether the feature with the specified ID exists in the HEAD of the (single) table
+   * @private
+   */
+  _headExists(id) {
+    if (!this._headExistsPlan)
+      this._headExistsPlan = this._preparePlan(`SELECT 1 FROM "${this.schema}"."${this.table}"
+          WHERE id = $1 AND next_version = ${MAX_BIG_INT} AND operation != 'D'`, ["TEXT"]);
+    return this._headExistsPlan.execute([id]).length > 0;
+  }
+
+  _freeHeadExistsPlan() {
+    if (this._headExistsPlan) {
+      this._headExistsPlan.free();
+      this._headExistsPlan = null;
+    }
+  }
+
+  /**
+   * @returns {XyzException} An error which lets _executePlan() retry the write with the next version, like the unique violation
+   *  of a write whose HEAD has changed in the meantime
+   * @private
+   */
+  _headConflict(id) {
+    let error = new XyzException(`The HEAD of the feature with ID ${id} was changed concurrently.`);
+    error.sqlerrcode = SQLErrors.CONFLICT;
+    return error;
   }
 
   _PARTITION_SIZE() {
