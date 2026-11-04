@@ -26,6 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.here.xyz.jobs.steps.Config;
+import com.here.xyz.util.service.BaseConfig;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -45,10 +46,13 @@ class RunEmrJobTagInheritanceTest {
   private static final String ODIN_APP_ID = "odin_app_id";
   private static final AtomicInteger loadCount = new AtomicInteger();
   private Config previousConfig;
+  private BaseConfig previousBaseConfig;
 
   @BeforeEach
   void setUp() {
     previousConfig = Config.instance;
+    //new Config() replaces BaseConfig.instance as well, which AwsClientFactoryBase reads
+    previousBaseConfig = BaseConfig.instance;
     new Config();
     Config.instance.LOCALSTACK_ENDPOINT = null;
     RunEmrJob.clearApplicationTagsCache();
@@ -59,6 +63,7 @@ class RunEmrJobTagInheritanceTest {
   void tearDown() {
     RunEmrJob.clearApplicationTagsCache();
     Config.instance = previousConfig;
+    BaseConfig.instance = previousBaseConfig;
   }
 
   @Test
