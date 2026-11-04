@@ -206,7 +206,8 @@ public class Config extends BaseConfig {
   /**
    * If set to true, the service sends one health check to each active AWS Lambda connector at startup, before it serves requests, and
    * waits up to {@link #PREPARE_REMOTE_FUNCTIONS_TIMEOUT_MS} for the answers. That lets each connector prepare its database, e.g., install
-   * its SQL scripts, before the first request arrives.
+   * its SQL scripts, before the first request arrives. Connectors whose function runs in a region other than {@link #AWS_REGION} are
+   * skipped.
    */
   public boolean PREPARE_REMOTE_FUNCTIONS_ON_STARTUP;
 
