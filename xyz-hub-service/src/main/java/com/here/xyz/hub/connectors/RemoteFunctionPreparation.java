@@ -37,15 +37,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.MarkerManager.Log4jMarker;
 
 /**
- * Sends one {@link HealthCheckEvent} to each active AWS Lambda connector when the service starts, before it serves requests.
+ * Sends one {@link HealthCheckEvent} to each active AWS Lambda connector whose function runs in this service's region when the service
+ * starts, before it serves requests.
  * The event carries the connector's own settings and goes to the Lambda function version this service resolves for its own build version.
  * So the connector version that will serve this node's requests initializes itself against its database first, e.g., it checks and, if
  * needed, installs its SQL scripts there.
+ * Connectors whose function runs in another region are skipped. The service nodes in that region prepare them.
  * The preparation never fails the startup. A connector that fails or does not answer in time is logged, and its first request does the
  * initialization instead.
  */
@@ -57,7 +61,7 @@ public class RemoteFunctionPreparation {
   private RemoteFunctionPreparation() {}
 
   /**
-   * Prepares the connectors of all existing RPC clients, see {@link #select(Collection)}.
+   * Prepares the connectors of all existing RPC clients, see {@link #select(Collection, String)}.
    *
    * @param vertx The Vert.x instance to run the timeout on
    * @return A future that succeeds once all connectors answered or {@link com.here.xyz.hub.Config#PREPARE_REMOTE_FUNCTIONS_TIMEOUT_MS}
@@ -65,7 +69,7 @@ public class RemoteFunctionPreparation {
    */
   public static Future<Void> prepareAll(Vertx vertx) {
     try {
-      return prepare(select(RpcClient.getAllInstances()), RemoteFunctionPreparation::sendHealthCheck,
+      return prepare(select(RpcClient.getAllInstances(), Service.configuration.AWS_REGION), RemoteFunctionPreparation::sendHealthCheck,
           Service.configuration.PREPARE_REMOTE_FUNCTIONS_TIMEOUT_MS, vertx);
     }
     catch (Exception e) {
@@ -76,27 +80,38 @@ public class RemoteFunctionPreparation {
 
   /**
    * @param clients The RPC clients to select from
+   * @param region The region this service runs in, or <code>null</code> if it is unknown
    * @return The active connectors whose remote function is an AWS Lambda function. Embedded and HTTP connectors are not selected.
+   *  If both the given region and the function's region are known and differ, the connector is skipped instead.
    */
-  static List<Connector> select(Collection<RpcClient> clients) {
-    return clients.stream()
+  static Selection select(Collection<RpcClient> clients, String region) {
+    Map<Boolean, List<Connector>> byRegion = clients.stream()
         .map(RpcClient::getConnector)
         .filter(connector -> connector != null && connector.active && connector.getRemoteFunction() instanceof AWSLambda)
-        .toList();
+        .collect(Collectors.partitioningBy(connector -> runsInAnotherRegion(connector, region)));
+    return new Selection(byRegion.get(false), byRegion.get(true).stream().map(connector -> connector.id).toList());
+  }
+
+  private static boolean runsInAnotherRegion(Connector connector, String region) {
+    if (StringUtils.isEmpty(region))
+      return false;
+    String functionRegion = connector.getRemoteFunction().getRegion();
+    return StringUtils.isNotEmpty(functionRegion) && !region.equals(functionRegion);
   }
 
   /**
-   * Sends one event to each of the given connectors at the same time.
+   * Sends one event to each of the selected connectors at the same time.
    *
-   * @param connectors The connectors to prepare
+   * @param selection The connectors to prepare and the IDs of the skipped ones
    * @param sender Sends the event to one connector and calls the handler with its answer
    * @param timeoutMs The maximum time to wait for all answers
    * @param vertx The Vert.x instance to run the timeout on
    * @return A future that succeeds once all connectors answered or the timeout passed. It never fails.
    */
-  static Future<Void> prepare(List<Connector> connectors, BiConsumer<Connector, Handler<AsyncResult<XyzResponse>>> sender,
+  static Future<Void> prepare(Selection selection, BiConsumer<Connector, Handler<AsyncResult<XyzResponse>>> sender,
       long timeoutMs, Vertx vertx) {
-    Preparation preparation = new Preparation(connectors, timeoutMs);
+    List<Connector> connectors = selection.connectors();
+    Preparation preparation = new Preparation(connectors, selection.skipped(), timeoutMs);
     if (connectors.isEmpty()) {
       preparation.finish();
       return preparation.promise.future();
@@ -123,6 +138,12 @@ public class RemoteFunctionPreparation {
     RpcClient.getInstanceFor(connector).execute(new Log4jMarker(streamId), healthCheck, true, handler);
   }
 
+  /**
+   * @param connectors The connectors to prepare
+   * @param skipped The IDs of the connectors that are not prepared, because their function runs in another region
+   */
+  record Selection(List<Connector> connectors, List<String> skipped) {}
+
   private static class Preparation {
 
     private final Promise<Void> promise = Promise.promise();
@@ -130,11 +151,13 @@ public class RemoteFunctionPreparation {
     private final long timeoutMs;
     private final Map<String, Connector> pending = new LinkedHashMap<>();
     private final List<String> failed = new ArrayList<>();
+    private final List<String> skipped;
     private final int total;
     private boolean finished;
 
-    private Preparation(List<Connector> connectors, long timeoutMs) {
+    private Preparation(List<Connector> connectors, List<String> skipped, long timeoutMs) {
       this.timeoutMs = timeoutMs;
+      this.skipped = skipped;
       connectors.forEach(connector -> pending.put(connector.id, connector));
       total = pending.size();
     }
@@ -166,8 +189,9 @@ public class RemoteFunctionPreparation {
       }
 
       missing.forEach(connectorId -> logger.warn("Connector {} did not answer the preparation within {} ms.", connectorId, timeoutMs));
-      logger.info("Prepared {} of {} AWS Lambda connectors in {} ms. Failed: {}. No answer within {} ms: {}.",
-          total - failed.size() - missing.size(), total, Core.currentTimeMillis() - start, failed, timeoutMs, missing);
+      logger.info("Prepared {} of {} AWS Lambda connectors in {} ms. Failed: {}. No answer within {} ms: {}. "
+          + "Skipped, because their function runs in another region: {}.",
+          total - failed.size() - missing.size(), total, Core.currentTimeMillis() - start, failed, timeoutMs, missing, skipped);
       promise.complete();
     }
   }

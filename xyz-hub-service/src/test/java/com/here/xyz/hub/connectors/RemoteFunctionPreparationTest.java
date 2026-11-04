@@ -30,6 +30,7 @@ import static org.mockito.Mockito.when;
 
 import com.here.xyz.hub.Config;
 import com.here.xyz.hub.Service;
+import com.here.xyz.hub.connectors.RemoteFunctionPreparation.Selection;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.AWSLambda;
@@ -42,6 +43,7 @@ import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.Vertx;
+import io.vertx.core.json.JsonObject;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -54,6 +56,8 @@ import org.junit.jupiter.api.Test;
 class RemoteFunctionPreparationTest {
 
   private static final long LONG_TIMEOUT_MS = 60_000;
+  private static final String REGION = "us-east-1";
+  private static final String OTHER_REGION = "us-west-2";
 
   private static Config previousConfiguration;
   private static Vertx vertx;
@@ -81,7 +85,39 @@ class RemoteFunctionPreparationTest {
     List<RpcClient> clients = List.of(client(connector(new Embedded())), client(lambda), client(inactiveLambda),
         client(connector(new Http())), client(null));
 
-    assertEquals(List.of(lambda), RemoteFunctionPreparation.select(clients));
+    assertEquals(new Selection(List.of(lambda), List.of()), RemoteFunctionPreparation.select(clients, null));
+  }
+
+  @Test
+  void skipsTheAwsLambdaConnectorsWhoseFunctionRunsInAnotherRegion() {
+    Connector sameRegion = connector(lambda(REGION));
+    Connector otherRegion = connector(lambda(OTHER_REGION));
+    Connector inactiveOtherRegion = connector(lambda(OTHER_REGION));
+    inactiveOtherRegion.active = false;
+    List<RpcClient> clients = List.of(client(otherRegion), client(sameRegion), client(inactiveOtherRegion),
+        client(connector(new Embedded())));
+
+    //An inactive connector is neither prepared nor listed as skipped
+    assertEquals(new Selection(List.of(sameRegion), List.of(otherRegion.id)), RemoteFunctionPreparation.select(clients, REGION));
+  }
+
+  @Test
+  void selectsTheAwsLambdaConnectorsOfAllRegionsWhenTheRegionIsUnknown() {
+    Connector sameRegion = connector(lambda(REGION));
+    Connector otherRegion = connector(lambda(OTHER_REGION));
+    List<RpcClient> clients = List.of(client(sameRegion), client(otherRegion));
+
+    assertEquals(new Selection(List.of(sameRegion, otherRegion), List.of()), RemoteFunctionPreparation.select(clients, null));
+  }
+
+  @Test
+  void completesWithoutSendingWhenAllConnectorsAreSkipped() {
+    Future<Void> preparation = RemoteFunctionPreparation.prepare(new Selection(List.of(), List.of(connector(lambda(OTHER_REGION)).id)),
+        (connector, handler) -> {
+          throw new AssertionError("An event was sent to the skipped connector " + connector.id);
+        }, LONG_TIMEOUT_MS, vertx);
+
+    assertTrue(preparation.succeeded());
   }
 
   @Test
@@ -89,8 +125,8 @@ class RemoteFunctionPreparationTest {
     List<Connector> connectors = List.of(connector(new AWSLambda()), connector(new AWSLambda()), connector(new AWSLambda()));
     Map<String, Handler<AsyncResult<XyzResponse>>> sent = new ConcurrentHashMap<>();
 
-    Future<Void> preparation = RemoteFunctionPreparation.prepare(connectors, (connector, handler) -> sent.put(connector.id, handler),
-        LONG_TIMEOUT_MS, vertx);
+    Future<Void> preparation = RemoteFunctionPreparation.prepare(new Selection(connectors, List.of()),
+        (connector, handler) -> sent.put(connector.id, handler), LONG_TIMEOUT_MS, vertx);
     //All events are sent before any of the connectors answered
     assertEquals(connectors.stream().map(connector -> connector.id).collect(Collectors.toSet()), sent.keySet());
     assertFalse(preparation.isComplete());
@@ -107,7 +143,7 @@ class RemoteFunctionPreparationTest {
     long timeoutMs = 500;
 
     long start = System.nanoTime();
-    Future<Void> preparation = RemoteFunctionPreparation.prepare(List.of(answering, silent),
+    Future<Void> preparation = RemoteFunctionPreparation.prepare(new Selection(List.of(answering, silent), List.of()),
         (connector, handler) -> sent.put(connector.id, handler), timeoutMs, vertx);
     sent.get(answering.id).handle(Future.succeededFuture(new HealthStatus()));
     assertFalse(preparation.isComplete());
@@ -128,12 +164,13 @@ class RemoteFunctionPreparationTest {
     Connector throwing = connector(new AWSLambda());
     Connector answering = connector(new AWSLambda());
 
-    Future<Void> preparation = RemoteFunctionPreparation.prepare(List.of(failing, throwing, answering), (connector, handler) -> {
-      if (connector == throwing)
-        throw new IllegalStateException("No RpcClient is ready for the given connector with ID " + connector.id);
-      handler.handle(connector == failing ? Future.failedFuture(new HttpException(BAD_GATEWAY, "Connector error."))
-          : Future.succeededFuture(new HealthStatus()));
-    }, LONG_TIMEOUT_MS, vertx);
+    Future<Void> preparation = RemoteFunctionPreparation.prepare(new Selection(List.of(failing, throwing, answering), List.of()),
+        (connector, handler) -> {
+          if (connector == throwing)
+            throw new IllegalStateException("No RpcClient is ready for the given connector with ID " + connector.id);
+          handler.handle(connector == failing ? Future.failedFuture(new HttpException(BAD_GATEWAY, "Connector error."))
+              : Future.succeededFuture(new HealthStatus()));
+        }, LONG_TIMEOUT_MS, vertx);
 
     assertTrue(preparation.succeeded(), "The preparation did not complete with the last answer");
   }
@@ -143,6 +180,13 @@ class RemoteFunctionPreparationTest {
     connector.id = RemoteFunctionPreparationTest.class.getSimpleName() + "_" + UUID.randomUUID();
     connector.setRemoteFunction(remoteFunction);
     return connector;
+  }
+
+  private static RemoteFunctionConfig lambda(String region) {
+    return new JsonObject()
+        .put("type", "AWSLambda")
+        .put("lambdaARN", "arn:aws:lambda:" + region + ":000000000000:function:test-connector")
+        .mapTo(RemoteFunctionConfig.class);
   }
 
   private static RpcClient client(Connector connector) {
