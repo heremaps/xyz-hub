@@ -60,7 +60,15 @@ public class DatabaseSettings extends Payload {
      * still has to be retried because of a transient failure. The retries do not attempt them again.
      */
     private static final Map<String, Set<String>> PERMANENTLY_FAILED_SCRIPTS = new ConcurrentHashMap<>();
-    private volatile boolean initialized = false;
+    /**
+     * Whether the next initialization has to check the scripts: before the first check and after a check that fell back because of
+     * a transient failure
+     */
+    private boolean scriptCheckDue = true;
+    /**
+     * The script schemas the last check of these settings added to the search path
+     */
+    private List<String> addedScriptSchemas = List.of();
 
     /**
      * A constant that is normally used as environment variable name for the host.
@@ -550,7 +558,8 @@ public class DatabaseSettings extends Payload {
      * script schemas for the use in the search path.
      * The check runs once per JVM, settings ID and software version on one connection, normally with one query. After a
      * transient failure, the check is repeated at most every {@link #SCRIPT_CHECK_RETRY_INTERVAL_MS} ms and the search path
-     * meanwhile falls back to the newest installed versions known.
+     * meanwhile falls back to the newest installed versions known. The repetition happens with the next initialization of any
+     * settings with the same ID, also of these settings (see {@link #init()}).
      */
     private synchronized void checkScripts() {
         if (scriptResourcePaths == null || scriptResourcePaths.isEmpty())
@@ -564,15 +573,26 @@ public class DatabaseSettings extends Payload {
             scriptSchemas = checkAndInstallScripts(checkKey, softwareVersion, runtime == null ? null : runtime::getRemainingTime);
 
         List<String> extendedSearchPath = new ArrayList<>(getSearchPath() == null ? List.of() : getSearchPath());
+        //A repeated check of these settings replaces the script schemas the previous one added
+        int scriptSchemasStart = extendedSearchPath.size() - addedScriptSchemas.size();
+        if (scriptSchemasStart >= 0 && extendedSearchPath.subList(scriptSchemasStart, extendedSearchPath.size()).equals(addedScriptSchemas))
+            extendedSearchPath.subList(scriptSchemasStart, extendedSearchPath.size()).clear();
         extendedSearchPath.addAll(scriptSchemas);
+        addedScriptSchemas = scriptSchemas;
         logger.info("Set searchPath for connector {} to... {}", getId(), extendedSearchPath);
         setSearchPath(extendedSearchPath);
     }
 
     private List<String> checkAndInstallScripts(String checkKey, String softwareVersion, IntSupplier remainingMillis) {
         Long retryAfter = SCRIPT_CHECK_RETRY_AFTER.get(getId());
-        if (retryAfter != null && System.currentTimeMillis() < retryAfter) {
-            logger.info("Skipping the script check for connector {} until {} after a transient failure.", getId(), retryAfter);
+        long now = System.currentTimeMillis();
+        //After a transient failure, only the first check after the retry interval runs. It moves the retry time before it starts, so
+        //that concurrent checks for the same ID keep the fallback meanwhile.
+        if (retryAfter != null && (now < retryAfter
+            || !SCRIPT_CHECK_RETRY_AFTER.replace(getId(), retryAfter, now + SCRIPT_CHECK_RETRY_INTERVAL_MS))) {
+            logger.info("Skipping the script check for connector {} until {} after a transient failure.", getId(),
+                SCRIPT_CHECK_RETRY_AFTER.getOrDefault(getId(), retryAfter));
+            scriptCheckDue = true;
             return ScriptInstaller.resolveSchemas(loadScripts(null, softwareVersion), softwareVersion, LAST_SCRIPT_SNAPSHOT.get(getId()));
         }
 
@@ -601,6 +621,7 @@ public class DatabaseSettings extends Payload {
                     PERMANENTLY_FAILED_SCRIPTS.remove(checkKey);
                 else
                     PERMANENTLY_FAILED_SCRIPTS.put(checkKey, outcome.permanentlyFailedScripts());
+                scriptCheckDue = true;
                 //Fall back to the newest installed versions of the last snapshot that could be loaded, if any
                 return outcome.snapshot() != null ? outcome.schemas()
                     : ScriptInstaller.resolveSchemas(scripts, softwareVersion, LAST_SCRIPT_SNAPSHOT.get(getId()));
@@ -669,10 +690,14 @@ public class DatabaseSettings extends Payload {
 
   /**
      * Must be called whenever this DatabaseSettings objects is used to initialize a new {@link DataSourceProvider}.
+     * The first call checks the scripts. If a check falls back to older script schemas because of a transient failure, the next call
+     * checks again, which makes no DB access before the retry interval has passed. Once the scripts were verified or failed
+     * permanently, later calls do nothing.
      */
     synchronized void init() {
-        if (!initialized) {
-            initialized = true;
+        if (scriptCheckDue) {
+            //NOTE: Reset before the check, because it initializes a provider with the script installation settings, which may be these
+            scriptCheckDue = false;
             checkScripts();
         }
     }
