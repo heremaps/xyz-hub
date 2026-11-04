@@ -117,6 +117,13 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   private int stepExecutionHeartBeatTimeoutOverride;
 
   /**
+   * Whether SFN accepted the heartbeat for the task of this step during the current request, null if none was sent yet.
+   * See {@link #isTaskActiveInSfn()}.
+   */
+  @JsonIgnore
+  private Boolean taskActiveInSfn;
+
+  /**
    * Contains the raw (unparsed & unresolved) pipeline input if this LambdaBasedStep belongs to a job that is a pipeline.
    * This value should not be used directly by implementing steps. Implementing steps can gather the input using the well-known
    * method {@link #loadInputs(Class[])}. Using that method will ensure correct deserialization & resolving of the input references.
@@ -312,7 +319,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   private void handleAsyncUpdate(LambdaStepRequest request) {
     boolean isCompleted = onAsyncUpdate(request.getProcessUpdate());
 
-    //Safeguard to detect a StateMachine which is not running anymore;
+    //Safeguard to detect a StateMachine which is not running anymore (reuses the heartbeat if onAsyncUpdate() sent it already)
     reportAsyncHeartbeat(false);
     if(request.getStep().getStatus().getState() != RUNNING) {
       return;
@@ -375,20 +382,46 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     //Nothing to do by default (may be overridden in subclasses)
   }
 
+  /**
+   * Sends the heartbeat for the task of this step to SFN, at most once per request.
+   * The task does not exist in SFN anymore once the execution was stopped or failed, e.g., because another step failed.
+   * An ASYNC step which starts follow-up work in {@link #onAsyncUpdate(ProcessUpdate)} should call this before, so that it does
+   * not keep starting work for a task which was stopped in SFN already.
+   * {@link #handleAsyncUpdate(LambdaStepRequest)} reuses the result for its own heartbeat, so a request sends one heartbeat only.
+   *
+   * NOTE: Must not be called while the execution state of the step is not known, see {@link #checkAsyncExecutionState()}.
+   *
+   * @return false if SFN does not know the task anymore, true otherwise (also in simulations)
+   */
+  protected boolean isTaskActiveInSfn() {
+    if (isSimulation)
+      return true;
+    if (taskActiveInSfn == null) {
+      try {
+        sfnClient().sendTaskHeartbeat(SendTaskHeartbeatRequest.builder().taskToken(taskToken).build());
+        taskActiveInSfn = true;
+      }
+      catch (TaskTimedOutException | InvalidTokenException e) {
+        logger.warn("[{}] Task Heartbeat is failed. The task does not exist in SFN anymore.", getGlobalStepId(), e);
+        taskActiveInSfn = false;
+      }
+    }
+    return taskActiveInSfn;
+  }
+
   private void reportAsyncHeartbeat(boolean synchronize) {
     if (isSimulation)
       return;
     //Report heartbeat to SFN and check for a potential necessary cancellation
-    try {
-      sfnClient().sendTaskHeartbeat(SendTaskHeartbeatRequest.builder().taskToken(taskToken).build());
-      if(synchronize) {
+    if (isTaskActiveInSfn()) {
+      if (synchronize) {
         getStatus().touch();
         synchronizeStep();
       }
     }
-    catch (TaskTimedOutException | InvalidTokenException e) {
+    else {
       try {
-        logger.warn("[{}] Task Heartbeat is failed. Cancelling step!", getGlobalStepId(), e);
+        logger.warn("[{}] Cancelling step!", getGlobalStepId());
         updateState(CANCELLING);
         cancel();
         updateState(CANCELLED);

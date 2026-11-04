@@ -742,6 +742,13 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
           return false;
         }
 
+        //The progress is stored already, so a resume continues after it
+        if (!isTaskActiveInSfn()) {
+          infoLog(STEP_ON_ASYNC_UPDATE, "The task of the step does not exist in SFN anymore. No follow-up query gets started"
+              + " for taskId=" + update.taskId + ".");
+          return false;
+        }
+
         onTaskProgress(update.taskId, (O) update.taskOutput);  //hook method
       }else{
         finalizeTaskQuery(update.taskId); //hook method
@@ -758,6 +765,16 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
 
         if (!taskProgressAndItem.hasTaskItem()) {
           infoLog(STEP_ON_ASYNC_UPDATE,"No claimable task. Waiting for running tasks to finish: " + taskProgressAndItem);
+          return false;
+        }
+
+        /*
+        The finished task is finalized already. The claimed task stays started without a query, a resume resets it like any
+        other started task which is not finalized.
+         */
+        if (!isTaskActiveInSfn()) {
+          infoLog(STEP_ON_ASYNC_UPDATE, "The task of the step does not exist in SFN anymore. The claimed task "
+              + taskProgressAndItem.getTaskId() + " does not get started.");
           return false;
         }
 
