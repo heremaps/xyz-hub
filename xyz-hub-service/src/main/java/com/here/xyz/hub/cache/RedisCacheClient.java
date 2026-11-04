@@ -50,22 +50,23 @@ public class RedisCacheClient implements CacheClient {
 
   private RedisCacheClient() {
     //Use redis auth token when available
-    if (Service.configuration.XYZ_HUB_REDIS_AUTH_TOKEN != null)
+    if (Service.configuration.XYZ_HUB_REDIS_AUTH_TOKEN != null) {
       config.setPassword(Service.configuration.XYZ_HUB_REDIS_AUTH_TOKEN);
+    }
     redis = ThreadLocal.withInitial(() -> Redis.createClient(Core.vertx, config));
   }
 
   public static synchronized CacheClient getInstance() {
-    if (instance != null)
+    if (instance != null) {
       return instance;
+    }
 
-    if (Service.configuration.getRedisUri() == null)
+    if (Service.configuration.getRedisUri() == null) {
       instance = new NoopCacheClient();
-    else {
+    } else {
       try {
         instance = new RedisCacheClient();
-      }
-      catch (Exception e) {
+      } catch (Exception e) {
         logger.error("Error when trying to create the Redis client.", e);
         instance = new NoopCacheClient();
       }
@@ -89,13 +90,15 @@ public class RedisCacheClient implements CacheClient {
 
   @Override
   public void set(String key, byte[] value, long ttl) {
+    setAsync(key, value, ttl).onFailure(t -> logger.warn("Error when trying to put key " + key + " to redis cache", t));
+  }
+
+  /**
+   * Completes only after Redis acknowledges the write. Use this when a subsequent read depends on the write.
+   */
+  public Future<Void> setAsync(String key, byte[] value, long ttl) {
     Request req = Request.cmd(Command.SET).arg(key).arg(value).arg("EX").arg(ttl);
-    getClient().send(req).onComplete(ar -> {
-      //SET command was executed. Nothing to do here.
-      if (ar.failed()) {
-        logger.warn("Error when trying to put key " + key + " to redis cache", ar.cause());
-      }
-    });
+    return getClient().send(req).mapEmpty();
   }
 
   @Override
@@ -111,13 +114,15 @@ public class RedisCacheClient implements CacheClient {
 
   @Override
   public void shutdown() {
-    if (redis != null)
+    if (redis != null) {
       getClient().close();
+    }
   }
 
   /**
-   * Acquires the lock on the specified key and sets a ttl in seconds.
-   * Implementation based on https://redis.io/topics/distlock for single Redis instances
+   * Acquires the lock on the specified key and sets a ttl in seconds. Implementation based on https://redis.io/topics/distlock for single
+   * Redis instances
+   *
    * @param key the key which the lock will be acquired
    * @param ttl the expiration time in seconds for this lock be automatically released
    * @return true in case the lock was successfully acquired. False otherwise.
@@ -129,22 +134,22 @@ public class RedisCacheClient implements CacheClient {
       if (ar.failed()) {
         logger.warn("Error acquiring lock for key {}.", key, ar.cause());
         f.complete(false);
-      }
-      else if (ar.result() == null)
+      } else if (ar.result() == null) {
         f.complete(false);
-      else
+      } else {
         f.complete("OK".equals(ar.result().toString()));
+      }
     });
     try {
       return f.get();
-    }
-    catch (ExecutionException | InterruptedException e) {
+    } catch (ExecutionException | InterruptedException e) {
       return false;
     }
   }
 
   /**
    * Releases the lock acquired by acquireLock. The key must match with the lock acquired previously.
+   *
    * @param key the key which the lock was acquired
    */
   public void releaseLock(String key) {
