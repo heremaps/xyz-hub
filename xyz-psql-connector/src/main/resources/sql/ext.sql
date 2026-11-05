@@ -1480,18 +1480,20 @@ $BODY$
 $BODY$
   LANGUAGE plpgsql VOLATILE;
 
+-- base_tables: the tables of the spaces the space extends (intermediate and extended table of a composite space)
 CREATE OR REPLACE FUNCTION xyz_statistic_space_v2(
     IN schema text,
-    IN spaceid text)
+    IN spaceid text,
+    IN base_tables text[])
   RETURNS TABLE(tablesize jsonb, geometrytypes jsonb, properties jsonb, tags jsonb, count jsonb, bbox jsonb, searchable text) AS
 $BODY$
 
-with indata as ( select xyz_statistic_space_v2.schema as s, xyz_statistic_space_v2.spaceid as t ),
---with indata as ( select 'public' as s, 'exportTestdata03' as t ),
---with indata as ( select 'public' as s, 'x-psql-test' as t ),
+with indata as ( select xyz_statistic_space_v2.schema as s, xyz_statistic_space_v2.spaceid as t, xyz_statistic_space_v2.base_tables as b ),
+--with indata as ( select 'public' as s, 'exportTestdata03' as t, '{}'::text[] as b ),
+--with indata as ( select 'public' as s, 'x-psql-test' as t, '{}'::text[] as b ),
 iindata as
 ( select row_number() over () as idx, r.* from
-	(	select i.s as schem, unnest( array_remove( array[i.t, m.meta#>>'{extends,intermediateTable}', m.meta#>>'{extends,extendedTable}'], null ) ) as tbl from xyz_config.space_meta m right join indata i on ( m.schem = i.s and m.h_id = regexp_replace( i.t, '_head$', '' ))  ) r
+	(	select i.s as schem, unnest( array_remove( array[i.t] || coalesce( i.b, '{}'::text[] ), null ) ) as tbl from indata i ) r
 ),
 iiindata as ( select * from iindata i, lateral ( select * from xyz_statistic_space_v1(i.schem,i.tbl) ) l ),
 c1 as ( select jsonb_build_object( 'value', sum( (tablesize->'value')::bigint ), 'estimated', max( (tablesize->>'estimated') )::boolean) as tablesize from iiindata ),
@@ -1527,7 +1529,14 @@ select * from outdata
 $BODY$
 LANGUAGE sql VOLATILE;
 
-create or replace function xyz_statistic_space( schema text, spaceid text, ctx_extend boolean)
+--base_tables was added; drop the old signature so a reused versioned schema does not keep both overloads and 3-arg calls become ambiguous
+--Qualified with current_schema() so it never drops a same-named function from another schema further down the search_path
+DO $$
+BEGIN
+    EXECUTE format('DROP FUNCTION IF EXISTS %I.xyz_statistic_space(text, text, boolean)', current_schema());
+END$$;
+
+create or replace function xyz_statistic_space( schema text, spaceid text, ctx_extend boolean, base_tables text[] DEFAULT '{}')
   returns table(tablesize jsonb, geometrytypes jsonb, properties jsonb, tags jsonb, count jsonb, bbox jsonb, searchable text) AS
 $body$
 begin
@@ -1535,7 +1544,7 @@ begin
  if ctx_extend then
   return query select * from xyz_statistic_space_v1( schema, spaceid );
  else
-  return query select * from xyz_statistic_space_v2( schema, spaceid );
+  return query select * from xyz_statistic_space_v2( schema, spaceid, base_tables );
  end if;
 
 end;
@@ -2220,64 +2229,6 @@ BEGIN
 
     -- Purge the remainder in the new oldest partition
     EXECUTE 'DELETE FROM "' || schema || '"."' || tableName || '" WHERE next_version <= ' || minVersion;
-END
-$BODY$
-LANGUAGE plpgsql VOLATILE;
-------------------------------------------------
-------------------------------------------------
-CREATE OR REPLACE FUNCTION xyz_advanced_delete_changesets(
-	schema text,
-	tablename text,
-	partitionsize bigint,
-	versions_to_keep bigint,
-	min_tag_version bigint,
-	pw text)
-RETURNS void AS
-$BODY$
-DECLARE
-    statistic RECORD;
-	calculated_min_version BIGINT;
-BEGIN
-    execute format('select '
-                   || 'meta->''minAvailableVersion'' as min_available_version, '
-                   || '(meta->''userMinVersion'')::BIGINT as user_min_version, '
-                   || '(select max(version) from "%1$s"."%2$s") as max_version, '
-                   || '%3$L::bigint as versions_to_keep '
-                   || 'from xyz_config.space_meta '
-                   || 'where '
-                   || 'h_id=%2$L', schema, tablename, versions_to_keep )
-    INTO statistic;
-
-    IF statistic IS NULL THEN
-		-- Table not found in space_meta table - abort!
-		RETURN;
-    END IF;
-
-	calculated_min_version := COALESCE(greatest(statistic.user_min_version, statistic.max_version - statistic.versions_to_keep + 1),0);
-
-	IF min_tag_version >= 0 THEN
-		-- Tag has priority. Delete nothing below the minTagVersion!
-		calculated_min_version := least(min_tag_version , calculated_min_version);
-    END IF;
-
-	RAISE NOTICE 'PURGE - max_version:% min_available_version:% user_min_version:% calculated_min_version:%',
-		statistic.max_version, statistic.min_available_version, statistic.user_min_version, calculated_min_version;
-
-	IF calculated_min_version < 0 THEN
-		RAISE NOTICE 'calculated_min_version is negative - ignore!';
-		RETURN;
-    END IF;
-
-	IF statistic.min_available_version::BIGINT >= calculated_min_version THEN
-		RAISE NOTICE 'PURGE - Requested versions are already deleted!';
-		RETURN;
-    END IF;
-
-	PERFORM asyncify('SELECT xyz_delete_changesets(''' || schema || ''', ''' || tableName || ''', ' ||  partitionSize || ', ' || calculated_min_version || ')', pw);
-
-    update xyz_config.space_meta
-        set meta = meta || jsonb_build_object('minAvailableVersion', calculated_min_version)
-    where h_id = tablename;
 END
 $BODY$
 LANGUAGE plpgsql VOLATILE;

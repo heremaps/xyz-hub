@@ -39,8 +39,10 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 public class GetStatistics extends ExtendedSpace<GetStatisticsEvent, StatisticsResponse>  {
   private boolean fastMode;
@@ -62,10 +64,16 @@ public class GetStatistics extends ExtendedSpace<GetStatisticsEvent, StatisticsR
 
   @Override
   protected SQLQuery buildQuery(GetStatisticsEvent event) throws SQLException, ErrorResponseException {
-    return new SQLQuery("SELECT * FROM xyz_statistic_space(#{schema}, #{table}, #{isExtension} )")
+    //The base tables of a composite space get summed up unless the context is EXTENSION
+    String[] baseTables = Stream.of(getIntermediateTable(event), getExtendedTable(event))
+        .filter(Objects::nonNull)
+        .toArray(String[]::new);
+
+    return new SQLQuery("SELECT * FROM xyz_statistic_space(#{schema}, #{table}, #{isExtension}, #{baseTables}::TEXT[])")
         .withNamedParameter(SCHEMA, getSchema())
         .withNamedParameter(TABLE, getDefaultTable(event))
-        .withNamedParameter("isExtension", event.getContext() == SpaceContext.EXTENSION);
+        .withNamedParameter("isExtension", event.getContext() == SpaceContext.EXTENSION)
+        .withNamedParameter("baseTables", baseTables);
   }
 
   @Override
