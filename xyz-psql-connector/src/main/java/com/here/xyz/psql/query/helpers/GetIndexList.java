@@ -93,11 +93,6 @@ public class GetIndexList extends QueryRunner<String, List<String>> {
         iindata as ( select json_agg( idx_available )::jsonb as idx_available from indata )
         select idx_available from iindata where 0 < ( select count(*) from indata )
       """
-/*
-          "SELECT coalesce(idx_available,'[]'::jsonb) as idx_available FROM " + ModifySpace.IDX_STATUS_TABLE_FQN
-        + " WHERE spaceid = #{table} "
-        + "  AND (select coalesce( (count->'value')::bigint, 0 ) from xyz_statistic_space(#{schema},#{table}, false)) >= #{threshold} "
-*/
         )
         .withNamedParameter(TABLE, tableName)
         .withNamedParameter(SCHEMA, getSchema())
