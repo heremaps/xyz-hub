@@ -548,7 +548,9 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
    * (see {@link Config#TASKED_STEP_MAX_TASKS_PER_DB}).
    * <p>
    * The concurrency limit of a step only applies to the step itself. Several steps (e.g., the imports of one job into
-   * several layers) can run on the same database at the same time, so their task queries are additionally limited per database.
+   * several layers) can run on the same database at the same time, so the task queries of the steps which are limited by it
+   * (see {@link #isLimitedByDatabaseTaskSlots()}) are additionally limited per database. The running task queries of all steps
+   * count towards that limit.
    * A step without running tasks may always start one task, also if the database limit is reached. Otherwise, its state
    * check would not find any running task and the step would fail after the heartbeat timeout
    * (see {@link #getExecutionState()}).
@@ -575,13 +577,25 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   }
 
   /**
-   * Limits the number of tasks to be started by the free task slots of the database the step's task queries run on.
+   * Whether this step only starts tasks within the free task slots of the database its task queries run on
+   * (see {@link Config#TASKED_STEP_MAX_TASKS_PER_DB}). The task queries of all other steps are counted nevertheless.
+   * Only steps whose task queries are expensive for the database should return true.
+   *
+   * @return false by default
+   */
+  protected boolean isLimitedByDatabaseTaskSlots() throws WebClientException {
+    return false;
+  }
+
+  /**
+   * Limits the number of tasks to be started by the free task slots of the database the step's task queries run on,
+   * if the step is limited by them (see {@link #isLimitedByDatabaseTaskSlots()}).
    * See {@link #limitByDatabaseTaskSlots(int, int, int, Integer)}.
    */
-  private int limitByDatabaseTaskSlots(int startableTasks, int runningTasksOfStep, LogPhase phase) {
+  private int limitByDatabaseTaskSlots(int startableTasks, int runningTasksOfStep, LogPhase phase) throws WebClientException {
     Integer configuredLimit = Config.instance == null ? null : Config.instance.TASKED_STEP_MAX_TASKS_PER_DB;
     int maxTasksPerDb = configuredLimit == null ? 0 : configuredLimit;
-    if (startableTasks <= 0 || maxTasksPerDb <= 0)
+    if (startableTasks <= 0 || maxTasksPerDb <= 0 || !isLimitedByDatabaseTaskSlots())
       return Math.max(startableTasks, 0);
 
     Integer runningTasksOnDb = null;

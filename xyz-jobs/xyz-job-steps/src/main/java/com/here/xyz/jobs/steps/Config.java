@@ -83,8 +83,9 @@ public class Config extends BaseConfig {
   /**
    * The maximum number of task queries of tasked steps that may run on one database instance at the same time,
    * counted over all steps and jobs. Unset or <= 0: no limit.
-   * A step only starts additional tasks while the limit is not reached. A running task is never interrupted because of it,
-   * and a step without running tasks may always start one.
+   * Only the steps with expensive task queries are limited by it: the imports that write with the FeatureWriter (PLV8).
+   * They only start additional tasks while the limit is not reached. All other steps are not limited, but their task queries
+   * are counted. A running task is never interrupted because of it, and a step without running tasks may always start one.
    */
   public Integer TASKED_STEP_MAX_TASKS_PER_DB;
 
