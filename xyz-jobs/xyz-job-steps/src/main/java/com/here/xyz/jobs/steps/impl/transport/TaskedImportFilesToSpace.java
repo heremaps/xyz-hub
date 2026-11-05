@@ -36,6 +36,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.UpdateStrategy;
+import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.S3DataFile;
 import com.here.xyz.jobs.steps.execution.StepException;
 import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
@@ -255,12 +256,14 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
   }
 
   /**
-   * Only an import that writes with the FeatureWriter (PLV8) is limited by the free task slots of the database. Its task
-   * queries need much more memory and CPU than those of a plain import into an empty layer or of an express import.
+   * Only an import that writes with the FeatureWriter (PLV8) has a database limit
+   * ({@link Config#FEATURE_WRITER_IMPORT_MAX_TASKS_PER_DB}). Its task queries need much more memory and CPU than those of a plain
+   * import into an empty layer or of an express import.
    */
   @Override
-  protected boolean isLimitedByDatabaseTaskSlots() throws WebClientException {
-    return useFeatureWriter() && !useExpressImport();
+  protected Integer getMaxTasksPerDatabase() throws WebClientException {
+    Integer limit = Config.instance == null ? null : Config.instance.FEATURE_WRITER_IMPORT_MAX_TASKS_PER_DB;
+    return limit != null && limit > 0 && useFeatureWriter() && !useExpressImport() ? limit : null;
   }
 
   @Override
