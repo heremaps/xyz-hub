@@ -189,7 +189,13 @@ class FeatureWriter {
       }
     }
 
-    let existingFeature = this.loadFeature(this.inputFeature.id);
+    if (this._canDeleteWithoutLoading())
+      return this._deleteHeadWithHistoryRow();
+
+    //A deletion without conflict detection does not need the content of the existing feature
+    let existingFeature = this._isDeletionWithoutConflictDetection()
+        ? this._loadFeatureForDeletion(this.inputFeature.id)
+        : this.loadFeature(this.inputFeature.id);
     this.baseFeature = existingFeature;
     let featureExists = !!existingFeature;
 
@@ -598,14 +604,22 @@ class FeatureWriter {
     else
       feature = resultSet[0].jsondata;
 
-    let dataset = resultSet[0].dataset;
-    let version = FeatureWriter._isComposite() && dataset < this.tables.length - 1 ? 0 : Number(resultSet[0].version);
-
     feature.id = resultSet[0].id;
     feature.geometry = resultSet[0].geo;
+    return this._applyLoadedRowMetadata(feature, resultSet[0]);
+  }
+
+  /**
+   * Sets the version of the loaded row at the feature and attaches its operation and datasets as non-enumerable properties.
+   * @private
+   */
+  _applyLoadedRowMetadata(feature, row) {
+    let dataset = row.dataset;
+    let version = FeatureWriter._isComposite() && dataset < this.tables.length - 1 ? 0 : Number(row.version);
+
     feature.properties[XYZ_NS].version = version;
     Object.defineProperty(feature, "operation", {
-      value: resultSet[0].operation,
+      value: row.operation,
       enumerable: false
     });
     Object.defineProperty(feature, "dataset", {
@@ -613,10 +627,93 @@ class FeatureWriter {
       enumerable: false
     });
     Object.defineProperty(feature, "containingDatasets", {
-      value: resultSet[0].containing_datasets,
+      value: row.containing_datasets,
       enumerable: false
     });
     return feature;
+  }
+
+  /**
+   * Whether this write deletes the feature if it exists, without any conflict detection and with a complete input.
+   * Such a deletion only needs to know whether the feature exists in HEAD, in which datasets, and its creation timestamp,
+   * but not its content. See _loadFeatureForDeletion().
+   */
+  _isDeletionWithoutConflictDetection() {
+    return this.onExists == "DELETE" && this.onVersionConflict == null && !this.isPartial;
+  }
+
+  /**
+   * Loads what a deletion without conflict detection needs to know about the HEAD of a feature: its ID, version, operation,
+   * datasets and creation timestamp. Unlike loadFeature(), it does not load the content (properties and geometry), so no
+   * feature object is built from it, and it uses a prepared query, which is planned only once per call of writeFeatures().
+   * A loaded feature is not cached for loadFeature(), because it is not complete. A missing feature is.
+   * @returns {object|null} A feature object which only contains the ID and the version and creation timestamp in the XYZ namespace
+   * @private
+   */
+  _loadFeatureForDeletion(id) {
+    if (this.headFeatureLoaded)
+      return this.headFeature;
+    if (id == null)
+      return null;
+
+    let res = FeatureWriter._deletionLoadPlan(this).execute([id, "D"]);
+    if (!res.length) {
+      this.headFeatureLoaded = true;
+      return null;
+    }
+    if (res.length > 1)
+      throw new XyzException("Found two Features with the same id!");
+
+    let feature = {type: "Feature", id: res[0].id, properties: {[XYZ_NS]: {createdAt: res[0].created_at}}};
+    return this._applyLoadedRowMetadata(feature, res[0]);
+  }
+
+  /**
+   * Whether a deletion without conflict detection can check the existence of the feature within its write
+   * (see DatabaseWriter.deleteHeadWithHistoryRow()) instead of loading the feature before.
+   * That is possible for a single table in OLD_LAYOUT, where an existing feature always gets a D row, if a missing feature is
+   * retained (onNotExists RETAIN), as by the imports of deleted features.
+   * NOTE: Not for onNotExists ERROR: The write only finds out at its execution whether the feature exists, so a missing feature
+   * would fail a batch-mode write later than now, and the second of two deletions of the same feature in one batch would fail.
+   */
+  _canDeleteWithoutLoading() {
+    return this._isDeletionWithoutConflictDetection()
+        && this.onNotExists == "RETAIN"
+        && this.tables.length == 1
+        && this.tableBoundVersions[0] == null
+        && this.context != "SUPER"
+        && queryContext().tableLayout !== "NEW_LAYOUT"
+        && !this.headFeatureLoaded;
+  }
+
+  /**
+   * @returns {FeatureModificationExecutionResult}
+   * @private
+   */
+  _deleteHeadWithHistoryRow() {
+    this.operation = "D";
+    this._transformToDeletedFeature();
+    return FeatureWriter.dbWriter.deleteHeadWithHistoryRow(this.inputFeature, this.version - this.tableBaseVersions.at(-1),
+        this.author);
+  }
+
+  /**
+   * The prepared queries of _loadFeatureForDeletion() by space context. They are freed at the end of writeFeatures().
+   * @type {{<string>: PreparedPlan}}
+   */
+  static _deletionLoadPlans = {};
+
+  static _deletionLoadPlan(featureWriter) {
+    //The query only depends on the context, the tables and their versions are the same for the whole call of write_features()
+    let key = String(featureWriter.context);
+    return FeatureWriter._deletionLoadPlans[key] ??= plv8.prepare(featureWriter._loadFeatureQuery("HEAD", featureWriter.context, true),
+        ["TEXT", "CHAR"]);
+  }
+
+  static _freeDeletionLoadPlans() {
+    for (let key in FeatureWriter._deletionLoadPlans)
+      FeatureWriter._deletionLoadPlans[key].free();
+    FeatureWriter._deletionLoadPlans = {};
   }
 
   _getFeatureVersion(feature) {
@@ -881,6 +978,16 @@ class FeatureWriter {
   }
 
   _loadFeature(id, version, context) {
+    return plv8.execute(this._loadFeatureQuery(version, context, false), [id, "D"]);
+  }
+
+  /**
+   * Builds the query which loads a feature by its ID ($1), excluding rows with the operation $2.
+   * @param forDeletion Whether only the columns are loaded which a deletion without conflict detection needs
+   *  (see _loadFeatureForDeletion()): the creation timestamp instead of author, content and geometry
+   * @private
+   */
+  _loadFeatureQuery(version, context, forDeletion) {
     let tables = context == "EXTENSION" ? this.tables.slice(-1) : context == "SUPER" ? this.tables.slice(0, -1) : this.tables;
     let tableAliases = tables.map((table, i) => "t" + (tables.length - i - 1));
     //The EXTENSION context slices the base tables off the front, so an index into "tables" has to be shifted to index tableBoundVersions
@@ -899,13 +1006,23 @@ class FeatureWriter {
     let whereConditions = tables.map((table, i) => `WHERE id = $1 AND ${versionCondition(i)} AND operation != $2`).reverse();
     let tableBaseVersions = tables.map((table, i) => this.tableBaseVersions[i]).reverse();
 
-    let sql = `
+    let jsondata = alias => queryContext().tableLayout === 'NEW_LAYOUT' ? `(${alias}.jsondata::JSONB)` : `${alias}.jsondata`;
+    let contentColumns = forDeletion
+        ? `created_at_array[index] AS created_at,`
+        : `author_array[index] AS author,
+            jsondata_array[index] AS jsondata,
+            ST_AsGeojson(geo_array[index])::JSONB AS geo,`;
+    let contentArrays = forDeletion
+        ? `ARRAY[${tableAliases.map(alias => jsondata(alias) + `->'properties'->'${XYZ_NS}'->'createdAt'`).join(", ")}] AS created_at_array,`
+        : `ARRAY[${tableAliases.map(alias => alias + ".author").join(", ")}] AS author_array,
+                ARRAY[${tableAliases.map(alias => alias + ".jsondata").join(", ")}] AS jsondata_array,
+                ARRAY[${tableAliases.map(alias => alias + ".geo").join(", ")}] AS geo_array,`;
+
+    return `
         SELECT
             id_array[index] AS id,
             version_array[index] AS version,
-            author_array[index] AS author,
-            jsondata_array[index] AS jsondata,
-            ST_AsGeojson(geo_array[index])::JSONB AS geo,
+            ${contentColumns}
             operation_array[index] AS operation,
             ${this.tables.length} - index AS dataset,
             (SELECT array_agg(idx - 1) FROM unnest(array_positions(array_reverse(id_array), id_array[index])) AS idx) AS containing_datasets
@@ -913,17 +1030,13 @@ class FeatureWriter {
             SELECT
                 ARRAY[${tableAliases.map(alias => alias + ".id").join(", ")}] AS id_array,
                 ARRAY[${tableAliases.map((alias, i) => alias + `.version + ${tableBaseVersions[i]}`).join(", ")}] AS version_array,
-                ARRAY[${tableAliases.map(alias => alias + ".author").join(", ")}] AS author_array,
-                ARRAY[${tableAliases.map(alias => alias + ".jsondata").join(", ")}] AS jsondata_array,
-                ARRAY[${tableAliases.map(alias => alias + ".geo").join(", ")}] AS geo_array,
+                ${contentArrays}
                 ARRAY[${tableAliases.map(alias => alias + ".operation").join(", ")}] AS operation_array,
                 coalesce_subscript(ARRAY[${tableAliases.map(alias => alias + ".id").join(", ")}]) AS index
             FROM (SELECT * FROM "${this.schema}"."${tables.at(-1)}" ${whereConditions[0]}) AS ${tableAliases[0]}
                 ${tables.slice(0, -1).reverse().map((baseTable, i) => `FULL JOIN (SELECT * FROM "${this.schema}"."${baseTable}" ${whereConditions[i + 1]}) AS ${tableAliases[i + 1]} USING (id) `).join("\n")}
         );
     `;
-
-    return plv8.execute(sql, [id, "D"]);
   }
 
   /**
@@ -977,19 +1090,24 @@ class FeatureWriter {
    */
   static writeFeatures(inputFeatures, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial, featureHooks, version = FeatureWriter.getNextVersion()) {
     FeatureWriter.dbWriter = new DatabaseWriter(queryContext().schema, FeatureWriter._targetTable(), FeatureWriter._tableBaseVersions().at(-1), FW_BATCH_MODE(), queryContext().tableLayout);
-    let result = this.newFeatureCollection();
-    for (let feature of inputFeatures) {
-      let execution = new FeatureWriter(feature, version, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial, featureHooks).writeFeature();
-      this._collectResult(execution, result);
-    }
-
-    if (FW_BATCH_MODE()) {
-      let executions = FeatureWriter.dbWriter.execute()
-      for (let execution of executions)
+    try {
+      let result = this.newFeatureCollection();
+      for (let feature of inputFeatures) {
+        let execution = new FeatureWriter(feature, version, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial, featureHooks).writeFeature();
         this._collectResult(execution, result);
-    }
+      }
 
-    return result;
+      if (FW_BATCH_MODE()) {
+        let executions = FeatureWriter.dbWriter.execute()
+        for (let execution of executions)
+          this._collectResult(execution, result);
+      }
+
+      return result;
+    }
+    finally {
+      FeatureWriter._freeDeletionLoadPlans();
+    }
   }
 
   static _collectResult(execution, result) {
