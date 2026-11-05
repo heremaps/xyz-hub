@@ -125,7 +125,7 @@ public class FeatureQueryApi extends SpaceBasedApi {
                 Map<String, Object> params = new HashMap<>();
                 params.putAll(Optional.ofNullable(space.getStorage().getParams()).orElse(Collections.emptyMap()));
                 statisticsEvent.setParams(params);
-                return FeatureTask.resolveBranchFor(statisticsEvent, space).map(connector);
+                return Future.succeededFuture(connector);
               }))
           .compose(connector -> {
             RpcClient.getInstanceFor(connector)

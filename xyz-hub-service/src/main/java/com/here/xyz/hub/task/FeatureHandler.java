@@ -19,7 +19,6 @@
 
 package com.here.xyz.hub.task;
 
-import static com.here.xyz.hub.task.FeatureTask.resolveBranchFor;
 import static com.here.xyz.hub.task.FeatureTaskHandler.injectMinVersion;
 import static com.here.xyz.hub.util.SpaceTableResolver.getTableIdentity;
 import static com.here.xyz.util.service.rest.TooManyRequestsException.ThrottlingReason.MEMORY;
@@ -157,21 +156,18 @@ public class FeatureHandler {
   }
 
   public static Future<Void> injectSpaceParams(ContextAwareEvent event, Space space) throws HttpException {
-    //Resolve a potential branch
-    return resolveBranchFor(event, space).compose(v -> {
-      event.setSpace(space.getId());
-      event.setVersionsToKeep(space.getVersionsToKeep());
+    event.setSpace(space.getId());
+    event.setVersionsToKeep(space.getVersionsToKeep());
 
-      Map<String, Object> storageParams = new HashMap<>();
-      if (space.getStorage().getParams() != null)
-        storageParams.putAll(space.getStorage().getParams());
+    Map<String, Object> storageParams = new HashMap<>();
+    if (space.getStorage().getParams() != null)
+      storageParams.putAll(space.getStorage().getParams());
 
-      if (space.getExtension() != null)
-        storageParams.putAll(space.resolveCompositeParams(space.getExtension().resolvedSpace));
+    if (space.getExtension() != null)
+      storageParams.putAll(space.resolveCompositeParams(space.getExtension().resolvedSpace));
 
-      event.setParams(storageParams);
-      return Future.succeededFuture();
-    });
+    event.setParams(storageParams);
+    return Future.succeededFuture();
   }
 
   public static Future<Long> getCountForSpace(Marker marker, Space space, SpaceContext spaceContext, String requesterId,

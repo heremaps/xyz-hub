@@ -62,21 +62,6 @@ public class XyzSpaceTableHelper {
 
   public static List<SQLQuery> buildCreateSpaceTableQueries(String schema, String table, List<OnDemandIndex> onDemandIndices,
       String spaceId, TableLayout layout) {
-    return buildCreateSpaceTableQueries(schema, table, true, onDemandIndices, spaceId, layout);
-  }
-
-  //TODO: Check from where to get the on-demand index info in case of branch creations (see onDemandIndices param below)
-  public static List<SQLQuery> buildCreateBranchTableQueries(String schema, String table, String spaceId) {
-    return buildCreateSpaceTableQueries(schema, table, false, List.of(), spaceId);
-  }
-
-  public static List<SQLQuery> buildCreateSpaceTableQueries(String schema, String table, boolean isMainTable,  List<OnDemandIndex> onDemandIndices,
-                                                            String spaceId) {
-    return buildCreateSpaceTableQueries(schema, table, isMainTable, onDemandIndices, spaceId, OLD_LAYOUT);
-  }
-
-  public static List<SQLQuery> buildCreateSpaceTableQueries(String schema, String table, boolean isMainTable,  List<OnDemandIndex> onDemandIndices,
-                                                            String spaceId, TableLayout layout) {
     if (layout != TableLayout.OLD_LAYOUT && layout != TableLayout.NEW_LAYOUT) {
       throw new IllegalArgumentException("Unsupported Table Layout: " + layout);
     }
@@ -99,9 +84,6 @@ public class XyzSpaceTableHelper {
       queries.add(buildOnDemandIndexCreationQuery(schema, table, GLOBAL_VERSION_PROPERTY_KEY, SEARCHABLE_COLUMN , false));
       queries.add(buildOnDemandIndexCreationQuery(schema, table, REFERENCES_PROPERTY_KEY + "::ARRAY", SEARCHABLE_COLUMN , false));
     }
-    if (isMainTable)
-      queries.add(buildCreateBranchSequenceQuery(schema, table));
-
     return queries;
   }
 
@@ -222,10 +204,6 @@ public class XyzSpaceTableHelper {
     if(layout == TableLayout.OLD_LAYOUT || layout == TableLayout.NEW_LAYOUT)
       return buildCreateSequenceQuery(schema, table, columnName, columnName, 1);
     throw new IllegalArgumentException("Unsupported Table Layout: " + layout);
-  }
-
-  public static SQLQuery buildCreateBranchSequenceQuery(String schema, String table) {
-    return buildCreateSequenceQuery(schema, table, "branches", "id", 1);
   }
 
   public static String sequenceName(String table, String sequenceName) {

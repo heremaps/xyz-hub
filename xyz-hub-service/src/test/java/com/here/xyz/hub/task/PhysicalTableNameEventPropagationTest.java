@@ -25,7 +25,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.here.xyz.events.GetStatisticsEvent;
 import com.here.xyz.events.IterateChangesetsEvent;
-import com.here.xyz.events.ModifyBranchEvent;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.models.hub.Space.ConnectorRef;
 import com.here.xyz.models.hub.Space.Extension;
@@ -36,15 +35,6 @@ import org.junit.jupiter.api.Test;
 class PhysicalTableNameEventPropagationTest {
 
   private static final String PHYSICAL_TABLE_NAME = "0123456789abcdef0123456789abcdef";
-
-  @Test
-  void branchEventsReceiveThePersistedPhysicalTableName() {
-    ModifyBranchEvent event = new ModifyBranchEvent().withSpace("logical-space-id");
-
-    BranchHandler.injectStorageParams(event, spaceWithPhysicalTableName());
-
-    assertEquals(PHYSICAL_TABLE_NAME, event.getParams().get(TABLE_NAME));
-  }
 
   @Test
   void changesetEventsReceiveThePersistedPhysicalTableName() {

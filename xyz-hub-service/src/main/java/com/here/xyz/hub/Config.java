@@ -272,16 +272,6 @@ public class Config extends BaseConfig {
   public String SETTINGS_DYNAMODB_TABLE_ARN;
 
   /**
-   * The ARN of the branches table in DynamoDB.
-   */
-  public String BRANCHES_DYNAMODB_TABLE_ARN;
-
-  /**
-   * The ARN of the entities table in DynamoDB.
-   */
-  public String ENTITIES_DYNAMODB_TABLE_ARN;
-
-  /**
    * The ARN of the Data References table in DynamoDB.
    */
   public String REFERENCES_DYNAMODB_TABLE_ARN;

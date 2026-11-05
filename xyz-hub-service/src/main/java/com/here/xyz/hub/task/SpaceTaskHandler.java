@@ -42,7 +42,6 @@ import com.here.xyz.events.ModifySpaceEvent.Operation;
 import com.here.xyz.hub.Config;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.auth.Authorization;
-import com.here.xyz.hub.config.BranchConfigClient;
 import com.here.xyz.hub.config.DataReferenceConfigClient;
 import com.here.xyz.hub.config.SpaceConfigClient.SpaceSelectionCondition;
 import com.here.xyz.hub.config.settings.SpaceStorageMatchingMap;
@@ -564,25 +563,6 @@ public class SpaceTaskHandler {
           else
             callback.call(task);
         });
-  }
-
-  static void performSubResourceUpdates(ConditionalOperation task, Callback<ConditionalOperation> callback) {
-    if (!task.isDelete()) {
-      callback.call(task);
-      return;
-    }
-
-    Space space = task.modifyOp.entries.get(0).head;
-    BranchConfigClient.getInstance().load(space.getId())
-        .compose(branches -> Future.all(branches.stream()
-            .map(branch -> BranchHandler.deleteBranch(task.getMarker(), space.getId(), branch.getId()))
-            .toList())
-            .onComplete(ar -> {
-              if (ar.failed())
-                callback.exception(ar.cause());
-              else
-                callback.call(task);
-        }));
   }
 
   static void resolveExtensions(ConditionalOperation task, Callback<ConditionalOperation> callback) {

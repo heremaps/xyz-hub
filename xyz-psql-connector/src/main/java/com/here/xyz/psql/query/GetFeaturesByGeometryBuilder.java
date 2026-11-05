@@ -111,8 +111,8 @@ public class GetFeaturesByGeometryBuilder extends XyzQueryBuilder<GetFeaturesByG
     }
 
     @Override
-    protected SQLQuery buildSelectClause(GetFeaturesByGeometryEvent event, int dataset, long baseVersion) {
-      return overrideSelectClause(super.buildSelectClause(event, dataset, baseVersion), selectClauseOverride);
+    protected SQLQuery buildSelectClause(GetFeaturesByGeometryEvent event, int dataset) {
+      return overrideSelectClause(super.buildSelectClause(event, dataset), selectClauseOverride);
     }
 
     @Override
@@ -128,18 +128,17 @@ public class GetFeaturesByGeometryBuilder extends XyzQueryBuilder<GetFeaturesByG
     //TODO: Remove this override, if we have solved this in xyz-hub. Goal is to inject the minVersion also for
     // readEvents and ignore in this case versionsToKeep - to have a consistent behavior between xyz-hub and xyz-jobs.
     @Override
-    protected SQLQuery buildMinVersionFragment(SelectiveEvent event, long baseVersion) {
+    protected SQLQuery buildMinVersionFragment(SelectiveEvent event) {
       Ref ref = event.getRef();
       boolean isHeadOrAllVersions = ref.isHead() || ref.isAllVersions() || ref.isRange() && ref.getEnd().isHead();
       long requestedVersion = isHeadOrAllVersions ? Long.MAX_VALUE : ref.isRange() ? ref.getStart().getVersion() + 1 : ref.getVersion();
 
       if (event.getVersionsToKeep() > 1)
-        //TODO: Review Branching
         return new SQLQuery("AND #{minVersion} <= ${{requestedVersion}}")
                 .withNamedParameter("minVersion", event.getMinVersion())
                 .withQueryFragment("requestedVersion", requestedVersion + "::BIGINT");
       else
-        return super.buildMinVersionFragment(event, baseVersion);
+        return super.buildMinVersionFragment(event);
     }
 
     //TODO: Check why this patch is necessary

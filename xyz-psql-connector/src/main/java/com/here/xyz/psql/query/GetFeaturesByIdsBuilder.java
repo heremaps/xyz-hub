@@ -81,8 +81,8 @@ public class GetFeaturesByIdsBuilder extends XyzQueryBuilder<GetFeaturesByIdsInp
     }
 
     @Override
-    protected SQLQuery buildSelectClause(GetFeaturesByIdEvent event, int dataset, long baseVersion) {
-      return overrideSelectClause(super.buildSelectClause(event, dataset, baseVersion), selectClauseOverride);
+    protected SQLQuery buildSelectClause(GetFeaturesByIdEvent event, int dataset) {
+      return overrideSelectClause(super.buildSelectClause(event, dataset), selectClauseOverride);
     }
 
     private SQLQuery overrideSelectClause(SQLQuery selectClause, SQLQuery selectClauseOverride) {

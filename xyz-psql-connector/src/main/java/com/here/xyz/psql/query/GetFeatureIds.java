@@ -50,13 +50,13 @@ public class GetFeatureIds extends GetFeatures<GetFeaturesByIdEvent, GetFeatureI
   }
 
   @Override
-  protected SQLQuery buildSelectClause(GetFeaturesByIdEvent event, int dataset, long baseVersion) {
+  protected SQLQuery buildSelectClause(GetFeaturesByIdEvent event, int dataset) {
     return new SQLQuery("id");
   }
 
   @Override
-  protected SQLQuery buildMinVersionFragment(SelectiveEvent event, long baseVersion) {
-    return minVersionCheckEnabled ? super.buildMinVersionFragment(event, baseVersion) : new SQLQuery("");
+  protected SQLQuery buildMinVersionFragment(SelectiveEvent event) {
+    return minVersionCheckEnabled ? super.buildMinVersionFragment(event) : new SQLQuery("");
   }
 
   @Override

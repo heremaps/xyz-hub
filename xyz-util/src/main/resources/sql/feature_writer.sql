@@ -76,7 +76,7 @@ $BODY$
       else
         throw new Error("Invalid input_type: " + input_type);
 
-      return JSON.stringify(return_result ? result : {count: result.features.length, conflicting: result.conflicting.length});
+      return JSON.stringify(return_result ? result : {count: result.features.length});
     }
     catch (error) {
       if (!error.code)

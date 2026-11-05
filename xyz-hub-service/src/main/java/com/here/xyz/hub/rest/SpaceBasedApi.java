@@ -28,7 +28,6 @@ import static com.here.xyz.hub.rest.ApiParam.Query.START_VERSION;
 import static com.here.xyz.models.hub.Ref.HEAD;
 
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
-import com.here.xyz.hub.config.BranchConfigClient;
 import com.here.xyz.hub.config.TagConfigClient;
 import com.here.xyz.hub.connectors.models.Space.InvalidExtensionException;
 import com.here.xyz.hub.rest.ApiParam.Path;
@@ -151,16 +150,14 @@ public abstract class SpaceBasedApi extends Api {
   }
 
   /**
-   * Checks if an alias (tag or branch) with given id exists
-   * Returns failed Future if an alias is found
+   * Checks if a tag with the given ID exists.
    */
   protected static Future<Void> checkExistingAlias(Marker marker, String spaceId, String alias) {
-    return Future.all(TagConfigClient.getInstance().getTag(marker, alias, spaceId),
-            BranchConfigClient.getInstance().load(spaceId, alias))
-            .compose(res -> {
-              if (res.resultAt(0) != null || res.resultAt(1) != null)
+    return TagConfigClient.getInstance().getTag(marker, alias, spaceId)
+            .compose(tag -> {
+              if (tag != null)
                 return Future.failedFuture(new HttpException(CONFLICT,
-                        (res.resultAt(0) != null ? "Tag" : "Branch") + " with ID " + alias + " for " + spaceId + " already exists"));
+                        "Tag with ID " + alias + " for " + spaceId + " already exists"));
               return Future.succeededFuture();
             });
   }

@@ -43,9 +43,9 @@ public class IterateFeatures<E extends IterateFeaturesEvent, R extends XyzRespon
   }
 
   @Override
-  protected SQLQuery buildSelectClause(E event, int dataset, long baseVersion) {
+  protected SQLQuery buildSelectClause(E event, int dataset) {
     return new SQLQuery("${{innerSelectClause}}, i")
-        .withQueryFragment("innerSelectClause", super.buildSelectClause(event, dataset, baseVersion));
+        .withQueryFragment("innerSelectClause", super.buildSelectClause(event, dataset));
   }
 
   @Override
