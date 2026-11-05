@@ -124,8 +124,9 @@ public class Ref implements XyzSerializable {
   }
 
   private void validateRange() {
-    if (!getStart().isOnlyNumeric() || !(getEnd().isOnlyNumeric() || getEnd().isHead()))
-      throw new InvalidRef("Invalid ref: A range must start with a version number and end with a version number or HEAD.");
+    if (getStart().isHead() || getStart().isAllVersions() || getEnd().isAllVersions()
+        || getStart().isRange() || getEnd().isRange())
+      throw new InvalidRef("Invalid ref: A range must start with a version number or tag and end with a version number, tag or HEAD.");
 
     if (isOnlyNumeric() && getStart().getVersion() > getEnd().getVersion())
       throw new InvalidRef("Invalid ref: The provided version-range is invalid. The start-version must not be greater than the end-version: "

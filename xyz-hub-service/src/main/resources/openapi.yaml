@@ -214,8 +214,8 @@ paths:
         The version range can be specified using the `versionRef` query-parameter as follows:
         `<start>..<end>`
 
-        Where `<start>` is the start of the range (exclusive) and `<end>` is the end of the range
-        (inclusive).
+        Where `<start>` is a version number or tag identifying the start of the range (exclusive),
+        and `<end>` is a version number, tag or `HEAD` identifying its end (inclusive).
 
 
         Each successful write transaction to the space is stored as one single Changeset,
@@ -2042,8 +2042,8 @@ components:
         only one version. In such a case the version part of the Ref would look like:
         `<start>..<end>`
 
-        Where `<start>` is the start of the range (exclusive) and `<end>` is the end of the range
-        (inclusive).
+        Where `<start>` is a version number or tag identifying the start of the range (exclusive),
+        and `<end>` is a version number, tag or `HEAD` identifying its end (inclusive).
 
         Another way of specifying a version range is using the star-symbol: `*`
 

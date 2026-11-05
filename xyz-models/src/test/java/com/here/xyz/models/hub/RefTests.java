@@ -84,6 +84,20 @@ public class RefTests {
   }
 
   @Test
+  public void tagRangeEndpointsRemainSupported() throws Exception {
+    for (String value : new String[]{"1..tagV2", "tagV1..42", "tagV1..tagV2", "tagV2..tagV2", "tagV1..HEAD"}) {
+      Ref ref = new Ref(value);
+      assertTrue(ref.isRange());
+      assertEquals(value, ref.toString());
+      assertEquals(ref, XyzSerializable.deserialize(ref.serialize(), Ref.class));
+    }
+    assertEquals(new Ref("1..tagV2"), new Ref(new Ref(1), new Ref("tagV2")));
+    assertEquals(new Ref("tagV1..HEAD"), new Ref(new Ref("tagV1"), new Ref("HEAD")));
+    assertThrows(InvalidRef.class, () -> new Ref(new Ref("*"), new Ref(42)));
+    assertThrows(InvalidRef.class, () -> new Ref(new Ref(0), new Ref("*")));
+  }
+
+  @Test
   public void namedBranchReferencesAreRejected() {
     for (String value : new String[]{"branch:42", "branch:HEAD", "branch:*", "branch:0..HEAD", "~1:42", "!branch:HEAD"})
       assertThrows(value, InvalidRef.class, () -> new Ref(value));
@@ -92,7 +106,7 @@ public class RefTests {
   @Test
   public void invalidReferencesAndRangesAreRejected() {
     for (String value : new String[]{"main:tag", "main:42:1", "42:1", "5abc", "main", "0..", "..1", "0..1..2",
-        "HEAD..42", "42..0", "0..*", "0..tag"})
+        "HEAD..42", "42..0", "0..*"})
       assertThrows(value, InvalidRef.class, () -> new Ref(value));
   }
 
