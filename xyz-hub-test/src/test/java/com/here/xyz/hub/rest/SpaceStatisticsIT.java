@@ -26,13 +26,17 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 
+import com.here.xyz.models.geojson.implementation.Properties;
+import com.here.xyz.models.hub.Tag;
 import io.restassured.response.ValidatableResponse;
+import io.vertx.core.json.JsonObject;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.Test;
 
 public class SpaceStatisticsIT extends TestSpaceWithFeature {
+  private int nextFeatureValue;
 
   @AfterClass
   public static void tearDownClass() {
@@ -88,6 +92,77 @@ public class SpaceStatisticsIT extends TestSpaceWithFeature {
     statisticsResponse
             .body("contentUpdatedAt.value", equalTo(extensionUpdatedAt))
             .body("contentUpdatedAt.estimated", equalTo(true));
+  }
+
+  @Test
+  public void emptySpaceVersionBoundsMatchFastMode() {
+    assertVersionBounds(EXTENSIBLE_SPACE_ID, "DEFAULT", 0, 0);
+  }
+
+  @Test
+  public void versionBoundsRespectRetention() {
+    patchSpace(EXTENSIBLE_SPACE_ID, new JsonObject().put("versionsToKeep", 3));
+    writeVersions(EXTENSIBLE_SPACE_ID, 5);
+
+    assertVersionBounds(EXTENSIBLE_SPACE_ID, "DEFAULT", 3, 5);
+  }
+
+  @Test
+  public void versionBoundsRespectTagsOlderThanRetention() {
+    patchSpace(EXTENSIBLE_SPACE_ID, new JsonObject().put("versionsToKeep", 10));
+    writeVersions(EXTENSIBLE_SPACE_ID, 1);
+    given()
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .body(new Tag().withId("statistics-retained" + TEST_SUFFIX).withVersion(1))
+        .post(getSpacesPath() + "/" + EXTENSIBLE_SPACE_ID + "/tags")
+        .then()
+        .statusCode(OK.code());
+    patchSpace(EXTENSIBLE_SPACE_ID, new JsonObject().put("versionsToKeep", 3));
+    writeVersions(EXTENSIBLE_SPACE_ID, 4);
+
+    assertVersionBounds(EXTENSIBLE_SPACE_ID, "DEFAULT", 1, 5);
+  }
+
+  @Test
+  public void compositeVersionBoundsKeepEachContext() {
+    patchSpace(EXTENSIBLE_SPACE_ID, new JsonObject().put("versionsToKeep", 3));
+    writeVersions(EXTENSIBLE_SPACE_ID, 5);
+    createExtension();
+    patchSpace(EXTENDING_SPACE_ID, new JsonObject().put("versionsToKeep", 2));
+    writeVersions(EXTENDING_SPACE_ID, 3);
+
+    assertVersionBounds(EXTENDING_SPACE_ID, "DEFAULT", 2, 3);
+    assertVersionBounds(EXTENDING_SPACE_ID, "EXTENSION", 2, 3);
+    assertVersionBounds(EXTENDING_SPACE_ID, "SUPER", 3, 5);
+  }
+
+  private void assertVersionBounds(String spaceId, String context, int minVersion, int maxVersion) {
+    for (boolean fastMode : new boolean[] {false, true})
+      given()
+          .accept(APPLICATION_JSON)
+          .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+          .queryParam("context", context)
+          .queryParam("fastMode", fastMode)
+          .queryParam("skipCache", true)
+          .get(getSpacesPath() + "/" + spaceId + "/statistics")
+          .then()
+          .statusCode(OK.code())
+          .body("minVersion.value", equalTo(minVersion))
+          .body("minVersion.estimated", equalTo(false))
+          .body("maxVersion.value", equalTo(maxVersion))
+          .body("maxVersion.estimated", equalTo(false));
+  }
+
+  private void writeVersions(String spaceId, int count) {
+    for (int i = 0; i < count; i++)
+      given()
+          .contentType(APPLICATION_JSON)
+          .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+          .body(newFeature("statistics-feature").withProperties(new Properties().with("value", ++nextFeatureValue)).serialize())
+          .put(getSpacesPath() + "/" + spaceId + "/features/statistics-feature")
+          .then()
+          .statusCode(OK.code());
   }
 
   public ValidatableResponse getStatistics(String spaceId, String context) {
