@@ -95,7 +95,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   public static final String FINALIZATION_MARKER = "finalized_marker";
   /** Suffix of the label identifier used to tag task queries with their taskId in {@code pg_stat_activity}. */
   private static final String TASK_ID_LABEL_SUFFIX = "#taskId";
-  /** Timeout of the query which counts the running task queries on a database, see {@link Config#TASKED_STEP_MAX_TASKS_PER_DB}. */
+  /** Timeout of the query which counts the running task queries on a database, see {@link #getMaxTasksPerDatabase()}. */
   private static final int TASK_COUNT_QUERY_TIMEOUT_SECONDS = 10;
   /** Number of consecutive unknown running-query checks before a task is considered retryable. */
   public static final Integer MAX_UNKNOWN_TASK_QUERY_CHECKS = 3;
@@ -545,12 +545,11 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
 
   /**
    * Limits the number of tasks to be started by the free task slots of the database the step runs on
-   * (see {@link Config#TASKED_STEP_MAX_TASKS_PER_DB}).
+   * (see {@link #getMaxTasksPerDatabase()}).
    * <p>
    * The concurrency limit of a step only applies to the step itself. Several steps (e.g., the imports of one job into
-   * several layers) can run on the same database at the same time, so the task queries of the steps which are limited by it
-   * (see {@link #isLimitedByDatabaseTaskSlots()}) are additionally limited per database. The running task queries of all steps
-   * count towards that limit.
+   * several layers) can run on the same database at the same time, so a step with a database limit is additionally limited
+   * per database. The running task queries of all steps count towards that limit.
    * A step without running tasks may always start one task, also if the database limit is reached. Otherwise, its state
    * check would not find any running task and the step would fail after the heartbeat timeout
    * (see {@link #getExecutionState()}).
@@ -577,26 +576,29 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   }
 
   /**
-   * Whether this step only starts tasks within the free task slots of the database its task queries run on
-   * (see {@link Config#TASKED_STEP_MAX_TASKS_PER_DB}). The task queries of all other steps are counted nevertheless.
-   * Only steps whose task queries are expensive for the database should return true.
+   * The maximum number of task queries that may run on the database of this step at the same time, up to which the step starts
+   * additional tasks. The running task queries of all steps on the database are counted.
+   * A step whose task queries are expensive for the database can return a limit.
    *
-   * @return false by default
+   * @return The limit, or null (the default) or a value {@code <= 0} for no limit. Without a limit, the running task queries are
+   *  not counted at all.
    */
-  protected boolean isLimitedByDatabaseTaskSlots() throws WebClientException {
-    return false;
+  protected Integer getMaxTasksPerDatabase() throws WebClientException {
+    return null;
   }
 
   /**
    * Limits the number of tasks to be started by the free task slots of the database the step's task queries run on,
-   * if the step is limited by them (see {@link #isLimitedByDatabaseTaskSlots()}).
+   * if the step has a database limit (see {@link #getMaxTasksPerDatabase()}).
    * See {@link #limitByDatabaseTaskSlots(int, int, int, Integer)}.
    */
   private int limitByDatabaseTaskSlots(int startableTasks, int runningTasksOfStep, LogPhase phase) throws WebClientException {
-    Integer configuredLimit = Config.instance == null ? null : Config.instance.TASKED_STEP_MAX_TASKS_PER_DB;
+    if (startableTasks <= 0)
+      return 0;
+    Integer configuredLimit = getMaxTasksPerDatabase();
     int maxTasksPerDb = configuredLimit == null ? 0 : configuredLimit;
-    if (startableTasks <= 0 || maxTasksPerDb <= 0 || !isLimitedByDatabaseTaskSlots())
-      return Math.max(startableTasks, 0);
+    if (maxTasksPerDb <= 0)
+      return startableTasks;
 
     Integer runningTasksOnDb = null;
     String dbName = "the database";

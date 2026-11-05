@@ -25,7 +25,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import org.junit.jupiter.api.Test;
 
 /**
- * The task queries of all tasked steps on one database are limited by TASKED_STEP_MAX_TASKS_PER_DB.
+ * A tasked step with a database limit (TaskedSpaceBasedStep#getMaxTasksPerDatabase()) only starts tasks within the free task slots
+ * of its database. The task queries of all tasked steps on the database are counted.
  */
 class TaskedSpaceBasedStepDatabaseTaskLimitTest {
 
