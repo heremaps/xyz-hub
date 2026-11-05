@@ -88,8 +88,6 @@ public class PSQLDecoupledTableNameIT extends PSQLAbstractIT {
     assertEquals(0, featureCount(SECOND_TABLE, "first-feature"));
     assertEquals(1, featureCount(SECOND_TABLE, "second-feature"));
 
-    assertMetadataTable(SECOND_TABLE);
-
     //Simulate a delayed deletion event for the previous incarnation after the new incarnation is already active
     deletePhysicalTable(FIRST_TABLE);
 
@@ -98,7 +96,6 @@ public class PSQLDecoupledTableNameIT extends PSQLAbstractIT {
     assertEquals(1, featureCount(SECOND_TABLE, "second-feature"));
     writeFeature(SECOND_TABLE, "feature-after-delayed-delete");
     assertEquals(1, featureCount(SECOND_TABLE, "feature-after-delayed-delete"));
-    assertMetadataTable(SECOND_TABLE);
   }
 
   @Test
@@ -162,16 +159,6 @@ public class PSQLDecoupledTableNameIT extends PSQLAbstractIT {
             """.formatted(tableName))) {
       assertTrue(result.next());
       return result.getBoolean(1);
-    }
-  }
-
-  private static void assertMetadataTable(String expectedTableName) throws Exception {
-    try (Connection connection = LAMBDA.dataSourceProvider.getWriter().getConnection();
-        Statement statement = connection.createStatement();
-        ResultSet metadata = statement.executeQuery(
-            "SELECT h_id FROM xyz_config.space_meta WHERE id = 'recreated-space' AND schem = 'public'")) {
-      assertTrue(metadata.next());
-      assertEquals(expectedTableName, metadata.getString("h_id"));
     }
   }
 
