@@ -25,7 +25,6 @@ import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepReques
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.SUCCESS_CALLBACK;
 import static com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace.Format;
 import static com.here.xyz.jobs.steps.inputs.Input.inputS3Prefix;
-import static com.here.xyz.psql.query.branching.BranchManager.branchTableName;
 import static com.here.xyz.util.Random.randomAlpha;
 import static com.here.xyz.util.db.pg.IndexHelper.buildSpaceTableDropIndexQueries;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.getTableNameFromSpaceParamsOrSpaceId;
@@ -55,7 +54,6 @@ import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.geojson.implementation.Properties;
-import com.here.xyz.models.hub.Branch;
 import com.here.xyz.models.hub.Connector;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
@@ -157,7 +155,6 @@ public class StepTestBase {
 
   protected String SPACE_ID = getClass().getSimpleName() + "_" + randomAlpha(5);
   protected String JOB_ID = generateJobId();
-  protected String BRANCH_ID = "branch_on_" + SPACE_ID;
 
   private HubWebClient hubWebClient() {return HubWebClient.getInstance(config.HUB_ENDPOINT);}
 
@@ -224,24 +221,6 @@ public class StepTestBase {
     }
     catch (XyzWebClient.WebClientException e) {
       System.out.println("Hub Error: " + e.getMessage());
-    }
-  }
-
-  protected void createBranch(String spaceId, Branch branch) {
-    try {
-      hubWebClient().createBranch(spaceId, branch);
-    }
-    catch (XyzWebClient.WebClientException e) {
-      throw new AssertionError("Unable to create branch " + branch.getId() + " on space " + spaceId, e);
-    }
-  }
-
-  protected Branch loadBranch(String spaceId, String branchId) {
-    try {
-      return hubWebClient().loadBranch(spaceId, branchId, true);
-    }
-    catch (XyzWebClient.WebClientException e) {
-      throw new AssertionError("Unable to load branch " + branchId + " on space " + spaceId, e);
     }
   }
 
@@ -667,11 +646,6 @@ public class StepTestBase {
 
   protected Ref resolveRef(String spaceId, Ref ref) throws WebClientException {
     return hubWebClient().resolveRef(spaceId, ref);
-  }
-
-  protected String getBranchTableName(String spaceId, String branchId) {
-    Branch branch = loadBranch(spaceId, branchId);
-    return branchTableName(getRootTableName(spaceId), branch.getBranchPath().get(branch.getBranchPath().size() - 1), branch.getNodeId());
   }
 
   protected String getRootTableName(String spaceId) {

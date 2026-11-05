@@ -20,6 +20,7 @@
 package com.here.xyz.hub.rest;
 
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.restassured.RestAssured.given;
@@ -33,35 +34,12 @@ import com.here.xyz.models.geojson.implementation.Properties;
 import io.restassured.response.ValidatableResponse;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 
 public class ReadFeatureVersionRefTest extends TestSpaceWithFeature {
-
-  /*
-  TODO:
-
-  - Allow creating a branch on HEAD (should be even the default) <- resolve HEAD during its creation
-  - Check why a POST on an existing branch (without a change) responds with 204
-  - Allow to create tags on branches
-  - Do not allow to create a tag with the same name of an existing branch and vice versa
-   */
-
-  private void createBranch() {
-    given()
-        .contentType(APPLICATION_JSON)
-        .body("""
-            {
-              "id": "branch1",
-              "baseRef": "2"
-            }
-            """)
-        .when()
-        .post(getSpacesPath()+ "/" + getSpaceId() + "/branches")
-        .then()
-        .statusCode(OK.code());
-  }
 
   private void createTag() {
     given()
@@ -82,7 +60,6 @@ public class ReadFeatureVersionRefTest extends TestSpaceWithFeature {
     addFeature(getSpaceId(), new Feature().withId("F1").withProperties(new Properties().with("a", 1)).withGeometry(new Point().withCoordinates(new PointCoordinates(1, 1))));
     createTag();
     addFeature(getSpaceId(), new Feature().withId("F1").withProperties(new Properties().with("b", 2)).withGeometry(new Point().withCoordinates(new PointCoordinates(2, 2))));
-    createBranch();
   }
 
   @AfterEach
@@ -101,7 +78,34 @@ public class ReadFeatureVersionRefTest extends TestSpaceWithFeature {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"HEAD", "branch1", "tag1"})
+  @ValueSource(strings = {"branch:HEAD", "branch:1", "~1:HEAD"})
+  public void getFeatureByIdRejectsNamedBranchReferences(String ref) {
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .get(getSpacesPath() + "/" + getSpaceId() + "/features/F1?versionRef=" + ref)
+        .then()
+        .statusCode(BAD_REQUEST.code());
+  }
+
+  @Test
+  public void standaloneBranchEndpointsAreNotExposed() {
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .get(getSpacesPath() + "/" + getSpaceId() + "/branches")
+        .then()
+        .statusCode(NOT_FOUND.code());
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .contentType(APPLICATION_JSON)
+        .body("{\"id\":\"removed-branch\",\"baseRef\":\"HEAD\"}")
+        .post(getSpacesPath() + "/" + getSpaceId() + "/branches")
+        .then()
+        .statusCode(NOT_FOUND.code());
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"HEAD", "main:HEAD", "2", "tag1"})
   public void getFeaturesByIdsInRef(String ref) {
     ValidatableResponse response = given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
@@ -114,7 +118,7 @@ public class ReadFeatureVersionRefTest extends TestSpaceWithFeature {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"HEAD", "branch1", "tag1"})
+  @ValueSource(strings = {"HEAD", "main:HEAD", "2", "tag1"})
   public void getFeatureByIdInRef(String ref) {
     ValidatableResponse response = given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
@@ -128,7 +132,7 @@ public class ReadFeatureVersionRefTest extends TestSpaceWithFeature {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"HEAD", "branch1", "tag1"})
+  @ValueSource(strings = {"HEAD", "main:HEAD", "2", "tag1"})
   public void getFeaturesByBboxInRef(String ref) {
     ValidatableResponse response = given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
@@ -141,7 +145,7 @@ public class ReadFeatureVersionRefTest extends TestSpaceWithFeature {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"HEAD", "branch1", "tag1"})
+  @ValueSource(strings = {"HEAD", "main:HEAD", "2", "tag1"})
   public void getFeaturesByTileInRef(String ref) {
     ValidatableResponse response = given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
@@ -154,7 +158,7 @@ public class ReadFeatureVersionRefTest extends TestSpaceWithFeature {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"HEAD", "branch1", "tag1"})
+  @ValueSource(strings = {"HEAD", "main:HEAD", "2", "tag1"})
   public void searchFeaturesSpatiallyInRef(String ref) {
     ValidatableResponse response = given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
@@ -167,7 +171,7 @@ public class ReadFeatureVersionRefTest extends TestSpaceWithFeature {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"HEAD", "branch1", "tag1"})
+  @ValueSource(strings = {"HEAD", "main:HEAD", "2", "tag1"})
   public void searchFeaturesSpatiallyInRefWithPostedGeometry(String ref) {
     ValidatableResponse response = given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
@@ -182,7 +186,7 @@ public class ReadFeatureVersionRefTest extends TestSpaceWithFeature {
 
 
   @ParameterizedTest
-  @ValueSource(strings = {"HEAD", "branch1", "tag1"})
+  @ValueSource(strings = {"HEAD", "main:HEAD", "2", "tag1"})
   public void searchFeaturesInRef(String ref) {
     ValidatableResponse response = given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
@@ -195,7 +199,7 @@ public class ReadFeatureVersionRefTest extends TestSpaceWithFeature {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"HEAD", "branch1", "tag1"})
+  @ValueSource(strings = {"HEAD", "main:HEAD", "2", "tag1"})
   public void iterateFeaturesInRef(String ref) {
     ValidatableResponse response = given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))

@@ -229,12 +229,11 @@ public class DynamoTagConfigClient extends TagConfigClient {
               if (version == -1)
                 version = 0;
 
-              String branchId = tagData.get("branchId") != null ? tagData.get("branchId").getS() : Ref.MAIN;
               return new Tag()
                       .withId(tagData.get("id").getS())
                       .withSpaceId(tagData.get("spaceId").getS())
                       .withVersion(version)
-                      .withVersionRef(Ref.fromBranchId(branchId, version))
+                      .withVersionRef(new Ref(version))
                       .withSystem(tagData.get("system") != null ? tagData.get("system").getBOOL() : false)
                       .withDescription(tagData.get("description") != null ? tagData.get("description").getS() : "")
                       .withAuthor(tagData.get("author") != null ? tagData.get("author").getS() : "system")

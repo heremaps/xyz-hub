@@ -27,7 +27,7 @@ import static com.here.xyz.psql.DatabaseWriter.ModificationType.DELETE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.INSERT;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE;
 import static com.here.xyz.psql.query.ExtendedSpace.getBaseVersion;
-import static com.here.xyz.psql.query.XyzEventBasedQueryRunner.readBranchTableFromEvent;
+import static com.here.xyz.psql.query.XyzEventBasedQueryRunner.readTableFromEvent;
 import static com.here.xyz.responses.XyzError.NOT_IMPLEMENTED;
 import static com.here.xyz.util.db.pg.LockHelper.advisoryLock;
 import static com.here.xyz.util.db.pg.LockHelper.advisoryUnlock;
@@ -35,7 +35,6 @@ import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.PARTITION_SIZE;
 
 import com.amazonaws.services.lambda.runtime.Context;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.google.common.collect.Iterables;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.connectors.StorageConnector;
 import com.here.xyz.events.Event;
@@ -291,7 +290,7 @@ public abstract class DatabaseHandler extends StorageConnector {
           /** Include Upserts */
           if (!upserts.isEmpty()) {
             List<String> upsertIds = upserts.stream().map(Feature::getId).filter(Objects::nonNull).collect(Collectors.toList());
-            List<String> existingIds = run(new FetchExistingIds(new FetchIdsInput(readBranchTableFromEvent(event),
+            List<String> existingIds = run(new FetchExistingIds(new FetchIdsInput(readTableFromEvent(event),
                 upsertIds)));
             upserts.forEach(f -> {
                 if (existingIds.contains(f.getId())) {
@@ -461,8 +460,7 @@ public abstract class DatabaseHandler extends StorageConnector {
             }
 
             //Set the version in the elements being returned
-            collection.getFeatures().forEach(f -> f.getProperties().getXyzNamespace().setVersion(version
-                + (event.getNodeId() > 0 ? Iterables.getLast(event.getBranchPath()).getVersion() : 0)));
+            collection.getFeatures().forEach(f -> f.getProperties().getXyzNamespace().setVersion(version));
 
             return collection;
         }
@@ -489,7 +487,7 @@ public abstract class DatabaseHandler extends StorageConnector {
             throw new SQLException("No time left to create the missing history partition.", "54000");
 
         String schema = dbSettings.getSchema();
-        String table = readBranchTableFromEvent(event);
+        String table = readTableFromEvent(event);
         long partitionNo = Math.floorDiv(version, PARTITION_SIZE);
         //Do not log the write's exception, the one of a batch contains the statement with all its parameters
         logger.warn("{} History partition {} of {}.{} is missing for version {}. Creating it before the retry.",
@@ -539,7 +537,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         .build();
 
     private boolean checkUniqueTableConstraint(ModifyFeaturesEvent event) throws SQLException {
-        String table = readBranchTableFromEvent(event);
+        String table = readTableFromEvent(event);
         String cacheKey = getDatabaseSettings().getCacheKey() + "/" + table;
 
         Boolean cached = UNIQUE_CONSTRAINT_CACHE.get(cacheKey);
@@ -564,9 +562,7 @@ public abstract class DatabaseHandler extends StorageConnector {
             .withStreamId(event.getStreamId())
             .withParams(event.getParams())
             .withConnectorParams(event.getConnectorParams())
-            .withIds(idsToFetch)
-            .withNodeId(event.getNodeId())
-            .withBranchPath(event.getBranchPath());
+            .withIds(idsToFetch);
 
       try {
         return run(new GetFeaturesById(fetchEvent)).getFeatures();

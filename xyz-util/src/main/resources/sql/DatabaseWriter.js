@@ -21,7 +21,6 @@ class DatabaseWriter {
 
   schema;
   table;
-  tableBaseVersion;
 
   tableLayout;
   /**
@@ -63,10 +62,9 @@ class DatabaseWriter {
    */
   static HISTORY_PARTITION_LOCK_TIMEOUT = "200ms";
 
-  constructor(schema, table, tableBaseVersion, batchMode = false, tableLayout) {
+  constructor(schema, table, batchMode = false, tableLayout) {
     this.schema = schema;
     this.table = table;
-    this.tableBaseVersion = tableBaseVersion;
     this.batchMode = batchMode;
     this.tableLayout = tableLayout;
   }
@@ -120,7 +118,7 @@ class DatabaseWriter {
           if (onVersionConflict == null || onVersionConflict !== "ERROR") {
             const versionParameterIndex = options?.versionParameterIndex ?? 1;
             const originalVersion = parameters[versionParameterIndex];
-            parameters[versionParameterIndex] = FeatureWriter.getNextVersion(false);
+            parameters[versionParameterIndex] = FeatureWriter.getNextVersion();
             this._markSplitFromVersion(parameters, originalVersion);
 
             try {
@@ -369,7 +367,7 @@ class DatabaseWriter {
     this.parameterSets[method].push(params);
     this.resultParsers[method].push((result, usedParameters) => {
       let executedAction = inputFeature.properties[XYZ_NS].deleted ? ExecutionAction.DELETED : ExecutionAction.fromOperation[operation];
-      return resultHandler(new FeatureModificationExecutionResult(executedAction, inputFeature, usedParameters[1] + this.tableBaseVersion, author));
+      return resultHandler(new FeatureModificationExecutionResult(executedAction, inputFeature, usedParameters[1], author));
     });
     this.queryOptions[method].push({
       onVersionConflict: onVersionConflict,

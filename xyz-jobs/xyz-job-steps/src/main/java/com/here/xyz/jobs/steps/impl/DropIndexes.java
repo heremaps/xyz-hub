@@ -118,7 +118,7 @@ public class DropIndexes extends SpaceBasedStep<DropIndexes> {
   public void execute(boolean resume) throws SQLException, TooManyResourcesClaimed, WebClientException {
     try {
       logger.info("Gathering indices of space " + getSpaceId());
-      String tableName = getTableName(space(), getVersionRef());
+      String tableName = getRootTableName(space());
 
       //Get the list of existing indexes from database.
       List<Index> indexes = runReadQuerySync(

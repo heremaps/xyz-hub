@@ -181,11 +181,6 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
         if (dryRun)
             return new SuccessResponse().withStatus("OK");
 
-        //TODO: Delete branch tables as part of "prune"-operation
-        //if (operation == DELETE)
-        //  new BranchManager(getDataSourceProvider(), FunctionRuntime.getInstance().getStreamId(), spaceId, getSchema(), rootTable)
-        //      .deleteAllBranchTables();
-
         SuccessResponse response = super.write(dataSourceProvider);
 
         return response;

@@ -26,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.here.xyz.XyzSerializable;
-import com.here.xyz.psql.query.branching.QueryTestBase;
+import com.here.xyz.psql.query.QueryTestBase;
 import com.here.xyz.util.Random;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import com.here.xyz.util.db.pg.FeatureWriterQueryBuilder.FeatureWriterQueryContextBuilder;

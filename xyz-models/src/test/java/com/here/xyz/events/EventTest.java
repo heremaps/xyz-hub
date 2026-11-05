@@ -27,8 +27,10 @@ import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertThrows;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.exc.InvalidTypeIdException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.Event.TrustedParams;
 import com.here.xyz.models.geojson.implementation.LazyParsedFeatureCollectionTest;
@@ -47,6 +49,19 @@ public class EventTest {
     final Event<?> event = new ObjectMapper().readValue(is, Event.class);
     assertNotNull(event);
     assertTrue(event instanceof IterateFeaturesEvent);
+  }
+
+  @Test
+  public void standaloneBranchEventsAreNotSupported() {
+    assertThrows(InvalidTypeIdException.class,
+        () -> XyzSerializable.deserialize("{\"type\":\"ModifyBranchEvent\",\"space\":\"my-space\"}", Event.class));
+  }
+
+  @Test
+  public void contextAwareEventsDoNotCarryBranchMetadata() {
+    GetFeaturesByIdEvent event = new GetFeaturesByIdEvent();
+    assertFalse(event.toMap().containsKey("nodeId"));
+    assertFalse(event.toMap().containsKey("branchPath"));
   }
 
   @Test

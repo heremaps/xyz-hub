@@ -77,7 +77,6 @@ public final class UpdateStrategy {
   public enum OnMergeConflict {
     REPLACE,
     RETAIN,
-    ERROR, //Default
-    CONTINUE
+    ERROR //Default
   }
 }

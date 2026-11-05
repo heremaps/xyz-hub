@@ -32,8 +32,6 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.models.hub.Branch;
-import com.here.xyz.models.hub.Branch.DeletedBranch;
 import com.here.xyz.models.hub.Connector;
 import com.here.xyz.models.hub.DataReference;
 import com.here.xyz.models.hub.Ref;
@@ -54,7 +52,6 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -76,11 +73,6 @@ public class HubWebClient extends XyzWebClient {
       .expirationPolicy(ExpirationPolicy.CREATED)
       .expiration(cacheTTLSeconds(), TimeUnit.SECONDS)
       .build();
-
-  private ExpiringMap<String, Branch> branchCache = ExpiringMap.builder()
-          .expirationPolicy(ExpirationPolicy.CREATED)
-          .expiration(cacheTTLSeconds(), TimeUnit.MINUTES)
-          .build();
 
   protected HubWebClient(String baseUrl) {
     super(baseUrl, userAgent);
@@ -134,22 +126,6 @@ public class HubWebClient extends XyzWebClient {
     catch (JsonProcessingException e) {
       throw new WebClientException("Error deserializing response", e);
     }
-  }
-
-  public Set<DeletedBranch> loadAllDeletedBranches() throws WebClientException {
-    try {
-      return deserialize(request(HttpRequest.newBuilder()
-          .uri(uri("/admin/branches?deleted=true"))).body(), new TypeReference<Set<DeletedBranch>>() {});
-    }
-    catch (JsonProcessingException e) {
-      throw new WebClientException("Error deserializing response", e);
-    }
-  }
-
-  public void eraseDeletedBranch(String uuid) throws WebClientException {
-    request(HttpRequest.newBuilder()
-        .DELETE()
-        .uri(uri("/admin/branches?deleted=true&uuid=" + uuid)));
   }
 
   public String loadExtendedSpace(String spaceId) throws WebClientException {
@@ -448,46 +424,6 @@ public class HubWebClient extends XyzWebClient {
     }
   }
 
-  public Branch createBranch(String spaceId, Branch branch) throws WebClientException {
-    try {
-      return deserialize(request(HttpRequest.newBuilder()
-              .uri(uri("/spaces/" + spaceId + "/branches"))
-              .header(CONTENT_TYPE, JSON_UTF_8.toString())
-              .method("POST", BodyPublishers.ofByteArray(branch.serialize().getBytes()))).body(), Branch.class);
-    }
-    catch (JsonProcessingException e) {
-      throw new WebClientException("Error deserializing response", e);
-    }
-  }
-
-  public void deleteBranch(String spaceId, String branchId) throws WebClientException {
-    request(HttpRequest.newBuilder()
-            .DELETE()
-            .uri(uri("/spaces/" + spaceId + "/branches/" + branchId ))
-            .header(CONTENT_TYPE, JSON_UTF_8.toString()));
-  }
-
-  public Branch loadBranch(String spaceId, Ref versionRef, boolean internal) throws WebClientException {
-    String branchId = versionRef.isTag() ? versionRef.getTag() : versionRef.getBranch();
-    return loadBranch(spaceId, branchId, internal);
-  }
-
-  public Branch loadBranch(String spaceId, String branchId, boolean internal) throws WebClientException {
-    String cacheKey = spaceId + "_" + branchId;
-    if (branchCache.containsKey(cacheKey))
-      return branchCache.get(cacheKey);
-    try {
-      Branch branch = deserialize(request(HttpRequest.newBuilder()
-              .GET()
-              .uri(uri((internal ? "/admin" : "") + "/spaces/" + spaceId + "/branches/" + branchId))).body(), Branch.class);
-      branchCache.put(cacheKey, branch);
-      return branch;
-    }
-    catch (JsonProcessingException e) {
-      throw new WebClientException("Error deserializing response", e);
-    }
-  }
-
   public Ref resolveRef(String spaceId, Ref ref) throws WebClientException {
     return resolveRef(spaceId, loadSpace(spaceId).getExtension() != null ? EXTENSION : null, ref);
   }
@@ -498,20 +434,9 @@ public class HubWebClient extends XyzWebClient {
     if (ref.isOnlyNumeric())
       return ref;
     if (ref.isHead())
-      return new Ref(ref.getBranch() + ":" + loadSpaceStatistics(spaceId, context, ref, false, true).getMaxVersion().getValue());
-    if (ref.isTag()) {
-      try {
-        //Check if it's a branch
-        Branch branch = loadBranch(spaceId, ref, true);
-        return new Ref(branch.getId() + ":" + loadSpaceStatistics(spaceId, context, ref, false, true).getMaxVersion().getValue());
-      } catch (ErrorResponseException httpError) {
-        if (httpError.getStatusCode() == 404)
-          //If the branch is not found, then the ref could actually be a tag
-          return new Ref(loadTag(spaceId, ref.getTag()).getVersion());
-        else
-          throw httpError;
-      }
-    }
+      return new Ref(loadSpaceStatistics(spaceId, context, ref, false, true).getMaxVersion().getValue());
+    if (ref.isTag())
+      return new Ref(loadTag(spaceId, ref.getTag()).getVersion());
     if (ref.isRange())
       //TODO: run start / end resolving in parallel
       return new Ref(resolveRef(spaceId, context, ref.getStart()).getVersion(), resolveRef(spaceId, context, ref.getEnd()).getVersion());

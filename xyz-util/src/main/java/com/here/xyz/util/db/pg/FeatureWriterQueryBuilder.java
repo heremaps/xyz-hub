@@ -172,24 +172,12 @@ public class FeatureWriterQueryBuilder {
       return this;
     }
 
-    public FeatureWriterQueryContextBuilder withTableBaseVersions(List<Long> tableBaseVersions) {
-      queryContext.put("tableBaseVersions", tableBaseVersions);
-      return this;
-    }
-
     /**
      * The physical version at which each table is frozen, positionally aligned with the tables. A {@code null} entry means
      * that table is read at HEAD. Only base tables of a composite can be bound; the write target never is.
      *
-     * Not to be confused with the two other version-shaped context values:
-     * <ul>
-     *   <li>{@code tableBaseVersions} are branch offsets. They are cumulative, they translate a table's local versions into
-     *       global ones, and every table in a chain has one.</li>
-     *   <li>{@code baseVersion} is a single value describing the write itself - the version the modification was based on,
-     *       used for optimistic-concurrency conflict detection.</li>
-     *   <li>{@code tableBoundVersions} are absolute, independent per table, and restrict which rows of a base table are
-     *       visible at all. They originate from a space's {@code extends.version}.</li>
-     * </ul>
+     * These absolute per-table bounds originate from {@code extends.version}. They are independent of {@code baseVersion},
+     * which describes the version the modification was based on for optimistic-concurrency conflict detection.
      */
     public FeatureWriterQueryContextBuilder withTableBoundVersions(List<Long> tableBoundVersions) {
       queryContext.put("tableBoundVersions", tableBoundVersions);

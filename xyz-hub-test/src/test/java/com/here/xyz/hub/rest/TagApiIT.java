@@ -32,7 +32,6 @@ import static org.hamcrest.Matchers.not;
 
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.Properties;
-import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Tag;
 import io.restassured.http.ContentType;
 import io.restassured.response.ValidatableResponse;
@@ -44,7 +43,7 @@ import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
 
-public class TagApiIT extends TestSpaceBranch {
+public class TagApiIT extends TestSpaceWithFeature {
   private static final String SECOND_SPACE = "secondSpace" + TEST_SUFFIX;
   /*
   The tag IDs are fork local too, because "/spaces?tag=" lists across spaces and would otherwise
@@ -580,19 +579,4 @@ public class TagApiIT extends TestSpaceBranch {
         .body("endVersion", equalTo(1));
   }
 
-  @Test
-  public void createTagOnBranch() {
-    _addOneFeature();
-    createBranch(getSpaceId(), "b1", null);
-
-    given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .contentType(ContentType.JSON)
-        .body(new Tag().withId("tag_b1").withSystem(false).withVersionRef(new Ref("b1:HEAD")))
-        .post("/spaces/" + getSpaceId() + "/tags")
-        .then()
-        .statusCode(OK.code())
-        .body("versionRef", equalTo("b1:1"))
-        .body("version", equalTo(1));
-  }
 }

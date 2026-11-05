@@ -28,14 +28,10 @@ import java.util.regex.Pattern;
 
 public class Ref implements XyzSerializable {
 
-  //TODO: Rename "tag" property to "alias" to explicitly indicate that it could be a branch ID *or* a tag ID?
-
-  public static final String MAIN = "main";
   public static final String HEAD = "HEAD";
   public static final String ALL_VERSIONS = "*";
   public static final String OP_RANGE = "..";
 
-  private String branch = MAIN;
   private String tag;
   private long version = -1;
   private boolean head;
@@ -45,34 +41,15 @@ public class Ref implements XyzSerializable {
 
   @JsonCreator
   public Ref(String ref) {
-    String versionPart = HEAD;
-    if (!isNullOrEmpty(ref)) {
-      String[] refParts = ref.split(":");
-      if (refParts.length < 1)
-        throw new InvalidRef("Invalid ref: The provided ref is not valid: \"" + ref + "\"");
-      if (refParts.length > 2)
-        throw new InvalidRef("Invalid ref: The provided ref (" + ref + ") has a wrong format. Only one colon \":\" is allowed.");
-
-      if (refParts.length == 1) {
-        //Check if the provided ref depicts a branch or a version
-        if (isValidVersionOrRange(refParts[0]))
-          versionPart = refParts[0];
-        else if (Tag.isValidId(refParts[0])) {
-          tag = refParts[0];
-          return;
-        }
-      }
-      else {
-        //Branch & version was provided, validate the parts
-        String branchPart;
-        branchPart = refParts[0];
-        versionPart = refParts[1];
-        if (!isValidBranchId(branchPart))
-          throw new InvalidRef("Invalid ref: The provided branch ID is not valid: " + branchPart);
-        if (!isValidVersionOrRange(versionPart))
-          throw new InvalidRef("Invalid ref: The provided version is not valid: " + versionPart);
-        branch = branchPart;
-      }
+    String versionPart = isNullOrEmpty(ref) ? HEAD : ref;
+    //Accept legacy references to the space itself without retaining named-branch support.
+    if (versionPart.startsWith("main:"))
+      versionPart = versionPart.substring("main:".length());
+    if (versionPart.contains(":"))
+      throw new InvalidRef("Invalid ref: References must specify a version, a version range or a tag.");
+    if (Tag.isValidId(ref) && !ref.contains(OP_RANGE)) {
+      tag = ref;
+      return;
     }
 
     //Parse the version part
@@ -87,10 +64,7 @@ public class Ref implements XyzSerializable {
         version = validateVersion(Long.parseLong(versionPart));
       }
       catch (NumberFormatException e) {
-        if (!Tag.isValidId(ref))
-          throw new InvalidRef("Invalid ref: the provided ref is not a valid ref or version: \"" + versionPart + "\"");
-
-        tag = ref;
+        throw new InvalidRef("Invalid ref: the provided ref is not a valid ref or version: \"" + versionPart + "\"");
       }
   }
 
@@ -108,22 +82,6 @@ public class Ref implements XyzSerializable {
     validateRange();
   }
 
-  public static Ref fromBranchId(String branchId) {
-    return fromBranchId(branchId, new Ref(HEAD));
-  }
-
-  public static Ref fromBranchId(String branchId, long version) {
-    return fromBranchId(branchId, new Ref(version));
-  }
-
-  public static Ref fromBranchId(String branchId, Ref versionRef) {
-    if (isNullOrEmpty(branchId))
-      branchId = MAIN;
-    if (branchId.contains(":"))
-      throw new InvalidRef("The branchId must be a valid branch ID. No colons allowed.");
-    return new Ref(branchId + ":" + (versionRef.isHead() ? HEAD : versionRef.getVersion()));
-  }
-
   /**
    * Validates a version number.
    * @param version The version to validate
@@ -137,8 +95,8 @@ public class Ref implements XyzSerializable {
 
   private void parseRange(String ref) {
     try {
-      String[] rangeParts = ref.split(Pattern.quote(OP_RANGE));
-      if (rangeParts.length > 2)
+      String[] rangeParts = ref.split(Pattern.quote(OP_RANGE), -1);
+      if (rangeParts.length != 2 || rangeParts[0].isEmpty() || rangeParts[1].isEmpty())
         throw new InvalidRef("Invalid ref: A range can only have one start and one end.");
 
       parseAndSetRangePart(rangeParts[0], true);
@@ -166,8 +124,8 @@ public class Ref implements XyzSerializable {
   }
 
   private void validateRange() {
-    if (getStart().isHead())
-      throw new InvalidRef("Invalid ref: The provided version-range is invalid. The start of a range may not be HEAD!");
+    if (!getStart().isOnlyNumeric() || !(getEnd().isOnlyNumeric() || getEnd().isHead()))
+      throw new InvalidRef("Invalid ref: A range must start with a version number and end with a version number or HEAD.");
 
     if (isOnlyNumeric() && getStart().getVersion() > getEnd().getVersion())
       throw new InvalidRef("Invalid ref: The provided version-range is invalid. The start-version must not be greater than the end-version: "
@@ -177,10 +135,6 @@ public class Ref implements XyzSerializable {
   @JsonValue
   @Override
   public String toString() {
-    return toString(true);
-  }
-
-  private String toString(boolean withBranchPart) {
     if (!isTag() && version < 0 && !head && !allVersions && !isRange())
       throw new InvalidRef("Not a valid ref"); //Should never happen, only if this class has a bug
 
@@ -193,43 +147,15 @@ public class Ref implements XyzSerializable {
     else if (isAllVersions())
       versionPart = ALL_VERSIONS;
     else if (isRange())
-      //TODO: Also return the branch part here in future
-      return getStart().toString(false) + OP_RANGE + getEnd().toString(false);
+      return getStart() + OP_RANGE + getEnd();
     else
       versionPart = String.valueOf(version);
-    return (withBranchPart ? getBranch() + ":" : "") + versionPart;
+    return versionPart;
   }
 
   @Override
   public boolean equals(Object o) {
     return o instanceof Ref otherRef && otherRef.toString().equals(toString());
-  }
-
-  private static boolean isValidBranchId(String branchName) {
-    return !canBeParsedAsNonNegativeLong(branchName);
-  }
-
-  private static boolean isValidVersionOrRange(String versionPart) {
-    return HEAD.equals(versionPart) || ALL_VERSIONS.equals(versionPart) || canBeParsedAsNonNegativeLong(versionPart)
-        || versionPart.contains(OP_RANGE);
-  }
-
-  private static boolean canBeParsedAsNonNegativeLong(String maybeALong) {
-    try {
-      long result = Long.parseLong(maybeALong);
-      return result >= 0;
-    }
-    catch (NumberFormatException e) {
-      return false;
-    }
-  }
-
-  public String getBranch() {
-    return branch;
-  }
-
-  public boolean isMainBranch() {
-    return MAIN.equals(branch);
   }
 
   /**

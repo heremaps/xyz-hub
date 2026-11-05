@@ -780,9 +780,7 @@ public class FeatureApi extends SpaceBasedApi {
 
   protected Ref getBaseRef(RoutingContext context) throws HttpException {
     Ref baseRef = super.getRef(context);
-    if (baseRef.isTag())
-      baseRef = Ref.fromBranchId(baseRef.getTag());
-    else if (!baseRef.isSingleVersion())
+    if (!baseRef.isTag() && !baseRef.isSingleVersion())
       throw new HttpException(BAD_REQUEST, "A version range can not be used as the base version for a write operation.");
     return baseRef;
   }

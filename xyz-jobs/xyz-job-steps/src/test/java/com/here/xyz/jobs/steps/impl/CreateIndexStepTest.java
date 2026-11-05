@@ -19,8 +19,6 @@
 
 package com.here.xyz.jobs.steps.impl;
 
-import com.here.xyz.models.hub.Branch;
-import com.here.xyz.models.hub.Ref;
 import com.here.xyz.util.db.pg.IndexHelper.Index;
 import com.here.xyz.util.db.pg.IndexHelper.OnDemandIndex;
 import com.here.xyz.util.db.pg.IndexHelper.SystemIndex;
@@ -41,30 +39,9 @@ public class CreateIndexStepTest extends StepTest {
 
     }
 
-    @Test
-    public void testCreateIndexOnBranch() throws Exception {
-        putFeatureToSpace(SPACE_ID, simpleFeature("f1"));
-        createBranch(SPACE_ID, new Branch().withId(BRANCH_ID));
-
-        //Create system index on branch
-        executeCreateIndexStep(SPACE_ID, BRANCH_ID, SystemIndex.GEO);
-
-        //Create on-demand index on branch
-        executeCreateIndexStep(SPACE_ID, BRANCH_ID, new OnDemandIndex().withPropertyPath("foo"));
-    }
-
     private void executeCreateIndexStep(String spaceId, Index index) throws Exception {
-        executeCreateIndexStep(spaceId, null, index);
-    }
-
-    private void executeCreateIndexStep(String spaceId, String branchId, Index index) throws Exception {
         String tableName = getRootTableName(spaceId);
         CreateIndex step = new CreateIndex().withSpaceId(spaceId).withIndex(index);
-
-        if (branchId != null) {
-            tableName = getBranchTableName(spaceId, branchId);
-            step.setVersionRef(new Ref(branchId));
-        }
 
         deleteAllExistingIndices(tableName);
         Assertions.assertTrue(getAllExistingIndices(tableName).isEmpty());

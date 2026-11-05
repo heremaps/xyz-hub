@@ -19,7 +19,6 @@
 
 package com.here.xyz.psql.query;
 
-import static com.here.xyz.psql.query.branching.CommitManager.branchPathToTableChain;
 import static com.here.xyz.responses.XyzError.CONFLICT;
 import static com.here.xyz.responses.XyzError.EXCEPTION;
 import static com.here.xyz.responses.XyzError.NOT_FOUND;
@@ -69,44 +68,34 @@ public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureColl
   @Override
   protected SQLQuery buildQuery(WriteFeaturesEvent event) throws ErrorResponseException {
     List<String> tables = new ArrayList<>();
-    List<Long> tableBaseVersions = null;
     List<Long> tableBoundVersions = null;
     SpaceContext spaceContext = null;
     String rootTableName = getDefaultTable(event);
 
-    if (event.getNodeId() > 0) {
-      tables.addAll(branchPathToTableChain(rootTableName, event.getBranchPath(), event.getNodeId()));
-      tableBaseVersions = new ArrayList<>();
-      tableBaseVersions.add(0l);
-      tableBaseVersions.addAll(event.getBranchPath().stream().map(baseRef -> baseRef.getVersion()).toList());
+    if (isExtendedSpace(event)) {
+      tables.add(getExtendedTable(event));
+      if (is2LevelExtendedSpace(event))
+        tables.add(getIntermediateTable(event));
+      spaceContext = event.getContext();
     }
-    else {
-      if (isExtendedSpace(event)) {
-        tables.add(getExtendedTable(event));
-        if (is2LevelExtendedSpace(event))
-          tables.add(getIntermediateTable(event));
-        spaceContext = event.getContext();
-      }
-      tables.add(rootTableName);
+    tables.add(rootTableName);
 
-      if (hasBoundBaseVersion(event)) {
-        /*
-        With context = SUPER the write target becomes the immediate base (see FeatureWriter._targetTable), which is exactly the
-        table the extension binds to a fixed version. FeatureApi rejects all SUPER modifications already, so this only guards
-        callers which bypass the hub.
-         */
-        if (spaceContext == SpaceContext.SUPER && getBaseVersion(event).isPresent())
-          throw new ErrorResponseException(XyzError.ILLEGAL_ARGUMENT, "Writing with context " + SpaceContext.SUPER
-              + " is not supported for a composite space which is bound to a specific version of its base space.");
+    if (hasBoundBaseVersion(event)) {
+      /*
+      With context = SUPER the write target becomes the immediate base (see FeatureWriter._targetTable), which is exactly the
+      table the extension binds to a fixed version. FeatureApi rejects all SUPER modifications already, so this only guards
+      callers which bypass the hub.
+       */
+      if (spaceContext == SpaceContext.SUPER && getBaseVersion(event).isPresent())
+        throw new ErrorResponseException(XyzError.ILLEGAL_ARGUMENT, "Writing with context " + SpaceContext.SUPER
+            + " is not supported for a composite space which is bound to a specific version of its base space.");
 
-        tableBoundVersions = buildTableBoundVersions(event);
-      }
+      tableBoundVersions = buildTableBoundVersions(event);
     }
 
     FeatureWriterQueryContextBuilder queryContextBuilder = new FeatureWriterQueryContextBuilder()
         .withSchema(getSchema())
         .withTables(tables)
-        .withTableBaseVersions(tableBaseVersions)
         .withTableBoundVersions(tableBoundVersions)
         .withSpaceContext(spaceContext)
         .withHistoryEnabled(event.getVersionsToKeep() > 1)

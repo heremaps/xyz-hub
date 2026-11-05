@@ -25,10 +25,8 @@ import com.here.xyz.hub.cache.MultiLevelCacheClient;
 import com.here.xyz.hub.cache.QueryTimeoutCache;
 import com.here.xyz.hub.cache.RedisCacheClient;
 import com.here.xyz.hub.cache.S3CacheClient;
-import com.here.xyz.hub.config.BranchConfigClient;
 import com.here.xyz.hub.config.ConnectorConfigClient;
 import com.here.xyz.hub.config.DataReferenceConfigClient;
-import com.here.xyz.hub.config.EntityConfigClient;
 import com.here.xyz.hub.config.SettingsConfigClient;
 import com.here.xyz.hub.config.SpaceConfigClient;
 import com.here.xyz.hub.config.SubscriptionConfigClient;
@@ -135,8 +133,6 @@ public class Service extends Core {
    */
   public static SettingsConfigClient settingsConfigClient;
 
-  public static BranchConfigClient branchConfigClient;
-
   /**
    * A web client to access XYZ Hub nodes and other web resources.
    */
@@ -231,7 +227,6 @@ public class Service extends Core {
     subscriptionConfigClient = SubscriptionConfigClient.getInstance();
     tagConfigClient = TagConfigClient.getInstance();
     settingsConfigClient = SettingsConfigClient.getInstance();
-    branchConfigClient = BranchConfigClient.getInstance();
 
     webClient = WebClient.create(vertx, new WebClientOptions()
         .setUserAgent(XYZ_HUB_USER_AGENT)
@@ -244,13 +239,11 @@ public class Service extends Core {
 
     return settingsConfigClient.init()
         .compose(v -> settingsConfigClient.insertLocalSettings())
-        .compose(v -> branchConfigClient.init())
         .compose(v -> spaceConfigClient.init())
         .compose(v -> connectorConfigClient.init())
         .compose(v -> Future.fromCompletionStage(connectorConfigClient.insertLocalConnectors()))
         .compose(v -> subscriptionConfigClient.init())
         .compose(v -> tagConfigClient.init())
-        .compose(v -> EntityConfigClient.getInstance().init())
         .compose(v -> DataReferenceConfigClient.getInstance().init())
         .map(config)
         .onFailure(t -> logger.error("initializeClients failed", t))
