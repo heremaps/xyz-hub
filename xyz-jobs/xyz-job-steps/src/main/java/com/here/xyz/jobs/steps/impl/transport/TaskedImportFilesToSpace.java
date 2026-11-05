@@ -254,6 +254,15 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
     return true;
   }
 
+  /**
+   * Only an import that writes with the FeatureWriter (PLV8) is limited by the free task slots of the database. Its task
+   * queries need much more memory and CPU than those of a plain import into an empty layer or of an express import.
+   */
+  @Override
+  protected boolean isLimitedByDatabaseTaskSlots() throws WebClientException {
+    return useFeatureWriter() && !useExpressImport();
+  }
+
   @Override
   protected void prepareExecution(boolean resume) throws SQLException, TooManyResourcesClaimed, WebClientException {
     if (!resume) {
