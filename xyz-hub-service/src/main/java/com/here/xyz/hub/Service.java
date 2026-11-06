@@ -35,7 +35,6 @@ import com.here.xyz.hub.config.SubscriptionConfigClient;
 import com.here.xyz.hub.config.TagConfigClient;
 import com.here.xyz.hub.connectors.ConfigUpdateThread;
 import com.here.xyz.hub.connectors.RemoteFunctionPreparation;
-import com.here.xyz.hub.connectors.WarmupRemoteFunctionThread;
 import com.here.xyz.hub.rest.admin.MessageBroker;
 import com.here.xyz.hub.rest.admin.Node;
 import com.here.xyz.hub.util.metrics.GcDurationMetric;
@@ -193,7 +192,6 @@ public class Service extends Core {
         .compose(Service::parseConfiguration)
         .compose(Service::initializeClients)
         .compose(config -> Future.fromCompletionStage(ConfigUpdateThread.initialize()).map(config))
-        .compose(config -> Future.fromCompletionStage(WarmupRemoteFunctionThread.initialize()).map(config))
         .compose(Service::prepareRemoteFunctions)
         .compose(Service::initializeService)
         .onFailure(t -> logger.error("Service startup failed", t))
