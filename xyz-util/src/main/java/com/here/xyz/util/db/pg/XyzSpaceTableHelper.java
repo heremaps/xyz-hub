@@ -27,7 +27,6 @@ import static com.here.xyz.util.db.pg.IndexHelper.buildSpaceTableIndexQueries;
 import static com.here.xyz.util.db.pg.IndexHelper.buildOnDemandIndexCreationQuery;
 
 import com.here.xyz.XyzSerializable;
-import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.util.Hasher;
 import com.here.xyz.util.db.ConnectorParameters.TableLayout;
 import com.here.xyz.util.db.SQLQuery;
@@ -260,7 +259,7 @@ public class XyzSpaceTableHelper {
             .withVariable(TABLE, table);
   }
 
-  public static List<SQLQuery>  buildCleanUpQuery(ModifySpaceEvent event, String schema, String table, String versionSequenceSuffix, TableLayout layout) {
+  public static List<SQLQuery>  buildCleanUpQuery(String schema, String table, String versionSequenceSuffix, TableLayout layout) {
     List<SQLQuery> queries = new ArrayList<>();
 
     SQLQuery dropTableQuery = new SQLQuery("DROP TABLE IF EXISTS ${schema}.${table} ") //TODO: Why not use CASCADE
@@ -271,23 +270,10 @@ public class XyzSpaceTableHelper {
             .withVariable(SCHEMA, schema);
 
     if(layout == TableLayout.OLD_LAYOUT) {
-
-      //TODO: remove spaceMetaTable from overall code
-      //Remove also event as parameter and cleanUp deleteSpaceMetaEntry
-
-      // Gets removed
-      SQLQuery deleteSpaceMetaEntry =
-              new SQLQuery("DELETE FROM xyz_config.space_meta WHERE h_id = #{table} AND schem = #{schema};")
-              .withNamedParameter(SCHEMA, schema)
-              .withNamedParameter(TABLE, table);
-
       SQLQuery dropISequenceQuery = new SQLQuery("DROP SEQUENCE IF EXISTS ${schema}.${iSequence};")
               .withVariable("iSequence", table + "_i_seq") //Assuming iSequence suffix is "_i_seq"
               .withVariable(SCHEMA, schema);
 
-      // Gets removed
-      queries.add(deleteSpaceMetaEntry);
-      // Gets removed
       queries.add(dropTableQuery);
       queries.add(dropISequenceQuery);
       queries.add(dropVersionSequenceQuery);
