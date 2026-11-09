@@ -93,6 +93,14 @@ import org.postgresql.util.PGobject;
 
 public class NLConnector extends PSQLXyzConnector {
   private static final Logger logger = LogManager.getLogger(NLConnector.class);
+
+  /**
+   * The new table layout creates every space table eagerly and installs no empty-space template.
+   */
+  @Override
+  protected boolean lazyTablesSupported() {
+    return false;
+  }
   private static final String STATUS_PROPERTY_KEY = "status";
 
   private static final String GLOBAL_VERSION_SEARCH_KEY = "globalVersions";

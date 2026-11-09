@@ -49,7 +49,9 @@ import com.here.xyz.events.ModifySpaceEvent.Operation;
 import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.util.db.ConnectorParameters;
 import com.here.xyz.util.db.SQLQuery;
+import com.here.xyz.models.hub.Space;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
+import com.here.xyz.util.db.datasource.DatabaseSettings;
 import com.here.xyz.util.db.pg.IndexHelper;
 import com.here.xyz.util.db.pg.LazySpaceTables;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
@@ -68,6 +70,8 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
     private String spaceId;
     private boolean dryRun;
     private String rootTable;
+    private boolean lazyTable;
+    private boolean lazyTableCreation;
 
     public ModifySpace(ModifySpaceEvent event) throws SQLException, ErrorResponseException {
         super(event);
@@ -77,6 +81,8 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
         operation = event.getOperation();
         spaceId = event.getSpace();
         rootTable = getDefaultTable(event);
+        lazyTable = Space.isLazyTable(event.getParams());
+        lazyTableCreation = ConnectorParameters.fromEvent(event).isLazyTableCreation();
     }
 
     private void validateModifySpaceEvent(ModifySpaceEvent event) throws ErrorResponseException {
@@ -190,9 +196,32 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
         if (operation == UPDATE && getTableLayout() == OLD_LAYOUT)
             return new SuccessResponse().withStatus("OK");
 
+        //A lazy space gets its table with its first write, see LazySpaceTables.materialize()
+        if (operation == CREATE && getTableLayout() == OLD_LAYOUT && lazyTable && isLazyCreation(dataSourceProvider))
+            return new SuccessResponse().withStatus("OK");
+
         SuccessResponse response = super.write(dataSourceProvider);
 
         return response;
+    }
+
+    /**
+     * Whether a CREATE of a space with the lazyTable flag skips the table creation. It does only if the connector has
+     * lazyTableCreation and the script check of this container has verified the empty-space template, which the reads of the
+     * space need until its first write. Otherwise the space is created eagerly.
+     */
+    private boolean isLazyCreation(DataSourceProvider dataSourceProvider) {
+        if (!lazyTableCreation) {
+            logger.warn("Space {}: lazyTable without lazyTableCreation, creating eagerly", spaceId);
+            return false;
+        }
+        DatabaseSettings dbSettings = dataSourceProvider.getDatabaseSettings();
+        if (dbSettings == null || !dbSettings.isEmptySpaceTemplateVerified()) {
+            logger.warn("Space {}: empty-space template not verified, creating eagerly (template check: {})", spaceId,
+                dbSettings == null ? null : dbSettings.getEmptySpaceTemplateCheck());
+            return false;
+        }
+        return true;
     }
 
     @Override

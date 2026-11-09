@@ -126,7 +126,9 @@ public abstract class DatabaseHandler extends StorageConnector {
         dbSettings = new DatabaseSettings(connectorId,
             ECPSTool.decryptToMap(FunctionRuntime.getInstance().getEnvironmentVariable(ECPS_PHRASE), connectorParams.getEcps()))
             .withApplicationName(FunctionRuntime.getInstance().getApplicationName())
-            .withScriptResourcePaths(SCRIPT_RESOURCE_PATHS);
+            .withScriptResourcePaths(SCRIPT_RESOURCE_PATHS)
+            //The script check of the data source provider installs the empty-space template, also for read-only connectors
+            .withEmptySpaceTemplate(lazyTablesSupported());
 
         applyConnectionPoolParams(dbSettings, connectorParams);
 
@@ -153,6 +155,8 @@ public abstract class DatabaseHandler extends StorageConnector {
         if(dataSourceProvider ==  null) {
             if(dbSettings.getScriptResourcePaths() == null || dbSettings.getScriptResourcePaths().isEmpty()) {
                 dbSettings.setScriptResourcePaths(SCRIPT_RESOURCE_PATHS);
+                //Settings with their own script paths keep their own choice
+                dbSettings.setEmptySpaceTemplate(lazyTablesSupported());
             }
 
             dataSourceProvider = new CachedPooledDataSources(dbSettings);
@@ -161,6 +165,14 @@ public abstract class DatabaseHandler extends StorageConnector {
             DataSourceProvider.setDefaultProvider(dataSourceProvider);
             this.dbSettings = dbSettings;
         }
+    }
+
+    /**
+     * Whether this connector supports lazy space tables: it requests the empty-space template from the script check and
+     * resolves the lazy levels of its events. Connectors with another table layout do not.
+     */
+    protected boolean lazyTablesSupported() {
+        return true;
     }
 
     protected <R, T extends com.here.xyz.psql.QueryRunner<?, R>> R run(T runner) throws SQLException, ErrorResponseException {
