@@ -39,6 +39,7 @@ import com.here.xyz.util.NodeExecutableLocator;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import com.here.xyz.util.db.pg.FeatureWriterQueryBuilder.FeatureWriterQueryContextBuilder;
+import com.here.xyz.util.db.pg.LazySpaceTables;
 import com.here.xyz.util.db.pg.SQLError;
 import com.here.xyz.util.runtime.FunctionRuntime;
 import java.io.IOException;
@@ -160,6 +161,8 @@ public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureColl
         case DUPLICATE_KEY -> new ErrorResponseException(CONFLICT, "Conflict while writing features.", e).withInternalDetails(details); //TODO: Handle all conflicts in FeatureWriter properly
         case FEATURE_NOT_EXISTS -> new ErrorResponseException(NOT_FOUND, cleanMessage, e).withInternalDetails(details);
         case ILLEGAL_ARGUMENT -> new ErrorResponseException(XyzError.ILLEGAL_ARGUMENT, cleanMessage, e).withInternalDetails(details);
+        case EMPTY_TEMPLATE_WRITE -> new ErrorResponseException(EXCEPTION, LazySpaceTables.TEMPLATE_WRITE_MESSAGE, e)
+            .withInternalDetails(details);
         case XYZ_EXCEPTION, UNKNOWN -> new ErrorResponseException(EXCEPTION, e.getMessage(), e).withInternalDetails(details);
       };
     }
