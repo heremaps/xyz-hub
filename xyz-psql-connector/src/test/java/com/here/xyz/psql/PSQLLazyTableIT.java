@@ -46,8 +46,12 @@ import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.ModifySpaceEvent.Operation;
+import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.SearchForFeaturesEvent;
+import com.here.xyz.events.UpdateStrategy;
+import com.here.xyz.events.UpdateStrategy.OnExists;
+import com.here.xyz.events.UpdateStrategy.OnNotExists;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Feature;
@@ -584,6 +588,11 @@ public class PSQLLazyTableIT extends LazyTablesITBase {
     assertFeatureCollection(invoke(connector, writeFeaturesEvent(spaceId, lazyWriteParams(table), "E1")));
     assertNull(assertFeatureCollection(invoke(connector, new GetFeaturesByIdEvent().withSpace(spaceId).withParams(lazyParams(table))
         .withIds(List.of("E1")))).getMaterialized());
+    //A write with OnExists.ERROR for an ID written before, which must come before the erase that removes the ID
+    XyzResponse exists = invoke(connector, writeFeaturesEvent(spaceId, lazyWriteParams(table),
+        new UpdateStrategy(OnExists.ERROR, OnNotExists.CREATE, null, null), "E1"));
+    assertError(XyzError.CONFLICT, exists);
+    assertFalse(exists.serialize().contains("materialized"), exists.serialize());
     assertNull(assertFeatureCollection(invoke(connector, new ModifyFeaturesEvent().withEraseContent(true).withSpace(spaceId)
         .withParams(lazyParams(table)))).getMaterialized());
     //A transactional update of a feature that does not exist fails the whole write
@@ -591,6 +600,78 @@ public class PSQLLazyTableIT extends LazyTablesITBase {
         .withTransaction(true).withUpdateFeatures(features("NX")));
     assertError(XyzError.CONFLICT, conflict);
     assertFalse(conflict.serialize().contains("materialized"), conflict.serialize());
+  }
+
+  /**
+   * The outcome of a write, with the message of an error.
+   */
+  private static Map<String, Object> outcome(XyzResponse response) throws Exception {
+    Map<String, Object> outcome = new HashMap<>(writeSummary(response));
+    if (response instanceof ErrorResponse error)
+      outcome.put("message", String.valueOf(error.getErrorMessage()));
+    return outcome;
+  }
+
+  /**
+   * A write of a sequence, optionally in a container without a cache entry for the lazy table.
+   */
+  private record SequenceWrite(boolean clearCache, Function<Map<String, Object>, Event> write) {}
+
+  /**
+   * The writes of an ID that exists already, after a first write of it, and one after an erase. The legacy writer accepts an
+   * insert of an existing ID, because the Hub resolves ifExists=error of a ModifyFeaturesEvent itself.
+   */
+  private static List<SequenceWrite> writesOfAnExistingId() {
+    UpdateStrategy errorOnExists = new UpdateStrategy(OnExists.ERROR, OnNotExists.CREATE, null, null);
+    return List.of(
+        new SequenceWrite(false, params -> writeFeaturesEvent("s", params, "A")),
+        new SequenceWrite(false, params -> writeFeaturesEvent("s", params, errorOnExists, "A")),
+        new SequenceWrite(false, params -> writeFeaturesEvent("s", params, errorOnExists, "A").withResponseDataExpected(false)),
+        new SequenceWrite(false, params -> writeFeaturesEvent("s", params, new UpdateStrategy(OnExists.ERROR, null, null, null), "A")),
+        new SequenceWrite(true, params -> writeFeaturesEvent("s", params, errorOnExists, "A")),
+        new SequenceWrite(false, params -> writeFeaturesEvent("s", params, errorOnExists, "B")),
+        new SequenceWrite(false, params -> insertEvent("s", true, params, "A")),
+        new SequenceWrite(false, params -> insertEvent("s", false, params, "A")),
+        //After an erase the ID does not exist anymore
+        new SequenceWrite(false, params -> new ModifyFeaturesEvent().withEraseContent(true).withSpace("s").withParams(params)),
+        new SequenceWrite(false, params -> writeFeaturesEvent("s", params, errorOnExists, "A")));
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {1, 10})
+  public void writesOfAnExistingIdAnswerLikeOnAnEagerSpace(int versionsToKeep) throws Exception {
+    TestConnector connector = newConnector().with("lazyTableCreation", true);
+    String eagerTable = newTable();
+    String lazyTable = newTable();
+    String eagerSpace = newId();
+    String lazySpace = newId();
+    assertOk(invoke(connector, new ModifySpaceEvent().withSpace(eagerSpace).withOperation(Operation.CREATE)
+        .withParams(eagerParams(eagerTable)).withSpaceDefinition(new Space().withId(eagerSpace).withVersionsToKeep(versionsToKeep))));
+    assertOk(invoke(connector, new ModifySpaceEvent().withSpace(lazySpace).withOperation(Operation.CREATE)
+        .withParams(lazyParams(lazyTable)).withSpaceDefinition(new Space().withId(lazySpace).withVersionsToKeep(versionsToKeep))));
+    assertEquals(Set.of(), relations(connector.schema(), lazyTable));
+
+    List<Map<String, Object>> eagerOutcomes = new ArrayList<>();
+    List<Map<String, Object>> lazyOutcomes = new ArrayList<>();
+    for (SequenceWrite step : writesOfAnExistingId()) {
+      Event eagerEvent = step.write().apply(eagerParams(eagerTable)).withSpace(eagerSpace);
+      Event lazyEvent = step.write().apply(lazyWriteParams(lazyTable)).withSpace(lazySpace);
+      ((ContextAwareEvent<?>) eagerEvent).setVersionsToKeep(versionsToKeep);
+      ((ContextAwareEvent<?>) lazyEvent).setVersionsToKeep(versionsToKeep);
+      eagerOutcomes.add(outcome(invoke(connector, eagerEvent)));
+      if (step.clearCache())
+        LazyTableResolver.clearCache();
+      lazyOutcomes.add(outcome(invoke(connector, lazyEvent)));
+    }
+    assertEquals(eagerOutcomes, lazyOutcomes);
+    assertTrue(relationExists(connector.schema(), lazyTable), "The first write materializes the table");
+    //OnExists.ERROR for the existing ID conflicts, with a cached and with an uncached lazy table
+    for (Map<String, Object> conflict : lazyOutcomes.subList(1, 5)) {
+      assertEquals(String.valueOf(XyzError.CONFLICT), conflict.get("error"), lazyOutcomes.toString());
+      assertTrue(String.valueOf(conflict.get("message")).contains("Feature with ID A exists"), lazyOutcomes.toString());
+    }
+    assertEquals(List.of("B"), lazyOutcomes.get(5).get("inserted"), lazyOutcomes.toString());
+    assertEquals(List.of("A"), lazyOutcomes.get(9).get("inserted"), lazyOutcomes.toString());
   }
 
   @Test
