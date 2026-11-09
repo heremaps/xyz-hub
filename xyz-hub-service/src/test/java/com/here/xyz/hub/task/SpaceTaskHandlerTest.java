@@ -50,7 +50,6 @@ import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Embedde
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Http;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.ApiResponseType;
-import com.here.xyz.hub.task.FeatureTaskHandler.InvalidStorageException;
 import com.here.xyz.hub.task.SpaceTask.ConditionalOperation;
 import com.here.xyz.hub.task.TaskPipeline.Callback;
 import com.here.xyz.models.hub.Space.ConnectorRef;
@@ -69,7 +68,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.Level;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -246,7 +244,7 @@ class SpaceTaskHandlerTest {
   }
 
   @Test
-  void failsTheCreateIfTheConnectorCannotBeLoaded() {
+  void setsNoLazyTableFlagAndContinuesIfTheConnectorCannotBeLoaded() {
     ConnectorConfigClient client = mock(ConnectorConfigClient.class);
     doAnswer(invocation -> {
       Handler<AsyncResult<Connector>> handler = invocation.getArgument(2);
@@ -254,21 +252,12 @@ class SpaceTaskHandlerTest {
       return null;
     }).when(client).get(any(), anyString(), any(Handler.class));
     Service.connectorConfigClient = client;
-    AtomicReference<Throwable> error = new AtomicReference<>();
 
-    SpaceTaskHandler.assignTableName(createTask(null), new Callback<>() {
-      @Override
-      public void exception(Throwable e) {
-        error.set(e);
-      }
+    //The authorization after this step answers for a storage the user may not use, so the pipeline must reach it
+    Space result = createSpace(null);
 
-      @Override
-      public void call(ConditionalOperation value) {
-        throw new AssertionError("The create must fail");
-      }
-    });
-
-    assertTrue(error.get() instanceof InvalidStorageException);
+    assertFalse(result.getStorage().getParams().containsKey(LAZY_TABLE));
+    assertNotNull(result.getStorage().getParams().get(TABLE_NAME));
   }
 
   @Test

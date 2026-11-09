@@ -54,7 +54,6 @@ import com.here.xyz.hub.rest.ApiResponseType;
 import com.here.xyz.hub.rest.FeatureQueryApi;
 import com.here.xyz.hub.rest.TagApi;
 import com.here.xyz.hub.task.FeatureTask.ModifySpaceQuery;
-import com.here.xyz.hub.task.FeatureTaskHandler.InvalidStorageException;
 import com.here.xyz.hub.task.ModifyOp.Entry;
 import com.here.xyz.hub.task.ModifyOp.ModifyOpError;
 import com.here.xyz.hub.task.SpaceTask.ConditionalOperation;
@@ -714,7 +713,10 @@ public class SpaceTaskHandler {
 
     Space.resolveConnector(task.getMarker(), space.getStorage().getId(), arConnector -> {
       if (arConnector.failed()) {
-        callback.exception(new InvalidStorageException("Unable to load the definition for this storage."));
+        //The authorization and the event steps after this one answer for a storage that cannot be used, as before
+        logger.warn(task.getMarker(), "space[{}]: Unable to load storage {}, the space is not marked for a lazy table", spaceId,
+            space.getStorage().getId(), arConnector.cause());
+        callback.call(task);
         return;
       }
       try {
