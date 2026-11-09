@@ -779,17 +779,22 @@ public class Space {
    * of the root base of its extension chain.
    *
    * @param extendedSpace The space this space extends, with {@link Extension#resolvedSpace} set if it is an extension itself
-   * @return The effective searchable properties, or {@code null} if the root base is not known
+   * @return The effective searchable properties, an empty map if the space that defines them has none, or {@code null} if the
+   *     root base is not known
    */
   public Map<String, Boolean> getEffectiveSearchableProperties(Space extendedSpace) {
     if (getExtension() == null)
-      return getSearchableProperties();
+      return searchablePropertiesOrEmpty(this);
     if (extendedSpace == null)
       return null;
     if (extendedSpace.getExtension() == null)
-      return extendedSpace.getSearchableProperties();
+      return searchablePropertiesOrEmpty(extendedSpace);
     Space rootBase = extendedSpace.getExtension().resolvedSpace;
-    return rootBase == null ? null : rootBase.getSearchableProperties();
+    return rootBase == null ? null : searchablePropertiesOrEmpty(rootBase);
+  }
+
+  private static Map<String, Boolean> searchablePropertiesOrEmpty(Space space) {
+    return space.getSearchableProperties() == null ? Collections.emptyMap() : space.getSearchableProperties();
   }
 
   public Map<String, Object> resolveCompositeParams(Space extendedSpace) {

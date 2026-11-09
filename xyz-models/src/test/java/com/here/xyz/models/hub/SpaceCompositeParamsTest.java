@@ -23,6 +23,7 @@ import static com.here.xyz.models.hub.Space.LAZY_TABLE;
 import static com.here.xyz.models.hub.Space.TABLE_NAME;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.here.xyz.models.hub.Space.ConnectorRef;
@@ -205,6 +206,34 @@ class SpaceCompositeParamsTest {
         .withSearchableProperties(Map.of("base", true));
 
     assertEquals(Map.of("base", true), composite.getEffectiveSearchableProperties(intermediate));
+  }
+
+  @Test
+  void effectiveSearchablePropertiesAreEmptyIfTheDefiningSpaceHasNone() {
+    Space space = space("space", "psql", "space_table", false);
+    Space base = space("base", "psql", "base_table", false);
+    Space composite = space("composite", "psql", "composite_table", false)
+        .withSearchableProperties(Map.of("composite", true))
+        .withExtension(new Extension().withSpaceId("base"));
+    Space intermediate = space("intermediate", "psql", "intermediate_table", false)
+        .withSearchableProperties(Map.of("intermediate", true))
+        .withExtension(new Extension().withSpaceId("base"));
+    intermediate.getExtension().resolvedSpace = base;
+
+    assertEquals(Map.of(), space.getEffectiveSearchableProperties(null));
+    assertEquals(Map.of(), composite.getEffectiveSearchableProperties(base));
+    assertEquals(Map.of(), composite.getEffectiveSearchableProperties(intermediate));
+  }
+
+  @Test
+  void effectiveSearchablePropertiesOfAnExtensionWithoutKnownRootBaseAreNull() {
+    Space composite = space("composite", "psql", "composite_table", false)
+        .withExtension(new Extension().withSpaceId("intermediate"));
+    Space intermediate = space("intermediate", "psql", "intermediate_table", false)
+        .withExtension(new Extension().withSpaceId("base"));
+
+    assertNull(composite.getEffectiveSearchableProperties(null));
+    assertNull(composite.getEffectiveSearchableProperties(intermediate));
   }
 
   private static Space space(String id, String tableName) {

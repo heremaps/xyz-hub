@@ -112,6 +112,17 @@ class FeatureHandlerTest {
   }
 
   @Test
+  void extensionsOfARootBaseWithoutSearchablePropertiesCarryAnEmptyList() {
+    Space base = space("base", "psql", false, null);
+    Space extension = extending(space("extension", "psql", true, OWN_PROPERTIES), base);
+    Space intermediate = extending(space("intermediate", "psql", false, BASE_PROPERTIES), base);
+    Space secondLevel = extending(space("second", "psql", true, OWN_PROPERTIES), intermediate);
+
+    assertThat(writeParams(extension)).containsEntry(ON_DEMAND_INDEXES, List.of());
+    assertThat(writeParams(secondLevel)).containsEntry(ON_DEMAND_INDEXES, List.of());
+  }
+
+  @Test
   void anExtensionWithoutResolvedRootBaseCarriesNoOnDemandIndexes() {
     Space intermediate = space("intermediate", "psql", false, BASE_PROPERTIES);
     intermediate.setExtension(new Extension().withSpaceId("root"));

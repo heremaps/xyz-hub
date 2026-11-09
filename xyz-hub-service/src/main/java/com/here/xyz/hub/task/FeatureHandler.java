@@ -197,13 +197,13 @@ public class FeatureHandler {
 
     com.here.xyz.models.hub.Space extendedSpace = space.getExtension() == null ? null : space.getExtension().resolvedSpace;
     Map<String, Boolean> searchableProperties = space.getEffectiveSearchableProperties(extendedSpace);
-    if (searchableProperties == null && space.getExtension() != null) {
+    if (searchableProperties == null) {
       //The connector creates the system indexes only and logs the missing parameter
       logger.warn("Space {}: the root base of the extension is not resolved, no on-demand indexes are sent", space.getId());
       return;
     }
 
-    List<String> onDemandIndexes = searchableProperties == null ? List.of() : searchableProperties.entrySet().stream()
+    List<String> onDemandIndexes = searchableProperties.entrySet().stream()
         .filter(property -> Boolean.TRUE.equals(property.getValue()))
         .map(Map.Entry::getKey)
         .toList();
