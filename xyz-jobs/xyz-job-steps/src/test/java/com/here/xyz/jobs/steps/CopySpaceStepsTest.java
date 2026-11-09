@@ -25,6 +25,7 @@ import static com.here.xyz.jobs.steps.Step.Visibility.USER;
 import static com.here.xyz.util.Random.randomAlpha;
 import static org.junit.jupiter.api.TestInstance.Lifecycle.PER_CLASS;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
@@ -36,6 +37,7 @@ import com.here.xyz.jobs.steps.impl.transport.CopySpace;
 import com.here.xyz.jobs.steps.impl.transport.CopySpacePost;
 import com.here.xyz.jobs.steps.impl.transport.CopySpacePre;
 import com.here.xyz.jobs.steps.impl.transport.CountSpace;
+import com.here.xyz.jobs.steps.impl.transport.GetNextSpaceVersion;
 import com.here.xyz.jobs.steps.outputs.CreatedVersion;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
 import com.here.xyz.jobs.steps.outputs.Output;
@@ -284,6 +286,116 @@ public class CopySpaceStepsTest extends StepTest {
     assertNotNull(featureStatistics);
     assertEquals(0, featureStatistics.getFeatureCount());
     assertEquals(0, featureStatistics.getByteSize());
+  }
+
+  @Test
+  public void copyFromLazySource() throws Exception {
+    Space lazySource = createLazyTestSpace("testCopy-LazySource-" + fixtureId + "-" + randomAlpha(5), LAZY_CONNECTOR);
+    String targetSpace = createTargetSpace(false, true);
+
+    CopySpace step = new CopySpace()
+        .withSpaceId(lazySource.getId())
+        .withSourceVersionRef(new Ref("HEAD"))
+        .withTargetSpaceId(targetSpace)
+        .withJobId(JOB_ID)
+        .withEstimatedTargetFeatureCount(0)
+        .withTargetVersion(1);
+    sendLambdaStepRequestBlock(step, true);
+
+    assertEquals(0, getStatistics(targetSpace).getCount().getValue().longValue());
+    //A copy only reads its source
+    assertTrue(isFlagged(lazySource.getId()));
+    assertEquals(0, relationCount(DB_URL, tableName(lazySource)));
+  }
+
+  @Test
+  public void copySpacePreMaterializesAndClearsLazyTarget() throws Exception {
+    Space lazyTarget = createLazyTestSpace("testCopy-LazyTarget-" + fixtureId + "-" + randomAlpha(5), LAZY_CONNECTOR);
+    CopySpacePre step = new CopySpacePre()
+        .withSpaceId(lazyTarget.getId())
+        .withJobId(JOB_ID);
+
+    sendLambdaStepRequestBlock(step, true);
+
+    assertEquals(1L, createdVersion(step));
+    assertTrue(tableExists(DB_URL, tableName(lazyTarget)));
+    assertFalse(isFlagged(lazyTarget.getId()));
+  }
+
+  @Test
+  public void getNextSpaceVersionMaterializesAndClearsLazyTarget() throws Exception {
+    Space lazyTarget = createLazyTestSpace("testCopy-LazyTarget-" + fixtureId + "-" + randomAlpha(5), LAZY_CONNECTOR);
+    GetNextSpaceVersion<?> step = (GetNextSpaceVersion<?>) new GetNextSpaceVersion<>()
+        .withSpaceId(lazyTarget.getId())
+        .withJobId(JOB_ID);
+
+    sendLambdaStepRequestBlock(step, true);
+
+    assertEquals(1L, createdVersion(step));
+    assertTrue(tableExists(DB_URL, tableName(lazyTarget)));
+    assertFalse(isFlagged(lazyTarget.getId()));
+  }
+
+  @Test
+  public void copyIntoLazyTarget() throws Exception {
+    Space lazyTarget = createLazyTestSpace("testCopy-LazyTarget-" + fixtureId + "-" + randomAlpha(5), LAZY_CONNECTOR);
+
+    sendLambdaStepRequestBlock(lazyTargetCopy(lazyTarget), true);
+
+    long copied = getStatistics(lazyTarget.getId()).getCount().getValue();
+    assertTrue(copied == 40 || copied == 39);
+    assertTrue(tableExists(DB_URL, tableName(lazyTarget)));
+    //The copy threads take no version, so their materialization keeps the flag; the job's CopySpacePre clears it
+    assertTrue(isFlagged(lazyTarget.getId()));
+  }
+
+  @Test
+  public void remoteCopyIntoLazyTarget() throws Exception {
+    Space lazyTarget = createLazyTestSpace("testCopy-LazyTarget-" + fixtureId + "-" + randomAlpha(5), LAZY_DB2_CONNECTOR);
+
+    sendLambdaStepRequestBlock(lazyTargetCopy(lazyTarget), true);
+
+    long copied = getStatistics(lazyTarget.getId()).getCount().getValue();
+    assertTrue(copied == 40 || copied == 39);
+    assertTrue(tableExists(DB2_URL, tableName(lazyTarget)));
+    assertEquals(0, relationCount(DB_URL, tableName(lazyTarget)));
+  }
+
+  @Test
+  public void copySpacePostReadsNeverWrittenLazySpace() throws Exception {
+    Space lazy = createLazyTestSpace("testCopy-LazyTarget-" + fixtureId + "-" + randomAlpha(5), LAZY_CONNECTOR);
+    CopySpacePost step = new CopySpacePost()
+        .withSpaceId(lazy.getId())
+        .withJobId(JOB_ID);
+
+    sendLambdaStepRequestBlock(step, true);
+
+    FeatureStatistics featureStatistics = null;
+    for (Output output : step.loadOutputs(USER))
+      if (output instanceof FeatureStatistics statistics)
+        featureStatistics = statistics;
+    assertNotNull(featureStatistics);
+    assertEquals(0, featureStatistics.getFeatureCount());
+    assertEquals(0, relationCount(DB_URL, tableName(lazy)));
+    assertTrue(isFlagged(lazy.getId()));
+  }
+
+  private CopySpace lazyTargetCopy(Space lazyTarget) throws Exception {
+    return new CopySpace()
+        .withSpaceId(sourceSpaceId)
+        .withSourceVersionRef(resolveRef(sourceSpaceId, new Ref((String) null)))
+        .withTargetSpaceId(lazyTarget.getId())
+        .withJobId(JOB_ID)
+        .withEstimatedTargetFeatureCount(0)
+        .withTargetVersion(1);
+  }
+
+  private static long createdVersion(Step<?> step) {
+    long fetchedVersion = -1;
+    for (Object output : step.loadOutputs(SYSTEM))
+      if (output instanceof CreatedVersion f)
+        fetchedVersion = f.getVersion();
+    return fetchedVersion;
   }
 
   private static Stream<Arguments> provideCountParameters() {

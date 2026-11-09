@@ -24,6 +24,7 @@ import static com.here.xyz.models.hub.Space.TABLE_NAME;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -251,6 +252,36 @@ public class SpaceBasedStepLazyTest {
     String internalJson = XyzSerializable.serialize(step, XyzSerializable.Internal.class);
     assertFalse(internalJson.contains("existingLazyTables"));
     assertFalse(internalJson.contains("lazyFlagClearRequested"));
+  }
+
+  @Test
+  void copySpaceDoesNotPersistItsReadableSourceParams() throws Exception {
+    CopySpace step = new CopySpace().withSpaceId("source").withTargetSpaceId("target");
+    Field field = CopySpace.class.getDeclaredField("readableSourceParams");
+    field.setAccessible(true);
+    field.set(step, Map.of(TABLE_NAME, "xyz_empty_space_v1"));
+
+    for (String json : List.of(step.serialize(), XyzSerializable.serialize(step, XyzSerializable.Internal.class))) {
+      assertFalse(json.contains("readableSourceParams"));
+      assertFalse(json.contains("xyz_empty_space_v1"));
+      assertNull(field.get(XyzSerializable.deserialize(json, CopySpace.class)));
+    }
+  }
+
+  @Test
+  void skippedNeverMaterializedSurvivesTheStoredStep() throws Exception {
+    List<SpaceBasedStep<?>> steps = List.of(new CreateIndex().withSpaceId("lazy"), new AnalyzeSpaceTable().withSpaceId("lazy"));
+    for (SpaceBasedStep<?> step : steps) {
+      Field field = step.getClass().getDeclaredField("skippedNeverMaterialized");
+      field.setAccessible(true);
+      field.set(step, true);
+      assertEquals("SUCCEEDED", String.valueOf(step.getExecutionState()));
+
+      SpaceBasedStep<?> stored = XyzSerializable.deserialize(XyzSerializable.serialize(step, XyzSerializable.Internal.class),
+          step.getClass());
+      assertTrue((Boolean) field.get(stored), step.getClass().getSimpleName());
+      assertEquals("SUCCEEDED", String.valueOf(stored.getExecutionState()));
+    }
   }
 
   @Test
