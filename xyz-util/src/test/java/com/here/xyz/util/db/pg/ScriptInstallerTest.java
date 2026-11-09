@@ -117,6 +117,12 @@ public class ScriptInstallerTest {
     assertEquals("\"public\", \"public\", \"topology\"", PooledDataSources.compileSearchPath("public", List.of()));
   }
 
+  @Test
+  public void compileSearchPathDoublesEmbeddedQuotes() {
+    assertEquals("\"a\"\"b\", \"public\", \"topology\", \"x\"\"\"\"y\"",
+        PooledDataSources.compileSearchPath("a\"b", List.of("x\"\"y")));
+  }
+
   /**
    * Has the simple name of SQLQuery's FailedExecutionAttempt, which can only be created by SQLQuery's execution context.
    */

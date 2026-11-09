@@ -213,6 +213,22 @@ public class LazySpaceTablesIT extends SQLITBase {
     }
     catch (SQLException e) {
       assertEquals("2200H", e.getSQLState());
+      assertTrue(LazySpaceTables.isTemplateWriteException(e), e.getMessage());
+    }
+
+    //An exhausted sequence of a real space is not a write to the template
+    String table = newTable("t_");
+    createEager(schema, table);
+    String sequence = "\"" + schema + "\".\"" + table + "_version_seq\"";
+    try (Connection connection = dsp.getWriter().getConnection(); Statement stmt = connection.createStatement()) {
+      stmt.execute("ALTER SEQUENCE " + sequence + " MINVALUE 0 MAXVALUE 1 RESTART WITH 1");
+      stmt.execute("SELECT nextval('" + sequence + "')");
+      stmt.execute("SELECT nextval('" + sequence + "')");
+      fail("The sequence must be exhausted");
+    }
+    catch (SQLException e) {
+      assertEquals("2200H", e.getSQLState());
+      assertFalse(LazySpaceTables.isTemplateWriteException(e), e.getMessage());
     }
   }
 
@@ -262,6 +278,8 @@ public class LazySpaceTablesIT extends SQLITBase {
     //The feature writer takes a version before it writes, so the exhausted version sequence rejects the write before the guard does
     assertEquals("2200H", LazySpaceTables.sqlStateOf(e.getNextException() != null ? e.getNextException() : e), e.toString());
     assertTrue(e.toString().contains(TEMPLATE_TABLE + "_version_seq"), e.toString());
+    //The exhausted template sequence counts as a write to the template
+    assertTrue(LazySpaceTables.isTemplateWriteError(e), e.toString());
     assertEquals(0, (int) new SQLQuery("SELECT count(*) FROM ${schema}.${table}")
         .withVariable("schema", TEMPLATE_SCHEMA)
         .withVariable("table", TEMPLATE_TABLE)
@@ -288,6 +306,21 @@ public class LazySpaceTablesIT extends SQLITBase {
       assertTrue(connection.getAutoCommit(), "The connection must be back in autocommit");
     }
     assertFalse(exists(schema, TEMPLATE_TABLE), "The installation must be rolled back");
+  }
+
+  @Test
+  public void probeWithoutARowFailsTheInstallation() throws Exception {
+    String schema = newSchema();
+    SQLQuery emptyProbe = new SQLQuery("SELECT 1 WHERE false");
+
+    try (Connection connection = dsp.getWriter().getConnection()) {
+      SQLException e = assertThrows(SQLException.class, () -> LazySpaceTables.installTemplate(connection, schema,
+          settings.getSearchPath(), BUDGET_MILLIS, LazySpaceTables.buildTemplateQueries(schema), emptyProbe));
+      assertTrue(e.getMessage().contains("no row"), e.getMessage());
+      assertTrue(connection.getAutoCommit(), "The connection must be back in autocommit");
+    }
+    assertFalse(exists(schema, TEMPLATE_TABLE), "Nothing may be installed without a probe row");
+    assertTrue(probe(schema).isAbsent());
   }
 
   @Test

@@ -172,6 +172,28 @@ public class LazySpaceTablesTest {
   }
 
   @Test
+  public void exhaustedTemplateSequenceIsATemplateWrite() {
+    assertTrue(LazySpaceTables.isTemplateWriteException(new SQLException(
+        "ERROR: nextval: reached maximum value of sequence \"xyz_empty_space_v1_version_seq\" (1)", "2200H")));
+    assertTrue(LazySpaceTables.isTemplateWriteException(new SQLException(
+        "ERROR: nextval: reached maximum value of sequence \\\"xyz_empty_space_v1_i_seq\\\" (1)", "2200H")));
+    //A real space's sequence, even one whose name contains the template's name
+    assertFalse(LazySpaceTables.isTemplateWriteException(new SQLException(
+        "ERROR: nextval: reached maximum value of sequence \"abc_version_seq\" (1)", "2200H")));
+    assertFalse(LazySpaceTables.isTemplateWriteException(new SQLException(
+        "ERROR: nextval: reached maximum value of sequence \"my_xyz_empty_space_v1_version_seq\" (1)", "2200H")));
+    //The template's name with another SQLSTATE
+    assertFalse(LazySpaceTables.isTemplateWriteException(new SQLException(
+        "ERROR: relation \"xyz_empty_space_v1_version_seq\" does not exist", "42P01")));
+    assertFalse(LazySpaceTables.isTemplateWriteException(new SQLException(null, "2200H")));
+
+    BatchUpdateException batchError = new BatchUpdateException("Batch entry 0 was aborted", "2200H", new int[0]);
+    batchError.setNextException(new SQLException(
+        "ERROR: nextval: reached maximum value of sequence \"xyz_empty_space_v1_version_seq\" (1)", "2200H"));
+    assertTrue(LazySpaceTables.isTemplateWriteError(batchError));
+  }
+
+  @Test
   public void isTemplateWriteErrorWalksCausesAndNextExceptions() {
     SQLException guardError = new SQLException("guard", "XYZ52");
 

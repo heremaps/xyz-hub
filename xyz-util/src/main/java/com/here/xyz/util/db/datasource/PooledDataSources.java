@@ -82,7 +82,7 @@ public class PooledDataSources extends DataSourceProvider {
 
   /**
    * Builds the search path of the connections: the current schema, "public", "topology", then the provided schemas, each as a
-   * quoted identifier.
+   * quoted identifier with embedded double quotes doubled.
    *
    * @param currentSchema The connector schema
    * @param searchPath The further schemas, e.g., the script schemas
@@ -91,7 +91,7 @@ public class PooledDataSources extends DataSourceProvider {
   public static String compileSearchPath(String currentSchema, List<String> searchPath) {
     List<String> enrichedSearchPath = new ArrayList<>(List.of(currentSchema, "public", "topology"));
     enrichedSearchPath.addAll(searchPath);
-    return enrichedSearchPath.stream().map(schema -> "\"" + schema + "\"")
+    return enrichedSearchPath.stream().map(schema -> "\"" + schema.replace("\"", "\"\"") + "\"")
         .collect(Collectors.joining(", "));
   }
 

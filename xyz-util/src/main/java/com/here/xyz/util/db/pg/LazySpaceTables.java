@@ -56,6 +56,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 import org.apache.commons.dbutils.ResultSetHandler;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -102,6 +103,11 @@ public class LazySpaceTables {
   private static final Logger logger = LogManager.getLogger(LazySpaceTables.class);
   private static final long LOCK_TIMEOUT_MARGIN_MILLIS = 200;
   private static final String TEMPLATE_WRITE_MESSAGE_PART = "empty-space template rejected";
+  //sequence_generator_limit_exceeded, raised by nextval() on an exhausted sequence
+  private static final String SEQUENCE_EXHAUSTED = "2200H";
+  //A sequence of the template, as a whole name (no space table can have a name with the reserved prefix)
+  private static final Pattern TEMPLATE_SEQUENCE_REFERENCE = Pattern.compile("(?<![A-Za-z0-9_$])" + TEMPLATE_TABLE
+      + "_[A-Za-z0-9_]*seq\\b");
   private static final String GUARD_FUNCTION = TEMPLATE_TABLE + "_guard";
   private static final String FIRST_PARTITION_SUFFIX = "_p0";
   private static final String EXTENDS = "extends";
@@ -300,11 +306,19 @@ public class LazySpaceTables {
   /**
    * Checks one exception, without walking its causes.
    *
-   * @return Whether the exception was raised by a guard trigger of the template
+   * @return Whether the exception was raised by a guard trigger of the template, or by the exhausted sequence of the template,
+   *  which a writer that takes a version first hits before the guard
    */
   public static boolean isTemplateWriteException(SQLException e) {
-    return e != null && (EMPTY_TEMPLATE_WRITE.errorCode.equals(e.getSQLState())
-        || e.getMessage() != null && e.getMessage().contains(TEMPLATE_WRITE_MESSAGE_PART));
+    if (e == null)
+      return false;
+    if (EMPTY_TEMPLATE_WRITE.errorCode.equals(e.getSQLState()))
+      return true;
+    String message = e.getMessage();
+    if (message == null)
+      return false;
+    return message.contains(TEMPLATE_WRITE_MESSAGE_PART)
+        || SEQUENCE_EXHAUSTED.equals(e.getSQLState()) && TEMPLATE_SEQUENCE_REFERENCE.matcher(message).find();
   }
 
   /**
@@ -480,6 +494,11 @@ public class LazySpaceTables {
 
   static TemplateProbe installTemplate(Connection connection, String schema, List<String> searchPath, long budgetMillis,
       List<SQLQuery> templateQueries) throws SQLException {
+    return installTemplate(connection, schema, searchPath, budgetMillis, templateQueries, buildTemplateProbe(schema));
+  }
+
+  static TemplateProbe installTemplate(Connection connection, String schema, List<String> searchPath, long budgetMillis,
+      List<SQLQuery> templateQueries, SQLQuery probeQuery) throws SQLException {
     long start = System.currentTimeMillis();
     long deadline = start + budgetMillis;
     boolean autoCommit = connection.getAutoCommit();
@@ -492,9 +511,12 @@ public class LazySpaceTables {
         execute(stmt, deadline, "SET LOCAL search_path = " + PooledDataSources.compileSearchPath(schema, searchPath));
         execute(stmt, deadline, buildLockQuery(templateLockKey(schema)));
 
-        TemplateProbe probe = query(connection, buildTemplateProbe(schema), deadline, rs -> rs.next() ? readTemplateProbe(rs) : null);
-        if (probe == null || !probe.isAbsent()) {
-          //A concurrent installer won, or the probe returned nothing
+        TemplateProbe probe = query(connection, probeQuery, deadline, rs -> rs.next() ? readTemplateProbe(rs) : null);
+        //Fail closed: without a probe row nothing tells whether the template exists
+        if (probe == null)
+          throw new SQLException("The template probe returned no row.");
+        if (!probe.isAbsent()) {
+          //A concurrent installer won
           connection.commit();
           return probe;
         }
