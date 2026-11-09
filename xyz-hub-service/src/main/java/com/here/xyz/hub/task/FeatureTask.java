@@ -19,9 +19,6 @@
 
 package com.here.xyz.hub.task;
 
-import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
-import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
-import static com.here.xyz.models.hub.Space.TABLE_NAME;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
@@ -48,7 +45,7 @@ import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.auth.Authorization;
 import com.here.xyz.hub.auth.FeatureAuthorization;
-import com.here.xyz.hub.config.BranchConfigClient;
+import com.here.xyz.hub.cache.QueryTimeoutCache;
 import com.here.xyz.hub.config.TagConfigClient;
 import com.here.xyz.hub.connectors.RpcClient;
 import com.here.xyz.hub.connectors.models.Connector;
@@ -64,13 +61,9 @@ import com.here.xyz.hub.task.TaskPipeline.Callback;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Geometry;
-import com.here.xyz.models.hub.Branch;
 import com.here.xyz.models.hub.FeatureModificationList.ConflictResolution;
 import com.here.xyz.models.hub.FeatureModificationList.IfExists;
 import com.here.xyz.models.hub.FeatureModificationList.IfNotExists;
-import com.here.xyz.models.hub.Ref;
-import com.here.xyz.psql.query.XyzEventBasedQueryRunner;
-import com.here.xyz.psql.query.branching.BranchManager;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.geo.GeometryValidator;
 import com.here.xyz.util.service.HttpException;
@@ -80,7 +73,6 @@ import io.vertx.ext.web.RoutingContext;
 import java.nio.charset.Charset;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -116,6 +108,11 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
    * The calculated cache key.
    */
   private String cacheKey;
+
+  /**
+   * The timeout marker of the query as read by readCache, if the query timeout cache applies to this task.
+   */
+  QueryTimeoutCache.Lookup queryTimeoutLookup;
 
   /**
    * The number of bytes the request body is / was having initially.
@@ -157,61 +154,21 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
           future = TagConfigClient.getInstance().getTag(task.getMarker(), event.getRef().getTag(), task.space.getId())
               .compose(tag -> {
                 if (tag == null) {
-                  //It could be a branch
-                  event.setRef(Ref.fromBranchId(event.getRef().getTag()));
+                  return Future.failedFuture(new HttpException(NOT_FOUND,
+                      "Tag \"" + event.getRef().getTag() + "\" was not found on resource \"" + task.space.getId() + "\"."));
                 } else {
                   event.setRef(tag.getVersionRef());
                 }
                 return Future.succeededFuture();
               });
         }
-        future.compose(v -> resolveBranchFor(event, task.space))
-              .onFailure(callback::exception)
+        future.onFailure(callback::exception)
               .onSuccess(v -> callback.call(task));
       } else
         callback.call(task);
     } catch (Exception e) {
       callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definition.", e));
     }
-  }
-
-  public static Future<Void> resolveBranchFor(ContextAwareEvent<?> event, Space space) {
-    if (event.getRef() == null || event.getRef().isMainBranch())
-      return Future.succeededFuture();
-
-    return getReferencedBranch(space.getId(), event.getRef())
-        .compose(referencedBranch -> {
-          if (referencedBranch != null) {
-            LinkedList<Ref> branchPath = new LinkedList<>(referencedBranch.getBranchPath());
-            event.withNodeId(referencedBranch.getNodeId())
-                .withBranchPath(branchPath);
-
-            //TODO: Remove this hack when SpaceContext support is removed from branching
-            if (event.getContext() == SUPER)  {
-              Ref lastRef = branchPath.removeLast();
-              long baseVersion = lastRef.getVersion();
-              Ref requestedRef = event.getRef();
-              if (requestedRef.isHead() || requestedRef.getVersion() > baseVersion)
-                event.setRef(new Ref(baseVersion));
-              event.setNodeId(BranchManager.getNodeId(lastRef));
-            }
-            else if (event.getContext() == EXTENSION) {
-              event.setConnectorParams(Map.copyOf(space.getResolvedStorageConnector().params));
-              event.getParams().put(TABLE_NAME, XyzEventBasedQueryRunner.readBranchTableFromEvent(event));
-              event.setNodeId(0);
-            }
-          }
-          return Future.succeededFuture();
-    });
-  }
-
-  public static Future<Branch> getReferencedBranch(String spaceId, Ref ref) {
-    return BranchConfigClient.getInstance().load(spaceId, ref.getBranch())
-        .compose(branch -> {
-          if (branch == null)
-            return Future.failedFuture(new HttpException(NOT_FOUND, "Tag or Branch \"" + ref.getBranch() + "\" was not found on resource \"" + spaceId + "\"."));
-          return Future.succeededFuture(branch);
-        });
   }
 
   public CacheProfile getCacheProfile() {
@@ -250,6 +207,14 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
       logger.error(getMarker(), "Error creating cache key.", e);
       return null;
     }
+  }
+
+  /**
+   * Returns the cache key if {@link #getCacheKey()} computed it already, otherwise null. Unlike {@link #getCacheKey()}, this method can
+   * still be called after the event was consumed.
+   */
+  String getComputedCacheKey() {
+    return cacheKey;
   }
 
   /**
@@ -455,10 +420,15 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
 
         if (features.size() == 1) {
           Geometry geometry = features.get(0).getGeometry();
-          GeometryValidator.validateGeometry(geometry, getEvent().getRadius());
-          getEvent().setGeometry(features.get(0).getGeometry());
+          //A referenced feature without a geometry stays a 404, see verifyResourceExists
+          if (geometry != null)
+            GeometryValidator.validateGeometry(geometry, getEvent().getRadius());
+          getEvent().setGeometry(geometry);
         }
         callback.call(this);
+      }
+      catch (GeometryValidator.GeometryException e) {
+        callback.exception(new HttpException(BAD_REQUEST, e.getMessage()));
       }
       catch (Exception e) {
         callback.exception(e);

@@ -19,13 +19,11 @@ services:
                 condition: service_started
         environment:
             - SPACES_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-spaces
-            - BRANCHES_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-branches
             - CONNECTORS_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-connectors
             - PACKAGES_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-packages
             - SUBSCRIPTIONS_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-subscriptions
             - TAGS_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-tags
             - SETTINGS_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-settings
-            - ENTITIES_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-entities
             - REFERENCES_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-references
             - JOB_API_ENDPOINT=http://xyz-job-service:7070/
     xyz-job-service:
@@ -96,7 +94,7 @@ services:
             - QUERY_CONFIG_ENABLED=true
             - SWAGGER_JSON_URL=http://localhost:8080/hub/static/openapi/stable.yaml
     aws-localstack:
-        image: "localstack/localstack:4.3.0"
+        image: "localstack/localstack:4.14.0"
         container_name: "localstack-main"
         hostname: localstack
         ports:

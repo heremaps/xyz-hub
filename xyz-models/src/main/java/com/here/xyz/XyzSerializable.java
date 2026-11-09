@@ -24,6 +24,7 @@ import static com.here.xyz.XyzSerializable.Mappers.getMapperForView;
 
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.StreamReadFeature;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.MappingIterator;
@@ -59,6 +60,8 @@ public interface XyzSerializable {
 
     private static ObjectMapper registerNewMapper(ObjectMapper om) {
       ALL_MAPPERS.add(om);
+      //LazyParsable.RawDeserializer reads the raw input through the parser location, which Jackson 2.16+ redacts by default
+      om.getFactory().enable(StreamReadFeature.INCLUDE_SOURCE_IN_LOCATION.mappedFeature());
       om.registerSubtypes(REGISTERED_SUBTYPES.toArray(Class<?>[]::new));
       om.setMixIns(ALL_MIX_INS);
       return om;

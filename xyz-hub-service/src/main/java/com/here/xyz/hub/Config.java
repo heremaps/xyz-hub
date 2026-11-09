@@ -204,6 +204,19 @@ public class Config extends BaseConfig {
   public boolean ENABLE_CONNECTOR_HEALTH_CHECKS;
 
   /**
+   * If set to true, the service sends one health check to each active AWS Lambda connector at startup, before it serves requests, and
+   * waits up to {@link #PREPARE_REMOTE_FUNCTIONS_TIMEOUT_MS} for the answers. That lets each connector prepare its database, e.g., install
+   * its SQL scripts, before the first request arrives. Connectors whose function runs in a region other than {@link #AWS_REGION} are
+   * skipped.
+   */
+  public boolean PREPARE_REMOTE_FUNCTIONS_ON_STARTUP;
+
+  /**
+   * The maximum time in milliseconds the startup waits for the answers of the connectors, see {@link #PREPARE_REMOTE_FUNCTIONS_ON_STARTUP}.
+   */
+  public int PREPARE_REMOTE_FUNCTIONS_TIMEOUT_MS = 40_000;
+
+  /**
    * If true HERE Tiles are get handled as Base 4 encoded. Default is false (Base 10).
    */
   public boolean USE_BASE_4_H_TILES;
@@ -257,16 +270,6 @@ public class Config extends BaseConfig {
    * The ARN of the settings table in DynamoDB.
    */
   public String SETTINGS_DYNAMODB_TABLE_ARN;
-
-  /**
-   * The ARN of the branches table in DynamoDB.
-   */
-  public String BRANCHES_DYNAMODB_TABLE_ARN;
-
-  /**
-   * The ARN of the entities table in DynamoDB.
-   */
-  public String ENTITIES_DYNAMODB_TABLE_ARN;
 
   /**
    * The ARN of the Data References table in DynamoDB.
@@ -496,4 +499,11 @@ public class Config extends BaseConfig {
    * Existing (legacy) spaces are not affected. Their table name keeps being derived from the space ID.
    */
   public boolean ENABLE_UNIQUE_PHYSICAL_TABLE_NAMES = true;
+
+  /**
+   * If set to true, a spatial query whose statement timed out in the database
+   * {@link com.here.xyz.hub.cache.QueryTimeoutCache#QUERY_TIMEOUT_CACHE_THRESHOLD} times in a row gets the same 504 reply for a while
+   * without running again. See {@link com.here.xyz.hub.cache.QueryTimeoutCache}.
+   */
+  public boolean QUERY_TIMEOUT_CACHE_ENABLED = false;
 }

@@ -19,122 +19,101 @@
 
 package com.here.xyz.models.hub;
 
-import static com.google.common.base.Strings.isNullOrEmpty;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
 import com.here.xyz.models.hub.Ref.InvalidRef;
-import java.util.ArrayList;
-import java.util.List;
+import com.here.xyz.XyzSerializable;
 import org.junit.Test;
 
 public class RefTests {
-  private static final String MAIN_BRANCH = "main";
-  private static final String HEAD_VERSION = "HEAD";
-  private static final String ALL_VERSIONS = "*";
-  private static final String[] VALID_BRANCH_IDS = new String[]{"someBranchId", "a", "-1", "~1", "5someBranchId", MAIN_BRANCH, "", null};
-  private static final String[] INVALID_BRANCH_IDS = new String[]{"42", "some:BranchId", ALL_VERSIONS, HEAD_VERSION};
-  private static final String[] VALID_VERSIONS = new String[]{"42", ALL_VERSIONS, HEAD_VERSION, "", null};
-  private static final String[] INVALID_VERSIONS = new String[]{"-42", "abc", "5abc", "abc5"};
-
-  private static boolean canBeParsedAsLong(String maybeALong) {
-    try {
-      Long.parseLong(maybeALong);
-      return true;
-    }
-    catch (NumberFormatException e) {
-      return false;
-    }
-  }
-
-  private static boolean canBeParsedAsNonNegativeLong(String maybeALong) {
-    if (canBeParsedAsLong(maybeALong))
-      return Long.parseLong(maybeALong) >= 0;
-    return false;
-  }
-
-  private static boolean isValidVersion(String version) {
-    return HEAD_VERSION.equals(version) || ALL_VERSIONS.equals(version) || canBeParsedAsNonNegativeLong(version);
-  }
-
-  private static List<String> crossProduct(String[] setA, String[] setB) {
-    List<String> crossProduct = new ArrayList<>();
-    for (String a : setA)
-      for (String b : setB)
-        crossProduct.add((!isNullOrEmpty(a) ? a : "") + (!isNullOrEmpty(a) && !isNullOrEmpty(b) ? ":" : "") + (!isNullOrEmpty(b) ? b : ""));
-    return crossProduct;
-  }
-
   @Test
-  public void simpleBranchPositive() {
-    for (String branchId : VALID_BRANCH_IDS) {
-      Ref ref = Ref.fromBranchId(branchId);
-      assertEquals(isNullOrEmpty(branchId) ? MAIN_BRANCH : branchId, ref.getBranch());
+  public void defaultReferenceIsHead() {
+    for (String value : new String[]{null, "", "HEAD"}) {
+      Ref ref = new Ref(value);
       assertTrue(ref.isSingleVersion());
       assertTrue(ref.isHead());
       assertFalse(ref.isAllVersions());
+      assertEquals("HEAD", ref.toString());
+      assertThrows(InvalidRef.class, ref::getVersion);
     }
   }
 
   @Test
-  public void simpleVersionPositive() {
-    for (String version : VALID_VERSIONS) {
-      Ref ref = new Ref(version);
+  public void versionNumbersRoundTrip() throws Exception {
+    for (long version : new long[]{0, 42, Long.MAX_VALUE}) {
+      Ref ref = new Ref(Long.toString(version));
+      assertEquals(version, ref.getVersion());
+      assertEquals(new Ref(version), ref);
+      assertFalse(ref.isHead());
+      assertEquals("\"" + version + "\"", ref.serialize());
+      assertEquals(ref, XyzSerializable.deserialize(ref.serialize(), Ref.class));
+    }
+    assertThrows(InvalidRef.class, () -> new Ref(-1));
+  }
 
-      if (canBeParsedAsLong(version)) {
-        assertTrue(ref.isSingleVersion());
-        assertEquals(Long.parseLong(version), ref.getVersion());
-      }
-      else
-        assertThrows(InvalidRef.class, () -> ref.getVersion());
-
-      if (ALL_VERSIONS.equals(version)) {
-        assertTrue(ref.isAllVersions());
-        assertFalse(ref.isSingleVersion());
-      }
-      else {
-        assertFalse(ref.isAllVersions());
-        assertTrue(ref.isSingleVersion());
-      }
-
-      if (isNullOrEmpty(version) || HEAD_VERSION.equals(version))
-        assertTrue(ref.isHead());
-      else
-        assertFalse(ref.isHead());
+  @Test
+  public void tagReferencesRemainSupported() {
+    for (String tag : new String[]{"myTag", "a", "-1", "tag-with.dots"}) {
+      Ref ref = new Ref(tag);
+      assertTrue(ref.isTag());
+      assertEquals(tag, ref.getTag());
+      assertEquals(tag, ref.toString());
+      assertThrows(InvalidRef.class, ref::getVersion);
     }
   }
 
   @Test
-  public void refPositive() {
-    for (String refString : crossProduct(VALID_BRANCH_IDS, VALID_VERSIONS)) {
-      Ref ref = refString.contains(":") || canBeParsedAsNonNegativeLong(refString) || ALL_VERSIONS.equals(refString)
-          || HEAD_VERSION.equals(refString) ? new Ref(refString) : Ref.fromBranchId(refString);
-      if (!refString.contains(":")) {
-        if (isValidVersion(refString)) {
-          //It should be one / multiple versions in the main branch
-          assertEquals(MAIN_BRANCH, ref.getBranch());
-          if (canBeParsedAsNonNegativeLong(refString)) {
-            //It should be a dedicated version in the main branch
-            assertTrue(ref.isSingleVersion());
-            assertFalse(ref.isHead());
-            assertFalse(ref.isAllVersions());
-            assertEquals(Long.parseLong(refString), ref.getVersion());
-          }
-        }
-        else {
-          //It should be the HEAD version on a branch
-          assertEquals(isNullOrEmpty(refString) ? MAIN_BRANCH : refString, ref.getBranch());
-          assertTrue(ref.isHead());
-          assertTrue(ref.isSingleVersion());
-          assertFalse(ref.isAllVersions());
-          assertThrows(InvalidRef.class, () -> ref.getVersion());
-        }
-      }
+  public void rangesAndAllVersionsRemainSupported() throws Exception {
+    for (String value : new String[]{"0..42", "42..42", "42..HEAD", "*"}) {
+      Ref ref = new Ref(value);
+      assertEquals(value, ref.toString());
+      assertFalse(ref.isSingleVersion());
+      assertEquals(ref, XyzSerializable.deserialize(ref.serialize(), Ref.class));
     }
+    assertEquals(new Ref(0, 42), new Ref("0..42"));
+    assertTrue(new Ref("*").isAllVersions());
   }
 
-  //TODO: Add negative tests
-  //TODO: Add tag tests?
+  @Test
+  public void legacySpaceReferencesAreNormalized() {
+    for (String value : new String[]{"0", "42", "HEAD", "*", "0..HEAD", "5..10"})
+      assertEquals(new Ref(value), new Ref("main:" + value));
+  }
+
+  @Test
+  public void tagRangeEndpointsRemainSupported() throws Exception {
+    for (String value : new String[]{"1..tagV2", "tagV1..42", "tagV1..tagV2", "tagV2..tagV2", "tagV1..HEAD"}) {
+      Ref ref = new Ref(value);
+      assertTrue(ref.isRange());
+      assertEquals(value, ref.toString());
+      assertEquals(ref, XyzSerializable.deserialize(ref.serialize(), Ref.class));
+    }
+    assertEquals(new Ref("1..tagV2"), new Ref(new Ref(1), new Ref("tagV2")));
+    assertEquals(new Ref("tagV1..HEAD"), new Ref(new Ref("tagV1"), new Ref("HEAD")));
+    assertThrows(InvalidRef.class, () -> new Ref(new Ref("*"), new Ref(42)));
+    assertThrows(InvalidRef.class, () -> new Ref(new Ref(0), new Ref("*")));
+  }
+
+  @Test
+  public void namedBranchReferencesAreRejected() {
+    for (String value : new String[]{"branch:42", "branch:HEAD", "branch:*", "branch:0..HEAD", "~1:42", "!branch:HEAD"})
+      assertThrows(value, InvalidRef.class, () -> new Ref(value));
+  }
+
+  @Test
+  public void invalidReferencesAndRangesAreRejected() {
+    for (String value : new String[]{"main:tag", "main:42:1", "42:1", "5abc", "main", "0..", "..1", "0..1..2",
+        "HEAD..42", "42..0", "0..*"})
+      assertThrows(value, InvalidRef.class, () -> new Ref(value));
+  }
+
+  @Test
+  public void tagsNoLongerPersistBranchIdentifiers() {
+    Tag tag = new Tag().withId("myTag").withVersionRef(new Ref(42));
+    assertEquals(42, tag.getVersion());
+    assertFalse(tag.toMap(XyzSerializable.Static.class).containsKey("branchId"));
+  }
 }

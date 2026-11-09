@@ -1480,18 +1480,20 @@ $BODY$
 $BODY$
   LANGUAGE plpgsql VOLATILE;
 
+-- base_tables: the tables of the spaces the space extends (intermediate and extended table of a composite space)
 CREATE OR REPLACE FUNCTION xyz_statistic_space_v2(
     IN schema text,
-    IN spaceid text)
+    IN spaceid text,
+    IN base_tables text[])
   RETURNS TABLE(tablesize jsonb, geometrytypes jsonb, properties jsonb, tags jsonb, count jsonb, bbox jsonb, searchable text) AS
 $BODY$
 
-with indata as ( select xyz_statistic_space_v2.schema as s, xyz_statistic_space_v2.spaceid as t ),
---with indata as ( select 'public' as s, 'exportTestdata03' as t ),
---with indata as ( select 'public' as s, 'x-psql-test' as t ),
+with indata as ( select xyz_statistic_space_v2.schema as s, xyz_statistic_space_v2.spaceid as t, xyz_statistic_space_v2.base_tables as b ),
+--with indata as ( select 'public' as s, 'exportTestdata03' as t, '{}'::text[] as b ),
+--with indata as ( select 'public' as s, 'x-psql-test' as t, '{}'::text[] as b ),
 iindata as
 ( select row_number() over () as idx, r.* from
-	(	select i.s as schem, unnest( array_remove( array[i.t, m.meta#>>'{extends,intermediateTable}', m.meta#>>'{extends,extendedTable}'], null ) ) as tbl from xyz_config.space_meta m right join indata i on ( m.schem = i.s and m.h_id = regexp_replace( i.t, '_head$', '' ))  ) r
+	(	select i.s as schem, unnest( array_remove( array[i.t] || coalesce( i.b, '{}'::text[] ), null ) ) as tbl from indata i ) r
 ),
 iiindata as ( select * from iindata i, lateral ( select * from xyz_statistic_space_v1(i.schem,i.tbl) ) l ),
 c1 as ( select jsonb_build_object( 'value', sum( (tablesize->'value')::bigint ), 'estimated', max( (tablesize->>'estimated') )::boolean) as tablesize from iiindata ),
@@ -1527,7 +1529,14 @@ select * from outdata
 $BODY$
 LANGUAGE sql VOLATILE;
 
-create or replace function xyz_statistic_space( schema text, spaceid text, ctx_extend boolean)
+--base_tables was added; drop the old signature so a reused versioned schema does not keep both overloads and 3-arg calls become ambiguous
+--Qualified with current_schema() so it never drops a same-named function from another schema further down the search_path
+DO $$
+BEGIN
+    EXECUTE format('DROP FUNCTION IF EXISTS %I.xyz_statistic_space(text, text, boolean)', current_schema());
+END$$;
+
+create or replace function xyz_statistic_space( schema text, spaceid text, ctx_extend boolean, base_tables text[] DEFAULT '{}')
   returns table(tablesize jsonb, geometrytypes jsonb, properties jsonb, tags jsonb, count jsonb, bbox jsonb, searchable text) AS
 $body$
 begin
@@ -1535,7 +1544,7 @@ begin
  if ctx_extend then
   return query select * from xyz_statistic_space_v1( schema, spaceid );
  else
-  return query select * from xyz_statistic_space_v2( schema, spaceid );
+  return query select * from xyz_statistic_space_v2( schema, spaceid, base_tables );
  end if;
 
 end;
@@ -1965,9 +1974,11 @@ $BODY$
                    'VALUES ($1, $2, $3, $4, $5, xyz_geoFromWkb($6))', schema, tableName)
             USING id, version, operation, author, jsondata, geo;
 
-        -- If the current history partition is nearly full, create the next one already
-        IF version % partitionSize > partitionSize - 50 THEN
-            EXECUTE xyz_create_history_partition(schema, tableName, (floor(version / partitionSize) + 1)::BIGINT, partitionSize);
+        -- Create the next history partition in advance (DS-2341): in the last 49 versions of the current one and, once
+        -- that is half full, at every (partitionSize / 200)th version. Best-effort, see xyz_try_create_next_history_partition().
+        IF version % partitionSize > partitionSize - 50
+            OR (version % partitionSize >= partitionSize / 2 AND version % greatest(partitionSize / 200, 1) = 0) THEN
+            PERFORM xyz_try_create_next_history_partition(schema, tableName, version, partitionSize);
         END IF;
 
         -- Delete old changesets from the history to keep only as many versions as specified through "versionsToKeep" if necessary
@@ -2154,6 +2165,42 @@ $BODY$
 LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
+-- Best-effort creation of the history partition after the one of the specified version (DS-2341).
+-- * At most one attempt per table and version and session. All rows of a write share its version, and the non-transactional
+--   ModifyFeatures path commits every row on its own, so a transaction-local guard would let every row wait again. A later
+--   write always has a higher version, so a guard left on a pooled connection never matches it.
+-- * The creation needs an ACCESS EXCLUSIVE lock on the root table, which a long-running reader can block. The attempt waits at
+--   most 200 ms for it, so the write and the readers queued behind the attempt wait no longer than that.
+-- * Only lock_not_available (55P03) and duplicate_table (42P07, created concurrently) are tolerated. Every other error, in
+--   particular query_canceled (57014), aborts the write.
+-- The BEGIN ... EXCEPTION block runs as a subtransaction. A caught error rolls it back, which also reverts its SET LOCAL of
+-- lock_timeout. If the block succeeds, its SET LOCAL stays in effect until the end of the transaction, so the block restores
+-- the previous value itself. The guard is set outside of the block, so that the rollback of the block keeps it.
+CREATE OR REPLACE FUNCTION xyz_try_create_next_history_partition(schema TEXT, rootTable TEXT, version BIGINT, partitionSize BIGINT)
+    RETURNS VOID AS
+$BODY$
+DECLARE
+    attempt TEXT := schema || '.' || rootTable || ':' || version;
+    previousLockTimeout TEXT := current_setting('lock_timeout');
+BEGIN
+    IF current_setting('xyz.history_partition_attempt', true) = attempt THEN
+        RETURN;
+    END IF;
+    PERFORM set_config('xyz.history_partition_attempt', attempt, false);
+
+    BEGIN
+        PERFORM set_config('lock_timeout', '200ms', true);
+        PERFORM xyz_create_history_partition(schema, rootTable, (floor(version / partitionSize) + 1)::BIGINT, partitionSize);
+        PERFORM set_config('lock_timeout', previousLockTimeout, true);
+    EXCEPTION WHEN lock_not_available OR duplicate_table THEN
+        RAISE WARNING 'Could not create the next history partition of %.% in advance at version %: %',
+            schema, rootTable, version, SQLERRM;
+    END;
+END
+$BODY$
+LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_delete_changesets_async(schema TEXT, tableName TEXT, partitionSize BIGINT, minVersion BIGINT, pw TEXT)
     RETURNS VOID AS
 $BODY$
@@ -2182,64 +2229,6 @@ BEGIN
 
     -- Purge the remainder in the new oldest partition
     EXECUTE 'DELETE FROM "' || schema || '"."' || tableName || '" WHERE next_version <= ' || minVersion;
-END
-$BODY$
-LANGUAGE plpgsql VOLATILE;
-------------------------------------------------
-------------------------------------------------
-CREATE OR REPLACE FUNCTION xyz_advanced_delete_changesets(
-	schema text,
-	tablename text,
-	partitionsize bigint,
-	versions_to_keep bigint,
-	min_tag_version bigint,
-	pw text)
-RETURNS void AS
-$BODY$
-DECLARE
-    statistic RECORD;
-	calculated_min_version BIGINT;
-BEGIN
-    execute format('select '
-                   || 'meta->''minAvailableVersion'' as min_available_version, '
-                   || '(meta->''userMinVersion'')::BIGINT as user_min_version, '
-                   || '(select max(version) from "%1$s"."%2$s") as max_version, '
-                   || '%3$L::bigint as versions_to_keep '
-                   || 'from xyz_config.space_meta '
-                   || 'where '
-                   || 'h_id=%2$L', schema, tablename, versions_to_keep )
-    INTO statistic;
-
-    IF statistic IS NULL THEN
-		-- Table not found in space_meta table - abort!
-		RETURN;
-    END IF;
-
-	calculated_min_version := COALESCE(greatest(statistic.user_min_version, statistic.max_version - statistic.versions_to_keep + 1),0);
-
-	IF min_tag_version >= 0 THEN
-		-- Tag has priority. Delete nothing below the minTagVersion!
-		calculated_min_version := least(min_tag_version , calculated_min_version);
-    END IF;
-
-	RAISE NOTICE 'PURGE - max_version:% min_available_version:% user_min_version:% calculated_min_version:%',
-		statistic.max_version, statistic.min_available_version, statistic.user_min_version, calculated_min_version;
-
-	IF calculated_min_version < 0 THEN
-		RAISE NOTICE 'calculated_min_version is negative - ignore!';
-		RETURN;
-    END IF;
-
-	IF statistic.min_available_version::BIGINT >= calculated_min_version THEN
-		RAISE NOTICE 'PURGE - Requested versions are already deleted!';
-		RETURN;
-    END IF;
-
-	PERFORM asyncify('SELECT xyz_delete_changesets(''' || schema || ''', ''' || tableName || ''', ' ||  partitionSize || ', ' || calculated_min_version || ')', pw);
-
-    update xyz_config.space_meta
-        set meta = meta || jsonb_build_object('minAvailableVersion', calculated_min_version)
-    where h_id = tablename;
 END
 $BODY$
 LANGUAGE plpgsql VOLATILE;

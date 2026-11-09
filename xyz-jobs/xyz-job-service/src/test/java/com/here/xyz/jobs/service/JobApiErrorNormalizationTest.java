@@ -20,18 +20,24 @@
 package com.here.xyz.jobs.service;
 
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_FAILED;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 
 import com.here.xyz.jobs.steps.JobCompiler.CompilationError;
+import com.here.xyz.jobs.steps.inputs.InputsFromS3.BucketAccessDeniedException;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.service.HttpException;
+import com.here.xyz.util.service.aws.s3.S3Uri;
 import com.here.xyz.util.service.errors.DetailedHttpException;
 import com.here.xyz.util.service.errors.ErrorManager;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 
 class JobApiErrorNormalizationTest {
 
@@ -85,12 +91,50 @@ class JobApiErrorNormalizationTest {
   }
 
   @Test
+  void mapsBucketAccessDeniedDuringInputRegistrationToPreconditionFailed() {
+    Throwable normalized = api.normalizeInputRegistrationError(bucketAccessDenied(), "job-input");
+    DetailedHttpException detailed = assertInstanceOf(DetailedHttpException.class, normalized);
+    assertEquals(PRECONDITION_FAILED.code(), detailed.status.code());
+    assertEquals("E319011", detailed.errorDefinition.getCode());
+    assertEquals("Service has no permissions to access the provided bucket.", detailed.getMessage());
+    assertEquals(Map.of("jobId", "job-input"), detailed.errorDetails);
+  }
+
+  @Test
+  void mapsWrappedBucketAccessDeniedDuringJobCreationToPreconditionFailed() {
+    Throwable error = new RuntimeException(bucketAccessDenied());
+    Throwable normalized = api.normalizeJobCreationError(error, "job-inline-input");
+    DetailedHttpException detailed = assertInstanceOf(DetailedHttpException.class, normalized);
+    assertEquals(PRECONDITION_FAILED.code(), detailed.status.code());
+    assertEquals("E319011", detailed.errorDefinition.getCode());
+    assertEquals("job-inline-input", detailed.errorDetails.get("jobId"));
+  }
+
+  @Test
+  void keepsOtherS3ErrorsDuringInputRegistration() {
+    S3Exception error = s3Exception(404, "NoSuchBucket");
+    assertSame(error, api.normalizeInputRegistrationError(error, "job-input"));
+  }
+
+  @Test
   void mapsIllegalArgumentErrorsToBadRequestWithJobId() {
     Throwable normalized = api.normalizeJobCreationError(new IllegalArgumentException("bad argument"), "job-abc");
 
     HttpException http = assertInstanceOf(HttpException.class, normalized);
     assertEquals(BAD_REQUEST.code(), http.status.code());
     assertEquals(Map.of("jobId", "job-abc"), http.errorDetails);
+  }
+
+  private static BucketAccessDeniedException bucketAccessDenied() {
+    return new BucketAccessDeniedException(new S3Uri("some-bucket", "some/prefix/"), s3Exception(403, "AccessDenied"));
+  }
+
+  private static S3Exception s3Exception(int statusCode, String errorCode) {
+    return (S3Exception) S3Exception.builder()
+        .statusCode(statusCode)
+        .message("S3 error " + errorCode)
+        .awsErrorDetails(AwsErrorDetails.builder().errorCode(errorCode).build())
+        .build();
   }
 }
 

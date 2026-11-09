@@ -25,12 +25,11 @@ import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.ApiParam.Path;
 import com.here.xyz.hub.rest.ApiParam.Query;
-import com.here.xyz.hub.task.BranchHandler;
-import com.here.xyz.hub.task.FeatureTask;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Tag;
 import com.here.xyz.responses.ChangesetsStatisticsResponse;
@@ -232,12 +231,9 @@ public class TagApi extends SpaceBasedApi {
       throw new IllegalArgumentException("A tag cannot be used as Ref");
 
     Future<Ref> future = Future.succeededFuture(versionRef);
-    if (!versionRef.isMainBranch()) {
-      future = FeatureTask.getReferencedBranch(spaceId, versionRef).map(versionRef);
-    }
-
     if (versionRef.isHead()) {
-      future = future.compose(v -> BranchHandler.resolveRefHeadVersion(marker, spaceId, versionRef));
+      future = future.compose(v -> FeatureQueryApi.getStatistics(marker, spaceId, SpaceContext.DEFAULT, versionRef, true, false)
+          .map(statistics -> new Ref(statistics.getMaxVersion().getValue())));
     }
     return future;
   }

@@ -22,7 +22,6 @@ package com.here.xyz.models.hub;
 import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_DEFAULT;
 import static com.here.xyz.models.hub.Ref.ALL_VERSIONS;
 import static com.here.xyz.models.hub.Ref.HEAD;
-import static com.here.xyz.models.hub.Ref.MAIN;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -86,11 +85,6 @@ public class Tag implements XyzSerializable {
   @JsonView({Public.class, Static.class})
   @JsonProperty(access = JsonProperty.Access.READ_ONLY)
   private long createdAt = -1;
-
-  @JsonView({Static.class})
-  public String getBranchId() {
-    return versionRef != null ? versionRef.getBranch() : MAIN;
-  }
 
   public String getId() {
     return id;
@@ -203,7 +197,7 @@ public class Tag implements XyzSerializable {
   }
 
   public static boolean isValidId(String tagId) {
-    return !Strings.isNullOrEmpty(tagId) && !MAIN.equals(tagId) && !HEAD.equals(tagId) && !ALL_VERSIONS.equals(tagId)
+    return !Strings.isNullOrEmpty(tagId) && !"main".equals(tagId) && !HEAD.equals(tagId) && !ALL_VERSIONS.equals(tagId)
         && Pattern.matches("^[^0-9\s][^\s:]{0,49}$", tagId);
   }
 }

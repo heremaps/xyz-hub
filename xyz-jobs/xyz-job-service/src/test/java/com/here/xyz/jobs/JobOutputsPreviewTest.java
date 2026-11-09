@@ -10,7 +10,6 @@ import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -19,15 +18,9 @@ public class JobOutputsPreviewTest {
 
   @BeforeClass
   public static void initVertx() {
-    Core.vertx = Vertx.vertx();
-  }
-
-  @AfterClass
-  public static void closeVertx() {
-    if (Core.vertx != null) {
-      Core.vertx.close();
-      Core.vertx = null;
-    }
+    //Do not close it afterwards: Static Async instances (e.g., of Job) keep using their worker executors in other tests of the fork
+    if (Core.vertx == null)
+      Core.vertx = Vertx.vertx();
   }
 
   private static <T> T await(Future<T> f) throws Exception {

@@ -36,11 +36,13 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.UpdateStrategy;
+import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.S3DataFile;
 import com.here.xyz.jobs.steps.execution.StepException;
 import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
 import com.here.xyz.jobs.steps.impl.transport.tasks.inputs.ImportInput;
 import com.here.xyz.jobs.steps.impl.transport.tasks.outputs.ImportOutput;
+import com.here.xyz.jobs.steps.impl.transport.tools.ImportFilesQuickValidator;
 import com.here.xyz.jobs.steps.impl.transport.tools.ImportQueryBuilder;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.inputs.InputFromOutput;
@@ -63,6 +65,7 @@ import java.io.IOException;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -117,6 +120,13 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
 
   @JsonView({Internal.class, Static.class})
   private double featureWriterBatchSizeInMb = 37;
+  /**
+   * The maximum number of features per batch of a FeatureWriter import, in addition to featureWriterBatchSizeInMb.
+   * Small features (e.g., the deletions of a changeset) would otherwise make batches of several 100,000 features, whose
+   * memory in PLV8 and transaction size grow with the number of features rather than with the bytes.
+   */
+  @JsonView({Internal.class, Static.class})
+  private int featureWriterBatchMaxFeatures = ImportQueryBuilder.DEFAULT_FEATURE_WRITER_BATCH_MAX_FEATURES;
 
   @JsonView({Internal.class, Static.class})
   private Boolean expressImport;
@@ -217,6 +227,21 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
     return this;
   }
 
+  public void setFeatureWriterBatchMaxFeatures(int featureWriterBatchMaxFeatures) {
+    if (featureWriterBatchMaxFeatures <= 0)
+      throw new IllegalArgumentException("featureWriterBatchMaxFeatures must be > 0, but was " + featureWriterBatchMaxFeatures);
+    this.featureWriterBatchMaxFeatures = featureWriterBatchMaxFeatures;
+  }
+
+  public int getFeatureWriterBatchMaxFeatures() {
+    return featureWriterBatchMaxFeatures;
+  }
+
+  public TaskedImportFilesToSpace withFeatureWriterBatchMaxFeatures(int featureWriterBatchMaxFeatures) {
+    setFeatureWriterBatchMaxFeatures(featureWriterBatchMaxFeatures);
+    return this;
+  }
+
   public Boolean getExpressImport() {
     return expressImport;
   }
@@ -230,44 +255,74 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
     return true;
   }
 
+  /**
+   * Only an import that writes with the FeatureWriter (PLV8) has a database limit
+   * ({@link Config#FEATURE_WRITER_IMPORT_MAX_TASKS_PER_DB}). Its task queries need much more memory and CPU than those of a plain
+   * import into an empty layer or of an express import.
+   */
   @Override
-  protected void initialSetup(boolean resume) throws SQLException, TooManyResourcesClaimed, WebClientException {
-    if(resume){
-      //If we are not using the featureWriter, we are disabling the space before we start the import.
-      //In case of a resume the space is still inactive - so nobody is able to write in between => we are done here.
-      if(!useFeatureWriter())
-        return;
+  protected Integer getMaxTasksPerDatabase() throws WebClientException {
+    Integer limit = Config.instance == null ? null : Config.instance.FEATURE_WRITER_IMPORT_MAX_TASKS_PER_DB;
+    return limit != null && limit > 0 && useFeatureWriter() && !useExpressImport() ? limit : null;
+  }
 
-      long persistedVersion = loadTargetVersionFromTaskInput();
-      long maxVersion = loadSpaceMaxVersion();
-      //check if the targetVersion is outdated
-      boolean versionIsOutdated = maxVersion > persistedVersion;
-
-      if(versionIsOutdated) {
-        //we need to get a new version to ensure consistency
-        targetVersion = increaseVersionSequence();
-        infoLog(STEP_EXECUTE, "initialSetup - resume: maxVersion (" + maxVersion + ") is higher than persisted "
-                + "targetVersion (" + persistedVersion + "). Allocated new targetVersion " + targetVersion
-                + " and resetting the task inputs.");
-        runWriteQuerySync(getQueryBuilder().buildUpdateTaskItemsTargetVersionStatement(targetVersion), db(), 0);
-      }else
-        infoLog(STEP_EXECUTE, "initialSetup - resume: reusing persisted targetVersion " + targetVersion
-                + " (maxVersion=" + maxVersion + ").");
-    }else{
-      //resume=false => retrieve new version
+  @Override
+  protected void prepareExecution(boolean resume) throws SQLException, TooManyResourcesClaimed, WebClientException {
+    if (!resume) {
+      //Fresh execution => retrieve a new version
       targetVersion = getOrIncreaseVersionSequence();
+      return;
     }
 
-    if(useFeatureWriter()){
-      infoLog(STEP_EXECUTE, "initialSetup - Using "
-          + (useExpressImport() ? "express writer" : "FeatureWriter") + " for import!");
+    //NOTE: On a resume, the targetVersion field is not part of the step's request payload anymore, so the version
+    //always has to be restored from the task items which are not finalized yet.
+    long persistedVersion = loadTargetVersionFromTaskInput();
+
+    //If we are not using the featureWriter, we are disabling the space before we start the import.
+    //In case of a resume the space is still inactive - so nobody is able to write in between => keep the version.
+    if (!useFeatureWriter()) {
+      targetVersion = persistedVersion;
+      infoLog(STEP_EXECUTE, "prepareExecution - resume: reusing persisted targetVersion " + targetVersion
+              + " for the import into an empty layer.");
+      return;
+    }
+
+    long maxVersion = loadSpaceMaxVersion();
+    //check if the targetVersion is outdated
+    boolean versionIsOutdated = maxVersion > persistedVersion;
+
+    if (versionIsOutdated) {
+      //we need to get a new version to ensure consistency
+      targetVersion = increaseVersionSequence();
+      infoLog(STEP_EXECUTE, "prepareExecution - resume: maxVersion (" + maxVersion + ") is higher than persisted "
+              + "targetVersion (" + persistedVersion + "). Allocated new targetVersion " + targetVersion
+              + " and resetting the task inputs.");
+      runWriteQuerySync(getQueryBuilder().buildUpdateTaskItemsTargetVersionStatement(targetVersion), db(), 0);
+    }
+    else {
+      targetVersion = persistedVersion;
+      infoLog(STEP_EXECUTE, "prepareExecution - resume: reusing persisted targetVersion " + targetVersion
+              + " (maxVersion=" + maxVersion + ").");
+    }
+  }
+
+  @Override
+  protected void ensureDbResources() throws SQLException, TooManyResourcesClaimed, WebClientException {
+    if (targetVersion < 0)
+      throw new StepException("Invalid targetVersion: " + targetVersion + "! Can not prepare the import resources.");
+
+    if (useFeatureWriter()) {
+      infoLog(STEP_EXECUTE, "ensureDbResources - Using "
+              + (useExpressImport() ? "express writer" : "FeatureWriter") + " for import!");
       //Pre-create two spare history partitions to avoid concurrency issue with hub requests. (also for resumes)
       createSpareHistoryPartitions(targetVersion);
     }
-
-    if(!useFeatureWriter() && !format.equals(FAST_IMPORT_INTO_EMPTY)) {
-      infoLog(STEP_EXECUTE,  "initialSetup(" + resume + ") - Import into empty layer detected! Create Trigger.");
-      //import into an empty, non-composite, layer - targetVersion got persisted in trigger
+    else if (!format.equals(FAST_IMPORT_INTO_EMPTY)) {
+      //Import into an empty, non-composite, layer - the targetVersion gets persisted in the trigger.
+      //NOTE: The trigger is (re)created on every resume as well, because it might have been dropped in between,
+      //e.g., together with the outdated script version its trigger function belongs to.
+      infoLog(STEP_EXECUTE, "ensureDbResources - Import into empty layer detected! Create Trigger with targetVersion "
+              + targetVersion + ".");
       runWriteQuerySync(getQueryBuilder().buildCreateImportTriggerForEmptyLayers(space().getOwner(), targetVersion, retainMetadata),
               db(), 0);
     }
@@ -382,15 +437,33 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
       if (space.isReadOnly())
         throw new ValidationException("Data can not be written to target " + space.getId() + " as it is in read-only mode.");
 
-      if (loadTargetSpaceFeatureCount() > 0 && getUncompressedUploadBytesEstimation() > getMaxInputBytesForNonEmptyImport())
-        throw new ValidationException("An import into a non empty space is not possible. "
-                + "The uncompressed size of the provided files exceeds the limit of " + getMaxInputBytesForNonEmptyImport() + " bytes.");
+      //Both execution modes only know the directly extended space, so the root base of a nested composite would be ignored
+      //while classifying deletes. With context EXTENSION no base is read at all. See SpaceBasedStep#superSpace for the details.
+      if (getContext() != EXTENSION && isNestedComposite())
+        throw new ValidationException("Data can not be written to target " + space.getId()
+                + " as it is a composite space with more than one extension level, which is not supported for imports.");
+
+      //Only the target's own features count (context EXTENSION), not the ones of a base space
+      if (loadTargetSpaceFeatureCount() > 0 && getUncompressedUploadBytesEstimation() > getMaxInputBytesForNonEmptyImport()) {
+        String limit = toGigabytes(getMaxInputBytesForNonEmptyImport());
+        throw new ValidationException("An import into a non-empty layer is limited to " + limit + " of uncompressed input data. "
+                + "The estimated uncompressed size of the provided files is " + toGigabytes(getUncompressedUploadBytesEstimation()) + ". "
+                + "Split the input files into several imports of at most " + limit + " each, or, if the import replaces the content "
+                + "of the layer, clear the layer first and import into the empty layer, for which this limit does not apply.");
+      }
     }
     catch (WebClientException e) {
       throw new ValidationException("Error loading resource " + getSpaceId(), e);
     }
 
-    return !isUserInputsExpected() || isUserInputsPresent(UploadUrl.class);
+    if (!isUserInputsExpected())
+      return true;
+    if (!isUserInputsPresent(UploadUrl.class))
+      return false;
+    //Detect a gzip-compressed input without the S3 metadata needed by the database import, check the first input found
+    for (UploadUrl input : loadInputsSample(1, UploadUrl.class))
+      ImportFilesQuickValidator.validateCompression(input);
+    return true;
   }
 
   @Override
@@ -607,6 +680,10 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
         && updateStrategy.onMergeConflict() == null;
   }
 
+  private static String toGigabytes(long bytes) {
+    return String.format(Locale.ROOT, "%.1f GB", bytes / (1024d * 1024 * 1024));
+  }
+
   private long loadTargetSpaceFeatureCount() {
     if (targetTableFeatureCount == -1 && getSpaceId() != null) {
       StatisticsResponse statistics;
@@ -629,7 +706,8 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
   private ImportQueryBuilder getQueryBuilder() {
     if (importQueryBuilder == null)
       importQueryBuilder = initQueryBuilder((space, context, stepId, schema, rootTable, superRootTable) ->
-              new ImportQueryBuilder(space, context, stepId, schema, rootTable, superRootTable, featureWriterBatchSizeInMb));
+              new ImportQueryBuilder(space, context, stepId, schema, rootTable, superRootTable, featureWriterBatchSizeInMb,
+                  featureWriterBatchMaxFeatures));
     return importQueryBuilder;
   }
 

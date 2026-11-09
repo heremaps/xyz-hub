@@ -21,6 +21,7 @@ package com.here.xyz.jobs.config;
 
 import static com.here.xyz.jobs.RuntimeInfo.State.FAILED;
 
+import com.amazonaws.services.dynamodbv2.model.ConditionalCheckFailedException;
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.RuntimeInfo.State;
 import com.here.xyz.jobs.service.JobService;
@@ -37,6 +38,20 @@ public abstract class JobConfigClient implements Initializable {
 
   public static JobConfigClient getInstance() {
     return Provider.provideInstance();
+  }
+
+  /**
+   * Tells whether the specified error is the failure of a conditional write, e.g., of {@link #updateStatus(Job, State)}
+   * because the job's stored state did not match the expected previous state.
+   *
+   * @param error The error by which a write failed
+   * @return true, if the write failed because its condition was not met
+   */
+  public static boolean isStateConflict(Throwable error) {
+    for (Throwable t = error; t != null; t = t.getCause() == t ? null : t.getCause())
+      if (t instanceof ConditionalCheckFailedException)
+        return true;
+    return false;
   }
 
   protected static <T> boolean matchesFilteredValues(FilteredValues<T> filter, T actualValue) {
@@ -121,6 +136,20 @@ public abstract class JobConfigClient implements Initializable {
    */
   public abstract Future<Set<Job>> loadJobs(Set<String> resourceKeys, State state);
 
+  /**
+   * Returns the same jobs as {@link #loadJobs(Set, State)}, but implementations may leave out the step graph
+   * ({@link Job#getSteps()} may be {@code null}) to avoid loading it.
+   * Meant for checks that only read the jobs' ID, status, creation time, source / target and resource keys.
+   * The returned jobs must not be stored, as that would drop their step graph.
+   *
+   * @param resourceKeys A set of resource keys for which to find the jobs
+   * @param state A state by which to filter the resulting jobs
+   * @return The jobs, possibly without their steps
+   */
+  public Future<Set<Job>> loadJobsWithoutSteps(Set<String> resourceKeys, State state) {
+    return loadJobs(resourceKeys, state);
+  }
+
   public abstract Future<Void> storeJob(Job job);
 
   /**
@@ -136,11 +165,13 @@ public abstract class JobConfigClient implements Initializable {
    * @param job The job of which to update the status object
    * @param expectedPreviousState The previous state of the job's status or null if the previous state should not be checked
    * @return A future which succeeds if the update was performed and fails if there was an error or the previous state was not matching
+   *  (see {@link #isStateConflict(Throwable)})
    */
   public abstract Future<Void> updateStatus(Job job, State expectedPreviousState);
 
   /**
    * Updates only one step of the specified job without overwriting the whole job configuration.
+   * A step that is stored in a final state already is not overwritten.
    * @param job The job of which to update one step
    * @param newStep The step to be overwritten on the job
    * @return
@@ -172,6 +203,15 @@ public abstract class JobConfigClient implements Initializable {
    * @param jobId the job whose step configs to delete
    */
   public abstract Future<Void> deleteStepConfigs(String jobId);
+
+  /**
+   * Deletes only the specified separately-stored step configs of a job, e.g., the steps of a step graph that was replaced
+   * by a new compilation of the job.
+   *
+   * @param jobId the job whose step configs to delete
+   * @param stepIds the IDs of the steps to delete
+   */
+  public abstract Future<Void> deleteStepConfigs(String jobId, List<String> stepIds);
 
   /*
   TODO: Provide a more generic variant of the method #loadJobs ...

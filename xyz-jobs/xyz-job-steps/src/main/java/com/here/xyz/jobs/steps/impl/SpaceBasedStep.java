@@ -22,7 +22,6 @@ package com.here.xyz.jobs.steps.impl;
 import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.READER;
 import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
 import static com.here.xyz.jobs.steps.execution.db.Database.loadDatabase;
-import static com.here.xyz.psql.query.branching.BranchManager.branchTableName;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.getTableNameFromSpaceParamsOrSpaceId;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -34,7 +33,6 @@ import com.here.xyz.jobs.steps.execution.StepException;
 import com.here.xyz.jobs.steps.execution.db.Database;
 import com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole;
 import com.here.xyz.jobs.steps.execution.db.DatabaseBasedStep;
-import com.here.xyz.jobs.steps.impl.maintenance.DeleteBranchTable;
 import com.here.xyz.jobs.steps.impl.maintenance.MarkForMaintenance;
 import com.here.xyz.jobs.steps.impl.maintenance.SpawnMaintenanceJobs;
 import com.here.xyz.jobs.steps.impl.transport.CopySpace;
@@ -45,7 +43,6 @@ import com.here.xyz.jobs.steps.impl.transport.ExportChangedTiles;
 import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
 import com.here.xyz.jobs.steps.impl.transport.GetNextSpaceVersion;
 import com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace;
-import com.here.xyz.models.hub.Branch;
 import com.here.xyz.models.hub.Connector;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
@@ -76,8 +73,7 @@ import org.apache.logging.log4j.Logger;
     @JsonSubTypes.Type(value = CopySpacePre.class),
     @JsonSubTypes.Type(value = CopySpacePost.class),
     @JsonSubTypes.Type(value = CountSpace.class),
-    @JsonSubTypes.Type(value = SpawnMaintenanceJobs.class),
-    @JsonSubTypes.Type(value = DeleteBranchTable.class)
+    @JsonSubTypes.Type(value = SpawnMaintenanceJobs.class)
 })
 public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseBasedStep<T> {
   private static final Logger logger = LogManager.getLogger();
@@ -140,22 +136,6 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
   protected final String getRootTableName(Space space) throws WebClientException {
     return getTableNameFromSpaceParamsOrSpaceId(space.getStorage().getParams(), space.getId(),
         ConnectorParameters.fromMap(loadConnector(space).params).isEnableHashedSpaceId());
-  }
-
-  protected final String getTableName(Space space, Ref versionRef) throws WebClientException {
-    //TODO: Check if compiler correctly resolves versionRef into branch (if exists)
-    if (versionRef != null  && (!versionRef.isMainBranch() || versionRef.isTag())) {
-      try {
-        Branch branch = hubWebClient().loadBranch(spaceId, versionRef, true);
-        return branchTableName(getRootTableName(space), branch.getBranchPath().get(branch.getBranchPath().size() - 1), branch.getNodeId());
-      } catch (ErrorResponseException httpError) {
-        //Ignore if the status code is 404, as the versionRef could actually be a tag and not a branch
-        if (httpError.getStatusCode() != 404)
-          throw httpError;
-      }
-    }
-
-    return getRootTableName(space);
   }
 
   protected final boolean isEnableHashedSpaceIdActivated(Space space) throws WebClientException {
@@ -336,6 +316,15 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
     if (extendedSpace.getExtension() != null)
       extendedSpace.getExtension().resolvedSpace = space(extendedSpace.getExtension().getSpaceId());
     return extendedSpace;
+  }
+
+  /**
+   * Whether this step's space extends a space which is itself a composite space, i.e. whether it is a composite space with more than
+   * one extension level. See {@link #superSpace()} for why that matters.
+   */
+  protected boolean isNestedComposite() throws WebClientException {
+    Space superSpace = superSpace();
+    return superSpace != null && superSpace.getExtension() != null;
   }
 
   @Override

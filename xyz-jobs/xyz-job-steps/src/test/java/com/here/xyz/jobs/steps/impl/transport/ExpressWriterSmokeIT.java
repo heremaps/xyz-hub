@@ -183,7 +183,7 @@ public class ExpressWriterSmokeIT {
   }
 
   private void dropResources(DataSourceProvider dsp, String table, String stagingTable) throws Exception {
-    //The version and branch sequences are OWNED BY columns of the space table, so they are dropped with it
+    //The version sequence is OWNED BY a column of the space table, so it is dropped with it
     new SQLQuery("DROP TABLE IF EXISTS ${schema}.${spaceTable} CASCADE; DROP TABLE IF EXISTS ${schema}.${stagingTable};")
         .withVariable("schema", SCHEMA)
         .withVariable("spaceTable", table)

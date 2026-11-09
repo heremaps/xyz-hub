@@ -20,8 +20,6 @@
 package com.here.xyz.jobs.steps.impl;
 
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
-import com.here.xyz.models.hub.Branch;
-import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.util.db.pg.IndexHelper.Index;
 import com.here.xyz.util.db.pg.IndexHelper.OnDemandIndex;
@@ -117,22 +115,6 @@ public class DropIndexStepTest extends StepTest {
 
     Assertions.assertTrue(getOnDemandIndices(tableName).isEmpty(), "only system indices should remain");
     Assertions.assertFalse(getSystemIndices(tableName).isEmpty(),"system indices should remain");
-  }
-
-  @Test
-  public void testDropIndexesStepOnBranch() throws Exception {
-    createTestSpace(true);
-    createBranch(SPACE_ID, new Branch().withId(BRANCH_ID));
-
-    String tableName = getBranchTableName(SPACE_ID, BRANCH_ID);
-
-    Assertions.assertFalse(getAllExistingIndices(tableName).isEmpty());
-
-    LambdaBasedStep step = new DropIndexes().withSpaceId(SPACE_ID).withVersionRef(new Ref(BRANCH_ID));
-    sendLambdaStepRequestBlock(step, true);
-
-    //no indexes should remain
-    Assertions.assertEquals(0, getAllExistingIndices(tableName).size());
   }
 
   private void createTestSpace(boolean withOnDemandIndices) {

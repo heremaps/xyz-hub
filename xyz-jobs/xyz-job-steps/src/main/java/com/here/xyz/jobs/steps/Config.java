@@ -80,6 +80,15 @@ public class Config extends BaseConfig {
    */
   public String STEP_PLUGINS;
 
+  /**
+   * The maximum number of task queries that may run on one database instance at the same time, up to which an import that
+   * writes with the FeatureWriter (PLV8) starts additional tasks. The task queries of all tasked steps and jobs on the database
+   * are counted. Unset or <= 0: no limit.
+   * Other imports (into empty layers, express imports) are not limited by it. A running task is never interrupted because of
+   * it, and a step without running tasks may always start one.
+   */
+  public Integer FEATURE_WRITER_IMPORT_MAX_TASKS_PER_DB;
+
   public List<String> stepPlugins() {
     return fromCommaSeparatedList(STEP_PLUGINS);
   }

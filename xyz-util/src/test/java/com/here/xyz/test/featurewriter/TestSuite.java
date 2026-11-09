@@ -558,7 +558,6 @@ public abstract class TestSuite {
         case REPLACE -> "Replace";
         case RETAIN -> "KeepCurrent";
         case ERROR -> "ThrowError";
-        case CONTINUE -> "MarkConflictsAndContinue";
       };
     }
   }

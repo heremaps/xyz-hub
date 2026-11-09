@@ -22,7 +22,7 @@ package com.here.xyz.psql.sql;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
-import com.here.xyz.psql.query.branching.QueryTestBase;
+import com.here.xyz.psql.query.QueryTestBase;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import java.util.stream.Stream;

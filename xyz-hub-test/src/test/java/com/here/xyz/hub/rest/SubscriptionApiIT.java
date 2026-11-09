@@ -36,7 +36,6 @@ import io.restassured.response.ValidatableResponse;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 import org.junit.Test;
 
 public class SubscriptionApiIT extends TestSpaceWithFeature {
@@ -149,7 +148,6 @@ public class SubscriptionApiIT extends TestSpaceWithFeature {
         .statusCode(BAD_REQUEST.code());
   }
 
-  @Ignore("Geometry validation temporarily disabled - see GeometryValidator.validateGeometry TODO")
   @Test
   public void createSubscriptionWithInvalidGeometry() {
     addSubscription(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES, "/xyz/hub/createSubscriptionWithInvalidGeometry.json")

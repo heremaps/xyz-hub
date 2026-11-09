@@ -92,7 +92,7 @@ public class GetNextSpaceVersion<T extends GetNextSpaceVersion> extends SpaceBas
   private long setVersionToNextInSequence() throws SQLException, TooManyResourcesClaimed, XyzWebClient.WebClientException {
     //TODO: Remove the following duplicated code by simply re-using GetNextVersion QueryRunner
     String targetSchema = getSchema(db()),
-            targetTable = getTableName(space(), getVersionRef());
+            targetTable = getRootTableName(space());
 
     SQLQuery incVersionSql = new SQLQuery("SELECT nextval('${schema}.${versionSequenceName}')")
             .withVariable("schema", targetSchema)

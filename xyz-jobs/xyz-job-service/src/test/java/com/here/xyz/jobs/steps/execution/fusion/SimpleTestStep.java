@@ -40,6 +40,11 @@ public class SimpleTestStep<T extends SimpleTestStep> extends TestStep<T> {
     this(paramA, null, null);
   }
 
+  //Needed for the deserialization of stored test jobs
+  public SimpleTestStep() {
+    this(null);
+  }
+
   @Override
   public boolean isEquivalentTo(StepExecution other) {
     return super.isEquivalentTo(other) || other instanceof SimpleTestStep otherStep

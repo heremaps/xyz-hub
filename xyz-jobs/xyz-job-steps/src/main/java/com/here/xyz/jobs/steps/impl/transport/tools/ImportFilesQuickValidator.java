@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,8 @@
  */
 
 package com.here.xyz.jobs.steps.impl.transport.tools;
+
+import static com.here.xyz.Payload.isGzipped;
 
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.util.CountingInputStream;
@@ -40,6 +42,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.locationtech.jts.io.ParseException;
 import software.amazon.awssdk.core.ResponseInputStream;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 
 public class ImportFilesQuickValidator {
   private static final Logger logger = LogManager.getLogger();
@@ -47,11 +50,39 @@ public class ImportFilesQuickValidator {
   private static final String RE_UPLOAD_HINT = "\nPlease re-upload the input files in the correct format using the already provided upload-urls!";
 
   public static void validate(S3DataFile s3File, EntityPerLine entityPerLine) throws ValidationException {
+    validateCompression(s3File);
     try {
       validateFirstCSVLine(s3File, entityPerLine);
     }
     catch (IOException e) {
       throw new ValidationException("Input could not be read.", e);
+    }
+  }
+
+  /**
+   * Checks that the database import can read the file if it is gzip-compressed.
+   * The import (aws_s3.table_import_from_s3) only decompresses a file whose S3 object has the metadata "Content-Encoding: gzip".
+   * Otherwise, it reads the compressed bytes as text and fails with "invalid byte sequence for encoding UTF8: 0x8b".
+   * Such a file is detected by the gzip magic bytes (0x1f 0x8b) at its start.
+   */
+  public static void validateCompression(S3DataFile s3File) throws ValidationException {
+    ResponseInputStream<GetObjectResponse> s3InputStream = S3Client.getInstance(s3File.getS3Bucket())
+        .streamObjectContent(s3File.getS3Key());
+    try {
+      if (isGzipped(s3InputStream.readNBytes(2)) && !"gzip".equalsIgnoreCase(s3InputStream.response().contentEncoding()))
+        throw new ValidationException("File " + s3File.getS3Key() + " is gzip-compressed, but its S3 object has no "
+            + "'Content-Encoding: gzip' metadata. Upload it with that header, or upload it uncompressed.");
+    }
+    catch (IOException e) {
+      throw new ValidationException("Input could not be read.", e);
+    }
+    finally {
+      try {
+        S3Client.abortS3Streaming(s3InputStream);
+      }
+      catch (IOException e) {
+        logger.warn("Error closing the S3 stream of file {}", s3File.getS3Key(), e);
+      }
     }
   }
 

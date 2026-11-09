@@ -42,7 +42,6 @@ import com.here.xyz.events.ModifySpaceEvent.Operation;
 import com.here.xyz.hub.Config;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.auth.Authorization;
-import com.here.xyz.hub.config.BranchConfigClient;
 import com.here.xyz.hub.config.DataReferenceConfigClient;
 import com.here.xyz.hub.config.SpaceConfigClient.SpaceSelectionCondition;
 import com.here.xyz.hub.config.settings.SpaceStorageMatchingMap;
@@ -98,6 +97,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
@@ -565,28 +565,6 @@ public class SpaceTaskHandler {
         });
   }
 
-  static void performSubResourceUpdates(ConditionalOperation task, Callback<ConditionalOperation> callback) {
-    if (!task.isDelete()) {
-      //Protect the base version before the space is stored, so a version-bound extension never exists without it
-      tagBaseVersion(task, task.modifyOp.entries.get(0).result)
-          .onSuccess(v -> callback.call(task))
-          .onFailure(callback::exception);
-      return;
-    }
-
-    Space space = task.modifyOp.entries.get(0).head;
-    BranchConfigClient.getInstance().load(space.getId())
-        .compose(branches -> Future.all(branches.stream()
-            .map(branch -> BranchHandler.deleteBranch(task.getMarker(), space.getId(), branch.getId()))
-            .toList())
-            .onComplete(ar -> {
-              if (ar.failed())
-                callback.exception(ar.cause());
-              else
-                callback.call(task);
-        }));
-  }
-
   static void resolveExtensions(ConditionalOperation task, Callback<ConditionalOperation> callback) {
     if (!task.isCreate() && !task.isUpdate()) {
       callback.call(task);
@@ -740,6 +718,21 @@ public class SpaceTaskHandler {
     String errMsg = "Error during resolving extensions.";
     logger.error(task.getMarker(), errMsg, error);
     callback.exception(error instanceof HttpException ? error : new HttpException(INTERNAL_SERVER_ERROR, errMsg, error));
+  }
+
+  /**
+   * Protects the base version, which a version-bound extension reads, from being purged. That happens before the space is stored, so such
+   * an extension never exists without the protection.
+   */
+  static void protectBaseVersion(ConditionalOperation task, Callback<ConditionalOperation> callback) {
+    if (task.isDelete()) {
+      callback.call(task);
+      return;
+    }
+
+    tagBaseVersion(task, task.modifyOp.entries.get(0).result)
+        .onSuccess(v -> callback.call(task))
+        .onFailure(callback::exception);
   }
 
   static void sendEvents(ConditionalOperation task, Callback<ConditionalOperation> callback) {
@@ -992,10 +985,19 @@ public class SpaceTaskHandler {
         })
         .onComplete(handler -> {
           if (handler.failed()) {
-            logger.error(task.getMarker(), "Failed to resolve dependencies during creation of {}", spaceId, handler.cause());
+            logger.log(dependencyResolutionFailureLevel(handler.cause()), task.getMarker(),
+                "Failed to resolve dependencies during creation of {}", spaceId, handler.cause());
           }
           callback.call(task);
         });
+  }
+
+  /**
+   * Client errors (4xx, e.g. a dependent resource that is not found) are expected and logged as warning, all other failures as error.
+   */
+  static Level dependencyResolutionFailureLevel(Throwable cause) {
+    return cause instanceof HttpException httpException && httpException.status != null
+        && httpException.status.code() >= 400 && httpException.status.code() <= 499 ? Level.WARN : Level.ERROR;
   }
 
   private static Future<List<Space>> getAllExtendingSpaces(Marker marker, String spaceId) {

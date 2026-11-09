@@ -89,13 +89,15 @@ public class RedisCacheClient implements CacheClient {
 
   @Override
   public void set(String key, byte[] value, long ttl) {
+    setAsync(key, value, ttl).onFailure(t -> logger.warn("Error when trying to put key " + key + " to redis cache", t));
+  }
+
+  /**
+   * Completes only after Redis acknowledges the write. Use this when a subsequent read depends on the write.
+   */
+  public Future<Void> setAsync(String key, byte[] value, long ttl) {
     Request req = Request.cmd(Command.SET).arg(key).arg(value).arg("EX").arg(ttl);
-    getClient().send(req).onComplete(ar -> {
-      //SET command was executed. Nothing to do here.
-      if (ar.failed()) {
-        logger.warn("Error when trying to put key " + key + " to redis cache", ar.cause());
-      }
-    });
+    return getClient().send(req).mapEmpty();
   }
 
   @Override

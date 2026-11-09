@@ -19,17 +19,13 @@
 
 package com.here.xyz.psql.query;
 
-import static com.here.xyz.XyzSerializable.Mappers.DEFAULT_MAPPER;
 import static com.here.xyz.events.ModifySpaceEvent.Operation.CREATE;
 import static com.here.xyz.events.ModifySpaceEvent.Operation.DELETE;
 import static com.here.xyz.events.ModifySpaceEvent.Operation.UPDATE;
 import static com.here.xyz.psql.query.helpers.versioning.GetNextVersion.VERSION_SEQUENCE_SUFFIX;
 import static com.here.xyz.responses.XyzError.ILLEGAL_ARGUMENT;
 import static com.here.xyz.util.db.ConnectorParameters.TableLayout.NEW_LAYOUT;
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SCHEMA;
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.TABLE;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildCreateSpaceTableQueries;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.util.db.ConnectorParameters;
 import com.here.xyz.events.ModifySpaceEvent;
@@ -47,7 +43,6 @@ import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildCleanUpQuery;
 import static com.here.xyz.util.db.pg.IndexHelper.getActivatedSearchableProperties;
 import static com.here.xyz.util.db.ConnectorParameters.TableLayout.OLD_LAYOUT;
 
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.ModifySpaceEvent.Operation;
@@ -64,12 +59,6 @@ import java.util.List;
 
 public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse> {
 
-    /**
-     * Main schema for xyz-relevant configurations.
-     */
-    public static final String XYZ_CONFIG_SCHEMA = "xyz_config";
-    public static final String SPACE_META_TABLE = "space_meta";
-    public static final String SPACE_META_TABLE_FQN = XYZ_CONFIG_SCHEMA + "." + SPACE_META_TABLE;
     public static final String I_SEQUENCE_SUFFIX = "_i_seq";
     private Operation operation;
     private String spaceId;
@@ -141,11 +130,12 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
     @Override
     protected SQLQuery buildQuery(ModifySpaceEvent event) throws SQLException {
         if(getTableLayout().equals(ConnectorParameters.TableLayout.OLD_LAYOUT)){
-            if (event.getOperation() == CREATE || event.getOperation() == UPDATE) {
+            //NOTE: An UPDATE has nothing to execute, see #write()
+            if (event.getOperation() == CREATE) {
                 List<SQLQuery> queries = new ArrayList<>();
                 final String table = getDefaultTable(event);
 
-                if (event.getSpaceDefinition() != null && event.getOperation() == CREATE) {
+                if (event.getSpaceDefinition() != null) {
                     //Add space table creation queries
                     List<OnDemandIndex> activatedSearchableProperties
                             = getActivatedSearchableProperties(event.getSpaceDefinition().getSearchableProperties());
@@ -154,13 +144,10 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
                             event.getSpace(), OLD_LAYOUT));
                 }
 
-                //Write metadata
-                queries.add(buildSpaceMetaUpsertQuery(event));
-
                 return SQLQuery.batchOf(queries).withLock(table);
             }
             else if (event.getOperation() == DELETE) {
-                return SQLQuery.batchOf(buildCleanUpQuery(event, getSchema(), getDefaultTable(event), VERSION_SEQUENCE_SUFFIX, OLD_LAYOUT));
+                return SQLQuery.batchOf(buildCleanUpQuery(getSchema(), getDefaultTable(event), VERSION_SEQUENCE_SUFFIX, OLD_LAYOUT));
             }
         }else if(getTableLayout().equals(ConnectorParameters.TableLayout.NEW_LAYOUT)){
             if (event.getOperation() == CREATE) {
@@ -171,7 +158,7 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
                 return SQLQuery.batchOf(queries).withLock(table);
             }
             else if (event.getOperation() == DELETE)
-                return SQLQuery.batchOf(buildCleanUpQuery(event, getSchema(), getDefaultTable(event), VERSION_SEQUENCE_SUFFIX, NEW_LAYOUT));
+                return SQLQuery.batchOf(buildCleanUpQuery(getSchema(), getDefaultTable(event), VERSION_SEQUENCE_SUFFIX, NEW_LAYOUT));
         }
         throw new IllegalArgumentException("Unsupported Table Layout: " + getTableLayout());
     }
@@ -181,10 +168,9 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
         if (dryRun)
             return new SuccessResponse().withStatus("OK");
 
-        //TODO: Delete branch tables as part of "prune"-operation
-        //if (operation == DELETE)
-        //  new BranchManager(getDataSourceProvider(), FunctionRuntime.getInstance().getStreamId(), spaceId, getSchema(), rootTable)
-        //      .deleteAllBranchTables();
+        //An OLD_LAYOUT UPDATE has no SQL to execute, the space table only gets created on CREATE
+        if (operation == UPDATE && getTableLayout() == OLD_LAYOUT)
+            return new SuccessResponse().withStatus("OK");
 
         SuccessResponse response = super.write(dataSourceProvider);
 
@@ -199,44 +185,5 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
     @Override
     public SuccessResponse handle(ResultSet rs) throws SQLException {
         return null;
-    }
-
-    private static final String INTERMEDIATE_TABLE = "intermediateTable";
-    private static final String EXTENDED_TABLE = "extendedTable";
-
-
-    @Deprecated
-    private ObjectNode buildExtendedTablesJSON(ModifySpaceEvent event) {
-        if (!isExtendedSpace(event)) {
-            return DEFAULT_MAPPER.get().createObjectNode();
-        }
-
-        ObjectNode extendedTables = DEFAULT_MAPPER.get().createObjectNode();
-        extendedTables.put(EXTENDED_TABLE, getExtendedTable(event));
-        if (is2LevelExtendedSpace(event))
-            extendedTables.put(INTERMEDIATE_TABLE, getIntermediateTable(event));
-
-        ObjectNode jsonObject = DEFAULT_MAPPER.get().createObjectNode();
-        jsonObject.put("extends", extendedTables);
-        return jsonObject;
-    }
-
-    public SQLQuery buildSpaceMetaUpsertQuery(ModifySpaceEvent event) {
-          SQLQuery q = new SQLQuery("INSERT INTO "+ SPACE_META_TABLE_FQN +" as s_m VALUES (#{spaceid},#{schema},#{table},(#{extend})::json)" +
-                  "  ON CONFLICT (id,schem)" +
-                  "  DO " +
-                  "  UPDATE" +
-                  "     SET h_id = EXCLUDED.h_id," +
-                  "         meta = COALESCE(s_m.meta - 'extends','{}'::jsonb ,'{}'::jsonb) || (#{extend})::jsonb" +
-                  "  WHERE 1=1" +
-                  "     AND s_m.id = #{spaceid}" +
-                  "     AND s_m.schem = #{schema};");
-
-          q.setNamedParameter("spaceid", event.getSpaceDefinition() == null ? "" : event.getSpaceDefinition().getId());
-          q.setNamedParameter(SCHEMA, getSchema());
-          q.setNamedParameter("extend", buildExtendedTablesJSON(event).toString()); //TODO: Only use one field here for the most down base space instead
-          q.setNamedParameter(TABLE, getDefaultTable(event));
-
-          return q;
     }
 }

@@ -16,45 +16,6 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-
-/*
- * Copyright (C) 2017-2026 HERE Europe B.V.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- *
- * SPDX-License-Identifier: Apache-2.0
- * License-Filename: LICENSE
- */
-
-/*
- * Copyright (C) 2017-2025 HERE Europe B.V.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- *
- * SPDX-License-Identifier: Apache-2.0
- * License-Filename: LICENSE
- */
-
 -- ####################################################################################################################
 -- Common helper functions ---
 
@@ -183,13 +144,12 @@ END;
 $BODY$;
 
 -- ####################################################################################################################
--- Retry helpers (shared between execute_import_from_s3 / execute_export_to_s3) ---
+-- Retry helpers (shared between execute_import_from_s3 / execute_export_to_s3 / report_task_progress) ---
 
 /**
- * is_retryable_s3_sqlstate(state TEXT)
+ * is_retryable_s3_error(state TEXT, message TEXT)
  *
- * Returns TRUE if the given SQLSTATE is considered a transient / retryable error
- * for aws_s3 import & export operations.
+ * Returns TRUE if the given error of an aws_s3 import / export is considered transient / retryable.
  *
  * Covered classes:
  *   - 40001 serialization_failure
@@ -199,12 +159,23 @@ $BODY$;
  *   - 23P01 exclusion_violation        (import only in practice)
  *   - 53300 too_many_connections
  *   - 08xxx connection_exception family
- *   - 57P01 admin_shutdown
  *   - 22P02 invalid_text_representation (import only in practice)
  *   - 22P04 bad_copy_file_format        (import only in practice)
  *   - 58000 system_error / could not upload to Amazon S3  (export)
+ * Not covered (TBD: clarify):
+ *   - 57P01 admin_shutdown
+ * Special case:
+ *   - XX000 internal_error "Unable to generate pre-signed url, look at engine log for details." (import)
+ *     aws_s3 raises it once its own (sub-second) pre-signed URL validation retries are exhausted,
+ *     e.g. on S3 503 SlowDown. NOTE: aws_s3 raises the same message for permanent problems
+ *     (missing IAM role, wrong bucket / region). The cause is only visible in the engine log,
+ *     so those are retried as well and fail after max_attempts.
+ *   - 38000 external_routine_exception "S3 stream failed '...'" (import / export)
+ *     aws_s3 raises it if the connection to S3 breaks while the object is being streamed,
+ *     e.g. "peer closed connection without sending TLS close_notify". 38000 itself is a generic code
+ *     used by extensions and PL handlers, so only the aws_s3 stream failures are matched by message.
  */
-CREATE OR REPLACE FUNCTION is_retryable_s3_sqlstate(state TEXT)
+CREATE OR REPLACE FUNCTION is_retryable_s3_error(state TEXT, message TEXT)
     RETURNS BOOLEAN
     LANGUAGE 'sql'
     IMMUTABLE
@@ -218,16 +189,39 @@ AS $BODY$
        -- '57P01', TBD: clarify
         '22P02', '22P04',
         '58000'
-    );
+    )
+    OR (state = 'XX000' AND COALESCE(message, '') ILIKE '%pre-signed url%')
+    OR (state = '38000' AND COALESCE(message, '') ILIKE 'S3 stream failed%');
 $BODY$;
 
 /**
- * s3_retry_backoff_ms(attempts INT, base_ms INT, cap_ms INT)
+ * is_retryable_lambda_error(state TEXT, message TEXT)
+ *
+ * Returns TRUE if the given error of an aws_lambda.invoke() call is considered transient / retryable.
+ *
+ * Covered:
+ *   - XX000 internal_error "invoke API failed"
+ *     aws_lambda raises it if the Invoke API request itself fails (e.g. "Unable to connect to endpoint").
+ *     In that case the event never reached Lambda, so Lambda's own async retries do not apply.
+ *     The actual cause is only contained in the error DETAIL.
+ *     XX000 is a catch-all code, so the decision is based on the message.
+ */
+CREATE OR REPLACE FUNCTION is_retryable_lambda_error(state TEXT, message TEXT)
+    RETURNS BOOLEAN
+    LANGUAGE 'sql'
+    IMMUTABLE
+    PARALLEL SAFE
+AS $BODY$
+    SELECT state = 'XX000' AND COALESCE(message, '') = 'invoke API failed';
+$BODY$;
+
+/**
+ * retry_backoff_ms(attempts INT, base_delay_ms INT, max_ms INT)
  *
  * Computes exponential backoff delay in milliseconds:
- *   delay = min(base_ms * 2^attempts, cap_ms)
+ *   delay = min(base_delay_ms * 2^attempts, max_ms)
  */
-CREATE OR REPLACE FUNCTION s3_retry_backoff_ms(
+CREATE OR REPLACE FUNCTION retry_backoff_ms(
         attempts INT,
         base_delay_ms INT DEFAULT 10000,
         max_ms INT DEFAULT 600000
@@ -238,6 +232,50 @@ CREATE OR REPLACE FUNCTION s3_retry_backoff_ms(
     PARALLEL SAFE
 AS $BODY$
     SELECT LEAST(base_delay_ms * (2 ^ attempts), max_ms)::INT;
+$BODY$;
+
+/**
+ * wait_before_retry(label TEXT, state TEXT, message TEXT, detail TEXT, attempts INT, max_attempts INT,
+ *                   base_delay_ms INT, max_ms INT)
+ *
+ * To be called from the exception handler of a retrying function, once the caught error was classified
+ * as retryable.
+ *
+ * Behavior:
+ *   - If attempts >= max_attempts: raises the final error with the original SQLSTATE. The message contains
+ *     label, SQLSTATE, message and DETAIL of the last error, so the cause also ends up in the step's
+ *     error message (the failure callback only transports SQLSTATE and SQLERRM).
+ *   - Otherwise: sleeps for retry_backoff_ms(attempts, base_delay_ms, max_ms).
+ *
+ * The DETAIL has to be passed in by the caller, because GET STACKED DIAGNOSTICS only works inside
+ * the exception handler itself.
+ *
+ * Returns:
+ *   - VOID
+ */
+CREATE OR REPLACE FUNCTION wait_before_retry(
+        label TEXT,
+        state TEXT,
+        message TEXT,
+        detail TEXT,
+        attempts INT,
+        max_attempts INT,
+        base_delay_ms INT DEFAULT 10000,
+        max_ms INT DEFAULT 600000
+    )
+    RETURNS VOID
+    LANGUAGE 'plpgsql'
+    VOLATILE
+AS $BODY$
+BEGIN
+    IF attempts >= max_attempts THEN
+        RAISE EXCEPTION '% failed after % attempts. SQLSTATE: %, Message: %, Detail: %',
+            label, max_attempts, state, message, COALESCE(NULLIF(detail, ''), '-')
+                USING ERRCODE = state;
+    END IF;
+
+    PERFORM pg_sleep(retry_backoff_ms(attempts, base_delay_ms, max_ms) / 1000.0);
+END;
 $BODY$;
 
 -- ####################################################################################################################
@@ -510,7 +548,7 @@ $BODY$;
  * Purpose:
  *   Imports data from an S3 bucket into a target table using the AWS S3 extension.
  *   Supports automatic retries with exponential backoff for transient errors
- *   (see is_retryable_s3_sqlstate()).
+ *   (see is_retryable_s3_error() and wait_before_retry()).
  *
  * Arguments:
  *   - schema (TEXT): The schema name (not directly used in the function).
@@ -519,7 +557,7 @@ $BODY$;
  *   - s3_bucket (TEXT): The S3 bucket name.
  *   - s3_key (TEXT): The S3 object key.
  *   - s3_region (TEXT): The AWS region of the S3 bucket.
- *   - max_attempts (INT, default 3): Maximum number of retry attempts.
+ *   - max_attempts (INT, default 6): Maximum number of retry attempts.
  *   - attempts (INT, default 0): Current attempt count (internal, for recursion).
  *
  * Returns:
@@ -540,6 +578,7 @@ AS $BODY$
 DECLARE
     config RECORD;
     import_statistics TEXT;
+    error_detail TEXT;
 BEGIN
     SELECT * FROM s3_plugin_config(format) into config;
 
@@ -559,18 +598,14 @@ BEGIN
     RETURN import_statistics;
 
     EXCEPTION WHEN OTHERS THEN
-        IF NOT is_retryable_s3_sqlstate(SQLSTATE) THEN
+        IF NOT is_retryable_s3_error(SQLSTATE, SQLERRM) THEN
             RAISE;
         END IF;
 
-        IF attempts >= max_attempts THEN
-            RAISE EXCEPTION 'Import of ''%'' failed after ''%'' attempts. SQLSTATE: %, Message: %',
-                s3_key, max_attempts, SQLSTATE, SQLERRM
-                    USING ERRCODE = SQLSTATE;
-        END IF;
-
-        -- Exponential backoff: 10 s, 20 s, 40 s .. capped at 60 s
-        PERFORM pg_sleep(s3_retry_backoff_ms(attempts) / 1000.0);
+        GET STACKED DIAGNOSTICS error_detail = PG_EXCEPTION_DETAIL;
+        -- Raises once max_attempts is reached, otherwise exponential backoff: 10 s, 20 s, 40 s .. capped at 600 s
+        PERFORM wait_before_retry(format('Import of %L', s3_key), SQLSTATE, SQLERRM, error_detail,
+            attempts, max_attempts);
 
         RETURN execute_import_from_s3(
             schema,
@@ -592,14 +627,14 @@ $BODY$;
  * Purpose:
  *   Exports data from RDS to an S3 bucket using the AWS S3 extension.
  *   Supports automatic retries with exponential backoff for transient errors
- *   (see is_retryable_s3_sqlstate()).
+ *   (see is_retryable_s3_error() and wait_before_retry()).
  *
  * Arguments:
  *   - s3_bucket (TEXT): The target S3 bucket.
  *   - s3_path (TEXT): The target S3 object key/path.
  *   - s3_region (TEXT): The AWS region of the S3 bucket.
  *   - content_query (TEXT): SQL query producing the content to export.
- *   - max_attempts (INT, default 3): Maximum number of retry attempts.
+ *   - max_attempts (INT, default 6): Maximum number of retry attempts.
  *   - attempts (INT, default 0): Current attempt count (internal, for recursion).
  *
  * Returns:
@@ -619,6 +654,7 @@ AS $BODY$
 DECLARE
     config RECORD;
     export_statistics RECORD;
+    error_detail TEXT;
 BEGIN
     SELECT * FROM s3_plugin_config('GEOJSON') INTO config;
 
@@ -641,18 +677,14 @@ BEGIN
     RETURN NEXT;
 
     EXCEPTION WHEN OTHERS THEN
-        IF NOT is_retryable_s3_sqlstate(SQLSTATE) THEN
+        IF NOT is_retryable_s3_error(SQLSTATE, SQLERRM) THEN
             RAISE;
         END IF;
 
-        IF attempts >= max_attempts THEN
-            RAISE EXCEPTION 'Export to ''%'' failed after ''%'' attempts. SQLSTATE: %, Message: %',
-                s3_path, max_attempts, SQLSTATE, SQLERRM
-                    USING ERRCODE = SQLSTATE;
-        END IF;
-
-        -- Exponential backoff: 10 s, 20 s, 40 s .. capped at 600 s
-        PERFORM pg_sleep(s3_retry_backoff_ms(attempts) / 1000.0);
+        GET STACKED DIAGNOSTICS error_detail = PG_EXCEPTION_DETAIL;
+        -- Raises once max_attempts is reached, otherwise exponential backoff: 10 s, 20 s, 40 s .. capped at 600 s
+        PERFORM wait_before_retry(format('Export to %L', s3_path), SQLSTATE, SQLERRM, error_detail,
+            attempts, max_attempts);
 
         RETURN QUERY SELECT * FROM execute_export_to_s3(
             s3_bucket,
@@ -896,8 +928,12 @@ $$ LANGUAGE plpgsql VOLATILE;
  *   - task_output (JSONB): Output data of the task.
  *
  * Behavior:
- *   - Calls report_progress with a JSON object containing type 'SpaceBasedTaskUpdate',
- *     the task ID, and the task output.
+ *   - Invokes the Lambda function asynchronously ('Event') with a JSON object containing
+ *     type 'SpaceBasedTaskUpdate', the task ID, and the task output.
+ *   - Retries transient Invoke API failures (see is_retryable_lambda_error()) with exponential backoff:
+ *     1 s, 2 s, 4 s, 8 s, 16 s. Afterwards the error is raised (see wait_before_retry()).
+ *     A retried call may lead to a duplicate UPDATE_CALLBACK, if the failed request reached Lambda nevertheless.
+ *     That is fine, as the step ignores duplicate task updates (Lambda delivers async events at least once anyway).
  *
  * Returns:
  *   - VOID
@@ -914,19 +950,38 @@ RETURNS VOID
     VOLATILE
 AS $BODY$
 DECLARE
-    lamda_response RECORD;
+    max_attempts CONSTANT INT := 5;
+    attempts INT := 0;
+    error_detail TEXT;
+    request_body JSON := json_build_object(
+        'type','UPDATE_CALLBACK',
+        'step', step_payload,
+        'processUpdate', json_build_object(
+            'type','SpaceBasedTaskUpdate',
+            'taskId', task_id,
+            'taskOutput', task_output
+        )
+    );
 BEGIN
-    --TODO: Add error handling
-    SELECT aws_lambda.invoke(aws_commons.create_lambda_function_arn(lambda_function_arn, lambda_region),
-         json_build_object(
-                 'type','UPDATE_CALLBACK',
-                 'step', step_payload,
-                 'processUpdate', json_build_object(
-                         'type','SpaceBasedTaskUpdate',
-                         'taskId', task_id,
-                         'taskOutput', task_output
-                )
-         ), 'Event') INTO lamda_response;
+    LOOP
+        BEGIN
+            PERFORM aws_lambda.invoke(aws_commons.create_lambda_function_arn(lambda_function_arn, lambda_region),
+                request_body, 'Event');
+            RETURN;
+
+            EXCEPTION WHEN OTHERS THEN
+                IF NOT is_retryable_lambda_error(SQLSTATE, SQLERRM) THEN
+                    RAISE;
+                END IF;
+
+                GET STACKED DIAGNOSTICS error_detail = PG_EXCEPTION_DETAIL;
+                -- Raises once max_attempts is reached, otherwise exponential backoff: 1 s, 2 s, 4 s, 8 s, 16 s
+                PERFORM wait_before_retry(format('Progress report of task %s', task_id), SQLSTATE, SQLERRM,
+                    error_detail, attempts, max_attempts, 1000, 16000);
+        END;
+
+        attempts := attempts + 1;
+    END LOOP;
 END
 $BODY$;
 
@@ -1149,6 +1204,8 @@ $BODY$;
  *       land in which batch, and the byte budget boundary has no test coverage yet, because every
  *       scenario of the reused FeatureWriter suites writes a single feature per batch.
  */
+--super_bound_version was added; without dropping the old signature, a reused versioned schema keeps both overloads and 9-arg calls become ambiguous
+DROP FUNCTION IF EXISTS execute_express_import_batch(REGCLASS, REGCLASS, REGCLASS, TEXT, BIGINT, NUMERIC, TEXT, BIGINT, BOOLEAN);
 CREATE OR REPLACE FUNCTION execute_express_import_batch(
         source_tbl REGCLASS,
         target_tbl REGCLASS,
@@ -1158,7 +1215,8 @@ CREATE OR REPLACE FUNCTION execute_express_import_batch(
         target_mb NUMERIC,
         author TEXT,
         current_version BIGINT,
-        history_enabled BOOLEAN
+        history_enabled BOOLEAN,
+        super_bound_version BIGINT DEFAULT NULL
     )
 RETURNS TABLE(
         pulled_count INT,
@@ -1180,6 +1238,7 @@ DECLARE
     target_schema TEXT;
     target_table TEXT;
     super_join TEXT;
+    super_version_predicate TEXT;
     sql_text TEXT;
     has_stale_head BOOLEAN;
     is_composite BOOLEAN := super_tbl IS NOT NULL;
@@ -1330,6 +1389,12 @@ BEGIN
                   ERRCODE = 'XYZ49';
     END IF;
 
+    -- A base space bound to a specific version exposes the rows which were live at that version, not its current HEAD
+    super_version_predicate := CASE
+        WHEN super_bound_version IS NULL THEN 'st.next_version = max_bigint()'
+        ELSE format('st.version <= %s AND st.next_version > %s', super_bound_version, super_bound_version)
+    END;
+
     super_join := CASE
         WHEN super_tbl IS NULL THEN
             'LEFT JOIN LATERAL (SELECT NULL::TEXT AS id WHERE false) s ON true'
@@ -1338,11 +1403,11 @@ BEGIN
                  SELECT st.id
                    FROM %s st
                   WHERE st.id = f.feature_id
-                    AND st.next_version = max_bigint()
+                    AND %s
                     AND st.operation != ''D''
                   LIMIT 1
              ) s ON true',
-            super_tbl
+            super_tbl, super_version_predicate
         )
     END;
 
@@ -1559,6 +1624,8 @@ $BODY$;
  * Executes one default-import range through the PostgreSQL express writer and
  * reports progress using the existing tasked-import callback protocol.
  */
+--super_bound_version was added; drop the old signature so a reused versioned schema does not keep a stale overload
+DROP FUNCTION IF EXISTS perform_express_import_from_tmp_table_task(INT, REGCLASS, REGCLASS, REGCLASS, TEXT, BIGINT, NUMERIC, TEXT, BIGINT, BOOLEAN, JSON, TEXT, TEXT, TEXT);
 CREATE OR REPLACE FUNCTION perform_express_import_from_tmp_table_task(
         task_id INT,
         source_tbl REGCLASS,
@@ -1570,6 +1637,7 @@ CREATE OR REPLACE FUNCTION perform_express_import_from_tmp_table_task(
         author TEXT,
         current_version BIGINT,
         history_enabled BOOLEAN,
+        super_bound_version BIGINT,
         step_payload JSON,
         lambda_function_arn TEXT,
         lambda_region TEXT,
@@ -1596,6 +1664,8 @@ BEGIN
         author TEXT := '$wrappedouter$||author||$wrappedouter$'::TEXT;
         current_version BIGINT := $wrappedouter$||current_version||$wrappedouter$::BIGINT;
         history_enabled BOOLEAN := $wrappedouter$||history_enabled||$wrappedouter$::BOOLEAN;
+        -- COALESCE to the literal NULL, so that an unbound base does not collapse the whole generated statement
+        super_bound_version BIGINT := $wrappedouter$||COALESCE(super_bound_version::TEXT, 'NULL')||$wrappedouter$::BIGINT;
         step_payload JSON := '$wrappedouter$||step_payload::TEXT||$wrappedouter$'::JSON;
         lambda_function_arn TEXT := '$wrappedouter$||lambda_function_arn||$wrappedouter$'::TEXT;
         lambda_region TEXT := '$wrappedouter$||lambda_region||$wrappedouter$'::TEXT;
@@ -1611,7 +1681,8 @@ BEGIN
               target_mb,
               author,
               current_version,
-              history_enabled
+              history_enabled,
+              super_bound_version
           );
 
         IF batch_result.finished THEN
@@ -1675,7 +1746,9 @@ $BODY$;
  * Notes:
  *   - Rows are not deleted by this function.
  *   - Expects an i column (serial/bigserial) in the source table.
- *   - Selection starts at range_start and stops before cumulative bytes exceed target_mb.
+ *   - Selection starts at range_start and stops before cumulative bytes exceed target_mb or after max_features rows
+ *     (no count limit if max_features is NULL). The batch is always a contiguous range of i, so a task resumes at the
+ *     reported endI + 1.
  *   - Expects source rows to contain one GeoJSON Feature per jsondata entry.
  */
 CREATE OR REPLACE FUNCTION perform_import_from_tmp_table_task(
@@ -1683,6 +1756,7 @@ CREATE OR REPLACE FUNCTION perform_import_from_tmp_table_task(
         source_tbl REGCLASS,
         range_start BIGINT,
         target_mb NUMERIC,
+        max_features INT,
         author TEXT,
         currentVersion BIGINT,
         isPartial BOOLEAN,
@@ -1720,6 +1794,7 @@ BEGIN
         source_tbl REGCLASS := '$wrappedouter$||coalesce(source_tbl::TEXT, $v$null$v$)||$wrappedouter$'::REGCLASS;
         range_start BIGINT := $wrappedouter$||coalesce(range_start::TEXT, $v$NULL$v$)||$wrappedouter$::BIGINT;
         target_mb NUMERIC := $wrappedouter$||coalesce(target_mb::TEXT, $v$NULL$v$)||$wrappedouter$::NUMERIC;
+        max_features INT := $wrappedouter$||coalesce(max_features::TEXT, $v$NULL$v$)||$wrappedouter$::INT;
         author TEXT := '$wrappedouter$||author||$wrappedouter$'::TEXT;
         currentVersion BIGINT := $wrappedouter$||coalesce(currentVersion::TEXT, $v$NULL$v$)||$wrappedouter$::BIGINT;
         isPartial BOOLEAN := $wrappedouter$||coalesce(isPartial::TEXT, $v$NULL$v$)||$wrappedouter$::BOOLEAN;
@@ -1738,6 +1813,9 @@ BEGIN
         IF target_mb IS NULL OR target_mb <= 0 THEN
             RAISE EXCEPTION 'target_mb must be provided and > 0.' USING ERRCODE = 'XYZ40';
         END IF;
+        IF max_features IS NOT NULL AND max_features <= 0 THEN
+            RAISE EXCEPTION 'max_features must be > 0 if provided.' USING ERRCODE = 'XYZ40';
+        END IF;
 
         onExists = CASE WHEN onExists = 'null' THEN NULL ELSE onExists END;
         onNotExists = CASE WHEN onNotExists = 'null' THEN NULL ELSE onNotExists END;
@@ -1752,14 +1830,21 @@ BEGIN
                        (%3$s::NUMERIC * 1024 * 1024)::BIGINT AS target_bytes
             ),
             ordered AS (
+                --jsondata stays TEXT here, it is only parsed for the selected rows (octet_length() does not detoast it)
                 SELECT i,
-                       jsondata::jsonb AS feature,
+                       jsondata,
                        octet_length(jsondata) AS feature_bytes,
                        SUM(octet_length(jsondata)) OVER (ORDER BY i) AS running_bytes
-                  FROM %1$s
-                 CROSS JOIN params p
-                 WHERE jsondata IS NOT NULL
-                   AND i >= p.start_i
+                  FROM (
+                    --At most max_features rows, scanned along the primary key, so that neither the batch nor the scan of the
+                    --remaining rows grows with the number of features
+                    SELECT i, jsondata
+                      FROM %1$s
+                     WHERE jsondata IS NOT NULL
+                       AND i >= %2$s
+                     ORDER BY i
+                     LIMIT %4$s
+                  ) limited_rows
             ),
             selected AS (
                 SELECT o.*
@@ -1768,14 +1853,17 @@ BEGIN
                  WHERE o.running_bytes <= p.target_bytes
             ),
             first_row AS (
-                SELECT o.i, o.feature_bytes, (o.feature->>'id') AS feature_id
-                  FROM ordered o
-                 ORDER BY o.i
+                --The first remaining row, read on its own, so that only this row is parsed for the ID in the error message
+                SELECT i, octet_length(jsondata) AS feature_bytes, (jsondata::jsonb->>'id') AS feature_id
+                  FROM %1$s
+                 WHERE jsondata IS NOT NULL
+                   AND i >= %2$s
+                 ORDER BY i
                  LIMIT 1
             )
             SELECT jsonb_build_object(
                        'type', 'FeatureCollection',
-                       'features', COALESCE(jsonb_agg(s.feature ORDER BY s.i), '[]'::jsonb)
+                       'features', COALESCE(jsonb_agg(s.jsondata::jsonb ORDER BY s.i), '[]'::jsonb)
                    )::text as feature_collection,
                    COALESCE(COUNT(s.i), 0)::INT as pulled_count,
                    COALESCE(SUM(s.feature_bytes), 0)::BIGINT as pulled_bytes,
@@ -1786,7 +1874,7 @@ BEGIN
                    MIN(fr.feature_id) as first_available_id
               FROM selected s
               FULL JOIN first_row fr ON true
-        $fmt$, source_tbl, range_start, target_mb)
+        $fmt$, source_tbl, range_start, target_mb, coalesce(max_features::TEXT, 'ALL'))
         INTO feature_collection, pulled_count, pulled_bytes, selected_range_start, selected_range_end, first_available_i, first_available_bytes, first_available_id;
 
         -- No more rows in the source table at or after range_start -> tmp table fully processed

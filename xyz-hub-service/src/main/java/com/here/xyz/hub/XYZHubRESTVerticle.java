@@ -24,7 +24,6 @@ import com.google.common.io.Files;
 import com.here.xyz.hub.auth.ExtendedJWTAuthHandler;
 import com.here.xyz.hub.auth.XyzAuthProvider;
 import com.here.xyz.hub.rest.AdminApi;
-import com.here.xyz.hub.rest.BranchApi;
 import com.here.xyz.hub.rest.ChangesetApi;
 import com.here.xyz.hub.rest.ConnectorApi;
 import com.here.xyz.hub.rest.DataReferenceApi;
@@ -136,7 +135,6 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
       FeatureApi featureApi = new FeatureApi(rb);
       new FeatureQueryApi(rb);
       new SpaceApi(rb);
-      BranchApi branchApi = new BranchApi(rb);
       new ConnectorApi(rb);
       new SubscriptionApi(rb);
       new ChangesetApi(rb);
@@ -149,7 +147,6 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
       new AdminApi(vertx, router, jwtHandler);
 
       featureApi.activatePrivateRoutes(router, jwtHandler);
-      branchApi.activateAdminRoutes(router, jwtHandler);
 
       //OpenAPI resources
       router.route("/hub/static/openapi/*").handler(createCorsHandler()).handler((routingContext -> {

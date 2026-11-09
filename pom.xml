@@ -41,7 +41,7 @@
 
   <groupId>com.here.xyz</groupId>
   <artifactId>xyz-hub</artifactId>
-  <version>3.24.7-SNAPSHOT</version>
+  <version>3.24.23-SNAPSHOT</version>
   <packaging>pom</packaging>
 
   <modules>
@@ -100,9 +100,9 @@
     <vertx-version>4.5.14</vertx-version>
     <geo-tools-version>30.1</geo-tools-version>
     <jts-version>1.19.0</jts-version>
-    <jackson-version>2.15.2</jackson-version>
+    <jackson-version>2.21.8</jackson-version>
     <lambda-core-version>1.2.1</lambda-core-version>
-    <log4j-version>2.20.0</log4j-version>
+    <log4j-version>2.25.5</log4j-version>
     <aws-log4j-version>1.5.1</aws-log4j-version>
     <jayway-jsonpath-version>2.10.0</jayway-jsonpath-version>
   </properties>
@@ -332,26 +332,16 @@
       </dependency>
 
       <!-- Jackson -->
-      <!-- JSON libraries -->
+      <!--
+        The BOM manages all Jackson artifacts, including transitive ones like jackson-dataformat-cbor from the AWS SDK.
+        Since 2.20, jackson-annotations has no patch number (e.g. 2.21 for jackson 2.21.8), so it cannot use jackson-version.
+      -->
       <dependency>
-        <groupId>com.fasterxml.jackson.core</groupId>
-        <artifactId>jackson-core</artifactId>
+        <groupId>com.fasterxml.jackson</groupId>
+        <artifactId>jackson-bom</artifactId>
         <version>${jackson-version}</version>
-      </dependency>
-      <dependency>
-        <groupId>com.fasterxml.jackson.core</groupId>
-        <artifactId>jackson-annotations</artifactId>
-        <version>${jackson-version}</version>
-      </dependency>
-      <dependency>
-        <groupId>com.fasterxml.jackson.core</groupId>
-        <artifactId>jackson-databind</artifactId>
-        <version>${jackson-version}</version>
-      </dependency>
-      <dependency>
-        <groupId>com.fasterxml.jackson.dataformat</groupId>
-        <artifactId>jackson-dataformat-yaml</artifactId>
-        <version>${jackson-version}</version>
+        <type>pom</type>
+        <scope>import</scope>
       </dependency>
 
       <!-- FlatBuffers -->
@@ -750,7 +740,7 @@
         <artifactId>assertj-core</artifactId>
         <groupId>org.assertj</groupId>
         <scope>test</scope>
-        <version>3.21.0</version>
+        <version>3.27.7</version>
       </dependency>
       <dependency>
         <artifactId>awaitility</artifactId>
@@ -763,7 +753,7 @@
       <dependency>
         <groupId>org.postgresql</groupId>
         <artifactId>postgresql</artifactId>
-        <version>42.7.2</version>
+        <version>42.7.12</version>
       </dependency>
       <dependency>
         <groupId>commons-dbutils</groupId>
@@ -773,7 +763,7 @@
       <dependency>
         <groupId>com.mchange</groupId>
         <artifactId>mchange-commons-java</artifactId>
-        <version>0.4.0</version>
+        <version>0.6.0</version>
       </dependency>
       <dependency>
         <groupId>com.mchange</groupId>

@@ -23,6 +23,9 @@ import static com.here.xyz.models.hub.Space.TABLE_NAME;
 import static com.here.xyz.models.hub.FeatureModificationList.IfExists.ERROR;
 import static com.here.xyz.models.hub.FeatureModificationList.IfExists.PATCH;
 import static com.here.xyz.models.hub.FeatureModificationList.IfNotExists.CREATE;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static io.netty.handler.codec.http.HttpResponseStatus.GATEWAY_TIMEOUT;
+import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -37,12 +40,14 @@ import com.here.xyz.hub.task.SpaceTask.ConditionalOperation;
 import com.here.xyz.hub.task.TaskPipeline.Callback;
 import com.here.xyz.models.hub.Space.ConnectorRef;
 import com.here.xyz.models.hub.jwt.JWTPayload;
+import com.here.xyz.util.service.HttpException;
 import io.vertx.core.MultiMap;
 import io.vertx.core.http.HttpServerRequest;
 import io.vertx.ext.web.RoutingContext;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.apache.logging.log4j.Level;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -105,6 +110,14 @@ class SpaceTaskHandlerTest {
 
     assertFalse(result.getStorage().getParams().containsKey(TABLE_NAME));
     assertEquals("value", result.getStorage().getParams().get("otherParam"));
+  }
+
+  @Test
+  void logsClientErrorsDuringDependencyResolutionAsWarning() {
+    assertEquals(Level.WARN, SpaceTaskHandler.dependencyResolutionFailureLevel(new HttpException(NOT_FOUND, "Layer not found")));
+    assertEquals(Level.WARN, SpaceTaskHandler.dependencyResolutionFailureLevel(new HttpException(BAD_REQUEST, "Invalid")));
+    assertEquals(Level.ERROR, SpaceTaskHandler.dependencyResolutionFailureLevel(new HttpException(GATEWAY_TIMEOUT, "Timeout")));
+    assertEquals(Level.ERROR, SpaceTaskHandler.dependencyResolutionFailureLevel(new RuntimeException("Unexpected")));
   }
 
   private static Space spaceWithParams(Map<String, Object> params) {

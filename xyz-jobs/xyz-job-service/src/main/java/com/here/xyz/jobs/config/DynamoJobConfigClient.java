@@ -29,6 +29,7 @@ import com.amazonaws.services.dynamodbv2.document.spec.UpdateItemSpec;
 import com.amazonaws.services.dynamodbv2.model.AttributeValue;
 import com.amazonaws.services.dynamodbv2.model.BatchGetItemRequest;
 import com.amazonaws.services.dynamodbv2.model.BatchGetItemResult;
+import com.amazonaws.services.dynamodbv2.model.ConditionalCheckFailedException;
 import com.amazonaws.services.dynamodbv2.model.DeleteRequest;
 import com.amazonaws.services.dynamodbv2.model.KeysAndAttributes;
 import com.amazonaws.services.dynamodbv2.model.PutRequest;
@@ -50,9 +51,11 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -71,11 +74,15 @@ public class DynamoJobConfigClient extends JobConfigClient {
   private final StepConfigClient stepConfigClient;
 
   public DynamoJobConfigClient(String tableArn, String resourceKeysTableArn, String stepConfigsTableArn) {
+    this(tableArn, resourceKeysTableArn, new StepConfigClient(stepConfigsTableArn));
+  }
+
+  DynamoJobConfigClient(String tableArn, String resourceKeysTableArn, StepConfigClient stepConfigClient) {
     dynamoClient = new DynamoClient(tableArn, null);
     logger.debug("Instantiating a reference to Dynamo Table {}", dynamoClient.tableName);
     jobTable = dynamoClient.db.getTable(dynamoClient.tableName);
     resourceKeyTable = dynamoClient.db.getTable(new ARN(resourceKeysTableArn).getResourceWithoutType());
-    stepConfigClient = new StepConfigClient(stepConfigsTableArn);
+    this.stepConfigClient = stepConfigClient;
   }
 
   public static class Provider extends JobConfigClient.Provider {
@@ -107,7 +114,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
       List<Job> jobs = new LinkedList<>();
       jobTable.scan()
           .pages()
-          .forEach(page -> page.forEach(jobItem -> jobs.add(deserializeJob(jobItem.asMap()))));
+          .forEach(page -> page.forEach(jobItem -> addIfDeserializable(jobs, jobItem.asMap())));
       return jobs;
     });
   }
@@ -161,7 +168,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
 
     jobTable.scan(filterExpr, attrNames, attrValues)
         .pages()
-        .forEach(page -> page.forEach(item -> jobs.add(deserializeJob(item.asMap()))));
+        .forEach(page -> page.forEach(item -> addIfDeserializable(jobs, item.asMap())));
 
     return Future.succeededFuture(jobs);
   }
@@ -212,7 +219,8 @@ public class DynamoJobConfigClient extends JobConfigClient {
   public Future<List<Job>> loadJobs(State state) {
     return dynamoClient.executeQueryAsync(() -> queryIndex(jobTable, STATE_GSI, state.toString())
         .stream()
-        .map(jobItem -> deserializeJob(jobItem.asMap()))
+        .map(jobItem -> deserializeListedJob(jobItem.asMap()))
+        .filter(Objects::nonNull)
         .toList());
   }
 
@@ -223,8 +231,23 @@ public class DynamoJobConfigClient extends JobConfigClient {
 
     return dynamoClient.executeQueryAsync(() -> queryIndex(jobTable, RESOURCE_KEY_GSI, resourceKey)
             .stream()
-            .map(jobItem -> deserializeJob(jobItem.asMap()))
+            .map(jobItem -> deserializeListedJob(jobItem.asMap()))
+            .filter(Objects::nonNull)
             .collect(Collectors.toSet()));
+  }
+
+  @Override
+  public Future<Set<Job>> loadJobsByPrimaryResourceKey(String resourceKey, FilteredValues<State> states) {
+    if (resourceKey == null)
+      return Future.succeededFuture(Set.of());
+
+    //Filter by state before loading the steps, so that steps are only loaded for the returned jobs
+    return dynamoClient.executeQueryAsync(() -> queryIndex(jobTable, RESOURCE_KEY_GSI, resourceKey)
+        .stream()
+        .map(jobItem -> deserializeJobIfMatching(jobItem.asMap(), job -> matchesFilteredValues(states, job.getStatus().getState()),
+            true))
+        .filter(Objects::nonNull)
+        .collect(Collectors.toSet()));
   }
 
   @Override
@@ -239,22 +262,37 @@ public class DynamoJobConfigClient extends JobConfigClient {
 
   @Override
   public Future<Set<Job>> loadJobs(Set<String> resourceKeys, State state) {
-    return loadJobs(resourceKeys)
-        .map(jobs -> jobs.stream()
-            .filter(job -> state == null || job.getStatus().getState() == state)
-            .collect(Collectors.toSet()));
+    return loadJobs(resourceKeys, hasState(state), true);
+  }
+
+  @Override
+  public Future<Set<Job>> loadJobsWithoutSteps(Set<String> resourceKeys, State state) {
+    return loadJobs(resourceKeys, hasState(state), false);
+  }
+
+  private static Predicate<Job> hasState(State state) {
+    return job -> state == null || job.getStatus().getState() == state;
   }
 
   //TODO: Remove resourceKey GSIs after migration
 
-  private Future<Set<Job>> loadJobs(Set<String> resourceKeys) {
+  /**
+   * Loads all jobs related to any of the specified resource keys that match the filter.
+   * The filter is applied to the job without its steps, so the steps are only loaded for jobs that are actually returned.
+   *
+   * @param resourceKeys The resource keys for which to load the jobs
+   * @param filter The filter to apply to the jobs (the jobs' steps are not available to it)
+   * @param withSteps Whether to load the steps of the returned jobs
+   * @return The matching jobs
+   */
+  private Future<Set<Job>> loadJobs(Set<String> resourceKeys, Predicate<Job> filter, boolean withSteps) {
     return findJobIds(resourceKeys).compose(jobIds -> {
 
       //Do parallel batch request to dynamo in case more than 100 job IDs
       List<List<String>> batchedJobIds = Lists.partition(jobIds.stream().toList(), 100);
       List<Future<Set<Job>>> futureList = new ArrayList<>();
       for (List<String> batch : batchedJobIds) {
-        futureList.add(batchLoadJobsById(batch));
+        futureList.add(batchLoadJobsById(batch, filter, withSteps));
       }
 
       return Future.all(futureList)
@@ -264,7 +302,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
     });
   }
 
-  private Future<Set<Job>> batchLoadJobsById(List<String> jobIds) {
+  private Future<Set<Job>> batchLoadJobsById(List<String> jobIds, Predicate<Job> filter, boolean withSteps) {
     if(jobIds == null || jobIds.isEmpty())
       return Future.succeededFuture(Set.of());
 
@@ -284,7 +322,8 @@ public class DynamoJobConfigClient extends JobConfigClient {
       List<Map<String, AttributeValue>> rawItems = result.getResponses().get(jobTable.getTableName());
 
       return ItemUtils.toItemList(rawItems).stream()
-          .map(jobItem -> deserializeJob(jobItem.asMap()))
+          .map(jobItem -> deserializeJobIfMatching(jobItem.asMap(), filter, withSteps))
+          .filter(Objects::nonNull)
           .collect(Collectors.toSet());
     });
   }
@@ -416,6 +455,11 @@ public class DynamoJobConfigClient extends JobConfigClient {
       try {
         stepConfigClient.storeStep(newStep, job.getKeepUntil() / 1000);
       }
+      catch (ConditionalCheckFailedException e) {
+        //E.g., an update that was sent before the final one, but arrived after it
+        logger.info("[{}] Ignored the update of the step to state {}, because the step is in a final state already.",
+            newStep.getGlobalStepId(), newStep.getStatus().getState());
+      }
       catch (Exception e) {
         logger.error(e);
       }
@@ -454,6 +498,62 @@ public class DynamoJobConfigClient extends JobConfigClient {
     return XyzSerializable.fromMap(jobItem, Job.class);
   }
 
+  /**
+   * Deserializes the job item without its step graph ({@link Job#getSteps()} is {@code null}).
+   * No query to the step table is performed. The provided job item is not modified.
+   */
+  private static Job deserializeJobWithoutSteps(Map<String, Object> jobItem) {
+    Map<String, Object> jobItemWithoutSteps = new HashMap<>(jobItem);
+    jobItemWithoutSteps.remove("steps");
+    return XyzSerializable.fromMap(jobItemWithoutSteps, Job.class);
+  }
+
+  /**
+   * Applies the filter to the job item without its steps and only loads the steps (if requested) if the job matches.
+   * A job item that can not be deserialized is skipped, see {@link #deserializeListedJob(Map)}.
+   *
+   * @return The job or {@code null} if it does not match the filter or can not be deserialized
+   */
+  private Job deserializeJobIfMatching(Map<String, Object> jobItem, Predicate<Job> filter, boolean withSteps) {
+    try {
+      Job jobWithoutSteps = deserializeJobWithoutSteps(jobItem);
+      if (!filter.test(jobWithoutSteps))
+        return null;
+      return withSteps ? deserializeJob(jobItem) : jobWithoutSteps;
+    }
+    catch (IllegalArgumentException | IllegalStateException e) {
+      logSkippedJob(jobItem, e);
+      return null;
+    }
+  }
+
+  /**
+   * Deserializes a job item of a job listing.
+   * A job item that can not be deserialized (e.g. an unknown type or a missing step config) is logged and skipped, so that one broken
+   * job does not make the whole listing fail. Errors when accessing DynamoDB are not caught.
+   *
+   * @return The job or {@code null} if the job item can not be deserialized
+   */
+  private Job deserializeListedJob(Map<String, Object> jobItem) {
+    try {
+      return deserializeJob(jobItem);
+    }
+    catch (IllegalArgumentException | IllegalStateException e) {
+      logSkippedJob(jobItem, e);
+      return null;
+    }
+  }
+
+  private void addIfDeserializable(List<Job> jobs, Map<String, Object> jobItem) {
+    Job job = deserializeListedJob(jobItem);
+    if (job != null)
+      jobs.add(job);
+  }
+
+  private static void logSkippedJob(Map<String, Object> jobItem, Exception e) {
+    logger.error("Skipping job {} in the job listing, its job item can not be deserialized.", jobItem.get("id"), e);
+  }
+
   @Override
   public Future<Job> hydrateJob(Map<String, Object> jobItem) {
     return dynamoClient.executeQueryAsync(() -> deserializeJob(jobItem));
@@ -477,6 +577,14 @@ public class DynamoJobConfigClient extends JobConfigClient {
   public Future<Void> deleteStepConfigs(String jobId) {
     return dynamoClient.executeQueryAsync(() -> {
       stepConfigClient.deleteSteps(jobId);
+      return null;
+    });
+  }
+
+  @Override
+  public Future<Void> deleteStepConfigs(String jobId, List<String> stepIds) {
+    return dynamoClient.executeQueryAsync(() -> {
+      stepConfigClient.deleteSteps(jobId, stepIds);
       return null;
     });
   }

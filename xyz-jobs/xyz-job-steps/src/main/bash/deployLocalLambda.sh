@@ -35,9 +35,8 @@ if [ "$inContainer" = "true" ]; then
 fi
 
 #Create the local test bucket but only if not existing yet
-aws --endpoint "$LOCAL_STACK_HOST" s3api head-bucket --bucket test-bucket > /dev/null 2>&1
-if [ $? -ne 0 ]; then
-  aws --endpoint "$LOCAL_STACK_HOST" s3api create-bucket --bucket test-bucket --create-bucket-configuration LocationConstraint=eu-west-1
+if ! aws --endpoint-url "$LOCAL_STACK_HOST" s3api head-bucket --bucket test-bucket > /dev/null 2>&1; then
+  aws --endpoint-url "$LOCAL_STACK_HOST" s3api create-bucket --bucket test-bucket --create-bucket-configuration LocationConstraint=eu-west-1
 fi
 
 #Check if localstack is running
@@ -47,11 +46,19 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
-#install zip
-which zip > /dev/null 2>&1
-if [ $? -ne 0 ]; then
-  yum install -y zip
-fi
+#zip isn't installed in the image; fall back to Python"
+createZip() {
+  if command -v zip > /dev/null 2>&1; then
+    zip -r "$1" "$2"
+  elif command -v python3 > /dev/null 2>&1; then
+    python3 -m zipfile -c "$1" "$2"
+  elif command -v python > /dev/null 2>&1; then
+    python -m zipfile -c "$1" "$2"
+  else
+    echo "Neither zip nor python is available to package the Lambda!" >&2
+    return 1
+  fi
+}
 
 #install Lambda
 echo "Install "$jarName" Lambda ..."
@@ -60,19 +67,19 @@ scriptBasePath="$(dirname $(realpath $0))"
 
 cd ${scriptBasePath}/${relativeTargetPath}
 
-rm -rf lib > /dev/null 2>&1
+rm -rf lib "$jarName".zip > /dev/null 2>&1
 mkdir lib
 cp ./"$jarName".jar lib
-zip -r "$jarName".zip lib
+createZip "$jarName".zip lib || exit 1
 chmod -R 777 lib "$jarName".zip
 
 #Delete a potentially existing old local Lambda Function with the same name
-aws --endpoint "$LOCAL_STACK_HOST" lambda delete-function \
+aws --endpoint-url "$LOCAL_STACK_HOST" lambda delete-function \
   --region us-east-1 \
   --function-name job-step \
   > /dev/null 2>&1
 
-aws --endpoint "$LOCAL_STACK_HOST" lambda create-function \
+aws --endpoint-url "$LOCAL_STACK_HOST" lambda create-function \
   --timeout 300 \
   --region us-east-1 \
   --function-name job-step \

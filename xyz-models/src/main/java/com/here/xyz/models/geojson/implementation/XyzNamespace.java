@@ -63,12 +63,6 @@ public class XyzNamespace implements XyzSerializable {
   private boolean deleted;
 
   /**
-   * A flag indicating the object is in a state of conflict.
-   * E.g., if the object resides within a branch that was attempted to be rebased or merged recently.
-   */
-  private boolean conflicting;
-
-  /**
    * The space-version of the feature within the space's versions.
    * Multiple features share the same space-version if they have been edited in one transaction.
    */
@@ -312,19 +306,6 @@ public class XyzNamespace implements XyzSerializable {
   @SuppressWarnings("unused")
   public XyzNamespace withDeleted(boolean deleted) {
     setDeleted(deleted);
-    return this;
-  }
-
-  public boolean isConflicting() {
-    return conflicting;
-  }
-
-  public void setConflicting(boolean conflicting) {
-    this.conflicting = conflicting;
-  }
-
-  public XyzNamespace withConflicting(boolean conflicting) {
-    setConflicting(conflicting);
     return this;
   }
 

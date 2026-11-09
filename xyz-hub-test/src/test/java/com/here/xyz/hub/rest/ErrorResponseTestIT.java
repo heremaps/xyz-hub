@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPL
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.restassured.RestAssured.given;
@@ -165,6 +166,17 @@ public class ErrorResponseTestIT extends TestSpaceWithFeature {
         headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
         when().get("/spaces/" + spaceId + "/features?id=1").then().
         statusCode(BAD_GATEWAY.code());
+  }
+
+  @Test
+  public void invalidOriginIsRejectedWith403() {
+    given().
+        accept(APPLICATION_JSON).
+        header("Origin", "invalid-origin").
+        headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
+        when().get("/spaces").then().
+        statusCode(FORBIDDEN.code()).
+        body("statusCode", equalTo(FORBIDDEN.code()));
   }
 
   @Test

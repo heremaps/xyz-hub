@@ -28,6 +28,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import com.here.xyz.Payload;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.impl.transport.tools.ImportFilesQuickValidator;
 import com.here.xyz.jobs.util.test.StepTestBase;
@@ -44,6 +45,8 @@ import org.junit.jupiter.params.provider.ValueSource;
 public class QuickValidatorTest extends StepTestBase {
 
   private static String TEST_PREFIX = "validation-test/";
+  private static final String VALID_FEATURE =
+      "{\"type\":\"Feature\",\"geometry\":{\"type\":\"Point\",\"coordinates\":[8,50]},\"properties\":{\"test\":1}}";
 
   @BeforeEach
   public void cleanUp() {
@@ -210,6 +213,46 @@ public class QuickValidatorTest extends StepTestBase {
         gzip
     );
     validate(generateTestS3Key("someFile"), gzip, entityPerLine);
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void testGzipWithoutContentEncodingIsDetected(boolean flaggedAsCompressed) throws IOException {
+    String s3Key = generateTestS3Key("gzipWithoutContentEncoding.geojson");
+    //Gzip-compressed content, uploaded without the Content-Encoding header
+    uploadFileToS3(s3Key, APPLICATION_JSON, Payload.compress(VALID_FEATURE.getBytes()), false);
+
+    UploadUrl input = new UploadUrl()
+        .withS3Bucket(Config.instance.JOBS_S3_BUCKET)
+        .withS3Key(s3Key)
+        .withCompressed(flaggedAsCompressed);
+    try {
+      ImportFilesQuickValidator.validateCompression(input);
+      fail("Exception expected");
+    }
+    catch (ValidationException e) {
+      checkValidationException(e, "File " + s3Key + " is gzip-compressed, but its S3 object has no 'Content-Encoding: gzip' metadata.");
+    }
+    //The full quick validation detects it as well
+    try {
+      ImportFilesQuickValidator.validate(input, Feature);
+      fail("Exception expected");
+    }
+    catch (ValidationException e) {
+      checkValidationException(e, "File " + s3Key + " is gzip-compressed");
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void testCompressionValidationAcceptsImportableFiles(boolean gzip) throws IOException, ValidationException {
+    String s3Key = generateTestS3Key("importable.geojson");
+    //If gzip is true, the content is compressed and uploaded with "Content-Encoding: gzip"
+    uploadFileToS3(s3Key, APPLICATION_JSON, VALID_FEATURE.getBytes(), gzip);
+    ImportFilesQuickValidator.validateCompression(new UploadUrl()
+        .withS3Bucket(Config.instance.JOBS_S3_BUCKET)
+        .withS3Key(s3Key)
+        .withCompressed(gzip));
   }
 
   private static void checkValidationException(ValidationException e, String message) {

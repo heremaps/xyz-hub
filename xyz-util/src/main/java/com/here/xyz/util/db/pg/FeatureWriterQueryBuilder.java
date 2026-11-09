@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -172,8 +172,15 @@ public class FeatureWriterQueryBuilder {
       return this;
     }
 
-    public FeatureWriterQueryContextBuilder withTableBaseVersions(List<Long> tableBaseVersions) {
-      queryContext.put("tableBaseVersions", tableBaseVersions);
+    /**
+     * The physical version at which each table is frozen, positionally aligned with the tables. A {@code null} entry means
+     * that table is read at HEAD. Only base tables of a composite can be bound; the write target never is.
+     *
+     * These absolute per-table bounds originate from {@code extends.version}. They are independent of {@code baseVersion},
+     * which describes the version the modification was based on for optimistic-concurrency conflict detection.
+     */
+    public FeatureWriterQueryContextBuilder withTableBoundVersions(List<Long> tableBoundVersions) {
+      queryContext.put("tableBoundVersions", tableBoundVersions);
       return this;
     }
 

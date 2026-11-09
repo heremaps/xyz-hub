@@ -44,7 +44,7 @@ public class GetNextVersion<E extends ContextAwareEvent> extends XyzEventBasedQu
   }
 
   private String getSequenceName(E event) {
-    return getBranchTable(event) + VERSION_SEQUENCE_SUFFIX;
+    return getDefaultTable(event) + VERSION_SEQUENCE_SUFFIX;
   }
 
   @Override

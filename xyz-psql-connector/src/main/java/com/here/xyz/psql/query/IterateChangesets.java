@@ -70,10 +70,7 @@ public class IterateChangesets<R  extends XyzResponse> extends IterateFeatures<I
        */
       return ""; //TODO: Ensure proper paging when nextPageToken is being used
 
-    if( event.getBranchPath() == null || event.getBranchPath().isEmpty() )
-     return "ORDER BY ${schema}.${table}.version, id";
-    else
-     return "ORDER BY version, id";
+    return "ORDER BY ${schema}.${table}.version, id";
   }
 
   @Override
@@ -138,18 +135,18 @@ public class IterateChangesets<R  extends XyzResponse> extends IterateFeatures<I
   }
 
   @Override
-  protected SQLQuery buildNextVersionFragment(Ref ref, boolean historyEnabled, String versionParamName, long baseVersion) {
+  protected SQLQuery buildNextVersionFragment(Ref ref, boolean historyEnabled, String versionParamName) {
     //TODO: Check if this check could be pulled up, because when requesting history versions from a range, the next-version anyways should not play any role
     if (ref.isRange() && !event.isSquashed())
       return new SQLQuery("");
-    return super.buildNextVersionFragment(ref, historyEnabled, versionParamName, baseVersion);
+    return super.buildNextVersionFragment(ref, historyEnabled, versionParamName);
   }
 
   //Enhances select clause by adding operation & author
   @Override
-  protected SQLQuery buildSelectClause(IterateChangesetsEvent event, int dataset, long baseVersion) {
+  protected SQLQuery buildSelectClause(IterateChangesetsEvent event, int dataset) {
     return new SQLQuery("${{selectClauseWithoutExtraFields}}, operation, author")
-        .withQueryFragment("selectClauseWithoutExtraFields", super.buildSelectClause(event, dataset, baseVersion));
+        .withQueryFragment("selectClauseWithoutExtraFields", super.buildSelectClause(event, dataset));
   }
 
   protected SQLQuery buildFilterWhereClause(IterateChangesetsEvent event) {
@@ -217,12 +214,6 @@ public class IterateChangesets<R  extends XyzResponse> extends IterateFeatures<I
 
     //Query one more feature as requested, to be able to determine if we need to include a nextPageToken
     return new SQLQuery("LIMIT #{limit}").withNamedParameter("limit", event.getLimit() + 1);
-  }
-
-  //Ensures that *all* versions of a feature are returned, also the ones from base branches (even if normally these would be masked)
-  @Override
-  protected SQLQuery buildBranchCompositionFilter() {
-    return new SQLQuery("");
   }
 
   @Override

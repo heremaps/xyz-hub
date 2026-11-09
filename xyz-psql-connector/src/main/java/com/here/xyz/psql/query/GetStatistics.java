@@ -27,10 +27,9 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
-import com.here.xyz.events.GetChangesetStatisticsEvent;
 import com.here.xyz.events.GetStatisticsEvent;
 import com.here.xyz.models.geojson.coordinates.BBox;
-import com.here.xyz.responses.ChangesetsStatisticsResponse;
+import com.here.xyz.psql.query.helpers.versioning.GetHeadVersion;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.StatisticsResponse.Value;
 import com.here.xyz.util.db.SQLQuery;
@@ -39,15 +38,16 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 public class GetStatistics extends ExtendedSpace<GetStatisticsEvent, StatisticsResponse>  {
   private boolean fastMode;
   private String spaceId;
   private Map<String, Object> spaceParams;
   private Map<String, Object> connectorParams;
-  private long minVersion = -1L;
   private static final Pattern BBOX_PATTERN = Pattern.compile("^BOX\\(([-\\d\\.]*)\\s([-\\d\\.]*),([-\\d\\.]*)\\s([-\\d\\.]*)\\)$");
 
   public GetStatistics(GetStatisticsEvent event) throws SQLException, ErrorResponseException {
@@ -57,15 +57,20 @@ public class GetStatistics extends ExtendedSpace<GetStatisticsEvent, StatisticsR
     spaceParams = event.getParams();
     connectorParams = event.getConnectorParams();
     fastMode = event.isFastMode();
-    minVersion = event.getMinVersion();
   }
 
   @Override
   protected SQLQuery buildQuery(GetStatisticsEvent event) throws SQLException, ErrorResponseException {
-    return new SQLQuery("SELECT * FROM xyz_statistic_space(#{schema}, #{table}, #{isExtension} )")
+    //The base tables of a composite space get summed up unless the context is EXTENSION
+    String[] baseTables = Stream.of(getIntermediateTable(event), getExtendedTable(event))
+        .filter(Objects::nonNull)
+        .toArray(String[]::new);
+
+    return new SQLQuery("SELECT * FROM xyz_statistic_space(#{schema}, #{table}, #{isExtension}, #{baseTables}::TEXT[])")
         .withNamedParameter(SCHEMA, getSchema())
         .withNamedParameter(TABLE, getDefaultTable(event))
-        .withNamedParameter("isExtension", event.getContext() == SpaceContext.EXTENSION);
+        .withNamedParameter("isExtension", event.getContext() == SpaceContext.EXTENSION)
+        .withNamedParameter("baseTables", baseTables);
   }
 
   @Override
@@ -73,33 +78,18 @@ public class GetStatistics extends ExtendedSpace<GetStatisticsEvent, StatisticsR
     if(fastMode)
       return super.run(dataSourceProvider);
 
-    //TODO: Do version related queries directly inside xyz_statistic_space() and remove GetChangesetStatistics / GetChangesetStatisticsEvent / ChangesetStatisticsResponse ...
-    long respondedMinVersion;
-    long respondeeMaxVersion;
-    Value<Long> minTagVersion;
-    try {
-      final GetChangesetStatisticsEvent event = new GetChangesetStatisticsEvent()
-          .withMinVersion(minVersion)
-          .withSpace(spaceId)
-          .withParams(spaceParams)
-          .withConnectorParams(connectorParams);
+    GetHeadVersion<GetStatisticsEvent> versionQuery = new GetHeadVersion<>(new GetStatisticsEvent()
+        .withSpace(spaceId)
+        .withParams(spaceParams)
+        .withConnectorParams(connectorParams));
+    versionQuery.setDataSourceProvider(dataSourceProvider);
+    versionQuery.setUseReadReplica(isUseReadReplica());
+    long maxVersion = versionQuery.run();
 
-      ChangesetsStatisticsResponse versionResponse = new GetChangesetStatistics(event)
-              .withDataSourceProvider(dataSourceProvider)
-              .run();
-
-      respondedMinVersion = versionResponse.getMinVersion();
-      respondeeMaxVersion = versionResponse.getMaxVersion();
-      minTagVersion = versionResponse.getMinTagVersion() == null ? null : new Value<>(versionResponse.getMinTagVersion());
-    }
-    catch (ErrorResponseException e) {
-      throw new RuntimeException(e);
-    }
-
+    //Like fast mode, leave the lower bound to the Hub's retention and tag calculation instead of scanning MIN(version).
     return super.run(dataSourceProvider)
-        .withMinVersion(new Value<>(respondedMinVersion).withEstimated(false))
-        .withMaxVersion(new Value<>(respondeeMaxVersion).withEstimated(false))
-        .withMinTagVersion(minTagVersion);
+        .withMinVersion(new Value<>(0L).withEstimated(false))
+        .withMaxVersion(new Value<>(maxVersion).withEstimated(false));
   }
 
   @Override

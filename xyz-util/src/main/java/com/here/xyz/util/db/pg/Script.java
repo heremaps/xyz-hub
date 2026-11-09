@@ -20,8 +20,7 @@
 package com.here.xyz.util.db.pg;
 
 import static com.google.common.base.Strings.isNullOrEmpty;
-import static com.here.xyz.util.db.pg.LockHelper.buildAdvisoryLockQuery;
-import static com.here.xyz.util.db.pg.LockHelper.buildAdvisoryUnlockQuery;
+import static com.here.xyz.util.db.pg.LockHelper.buildAdvisoryXactLockQuery;
 
 import com.fasterxml.jackson.core.Version;
 import com.google.common.collect.Lists;
@@ -35,9 +34,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URISyntaxException;
+import java.sql.Connection;
 import java.sql.SQLException;
+import java.sql.SQLWarning;
+import java.sql.Statement;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -47,6 +48,13 @@ import org.apache.logging.log4j.Logger;
 
 public class Script {
   private static final Logger logger = LogManager.getLogger(Script.class);
+  /**
+   * The notice an install or uninstall statement raises, if it found its work already done under the lock.
+   * It lowers client_min_messages only for its own transaction, so the notice also reaches the client if the DB setting suppresses it.
+   */
+  private static final String SKIPPED_NOTICE = "xyz_script_statement_skipped";
+  private static final String SKIPPED_NOTICE_STATEMENT = "PERFORM set_config('client_min_messages', 'notice', true); RAISE NOTICE '"
+      + SKIPPED_NOTICE + "';";
   private String scriptResourceLocation;
   private String scriptIdPrefix;
   private String scriptContent;
@@ -118,24 +126,95 @@ public class Script {
     }
   }
 
+  /**
+   * Resolves the schema to be used for the provided software version from a snapshot of the installed schemas.
+   *
+   * @param softwareVersion The software version or <code>null</code> for "latest"
+   * @param snapshot The snapshot of the installed schemas or <code>null</code> if none is available
+   * @return The schema of the newest installed version that is lower than or equal to the software version, or the unversioned
+   *  schema if there is no such version, the software version is <code>null</code> or no snapshot is available
+   */
+  public String getCompatibleSchema(String softwareVersion, InstalledScripts snapshot) {
+    if (softwareVersion == null || snapshot == null)
+      return getTargetSchema(null);
+    return getTargetSchema(snapshot.getNewestVersionUpTo(getScriptId(), softwareVersion));
+  }
+
   public void install() {
     try {
       if (installed)
         return;
-      //NOTE: The versioned schema must be created even if the content did not change, because #getCompatibleSchema() resolves the
-      //search path by version, not by content. Without this check a version bump without a content change leaves the new version
-      //without a schema, so the resolution silently falls back to an older version which may carry outdated content.
-      if (!getHash().equals(loadLatestHash()) || scriptVersion != null && !scriptVersionExists()) {
+      if (needsInstallation(InstalledScripts.load(dataSourceProvider, List.of(this)))) {
         if (scriptVersion != null)
-          install(getTargetSchema(scriptVersion), false);
+          installSchema(true);
         //Also install the "latest" version
-        install(getTargetSchema(null), true);
+        installSchema(false);
         installed = true;
       }
     }
     catch (SQLException | IOException e) {
       logger.warn("Unable to install script {} on DB {}. Falling back to previous version if possible.", getScriptName(), getDbId(), e);
     }
+  }
+
+  /**
+   * Decides from a snapshot of the installed schemas whether this script has to be installed.
+   *
+   * @param snapshot The snapshot of the installed schemas
+   * @return Whether the content of the unversioned schema differs from this script's content or the versioned schema is missing
+   */
+  public boolean needsInstallation(InstalledScripts snapshot) throws IOException {
+    //NOTE: The versioned schema must be created even if the content did not change, because #getCompatibleSchema() resolves the
+    //search path by version, not by content. Without this check a version bump without a content change leaves the new version
+    //without a schema, so the resolution silently falls back to an older version which may carry outdated content.
+    return !getHash().equals(snapshot.getHash(getScriptId(), null))
+        || scriptVersion != null && !snapshot.exists(getScriptId(), scriptVersion);
+  }
+
+  /**
+   * @param snapshot The snapshot of the installed schemas
+   * @return Whether the schema this script resolves to exists: the versioned schema or, without a version, the unversioned
+   *  schema with this script's content
+   */
+  boolean isTargetInstalled(InstalledScripts snapshot) throws IOException {
+    if (scriptVersion != null)
+      return snapshot.exists(getScriptId(), scriptVersion);
+    return getHash().equals(snapshot.getHash(getScriptId(), null));
+  }
+
+  /**
+   * Installs the versioned or the unversioned schema of this script with one statement. The statement holds an advisory lock on
+   * the schema name until it commits and checks under that lock, whether the schema already has this script's content.
+   *
+   * @param versioned Whether to install the versioned schema. If <code>false</code>, the unversioned schema gets installed.
+   * @return <code>true</code> if the schema was installed, <code>false</code> if it already had this script's content
+   */
+  public boolean installSchema(boolean versioned) throws SQLException, IOException {
+    if (versioned && scriptVersion == null)
+      throw new IllegalStateException("Script " + getScriptName() + " has no version, so it has no versioned schema.");
+    String targetSchema = getTargetSchema(versioned ? scriptVersion : null);
+    long start = System.currentTimeMillis();
+    boolean installed = executeLocked(buildInstallationStatement(targetSchema, versioned));
+    compatibleVersions = new HashMap<>(); //Reset the cache
+
+    if (installed)
+      logger.warn("Installed script {} on DB {} into schema {} in {} ms.", getScriptName(), getDbId(), targetSchema,
+          System.currentTimeMillis() - start);
+    else
+      logger.info("Script {} was already installed on DB {} into schema {}.", getScriptName(), getDbId(), targetSchema);
+    return installed;
+  }
+
+  public String getContentHash() throws IOException {
+    return getHash();
+  }
+
+  String getScriptIdPrefix() {
+    return scriptIdPrefix;
+  }
+
+  String getScriptVersion() {
+    return scriptVersion;
   }
 
   private String getDbId() {
@@ -169,41 +248,100 @@ public class Script {
     return SQLQuery.join(queries, "\n\n");
   }
 
-  private void install(String targetSchema, boolean deleteBefore) throws SQLException, IOException {
-    logger.info("Installing script {} on DB {} into schema {} ...", getScriptName(), getDbId(), targetSchema);
-
+  private SQLQuery buildInstallationStatement(String targetSchema, boolean versioned) throws IOException {
     SQLQuery scriptContent = loadSubstitutedScriptContent();
     List<SQLQuery> installationQueries = new ArrayList<>();
-    if (deleteBefore) {
-      //TODO: Remove following workaround once "drop schema cascade"-bug creating orphaned functions is fixed in postgres
-      installationQueries.addAll(buildDeleteFunctionQueries(loadSchemaFunctions(targetSchema)));
-      installationQueries.add(buildDeleteSchemaQuery(getTargetSchema(targetSchema)));
-    }
+    //Before reinstalling the unversioned schema, all functions in it are dropped, so that functions removed from the script do not
+    //linger. The drop cascades, so objects that depend on one of these functions are dropped too, also outside the schema (e.g., a
+    //trigger calling one of them). The schema and its other objects are kept on purpose: the schema can hold objects the script did
+    //not create (e.g., an extension registered in it, a table or a materialized view), and DROP SCHEMA ... CASCADE would drop them
+    //together with every object outside the schema that depends on them. The script's own types are created only if missing, so a
+    //changed type definition is not applied to this schema and needs its own migration.
+    if (!versioned)
+      installationQueries.add(buildDeleteFunctionsLoop(targetSchema));
     installationQueries.addAll(List.of(buildCreateSchemaQuery(targetSchema), buildSetCurrentSearchPathQuery(targetSchema),
         buildHashFunctionQuery(), buildVersionFunctionQuery(), scriptContent));
 
-    SQLQuery installationQuery = SQLQuery.join(installationQueries, ";")
-        .withLock(targetSchema);
+    //The installed check runs under the lock, so a concurrent installer that held the lock before is not repeated
+    String installedCheck = buildFunctionBodyCheck(targetSchema, "script_hash", getHash());
+    if (!versioned && scriptVersion != null)
+      installedCheck += " AND " + buildFunctionBodyCheck(targetSchema, "script_version", scriptVersion);
 
-    //TODO: Remove the following workaround once the locking support in SQLQuery was implemented for normal update queries
-    SQLQuery lockWrapper = new SQLQuery("""
+    return new SQLQuery("""
         DO $lockWrapper$
+        DECLARE _xyz_script_fn regprocedure;
         BEGIN
           ${{lockQuery}}
+          IF ${{installedCheck}} THEN
+            ${{skippedNotice}}
+            RETURN;
+          END IF;
           ${{installationQuery}}
-          ${{unlockQuery}}
         END$lockWrapper$;
         """)
-        .withQueryFragment("lockQuery", buildAdvisoryLockQuery(targetSchema))
-        .withQueryFragment("installationQuery", installationQuery)
-        .withQueryFragment("unlockQuery", buildAdvisoryUnlockQuery(targetSchema));
+        .withQueryFragment("lockQuery", buildAdvisoryXactLockQuery(targetSchema))
+        .withQueryFragment("installedCheck", installedCheck)
+        .withQueryFragment("skippedNotice", SKIPPED_NOTICE_STATEMENT)
+        .withQueryFragment("installationQuery", SQLQuery.join(installationQueries, ";"));
+  }
 
-    lockWrapper
-        .withLoggingEnabled(false)
-        .write(dataSourceProvider);
-    compatibleVersions = new HashMap<>(); //Reset the cache
+  private SQLQuery buildUninstallationStatement(String schema) {
+    return new SQLQuery("""
+        DO $uninstall$
+        DECLARE _xyz_script_fn regprocedure;
+        BEGIN
+          ${{lockQuery}}
+          IF NOT EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = '${{schemaLiteral}}') THEN
+            ${{skippedNotice}}
+            RETURN;
+          END IF;
+          ${{deleteFunctions}};
+          EXECUTE 'DROP SCHEMA ' || quote_ident('${{schemaLiteral}}') || ' CASCADE';
+        END$uninstall$;
+        """)
+        .withQueryFragment("lockQuery", buildAdvisoryXactLockQuery(schema))
+        .withQueryFragment("schemaLiteral", escapeLiteral(schema))
+        .withQueryFragment("skippedNotice", SKIPPED_NOTICE_STATEMENT)
+        .withQueryFragment("deleteFunctions", buildDeleteFunctionsLoop(schema));
+  }
 
-    logger.info("Script {} has been installed successfully on DB {} into schema {}.", getScriptName(), getDbId(), targetSchema);
+  /**
+   * Builds a PL/pgSQL loop that drops all functions of the schema. It reads the functions inside the statement, so under the same
+   * lock as the rest of the statement.
+   */
+  private static SQLQuery buildDeleteFunctionsLoop(String schema) {
+    return new SQLQuery("""
+        FOR _xyz_script_fn IN SELECT p.oid::regprocedure FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+            WHERE n.nspname = '${{schemaLiteral}}' AND p.prokind = 'f' LOOP
+          EXECUTE 'DROP FUNCTION ' || _xyz_script_fn::text || ' CASCADE';
+        END LOOP""")
+        .withQueryFragment("schemaLiteral", escapeLiteral(schema));
+  }
+
+  private static String buildFunctionBodyCheck(String schema, String functionName, String expectedValue) {
+    return "EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = '" + escapeLiteral(schema)
+        + "' AND p.proname = '" + functionName + "' AND p.pronargs = 0 AND substring(p.prosrc FROM 'RETURN ''([^'']*)''') = '"
+        + escapeLiteral(expectedValue) + "')";
+  }
+
+  private static String escapeLiteral(String value) {
+    return value.replace("'", "''");
+  }
+
+  /**
+   * Executes one of the locked install or uninstall statements.
+   *
+   * @return <code>false</code> if the statement found its work already done under the lock, <code>true</code> otherwise
+   */
+  private boolean executeLocked(SQLQuery statement) throws SQLException {
+    String statementText = statement.substitute().text();
+    try (Connection connection = dataSourceProvider.getWriter().getConnection(); Statement stmt = connection.createStatement()) {
+      stmt.execute(statementText);
+      for (SQLWarning warning = stmt.getWarnings(); warning != null; warning = warning.getNextWarning())
+        if (warning.getMessage() != null && warning.getMessage().contains(SKIPPED_NOTICE))
+          return false;
+      return true;
+    }
   }
 
   private static SQLQuery buildSetCurrentSearchPathQuery(String targetSchema) {
@@ -211,42 +349,13 @@ public class Script {
         .withVariable("currentSearchPath", targetSchema);
   }
 
-  private boolean scriptVersionExists() throws SQLException {
-    return schemaExists(getTargetSchema(scriptVersion));
-  }
-
-  private boolean anyVersionExists() throws SQLException {
-    return schemaExists(getTargetSchema("%"));
-  }
-
-  private String loadLatestHash() throws SQLException {
-    try {
-      return new SQLQuery("SELECT ${schema}.script_hash()").withVariable("schema", getTargetSchema(null))
-          .run(dataSourceProvider, rs -> rs.next() ? rs.getString(1) : null);
-    }
-    catch (SQLException e) {
-      return null;
-    }
-  }
-
   public String loadLatestVersion() throws SQLException {
     return new SQLQuery("SELECT ${schema}.script_version()").withVariable("schema", getTargetSchema(null))
         .run(dataSourceProvider, rs -> rs.next() ? rs.getString(1) : null);
   }
 
-  private boolean schemaExists(String schemaName) throws SQLException {
-    return new SQLQuery("SELECT 1 FROM information_schema.schemata WHERE schema_name LIKE #{schemaName}")
-        .withNamedParameter("schemaName", schemaName)
-        .run(dataSourceProvider, rs -> rs.next());
-  }
-
   private SQLQuery buildCreateSchemaQuery(String schemaName) {
     return new SQLQuery("CREATE SCHEMA IF NOT EXISTS ${schema}")
-        .withVariable("schema", schemaName);
-  }
-
-  private SQLQuery buildDeleteSchemaQuery(String schemaName) throws SQLException {
-    return new SQLQuery("DROP SCHEMA IF EXISTS ${schema} CASCADE")
         .withVariable("schema", schemaName);
   }
 
@@ -395,79 +504,49 @@ public class Script {
         .toList();
   }
 
-  private String extractVersion(String targetSchema) {
-    int lastColonPos = targetSchema.lastIndexOf(':');
-    if (lastColonPos < 0)
-      return null;
-    return targetSchema.substring(lastColonPos + 1);
-  }
-
   public List<String> listInstalledScriptVersions() throws SQLException {
-    List<String> targetSchemas = new SQLQuery("SELECT schema_name FROM information_schema.schemata WHERE schema_name LIKE #{scriptNameSchemaPattern}")
-        .withNamedParameter("scriptNameSchemaPattern", getScriptId() + ":%")
-        .run(dataSourceProvider, rs -> {
-          List<String> results = new ArrayList<>();
-          while (rs.next())
-            results.add(rs.getString("schema_name"));
-          return results;
-        });
-
-    return targetSchemas.stream()
-        .map(schema -> extractVersion(schema))
-        .filter(version -> version != null)
-        .sorted(Comparator.comparing(Script::parseVersion))
-        .toList();
+    return InstalledScripts.load(dataSourceProvider, List.of(this)).getVersions(getScriptId());
   }
 
-  private void uninstall(String scriptVersion) throws SQLException {
-    if (scriptVersion.equals(loadLatestVersion()))
-      throw new IllegalStateException("The script version " + getScriptName() + ":" + scriptVersion
-          + " is still in use on DB " + getDbId() + " and can not be uninstalled.");
+  /**
+   * @param snapshot The snapshot of the installed schemas
+   * @param versionsToKeep The number of the newest versions to keep
+   * @return The versions older than the newest ones to keep, without the one the unversioned schema reports as its version
+   */
+  public List<String> versionsToUninstall(InstalledScripts snapshot, int versionsToKeep) {
+    return snapshot.versionsToUninstall(getScriptId(), versionsToKeep);
+  }
 
-    //TODO: Remove following workaround once "drop schema cascade"-bug creating orphaned functions is fixed in postgres
-    String schema = getTargetSchema(scriptVersion);
-    batchDeleteFunctions(loadSchemaFunctions(schema));
-    buildDeleteSchemaQuery(schema).write(dataSourceProvider);
-
+  /**
+   * Uninstalls a versioned schema of this script with one statement, which holds an advisory lock on the schema name until it
+   * commits.
+   *
+   * @param version The version to uninstall
+   * @return <code>true</code> if the schema was uninstalled, <code>false</code> if it did not exist anymore
+   */
+  public boolean uninstallVersion(String version) throws SQLException {
+    if (version == null)
+      throw new IllegalArgumentException("Only versioned schemas can be uninstalled.");
+    //TODO: Remove the function loop once "drop schema cascade"-bug creating orphaned functions is fixed in postgres
+    String schema = getTargetSchema(version);
+    long start = System.currentTimeMillis();
+    boolean uninstalled = executeLocked(buildUninstallationStatement(schema));
     compatibleVersions = new HashMap<>(); //Reset the cache
-  }
 
-  private void batchDeleteFunctions(List<String> functionSignatures) throws SQLException {
-    if (functionSignatures.isEmpty())
-      return;
-    SQLQuery.batchOf(buildDeleteFunctionQueries(functionSignatures))
-        .writeBatch(dataSourceProvider);
-  }
-
-  private static List<SQLQuery> buildDeleteFunctionQueries(List<String> functionSignatures) {
-    return functionSignatures.stream()
-        .map(signature -> new SQLQuery("DROP FUNCTION " + signature + " CASCADE"))
-        .toList();
-  }
-
-  private List<String> loadSchemaFunctions(String schema) throws SQLException {
-    return new SQLQuery("""
-        SELECT proc.oid::REGPROCEDURE as signature FROM pg_proc proc LEFT JOIN pg_namespace ns ON proc.pronamespace = ns.oid
-        WHERE ns.nspname = #{schema} AND proc.prokind = 'f'
-        """)
-        .withNamedParameter("schema", schema)
-        .run(dataSourceProvider, rs -> {
-          List<String> signatures = new ArrayList<>();
-          while (rs.next())
-            signatures.add(rs.getString("signature"));
-          return signatures;
-        });
+    if (uninstalled)
+      logger.warn("Uninstalled script version {}:{} on DB {} in {} ms.", getScriptName(), version, getDbId(),
+          System.currentTimeMillis() - start);
+    else
+      logger.info("Script version {}:{} was already uninstalled on DB {}.", getScriptName(), version, getDbId());
+    return uninstalled;
   }
 
   public void cleanupOldScriptVersions(int versionsToKeep) {
     try {
-      final List<String> scriptVersions = listInstalledScriptVersions();
-      if (scriptVersions.size() <= versionsToKeep)
-        return;
-
-      for (String scriptVersion : scriptVersions.subList(0, scriptVersions.size() - versionsToKeep)) {
+      InstalledScripts snapshot = InstalledScripts.load(dataSourceProvider, List.of(this));
+      for (String scriptVersion : versionsToUninstall(snapshot, versionsToKeep)) {
         try {
-          uninstall(scriptVersion);
+          uninstallVersion(scriptVersion);
         }
         catch (Exception e) {
           logger.error("Unable to uninstall script version {}:{} on DB {} during script version cleanup.", getScriptName(),
@@ -480,7 +559,7 @@ public class Script {
     }
   }
 
-  private static Version parseVersion(String version) {
+  static Version parseVersion(String version) {
     String[] versionParts = version.split("\\.");
     String[] patchParts = versionParts[2].split("-");
     int major = Integer.parseInt(versionParts[0]);

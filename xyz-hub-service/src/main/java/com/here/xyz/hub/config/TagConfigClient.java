@@ -85,10 +85,11 @@ public abstract class TagConfigClient implements Initializable {
   }
 
   /**
-   * @return The ID of the system tag which keeps the version: {@code <branchId>_<version>_<taggedBy>}, e.g. main_42_1f0c9a2b3d4e5f60.
+   * @return The ID of the system tag which keeps the version: {@code pin_<version>_<hash of taggedBy>}, e.g. pin_42_1f0c9a2b3d4e5f60.
+   *     A tag ID must not start with a digit, hence the prefix.
    */
   public static String versionTagId(Ref versionRef, String taggedBy) {
-    return versionRef.getBranch() + "_" + versionRef.getVersion() + "_" + Hasher.getHash(taggedBy).substring(0, 16);
+    return "pin_" + versionRef.getVersion() + "_" + Hasher.getHash(taggedBy).substring(0, 16);
   }
 }
 

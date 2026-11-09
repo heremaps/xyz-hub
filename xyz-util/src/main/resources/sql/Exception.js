@@ -113,7 +113,9 @@ class FeatureNotExistsException extends XyzException {
 }
 
 SQLErrors = {
-  CONFLICT: "23505"
+  CONFLICT: "23505",
+  LOCK_NOT_AVAILABLE: "55P03",
+  DUPLICATE_TABLE: "42P07"
 };
 
 if (plv8.global) {

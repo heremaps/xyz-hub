@@ -24,6 +24,7 @@ import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.XyzSerializable.Public;
 import com.here.xyz.XyzSerializable.Static;
+import java.util.HashMap;
 import java.util.Map;
 
 public class JobClientInfo {
@@ -47,7 +48,9 @@ public class JobClientInfo {
 
   @JsonAnySetter
   public JobClientInfo putClientProvidedData(String key, Object value) {
-    getClientProvidedData().put(key, value);
+    if (clientProvidedData == null)
+      clientProvidedData = new HashMap<>();
+    clientProvidedData.put(key, value);
     return this;
   }
 }

@@ -352,6 +352,17 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
     try {
       if (!space().isActive())
         throw new ValidationException("The resource was deactivated. Could not export data from it.");
+
+      /*
+      The ref reaching this step says nothing about which space it was resolved against, or whether it was resolved at all - that can
+      happen in TaskedSpaceBasedStep#prepare, in a compiler (see SpaceCopy) or in the caller. So a SUPER export of a bound composite
+      can not be interpreted soundly; the base space can be exported directly by its own ID instead.
+      TODO: Check whether this should be extended to composites without a bound base version - the same ambiguity applies there, it
+       just has no bound version to contradict.
+       */
+      if (context == SUPER && boundBaseVersion() != null)
+        throw new ValidationException("Exporting with context=" + SUPER + " is not supported for a resource which extends a specific base version."
+                + " Export the base directly instead.");
     }
     catch (WebClientException e) {
       throw new ValidationException("Error loading the space: " + getSpaceId(), e);
@@ -362,8 +373,9 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
       if(spatialFilter.getGeometry() == null)
         throw new ValidationException("Invalid arguments! Geometry cant be null!");
 
-      Geometry jtsGeometry = spatialFilter.getGeometry().getJTSGeometry();
+      //Before the JTS conversion, so that the position count rejects an oversized filter first
       GeometryValidator.validateSpatialFilter(spatialFilter);
+      Geometry jtsGeometry = spatialFilter.getGeometry().getJTSGeometry();
 
       //Enhanced Check validation check of Geometry with JTS
       if(jtsGeometry != null && !jtsGeometry.isValid())
@@ -587,6 +599,13 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
 
     return outputType == CONSISTENT
         ? getFolderPatchQuery(space, targetContext, taskInput) : getFlatPatchQuery(space, targetContext, taskInput);
+  }
+
+  /**
+   * The version this space binds its base space to, or null if it does not extend a specific version.
+   */
+  private Long boundBaseVersion() throws WebClientException {
+    return space().getExtension() == null ? null : space().getExtension().getVersion();
   }
 
   private String getFlatPatchQuery(Space space, SpaceContext targetContext, ExportInput taskInput) throws TooManyResourcesClaimed, WebClientException, QueryBuildingException {

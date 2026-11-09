@@ -23,22 +23,52 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.Payload;
 import com.here.xyz.util.Hasher;
+import com.here.xyz.util.db.pg.InstalledScripts;
 import com.here.xyz.util.db.pg.Script;
+import com.here.xyz.util.db.pg.ScriptInstaller;
+import com.here.xyz.util.db.pg.ScriptInstaller.Outcome;
 import com.here.xyz.util.runtime.FunctionRuntime;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.IntSupplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public class DatabaseSettings extends Payload {
     private static final Logger logger = LogManager.getLogger(DatabaseSettings.class);
     private static final int SCRIPT_VERSIONS_TO_KEEP = 5;
-    private static Map<String, List<Script>> sqlScripts = new ConcurrentHashMap<>();
-    private volatile boolean initialized = false;
+    private static final long SCRIPT_CHECK_RETRY_INTERVAL_MS = 30_000;
+    /**
+     * The script schemas per settings ID and software version, once they were verified or a permanent error occurred
+     */
+    private static final Map<String, List<String>> RESOLVED_SCRIPT_SCHEMAS = new ConcurrentHashMap<>();
+    /**
+     * The last snapshot of the installed scripts that could be loaded per settings ID
+     */
+    private static final Map<String, InstalledScripts> LAST_SCRIPT_SNAPSHOT = new ConcurrentHashMap<>();
+    /**
+     * The time per settings ID before which no script check is done after a transient failure
+     */
+    private static final Map<String, Long> SCRIPT_CHECK_RETRY_AFTER = new ConcurrentHashMap<>();
+    /**
+     * The IDs of the scripts per settings ID and software version, whose installation failed with a permanent error in a check that
+     * still has to be retried because of a transient failure. The retries do not attempt them again.
+     */
+    private static final Map<String, Set<String>> PERMANENTLY_FAILED_SCRIPTS = new ConcurrentHashMap<>();
+    /**
+     * Whether the next initialization has to check the scripts: before the first check and after a check that fell back because of
+     * a transient failure
+     */
+    private boolean scriptCheckDue = true;
+    /**
+     * The script schemas the last check of these settings added to the search path
+     */
+    private List<String> addedScriptSchemas = List.of();
 
     /**
      * A constant that is normally used as environment variable name for the host.
@@ -123,6 +153,12 @@ public class DatabaseSettings extends Payload {
     private boolean dbTestConnectionOnCheckout = true;
     private int dbMaxIdleTime;
     private int statementTimeoutSeconds = 23;
+
+    /**
+     * Script check settings
+     */
+    private int scriptCheckTimeoutSeconds = 5;
+    private int scriptInstallTimeoutSeconds = 15;
 
     private DatabaseSettings() {}
 
@@ -446,6 +482,38 @@ public class DatabaseSettings extends Payload {
         return this;
     }
 
+    /**
+     * @return The timeout in seconds to connect for the script check and for the check query
+     */
+    public int getScriptCheckTimeoutSeconds() {
+        return scriptCheckTimeoutSeconds;
+    }
+
+    public void setScriptCheckTimeoutSeconds(int scriptCheckTimeoutSeconds) {
+        this.scriptCheckTimeoutSeconds = scriptCheckTimeoutSeconds;
+    }
+
+    public DatabaseSettings withScriptCheckTimeoutSeconds(int scriptCheckTimeoutSeconds) {
+        setScriptCheckTimeoutSeconds(scriptCheckTimeoutSeconds);
+        return this;
+    }
+
+    /**
+     * @return The statement and lock timeout in seconds for each statement that installs or uninstalls a script schema
+     */
+    public int getScriptInstallTimeoutSeconds() {
+        return scriptInstallTimeoutSeconds;
+    }
+
+    public void setScriptInstallTimeoutSeconds(int scriptInstallTimeoutSeconds) {
+        this.scriptInstallTimeoutSeconds = scriptInstallTimeoutSeconds;
+    }
+
+    public DatabaseSettings withScriptInstallTimeoutSeconds(int scriptInstallTimeoutSeconds) {
+        setScriptInstallTimeoutSeconds(scriptInstallTimeoutSeconds);
+        return this;
+    }
+
     @JsonIgnore
     private String getApplicationNameForJdbcUrl() {
         return getApplicationName() + "[" + getId() + "_" + getCacheKey() + "]";
@@ -486,40 +554,122 @@ public class DatabaseSettings extends Payload {
     }
 
     /**
-     * Checks whether the latest version of all SQL scripts is installed on the DB and set all script schemas for
-     * the use in the search path.
+     * Checks whether the expected version of all SQL scripts is installed on the DB, installs missing ones and sets all
+     * script schemas for the use in the search path.
+     * The check runs once per JVM, settings ID and software version on one connection, normally with one query. After a
+     * transient failure, the check is repeated at most every {@link #SCRIPT_CHECK_RETRY_INTERVAL_MS} ms and the search path
+     * meanwhile falls back to the newest installed versions known. The repetition happens with the next initialization of any
+     * settings with the same ID, also of these settings (see {@link #init()}).
      */
     private synchronized void checkScripts() {
         if (scriptResourcePaths == null || scriptResourcePaths.isEmpty())
             return;
 
-        String softwareVersion = FunctionRuntime.getInstance() == null ? null : FunctionRuntime.getInstance().getSoftwareVersion();
-        if (!sqlScripts.containsKey(getId())) {
-            logger.info("Checking scripts for connector {} ...", getId());
-            try (DataSourceProvider dataSourceProvider = new StaticDataSources(getScriptInstallationSettings())) {
-                for (ScriptResourcePath scriptResourcePath : scriptResourcePaths) {
-                    List<Script> scripts = Script.loadScripts(scriptResourcePath, dataSourceProvider, softwareVersion);
-                    if (!sqlScripts.containsKey(getId()))
-                        sqlScripts.put(getId(), new ArrayList<>(scripts));
-                    else
-                        sqlScripts.get(getId()).addAll(scripts);
-                }
-                sqlScripts.get(getId()).forEach(script -> {
-                    script.install();
-                    script.cleanupOldScriptVersions(SCRIPT_VERSIONS_TO_KEEP);
-                });
-            }
-            catch (IOException | URISyntaxException e) {
-                throw new RuntimeException("Error reading script resources.", e);
-            }
-            catch (Exception e) {
-                logger.error("Error checking / installing scripts.", e);
-            }
-        }
+        FunctionRuntime runtime = FunctionRuntime.getInstance();
+        String softwareVersion = runtime == null ? null : runtime.getSoftwareVersion();
+        String checkKey = getId() + "|" + softwareVersion;
+        List<String> scriptSchemas = RESOLVED_SCRIPT_SCHEMAS.get(checkKey);
+        if (scriptSchemas == null)
+            scriptSchemas = checkAndInstallScripts(checkKey, softwareVersion, runtime == null ? null : runtime::getRemainingTime);
+
         List<String> extendedSearchPath = new ArrayList<>(getSearchPath() == null ? List.of() : getSearchPath());
-        extendedSearchPath.addAll(sqlScripts.get(getId()).stream().map(script -> script.getCompatibleSchema(softwareVersion)).toList());
+        //A repeated check of these settings replaces the script schemas the previous one added
+        int scriptSchemasStart = extendedSearchPath.size() - addedScriptSchemas.size();
+        if (scriptSchemasStart >= 0 && extendedSearchPath.subList(scriptSchemasStart, extendedSearchPath.size()).equals(addedScriptSchemas))
+            extendedSearchPath.subList(scriptSchemasStart, extendedSearchPath.size()).clear();
+        extendedSearchPath.addAll(scriptSchemas);
+        addedScriptSchemas = scriptSchemas;
         logger.info("Set searchPath for connector {} to... {}", getId(), extendedSearchPath);
         setSearchPath(extendedSearchPath);
+    }
+
+    private List<String> checkAndInstallScripts(String checkKey, String softwareVersion, IntSupplier remainingMillis) {
+        Long retryAfter = SCRIPT_CHECK_RETRY_AFTER.get(getId());
+        long now = System.currentTimeMillis();
+        //After a transient failure, only the first check after the retry interval runs. It moves the retry time before it starts, so
+        //that concurrent checks for the same ID keep the fallback meanwhile.
+        if (retryAfter != null && (now < retryAfter
+            || !SCRIPT_CHECK_RETRY_AFTER.replace(getId(), retryAfter, now + SCRIPT_CHECK_RETRY_INTERVAL_MS))) {
+            logger.info("Skipping the script check for connector {} until {} after a transient failure.", getId(),
+                SCRIPT_CHECK_RETRY_AFTER.getOrDefault(getId(), retryAfter));
+            scriptCheckDue = true;
+            return ScriptInstaller.resolveSchemas(loadScripts(null, softwareVersion), softwareVersion, LAST_SCRIPT_SNAPSHOT.get(getId()));
+        }
+
+        logger.info("Checking scripts for connector {} ...", getId());
+        try (SingleConnectionDataSources dataSourceProvider = new SingleConnectionDataSources(getScriptInstallationSettings(),
+            getScriptCheckTimeoutSeconds(), getScriptInstallTimeoutSeconds() + 5)) {
+            List<Script> scripts = loadScripts(dataSourceProvider, softwareVersion);
+            Set<String> permanentlyFailedScripts = PERMANENTLY_FAILED_SCRIPTS.getOrDefault(checkKey, Set.of());
+            Outcome outcome;
+            try {
+                outcome = ScriptInstaller.checkAndInstall(scripts, dataSourceProvider, softwareVersion, SCRIPT_VERSIONS_TO_KEEP,
+                    getScriptInstallTimeoutSeconds(), remainingMillis, permanentlyFailedScripts);
+            }
+            catch (RuntimeException e) {
+                logger.error("Error checking / installing scripts.", e);
+                outcome = new Outcome(ScriptInstaller.State.TRANSIENT, null, 0, null, permanentlyFailedScripts);
+            }
+
+            if (outcome.snapshot() != null)
+                LAST_SCRIPT_SNAPSHOT.put(getId(), outcome.snapshot());
+
+            if (outcome.state() == ScriptInstaller.State.TRANSIENT) {
+                SCRIPT_CHECK_RETRY_AFTER.put(getId(), System.currentTimeMillis() + SCRIPT_CHECK_RETRY_INTERVAL_MS);
+                //The retry must not repeat the installations that failed permanently
+                if (outcome.permanentlyFailedScripts().isEmpty())
+                    PERMANENTLY_FAILED_SCRIPTS.remove(checkKey);
+                else
+                    PERMANENTLY_FAILED_SCRIPTS.put(checkKey, outcome.permanentlyFailedScripts());
+                scriptCheckDue = true;
+                //Fall back to the newest installed versions of the last snapshot that could be loaded, if any
+                return outcome.snapshot() != null ? outcome.schemas()
+                    : ScriptInstaller.resolveSchemas(scripts, softwareVersion, LAST_SCRIPT_SNAPSHOT.get(getId()));
+            }
+
+            SCRIPT_CHECK_RETRY_AFTER.remove(getId());
+            PERMANENTLY_FAILED_SCRIPTS.remove(checkKey);
+            RESOLVED_SCRIPT_SCHEMAS.put(checkKey, outcome.schemas());
+            return outcome.schemas();
+        }
+    }
+
+    private List<Script> loadScripts(DataSourceProvider dataSourceProvider, String softwareVersion) {
+        try {
+            List<Script> scripts = new ArrayList<>();
+            for (ScriptResourcePath scriptResourcePath : scriptResourcePaths)
+                scripts.addAll(Script.loadScripts(scriptResourcePath, dataSourceProvider, softwareVersion));
+            return scripts;
+        }
+        catch (IOException | URISyntaxException e) {
+            throw new RuntimeException("Error reading script resources.", e);
+        }
+    }
+
+    /**
+     * Resets the state of all script checks in this JVM. Only to be used by tests.
+     */
+    static void resetScriptCheckState() {
+        RESOLVED_SCRIPT_SCHEMAS.clear();
+        LAST_SCRIPT_SNAPSHOT.clear();
+        SCRIPT_CHECK_RETRY_AFTER.clear();
+        PERMANENTLY_FAILED_SCRIPTS.clear();
+    }
+
+    /**
+     * @return The time before which no script check is done for the provided settings ID, <code>null</code> if there is none.
+     *  Only to be used by tests.
+     */
+    static Long getScriptCheckRetryAfter(String settingsId) {
+        return SCRIPT_CHECK_RETRY_AFTER.get(settingsId);
+    }
+
+    /**
+     * Ends the retry interval after a transient failure for the provided settings ID now, if there is one.
+     * Only to be used by tests.
+     */
+    static void expireScriptCheckRetry(String settingsId) {
+        SCRIPT_CHECK_RETRY_AFTER.computeIfPresent(settingsId, (id, retryAfter) -> System.currentTimeMillis());
     }
 
 
@@ -540,10 +690,14 @@ public class DatabaseSettings extends Payload {
 
   /**
      * Must be called whenever this DatabaseSettings objects is used to initialize a new {@link DataSourceProvider}.
+     * The first call checks the scripts. If a check falls back to older script schemas because of a transient failure, the next call
+     * checks again, which makes no DB access before the retry interval has passed. Once the scripts were verified or failed
+     * permanently, later calls do nothing.
      */
     synchronized void init() {
-        if (!initialized) {
-            initialized = true;
+        if (scriptCheckDue) {
+            //NOTE: Reset before the check, because it initializes a provider with the script installation settings, which may be these
+            scriptCheckDue = false;
             checkScripts();
         }
     }

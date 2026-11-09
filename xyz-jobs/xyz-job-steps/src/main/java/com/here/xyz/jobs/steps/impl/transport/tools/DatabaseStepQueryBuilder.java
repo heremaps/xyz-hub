@@ -67,11 +67,30 @@ public abstract class DatabaseStepQueryBuilder {
     return new FeatureWriterQueryBuilder.FeatureWriterQueryContextBuilder()
             .withSchema(schema)
             .withTables(tables)
+            .withTableBoundVersions(buildTableBoundVersions())
             //Honor a user-provided space context (e.g. EXTENSION) and fall back to DEFAULT if none was set
             .withSpaceContext(context != null ? context : DEFAULT)
             .withHistoryEnabled(space.getVersionsToKeep() > 1)
             .withBatchMode(true)
             .with("stepId", stepId)
             .build();
+  }
+
+  /**
+   * The version each table is bound to, positionally aligned with the tables of {@link #getQueryContext()}. Returns null if nothing
+   * is bound, which leaves every table to be read at its HEAD.
+   *
+   * Only the base table of a composite space can be bound, by the extension's {@code extends.version}; the write target never is.
+   * A step only ever resolves one level of extension, so there is at most one bound table here.
+   */
+  private List<Long> buildTableBoundVersions() {
+    Long boundBaseVersion = superRootTable == null || space.getExtension() == null ? null : space.getExtension().getVersion();
+    if (boundBaseVersion == null)
+      return null;
+
+    List<Long> tableBoundVersions = new ArrayList<>();
+    tableBoundVersions.add(boundBaseVersion);
+    tableBoundVersions.add(null); //The write target itself is never bound
+    return tableBoundVersions;
   }
 }

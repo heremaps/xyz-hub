@@ -36,6 +36,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.jobs.JobClientInfo;
+import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.ProcessUpdate;
 import com.here.xyz.jobs.steps.execution.StepException;
 import com.here.xyz.jobs.steps.execution.db.Database;
@@ -94,6 +95,8 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   public static final String FINALIZATION_MARKER = "finalized_marker";
   /** Suffix of the label identifier used to tag task queries with their taskId in {@code pg_stat_activity}. */
   private static final String TASK_ID_LABEL_SUFFIX = "#taskId";
+  /** Timeout of the query which counts the running task queries on a database, see {@link #getMaxTasksPerDatabase()}. */
+  private static final int TASK_COUNT_QUERY_TIMEOUT_SECONDS = 10;
   /** Number of consecutive unknown running-query checks before a task is considered retryable. */
   public static final Integer MAX_UNKNOWN_TASK_QUERY_CHECKS = 3;
   /** Maximum number of retry attempts, for a server side killed single, before failing retry handling. */
@@ -109,6 +112,11 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   public static final long THREAD_SCALE_COOLDOWN_TIME = 2 * 60 * 1000L;
   /** Number of threads the concurrency limit grows by, per elapsed cooldown interval. */
   public static final int THREAD_SCALE_INCREMENT = 3;
+  /**
+   * Time a step without task items waits for its success callback, before a STATE_CHECK reports the success instead.
+   * See {@link #getExecutionState()}.
+   */
+  static final long NO_TASKS_SUCCESS_CALLBACK_TIMEOUT = 2 * 60 * 1000L;
   private TaskedSpaceBasedQueryBuilder taskedSpaceBasedQueryBuilder;
 
   {
@@ -120,6 +128,11 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
 
   @JsonView({Internal.class, Static.class})
   private boolean noTasksCreated = false;
+
+  //When a step without task items requested its success callback, 0 if it did not request one (see #getExecutionState()).
+  //NOTE: status.startedAt can not be used instead, it gets reset by every RUNNING heartbeat of a STATE_CHECK.
+  @JsonView({Internal.class, Static.class})
+  private long successCallbackRequestedAt = 0;
 
   @JsonIgnore
   private boolean finalizedOnResume = false;
@@ -136,6 +149,9 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   protected long minSpaceVersion = -1;
   @JsonView({Internal.class, Static.class})
   protected long maxSpaceVersion = -1;
+  //Whether the step got finalized (incl. its clean-up) while resetting the task items of a previous attempt
+  @JsonIgnore
+  private boolean finalizedOnTaskItemReset = false;
 
   public Ref getVersionRef() {
     return versionRef;
@@ -294,20 +310,48 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   protected abstract double calculateOverallNeededACUs();
 
   /**
-   * Performs initial setup before starting the job step execution.
+   * Prepares an execution attempt of the step before its task items get created or reset.
    * <p>
-   * This method can be overridden by subclasses to implement any required initialization logic,
-   * such as preparing resources, validating prerequisites, or configuring the environment.
-   * The hook is invoked for both fresh executions and resumed executions.
+   * Use this hook for decisions which have to be taken once per execution attempt, e.g., allocating the target
+   * version a fresh execution writes with, or restoring such a decision from the task items on a resume.
+   * </p>
+   * <p>
+   * <b>Do not create database objects here which the task queries rely on</b> (e.g., triggers, partitions or helper
+   * tables). Create them in {@link #ensureDbResources()} instead, which the framework calls on every path that
+   * starts tasks.
+   * </p>
+   * <p>
+   * On a resume, the task table may not exist anymore. In that case the hook may fail with an {@link SQLException}
+   * of state {@code 42P01}, upon which the framework falls back to a fresh execution and calls this hook once more
+   * with {@code resume = false}.
    * </p>
    *
-   * @param resume {@code true} when the step is resumed after a previous attempt and should restore
-   *               or rebuild any required state accordingly; {@code false} for a fresh execution.
+   * @param resume {@code true} when the step is resumed after a previous attempt; {@code false} for a fresh execution.
    * @throws SQLException If a database access error occurs.
    * @throws TooManyResourcesClaimed If too many resources are claimed during setup.
    * @throws WebClientException If an error occurs while interacting with the web client.
    */
-  protected void initialSetup(boolean resume) throws SQLException, TooManyResourcesClaimed, WebClientException {};
+  protected void prepareExecution(boolean resume) throws SQLException, TooManyResourcesClaimed, WebClientException {}
+
+  /**
+   * Ensures that all database objects the task queries rely on exist (e.g., triggers, partitions or helper tables).
+   * <p>
+   * The framework calls this hook right before it starts the first tasks - for a fresh execution as well as for
+   * every resume. Implementations therefore must be idempotent (e.g., {@code CREATE OR REPLACE ...},
+   * {@code CREATE ... IF NOT EXISTS}) and must <b>not</b> assume that objects created by a previous attempt still
+   * exist. Between a failure and a resume such objects may have been removed outside of the step, e.g., by the cleanup
+   * of an outdated SQL script version, which drops the script's functions together with all triggers using them.
+   * </p>
+   * <p>
+   * The hook is called after {@link #prepareExecution(boolean)}, so it can rely on the state restored there.
+   * It is not called if a resume detects that all task items are finalized already.
+   * </p>
+   *
+   * @throws SQLException If a database access error occurs.
+   * @throws TooManyResourcesClaimed If too many resources are claimed while creating the objects.
+   * @throws WebClientException If an error occurs while interacting with the web client.
+   */
+  protected void ensureDbResources() throws SQLException, TooManyResourcesClaimed, WebClientException {}
 
   /**
    * Performs final cleanup after all tasks have completed.
@@ -500,11 +544,89 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   }
 
   /**
+   * Limits the number of tasks to be started by the free task slots of the database the step runs on
+   * (see {@link #getMaxTasksPerDatabase()}).
+   * <p>
+   * The concurrency limit of a step only applies to the step itself. Several steps (e.g., the imports of one job into
+   * several layers) can run on the same database at the same time, so a step with a database limit is additionally limited
+   * per database. The running task queries of all steps count towards that limit.
+   * A step without running tasks may always start one task, also if the database limit is reached. Otherwise, its state
+   * check would not find any running task and the step would fail after the heartbeat timeout
+   * (see {@link #getExecutionState()}).
+   * </p>
+   *
+   * @param startableTasks The number of tasks the step may start according to its own concurrency limit.
+   * @param runningTasksOfStep The number of running tasks of the step.
+   * @param maxTasksPerDb The maximum number of running task queries on the database, a value {@code <= 0} for no limit.
+   * @param runningTasksOnDb The number of running task queries of all steps on the database, {@code null} if it is unknown.
+   *  An unknown number is treated as if the limit was reached.
+   * @return The number of tasks that may be started. Never negative and never more than {@code startableTasks}.
+   */
+  public static int limitByDatabaseTaskSlots(int startableTasks, int runningTasksOfStep, int maxTasksPerDb,
+      Integer runningTasksOnDb) {
+    if (startableTasks <= 0)
+      return 0;
+    if (maxTasksPerDb <= 0)
+      return startableTasks;
+
+    int freeSlots = runningTasksOnDb == null ? 0 : Math.max(maxTasksPerDb - runningTasksOnDb, 0);
+    if (runningTasksOfStep <= 0)
+      freeSlots = Math.max(freeSlots, 1);
+    return Math.min(startableTasks, freeSlots);
+  }
+
+  /**
+   * The maximum number of task queries that may run on the database of this step at the same time, up to which the step starts
+   * additional tasks. The running task queries of all steps on the database are counted.
+   * A step whose task queries are expensive for the database can return a limit.
+   *
+   * @return The limit, or null (the default) or a value {@code <= 0} for no limit. Without a limit, the running task queries are
+   *  not counted at all.
+   */
+  protected Integer getMaxTasksPerDatabase() throws WebClientException {
+    return null;
+  }
+
+  /**
+   * Limits the number of tasks to be started by the free task slots of the database the step's task queries run on,
+   * if the step has a database limit (see {@link #getMaxTasksPerDatabase()}).
+   * See {@link #limitByDatabaseTaskSlots(int, int, int, Integer)}.
+   */
+  private int limitByDatabaseTaskSlots(int startableTasks, int runningTasksOfStep, LogPhase phase) throws WebClientException {
+    if (startableTasks <= 0)
+      return 0;
+    Integer configuredLimit = getMaxTasksPerDatabase();
+    int maxTasksPerDb = configuredLimit == null ? 0 : configuredLimit;
+    if (maxTasksPerDb <= 0)
+      return startableTasks;
+
+    Integer runningTasksOnDb = null;
+    String dbName = "the database";
+    try {
+      Database db = queryRunsOnWriter() ? dbWriter() : dbReader();
+      dbName = db.getName() + ":" + db.getRole();
+      runningTasksOnDb = SQLQuery.countRunningWithLabelSuffix(requestResource(db, 0d), db.getRole() != WRITER, TASK_ID_LABEL_SUFFIX,
+          TASK_COUNT_QUERY_TIMEOUT_SECONDS);
+    }
+    catch (Exception e) {
+      warnLog(phase, "Could not count the running task queries on " + dbName + ". Treating the database task limit as reached."
+          + " Reason: " + e.getMessage());
+    }
+
+    int limitedTasks = limitByDatabaseTaskSlots(startableTasks, runningTasksOfStep, maxTasksPerDb, runningTasksOnDb);
+    if (limitedTasks < startableTasks)
+      infoLog(phase, "Database task limit: " + (runningTasksOnDb == null ? "unknown" : runningTasksOnDb) + " of " + maxTasksPerDb
+          + " task queries are running on " + dbName + ". Starting " + limitedTasks + " instead of " + startableTasks + " task(s).");
+    return limitedTasks;
+  }
+
+  /**
    * Starts the initial task set of the step.
    * <p>
-   * Both a fresh execution and a resume restart the concurrency ramp-up beforehand, so this always starts
-   * {@link #INITIAL_THREAD_COUNT} tasks. The concurrency is raised from there during the periodic state checks,
-   * see {@link #scaleUpConcurrency(TaskProgress)}.
+   * Both a fresh execution and a resume restart the concurrency ramp-up beforehand, so this starts
+   * {@link #INITIAL_THREAD_COUNT} tasks, or fewer (at least one) if the database task limit is reached
+   * (see {@link #limitByDatabaseTaskSlots(int, int, int, Integer)}). The concurrency is raised from there during the periodic
+   * state checks, see {@link #scaleUpConcurrency(TaskProgress)}.
    * </p>
    *
    * @throws TooManyResourcesClaimed If too many resources are claimed during the process.
@@ -515,7 +637,8 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   private void startInitialTasks() throws TooManyResourcesClaimed,
           QueryBuildingException, WebClientException, SQLException, InvalidGeometryException {
     List<TaskProgress<I>> claimedInitialTasks = new ArrayList<>();
-    int initialThreadCount = getCurrentMaxThreadCount(0);
+    //No task of this step is running yet, also not on a resume, which resets the task items that were not finalized
+    int initialThreadCount = limitByDatabaseTaskSlots(getCurrentMaxThreadCount(0), 0, STEP_EXECUTE);
 
     infoLog(STEP_EXECUTE, "Starting with a concurrency of " + initialThreadCount + " (configured threadCount: "
             + threadCount + ")");
@@ -607,12 +730,12 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   public void execute(boolean resume) throws Exception {
     //The following code is running synchronously till the first task is getting started.
     if (!resume) {
-      initialSetup(false);
+      prepareExecution(false);
       createAndInsertTaskItems();
     }else{
       try {
-        //we need to do the initialSetup here to be able to cover the case that the table does not already exists.
-        initialSetup(true);
+        //we need to do the preparation here to be able to cover the case that the table does not already exists.
+        prepareExecution(true);
         if (resetTaskItems()) return;
       }catch (SQLException e){
         if (e.getSQLState() != null && e.getSQLState().toUpperCase().equals("42P01")) {
@@ -628,14 +751,30 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
           }
           //Can not retrieve output - start from scratch
           infoLog(STEP_EXECUTE, "Reset of taskItems failed cause job_data table is missing! Recreating it!");
-          initialSetup(false);
+          prepareExecution(false);
           createAndInsertTaskItems();
         }else
           throw e;
       }
     }
+    //A fresh execution may find the task table of a previous attempt with all items finalized. Then the step got
+    //finalized and cleaned up already while resetting the task items, so nothing must be (re)created anymore.
+    if (!finalizedOnTaskItemReset)
+      ensureDbResources();
+
     startInitialTasks();
     noTasksCreated = taskItemCount == 0;
+
+    //Without task items, no task callback will ever arrive. Let the database send the success callback right away, instead of
+    //waiting for a STATE_CHECK, which only reports the success if this callback did not arrive (see #getExecutionState()).
+    //NOTE: The success is not reported from within this request. The step function may only start to wait for it once this
+    //request has returned and then miss it (LocalStack does so, the step then fails with a heartbeat timeout).
+    //A step which got finalized while resetting the task items of a previous attempt has succeeded already.
+    if (noTasksCreated && !finalizedOnTaskItemReset) {
+      infoLog(STEP_EXECUTE, "No task items were created -> request the success callback.");
+      successCallbackRequestedAt = System.currentTimeMillis();
+      runWriteQueryAsync(new SQLQuery("PERFORM 1"), db(WRITER), 0);
+    }
   }
 
   private boolean resetTaskItems() throws TooManyResourcesClaimed, SQLException, WebClientException {
@@ -650,6 +789,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
     //finalized, nothing needs to be (re)started - just collect the produced outputs and succeed directly.
     if (resetItemCount == 0 && getTaskProgress().isComplete()) {
       infoLog(STEP_EXECUTE, "All task items are already finalized on resume -> collect outputs and finalize.");
+      finalizedOnTaskItemReset = true;
       reportAsyncSuccess();
       return true;
     }
@@ -684,6 +824,13 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
           return false;
         }
 
+        //The progress is stored already, so a resume continues after it
+        if (!isTaskActiveInSfn()) {
+          infoLog(STEP_ON_ASYNC_UPDATE, "The task of the step does not exist in SFN anymore. No follow-up query gets started"
+              + " for taskId=" + update.taskId + ".");
+          return false;
+        }
+
         onTaskProgress(update.taskId, (O) update.taskOutput);  //hook method
       }else{
         finalizeTaskQuery(update.taskId); //hook method
@@ -700,6 +847,16 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
 
         if (!taskProgressAndItem.hasTaskItem()) {
           infoLog(STEP_ON_ASYNC_UPDATE,"No claimable task. Waiting for running tasks to finish: " + taskProgressAndItem);
+          return false;
+        }
+
+        /*
+        The finished task is finalized already. The claimed task stays started without a query, a resume resets it like any
+        other started task which is not finalized.
+         */
+        if (!isTaskActiveInSfn()) {
+          infoLog(STEP_ON_ASYNC_UPDATE, "The task of the step does not exist in SFN anymore. The claimed task "
+              + taskProgressAndItem.getTaskId() + " does not get started.");
           return false;
         }
 
@@ -723,8 +880,21 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
 
     infoLog(STEP_ON_ASYNC_SUCCESS, "Reached onAsyncSuccess! Start collecting task outputs!");
 
-    //Collect outputs and process them
-    processFinalizedTasks(collectOutputs());
+    List<FinalizedTaskItem<I,O>> finalizedTaskItems;
+    try {
+      finalizedTaskItems = collectOutputs();
+    }
+    catch (SQLException e) {
+      if (!"42P01".equalsIgnoreCase(e.getSQLState()) || !(noTasksCreated || isFinalizationMarkerPresent()))
+        throw e;
+      //The task table gets dropped only after the outputs were processed. So another success report (e.g., a late success
+      //callback after the fallback of #getExecutionState()) has finalized the step already, and nothing must be processed twice.
+      infoLog(STEP_ON_ASYNC_SUCCESS, "Task table does not exist anymore, the step was finalized already. Skip output collection.");
+      return;
+    }
+
+    //Process the collected outputs
+    processFinalizedTasks(finalizedTaskItems);
 
     infoLog(STEP_ON_ASYNC_SUCCESS, "End collecting task outputs!");
     //Clean up temporary resources
@@ -807,10 +977,14 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
     });
   }
 
+  private boolean isFinalizationMarkerPresent() {
+    return !loadStepOutputs(getOutputSet(FINALIZATION_MARKER)).isEmpty();
+  }
+
   @Override
   public AsyncExecutionState getExecutionState() throws UnknownStateException {
     if (noTasksCreated)
-      return AsyncExecutionState.SUCCEEDED;
+      return getExecutionStateWithoutTasks();
 
     try {
       TaskProgress<?> taskProgress = getTaskProgress();
@@ -824,6 +998,27 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
     catch (TooManyResourcesClaimed e) {
       throw new StepException("Unexpected error occurred during execution state check for step: " + getGlobalStepId() + " !", e);
     }
+  }
+
+  /**
+   * A step without task items reports its success through the success callback, which gets requested in {@link #execute(boolean)}.
+   * A STATE_CHECK only reports the success if that callback did not arrive within {@link #NO_TASKS_SUCCESS_CALLBACK_TIMEOUT},
+   * e.g., because it got lost. Otherwise, both would run the success handling at the same time.
+   * A step which did not request the callback (e.g., one started by a previous version) succeeds right away.
+   */
+  private AsyncExecutionState getExecutionStateWithoutTasks() {
+    if (successCallbackRequestedAt <= 0) {
+      infoLog(STEP_ON_STATE_CHECK, "No task items were created and no success callback was requested -> succeed.");
+      return AsyncExecutionState.SUCCEEDED;
+    }
+    long waitingTime = System.currentTimeMillis() - successCallbackRequestedAt;
+    if (waitingTime < NO_TASKS_SUCCESS_CALLBACK_TIMEOUT) {
+      infoLog(STEP_ON_STATE_CHECK, "No task items were created. Waiting for the success callback.");
+      return AsyncExecutionState.RUNNING;
+    }
+    infoLog(STEP_ON_STATE_CHECK, "No task items were created and the success callback did not arrive within "
+        + NO_TASKS_SUCCESS_CALLBACK_TIMEOUT + "ms -> succeed.");
+    return AsyncExecutionState.SUCCEEDED;
   }
 
   private AsyncExecutionState evaluateExecutionState(TaskProgress<?> taskProgress)
@@ -928,6 +1123,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
     int currentMaxThreadCount = getCurrentMaxThreadCount(taskProgress.getScalingElapsedMillis());
     int runningTasks = taskProgress.getRunningTasks();
     int startableTasks = getStartableTaskCount(currentMaxThreadCount, runningTasks, taskProgress.getUnstartedTasks());
+    startableTasks = limitByDatabaseTaskSlots(startableTasks, runningTasks, STEP_ON_STATE_CHECK);
 
     if (startableTasks == 0)
       return;

@@ -27,7 +27,6 @@ import static com.here.xyz.util.db.pg.IndexHelper.buildSpaceTableIndexQueries;
 import static com.here.xyz.util.db.pg.IndexHelper.buildOnDemandIndexCreationQuery;
 
 import com.here.xyz.XyzSerializable;
-import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.util.Hasher;
 import com.here.xyz.util.db.ConnectorParameters.TableLayout;
 import com.here.xyz.util.db.SQLQuery;
@@ -62,21 +61,6 @@ public class XyzSpaceTableHelper {
 
   public static List<SQLQuery> buildCreateSpaceTableQueries(String schema, String table, List<OnDemandIndex> onDemandIndices,
       String spaceId, TableLayout layout) {
-    return buildCreateSpaceTableQueries(schema, table, true, onDemandIndices, spaceId, layout);
-  }
-
-  //TODO: Check from where to get the on-demand index info in case of branch creations (see onDemandIndices param below)
-  public static List<SQLQuery> buildCreateBranchTableQueries(String schema, String table, String spaceId) {
-    return buildCreateSpaceTableQueries(schema, table, false, List.of(), spaceId);
-  }
-
-  public static List<SQLQuery> buildCreateSpaceTableQueries(String schema, String table, boolean isMainTable,  List<OnDemandIndex> onDemandIndices,
-                                                            String spaceId) {
-    return buildCreateSpaceTableQueries(schema, table, isMainTable, onDemandIndices, spaceId, OLD_LAYOUT);
-  }
-
-  public static List<SQLQuery> buildCreateSpaceTableQueries(String schema, String table, boolean isMainTable,  List<OnDemandIndex> onDemandIndices,
-                                                            String spaceId, TableLayout layout) {
     if (layout != TableLayout.OLD_LAYOUT && layout != TableLayout.NEW_LAYOUT) {
       throw new IllegalArgumentException("Unsupported Table Layout: " + layout);
     }
@@ -99,9 +83,6 @@ public class XyzSpaceTableHelper {
       queries.add(buildOnDemandIndexCreationQuery(schema, table, GLOBAL_VERSION_PROPERTY_KEY, SEARCHABLE_COLUMN , false));
       queries.add(buildOnDemandIndexCreationQuery(schema, table, REFERENCES_PROPERTY_KEY + "::ARRAY", SEARCHABLE_COLUMN , false));
     }
-    if (isMainTable)
-      queries.add(buildCreateBranchSequenceQuery(schema, table));
-
     return queries;
   }
 
@@ -224,10 +205,6 @@ public class XyzSpaceTableHelper {
     throw new IllegalArgumentException("Unsupported Table Layout: " + layout);
   }
 
-  public static SQLQuery buildCreateBranchSequenceQuery(String schema, String table) {
-    return buildCreateSequenceQuery(schema, table, "branches", "id", 1);
-  }
-
   public static String sequenceName(String table, String sequenceName) {
     return table + "_" + sequenceName + "_seq";
   }
@@ -282,7 +259,7 @@ public class XyzSpaceTableHelper {
             .withVariable(TABLE, table);
   }
 
-  public static List<SQLQuery>  buildCleanUpQuery(ModifySpaceEvent event, String schema, String table, String versionSequenceSuffix, TableLayout layout) {
+  public static List<SQLQuery>  buildCleanUpQuery(String schema, String table, String versionSequenceSuffix, TableLayout layout) {
     List<SQLQuery> queries = new ArrayList<>();
 
     SQLQuery dropTableQuery = new SQLQuery("DROP TABLE IF EXISTS ${schema}.${table} ") //TODO: Why not use CASCADE
@@ -293,27 +270,10 @@ public class XyzSpaceTableHelper {
             .withVariable(SCHEMA, schema);
 
     if(layout == TableLayout.OLD_LAYOUT) {
-      //MMSUP-1092  tmp workaroung on db9 - skip deletion from spaceMetaTable
-      //TODO: remove spaceMetaTable from overall code
-      String storageID = event.getSpaceDefinition() != null && event.getSpaceDefinition().getStorage() != null
-                      ? event.getSpaceDefinition().getStorage().getId()
-                      : "no-connector-info-available";
-      //Remove also event as parameter and cleanUp deleteSpaceMetaEntry
-      //MMSUP-1092
-
-      // Gets removed
-      SQLQuery deleteSpaceMetaEntry = "psql-db9-eu-west-1".equals(storageID) ? new SQLQuery("") :
-              new SQLQuery("DELETE FROM xyz_config.space_meta WHERE h_id = #{table} AND schem = #{schema};")
-              .withNamedParameter(SCHEMA, schema)
-              .withNamedParameter(TABLE, table);
-
       SQLQuery dropISequenceQuery = new SQLQuery("DROP SEQUENCE IF EXISTS ${schema}.${iSequence};")
               .withVariable("iSequence", table + "_i_seq") //Assuming iSequence suffix is "_i_seq"
               .withVariable(SCHEMA, schema);
 
-      // Gets removed
-      queries.add(deleteSpaceMetaEntry);
-      // Gets removed
       queries.add(dropTableQuery);
       queries.add(dropISequenceQuery);
       queries.add(dropVersionSequenceQuery);

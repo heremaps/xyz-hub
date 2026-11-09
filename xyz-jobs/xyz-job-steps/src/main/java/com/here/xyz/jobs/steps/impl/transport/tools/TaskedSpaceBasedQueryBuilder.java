@@ -66,6 +66,8 @@ public class TaskedSpaceBasedQueryBuilder extends DatabaseStepQueryBuilder {
             UPDATE ${schema}.${table}
                   SET
                     updated_at = now(),
+                    --A task which reports progress has a running query chain, so the checks without a running query start anew
+                    unknown_query_state_occurrences = 0,
                     task_output = (
                       COALESCE(task_output, '{}'::JSONB) || #{taskUpdate}::JSONB
                   ) || jsonb_build_object(

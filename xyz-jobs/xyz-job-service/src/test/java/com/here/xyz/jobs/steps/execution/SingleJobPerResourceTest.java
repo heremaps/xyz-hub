@@ -19,20 +19,31 @@
 
 package com.here.xyz.jobs.steps.execution;
 
+import static com.here.xyz.jobs.RuntimeInfo.State.PENDING;
+import static com.here.xyz.jobs.steps.execution.JobExecutor.olderPendingConflicts;
 import static com.here.xyz.jobs.steps.execution.JobExecutor.resourcesConflict;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.XyzSerializable.Static;
 import com.here.xyz.jobs.Job;
+import com.here.xyz.jobs.RuntimeStatus;
 import com.here.xyz.jobs.datasets.DatasetDescription;
 import com.here.xyz.jobs.datasets.DatasetDescription.Space;
 import com.here.xyz.jobs.datasets.Files;
+import com.here.xyz.jobs.service.Config;
+import com.here.xyz.jobs.steps.StepGraph;
+import com.here.xyz.jobs.steps.execution.fusion.SimpleTestStep;
 import java.lang.reflect.Field;
+import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 public class SingleJobPerResourceTest {
@@ -40,6 +51,51 @@ public class SingleJobPerResourceTest {
   private static final String STABLE_BASE_LAYER = "some-stable-layer";
   //A regular layer that is extended, but is not a base / global resource
   private static final String NORMAL_LAYER = "some-base-layer";
+
+  @BeforeAll
+  public static void registerTestSubtypes() {
+    //Needed for deserializing step graphs
+    if (Config.instance == null)
+      new Config();
+    XyzSerializable.registerSubtypes(StepGraph.class, SimpleTestStep.class);
+  }
+
+  @Test
+  public void onlyTheOlderPendingJobDirectlyOnTheStableLayerBlocksACompositeJob() throws Exception {
+    Job directOnBase = pendingJob("direct-on-base", space(STABLE_BASE_LAYER), 1);
+    Job inheritingB = pendingJob("inheriting-b", compositeSpace("composite-b", STABLE_BASE_LAYER), 2);
+    Job inheritingC = pendingJob("inheriting-c", compositeSpace("composite-c", STABLE_BASE_LAYER), 3);
+    Job job = pendingJob("job", compositeSpace("composite-a", STABLE_BASE_LAYER), 10);
+
+    assertEquals(List.of(directOnBase.getId()), ids(olderPendingConflicts(job, List.of(inheritingC, directOnBase, inheritingB, job))));
+  }
+
+  @Test
+  public void newerPendingJobsAndTheJobItselfAreNoOlderPendingConflicts() throws Exception {
+    Job job = pendingJob("job", compositeSpace("composite-a", STABLE_BASE_LAYER), 10);
+    Job newerOnBase = pendingJob("newer-on-base", space(STABLE_BASE_LAYER), 20);
+    Job newerOnSameLayer = pendingJob("newer-on-same-layer", compositeSpace("composite-a", STABLE_BASE_LAYER), 30);
+
+    assertEquals(List.of(), olderPendingConflicts(job, List.of(job, newerOnBase, newerOnSameLayer)));
+  }
+
+  @Test
+  public void olderPendingConflictsDoNotDependOnTheSteps() throws Exception {
+    Job job = pendingJob("job", compositeSpace("composite-a", STABLE_BASE_LAYER), 10);
+    List<Job> pendingJobs = List.of(
+        pendingJob("on-same-layer", compositeSpace("composite-a", STABLE_BASE_LAYER), 5),
+        pendingJob("direct-on-base", space(STABLE_BASE_LAYER), 2),
+        pendingJob("inheriting-b", compositeSpace("composite-b", STABLE_BASE_LAYER), 1),
+        pendingJob("newer-on-base", space(STABLE_BASE_LAYER), 20),
+        job);
+    List<Job> pendingJobsWithoutSteps = pendingJobs.stream().map(SingleJobPerResourceTest::withoutSteps).toList();
+    pendingJobs.forEach(pendingJob -> assertNotNull(pendingJob.getSteps()));
+    pendingJobsWithoutSteps.forEach(pendingJob -> assertNull(pendingJob.getSteps()));
+
+    assertEquals(List.of("direct-on-base", "on-same-layer"), ids(olderPendingConflicts(job, pendingJobs)));
+    assertEquals(List.of("direct-on-base", "on-same-layer"), ids(olderPendingConflicts(job, pendingJobsWithoutSteps)));
+    assertEquals(List.of("direct-on-base", "on-same-layer"), ids(olderPendingConflicts(withoutSteps(job), pendingJobsWithoutSteps)));
+  }
 
   @Test
   public void compositeJobsSharingOnlyTheStableLayerDoNotConflict() throws Exception {
@@ -118,6 +174,32 @@ public class SingleJobPerResourceTest {
     Map<String, Object> persistedJob = job.toMap(Static.class);
     persistedJob.put("resourceKeys", resourceKeys);
     return XyzSerializable.fromMap(persistedJob, Job.class);
+  }
+
+  /**
+   * A stored PENDING export job with a small step graph.
+   */
+  private static Job pendingJob(String jobId, DatasetDescription source, long createdAt) {
+    return stored(new Job()
+        .withId(jobId)
+        .withSource(source)
+        .withTarget(new Files<>())
+        .withStatus(new RuntimeStatus().withState(PENDING))
+        .withCreatedAt(createdAt)
+        .withSteps(new StepGraph().addExecution(new SimpleTestStep<>("param").withJobId(jobId))));
+  }
+
+  /**
+   * Simulates a job that was loaded without its steps, see {@link com.here.xyz.jobs.config.JobConfigClient#loadJobsWithoutSteps}.
+   */
+  private static Job withoutSteps(Job job) {
+    Map<String, Object> persistedJob = job.toMap(Static.class);
+    persistedJob.remove("steps");
+    return XyzSerializable.fromMap(persistedJob, Job.class);
+  }
+
+  private static List<String> ids(Collection<Job> jobs) {
+    return jobs.stream().map(Job::getId).toList();
   }
 
   private static Space space(String spaceId) {

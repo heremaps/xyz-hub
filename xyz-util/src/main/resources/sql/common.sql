@@ -42,8 +42,6 @@
 DO $initializeDatabase$
     DECLARE
         config_schema_name text := 'xyz_config';
-        --Deprecated
-        config_space_meta_table text := 'space_meta';
         original_search_path text := current_setting('search_path');
     BEGIN
         IF EXISTS(SELECT extname FROM pg_extension WHERE extname = 'postgis') THEN
@@ -66,16 +64,8 @@ DO $initializeDatabase$
             CREATE EXTENSION IF NOT EXISTS aws_s3 CASCADE;
         END IF;
 
-        -- Deprecated - can be removed if the below tables are not used anymore
+        -- Deprecated - can be removed once xyz_config.xyz_idxs_status is not used anymore
         EXECUTE format('CREATE SCHEMA IF NOT EXISTS %I', config_schema_name);
-
-        EXECUTE format('CREATE TABLE IF NOT EXISTS %I.%I (
-            id text NOT NULL,
-            schem text NOT NULL,
-            h_id text,
-            meta jsonb,
-            CONSTRAINT xyz_space_meta_pkey PRIMARY KEY (id, schem)
-        );', config_schema_name, config_space_meta_table);
 
         --Ensure to restore the original search path because some of the installations above might have changed it
         EXECUTE format('SET search_path = %s', original_search_path);
@@ -181,22 +171,17 @@ BEGIN
 		RAISE EXCEPTION 'Unknown context: %!', context;
 	END IF;
 
+	--min_version is always 0 here, the Hub computes the real lower bound (see FeatureTaskHandler)
 	IF space_ext_table IS NULL THEN
 		EXECUTE format(
-		    'SELECT (SELECT COALESCE((meta->>''minAvailableVersion'')::BIGINT,0) FROM xyz_config.space_meta WHERE h_id=%1$L), '
-	            || 'MAX(version), pg_total_relation_size(%2$L) FROM %2$s',
-		    regexp_replace(replace(space_table::text, '"', ''), '_head$', '') , space_table
+		    'SELECT 0::BIGINT, MAX(version), pg_total_relation_size(%1$L) FROM %1$s',
+		    space_table
 		) INTO min_version, max_version, table_size;
 
 		RETURN QUERY SELECT table_size, A.table_count, A.is_estimated, min_version, max_version
 		FROM fetch_table_count(space_table) A;
 	ELSE
-		EXECUTE format('SELECT (SELECT COALESCE((meta->>''minAvailableVersion'')::BIGINT,0) FROM xyz_config.space_meta WHERE h_id=%1$L), '
-				|| 'MAX(version), pg_total_relation_size(%2$L) FROM %2$s',
-			(CASE context
-				WHEN 'SUPER' THEN regexp_replace(replace(space_ext_table::text, '"', ''), '_head$', '')
-				ELSE regexp_replace(replace(space_table::text, '"', ''), '_head$', '')
-			END),
+		EXECUTE format('SELECT 0::BIGINT, MAX(version), pg_total_relation_size(%1$L) FROM %1$s',
 			(CASE context
 				WHEN 'SUPER' THEN space_ext_table
 				ELSE space_table

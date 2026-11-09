@@ -31,18 +31,17 @@ if [ "$inContainer" = "true" ]; then
 fi
 
 #Create the local test bucket but only if not existing yet
-aws --endpoint "$LOCAL_STACK_HOST" s3api head-bucket --bucket test-bucket > /dev/null 2>&1
-if [ $? -ne 0 ]; then
-  aws --endpoint "$LOCAL_STACK_HOST" s3api create-bucket --bucket test-bucket --create-bucket-configuration LocationConstraint=eu-west-1
+if ! aws --endpoint-url "$LOCAL_STACK_HOST" s3api head-bucket --bucket test-bucket > /dev/null 2>&1; then
+  aws --endpoint-url "$LOCAL_STACK_HOST" s3api create-bucket --bucket test-bucket --create-bucket-configuration LocationConstraint=eu-west-1
 fi
 
 #Create the local event rule / heartbeat trigger
 state_machine_arn_prefix=arn:aws:states:us-east-1:000000000000:stateMachine:job-
 
 # Create or get the event rule
-rule_arn=$(aws --endpoint "$LOCAL_STACK_HOST" events describe-rule --name StepFunctionStateChangeRule --region us-east-1 \
+rule_arn=$(aws --endpoint-url "$LOCAL_STACK_HOST" events describe-rule --name StepFunctionStateChangeRule --region us-east-1 \
   --query 'Arn' --output text 2>/dev/null || \
-  aws --endpoint "$LOCAL_STACK_HOST" events put-rule \
+  aws --endpoint-url "$LOCAL_STACK_HOST" events put-rule \
     --name StepFunctionStateChangeRule \
     --event-pattern "{\"source\":[\"aws.states\"],\"detail-type\":[\"Step Functions Execution Status Change\"],\"detail\":{\"stateMachineArn\":[{\"prefix\":\"$state_machine_arn_prefix\"}]}}" \
     --state ENABLED \
@@ -50,10 +49,10 @@ rule_arn=$(aws --endpoint "$LOCAL_STACK_HOST" events describe-rule --name StepFu
     --query 'RuleArn' --output text)
 
 # Create or get the connection
-connection_arn=$(aws --endpoint "$LOCAL_STACK_HOST" events list-connections --region us-east-1 \
+connection_arn=$(aws --endpoint-url "$LOCAL_STACK_HOST" events list-connections --region us-east-1 \
   --query "Connections[?Name=='JobApiConnection'].ConnectionArn" --output text)
 if [ -z "$connection_arn" ]; then
-  connection_arn=$(aws --endpoint "$LOCAL_STACK_HOST" events create-connection \
+  connection_arn=$(aws --endpoint-url "$LOCAL_STACK_HOST" events create-connection \
     --name JobApiConnection \
     --authorization-type API_KEY \
     --auth-parameters "ApiKeyAuthParameters={ApiKeyName=apiKey,ApiKeyValue=dummy-admin-api-key}" \
@@ -62,10 +61,10 @@ if [ -z "$connection_arn" ]; then
 fi
 
 # Create or get the API destination
-api_destination_arn=$(aws --endpoint "$LOCAL_STACK_HOST" events list-api-destinations --region us-east-1 \
+api_destination_arn=$(aws --endpoint-url "$LOCAL_STACK_HOST" events list-api-destinations --region us-east-1 \
   --query "ApiDestinations[?Name=='JobApiDestination'].ApiDestinationArn" --output text)
 if [ -z "$api_destination_arn" ]; then
-  api_destination_arn=$(aws --endpoint "$LOCAL_STACK_HOST" events create-api-destination \
+  api_destination_arn=$(aws --endpoint-url "$LOCAL_STACK_HOST" events create-api-destination \
     --name JobApiDestination \
     --connection-arn "$connection_arn" \
     --invocation-endpoint http://host.docker.internal:7070/admin/state/events \
@@ -75,7 +74,7 @@ if [ -z "$api_destination_arn" ]; then
 fi
 
 # Put targets (idempotent)
-aws --endpoint "$LOCAL_STACK_HOST" events put-targets \
+aws --endpoint-url "$LOCAL_STACK_HOST" events put-targets \
   --rule StepFunctionStateChangeRule \
   --targets "Id"="JobApiDestination","Arn"="$api_destination_arn" \
   --region us-east-1
