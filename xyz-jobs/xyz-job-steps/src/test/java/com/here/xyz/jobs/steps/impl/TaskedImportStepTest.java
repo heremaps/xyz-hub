@@ -42,6 +42,7 @@ import com.here.xyz.models.hub.Tag;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.ARN;
 import com.here.xyz.util.db.pg.IndexHelper.OnDemandIndex;
+import com.here.xyz.util.db.pg.IndexHelper.SystemIndex;
 import com.here.xyz.util.runtime.LambdaFunctionRuntime;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.service.aws.lambda.SimulatedContext;
@@ -751,6 +752,52 @@ public class TaskedImportStepTest extends StepTest {
     Assertions.assertTrue(getOnDemandIndices(tableName(lazy)).stream()
         .anyMatch(index -> "foo1".equals(((OnDemandIndex) index).getPropertyPath())), "the index of foo1 was created");
     Assertions.assertFalse(isFlagged(lazy.getId()));
+  }
+
+  /**
+   * The step sequence of the import wrapper on a never-written lazy target: DropIndexes creates the table without indexes, the import
+   * finds it, takes its version and clears the flag, the index steps index the table and AnalyzeSpaceTable re-activates the space.
+   */
+  @Test
+  public void testLazyImport_wrapperSequence() throws Exception {
+    Space lazy = createTestSpace(new Space().withId(SPACE_ID + "_lazy").withStorage(new ConnectorRef().withId(LAZY_CONNECTOR))
+        .withSearchableProperties(Map.of("foo1", true)));
+    String tableName = tableName(lazy);
+    Assertions.assertTrue(isFlagged(lazy.getId()));
+    //Like the job service, the import is validated before the sequence starts
+    TaskedImportFilesToSpace step = importStepWithTwoFiles(lazy.getId());
+    step.prepare(null, null);
+    Assertions.assertTrue(step.validate());
+    Assertions.assertFalse(step.useFeatureWriter());
+
+    sendLambdaStepRequestBlock(new DropIndexes().withSpaceId(lazy.getId()).withSpaceDeactivation(true).withMaterializeLazyTable(true),
+        true);
+    Assertions.assertTrue(tableExists(DB_URL, tableName));
+    Assertions.assertTrue(getAllExistingIndices(tableName).isEmpty());
+    Assertions.assertTrue(isFlagged(lazy.getId()));
+
+    //Without the validation of sendLambdaStepRequestBlock, which reads the statistics of the now deactivated space
+    try {
+      sendLambdaStepRequest(step, START_EXECUTION, true);
+      waitTillTaskItemsAreFinalized(step);
+      sendLambdaStepRequest(step, SUCCESS_CALLBACK, true);
+    }
+    finally {
+      deleteAllJobTables(List.of(step.getId()));
+    }
+    checkStatistics(40, step.loadUserOutputs());
+    Assertions.assertFalse(isFlagged(lazy.getId()));
+
+    OnDemandIndex onDemandIndex = new OnDemandIndex().withPropertyPath("foo1");
+    sendLambdaStepRequestBlock(new CreateIndex().withSpaceId(lazy.getId()).withIndex(SystemIndex.GEO).withJobId(JOB_ID), true);
+    sendLambdaStepRequestBlock(new CreateIndex().withSpaceId(lazy.getId()).withIndex(onDemandIndex).withJobId(JOB_ID), true);
+    sendLambdaStepRequestBlock(new AnalyzeSpaceTable().withSpaceId(lazy.getId()).withJobId(JOB_ID), true);
+
+    Assertions.assertTrue(getSystemIndices(tableName).contains(SystemIndex.GEO));
+    Assertions.assertEquals(List.of(onDemandIndex.getIndexName(tableName)),
+        getOnDemandIndices(tableName).stream().map(index -> index.getIndexName(tableName)).toList());
+    Assertions.assertTrue(loadSpace(lazy.getId()).isActive());
+    Assertions.assertEquals(40L, getStatistics(lazy.getId()).getCount().getValue());
   }
 
   private TaskedImportFilesToSpace importStepWithTwoFiles(String spaceId) throws IOException {
