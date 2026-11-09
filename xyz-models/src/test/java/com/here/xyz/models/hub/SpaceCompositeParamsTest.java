@@ -19,12 +19,15 @@
 
 package com.here.xyz.models.hub;
 
+import static com.here.xyz.models.hub.Space.LAZY_TABLE;
 import static com.here.xyz.models.hub.Space.TABLE_NAME;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.here.xyz.models.hub.Space.ConnectorRef;
 import com.here.xyz.models.hub.Space.Extension;
+import java.util.HashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
@@ -70,9 +73,150 @@ class SpaceCompositeParamsTest {
     assertEquals("base_table", baseParams.get(TABLE_NAME));
   }
 
+  @Test
+  void flagsALazyBaseWithTheCompositesStorageId() {
+    Space composite = space("composite", "psql", "composite_table", false)
+        .withExtension(new Extension().withSpaceId("base"));
+    Space base = space("base", "psql", "base_table", true);
+
+    Map<String, Object> extensionParams = extensionParams(composite.resolveCompositeParams(base));
+
+    assertEquals(true, extensionParams.get(LAZY_TABLE));
+    assertEquals("base_table", extensionParams.get(TABLE_NAME));
+  }
+
+  @Test
+  void omitsTheFlagForALazyBaseWithAnotherStorageId() {
+    Space composite = space("composite", "psql", "composite_table", true)
+        .withExtension(new Extension().withSpaceId("base"));
+    Space base = space("base", "psql-other", "base_table", true);
+
+    Map<String, Object> extensionParams = extensionParams(composite.resolveCompositeParams(base));
+
+    assertFalse(extensionParams.containsKey(LAZY_TABLE));
+    assertEquals("base_table", extensionParams.get(TABLE_NAME));
+  }
+
+  @Test
+  void flagsBothLazyLevelsWithTheCompositesStorageId() {
+    Space composite = space("composite", "psql", "composite_table", false)
+        .withExtension(new Extension().withSpaceId("intermediate"));
+    Space intermediate = space("intermediate", "psql", "intermediate_table", true)
+        .withExtension(new Extension().withSpaceId("base"));
+    intermediate.getExtension().resolvedSpace = space("base", "psql", "base_table", true);
+
+    Map<String, Object> intermediateParams = extensionParams(composite.resolveCompositeParams(intermediate));
+    Map<String, Object> baseParams = extensionParams(intermediateParams);
+
+    assertEquals(true, intermediateParams.get(LAZY_TABLE));
+    assertEquals(true, baseParams.get(LAZY_TABLE));
+  }
+
+  @Test
+  void omitsTheFlagOnTwoLevelsWithAnotherStorageId() {
+    Space composite = space("composite", "psql", "composite_table", false)
+        .withExtension(new Extension().withSpaceId("intermediate"));
+    Space intermediate = space("intermediate", "psql-other", "intermediate_table", true)
+        .withExtension(new Extension().withSpaceId("base"));
+    intermediate.getExtension().resolvedSpace = space("base", "psql-other", "base_table", true);
+
+    Map<String, Object> intermediateParams = extensionParams(composite.resolveCompositeParams(intermediate));
+    Map<String, Object> baseParams = extensionParams(intermediateParams);
+
+    assertFalse(intermediateParams.containsKey(LAZY_TABLE));
+    assertFalse(baseParams.containsKey(LAZY_TABLE));
+    assertEquals("intermediate_table", intermediateParams.get(TABLE_NAME));
+    assertEquals("base_table", baseParams.get(TABLE_NAME));
+  }
+
+  @Test
+  void omitsTheFlagOnlyOnTheRootWithAnotherStorageId() {
+    Space composite = space("composite", "psql", "composite_table", false)
+        .withExtension(new Extension().withSpaceId("intermediate"));
+    Space intermediate = space("intermediate", "psql", "intermediate_table", true)
+        .withExtension(new Extension().withSpaceId("base"));
+    intermediate.getExtension().resolvedSpace = space("base", "psql-other", "base_table", true);
+
+    Map<String, Object> intermediateParams = extensionParams(composite.resolveCompositeParams(intermediate));
+    Map<String, Object> baseParams = extensionParams(intermediateParams);
+
+    assertEquals(true, intermediateParams.get(LAZY_TABLE));
+    assertFalse(baseParams.containsKey(LAZY_TABLE));
+    assertEquals("intermediate_table", intermediateParams.get(TABLE_NAME));
+    assertEquals("base_table", baseParams.get(TABLE_NAME));
+  }
+
+  @Test
+  void omitsTheFlagForACompositeWithoutStorage() {
+    Space composite = new Space().withId("composite")
+        .withExtension(new Extension().withSpaceId("intermediate"));
+    Space intermediate = space("intermediate", "psql", "intermediate_table", true)
+        .withExtension(new Extension().withSpaceId("base"));
+    intermediate.getExtension().resolvedSpace = space("base", "psql", "base_table", true);
+
+    Map<String, Object> intermediateParams = extensionParams(composite.resolveCompositeParams(intermediate));
+    Map<String, Object> baseParams = extensionParams(intermediateParams);
+
+    assertFalse(intermediateParams.containsKey(LAZY_TABLE));
+    assertFalse(baseParams.containsKey(LAZY_TABLE));
+    assertEquals("intermediate_table", intermediateParams.get(TABLE_NAME));
+    assertEquals("base_table", baseParams.get(TABLE_NAME));
+  }
+
+  @Test
+  void isLazyTableAcceptsOnlyBooleanTrue() {
+    Map<String, Object> nullValue = new HashMap<>();
+    nullValue.put(LAZY_TABLE, null);
+
+    assertTrue(Space.isLazyTable(Map.of(LAZY_TABLE, true)));
+    assertFalse(Space.isLazyTable(Map.of(LAZY_TABLE, "true")));
+    assertFalse(Space.isLazyTable(Map.of(LAZY_TABLE, 1)));
+    assertFalse(Space.isLazyTable(nullValue));
+    assertFalse(Space.isLazyTable(Map.of(TABLE_NAME, "some_table")));
+    assertFalse(Space.isLazyTable(null));
+  }
+
+  @Test
+  void effectiveSearchablePropertiesOfASpaceWithoutExtension() {
+    Space space = space("space", "psql", "space_table", false).withSearchableProperties(Map.of("own", true));
+
+    assertEquals(Map.of("own", true), space.getEffectiveSearchableProperties(null));
+  }
+
+  @Test
+  void effectiveSearchablePropertiesOfAnExtensionAreThoseOfItsBase() {
+    Space composite = space("composite", "psql", "composite_table", false)
+        .withSearchableProperties(Map.of("composite", true))
+        .withExtension(new Extension().withSpaceId("base"));
+    Space base = space("base", "psql", "base_table", false).withSearchableProperties(Map.of("base", true));
+
+    assertEquals(Map.of("base", true), composite.getEffectiveSearchableProperties(base));
+  }
+
+  @Test
+  void effectiveSearchablePropertiesOfATwoLevelExtensionAreThoseOfTheRootBase() {
+    Space composite = space("composite", "psql", "composite_table", false)
+        .withSearchableProperties(Map.of("composite", true))
+        .withExtension(new Extension().withSpaceId("intermediate"));
+    Space intermediate = space("intermediate", "psql", "intermediate_table", false)
+        .withSearchableProperties(Map.of("intermediate", true))
+        .withExtension(new Extension().withSpaceId("base"));
+    intermediate.getExtension().resolvedSpace = space("base", "psql", "base_table", false)
+        .withSearchableProperties(Map.of("base", true));
+
+    assertEquals(Map.of("base", true), composite.getEffectiveSearchableProperties(intermediate));
+  }
+
   private static Space space(String id, String tableName) {
     Map<String, Object> params = tableName == null ? null : Map.of(TABLE_NAME, tableName);
     return new Space().withId(id).withStorage(new ConnectorRef().withId("psql").withParams(params));
+  }
+
+  private static Space space(String id, String storageId, String tableName, boolean lazy) {
+    Map<String, Object> params = new HashMap<>(Map.of(TABLE_NAME, tableName));
+    if (lazy)
+      params.put(LAZY_TABLE, true);
+    return new Space().withId(id).withStorage(new ConnectorRef().withId(storageId).withParams(params));
   }
 
   @SuppressWarnings("unchecked")

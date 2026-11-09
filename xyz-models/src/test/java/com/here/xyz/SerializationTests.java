@@ -25,6 +25,7 @@ import com.here.xyz.XyzSerializable.Public;
 import java.util.Map;
 
 import com.here.xyz.models.geojson.implementation.Feature;
+import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import org.junit.Test;
 
 import static org.junit.Assert.*;
@@ -74,6 +75,29 @@ public class SerializationTests {
     }
   }
 
+  @Test
+  public void testFeatureCollectionWithoutMaterialized() throws JsonProcessingException {
+    Map<String, Object> jsonMap = XyzSerializable.deserialize(new FeatureCollection().serialize(), Map.class);
+
+    assertFalse(jsonMap.containsKey("materialized"));
+  }
+
+  @Test
+  public void testFeatureCollectionWithMaterialized() throws JsonProcessingException {
+    final String serialized = new FeatureCollection().withMaterialized(true).serialize();
+
+    assertTrue(serialized.contains("\"materialized\":true"));
+    assertEquals(Boolean.TRUE, XyzSerializable.deserialize(serialized, FeatureCollection.class).getMaterialized());
+  }
+
+  @Test
+  public void testFeatureCollectionWithUnknownProperty() throws JsonProcessingException {
+    FeatureCollection fc = XyzSerializable.deserialize(
+        "{\"type\":\"FeatureCollection\",\"features\":[],\"someUnknownProperty\":42}", FeatureCollection.class);
+
+    assertNotNull(fc);
+    assertNull(fc.getMaterialized());
+  }
 
 
   private static class TestModel implements Typed {
