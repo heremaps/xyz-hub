@@ -105,9 +105,9 @@ public class LazySpaceTables {
   private static final String TEMPLATE_WRITE_MESSAGE_PART = "empty-space template rejected";
   //sequence_generator_limit_exceeded, raised by nextval() on an exhausted sequence
   private static final String SEQUENCE_EXHAUSTED = "2200H";
-  //A sequence of the template, as a whole name (no space table can have a name with the reserved prefix)
-  private static final Pattern TEMPLATE_SEQUENCE_REFERENCE = Pattern.compile("(?<![A-Za-z0-9_$])" + TEMPLATE_TABLE
-      + "_[A-Za-z0-9_]*seq\\b");
+  //A sequence of the template as the quoted name in the message of nextval(), also with escaped quotes (no space table can
+  //have a name with the reserved prefix)
+  private static final Pattern TEMPLATE_SEQUENCE_REFERENCE = Pattern.compile("\"" + TEMPLATE_TABLE + "_[A-Za-z0-9_]*seq\\\\?\"");
   private static final String GUARD_FUNCTION = TEMPLATE_TABLE + "_guard";
   private static final String FIRST_PARTITION_SUFFIX = "_p0";
   private static final String EXTENDS = "extends";
@@ -121,7 +121,7 @@ public class LazySpaceTables {
    *
    * @param depth 0 for the space itself, 1 for the space it extends, 2 for the space that one extends
    * @param spaceId The space ID if the level's params carry it (the extended levels do), otherwise null
-   * @param table The level's physical table name, or null for a level without an explicit table name
+   * @param table The level's physical table name, or null for a level without an explicit or with an empty table name
    */
   public record Level(int depth, String spaceId, String table) {}
 
@@ -255,7 +255,7 @@ public class LazySpaceTables {
     Map<String, Object> level = params;
     for (int depth = 0; depth <= MAX_DEPTH && level != null; depth++) {
       if (Space.isLazyTable(level))
-        levels.add(new Level(depth, stringOrNull(level.get(SPACE_ID)), stringOrNull(level.get(TABLE_NAME))));
+        levels.add(new Level(depth, stringOrNull(level.get(SPACE_ID)), nonEmptyOrNull(level.get(TABLE_NAME))));
       level = asMap(level.get(EXTENDS));
     }
     return levels;
@@ -792,6 +792,11 @@ public class LazySpaceTables {
 
   private static String stringOrNull(Object value) {
     return value instanceof String string ? string : null;
+  }
+
+  //An empty table name counts as absent, as for the query runners, which then derive the name from the space ID
+  private static String nonEmptyOrNull(Object value) {
+    return value instanceof String string && !string.isEmpty() ? string : null;
   }
 
   @SuppressWarnings("unchecked")

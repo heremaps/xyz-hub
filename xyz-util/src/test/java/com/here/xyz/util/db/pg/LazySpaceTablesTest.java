@@ -90,6 +90,13 @@ public class LazySpaceTablesTest {
   }
 
   @Test
+  public void lazyLevelsTreatAnEmptyTableNameAsAbsent() {
+    Map<String, Object> params = level(null, "", true, level("base1", "", true, null));
+
+    assertEquals(List.of(new Level(0, null, null), new Level(1, "base1", null)), LazySpaceTables.lazyLevels(params));
+  }
+
+  @Test
   public void substituteNoLevel() {
     Map<String, Object> params = twoLevelParams();
     Map<String, Object> substituted = LazySpaceTables.substitute(params, List.of());
@@ -182,6 +189,10 @@ public class LazySpaceTablesTest {
         "ERROR: nextval: reached maximum value of sequence \"abc_version_seq\" (1)", "2200H")));
     assertFalse(LazySpaceTables.isTemplateWriteException(new SQLException(
         "ERROR: nextval: reached maximum value of sequence \"my_xyz_empty_space_v1_version_seq\" (1)", "2200H")));
+    for (String name : List.of("foo-xyz_empty_space_v1_version_seq", "foo.xyz_empty_space_v1_version_seq",
+        "xyz_empty_space_v1_version_seq2", "xyz_empty_space_v1_version_seq-x"))
+      assertFalse(LazySpaceTables.isTemplateWriteException(new SQLException(
+          "ERROR: nextval: reached maximum value of sequence \"" + name + "\" (1)", "2200H")), name);
     //The template's name with another SQLSTATE
     assertFalse(LazySpaceTables.isTemplateWriteException(new SQLException(
         "ERROR: relation \"xyz_empty_space_v1_version_seq\" does not exist", "42P01")));

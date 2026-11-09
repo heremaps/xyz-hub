@@ -162,6 +162,8 @@ public abstract class DatabaseHandler extends StorageConnector {
             if (!resolver.isSafetyNetCase(event, e))
                 throw e;
             resolver.prepareRetry(event);
+            //The second dispatch gets the internal retry of the legacy writer like any event, the first one may have used it up
+            retryAttempted = false;
             shortCircuit = prepareMapped(event);
             return shortCircuit != null ? shortCircuit : resolver.reportMaterialized(event, super.processEvent(event));
         }

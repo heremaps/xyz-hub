@@ -56,6 +56,7 @@ import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.events.WriteFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.hub.Space;
+import com.here.xyz.psql.query.helpers.versioning.GetNextVersion;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
@@ -72,6 +73,7 @@ import com.here.xyz.util.db.pg.MaterializationTimeoutException.Phase;
 import com.here.xyz.util.db.pg.ReservedTableNameException;
 import com.here.xyz.util.db.pg.ScriptInstaller.TemplateCheck;
 import com.here.xyz.util.db.pg.TemplateUnavailableException;
+import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
 import com.here.xyz.util.runtime.FunctionRuntime;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -636,6 +638,46 @@ class LazyTableResolverTest {
     assertEquals(Boolean.TRUE, ((FeatureCollection) response).getMaterialized());
     assertEquals(1, materializer.tables.size(), "The retry materializes the table again");
     assertEquals(List.of(false, false), connector.dispatchedPreferPrimary, "A write always uses the writer");
+  }
+
+  @Test
+  void retriedWriteGetsTheInternalRetryOfTheLegacyWriter() {
+    //The cached table was dropped: every version request fails with the missing relation
+    AtomicInteger nextVersionCalls = new AtomicInteger();
+    PSQLXyzConnector connector = new PSQLXyzConnector() {
+      @Override
+      protected <R, T extends QueryRunner<?, R>> R run(T runner) throws SQLException {
+        if (!(runner instanceof GetNextVersion))
+          throw new AssertionError("Unexpected query " + runner.getClass().getSimpleName());
+        nextVersionCalls.incrementAndGet();
+        throw new SQLException("ERROR: relation \"t_version_seq\" does not exist", "42P01");
+      }
+    };
+    connector.setResolver(resolver(new StubSettings(TemplateCheck.VERIFIED), new StubChecker(EXISTS, true)));
+
+    ErrorResponseException e = assertThrows(ErrorResponseException.class,
+        () -> connector.processEvent(lazy(new ModifyFeaturesEvent().withInsertFeatures(new ArrayList<>()))));
+    assertEquals(XyzError.NOT_FOUND, e.getErrorResponse().getError());
+    assertEquals(4, nextVersionCalls.get(), "Both dispatches retry the version request once");
+  }
+
+  @Test
+  void emptyTableNameIsDerivedFromTheSpaceIdLikeInTheQueryRunners() throws Exception {
+    StubChecker checker = new StubChecker(NEVER_MATERIALIZED, true);
+    StubMaterializer materializer = new StubMaterializer();
+    Map<String, Object> params = composite(true, true);
+    params.put(Space.TABLE_NAME, "");
+    @SuppressWarnings("unchecked")
+    Map<String, Object> base = (Map<String, Object>) params.get("extends");
+    base.put(Space.TABLE_NAME, "");
+    WriteFeaturesEvent event = lazy(new WriteFeaturesEvent()).withParams(params);
+    String target = XyzSpaceTableHelper.getTableNameFromSpaceParamsOrSpaceId(params, event.getSpace(), false);
+    String baseName = XyzSpaceTableHelper.getTableNameFromSpaceParamsOrSpaceId(base, (String) base.get("spaceId"), false);
+
+    assertNull(resolver(new StubSettings(TemplateCheck.VERIFIED), checker).withMaterializer(materializer).prepare(event));
+    assertEquals(List.of(target, baseName), checker.checked.get(0).stream().map(Level::table).toList());
+    assertEquals(List.of(target), materializer.tables);
+    assertEquals(TEMPLATE_TABLE, baseTable(event.getParams()));
   }
 
   @Test

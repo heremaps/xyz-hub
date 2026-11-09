@@ -281,7 +281,11 @@ public class LazyTableResolver {
 
   /**
    * Materializes the write target if it is lazy and has no table, after the template checks for the other missing levels, which
-   * are then read from the template. A read-only connector never materializes, its writes are rejected as before.
+   * are then read from the template.
+   *
+   * <p>A read-only connector never materializes and substitutes nothing. A ModifyFeaturesEvent is rejected later as for any
+   * space. A WriteFeaturesEvent has no read-only check on any space; on a lazy level without a table it fails with the missing
+   * relation (404) after the retry of the safety net, and never reaches the template.</p>
    */
   private XyzResponse prepareWrite(Event event, DataSourceProvider dsp, DatabaseSettings settings, String schema,
       List<Level> levels, LevelResult result, List<Level> missing) throws SQLException {
