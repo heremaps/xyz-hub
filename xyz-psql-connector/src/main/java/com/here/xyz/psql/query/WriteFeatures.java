@@ -163,7 +163,9 @@ public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureColl
         case ILLEGAL_ARGUMENT -> new ErrorResponseException(XyzError.ILLEGAL_ARGUMENT, cleanMessage, e).withInternalDetails(details);
         case EMPTY_TEMPLATE_WRITE -> new ErrorResponseException(EXCEPTION, LazySpaceTables.TEMPLATE_WRITE_MESSAGE, e)
             .withInternalDetails(details);
-        case XYZ_EXCEPTION, UNKNOWN -> new ErrorResponseException(EXCEPTION, e.getMessage(), e).withInternalDetails(details);
+        //The feature writer takes a version first, so a write to the template fails on its exhausted sequence (2200H)
+        case XYZ_EXCEPTION, UNKNOWN -> new ErrorResponseException(EXCEPTION, LazySpaceTables.isTemplateWriteError(e)
+            ? LazySpaceTables.TEMPLATE_WRITE_MESSAGE : e.getMessage(), e).withInternalDetails(details);
       };
     }
   }

@@ -51,13 +51,17 @@ import com.here.xyz.util.db.ConnectorParameters;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import com.here.xyz.util.db.pg.IndexHelper;
+import com.here.xyz.util.db.pg.LazySpaceTables;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse> {
+    private static final Logger logger = LogManager.getLogger(ModifySpace.class);
 
     public static final String I_SEQUENCE_SUFFIX = "_i_seq";
     private Operation operation;
@@ -147,7 +151,9 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
                 return SQLQuery.batchOf(queries).withLock(table);
             }
             else if (event.getOperation() == DELETE) {
-                return SQLQuery.batchOf(buildCleanUpQuery(getSchema(), getDefaultTable(event), VERSION_SEQUENCE_SUFFIX, OLD_LAYOUT));
+                //The lock serializes the deletion with the creation and a materialization of the same table
+                final String table = getDefaultTable(event);
+                return SQLQuery.batchOf(buildCleanUpQuery(getSchema(), table, VERSION_SEQUENCE_SUFFIX, OLD_LAYOUT)).withLock(table);
             }
         }else if(getTableLayout().equals(ConnectorParameters.TableLayout.NEW_LAYOUT)){
             if (event.getOperation() == CREATE) {
@@ -157,14 +163,26 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
                         null, event.getSpace(), NEW_LAYOUT));
                 return SQLQuery.batchOf(queries).withLock(table);
             }
-            else if (event.getOperation() == DELETE)
-                return SQLQuery.batchOf(buildCleanUpQuery(getSchema(), getDefaultTable(event), VERSION_SEQUENCE_SUFFIX, NEW_LAYOUT));
+            else if (event.getOperation() == DELETE) {
+                final String table = getDefaultTable(event);
+                return SQLQuery.batchOf(buildCleanUpQuery(getSchema(), table, VERSION_SEQUENCE_SUFFIX, NEW_LAYOUT)).withLock(table);
+            }
         }
         throw new IllegalArgumentException("Unsupported Table Layout: " + getTableLayout());
     }
 
     @Override
     public SuccessResponse write(DataSourceProvider dataSourceProvider) throws SQLException, ErrorResponseException {
+        //The reserved names belong to the empty-space template, which no space may create, overwrite or drop
+        if (LazySpaceTables.isReserved(rootTable)) {
+            if (operation == CREATE)
+                throw new ErrorResponseException(ILLEGAL_ARGUMENT, "Reserved table name");
+            if (operation == DELETE) {
+                logger.error("Space {} has the reserved table name {}, its deletion drops no table.", spaceId, rootTable);
+                return new SuccessResponse().withStatus("OK");
+            }
+        }
+
         if (dryRun)
             return new SuccessResponse().withStatus("OK");
 

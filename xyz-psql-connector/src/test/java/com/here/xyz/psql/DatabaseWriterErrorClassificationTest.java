@@ -24,8 +24,10 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.here.xyz.util.db.pg.LazySpaceTables;
 import java.sql.BatchUpdateException;
 import java.sql.SQLException;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -127,5 +129,64 @@ class DatabaseWriterErrorClassificationTest {
     SQLException e = new SQLException("ERROR: some failure", sqlState);
     assertFalse(DatabaseWriter.isRethrownFromBatch(e, true));
     assertFalse(DatabaseWriter.isRethrownFromBatch(batchFailedWith(e), true));
+  }
+
+  /**
+   * The errors of a write that reached the empty-space template: the SQLSTATE of the guard trigger, its message under another
+   * SQLSTATE, and the exhausted version sequence of the template, which a writer that takes a version first hits before the guard.
+   */
+  private static List<SQLException> templateWriteErrors() {
+    return List.of(
+        new SQLException("ERROR: some message", "XYZ52"),
+        new SQLException("ERROR: " + LazySpaceTables.TEMPLATE_WRITE_MESSAGE, "P0001"),
+        new SQLException("ERROR: nextval: reached maximum value of sequence \"xyz_empty_space_v1_version_seq\" (1)", "2200H"));
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  void templateWriteAbortsTheNonTransactionalWrite(boolean partitionRecoverable) {
+    for (SQLException e : templateWriteErrors()) {
+      assertSame(e, DatabaseWriter.findNonTransactionalAbortCause(e, partitionRecoverable), e.getMessage());
+      assertSame(e, DatabaseWriter.findNonTransactionalAbortCause(batchFailedWith(e), partitionRecoverable), e.getMessage());
+      assertSame(e, DatabaseWriter.findNonTransactionalAbortCause(new RuntimeException("wrapper", e), partitionRecoverable),
+          e.getMessage());
+      assertSame(e, DatabaseWriter.findNonTransactionalAbortCause(new SQLException("wrapper", "XX000", e), partitionRecoverable),
+          e.getMessage());
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  void templateWriteIsRethrownFromBatch(boolean partitionRecoverable) {
+    for (SQLException e : templateWriteErrors()) {
+      assertTrue(DatabaseWriter.isRethrownFromBatch(e, partitionRecoverable), e.getMessage());
+      assertTrue(DatabaseWriter.isRethrownFromBatch(batchFailedWith(e), partitionRecoverable), e.getMessage());
+      assertTrue(DatabaseWriter.isRethrownFromBatch(new RuntimeException("wrapper", batchFailedWith(e)), partitionRecoverable),
+          e.getMessage());
+      assertTrue(LazySpaceTables.isTemplateWriteError(new RuntimeException("wrapper", batchFailedWith(e))), e.getMessage());
+    }
+  }
+
+  @Test
+  void exhaustedSequenceOfARealSpaceIsNoTemplateWrite() {
+    SQLException e = new SQLException("ERROR: nextval: reached maximum value of sequence \"abc_version_seq\" (1)", "2200H");
+    assertNull(DatabaseWriter.findNonTransactionalAbortCause(e, true));
+    assertNull(DatabaseWriter.findNonTransactionalAbortCause(batchFailedWith(e), false));
+    assertFalse(DatabaseWriter.isRethrownFromBatch(e, true));
+    assertFalse(DatabaseWriter.isRethrownFromBatch(batchFailedWith(e), false));
+    assertFalse(LazySpaceTables.isTemplateWriteError(batchFailedWith(e)));
+  }
+
+  @Test
+  void findsMissingTableInCausesAndNextExceptions() {
+    SQLException missingTable = new SQLException("ERROR: relation \"t\" does not exist", "42P01");
+    assertSame(missingTable, DatabaseWriter.findUndefinedTable(missingTable));
+    assertSame(missingTable, DatabaseWriter.findUndefinedTable(batchFailedWith(missingTable)));
+    assertSame(missingTable, DatabaseWriter.findUndefinedTable(new RuntimeException("wrapper", batchFailedWith(missingTable))));
+    assertSame(missingTable, DatabaseWriter.findUndefinedTable(new SQLException("wrapper", "XX000", missingTable)));
+
+    assertNull(DatabaseWriter.findUndefinedTable(null));
+    assertNull(DatabaseWriter.findUndefinedTable(new SQLException("ERROR: some failure", "23505")));
+    assertNull(DatabaseWriter.findUndefinedTable(batchFailedWith(new SQLException("ERROR: some failure", "XYZ52"))));
   }
 }

@@ -71,6 +71,7 @@ import com.here.xyz.responses.StorageStatistics;
 import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.db.SQLQuery;
+import com.here.xyz.util.db.pg.LazySpaceTables;
 import java.sql.SQLException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -217,6 +218,10 @@ public class PSQLXyzConnector extends DatabaseHandler {
   private void checkSQLException(SQLException e, String table) throws ErrorResponseException {
     logger.warn("{} SQL Error ({}) on {} :", traceItem, e.getSQLState(), table, e);
 
+    //XYZ52 of a guard trigger, or 2200H of an exhausted sequence of the empty-space template
+    if (LazySpaceTables.isTemplateWriteError(e))
+      throw new ErrorResponseException(EXCEPTION, LazySpaceTables.TEMPLATE_WRITE_MESSAGE, e);
+
     String sqlState = e.getSQLState() != null ? e.getSQLState().toUpperCase() : "SNULL";
 
     switch (sqlState) {
@@ -270,8 +275,8 @@ public class PSQLXyzConnector extends DatabaseHandler {
       }
 
       case "42P01":
-
-        throw new ErrorResponseException(NOT_FOUND, "Space not found in backend" ); //"Table not found in database"
+        //Keeps the cause, so that a retry can tell a missing table from other errors
+        throw new ErrorResponseException(NOT_FOUND, "Space not found in backend", e);
 
       case
           "40P01": // Database -> deadlock detected e.g. "Process 9452 waits for ShareLock on transaction 2383228826; blocked by process 9342."

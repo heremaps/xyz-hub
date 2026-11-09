@@ -28,6 +28,7 @@ import static com.here.xyz.psql.DatabaseWriter.ModificationType.INSERT;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE;
 import static com.here.xyz.psql.query.ExtendedSpace.getBaseVersion;
 import static com.here.xyz.psql.query.XyzEventBasedQueryRunner.readTableFromEvent;
+import static com.here.xyz.responses.XyzError.EXCEPTION;
 import static com.here.xyz.responses.XyzError.NOT_IMPLEMENTED;
 import static com.here.xyz.util.db.pg.LockHelper.advisoryLock;
 import static com.here.xyz.util.db.pg.LockHelper.advisoryUnlock;
@@ -60,6 +61,7 @@ import com.here.xyz.util.db.datasource.CachedPooledDataSources;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import com.here.xyz.util.db.datasource.DatabaseSettings;
 import com.here.xyz.util.db.datasource.DatabaseSettings.ScriptResourcePath;
+import com.here.xyz.util.db.pg.LazySpaceTables;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
 import com.here.xyz.util.runtime.FunctionRuntime;
 import com.here.xyz.util.runtime.LambdaFunctionRuntime;
@@ -350,6 +352,21 @@ public abstract class DatabaseHandler extends StorageConnector {
                     throw e;
                 }
 
+                //A missing table fails the write without a retry: it answers 404 instead of reporting a write that did not happen
+                SQLException missingTable = DatabaseWriter.findUndefinedTable(e);
+                if (missingTable != null) {
+                    if (event.getTransaction())
+                        connection.rollback();
+                    throw missingTable;
+                }
+
+                //A write that reached the empty-space template indicates a missed materialization, it must never succeed
+                if (LazySpaceTables.isTemplateWriteError(e)) {
+                    if (event.getTransaction())
+                        connection.rollback();
+                    throw new ErrorResponseException(EXCEPTION, LazySpaceTables.TEMPLATE_WRITE_MESSAGE, e);
+                }
+
                 /** Add objects which are responsible for the failed operation */
                 event.setFailed(fails);
 
@@ -380,29 +397,24 @@ public abstract class DatabaseHandler extends StorageConnector {
                 if (event.getTransaction()) {
                     connection.rollback();
 
-                    boolean tableDoesNotExist = e instanceof SQLException sqlException && sqlException.getSQLState() != null
-                            && sqlException.getSQLState().equalsIgnoreCase("42P01");
-                    if (!tableDoesNotExist) {
+                    logger.warn("{} Transaction has failed. ", traceItem, e);
+                    connection.close();
 
-                        logger.warn("{} Transaction has failed. ", traceItem, e);
-                        connection.close();
+                    Map<String, Object> errorDetails = new HashMap<>();
 
-                        Map<String, Object> errorDetails = new HashMap<>();
+                    if (e instanceof BatchUpdateException || fails.size() >= 1) {
+                        //23505 = Object already exists
+                        if (e instanceof BatchUpdateException bue && !bue.getSQLState().equalsIgnoreCase("23505"))
+                            throw e;
 
-                        if (e instanceof BatchUpdateException || fails.size() >= 1) {
-                            //23505 = Object already exists
-                            if (e instanceof BatchUpdateException bue && !bue.getSQLState().equalsIgnoreCase("23505"))
-                                throw e;
-
-                            errorDetails.put("FailedList", fails);
-                            throw new ErrorResponseException(new ErrorResponse().withErrorDetails(errorDetails).withError(XyzError.CONFLICT).withErrorMessage(DatabaseWriter.TRANSACTION_ERROR_GENERAL));
-                        }
-                        else {
-                            errorDetails.put(DatabaseWriter.TRANSACTION_ERROR_GENERAL,
-                                    (e instanceof SQLException sqlException && sqlException.getSQLState() != null)
-                                            ? "SQL-state: " + sqlException.getSQLState() : "Unexpected Error occurred");
-                            throw new ErrorResponseException(new ErrorResponse().withErrorDetails(errorDetails).withError(XyzError.BAD_GATEWAY).withErrorMessage(DatabaseWriter.TRANSACTION_ERROR_GENERAL));
-                        }
+                        errorDetails.put("FailedList", fails);
+                        throw new ErrorResponseException(new ErrorResponse().withErrorDetails(errorDetails).withError(XyzError.CONFLICT).withErrorMessage(DatabaseWriter.TRANSACTION_ERROR_GENERAL));
+                    }
+                    else {
+                        errorDetails.put(DatabaseWriter.TRANSACTION_ERROR_GENERAL,
+                                (e instanceof SQLException sqlException && sqlException.getSQLState() != null)
+                                        ? "SQL-state: " + sqlException.getSQLState() : "Unexpected Error occurred");
+                        throw new ErrorResponseException(new ErrorResponse().withErrorDetails(errorDetails).withError(XyzError.BAD_GATEWAY).withErrorMessage(DatabaseWriter.TRANSACTION_ERROR_GENERAL));
                     }
                 }
 

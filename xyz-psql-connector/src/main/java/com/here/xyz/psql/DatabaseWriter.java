@@ -40,6 +40,7 @@ import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DatabaseSettings;
+import com.here.xyz.util.db.pg.LazySpaceTables;
 import com.here.xyz.util.runtime.FunctionRuntime;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -461,21 +462,32 @@ public class DatabaseWriter {
     }
 
     /**
+     * Finds the missing table (42P01) of a failed write, in the causes and in the {@link SQLException#getNextException()} chain.
+     */
+    static SQLException findUndefinedTable(Throwable e) {
+        return findSqlException(e, DatabaseWriter::isUndefinedTable);
+    }
+
+    /**
      * Finds the error that aborts a non-transactional write instead of failing only the current feature: a missing table
-     * (42P01), and a missing history partition while {@link DatabaseHandler} can still create it and retry the write.
-     * A lock timeout (55P03) only fails the current feature, because it also comes from row locks of concurrent writes.
+     * (42P01), a write to the empty-space template, and a missing history partition while {@link DatabaseHandler} can still
+     * create it and retry the write. A lock timeout (55P03) only fails the current feature, because it also comes from row locks
+     * of concurrent writes.
      */
     static SQLException findNonTransactionalAbortCause(Throwable e, boolean partitionRecoverable) {
         return findSqlException(e, sqlException -> isUndefinedTable(sqlException)
+            || LazySpaceTables.isTemplateWriteException(sqlException)
             || partitionRecoverable && isMissingHistoryPartition(sqlException));
     }
 
     /**
      * Whether a failed batch is rethrown to {@link DatabaseHandler} instead of failing all its features: a missing table
-     * (42P01), a lock timeout (55P03), and a missing history partition while it can still be created.
+     * (42P01), a lock timeout (55P03), a write to the empty-space template, and a missing history partition while it can still
+     * be created.
      */
     static boolean isRethrownFromBatch(Throwable e, boolean partitionRecoverable) {
         return findSqlException(e, sqlException -> isUndefinedTable(sqlException) || isLockNotAvailable(sqlException)
+            || LazySpaceTables.isTemplateWriteException(sqlException)
             || partitionRecoverable && isMissingHistoryPartition(sqlException)) != null;
     }
 
