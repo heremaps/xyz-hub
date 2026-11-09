@@ -30,6 +30,7 @@ import static com.here.xyz.psql.query.ExtendedSpace.getBaseVersion;
 import static com.here.xyz.psql.query.XyzEventBasedQueryRunner.readTableFromEvent;
 import static com.here.xyz.responses.XyzError.EXCEPTION;
 import static com.here.xyz.responses.XyzError.NOT_IMPLEMENTED;
+import static com.here.xyz.responses.XyzError.TIMEOUT;
 import static com.here.xyz.util.db.pg.LockHelper.advisoryLock;
 import static com.here.xyz.util.db.pg.LockHelper.advisoryUnlock;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.PARTITION_SIZE;
@@ -61,7 +62,11 @@ import com.here.xyz.util.db.datasource.CachedPooledDataSources;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import com.here.xyz.util.db.datasource.DatabaseSettings;
 import com.here.xyz.util.db.datasource.DatabaseSettings.ScriptResourcePath;
+import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.db.pg.LazySpaceTables;
+import com.here.xyz.util.db.pg.MaterializationTimeoutException;
+import com.here.xyz.util.db.pg.ReservedTableNameException;
+import com.here.xyz.util.db.pg.TemplateUnavailableException;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
 import com.here.xyz.util.runtime.FunctionRuntime;
 import com.here.xyz.util.runtime.LambdaFunctionRuntime;
@@ -116,6 +121,8 @@ public abstract class DatabaseHandler extends StorageConnector {
 
     protected DataSourceProvider dataSourceProvider;
     protected DatabaseSettings dbSettings;
+    private LazyTableResolver resolver = new LazyTableResolver(() -> dataSourceProvider, this::lazyTablesSupported,
+        () -> traceItem == null ? null : traceItem.getConnectorId());
 
     @Override
     protected void initialize(Event event) {
@@ -131,8 +138,57 @@ public abstract class DatabaseHandler extends StorageConnector {
             .withEmptySpaceTemplate(lazyTablesSupported());
 
         applyConnectionPoolParams(dbSettings, connectorParams);
+        //Bounds the script check of this connector, including the installation of the empty-space template
+        if (connectorParams.getScriptInstallTimeoutSeconds() > 0)
+            dbSettings.withScriptInstallTimeoutSeconds(connectorParams.getScriptInstallTimeoutSeconds());
 
         initialize(dbSettings, null);
+    }
+
+    @Override
+    public XyzResponse processEvent(Event event) throws Exception {
+        //No lazy level, a connector without lazy tables or no event: one map lookup and no database access
+        if (!resolver.isActive(event))
+            return super.processEvent(event);
+        XyzResponse shortCircuit = prepareMapped(event);
+        if (shortCircuit != null)
+            return shortCircuit;
+        return super.processEvent(event);
+    }
+
+    /**
+     * Runs the preparation of the lazy levels and maps its errors, because it runs outside the error handling of the event
+     * processing.
+     */
+    XyzResponse prepareMapped(Event event) throws Exception {
+        try {
+            return resolver.prepare(event);
+        }
+        catch (MaterializationTimeoutException e) {
+            throw new ErrorResponseException(TIMEOUT, "Materialization of the space table timed out, retry is safe", e);
+        }
+        catch (ReservedTableNameException e) {
+            throw new ErrorResponseException(EXCEPTION, "Internal error: reserved table name", e);
+        }
+        catch (TemplateUnavailableException e) {
+            throw new ErrorResponseException(EXCEPTION, "Empty-space template missing or not identical on the database", e);
+        }
+        catch (ErrorResponseException e) {
+            throw e;
+        }
+        catch (Exception e) {
+            //An SQLException is mapped by checkSQLException, everything else is rethrown
+            handleProcessingException(e, event);
+            throw e;
+        }
+    }
+
+    LazyTableResolver getResolver() {
+        return resolver;
+    }
+
+    void setResolver(LazyTableResolver resolver) {
+        this.resolver = resolver;
     }
 
     /**

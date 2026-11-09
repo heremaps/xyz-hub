@@ -19,67 +19,50 @@
 
 package com.here.xyz.psql;
 
-import static com.here.xyz.psql.DatabaseHandler.ECPS_PHRASE;
-import static com.here.xyz.util.db.datasource.DatabaseSettings.PSQL_HOST;
-import static com.here.xyz.util.db.datasource.DatabaseSettings.PSQL_PASSWORD;
-import static com.here.xyz.util.db.datasource.DatabaseSettings.PSQL_SCHEMA;
-import static com.here.xyz.util.db.datasource.DatabaseSettings.PSQL_USER;
 import static com.here.xyz.util.db.pg.LazySpaceTables.TEMPLATE_TABLE;
 import static com.here.xyz.util.db.pg.LazySpaceTables.TEMPLATE_WRITE_MESSAGE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.connectors.ErrorResponseException;
+import com.here.xyz.events.DeleteChangesetsEvent;
 import com.here.xyz.events.Event;
+import com.here.xyz.events.GetChangesetStatisticsEvent;
+import com.here.xyz.events.GetFeaturesByBBoxEvent;
+import com.here.xyz.events.GetFeaturesByGeometryEvent;
+import com.here.xyz.events.GetFeaturesByIdEvent;
+import com.here.xyz.events.GetFeaturesByTileEvent;
+import com.here.xyz.events.GetStatisticsEvent;
 import com.here.xyz.events.HealthCheckEvent;
+import com.here.xyz.events.IterateChangesetsEvent;
+import com.here.xyz.events.IterateFeaturesEvent;
+import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.ModifySpaceEvent.Operation;
-import com.here.xyz.events.UpdateStrategy;
-import com.here.xyz.events.WriteFeaturesEvent;
-import com.here.xyz.events.WriteFeaturesEvent.Modification;
+import com.here.xyz.events.SearchForFeaturesEvent;
+import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
-import com.here.xyz.models.geojson.implementation.Feature;
-import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Point;
-import com.here.xyz.models.geojson.implementation.Properties;
-import com.here.xyz.models.geojson.implementation.XyzNamespace;
+import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
-import com.here.xyz.psql.query.ModifySpace;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
-import com.here.xyz.util.Random;
-import com.here.xyz.util.db.ECPSTool;
 import com.here.xyz.util.db.SQLQuery;
-import com.here.xyz.util.db.datasource.DataSourceProvider;
-import com.here.xyz.util.db.datasource.DatabaseSettings;
-import com.here.xyz.util.db.datasource.DatabaseSettings.ScriptResourcePath;
-import com.here.xyz.util.db.datasource.PooledDataSources;
-import com.here.xyz.util.db.pg.ScriptInstaller.TemplateCheck;
-import com.here.xyz.util.runtime.LambdaFunctionRuntime;
-import com.here.xyz.util.service.aws.lambda.SimulatedContext;
-import java.security.GeneralSecurityException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
-import org.apache.commons.dbutils.ResultSetHandler;
-import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.core.LogEvent;
-import org.apache.logging.log4j.core.appender.AbstractAppender;
-import org.apache.logging.log4j.core.config.Property;
+import java.util.function.Supplier;
 import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -91,96 +74,24 @@ import org.junit.jupiter.params.provider.ValueSource;
  * <p>Spaces in "public" use the shared test connector. Tests that need a schema of their own (with or without the template, or
  * with a foreign relation of a template name) use a connector with its own ID and schema, so that no other test sees it.</p>
  */
-public class PSQLLazyTableIT extends PSQLAbstractIT {
-  private static final String ECPS_PASSPHRASE = "testing";
-  private static final SimulatedContext CONTEXT = new SimulatedContext("xyz-psql-local", Map.of(ECPS_PHRASE, ECPS_PASSPHRASE));
+public class PSQLLazyTableIT extends LazyTablesITBase {
   private static final List<String> PUBLIC_SPACES = new ArrayList<>();
   private static final Set<String> SCHEMAS = ConcurrentHashMap.newKeySet();
   private static final Set<String> FUNCTIONS = ConcurrentHashMap.newKeySet();
 
-  /**
-   * A connector with its own ID and schema.
-   */
-  record TestConnector(String id, String schema, Map<String, Object> params) {
-    TestConnector with(String key, Object value) {
-      Map<String, Object> params = new HashMap<>(params());
-      params.put(key, value);
-      return new TestConnector(id, schema, params);
-    }
-
-    Map<String, Object> connectorParams() throws GeneralSecurityException {
-      Map<String, Object> connectorParams = new HashMap<>(params);
-      connectorParams.put(CONNECTOR_ID, id);
-      connectorParams.put("ecps", ECPSTool.encrypt(ECPS_PASSPHRASE, XyzSerializable.serialize(Map.of(
-          PSQL_HOST, PG_HOST,
-          PSQL_USER, PG_USER,
-          PSQL_PASSWORD, PG_PW,
-          PSQL_SCHEMA, schema))));
-      return connectorParams;
-    }
-  }
-
-  //The log lines of the classes under test, each test filters them by its own space or table
-  private static final CapturingAppender APPENDER = new CapturingAppender();
-  private static final List<String> CAPTURED_LOGGERS = List.of(ModifySpace.class.getName());
-
-  /**
-   * Collects the formatted messages of WARN and above.
-   */
-  static class CapturingAppender extends AbstractAppender {
-    private final List<String> messages = new CopyOnWriteArrayList<>();
-
-    CapturingAppender() {
-      super(PSQLLazyTableIT.class.getSimpleName() + "-" + Random.randomAlpha(5), null, null, true, Property.EMPTY_ARRAY);
-    }
-
-    @Override
-    public void append(LogEvent event) {
-      if (event.getLevel().isMoreSpecificThan(Level.WARN))
-        messages.add(event.getLevel() + " " + event.getMessage().getFormattedMessage());
-    }
-
-    List<String> messages(String part) {
-      return messages.stream().filter(message -> message.contains(part)).toList();
-    }
-  }
-
-  @BeforeAll
-  static void startCapturing() {
-    APPENDER.start();
-    for (String logger : CAPTURED_LOGGERS)
-      ((org.apache.logging.log4j.core.Logger) LogManager.getLogger(logger)).addAppender(APPENDER);
+  @Override
+  protected Set<String> schemas() {
+    return SCHEMAS;
   }
 
   @AfterAll
   static void cleanUp() throws Exception {
-    for (String logger : CAPTURED_LOGGERS)
-      ((org.apache.logging.log4j.core.Logger) LogManager.getLogger(logger)).removeAppender(APPENDER);
-    APPENDER.stop();
     invokeDeleteTestSpaces(null, PUBLIC_SPACES);
-    try (DataSourceProvider dsp = getDataSourceProvider()) {
-      for (String function : FUNCTIONS)
-        new SQLQuery("DROP FUNCTION IF EXISTS ${schema}.${function}() CASCADE")
-            .withVariable("schema", PG_SCHEMA)
-            .withVariable("function", function)
-            .write(dsp);
-      for (String schema : SCHEMAS)
-        new SQLQuery("DROP SCHEMA IF EXISTS ${schema} CASCADE").withVariable("schema", schema).write(dsp);
-    }
-  }
-
-  private String newId() {
-    return getClass().getSimpleName() + "_" + Random.randomAlpha(5);
-  }
-
-  /**
-   * @return A connector with its own ID and a schema of its own, which is created and dropped in {@link #cleanUp()}
-   */
-  private TestConnector newConnector() throws Exception {
-    String schema = "lazy_" + Random.randomAlpha(5).toLowerCase();
-    SCHEMAS.add(schema);
-    execute(new SQLQuery("CREATE SCHEMA IF NOT EXISTS ${schema}").withVariable("schema", schema));
-    return new TestConnector(newId(), schema, Map.of("propertySearch", true));
+    for (String function : FUNCTIONS)
+      execute(new SQLQuery("DROP FUNCTION IF EXISTS ${schema}.${function}() CASCADE")
+          .withVariable("schema", PG_SCHEMA)
+          .withVariable("function", function));
+    dropSchemas(SCHEMAS);
   }
 
   private String createPublicSpace() throws Exception {
@@ -190,164 +101,9 @@ public class PSQLLazyTableIT extends PSQLAbstractIT {
     return spaceId;
   }
 
-  /**
-   * Invokes a new connector instance, as Lambda does for every event.
-   */
-  private static XyzResponse invoke(TestConnector connector, Event event) throws Exception {
-    return invoke(new PSQLXyzConnector(), connector, event);
-  }
-
-  private static XyzResponse invoke(DatabaseHandler handler, TestConnector connector, Event event) throws Exception {
-    event.setConnectorParams(connector.connectorParams());
-    new LambdaFunctionRuntime(CONTEXT, "lazy-" + Random.randomAlpha(5));
-    try {
-      return (XyzResponse) handler.handleEvent(event);
-    }
-    catch (ErrorResponseException e) {
-      return e.getErrorResponse();
-    }
-  }
-
-  /**
-   * @return Settings for the schema of the connector, as embedded setups and tests pass them to
-   *  {@link DatabaseHandler#initialize(DatabaseSettings, com.amazonaws.services.lambda.runtime.Context)}
-   */
-  private static DatabaseSettings settingsOf(TestConnector connector, boolean emptySpaceTemplate) {
-    return new DatabaseSettings(connector.id())
-        .withApplicationName(PSQLLazyTableIT.class.getSimpleName())
-        .withHost(PG_HOST)
-        .withDb(PG_DB)
-        .withUser(PG_USER)
-        .withPassword(PG_PW)
-        .withSchema(connector.schema())
-        .withDbMaxPoolSize(1)
-        .withEmptySpaceTemplate(emptySpaceTemplate)
-        .withScriptResourcePaths(List.of(new ScriptResourcePath("/sql", "hub", "common")));
-  }
-
-  private static ModifySpaceEvent modifySpaceEvent(Operation operation, String spaceId, Map<String, Object> params) {
-    return new ModifySpaceEvent()
-        .withSpace(spaceId)
-        .withOperation(operation)
-        .withParams(params)
-        .withSpaceDefinition(new Space().withId(spaceId));
-  }
-
-  private static Map<String, Object> lazyParams(String table) {
-    return new HashMap<>(Map.of(Space.TABLE_NAME, table, Space.LAZY_TABLE, true));
-  }
-
-  private static void assertOk(XyzResponse response) throws Exception {
-    assertTrue(response instanceof SuccessResponse, "Expected a success response: " + response.serialize());
-    assertEquals("OK", ((SuccessResponse) response).getStatus());
-  }
-
-  private static String newTable() {
-    return "lazy_t_" + Random.randomAlpha(8).toLowerCase();
-  }
-
-  private static List<String> warnings(String part) {
-    return APPENDER.messages(part);
-  }
-
   private static XyzResponse invokePublic(Event event) throws Exception {
     event.setConnectorParams(defaultTestConnectorParams);
     return XyzSerializable.<XyzResponse>deserialize(invokeLambda(new PSQLXyzConnector(), event));
-  }
-
-  /**
-   * Installs the template into the schema the way the connectors do: with the script check of a new data source provider.
-   */
-  private static void installTemplate(String schema) throws Exception {
-    DatabaseSettings settings = new DatabaseSettings(PSQLLazyTableIT.class.getSimpleName() + "_" + Random.randomAlpha(5))
-        .withApplicationName(PSQLLazyTableIT.class.getSimpleName())
-        .withHost(PG_HOST)
-        .withDb(PG_DB)
-        .withUser(PG_USER)
-        .withPassword(PG_PW)
-        .withSchema(schema)
-        .withDbMaxPoolSize(1)
-        .withEmptySpaceTemplate(true)
-        .withScriptResourcePaths(List.of(new ScriptResourcePath("/sql", "hub", "common")));
-    try (PooledDataSources ignored = new PooledDataSources(settings)) {
-      assertEquals(TemplateCheck.VERIFIED, settings.getEmptySpaceTemplateCheck());
-    }
-  }
-
-  private static void execute(SQLQuery query) throws Exception {
-    try (DataSourceProvider dsp = getDataSourceProvider()) {
-      query.write(dsp);
-    }
-  }
-
-  private static <R> R query(SQLQuery query, ResultSetHandler<R> handler) throws Exception {
-    try (DataSourceProvider dsp = getDataSourceProvider()) {
-      return query.run(dsp, handler);
-    }
-  }
-
-  private static boolean relationExists(String schema, String relation) throws Exception {
-    return query(new SQLQuery("SELECT to_regclass(#{name}) IS NOT NULL")
-        .withNamedParameter("name", "\"" + schema + "\".\"" + relation + "\""), rs -> rs.next() && rs.getBoolean(1));
-  }
-
-  private static long countRows(String schema, String table) throws Exception {
-    return query(new SQLQuery("SELECT count(*) FROM ${schema}.${table}")
-        .withVariable("schema", schema)
-        .withVariable("table", table), rs -> rs.next() ? rs.getLong(1) : -1);
-  }
-
-  /**
-   * @return The relations of the schema whose names start with the prefix, each with its kind and comment
-   */
-  private static Set<String> relations(String schema, String prefix) throws Exception {
-    return query(new SQLQuery("""
-        SELECT c.relname || ':' || c.relkind::TEXT || ':' || coalesce(obj_description(c.oid, 'pg_class'), '') FROM pg_class c
-          JOIN pg_namespace n ON n.oid = c.relnamespace
-          WHERE n.nspname = #{schema} AND starts_with(c.relname, #{prefix})
-        """)
-        .withNamedParameter("schema", schema)
-        .withNamedParameter("prefix", prefix), rs -> {
-          Set<String> rows = new TreeSet<>();
-          while (rs.next())
-            rows.add(rs.getString(1));
-          return rows;
-        });
-  }
-
-  private static List<Feature> features(String... ids) {
-    //A mutable list, because the connector adds to the lists of the event
-    List<Feature> features = new ArrayList<>();
-    for (String id : ids)
-      features.add(new Feature().withId(id)
-          .withGeometry(new Point().withCoordinates(new PointCoordinates(8, 50)))
-          .withProperties(new Properties().withXyzNamespace(new XyzNamespace()).with("value", id)));
-    return features;
-  }
-
-  private static ModifyFeaturesEvent insertEvent(String spaceId, boolean transactional, Map<String, Object> params) {
-    return new ModifyFeaturesEvent()
-        .withSpace(spaceId)
-        .withParams(params)
-        .withTransaction(transactional)
-        .withInsertFeatures(features("F1", "F2"));
-  }
-
-  private static WriteFeaturesEvent writeFeaturesEvent(String spaceId, Map<String, Object> params) {
-    return new WriteFeaturesEvent()
-        .withSpace(spaceId)
-        .withParams(params)
-        .withResponseDataExpected(true)
-        .withModifications(Set.of(new Modification()
-            .withFeatureData(new FeatureCollection().withFeatures(features("W1")))
-            .withUpdateStrategy(UpdateStrategy.DEFAULT_UPDATE_STRATEGY)));
-  }
-
-  private static ErrorResponse assertError(XyzError expected, XyzResponse response) throws Exception {
-    assertTrue(response instanceof ErrorResponse, "Expected an error response: " + response.serialize());
-    ErrorResponse error = (ErrorResponse) response;
-    assertEquals(expected, error.getError(), error.serialize());
-    return error;
   }
 
   private void createGuardTriggers(String table) throws Exception {
@@ -371,6 +127,8 @@ public class PSQLLazyTableIT extends PSQLAbstractIT {
           .withVariable("function", function));
   }
 
+  //------------ Changes for every space ------------
+
   @ParameterizedTest
   @ValueSource(booleans = {true, false})
   public void legacyWriterGuardHitIsException(boolean transactional) throws Exception {
@@ -387,7 +145,7 @@ public class PSQLLazyTableIT extends PSQLAbstractIT {
   public void legacyWriterMissingTableIs404(boolean transactional) throws Exception {
     String spaceId = createPublicSpace();
     //The table set is gone, but the version sequence is still there, so the version is taken and the write itself fails
-    execute(new SQLQuery("DROP TABLE ${schema}.${table} CASCADE").withVariable("schema", PG_SCHEMA).withVariable("table", spaceId));
+    dropTableSet(PG_SCHEMA, spaceId);
     execute(new SQLQuery("DROP SEQUENCE IF EXISTS ${schema}.${sequence}")
         .withVariable("schema", PG_SCHEMA)
         .withVariable("sequence", spaceId + "_version_seq"));
@@ -456,7 +214,7 @@ public class PSQLLazyTableIT extends PSQLAbstractIT {
     execute(new SQLQuery("COMMENT ON TABLE ${schema}.${table} IS 'foreign'")
         .withVariable("schema", connector.schema())
         .withVariable("table", TEMPLATE_TABLE));
-    Set<String> before = relations(connector.schema(), "xyz_empty_space_");
+    Set<String> before = templateRelations(connector.schema());
 
     String spaceId = newId();
     ErrorResponse error = assertError(XyzError.ILLEGAL_ARGUMENT, invoke(connector, new ModifySpaceEvent()
@@ -465,8 +223,10 @@ public class PSQLLazyTableIT extends PSQLAbstractIT {
         .withParams(Map.of(Space.TABLE_NAME, TEMPLATE_TABLE))
         .withSpaceDefinition(new Space().withId(spaceId))));
     assertEquals("Reserved table name", error.getErrorMessage());
-    assertEquals(before, relations(connector.schema(), "xyz_empty_space_"), "No relation and no comment may change");
+    assertEquals(before, templateRelations(connector.schema()), "No relation and no comment may change");
   }
+
+  //------------ The creation of lazy spaces ------------
 
   @Test
   public void createDoesNoDdl() throws Exception {
@@ -497,7 +257,7 @@ public class PSQLLazyTableIT extends PSQLAbstractIT {
 
     assertOk(invoke(connector, modifySpaceEvent(Operation.CREATE, spaceId, lazyParams(table))));
     assertTrue(relationExists(connector.schema(), table), "The space must be created eagerly");
-    assertEquals(1, warnings("Space " + spaceId + ": lazyTable without lazyTableCreation, creating eagerly").size());
+    assertEquals(1, logLines("WARN Space " + spaceId + ": lazyTable without lazyTableCreation, creating eagerly").size());
   }
 
   @Test
@@ -510,7 +270,7 @@ public class PSQLLazyTableIT extends PSQLAbstractIT {
 
     assertOk(invoke(handler, connector, modifySpaceEvent(Operation.CREATE, spaceId, lazyParams(table))));
     assertTrue(relationExists(connector.schema(), table), "The space must be created eagerly");
-    assertEquals(1, warnings("Space " + spaceId + ": empty-space template not verified, creating eagerly (template check: null)")
+    assertEquals(1, logLines("WARN Space " + spaceId + ": empty-space template not verified, creating eagerly (template check: null)")
         .size());
     assertFalse(relationExists(connector.schema(), TEMPLATE_TABLE), "Settings without the template install none");
   }
@@ -522,7 +282,7 @@ public class PSQLLazyTableIT extends PSQLAbstractIT {
 
     assertOk(invoke(new NLConnector(), connector, modifySpaceEvent(Operation.CREATE, newId(), lazyParams(table))));
     assertTrue(relationExists(connector.schema(), table), "The new layout creates every space eagerly");
-    assertEquals(Set.of(), relations(connector.schema(), "xyz_empty_space_"), "The new layout installs no template");
+    assertEquals(Set.of(), templateRelations(connector.schema()), "The new layout installs no template");
   }
 
   @Test
@@ -532,5 +292,124 @@ public class PSQLLazyTableIT extends PSQLAbstractIT {
     XyzResponse response = invoke(connector, new HealthCheckEvent());
     assertFalse(response instanceof ErrorResponse, response.serialize());
     assertTrue(relationExists(connector.schema(), TEMPLATE_TABLE), "A read-only connector installs the template too");
+  }
+
+  //------------ Reads of never written lazy spaces ------------
+
+  /**
+   * One instance of every read event, as fresh objects, because the connector changes the params of an event.
+   */
+  private static List<Supplier<Event>> readEvents() {
+    return List.of(
+        () -> new GetFeaturesByIdEvent().withIds(List.of("F1", "F2")),
+        () -> new GetFeaturesByBBoxEvent<>().withBbox(new BBox(-10, -10, 10, 10)),
+        () -> new GetFeaturesByTileEvent().withLevel(0).withX(0).withY(0).withBbox(new BBox(-180, -85, 180, 85)),
+        () -> new GetFeaturesByGeometryEvent().withGeometry(new Point().withCoordinates(new PointCoordinates(8, 50))).withRadius(1000),
+        () -> new IterateFeaturesEvent<>().withLimit(10),
+        () -> new SearchForFeaturesEvent<>().withLimit(10),
+        () -> new LoadFeaturesEvent().withIdsMap(Map.of("F1", "0")),
+        () -> new GetStatisticsEvent().withFastMode(true),
+        () -> new GetStatisticsEvent().withFastMode(false),
+        () -> new IterateChangesetsEvent().withLimit(10).withRef(new Ref(new Ref(0), new Ref(Ref.HEAD))),
+        () -> new GetChangesetStatisticsEvent(),
+        () -> new DeleteChangesetsEvent().withMinVersion(0));
+  }
+
+  /**
+   * @return The response as JSON, without the parts that differ for any two spaces
+   */
+  private static Map<String, Object> comparable(XyzResponse response) throws Exception {
+    Map<String, Object> json = XyzSerializable.deserialize(response.serialize(), new TypeReference<Map<String, Object>>() {});
+    json.remove("streamId");
+    return json;
+  }
+
+  private static void assertParity(TestConnector connector, String eagerSpace, Map<String, Object> eagerParams, String lazySpace,
+      Map<String, Object> lazyParams, Supplier<Event> read) throws Exception {
+    Event eagerEvent = read.get().withSpace(eagerSpace).withParams(eagerParams);
+    Event lazyEvent = read.get().withSpace(lazySpace).withParams(lazyParams);
+    String name = eagerEvent.getClass().getSimpleName();
+    XyzResponse eager = invoke(connector, eagerEvent);
+    XyzResponse lazy = invoke(connector, lazyEvent);
+    assertEquals(comparable(eager), comparable(lazy), name + ": " + eager.serialize() + " vs. " + lazy.serialize());
+  }
+
+  @Test
+  public void readsOfANeverWrittenSpaceEqualThoseOfAnEagerEmptySpace() throws Exception {
+    TestConnector connector = newConnector().with("lazyTableCreation", true);
+    String eagerTable = newTable();
+    String lazyTable = newTable();
+    String spaceId = newId();
+    createEager(connector, eagerTable);
+    assertOk(invoke(connector, modifySpaceEvent(Operation.CREATE, spaceId, lazyParams(lazyTable))));
+
+    for (Supplier<Event> read : readEvents())
+      assertParity(connector, spaceId, eagerParams(eagerTable), spaceId, lazyParams(lazyTable), read);
+    assertEquals(Set.of(), relations(connector.schema(), lazyTable), "A read must not create the table");
+    //One uncached check per read event, a missing table is never cached
+    assertEquals(readEvents().size(), logLines("INFO lazyCheck connector=" + connector.id() + " levels=1 missing=1 ms=").size());
+  }
+
+  @Test
+  public void eraseIsNoop() throws Exception {
+    TestConnector connector = newConnector().with("lazyTableCreation", true);
+    String eagerTable = newTable();
+    String lazyTable = newTable();
+    createEager(connector, eagerTable);
+
+    XyzResponse eager = invoke(connector, new ModifyFeaturesEvent().withEraseContent(true).withSpace(newId())
+        .withParams(eagerParams(eagerTable)));
+    XyzResponse lazy = invoke(connector, new ModifyFeaturesEvent().withEraseContent(true).withSpace(newId())
+        .withParams(lazyParams(lazyTable)));
+    assertEquals(comparable(eager), comparable(lazy));
+    assertEquals(Set.of(), relations(connector.schema(), lazyTable));
+  }
+
+  @Test
+  public void missingTemplateFailsLoudly() throws Exception {
+    TestConnector connector = newConnector().with("lazyTableCreation", true);
+    PSQLXyzConnector handler = new PSQLXyzConnector();
+    handler.initialize(settingsOf(connector, false), null);
+
+    ErrorResponse error = assertError(XyzError.EXCEPTION, invoke(handler, connector,
+        new GetFeaturesByIdEvent().withIds(List.of("F1")).withSpace(newId()).withParams(lazyParams(newTable()))));
+    assertEquals("Empty-space template missing or not identical on the database", error.getErrorMessage());
+  }
+
+  @Test
+  public void notIdenticalTemplateFailsLoudly() throws Exception {
+    TestConnector connector = newConnector().with("lazyTableCreation", true);
+    installTemplate(connector.schema());
+    execute(new SQLQuery("DROP TRIGGER xyz_empty_space_guard ON ${schema}.${table}")
+        .withVariable("schema", connector.schema())
+        .withVariable("table", TEMPLATE_TABLE + "_p0"));
+
+    ErrorResponseException e = assertThrows(ErrorResponseException.class, () -> invokeOrThrow(new PSQLXyzConnector(), connector,
+        new GetFeaturesByIdEvent().withIds(List.of("F1")).withSpace(newId()).withParams(lazyParams(newTable()))));
+    assertEquals(XyzError.EXCEPTION, e.getErrorResponse().getError());
+    assertEquals("Empty-space template missing or not identical on the database", e.getErrorResponse().getErrorMessage());
+    assertTrue(e.getCause().getMessage().startsWith("Empty-space template not identical: " + TEMPLATE_TABLE + " in schema "),
+        e.getCause().getMessage());
+  }
+
+  @Test
+  public void droppedTemplateStopsLazyCreates() throws Exception {
+    TestConnector connector = newConnector().with("lazyTableCreation", true);
+    String table = newTable();
+    assertOk(invoke(connector, modifySpaceEvent(Operation.CREATE, newId(), lazyParams(table))));
+    assertEquals(Set.of(), relations(connector.schema(), table));
+
+    dropTableSet(connector.schema(), TEMPLATE_TABLE);
+    ErrorResponse error = assertError(XyzError.EXCEPTION, invoke(connector,
+        new GetFeaturesByIdEvent().withIds(List.of("F1")).withSpace(newId()).withParams(lazyParams(table))));
+    assertEquals("Empty-space template missing or not identical on the database", error.getErrorMessage());
+
+    String spaceId = newId();
+    String otherTable = newTable();
+    assertOk(invoke(connector, modifySpaceEvent(Operation.CREATE, spaceId, lazyParams(otherTable))));
+    assertTrue(relationExists(connector.schema(), otherTable), "Without the template a lazy create is eager");
+    assertEquals(1, logLines("WARN Space " + spaceId + ": empty-space template not verified, creating eagerly "
+        + "(template check: MISSING_AT_RUNTIME)").size());
+    assertEquals(Set.of(), templateRelations(connector.schema()), "Nothing may install the template on the fly");
   }
 }

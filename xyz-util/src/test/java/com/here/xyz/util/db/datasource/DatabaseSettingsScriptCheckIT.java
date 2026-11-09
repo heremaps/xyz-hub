@@ -26,6 +26,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
+import com.here.xyz.util.db.ConnectorParameters;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DatabaseSettings.ScriptResourcePath;
 import com.here.xyz.util.db.pg.LazySpaceTables;
@@ -35,6 +36,7 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import org.junit.jupiter.api.AfterAll;
@@ -145,6 +147,31 @@ public class DatabaseSettingsScriptCheckIT {
     assertEquals(TemplateCheck.VERIFIED, second.getEmptySpaceTemplateCheck());
     assertNull("The successful check must end the retries", DatabaseSettings.getScriptCheckRetryAfter(id));
     assertTrue(templateExists(schema));
+  }
+
+  @Test
+  public void installTimeoutFromTheConnectorParamIsClampedToItsMinimum() throws Exception {
+    String id = newId();
+    String schema = newTemplateSchema();
+    ConnectorParameters connectorParams = ConnectorParameters.fromMap(Map.of("scriptInstallTimeoutSeconds", 1));
+    assertEquals(5, connectorParams.getScriptInstallTimeoutSeconds());
+    try (SingleConnectionDataSources lockDsp = newProvider()) {
+      Connection lockConnection = lockDsp.getWriter().getConnection();
+      LockHelper.advisoryLock(LazySpaceTables.templateLockKey(schema), lockConnection);
+      //Applied as the connector does it in DatabaseHandler.initialize(Event)
+      DatabaseSettings settings = templateSettings(id, PG_PW, schema);
+      if (connectorParams.getScriptInstallTimeoutSeconds() > 0)
+        settings.withScriptInstallTimeoutSeconds(connectorParams.getScriptInstallTimeoutSeconds());
+      long start = System.currentTimeMillis();
+      new PooledDataSources(settings).close();
+      long duration = System.currentTimeMillis() - start;
+      LockHelper.advisoryUnlock(LazySpaceTables.templateLockKey(schema), lockConnection);
+
+      assertTrue("The check must end after the clamped install timeout of 5 s, took " + duration + " ms",
+          duration >= 4_000 && duration < 9_000);
+      assertEquals(TemplateCheck.NOT_VERIFIED, settings.getEmptySpaceTemplateCheck());
+      assertFalse(templateExists(schema));
+    }
   }
 
   @Test
