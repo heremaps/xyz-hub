@@ -35,6 +35,7 @@ import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.util.SpaceTableResolver;
 import com.here.xyz.responses.StorageStatistics;
+import com.here.xyz.responses.StorageStatistics.SpaceByteSizes;
 import com.here.xyz.util.service.Core;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
@@ -72,8 +73,26 @@ public class StorageStatisticsProvider {
                   .stream()
                   .map(e -> fetchFromStorage(marker, e.getKey(), e.getValue(), spaceIdToTableName))
                   .collect(Collectors.toList()));
-            }))
-        .compose(results -> Future.succeededFuture(mergeStats(results.list())));
+            })
+            .map(results -> addStorageIdsOfLazySpaces(mergeStats(results.list()), spaces)));
+  }
+
+  /**
+   * Sets the storage ID of each lazy space (a space with the lazyTable flag) that has no storage ID in the statistics yet.
+   * The connector reports the storage ID only for spaces with a table, and a lazy space gets its table on the first write.
+   * Spaces without the flag keep what the connector reported.
+   *
+   * @param stats The merged statistics of all storages
+   * @param spaces The spaces the statistics were requested for
+   * @return The provided statistics
+   */
+  static StorageStatistics addStorageIdsOfLazySpaces(StorageStatistics stats, List<Space> spaces) {
+    spaces.forEach(space -> {
+      SpaceByteSizes sizes = stats.getByteSizes().get(space.getId());
+      if (sizes != null && sizes.getStorageId() == null && Space.isLazyTable(space.getStorage().getParams()))
+        sizes.setStorageId(space.getStorage().getId());
+    });
+    return stats;
   }
 
   /**
