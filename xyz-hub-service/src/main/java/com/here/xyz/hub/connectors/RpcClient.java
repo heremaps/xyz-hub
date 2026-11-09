@@ -333,6 +333,7 @@ public class RpcClient {
     connectorParams.put("connectorId", connector.id);
 
       // Embedded und Lambda inject remoteFunction.className
+    //NOTE: Connector#getEffectiveClassName() mirrors this precedence (used for the lazy-table decision), keep both aligned
     if(connector.getRemoteFunction() instanceof RemoteFunctionConfig.Embedded embedded)
         connectorParams.put("className", embedded.className);
     else if(connector.getRemoteFunction() instanceof RemoteFunctionConfig.AWSLambda lambda)

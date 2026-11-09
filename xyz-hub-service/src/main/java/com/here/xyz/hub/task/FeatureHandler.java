@@ -50,6 +50,7 @@ import com.here.xyz.models.hub.Space.Extension;
 import com.here.xyz.models.hub.Space.ListenerConnectorRef;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.util.db.pg.LazySpaceTables;
 import com.here.xyz.util.service.HttpException;
 import com.here.xyz.util.service.errors.DetailedHttpException;
 import com.here.xyz.util.service.rest.TooManyRequestsException;
@@ -166,8 +167,38 @@ public class FeatureHandler {
     if (space.getExtension() != null)
       storageParams.putAll(space.resolveCompositeParams(space.getExtension().resolvedSpace));
 
+    if (event instanceof WriteFeaturesEvent)
+      injectOnDemandIndexes(storageParams, space);
+
     event.setParams(storageParams);
     return Future.succeededFuture();
+  }
+
+  /**
+   * Adds the on-demand indexes to the storage params of a write event of a space with a lazy level, so that the write that
+   * creates the table also creates them. They are the effective searchable properties of the space, which for an extension
+   * are the ones of the root base. Params without a lazy level stay unchanged.
+   *
+   * @param storageParams The resolved storage params of the event, including the composite params
+   * @param space The space, with {@link Extension#resolvedSpace} set on every level if it is an extension
+   */
+  static void injectOnDemandIndexes(Map<String, Object> storageParams, Space space) {
+    if (!LazySpaceTables.hasLazyLevel(storageParams))
+      return;
+
+    com.here.xyz.models.hub.Space extendedSpace = space.getExtension() == null ? null : space.getExtension().resolvedSpace;
+    Map<String, Boolean> searchableProperties = space.getEffectiveSearchableProperties(extendedSpace);
+    if (searchableProperties == null && space.getExtension() != null) {
+      //The connector creates the system indexes only and logs the missing parameter
+      logger.warn("Space {}: the root base of the extension is not resolved, no on-demand indexes are sent", space.getId());
+      return;
+    }
+
+    List<String> onDemandIndexes = searchableProperties == null ? List.of() : searchableProperties.entrySet().stream()
+        .filter(property -> Boolean.TRUE.equals(property.getValue()))
+        .map(Map.Entry::getKey)
+        .toList();
+    storageParams.put(LazySpaceTables.ON_DEMAND_INDEXES, onDemandIndexes);
   }
 
   public static Future<Long> getCountForSpace(Marker marker, Space space, SpaceContext spaceContext, String requesterId,

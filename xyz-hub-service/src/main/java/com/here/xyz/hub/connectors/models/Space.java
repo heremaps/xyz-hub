@@ -159,7 +159,11 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
         .compose(extendedSpace -> extendedSpace == null ?
                 Future.failedFuture(new InvalidExtensionException("Unable to load extended resource with id: " + getExtension().getSpaceId())):
                 resolveSecondLevelExtension(marker, extendedSpace)
-                    .map(v -> resolveCompositeParams(extendedSpace)));
+                    .map(v -> {
+                      //Keep the loaded extended space available to the caller, as for the second level
+                      getExtension().resolvedSpace = extendedSpace;
+                      return resolveCompositeParams(extendedSpace);
+                    }));
   }
 
   private static Future<Void> resolveSecondLevelExtension(Marker marker, Space extendedSpace) {
