@@ -24,6 +24,7 @@ import static com.here.xyz.util.db.pg.LazySpaceTables.TEMPLATE_WRITE_MESSAGE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -45,9 +46,12 @@ import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.ModifySpaceEvent.Operation;
+import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
+import com.here.xyz.models.geojson.implementation.Feature;
+import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
@@ -57,10 +61,12 @@ import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.db.SQLQuery;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
@@ -365,15 +371,226 @@ public class PSQLLazyTableIT extends LazyTablesITBase {
     assertEquals(Set.of(), relations(connector.schema(), lazyTable));
   }
 
+  /**
+   * @return A handler whose settings request no template, so that its schema has none
+   */
+  private static PSQLXyzConnector handlerWithoutTemplate(TestConnector connector) {
+    PSQLXyzConnector handler = new PSQLXyzConnector();
+    handler.initialize(settingsOf(connector, false), null);
+    return handler;
+  }
+
   @Test
   public void missingTemplateFailsLoudly() throws Exception {
     TestConnector connector = newConnector().with("lazyTableCreation", true);
-    PSQLXyzConnector handler = new PSQLXyzConnector();
-    handler.initialize(settingsOf(connector, false), null);
 
-    ErrorResponse error = assertError(XyzError.EXCEPTION, invoke(handler, connector,
+    ErrorResponse error = assertError(XyzError.EXCEPTION, invoke(handlerWithoutTemplate(connector), connector,
         new GetFeaturesByIdEvent().withIds(List.of("F1")).withSpace(newId()).withParams(lazyParams(newTable()))));
     assertEquals("Empty-space template missing or not identical on the database", error.getErrorMessage());
+
+    //A write to a lazy extension of a never written lazy base needs the template for the base and fails before any DDL
+    String extension = newTable();
+    String base = newTable();
+    Map<String, Object> params = lazyWriteParams(extension);
+    params.put("extends", lazyParams(base));
+    ((Map<String, Object>) params.get("extends")).put("spaceId", newId());
+    error = assertError(XyzError.EXCEPTION, invoke(handlerWithoutTemplate(connector), connector,
+        writeFeaturesEvent(newId(), params)));
+    assertEquals("Empty-space template missing or not identical on the database", error.getErrorMessage());
+    assertEquals(Set.of(), relations(connector.schema(), extension));
+    assertEquals(Set.of(), relations(connector.schema(), base));
+
+    //The first write to a standalone lazy space needs no template
+    String standalone = newTable();
+    FeatureCollection written = assertFeatureCollection(invoke(handlerWithoutTemplate(connector), connector,
+        writeFeaturesEvent(newId(), lazyWriteParams(standalone))));
+    assertEquals(Boolean.TRUE, written.getMaterialized());
+    assertTrue(relationExists(connector.schema(), standalone));
+    assertEquals(Set.of(), templateRelations(connector.schema()));
+  }
+
+  //------------ Writes of lazy spaces ------------
+
+  /**
+   * The parts of a write response that do not depend on the time or the physical table.
+   */
+  private static Map<String, Object> writeSummary(XyzResponse response) throws Exception {
+    if (response instanceof ErrorResponse error)
+      return Map.of("error", String.valueOf(error.getError()));
+    FeatureCollection collection = assertFeatureCollection(response);
+    return Map.of(
+        "features", ids(collection.getFeatures()),
+        "oldFeatures", ids(collection.getOldFeatures()),
+        "inserted", collection.getInserted() == null ? List.of() : collection.getInserted(),
+        "updated", collection.getUpdated() == null ? List.of() : collection.getUpdated(),
+        "deleted", collection.getDeleted() == null ? List.of() : collection.getDeleted(),
+        "failed", collection.getFailed() == null ? List.of() : collection.getFailed().stream().map(f -> f.getId()).toList());
+  }
+
+  private static List<String> ids(List<Feature> features) {
+    return features == null ? List.of() : features.stream().map(Feature::getId).sorted().toList();
+  }
+
+  /**
+   * The writes of the legacy writer and of the feature writer, each on a fresh space.
+   */
+  private static List<Function<Map<String, Object>, Event>> writes(boolean transactional) {
+    return List.of(
+        params -> insertEvent("s", transactional, params, "F1", "F2"),
+        params -> new ModifyFeaturesEvent().withSpace("s").withParams(params).withTransaction(transactional)
+            .withUpsertFeatures(features("U1")),
+        params -> new ModifyFeaturesEvent().withSpace("s").withParams(params).withTransaction(transactional)
+            .withDeleteFeatures(new HashMap<>(Map.of("D1", "0"))),
+        params -> {
+          Map<String, Object> withOldStates = new HashMap<>(params);
+          withOldStates.put("includeOldStates", true);
+          return new ModifyFeaturesEvent().withSpace("s").withParams(withOldStates).withTransaction(transactional)
+              .withUpsertFeatures(features("O1"));
+        },
+        params -> new ModifyFeaturesEvent().withSpace("s").withParams(params).withTransaction(transactional)
+            .withInsertFeatures(new ArrayList<>()),
+        params -> writeFeaturesEvent("s", params, "W1", "W2"));
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void firstWritesMaterializeAndAnswerLikeOnAnEagerSpace(boolean transactional) throws Exception {
+    TestConnector connector = newConnector().with("lazyTableCreation", true);
+    for (Function<Map<String, Object>, Event> write : writes(transactional)) {
+      String eagerTable = newTable();
+      String lazyTable = newTable();
+      createEager(connector, eagerTable);
+
+      XyzResponse eager = invoke(connector, write.apply(eagerParams(eagerTable)));
+      Event lazyEvent = write.apply(lazyWriteParams(lazyTable));
+      XyzResponse lazy = invoke(connector, lazyEvent);
+      String name = lazyEvent.getClass().getSimpleName() + " " + lazy.serialize();
+      assertEquals(writeSummary(eager), writeSummary(lazy), name);
+      assertEquals(Boolean.TRUE, assertFeatureCollection(lazy).getMaterialized(), name);
+      assertEquals(catalogRows(connector.schema(), eagerTable), catalogRows(connector.schema(), lazyTable), name);
+    }
+  }
+
+  @Test
+  public void loadFeaturesAfterFirstWrite() throws Exception {
+    TestConnector connector = newConnector().with("lazyTableCreation", true);
+    String table = newTable();
+    String spaceId = newId();
+    assertFeatureCollection(invoke(connector, insertEvent(spaceId, true, lazyWriteParams(table), "F1")));
+
+    FeatureCollection loaded = assertFeatureCollection(invoke(connector, new LoadFeaturesEvent().withSpace(spaceId)
+        .withParams(lazyParams(table)).withIdsMap(new HashMap<>(Map.of("F1", "0")))));
+    assertEquals(List.of("F1"), ids(loaded.getFeatures()));
+  }
+
+  @Test
+  public void materializedSetEqualsEagerCreate() throws Exception {
+    TestConnector connector = newConnector().with("lazyTableCreation", true);
+    String eagerTable = newTable();
+    String lazyTable = newTable();
+    String eagerSpace = newId();
+    assertOk(invoke(connector, new ModifySpaceEvent().withSpace(eagerSpace).withOperation(Operation.CREATE)
+        .withParams(eagerParams(eagerTable))
+        .withSpaceDefinition(new Space().withId(eagerSpace).withSearchableProperties(Map.of("bar.baz", true)))));
+
+    //One on-demand index: the names PostgreSQL gives the partition indexes depend on the order of their creation
+    assertFeatureCollection(invoke(connector, writeFeaturesEvent(newId(), lazyWriteParams(lazyTable, "bar.baz"))));
+    Set<String> eagerRows = catalogRows(connector.schema(), eagerTable);
+    assertTrue(eagerRows.stream().anyMatch(row -> row.contains("'baz'")), "The eager create has the on-demand index: " + eagerRows);
+    assertEquals(eagerRows, catalogRows(connector.schema(), lazyTable));
+  }
+
+  @Test
+  public void writeWithoutOnDemandIndexesMaterializesSystemIndexesOnly() throws Exception {
+    TestConnector connector = newConnector().with("lazyTableCreation", true);
+    String eagerTable = newTable();
+    String lazyTable = newTable();
+    String spaceId = newId();
+    createEager(connector, eagerTable);
+
+    FeatureCollection written = assertFeatureCollection(invoke(connector, writeFeaturesEvent(spaceId, lazyParams(lazyTable))));
+    assertEquals(Boolean.TRUE, written.getMaterialized());
+    assertEquals(catalogRows(connector.schema(), eagerTable), catalogRows(connector.schema(), lazyTable));
+    assertEquals(1, logLines("ERROR Space " + spaceId + ": the write carries no onDemandIndexes").size());
+  }
+
+  @Test
+  public void lostTableOfFlaggedSpaceReadsAsEmpty() throws Exception {
+    TestConnector connector = newConnector().with("lazyTableCreation", true);
+    String table = newTable();
+    String spaceId = newId();
+    assertFeatureCollection(invoke(connector, insertEvent(spaceId, true, lazyWriteParams(table), "F1")));
+    dropTableSet(connector.schema(), table);
+    //Another container, which has not seen the table
+    LazyTableResolver.clearCache();
+
+    FeatureCollection read = assertFeatureCollection(invoke(connector, new GetFeaturesByIdEvent().withSpace(spaceId)
+        .withParams(lazyParams(table)).withIds(List.of("F1"))));
+    assertEquals(List.of(), ids(read.getFeatures()));
+
+    FeatureCollection written = assertFeatureCollection(invoke(connector, insertEvent(spaceId, true, lazyWriteParams(table), "F2")));
+    assertEquals(Boolean.TRUE, written.getMaterialized());
+    assertEquals(List.of("F2"), written.getInserted());
+    assertTrue(relationExists(connector.schema(), table));
+  }
+
+  @Test
+  public void writeResponseReportsMaterialized() throws Exception {
+    TestConnector connector = newConnector().with("lazyTableCreation", true);
+
+    //ModifyFeaturesEvent in both modes: CREATED, then a cache hit, then EXISTED in a container without a cache entry
+    for (boolean transactional : List.of(true, false)) {
+      String table = newTable();
+      String spaceId = newId();
+      for (String id : List.of("A", "B", "C")) {
+        if ("C".equals(id))
+          LazyTableResolver.clearCache();
+        FeatureCollection written = assertFeatureCollection(invoke(connector,
+            insertEvent(spaceId, transactional, lazyWriteParams(table), id)));
+        assertEquals(Boolean.TRUE, written.getMaterialized(), "Write of " + id + " transactional " + transactional);
+      }
+    }
+
+    //WriteFeaturesEvent with and without response data
+    for (boolean responseDataExpected : List.of(true, false)) {
+      String table = newTable();
+      String spaceId = newId();
+      for (String id : List.of("A", "B")) {
+        FeatureCollection written = assertFeatureCollection(invoke(connector,
+            writeFeaturesEvent(spaceId, lazyWriteParams(table), id).withResponseDataExpected(responseDataExpected)));
+        assertEquals(Boolean.TRUE, written.getMaterialized(), "Write of " + id + " responseDataExpected " + responseDataExpected);
+      }
+    }
+
+    //A write with the context SUPER into a flagged base
+    String extension = newTable();
+    String base = newTable();
+    Map<String, Object> params = lazyWriteParams(extension);
+    Map<String, Object> baseParams = lazyParams(base);
+    baseParams.put("spaceId", newId());
+    params.put("extends", baseParams);
+    FeatureCollection superWrite = assertFeatureCollection(invoke(connector,
+        writeFeaturesEvent(newId(), params, "S1").withContext(SpaceContext.SUPER)));
+    assertEquals(Boolean.TRUE, superWrite.getMaterialized());
+    assertTrue(relationExists(connector.schema(), base), "The base is the write target");
+    assertFalse(relationExists(connector.schema(), extension), "The extension is not written");
+
+    //No report for a space without the flag, a read, an erase and a failed write
+    String eagerTable = newTable();
+    createEager(connector, eagerTable);
+    assertNull(assertFeatureCollection(invoke(connector, writeFeaturesEvent(newId(), eagerParams(eagerTable)))).getMaterialized());
+    String table = newTable();
+    String spaceId = newId();
+    assertFeatureCollection(invoke(connector, writeFeaturesEvent(spaceId, lazyWriteParams(table), "E1")));
+    assertNull(assertFeatureCollection(invoke(connector, new GetFeaturesByIdEvent().withSpace(spaceId).withParams(lazyParams(table))
+        .withIds(List.of("E1")))).getMaterialized());
+    assertNull(assertFeatureCollection(invoke(connector, new ModifyFeaturesEvent().withEraseContent(true).withSpace(spaceId)
+        .withParams(lazyParams(table)))).getMaterialized());
+    //A transactional update of a feature that does not exist fails the whole write
+    XyzResponse conflict = invoke(connector, new ModifyFeaturesEvent().withSpace(spaceId).withParams(lazyWriteParams(table))
+        .withTransaction(true).withUpdateFeatures(features("NX")));
+    assertError(XyzError.CONFLICT, conflict);
+    assertFalse(conflict.serialize().contains("materialized"), conflict.serialize());
   }
 
   @Test

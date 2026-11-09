@@ -343,13 +343,53 @@ public abstract class LazyTablesITBase extends PSQLAbstractIT {
   }
 
   protected static WriteFeaturesEvent writeFeaturesEvent(String spaceId, Map<String, Object> params, String... ids) {
+    return writeFeaturesEvent(spaceId, params, UpdateStrategy.DEFAULT_UPDATE_STRATEGY, ids);
+  }
+
+  protected static WriteFeaturesEvent writeFeaturesEvent(String spaceId, Map<String, Object> params, UpdateStrategy updateStrategy,
+      String... ids) {
     return new WriteFeaturesEvent()
         .withSpace(spaceId)
         .withParams(params)
         .withResponseDataExpected(true)
         .withModifications(Set.of(new Modification()
             .withFeatureData(new FeatureCollection().withFeatures(features(ids.length == 0 ? new String[]{"W1"} : ids)))
-            .withUpdateStrategy(UpdateStrategy.DEFAULT_UPDATE_STRATEGY)));
+            .withUpdateStrategy(updateStrategy)));
+  }
+
+  /**
+   * @return One row per relation (name and kind) and one per index (name, table and definition) of the table, its partitions and
+   *  sequences, with the table name replaced by "&lt;t&gt;" and the schema by "&lt;s&gt;". Compared names must have the same length.
+   */
+  protected static Set<String> catalogRows(String schema, String table) throws Exception {
+    return query(new SQLQuery("""
+        SELECT replace(c.relname, #{table}, '<t>') || ':' || c.relkind::TEXT AS row FROM pg_class c
+          JOIN pg_namespace n ON n.oid = c.relnamespace
+          WHERE n.nspname = #{schema} AND starts_with(c.relname, #{table})
+        UNION ALL
+        SELECT 'index:' || replace(ic.relname, #{table}, '<t>') || ':' || replace(c.relname, #{table}, '<t>') || ':'
+            || replace(replace(pg_get_indexdef(i.indexrelid), #{table}, '<t>'), #{schema}, '<s>') FROM pg_index i
+          JOIN pg_class ic ON ic.oid = i.indexrelid
+          JOIN pg_class c ON c.oid = i.indrelid
+          JOIN pg_namespace n ON n.oid = c.relnamespace
+          WHERE n.nspname = #{schema} AND starts_with(c.relname, #{table})
+        """)
+        .withNamedParameter("schema", schema)
+        .withNamedParameter("table", table), rs -> {
+          Set<String> rows = new TreeSet<>();
+          while (rs.next())
+            rows.add(rs.getString("row"));
+          return rows;
+        });
+  }
+
+  /**
+   * @return Lazy params of a space that carries the on-demand indexes a Hub sends with a write
+   */
+  protected static Map<String, Object> lazyWriteParams(String table, String... onDemandIndexes) {
+    Map<String, Object> params = lazyParams(table);
+    params.put(LazySpaceTables.ON_DEMAND_INDEXES, List.of(onDemandIndexes));
+    return params;
   }
 
   /**

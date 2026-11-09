@@ -34,6 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.here.xyz.connectors.ErrorResponseException;
+import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.DeleteChangesetsEvent;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.GetChangesetStatisticsEvent;
@@ -55,13 +56,16 @@ import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.events.WriteFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.hub.Space;
+import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.util.Random;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import com.here.xyz.util.db.datasource.DatabaseSettings;
+import com.here.xyz.util.db.pg.LazySpaceTables;
 import com.here.xyz.util.db.pg.LazySpaceTables.Level;
 import com.here.xyz.util.db.pg.LazySpaceTables.LevelCheck;
 import com.here.xyz.util.db.pg.LazySpaceTables.LevelState;
+import com.here.xyz.util.db.pg.LazySpaceTables.MaterializationResult;
 import com.here.xyz.util.db.pg.MaterializationTimeoutException;
 import com.here.xyz.util.db.pg.MaterializationTimeoutException.Phase;
 import com.here.xyz.util.db.pg.ReservedTableNameException;
@@ -283,14 +287,144 @@ class LazyTableResolverTest {
     assertNull(resolver(settings, new StubChecker(EXISTS, true)).prepare(lazy(new ModifyFeaturesEvent().withEraseContent(true))));
   }
 
+  /**
+   * Records the materializations instead of running them.
+   */
+  static class StubMaterializer implements LazyTableResolver.Materializer {
+    final List<String> tables = new ArrayList<>();
+    final List<List<String>> indexes = new ArrayList<>();
+
+    @Override
+    public MaterializationResult materialize(DataSourceProvider dataSourceProvider, String schema, String table, String spaceId,
+        List<String> onDemandIndexes, long budgetMillis) {
+      tables.add(table);
+      indexes.add(onDemandIndexes);
+      return MaterializationResult.CREATED;
+    }
+  }
+
+  private static Map<String, Object> composite(boolean lazyExtension, boolean lazyBase) {
+    Map<String, Object> base = new HashMap<>(Map.of("spaceId", "base_" + Random.randomAlpha(5), Space.TABLE_NAME,
+        "b_" + Random.randomAlpha(8)));
+    if (lazyBase)
+      base.put(Space.LAZY_TABLE, true);
+    Map<String, Object> params = new HashMap<>(Map.of(Space.TABLE_NAME, "x_" + Random.randomAlpha(8), "extends", base));
+    if (lazyExtension)
+      params.put(Space.LAZY_TABLE, true);
+    return params;
+  }
+
+  @SuppressWarnings("unchecked")
+  private static String baseTable(Map<String, Object> params) {
+    return (String) ((Map<String, Object>) params.get("extends")).get(Space.TABLE_NAME);
+  }
+
   @Test
-  void writesPassUnchanged() throws Exception {
-    StubChecker checker = new StubChecker(NEVER_MATERIALIZED, true);
+  void firstWriteToAStandaloneSpaceMaterializesWithoutTheTemplate() throws Exception {
+    StubMaterializer materializer = new StubMaterializer();
     WriteFeaturesEvent event = lazy(new WriteFeaturesEvent());
-    Map<String, Object> original = event.getParams();
-    assertNull(resolver(new StubSettings(TemplateCheck.VERIFIED), checker).prepare(event));
-    assertSame(original, event.getParams());
-    assertEquals(0, checker.calls.get());
+    event.getParams().put(LazySpaceTables.ON_DEMAND_INDEXES, List.of("foo", "it's"));
+    String table = (String) event.getParams().get(Space.TABLE_NAME);
+    LazyTableResolver resolver = resolver(new StubSettings(TemplateCheck.VERIFIED), new StubChecker(NEVER_MATERIALIZED, false))
+        .withMaterializer(materializer);
+
+    assertNull(resolver.prepare(event));
+    assertEquals(List.of(table), materializer.tables);
+    assertEquals(List.of(List.of("foo")), materializer.indexes, "The on-demand indexes are validated");
+    assertEquals(table, event.getParams().get(Space.TABLE_NAME), "The write target is never substituted");
+    FeatureCollection response = new FeatureCollection();
+    assertSame(response, resolver.reportMaterialized(event, response));
+    assertEquals(Boolean.TRUE, response.getMaterialized());
+  }
+
+  @Test
+  void writeTargetDepthIsNeverPassedToTheTemplateCheck() throws Exception {
+    //A lazy extension of a never written lazy base without the template: fails before any materialization
+    StubMaterializer materializer = new StubMaterializer();
+    WriteFeaturesEvent event = lazy(new WriteFeaturesEvent()).withParams(composite(true, true));
+    assertThrows(TemplateUnavailableException.class, () -> resolver(new StubSettings(TemplateCheck.VERIFIED),
+        new StubChecker(NEVER_MATERIALIZED, false)).withMaterializer(materializer).prepare(event));
+    assertEquals(List.of(), materializer.tables);
+
+    //With the template the base is read from it and the extension is materialized
+    WriteFeaturesEvent withTemplate = lazy(new WriteFeaturesEvent()).withParams(composite(true, true));
+    String extension = (String) withTemplate.getParams().get(Space.TABLE_NAME);
+    assertNull(resolver(new StubSettings(TemplateCheck.VERIFIED), new StubChecker(NEVER_MATERIALIZED, true))
+        .withMaterializer(materializer).prepare(withTemplate));
+    assertEquals(List.of(extension), materializer.tables);
+    assertEquals(extension, withTemplate.getParams().get(Space.TABLE_NAME));
+    assertEquals(TEMPLATE_TABLE, baseTable(withTemplate.getParams()));
+  }
+
+  @Test
+  void superWriteMaterializesTheBase() throws Exception {
+    StubMaterializer materializer = new StubMaterializer();
+    Map<String, Object> params = composite(true, true);
+    String base = baseTable(params);
+    WriteFeaturesEvent event = lazy(new WriteFeaturesEvent()).withParams(params).withContext(SpaceContext.SUPER);
+    LazyTableResolver resolver = resolver(new StubSettings(TemplateCheck.VERIFIED), new StubChecker(NEVER_MATERIALIZED, true))
+        .withMaterializer(materializer);
+
+    assertNull(resolver.prepare(event));
+    assertEquals(List.of(base), materializer.tables);
+    assertEquals(TEMPLATE_TABLE, event.getParams().get(Space.TABLE_NAME), "The missing extension is read from the template");
+    assertEquals(base, baseTable(event.getParams()));
+    FeatureCollection response = new FeatureCollection();
+    resolver.reportMaterialized(event, response);
+    assertEquals(Boolean.TRUE, response.getMaterialized());
+  }
+
+  @Test
+  void reportOnlyForASuccessfulWriteOfALazyTarget() throws Exception {
+    StubSettings settings = new StubSettings(TemplateCheck.VERIFIED);
+    //An existing lazy target (EXISTED or a cache hit) reports too
+    ModifyFeaturesEvent write = lazy(new ModifyFeaturesEvent());
+    LazyTableResolver resolver = resolver(settings, new StubChecker(EXISTS, true));
+    resolver.prepare(write);
+    FeatureCollection response = new FeatureCollection();
+    resolver.reportMaterialized(write, response);
+    assertEquals(Boolean.TRUE, response.getMaterialized());
+    ErrorResponse error = new ErrorResponse().withError(XyzError.CONFLICT);
+    assertSame(error, resolver.reportMaterialized(write, error));
+
+    //A target without the flag, only its base is lazy
+    WriteFeaturesEvent baseOnly = lazy(new WriteFeaturesEvent()).withParams(composite(false, true));
+    LazyTableResolver baseOnlyResolver = resolver(settings, new StubChecker(NEVER_MATERIALIZED, true))
+        .withMaterializer(new StubMaterializer());
+    baseOnlyResolver.prepare(baseOnly);
+    FeatureCollection baseOnlyResponse = new FeatureCollection();
+    baseOnlyResolver.reportMaterialized(baseOnly, baseOnlyResponse);
+    assertNull(baseOnlyResponse.getMaterialized());
+
+    //A read and an erase never report
+    GetFeaturesByIdEvent read = lazy(new GetFeaturesByIdEvent());
+    LazyTableResolver readResolver = resolver(settings, new StubChecker(EXISTS, true));
+    readResolver.prepare(read);
+    FeatureCollection readResponse = new FeatureCollection();
+    readResolver.reportMaterialized(read, readResponse);
+    assertNull(readResponse.getMaterialized());
+
+    ModifyFeaturesEvent erase = lazy(new ModifyFeaturesEvent().withEraseContent(true));
+    LazyTableResolver eraseResolver = resolver(settings, new StubChecker(EXISTS, true));
+    eraseResolver.prepare(erase);
+    FeatureCollection eraseResponse = new FeatureCollection();
+    eraseResolver.reportMaterialized(erase, eraseResponse);
+    assertNull(eraseResponse.getMaterialized());
+  }
+
+  @Test
+  void readOnlyConnectorNeverMaterializes() throws Exception {
+    StubMaterializer materializer = new StubMaterializer();
+    WriteFeaturesEvent event = lazy(new WriteFeaturesEvent());
+    event.getConnectorParams().put("readOnly", true);
+    LazyTableResolver resolver = resolver(new StubSettings(TemplateCheck.VERIFIED), new StubChecker(NEVER_MATERIALIZED, true))
+        .withMaterializer(materializer);
+
+    assertNull(resolver.prepare(event));
+    assertEquals(List.of(), materializer.tables);
+    FeatureCollection response = new FeatureCollection();
+    resolver.reportMaterialized(event, response);
+    assertNull(response.getMaterialized());
   }
 
   @Test

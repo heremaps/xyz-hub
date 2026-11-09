@@ -24,13 +24,18 @@ import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
+import com.here.xyz.events.ModifyFeaturesEvent;
+import com.here.xyz.events.ModifySpaceEvent.Operation;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.hub.Space;
+import com.here.xyz.util.db.pg.LazySpaceTables;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -175,6 +180,60 @@ public class PSQLLazyCompositeIT extends LazyTablesITBase {
   @Test
   public void twoLevelsAllLazy() throws Exception {
     assertParityWithEagerTwin(List.of(lazy(), lazy(), lazy()), Set.of());
+  }
+
+  private static Set<String> readIds(List<Lvl> levels, SpaceContext context) throws Exception {
+    return ids(assertFeatureCollection(invoke(connector, new GetFeaturesByIdEvent().withIds(IDS).withSpace("composite")
+        .withParams(params(levels)).withContext(context))));
+  }
+
+  @Test
+  public void deleteInTheLazyExtensionOfAnEagerBase() throws Exception {
+    Lvl extension = lazy();
+    List<Lvl> levels = List.of(extension, eager("b1", "b2"));
+    List<Lvl> twins = List.of(eager(), levels.get(1));
+
+    for (List<Lvl> composite : List.of(levels, twins)) {
+      ModifyFeaturesEvent delete = new ModifyFeaturesEvent().withSpace("composite").withParams(params(composite))
+          .withContext(DEFAULT).withTransaction(true).withDeleteFeatures(new HashMap<>(Map.of("b1", "0")));
+      FeatureCollection result = assertFeatureCollection(invoke(connector, delete));
+      assertEquals(List.of("b1"), result.getDeleted(), result.serialize());
+    }
+    assertEquals(Set.of("b2"), readIds(levels, DEFAULT));
+    for (SpaceContext context : List.of(DEFAULT, EXTENSION, SUPER))
+      assertEquals(readIds(twins, context), readIds(levels, context), "Context " + context);
+    assertEquals(2, countRows(connector.schema(), levels.get(1).table()), "The base keeps the feature");
+    assertTrue(relationExists(connector.schema(), extension.table()), "The delete materializes the extension");
+  }
+
+  @Test
+  public void superWriteMaterializesTheBase() throws Exception {
+    Lvl base = lazy();
+    List<Lvl> levels = List.of(eager("x1"), base);
+    FeatureCollection result = assertFeatureCollection(invoke(connector,
+        writeFeaturesEvent("composite", params(levels), "b9").withContext(SUPER)));
+    assertEquals(Boolean.TRUE, result.getMaterialized());
+    assertTrue(relationExists(connector.schema(), base.table()));
+    assertEquals(1, countRows(connector.schema(), base.table()), "The write goes into the base");
+    assertEquals(1, countRows(connector.schema(), levels.get(0).table()), "The extension keeps its own feature only");
+  }
+
+  @Test
+  public void inheritedIndexesAtMaterialization() throws Exception {
+    Lvl extension = lazy();
+    List<Lvl> levels = List.of(extension, eager("b1"));
+    Map<String, Object> params = params(levels);
+    //The Hub sends the effective searchable properties, which an extension inherits from its root
+    params.put(LazySpaceTables.ON_DEMAND_INDEXES, List.of("foo"));
+    assertFeatureCollection(invoke(connector, writeFeaturesEvent("composite", params, "x1")));
+
+    String eagerTable = newTable();
+    String eagerSpace = newId();
+    assertOk(invoke(connector, modifySpaceEvent(Operation.CREATE, eagerSpace, eagerParams(eagerTable))
+        .withSpaceDefinition(new Space().withId(eagerSpace).withSearchableProperties(Map.of("foo", true)))));
+    Set<String> eagerRows = catalogRows(connector.schema(), eagerTable);
+    assertTrue(eagerRows.stream().anyMatch(row -> row.contains("foo")), eagerRows.toString());
+    assertEquals(eagerRows, catalogRows(connector.schema(), extension.table()));
   }
 
   @Test

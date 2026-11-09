@@ -153,7 +153,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         XyzResponse shortCircuit = prepareMapped(event);
         if (shortCircuit != null)
             return shortCircuit;
-        return super.processEvent(event);
+        return resolver.reportMaterialized(event, super.processEvent(event));
     }
 
     /**
