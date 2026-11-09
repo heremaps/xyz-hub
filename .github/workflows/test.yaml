@@ -25,6 +25,10 @@ jobs:
         include:
           - name: hub
             modules: xyz-hub-test
+          #The REST tests again, with the test connector psql creating the table of a new space on its first write
+          - name: hub-lazy
+            modules: xyz-hub-test
+            lazy: true
           - name: job-steps
             modules: xyz-jobs/xyz-job-steps
           - name: job-service
@@ -61,6 +65,30 @@ jobs:
       - name: Run Setup of JobService
         working-directory: ./xyz-jobs/xyz-job-service/src/main/bash
         run: docker run --rm --entrypoint '' -v ./localSetup.sh:/aws/localSetup.sh --add-host host.docker.internal=host-gateway amazon/aws-cli ./localSetup.sh true
+      #The connector API cannot update psql, because its seeded definition does not pass the validation of a stored
+      #connector (no contactEmails, a warmUp on an Embedded connector, a maxPayloadSize above 50 MB). So the param goes
+      #straight into the connector's item in DynamoDB local, and the restart drops the connector cache of the Hub. The
+      #connector's params are checked, not printed.
+      - name: Switch the test connector psql to lazy table creation
+        if: matrix.lazy
+        run: |
+          waitForHub() {
+            for attempt in $(seq 1 90); do
+              [ "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/hub/connectors/psql)" = "200" ] && return 0
+              sleep 2
+            done
+            return 1
+          }
+          waitForHub
+          docker run --rm --network container:dynamodb -e AWS_ACCESS_KEY_ID=localstack -e AWS_SECRET_ACCESS_KEY=localstack \
+            -e AWS_DEFAULT_REGION=us-east-1 amazon/aws-cli dynamodb update-item --endpoint-url http://localhost:8000 \
+            --table-name xyz-hub-local-connectors --key '{"id":{"S":"psql"}}' \
+            --update-expression 'SET params.lazyTableCreation = :lazy' --condition-expression 'attribute_exists(params)' \
+            --expression-attribute-values '{":lazy":{"BOOL":true}}'
+          docker restart xyz-hub > /dev/null
+          waitForHub
+          curl -sf http://localhost:8080/hub/connectors/psql \
+            | jq -e '.params.lazyTableCreation == true and .params.connectorId == "psql" and (.params.ecps | length > 0)' > /dev/null
       - name: Run tests
         working-directory: ./
         #The fat jars were already built and deployed by the steps above, no need to repackage them

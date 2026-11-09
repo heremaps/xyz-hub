@@ -34,6 +34,11 @@ import org.junit.Test;
 
 public class StorageReportingApiIT extends TestSpaceWithFeature {
   private static Set<String> cleanUpIds = new HashSet<>();
+  /**
+   * The content bytes reported for a new space on the connector psql. A connector with lazyTableCreation creates the table of a
+   * space on its first write, so an empty space has no table and reports 0 bytes.
+   */
+  private static int emptySpaceContentBytes;
 
   private static void cleanUp() {
     remove();
@@ -41,7 +46,19 @@ public class StorageReportingApiIT extends TestSpaceWithFeature {
   }
 
   @BeforeClass
-  public static void setup() { cleanUp(); }
+  public static void setup() {
+    cleanUp();
+    Boolean lazyTableCreation = given()
+        .accept(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .when()
+        .get("/connectors/psql")
+        .then()
+        .statusCode(OK.code())
+        .extract()
+        .path("params.lazyTableCreation");
+    emptySpaceContentBytes = Boolean.TRUE.equals(lazyTableCreation) ? 0 : 8192;
+  }
 
   @After
   public void tearDown() { cleanUp(); }
@@ -82,7 +99,7 @@ public class StorageReportingApiIT extends TestSpaceWithFeature {
         .statusCode(OK.code())
         .body("type", equalTo("StorageStatistics"))
         .body("createdAt", greaterThan(0L))
-        .body("byteSizes." + DEFAULT_SPACE_ID + ".contentBytes.value", equalTo(8192));
+        .body("byteSizes." + DEFAULT_SPACE_ID + ".contentBytes.value", equalTo(emptySpaceContentBytes));
   }
 
   @Test
@@ -115,7 +132,7 @@ public class StorageReportingApiIT extends TestSpaceWithFeature {
             .statusCode(OK.code())
             .body("type", equalTo("StorageStatistics"))
             .body("createdAt", greaterThan(0L))
-            .body("byteSizes." + (DEFAULT_SPACE_ID + "-1") + ".contentBytes.value", equalTo(8192))
+            .body("byteSizes." + (DEFAULT_SPACE_ID + "-1") + ".contentBytes.value", equalTo(emptySpaceContentBytes))
             .body("byteSizes." + (DEFAULT_SPACE_ID + "-1") + ".storageId", equalTo("psql"))
             .body("byteSizes." + SECOND_SPACE_ID + ".contentBytes.value", greaterThan(8192))
             .body("byteSizes." + SECOND_SPACE_ID + ".storageId", equalTo("psql_db2_hashed"));
