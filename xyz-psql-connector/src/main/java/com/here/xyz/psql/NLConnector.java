@@ -93,6 +93,12 @@ import org.postgresql.util.PGobject;
 
 public class NLConnector extends PSQLXyzConnector {
   private static final Logger logger = LogManager.getLogger(NLConnector.class);
+  private static final String STATUS_PROPERTY_KEY = "status";
+
+  private static final String GLOBAL_VERSION_SEARCH_KEY = "globalVersions";
+  private static final String REF_QUAD_COUNT_SELECTION_KEY = "f.refQuadCount";
+  //If seedingMode is active, we do not use the FeatureWriter, but a simple batch upsert and delete
+  private boolean seedingMode = false;
 
   /**
    * The new table layout creates every space table eagerly and installs no empty-space template.
@@ -101,12 +107,6 @@ public class NLConnector extends PSQLXyzConnector {
   protected boolean lazyTablesSupported() {
     return false;
   }
-  private static final String STATUS_PROPERTY_KEY = "status";
-
-  private static final String GLOBAL_VERSION_SEARCH_KEY = "globalVersions";
-  private static final String REF_QUAD_COUNT_SELECTION_KEY = "f.refQuadCount";
-  //If seedingMode is active, we do not use the FeatureWriter, but a simple batch upsert and delete
-  private boolean seedingMode = false;
 
   @Override
   protected StatisticsResponse processGetStatistics(GetStatisticsEvent event) throws Exception {
