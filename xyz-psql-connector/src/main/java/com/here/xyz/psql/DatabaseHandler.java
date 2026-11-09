@@ -487,13 +487,15 @@ public abstract class DatabaseHandler extends StorageConnector {
                             throw e;
 
                         errorDetails.put("FailedList", fails);
-                        throw new ErrorResponseException(new ErrorResponse().withErrorDetails(errorDetails).withError(XyzError.CONFLICT).withErrorMessage(DatabaseWriter.TRANSACTION_ERROR_GENERAL));
+                        throw new ErrorResponseException(new ErrorResponse().withErrorDetails(errorDetails).withError(XyzError.CONFLICT)
+                            .withErrorMessage(DatabaseWriter.TRANSACTION_ERROR_GENERAL));
                     }
                     else {
                         errorDetails.put(DatabaseWriter.TRANSACTION_ERROR_GENERAL,
                                 (e instanceof SQLException sqlException && sqlException.getSQLState() != null)
                                         ? "SQL-state: " + sqlException.getSQLState() : "Unexpected Error occurred");
-                        throw new ErrorResponseException(new ErrorResponse().withErrorDetails(errorDetails).withError(XyzError.BAD_GATEWAY).withErrorMessage(DatabaseWriter.TRANSACTION_ERROR_GENERAL));
+                        throw new ErrorResponseException(new ErrorResponse().withErrorDetails(errorDetails).withError(XyzError.BAD_GATEWAY)
+                            .withErrorMessage(DatabaseWriter.TRANSACTION_ERROR_GENERAL));
                     }
                 }
 
