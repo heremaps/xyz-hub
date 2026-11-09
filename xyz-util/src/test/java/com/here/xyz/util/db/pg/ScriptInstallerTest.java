@@ -19,12 +19,22 @@
 
 package com.here.xyz.util.db.pg;
 
+import static com.here.xyz.util.db.ConnectorParameters.TableLayout.OLD_LAYOUT;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+import com.here.xyz.util.db.datasource.PooledDataSources;
+import com.here.xyz.util.db.pg.LazySpaceTables.TemplateProbe;
+import com.here.xyz.util.db.pg.ScriptInstaller.State;
+import com.here.xyz.util.db.pg.ScriptInstaller.TemplateCheck;
+import com.here.xyz.util.db.pg.XyzSpaceTableHelper.TableComment;
 import java.sql.SQLException;
 import java.sql.SQLTimeoutException;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 
 public class ScriptInstallerTest {
@@ -71,6 +81,40 @@ public class ScriptInstallerTest {
     assertFalse(ScriptInstaller.isTransient(new SQLException("ERROR: cache lookup failed for function 12345", "XX000")));
     assertFalse(ScriptInstaller.isTransient(new SQLException("Some error without state")));
     assertFalse(ScriptInstaller.isTransient(new SQLException("Wrapper", "42601", error("42883"))));
+  }
+
+  @Test
+  public void templatesWithoutACheckFollowTheScripts() {
+    assertEquals(Map.of(LazySpaceTables.TEMPLATE_TABLE, TemplateCheck.NOT_VERIFIED), ScriptInstaller.uncheckedTemplates(State.TRANSIENT,
+        "s1"));
+    assertEquals(Map.of(LazySpaceTables.TEMPLATE_TABLE, TemplateCheck.FAILED_PERMANENT),
+        ScriptInstaller.uncheckedTemplates(State.PERMANENT, "s1"));
+    assertEquals("Without a template schema no template is requested", Map.of(),
+        ScriptInstaller.uncheckedTemplates(State.TRANSIENT, null));
+    assertEquals("One result per requested version", ScriptInstaller.TEMPLATE_VERSIONS,
+        List.copyOf(ScriptInstaller.uncheckedTemplates(State.TRANSIENT, "s1").keySet()));
+  }
+
+  @Test
+  public void classifyAnExistingTemplate() {
+    String comment = new TableComment(LazySpaceTables.TEMPLATE_SPACE_ID, OLD_LAYOUT).serialize();
+    assertEquals(TemplateCheck.VERIFIED, ScriptInstaller.classify(new TemplateProbe(true, true, comment, 3, true)));
+    assertEquals(TemplateCheck.NOT_IDENTICAL, ScriptInstaller.classify(new TemplateProbe(true, false, null, 0, false)));
+    assertEquals(TemplateCheck.NOT_IDENTICAL, ScriptInstaller.classify(new TemplateProbe(true, true, comment, 3, false)));
+  }
+
+  @Test
+  public void compileSearchPathAsTheConnectionsGetIt() {
+    //The path XyzConnectionCustomizer.onAcquire set before the method was extracted
+    List<String> scriptSchemas = List.of("hub.common", "hub.ext");
+    List<String> enrichedSearchPath = new ArrayList<>(List.of("lazy_abc", "public", "topology"));
+    enrichedSearchPath.addAll(scriptSchemas);
+    String before = enrichedSearchPath.stream().map(schema -> "\"" + schema + "\"").collect(Collectors.joining(", "));
+
+    assertEquals(before, PooledDataSources.compileSearchPath("lazy_abc", scriptSchemas));
+    assertEquals("\"lazy_abc\", \"public\", \"topology\", \"hub.common\", \"hub.ext\"",
+        PooledDataSources.compileSearchPath("lazy_abc", scriptSchemas));
+    assertEquals("\"public\", \"public\", \"topology\"", PooledDataSources.compileSearchPath("public", List.of()));
   }
 
   /**

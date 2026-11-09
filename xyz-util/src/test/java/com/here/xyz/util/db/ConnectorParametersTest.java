@@ -41,7 +41,10 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Isolated;
 
+//The tests count log lines, which they miss while other classes run concurrently
+@Isolated
 public class ConnectorParametersTest {
   private static final String LOGGER = ConnectorParameters.class.getName();
   private static Level previousLevel;

@@ -19,13 +19,21 @@
 
 package com.here.xyz.util.db.pg;
 
+import static com.here.xyz.util.db.ConnectorParameters.TableLayout.OLD_LAYOUT;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import com.here.xyz.util.db.pg.InstalledScripts.Row;
+import com.here.xyz.util.db.pg.LazySpaceTables.TemplateProbe;
+import com.here.xyz.util.db.pg.ScriptInstaller.TemplateCheck;
+import com.here.xyz.util.db.pg.XyzSpaceTableHelper.TableComment;
+import java.lang.reflect.Proxy;
+import java.sql.ResultSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 public class InstalledScriptsTest {
@@ -141,6 +149,66 @@ public class InstalledScriptsTest {
     assertTrue(snapshot.exists(SCRIPT_ID, null));
     assertNull(snapshot.getHash(SCRIPT_ID, null));
     assertTrue("A missing hash of the unversioned schema counts as a mismatch", SCRIPT.needsInstallation(snapshot));
+  }
+
+  /**
+   * @return A result set positioned on one row with the provided column values
+   */
+  private static ResultSet row(Map<String, Object> columns) {
+    return (ResultSet) Proxy.newProxyInstance(ResultSet.class.getClassLoader(), new Class<?>[] {ResultSet.class},
+        (proxy, method, args) -> {
+          Object value = columns.get((String) args[0]);
+          return switch (method.getName()) {
+            case "getBoolean" -> value != null && (Boolean) value;
+            case "getInt" -> value == null ? 0 : (Integer) value;
+            case "getString" -> (String) value;
+            default -> throw new UnsupportedOperationException(method.getName());
+          };
+        });
+  }
+
+  private static Map<String, Object> probeRow(boolean anyRelation, boolean rootExists, String comment, int guardTriggers,
+      boolean sequencesExhausted) {
+    Map<String, Object> columns = new HashMap<>();
+    columns.put("kind", "template");
+    columns.put("tpl_table", LazySpaceTables.TEMPLATE_TABLE);
+    columns.put("tpl_any_relation", anyRelation);
+    columns.put("tpl_root_exists", rootExists);
+    columns.put("tpl_comment", comment);
+    columns.put("tpl_guard_triggers", guardTriggers);
+    columns.put("tpl_sequences_exhausted", sequencesExhausted);
+    return columns;
+  }
+
+  @Test
+  public void parseTemplateProbeRows() throws Exception {
+    String comment = new TableComment(LazySpaceTables.TEMPLATE_SPACE_ID, OLD_LAYOUT).serialize();
+
+    TemplateProbe identical = LazySpaceTables.readTemplateProbe(row(probeRow(true, true, comment, 3, true)));
+    assertEquals(new TemplateProbe(true, true, comment, 3, true), identical);
+    assertEquals(TemplateCheck.VERIFIED, ScriptInstaller.classify(identical));
+
+    TemplateProbe absent = LazySpaceTables.readTemplateProbe(row(probeRow(false, false, null, 0, false)));
+    assertTrue(absent.isAbsent());
+
+    TemplateProbe unparsableComment = LazySpaceTables.readTemplateProbe(row(probeRow(true, true, "{\"spaceId\":", 3, true)));
+    assertEquals("An unparsable comment means not identical", TemplateCheck.NOT_IDENTICAL, ScriptInstaller.classify(unparsableComment));
+    assertEquals(TemplateCheck.NOT_IDENTICAL,
+        ScriptInstaller.classify(LazySpaceTables.readTemplateProbe(row(probeRow(true, true, comment, 2, true)))));
+  }
+
+  @Test
+  public void keepOneTemplateProbePerVersion() {
+    TemplateProbe probe = new TemplateProbe(true, true, "{}", 3, true);
+    InstalledScripts snapshot = new InstalledScripts(List.of(SCRIPT_ID), List.of(versions("1.0.1", "1.0.1", "1.0.2")),
+        Map.of(LazySpaceTables.TEMPLATE_TABLE, probe));
+
+    assertEquals(probe, snapshot.getTemplateProbe(LazySpaceTables.TEMPLATE_TABLE));
+    assertNull(snapshot.getTemplateProbe("xyz_empty_space_v2"));
+    assertEquals("A copy without a version keeps the probe", probe,
+        snapshot.withoutVersion(SCRIPT_ID, "1.0.1").getTemplateProbe(LazySpaceTables.TEMPLATE_TABLE));
+    assertNull("A snapshot without a template schema has no probe", snapshot(versions("1.0.1", "1.0.1"))
+        .getTemplateProbe(LazySpaceTables.TEMPLATE_TABLE));
   }
 
   @Test

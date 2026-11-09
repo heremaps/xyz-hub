@@ -21,17 +21,22 @@ package com.here.xyz.util.db.datasource;
 
 import static com.here.xyz.util.Random.randomAlpha;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DatabaseSettings.ScriptResourcePath;
+import com.here.xyz.util.db.pg.LazySpaceTables;
 import com.here.xyz.util.db.pg.LockHelper;
+import com.here.xyz.util.db.pg.ScriptInstaller.TemplateCheck;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 
@@ -46,14 +51,148 @@ public class DatabaseSettingsScriptCheckIT {
   private static final String BROKEN_NEXT_TO_BLOCKED_PREFIX = "it" + randomAlpha(5).toLowerCase();
   private static final String BLOCKED_PREFIX = "it" + randomAlpha(5).toLowerCase();
   private static final String REUSED_PREFIX = "it" + randomAlpha(5).toLowerCase();
+  private static final Set<String> TEMPLATE_SCHEMAS = ConcurrentHashMap.newKeySet();
+  private static final Set<String> TEMPLATE_FUNCTIONS_PREFIXES = ConcurrentHashMap.newKeySet();
 
   @AfterAll
   public static void dropSchemas() throws Exception {
     try (SingleConnectionDataSources dsp = new SingleConnectionDataSources(settings(newId(), PG_PW, 5432, null, null), 5, 20)) {
-      for (String prefix : List.of(PREFIX, BROKEN_PREFIX, BROKEN_NEXT_TO_BLOCKED_PREFIX, BLOCKED_PREFIX, REUSED_PREFIX))
+      List<String> prefixes = new ArrayList<>(List.of(PREFIX, BROKEN_PREFIX, BROKEN_NEXT_TO_BLOCKED_PREFIX, BLOCKED_PREFIX,
+          REUSED_PREFIX));
+      prefixes.addAll(TEMPLATE_FUNCTIONS_PREFIXES);
+      for (String prefix : prefixes)
         for (String schema : listSchemas(dsp, prefix))
           new SQLQuery("DROP SCHEMA IF EXISTS ${schema} CASCADE").withVariable("schema", schema).write(dsp);
+      for (String schema : TEMPLATE_SCHEMAS)
+        new SQLQuery("DROP SCHEMA IF EXISTS ${schema} CASCADE").withVariable("schema", schema).write(dsp);
     }
+  }
+
+  //------------ The empty-space template ------------
+
+  private static String newTemplateSchema() {
+    String schema = "lazy_" + randomAlpha(5);
+    TEMPLATE_SCHEMAS.add(schema);
+    return schema;
+  }
+
+  /**
+   * Settings whose script check installs the functions the template DDL calls into a script schema of their own, and with the
+   * template the connector requests.
+   */
+  private static DatabaseSettings templateSettings(String id, String password, String schema) {
+    String prefix = "it" + schema.substring("lazy_".length());
+    TEMPLATE_FUNCTIONS_PREFIXES.add(prefix);
+    return settings(id, password, 5432, "/templateFunctions", prefix)
+        .withSchema(schema)
+        .withEmptySpaceTemplate(true);
+  }
+
+  private static boolean templateExists(String schema) throws SQLException {
+    try (SingleConnectionDataSources dsp = newProvider()) {
+      return LazySpaceTables.checkLevels(dsp, schema, List.of()).templatePresent();
+    }
+  }
+
+  private static void execute(String statement, String schema) throws SQLException {
+    try (SingleConnectionDataSources dsp = newProvider()) {
+      new SQLQuery(statement).withVariable("schema", schema).write(dsp);
+    }
+  }
+
+  @Test
+  public void templateIsVerifiedByTheScriptCheckAndFoundAgainInANewJvmState() throws Exception {
+    String id = newId();
+    String schema = newTemplateSchema();
+    DatabaseSettings settings = templateSettings(id, PG_PW, schema);
+    new PooledDataSources(settings).close();
+    assertEquals(TemplateCheck.VERIFIED, settings.getEmptySpaceTemplateCheck());
+    assertTrue(settings.isEmptySpaceTemplateVerified());
+    assertTrue(templateExists(schema));
+    assertNull(DatabaseSettings.getScriptCheckRetryAfter(id));
+
+    DatabaseSettings.resetScriptCheckState();
+    assertNull("The reset must clear the template result", settings.getEmptySpaceTemplateCheck());
+    DatabaseSettings again = templateSettings(id, PG_PW, schema);
+    new PooledDataSources(again).close();
+    assertEquals(TemplateCheck.VERIFIED, again.getEmptySpaceTemplateCheck());
+  }
+
+  @Test
+  public void heldTemplateLockLeadsToARetryThatInstallsTheTemplate() throws Exception {
+    String id = newId();
+    String schema = newTemplateSchema();
+    try (SingleConnectionDataSources lockDsp = newProvider()) {
+      Connection lockConnection = lockDsp.getWriter().getConnection();
+      LockHelper.advisoryLock(LazySpaceTables.templateLockKey(schema), lockConnection);
+      //The install timeout set directly on the settings, which have no clamp
+      DatabaseSettings first = templateSettings(id, PG_PW, schema).withScriptInstallTimeoutSeconds(1);
+      long start = System.currentTimeMillis();
+      new PooledDataSources(first).close();
+      long duration = System.currentTimeMillis() - start;
+      LockHelper.advisoryUnlock(LazySpaceTables.templateLockKey(schema), lockConnection);
+
+      assertTrue("The check must end after the install timeout of 1 s, took " + duration + " ms", duration < 4_000);
+      assertEquals(TemplateCheck.NOT_VERIFIED, first.getEmptySpaceTemplateCheck());
+      assertFalse(first.isEmptySpaceTemplateVerified());
+      assertNotNull("A template that is not verified must be retried", DatabaseSettings.getScriptCheckRetryAfter(id));
+      assertFalse(templateExists(schema));
+    }
+
+    DatabaseSettings.expireScriptCheckRetry(id);
+    DatabaseSettings second = templateSettings(id, PG_PW, schema);
+    new PooledDataSources(second).close();
+    assertEquals(TemplateCheck.VERIFIED, second.getEmptySpaceTemplateCheck());
+    assertNull("The successful check must end the retries", DatabaseSettings.getScriptCheckRetryAfter(id));
+    assertTrue(templateExists(schema));
+  }
+
+  @Test
+  public void templateFoundMissingAtRuntimeStartsNoCheck() throws Exception {
+    String id = newId();
+    String schema = newTemplateSchema();
+    DatabaseSettings settings = templateSettings(id, PG_PW, schema);
+    new PooledDataSources(settings).close();
+    assertEquals(TemplateCheck.VERIFIED, settings.getEmptySpaceTemplateCheck());
+
+    settings.markEmptySpaceTemplateMissing();
+    assertEquals(TemplateCheck.MISSING_AT_RUNTIME, settings.getEmptySpaceTemplateCheck());
+    assertFalse(settings.isEmptySpaceTemplateVerified());
+
+    //Settings with the same ID must use the kept result without connecting, which would fail with the wrong password
+    DatabaseSettings later = templateSettings(id, "wrongPassword", schema);
+    new PooledDataSources(later).close();
+    assertEquals(TemplateCheck.MISSING_AT_RUNTIME, later.getEmptySpaceTemplateCheck());
+    assertNull("A check with the wrong password would have delayed the next check", DatabaseSettings.getScriptCheckRetryAfter(id));
+
+    //A template that is not identical stays so
+    String otherId = newId();
+    String otherSchema = newTemplateSchema();
+    execute("CREATE SCHEMA ${schema}", otherSchema);
+    execute("CREATE TABLE ${schema}.xyz_empty_space_v1 (id INT)", otherSchema);
+    DatabaseSettings notIdentical = templateSettings(otherId, PG_PW, otherSchema);
+    new PooledDataSources(notIdentical).close();
+    assertEquals(TemplateCheck.NOT_IDENTICAL, notIdentical.getEmptySpaceTemplateCheck());
+    assertNull("NOT_IDENTICAL is kept for the JVM", DatabaseSettings.getScriptCheckRetryAfter(otherId));
+    notIdentical.markEmptySpaceTemplateMissing();
+    assertEquals(TemplateCheck.NOT_IDENTICAL, notIdentical.getEmptySpaceTemplateCheck());
+  }
+
+  @Test
+  public void settingsWithoutTheTemplateDoNotCheckIt() throws Exception {
+    String id = newId();
+    String schema = newTemplateSchema();
+    DatabaseSettings settings = templateSettings(id, PG_PW, schema).withEmptySpaceTemplate(false);
+    new PooledDataSources(settings).close();
+    assertNull(settings.getEmptySpaceTemplateCheck());
+    assertFalse(settings.isEmptySpaceTemplateVerified());
+    assertFalse(templateExists(schema));
+
+    //The same ID with the template must check it, although the scripts of the ID were verified already
+    DatabaseSettings withTemplate = templateSettings(id, PG_PW, schema);
+    new PooledDataSources(withTemplate).close();
+    assertEquals(TemplateCheck.VERIFIED, withTemplate.getEmptySpaceTemplateCheck());
+    assertTrue(templateExists(schema));
   }
 
   private static SingleConnectionDataSources newProvider() {

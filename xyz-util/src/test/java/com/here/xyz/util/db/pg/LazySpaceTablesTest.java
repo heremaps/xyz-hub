@@ -27,9 +27,12 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.here.xyz.util.db.pg.LazySpaceTables.Level;
+import com.here.xyz.util.db.pg.LazySpaceTables.LevelCheck;
+import com.here.xyz.util.db.pg.LazySpaceTables.LevelState;
 import com.here.xyz.util.db.pg.LazySpaceTables.TemplateProbe;
 import com.here.xyz.util.db.pg.MaterializationTimeoutException.Phase;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper.TableComment;
@@ -40,6 +43,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 public class LazySpaceTablesTest {
@@ -244,5 +248,32 @@ public class LazySpaceTablesTest {
     TemplateProbe foreignRelationOnly = new TemplateProbe(true, false, null, 0, false);
     assertFalse(foreignRelationOnly.isAbsent());
     assertFalse(foreignRelationOnly.isIdentical());
+  }
+
+  @Test
+  public void templateProbeDifferences() {
+    assertEquals(List.of(), new TemplateProbe(true, true, COMMENT, 3, true).differences());
+    assertEquals(List.of("root table missing", "0 of 3 guard triggers", "version sequence not exhausted"),
+        new TemplateProbe(true, false, null, 0, false).differences());
+    assertEquals(List.of("comment {not json"), new TemplateProbe(true, true, "{not json", 3, true).differences());
+  }
+
+  @Test
+  public void requireTemplateWithoutSubstitutedLevelsNeverThrows() throws Exception {
+    LevelCheck missingTarget = new LevelCheck(List.of(LevelState.NEVER_MATERIALIZED), false);
+    LazySpaceTables.requireTemplate("s1", missingTarget, Set.of());
+    LazySpaceTables.requireTemplate("s1", new LevelCheck(List.of(LevelState.NEVER_MATERIALIZED), true), Set.of());
+  }
+
+  @Test
+  public void requireTemplateThrowsForASubstitutedLevelWithoutTheTemplate() throws Exception {
+    LevelCheck missingBase = new LevelCheck(List.of(LevelState.EXISTS, LevelState.NEVER_MATERIALIZED), false);
+    TemplateUnavailableException e = assertThrows(TemplateUnavailableException.class,
+        () -> LazySpaceTables.requireTemplate("s1", missingBase, Set.of(1)));
+    assertEquals("XX000", e.getSQLState());
+    assertEquals("Empty-space template missing: " + TEMPLATE_TABLE + " in schema s1", e.getMessage());
+
+    LazySpaceTables.requireTemplate("s1", new LevelCheck(List.of(LevelState.EXISTS, LevelState.NEVER_MATERIALIZED), true),
+        Set.of(1));
   }
 }

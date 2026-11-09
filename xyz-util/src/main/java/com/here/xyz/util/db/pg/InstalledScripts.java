@@ -21,6 +21,7 @@ package com.here.xyz.util.db.pg;
 
 import com.fasterxml.jackson.core.Version;
 import com.here.xyz.util.db.SQLQuery;
+import com.here.xyz.util.db.pg.LazySpaceTables.TemplateProbe;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -39,7 +40,9 @@ import java.util.Set;
  */
 public class InstalledScripts {
   private static final String BODY_LITERAL = "substring(p.prosrc FROM 'RETURN ''([^'']*)''')";
+  private static final String TEMPLATE_KIND = "template";
   private final Map<String, ScriptSchemas> scripts = new HashMap<>();
+  private final Map<String, TemplateProbe> templateProbes = new HashMap<>();
   private final int statementCount;
 
   record Row(String schemaName, boolean hasHashFunction, String hash, boolean hasVersionFunction, String version) {}
@@ -63,11 +66,17 @@ public class InstalledScripts {
   }
 
   InstalledScripts(Collection<String> scriptIds, List<Row> rows) {
-    this(scriptIds, rows, 0);
+    this(scriptIds, rows, Map.of(), 0);
   }
 
-  private InstalledScripts(Collection<String> scriptIds, List<Row> rows, int statementCount) {
+  InstalledScripts(Collection<String> scriptIds, List<Row> rows, Map<String, TemplateProbe> templateProbes) {
+    this(scriptIds, rows, templateProbes, 0);
+  }
+
+  private InstalledScripts(Collection<String> scriptIds, List<Row> rows, Map<String, TemplateProbe> templateProbes,
+      int statementCount) {
     this.statementCount = statementCount;
+    this.templateProbes.putAll(templateProbes);
     scriptIds.forEach(scriptId -> scripts.put(scriptId, new ScriptSchemas()));
     for (Row row : rows) {
       int colonPos = row.schemaName().indexOf(':');
@@ -94,6 +103,7 @@ public class InstalledScripts {
 
   private InstalledScripts(InstalledScripts other) {
     statementCount = other.statementCount;
+    templateProbes.putAll(other.templateProbes);
     other.scripts.forEach((scriptId, schemas) -> scripts.put(scriptId, schemas.copy()));
   }
 
@@ -108,7 +118,19 @@ public class InstalledScripts {
    * @throws SQLException If one of the queries failed
    */
   public static InstalledScripts load(DataSourceProvider dataSourceProvider, List<Script> scripts) throws SQLException {
-    if (scripts.isEmpty())
+    return load(dataSourceProvider, scripts, null);
+  }
+
+  /**
+   * Same as {@link #load(DataSourceProvider, List)}, but the one catalog query also reads the state of the empty-space template in
+   * the provided schema (see {@link LazySpaceTables#buildTemplateProbe(String)}), available through
+   * {@link #getTemplateProbe(String)}.
+   *
+   * @param templateSchema The schema of the template, <code>null</code> to read no template state
+   */
+  public static InstalledScripts load(DataSourceProvider dataSourceProvider, List<Script> scripts, String templateSchema)
+      throws SQLException {
+    if (scripts.isEmpty() && templateSchema == null)
       return new InstalledScripts(List.of(), List.of());
 
     Set<String> scriptIds = new LinkedHashSet<>();
@@ -119,11 +141,16 @@ public class InstalledScripts {
           : escapeLikePattern(script.getScriptId()) + "%");
     }
 
-    List<Row> rows = buildSnapshotQuery(new ArrayList<>(patterns)).run(dataSourceProvider, rs -> {
+    Map<String, TemplateProbe> templateProbes = new HashMap<>();
+    List<Row> rows = buildSnapshotQuery(new ArrayList<>(patterns), templateSchema).run(dataSourceProvider, rs -> {
       List<Row> result = new ArrayList<>();
-      while (rs.next())
-        result.add(new Row(rs.getString("schema_name"), rs.getBoolean("has_hash"), rs.getString("hash"),
-            rs.getBoolean("has_version"), rs.getString("version")));
+      while (rs.next()) {
+        if (templateSchema != null && TEMPLATE_KIND.equals(rs.getString("kind")))
+          templateProbes.put(rs.getString("tpl_table"), LazySpaceTables.readTemplateProbe(rs));
+        else
+          result.add(new Row(rs.getString("schema_name"), rs.getBoolean("has_hash"), rs.getString("hash"),
+              rs.getBoolean("has_version"), rs.getString("version")));
+      }
       return result;
     });
 
@@ -142,10 +169,22 @@ public class InstalledScripts {
       }
       resolvedRows.add(new Row(row.schemaName(), row.hasHashFunction(), hash, row.hasVersionFunction(), version));
     }
-    return new InstalledScripts(scriptIds, resolvedRows, statementCount);
+    return new InstalledScripts(scriptIds, resolvedRows, templateProbes, statementCount);
   }
 
-  private static SQLQuery buildSnapshotQuery(List<String> patterns) {
+  private static SQLQuery buildSnapshotQuery(List<String> patterns, String templateSchema) {
+    SQLQuery scriptsQuery = patterns.isEmpty() ? null : buildSnapshotQuery(patterns, templateSchema != null);
+    if (templateSchema == null)
+      return scriptsQuery;
+    SQLQuery templateProbe = LazySpaceTables.buildTemplateProbe(templateSchema);
+    if (scriptsQuery == null)
+      return templateProbe;
+    return new SQLQuery("${{scripts}} UNION ALL ${{template}}")
+        .withQueryFragment("scripts", scriptsQuery)
+        .withQueryFragment("template", templateProbe);
+  }
+
+  private static SQLQuery buildSnapshotQuery(List<String> patterns, boolean withTemplateColumns) {
     List<String> conditions = new ArrayList<>();
     Map<String, Object> parameters = new HashMap<>();
     for (int i = 0; i < patterns.size(); i++) {
@@ -154,16 +193,21 @@ public class InstalledScripts {
     }
     //NOTE: The privilege filter is the one of information_schema.schemata, so the visibility stays the same as before
     return new SQLQuery("""
-        SELECT n.nspname AS schema_name,
+        SELECT ${{kind}}n.nspname AS schema_name,
           EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace = n.oid AND p.proname = 'script_hash' AND p.pronargs = 0) AS has_hash,
           (SELECT ${{bodyLiteral}} FROM pg_proc p
             WHERE p.pronamespace = n.oid AND p.proname = 'script_hash' AND p.pronargs = 0 LIMIT 1) AS hash,
           EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace = n.oid AND p.proname = 'script_version' AND p.pronargs = 0) AS has_version,
           (SELECT ${{bodyLiteral}} FROM pg_proc p
-            WHERE p.pronamespace = n.oid AND p.proname = 'script_version' AND p.pronargs = 0 LIMIT 1) AS version
+            WHERE p.pronamespace = n.oid AND p.proname = 'script_version' AND p.pronargs = 0 LIMIT 1) AS version${{templateColumns}}
         FROM pg_namespace n
         WHERE (${{conditions}}) AND (pg_has_role(n.nspowner, 'USAGE') OR has_schema_privilege(n.oid, 'CREATE, USAGE'))
         """)
+        .withQueryFragment("kind", withTemplateColumns ? "'script'::TEXT AS kind, " : "")
+        .withQueryFragment("templateColumns", withTemplateColumns ? """
+            ,
+              NULL::TEXT AS tpl_table, NULL::BOOLEAN AS tpl_any_relation, NULL::BOOLEAN AS tpl_root_exists, NULL::TEXT AS tpl_comment,
+              NULL::INT AS tpl_guard_triggers, NULL::BOOLEAN AS tpl_sequences_exhausted""" : "")
         .withQueryFragment("bodyLiteral", BODY_LITERAL)
         .withQueryFragment("conditions", String.join(" OR ", conditions))
         .withNamedParameters(parameters);
@@ -195,6 +239,14 @@ public class InstalledScripts {
 
   int getStatementCount() {
     return statementCount;
+  }
+
+  /**
+   * @param table The root table name of a template version, e.g., {@link LazySpaceTables#TEMPLATE_TABLE}
+   * @return The state of that template, <code>null</code> if the snapshot was loaded without a template schema
+   */
+  public TemplateProbe getTemplateProbe(String table) {
+    return templateProbes.get(table);
   }
 
   /**

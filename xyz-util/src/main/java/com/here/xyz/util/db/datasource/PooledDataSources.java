@@ -80,6 +80,21 @@ public class PooledDataSources extends DataSourceProvider {
     return cpds;
   }
 
+  /**
+   * Builds the search path of the connections: the current schema, "public", "topology", then the provided schemas, each as a
+   * quoted identifier.
+   *
+   * @param currentSchema The connector schema
+   * @param searchPath The further schemas, e.g., the script schemas
+   * @return The value for {@code SET search_path}
+   */
+  public static String compileSearchPath(String currentSchema, List<String> searchPath) {
+    List<String> enrichedSearchPath = new ArrayList<>(List.of(currentSchema, "public", "topology"));
+    enrichedSearchPath.addAll(searchPath);
+    return enrichedSearchPath.stream().map(schema -> "\"" + schema + "\"")
+        .collect(Collectors.joining(", "));
+  }
+
   @Override
   public void close() throws Exception {
     if (reader != null)
@@ -96,10 +111,7 @@ public class PooledDataSources extends DataSourceProvider {
     public void onAcquire(Connection connection, String connectionId) {
       ExtendedConnectionSettings extendedSettings = getExtendedSettings(connectionId);
 
-      List<String> enrichedSearchPath = new ArrayList<>(List.of(extendedSettings.currentSchema, "public", "topology"));
-      enrichedSearchPath.addAll(extendedSettings.searchPath);
-      final String compiledSearchPath = enrichedSearchPath.stream().map(schema -> "\"" + schema + "\"")
-          .collect(Collectors.joining(", "));
+      final String compiledSearchPath = compileSearchPath(extendedSettings.currentSchema, extendedSettings.searchPath);
 
       QueryRunner runner = new QueryRunner();
       try {
