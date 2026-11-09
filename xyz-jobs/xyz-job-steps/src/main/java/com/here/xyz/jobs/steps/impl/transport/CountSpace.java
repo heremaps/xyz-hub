@@ -187,7 +187,7 @@ public class CountSpace extends TaskedSpaceBasedStep<CountSpace, CountInput, Exp
     GetFeaturesByGeometryInput input = new GetFeaturesByGeometryInput(
         space().getId(),
         hubWebClient().loadConnector(space().getStorage().getId()).params,
-        resolveSpaceParams(space()),
+        resolveReadableSpaceParamsOrFail(space()),
         context,
         space().getVersionsToKeep(),
         minSpaceVersion,

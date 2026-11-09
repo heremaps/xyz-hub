@@ -77,6 +77,39 @@ public class ExportTestBase extends StepTest {
     checkOutputs(new HashSet<>(allExpectedFeatures.getFeatures()), step.loadOutputs());
   }
 
+  /**
+   * The exported features and the feature counts of the statistics of an export.
+   */
+  protected record ExportResult(Set<Feature> features, Set<Long> featureCounts) {}
+
+  /**
+   * Exports the HEAD of a space.
+   */
+  protected ExportResult export(String spaceId, ContextAwareEvent.SpaceContext context, PropertiesQuery propertiesQuery)
+      throws IOException, InterruptedException {
+    ExportSpaceToFiles step = new ExportSpaceToFiles()
+        .withThreadCount(10)
+        .withSpaceId(spaceId)
+        .withJobId(JOB_ID);
+    step.setVersionRef(new Ref(Ref.HEAD));
+    if (context != null)
+      step.setContext(context);
+    if (propertiesQuery != null)
+      step.setPropertyFilter(propertiesQuery);
+
+    sendLambdaStepRequestBlock(step, true);
+
+    Set<Feature> features = new HashSet<>();
+    Set<Long> featureCounts = new HashSet<>();
+    for (Output output : step.loadOutputs()) {
+      if (output instanceof DownloadUrl downloadUrl)
+        features.addAll(downloadFileAndDeserializeFeatures(downloadUrl));
+      else if (output instanceof FeatureStatistics statistics)
+        featureCounts.add(statistics.getFeatureCount());
+    }
+    return new ExportResult(features, featureCounts);
+  }
+
   protected void checkOutputs(Set<Feature> expectedFeatures, List<Output> allOutputs)
           throws IOException {
     Assertions.assertNotEquals(0, allOutputs.size());

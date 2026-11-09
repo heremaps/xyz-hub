@@ -24,6 +24,7 @@ import com.here.xyz.Payload;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
+import com.here.xyz.jobs.steps.impl.transport.CopySpace;
 import com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace;
 import com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace.EntityPerLine;
 import com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace.Format;
@@ -36,9 +37,11 @@ import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
+import com.here.xyz.models.hub.Space.ConnectorRef;
 import com.here.xyz.models.hub.Tag;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.ARN;
+import com.here.xyz.util.db.pg.IndexHelper.OnDemandIndex;
 import com.here.xyz.util.runtime.LambdaFunctionRuntime;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.service.aws.lambda.SimulatedContext;
@@ -658,6 +661,116 @@ public class TaskedImportStepTest extends StepTest {
       for (String sql : sqlStatements)
         statement.execute(sql);
     }
+  }
+
+  /**
+   * A never-written lazy target takes the path of an empty layer. The step materializes its table before it takes the version, and
+   * clears the flag once it has the version.
+   */
+  @Test
+  public void testLazyImport_inEmpty_materializesAndClearsTheFlag() throws Exception {
+    Space lazy = createLazyTestSpace(SPACE_ID + "_lazy", LAZY_CONNECTOR);
+    TaskedImportFilesToSpace step = importStepWithTwoFiles(lazy.getId());
+    Assertions.assertFalse(step.useFeatureWriter());
+
+    sendLambdaStepRequestBlock(step, true);
+
+    Assertions.assertEquals(40L, getStatistics(lazy.getId()).getCount().getValue());
+    checkStatistics(40, step.loadUserOutputs());
+    Assertions.assertTrue(tableExists(DB_URL, tableName(lazy)));
+    Assertions.assertFalse(isFlagged(lazy.getId()));
+  }
+
+  /**
+   * A lazy target whose table exists while it still has the flag, as a copy leaves it, gets the FeatureWriter like a non-empty
+   * layer. The step finds the table and clears the flag.
+   */
+  @Test
+  public void testLazyImport_inMaterializedTargetWithFlag_usesTheFeatureWriter() throws Exception {
+    putRandomFeatureCollectionToSpace(SPACE_ID, 3);
+    Space lazy = createLazyTestSpace(SPACE_ID + "_lazy", LAZY_CONNECTOR);
+    sendLambdaStepRequestBlock(new CopySpace()
+        .withSpaceId(SPACE_ID)
+        .withSourceVersionRef(resolveRef(SPACE_ID, new Ref((String) null)))
+        .withTargetSpaceId(lazy.getId())
+        .withJobId(JOB_ID)
+        .withEstimatedTargetFeatureCount(0)
+        .withTargetVersion(1), true);
+    //The version the CopySpacePre of a copy job would have taken
+    runStatements("SELECT nextval('public.\"" + tableName(lazy) + "_version_seq\"')");
+    Assertions.assertTrue(isFlagged(lazy.getId()));
+    Assertions.assertEquals(3L, getStatistics(lazy.getId()).getCount().getValue());
+
+    TaskedImportFilesToSpace step = importStepWithTwoFiles(lazy.getId());
+    Assertions.assertTrue(step.useFeatureWriter());
+
+    sendLambdaStepRequestBlock(step, true);
+
+    Assertions.assertEquals(43L, getStatistics(lazy.getId()).getCount().getValue());
+    checkStatistics(40, step.loadUserOutputs());
+    Assertions.assertFalse(isFlagged(lazy.getId()));
+  }
+
+  /**
+   * An import into a lazy extension of a never-written lazy base reads the base from the empty-space template. Only the extension is
+   * materialized and cleared.
+   */
+  @Test
+  public void testLazyImport_intoLazyExtensionOfNeverWrittenLazyBase() throws Exception {
+    Space base = createLazyTestSpace(SPACE_ID + "_lazyBase", LAZY_CONNECTOR);
+    Space extension = createTestSpace(new Space().withId(SPACE_ID + "_lazyExt").withVersionsToKeep(1000)
+        .withExtension(new Space.Extension().withSpaceId(base.getId())));
+    Assertions.assertTrue(isFlagged(extension.getId()));
+    TaskedImportFilesToSpace step = importStepWithTwoFiles(extension.getId());
+    Assertions.assertTrue(step.useFeatureWriter());
+
+    sendLambdaStepRequestBlock(step, true);
+
+    Assertions.assertEquals(40, getFeaturesFromSmallSpace(extension.getId(), SpaceContext.DEFAULT, null, false).getFeatures().size());
+    checkStatistics(40, step.loadUserOutputs());
+    Assertions.assertTrue(tableExists(DB_URL, tableName(extension)));
+    Assertions.assertFalse(isFlagged(extension.getId()));
+    Assertions.assertTrue(isFlagged(base.getId()));
+    Assertions.assertEquals(0, relationCount(DB_URL, tableName(base)));
+  }
+
+  /**
+   * The step's snapshot of its target can be older than the target's config. The materialization takes the on-demand indexes from
+   * the current config.
+   */
+  @Test
+  public void testLazyImport_indexesTheCurrentSearchableProperties() throws Exception {
+    Space lazy = createTestSpace(new Space().withId(SPACE_ID + "_lazy").withStorage(new ConnectorRef().withId(LAZY_CONNECTOR))
+        .withSearchableProperties(Map.of("foo1", true)));
+    Assertions.assertTrue(isFlagged(lazy.getId()));
+    TaskedImportFilesToSpace step = importStepWithTwoFiles(lazy.getId());
+    snapshots(step).put(lazy.getId(), loadSpace(lazy.getId()).withSearchableProperties(null));
+
+    sendLambdaStepRequestBlock(step, true);
+
+    Assertions.assertTrue(getOnDemandIndices(tableName(lazy)).stream()
+        .anyMatch(index -> "foo1".equals(((OnDemandIndex) index).getPropertyPath())), "the index of foo1 was created");
+    Assertions.assertFalse(isFlagged(lazy.getId()));
+  }
+
+  private TaskedImportFilesToSpace importStepWithTwoFiles(String spaceId) throws IOException {
+    uploadInputFile(JOB_ID, ByteStreams.toByteArray(this.getClass().getResourceAsStream("/testFiles/file1.geojson")),
+        S3ContentType.APPLICATION_JSON);
+    uploadInputFile(JOB_ID, ByteStreams.toByteArray(this.getClass().getResourceAsStream("/testFiles/file2.geojson")),
+        S3ContentType.APPLICATION_JSON);
+    return new TaskedImportFilesToSpace()
+        .withJobId(JOB_ID)
+        .withVersionRef(new Ref(Ref.HEAD))
+        .withFormat(Format.GEOJSON)
+        .withSpaceId(spaceId)
+        .withInputSets(List.of(USER_INPUTS.get()));
+  }
+
+  @SuppressWarnings("unchecked")
+  private static Map<String, Space> snapshots(SpaceBasedStep<?> step) throws ReflectiveOperationException {
+    Field field = SpaceBasedStep.class.getDeclaredField("cachedSpaces");
+    field.setAccessible(true);
+    return (Map<String, Space>) field.get(step);
   }
 
   protected void executeImportStep(Format format, int featureCountSource,

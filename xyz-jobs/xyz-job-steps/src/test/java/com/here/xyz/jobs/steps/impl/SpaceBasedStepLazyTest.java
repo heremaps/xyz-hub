@@ -150,6 +150,23 @@ public class SpaceBasedStepLazyTest {
   }
 
   @Test
+  void prepareLazyTablesMakesNoCallForNonLazyTargetsAndReaders() throws Exception {
+    StubHubWebClient hub = new StubHubWebClient();
+    TestImportStep importStep = new TestImportStep(hub);
+    importStep.withSpaceId("eager");
+    snapshots(importStep).put("eager", space("eager", "eager_table", false));
+    importStep.runPrepareLazyTables();
+
+    //The default of the steps that only read does nothing, also for a lazy space
+    TestStep countStep = new TestStep(hub);
+    countStep.withSpaceId("lazy");
+    snapshots(countStep).put("lazy", space("lazy", "lazy_table", true));
+    countStep.runPrepareLazyTables();
+
+    assertEquals(0, hub.calls());
+  }
+
+  @Test
   void hubErrorsSurfaceAsWebClientException() {
     StubHubWebClient hub = new StubHubWebClient();
     hub.loadSpaceStatus = 500;
@@ -370,6 +387,13 @@ public class SpaceBasedStepLazyTest {
   }
 
   @SuppressWarnings("unchecked")
+  private static Map<String, Space> snapshots(SpaceBasedStep<?> step) throws Exception {
+    Field field = SpaceBasedStep.class.getDeclaredField("cachedSpaces");
+    field.setAccessible(true);
+    return (Map<String, Space>) field.get(step);
+  }
+
+  @SuppressWarnings("unchecked")
   private static Set<String> transientSet(SpaceBasedStep<?> step, String name) throws Exception {
     Field field = SpaceBasedStep.class.getDeclaredField(name);
     field.setAccessible(true);
@@ -427,6 +451,28 @@ public class SpaceBasedStepLazyTest {
     @Override
     public List<Load> getNeededResources() {
       return List.of();
+    }
+
+    void runPrepareLazyTables() throws Exception {
+      prepareLazyTables();
+    }
+  }
+
+  @JsonTypeName("TaskedImportFilesToSpace")
+  private static class TestImportStep extends TaskedImportFilesToSpace {
+    private final HubWebClient webClient;
+
+    private TestImportStep(HubWebClient webClient) {
+      this.webClient = webClient;
+    }
+
+    @Override
+    protected HubWebClient hubWebClient() {
+      return webClient;
+    }
+
+    void runPrepareLazyTables() throws Exception {
+      prepareLazyTables();
     }
   }
 

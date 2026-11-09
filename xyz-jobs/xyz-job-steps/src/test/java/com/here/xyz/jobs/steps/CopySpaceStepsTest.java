@@ -380,6 +380,47 @@ public class CopySpaceStepsTest extends StepTest {
     assertTrue(isFlagged(lazy.getId()));
   }
 
+  @Test
+  public void countNeverWrittenLazySpace() throws Exception {
+    Space lazy = createLazyTestSpace("testCount-Lazy-" + fixtureId + "-" + randomAlpha(5), LAZY_CONNECTOR);
+
+    for (SpaceContext context : List.of(DEFAULT, EXTENSION))
+      assertEquals(0, count(lazy.getId(), context, null));
+    assertTrue(isFlagged(lazy.getId()));
+    assertEquals(0, relationCount(DB_URL, tableName(lazy)));
+  }
+
+  @Test
+  public void countExtensionOfNeverWrittenLazyBase() throws Exception {
+    Space lazyBase = createLazyTestSpace("testCount-LazyBase-" + fixtureId + "-" + randomAlpha(5), LAZY_CONNECTOR);
+    Space extension = createTestSpace(new Space().withId(lazyBase.getId() + "-ext")
+        .withExtension(new Space.Extension().withSpaceId(lazyBase.getId())));
+    putRandomFeatureCollectionToSpace(extension.getId(), 5, xmin, ymin, xmax, ymax);
+
+    for (SpaceContext context : List.of(DEFAULT, EXTENSION)) {
+      assertEquals(5, count(extension.getId(), context, null));
+      assertEquals(5, count(extension.getId(), context, spatialSearchGeom));
+    }
+    assertTrue(isFlagged(lazyBase.getId()));
+    assertEquals(0, relationCount(DB_URL, tableName(lazyBase)));
+  }
+
+  private long count(String spaceId, SpaceContext context, Geometry geo) throws Exception {
+    CountSpace step = new CountSpace()
+        .withSpaceId(spaceId)
+        .withSpatialFilter(geo == null ? null : new SpatialFilter().withGeometry(geo))
+        .withVersionRef(resolveRef(spaceId, new Ref((String) null)))
+        .withContext(context)
+        .withJobId(JOB_ID)
+        .withThreadCount(3);
+    sendLambdaStepRequestBlock(step, true);
+
+    for (Output output : step.loadOutputs(USER))
+      if (output instanceof FeatureStatistics statistics)
+        return statistics.getFeatureCount();
+    throw new AssertionError("No feature count of " + spaceId);
+  }
+
   private CopySpace lazyTargetCopy(Space lazyTarget) throws Exception {
     return new CopySpace()
         .withSpaceId(sourceSpaceId)
