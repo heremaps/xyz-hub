@@ -189,7 +189,12 @@ public class SpaceTableResolver {
     return String.valueOf(storageId) + ":" + (tableName != null ? "physical:" + tableName : "legacy:" + space.getId());
   }
 
-  private static void validateTableName(String tableName) {
+  /**
+   * @param tableName A physical table name given by a client
+   * @throws IllegalArgumentException If the name contains a null character, exceeds the maximum identifier length of
+   *     PostgreSQL or starts with the reserved prefix
+   */
+  public static void validateTableName(String tableName) {
     if (tableName.indexOf('\0') >= 0)
       throw new IllegalArgumentException("The physical table name must not contain a null character.");
     if (tableName.getBytes(StandardCharsets.UTF_8).length > POSTGRES_IDENTIFIER_MAX_BYTES)

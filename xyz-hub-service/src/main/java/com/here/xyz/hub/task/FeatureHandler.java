@@ -114,8 +114,17 @@ public class FeatureHandler {
                   });
               return promise.future()
                   .compose(response -> {
-                    if (!isNullOrEmpty(response.getInserted()) || !isNullOrEmpty(response.getUpdated()) || !isNullOrEmpty(response.getDeleted()))
-                      space.updateContentUpdatedAt(marker);
+                    boolean materialized = LazyTableClearing.takeMaterialized(response);
+                    boolean modified = !isNullOrEmpty(response.getInserted()) || !isNullOrEmpty(response.getUpdated())
+                        || !isNullOrEmpty(response.getDeleted());
+                    boolean deferred = LazyTableClearing.defersContentUpdate(space, spaceContext);
+                    //Not awaited: the response is returned at once, the contentUpdatedAt store follows the clear
+                    LazyTableClearing.clearAfterWrite(marker, space, spaceContext, materialized)
+                        .onComplete(clear -> {
+                          if (modified)
+                            space.updateContentUpdatedAt(marker,
+                                deferred && clear.succeeded() && LazyTableClearing.isCleared(clear.result()));
+                        });
                     return Future.succeededFuture(response);
                   });
             } catch (HttpException e) {

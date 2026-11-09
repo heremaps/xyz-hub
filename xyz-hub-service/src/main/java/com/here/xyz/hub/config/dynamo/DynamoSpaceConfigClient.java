@@ -31,12 +31,16 @@ import com.amazonaws.services.dynamodbv2.document.TableKeysAndAttributes;
 import com.amazonaws.services.dynamodbv2.document.spec.QuerySpec;
 import com.amazonaws.services.dynamodbv2.model.AmazonDynamoDBException;
 import com.amazonaws.services.dynamodbv2.model.AttributeValue;
+import com.amazonaws.services.dynamodbv2.model.ConditionalCheckFailedException;
 import com.amazonaws.services.dynamodbv2.model.DeleteItemRequest;
 import com.amazonaws.services.dynamodbv2.model.DeleteItemResult;
 import com.amazonaws.services.dynamodbv2.model.GetItemRequest;
 import com.amazonaws.services.dynamodbv2.model.GetItemResult;
 import com.amazonaws.services.dynamodbv2.model.PutItemRequest;
 import com.amazonaws.services.dynamodbv2.model.PutItemResult;
+import com.amazonaws.services.dynamodbv2.model.ReturnValue;
+import com.amazonaws.services.dynamodbv2.model.UpdateItemRequest;
+import com.amazonaws.services.dynamodbv2.model.UpdateItemResult;
 import com.amazonaws.util.CollectionUtils;
 import com.google.common.base.Strings;
 import com.here.xyz.XyzSerializable;
@@ -76,6 +80,11 @@ import org.apache.logging.log4j.Marker;
 public class DynamoSpaceConfigClient extends SpaceConfigClient {
 
   private static final Logger logger = LogManager.getLogger();
+
+  public static final String CLEAR_LAZY_TABLE_UPDATE_EXPRESSION = "REMOVE #s.#p.#l";
+  public static final String CLEAR_LAZY_TABLE_CONDITION = "#s.#i = :connector AND #s.#p.#t = :table";
+  public static final String CLEAR_LAZY_TABLE_LEGACY_CONDITION =
+      "#s.#i = :connector AND attribute_exists(#s.#p) AND attribute_not_exists(#s.#p.#t)";
 
   private final DynamoClient dynamoClient;
   private Table spaces;
@@ -188,6 +197,58 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
         .compose(v -> delPackages ? deleteSpaceFromPackages(marker, originalSpace) : Future.succeededFuture())
         .compose(v -> insPackages ? storeSpaceIntoPackages(marker, space) : Future.succeededFuture())
         .onSuccess(v -> logger.info(marker, "Space with ID: {} has been successfully stored", space.getId()));
+  }
+
+  @Override
+  protected Future<ClearResult> clearLazyTableFlag(Marker marker, String spaceId, String connectorId, String tableName) {
+    return dynamoClient.executeQueryAsync(() -> {
+      try {
+        UpdateItemResult result = dynamoClient.client.updateItem(
+            buildClearLazyTableRequest(spaces.getTableName(), spaceId, connectorId, tableName));
+        return clearResultOf(result.getAttributes());
+      }
+      catch (ConditionalCheckFailedException e) {
+        return ClearResult.CONDITION_FAILED;
+      }
+    });
+  }
+
+  /**
+   * The update request that removes the lazy-table flag of a space if its storage matches, see
+   * {@link SpaceConfigClient#clearLazyTable(Marker, String, String, String, String)}. It never creates an item, because the
+   * condition is false for a missing one.
+   */
+  public static UpdateItemRequest buildClearLazyTableRequest(String table, String spaceId, String connectorId, String tableName) {
+    Map<String, String> names = new HashMap<>();
+    names.put("#s", "storage");
+    names.put("#p", "params");
+    names.put("#l", "lazyTable");
+    names.put("#i", "id");
+    names.put("#t", "tableName");
+    Map<String, AttributeValue> values = new HashMap<>();
+    values.put(":connector", new AttributeValue().withS(connectorId));
+    if (tableName != null)
+      values.put(":table", new AttributeValue().withS(tableName));
+
+    return new UpdateItemRequest()
+        .withTableName(table)
+        .withKey(Collections.singletonMap("id", new AttributeValue(spaceId)))
+        .withUpdateExpression(CLEAR_LAZY_TABLE_UPDATE_EXPRESSION)
+        .withConditionExpression(tableName != null ? CLEAR_LAZY_TABLE_CONDITION : CLEAR_LAZY_TABLE_LEGACY_CONDITION)
+        .withExpressionAttributeNames(names)
+        .withExpressionAttributeValues(values)
+        .withReturnValues(ReturnValue.UPDATED_OLD);
+  }
+
+  /**
+   * @param oldAttributes The attributes the update returned with {@link ReturnValue#UPDATED_OLD}
+   * @return {@link ClearResult#REMOVED} if they contain {@code storage.params.lazyTable}, else {@link ClearResult#ABSENT}
+   */
+  public static ClearResult clearResultOf(Map<String, AttributeValue> oldAttributes) {
+    AttributeValue storage = oldAttributes == null ? null : oldAttributes.get("storage");
+    AttributeValue params = storage == null || storage.getM() == null ? null : storage.getM().get("params");
+    return params != null && params.getM() != null && params.getM().containsKey("lazyTable") ? ClearResult.REMOVED
+        : ClearResult.ABSENT;
   }
 
   private boolean packagesEqual(List<String> packages1, List<String> packages2) {

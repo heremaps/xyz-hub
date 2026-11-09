@@ -30,6 +30,10 @@ import static com.here.xyz.hub.task.FeatureTask.FeatureKey.BBOX;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.ID;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.PROPERTIES;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.TYPE;
+import static com.here.xyz.hub.task.LazyTableClearing.clearAfterWrite;
+import static com.here.xyz.hub.task.LazyTableClearing.defersContentUpdate;
+import static com.here.xyz.hub.task.LazyTableClearing.isCleared;
+import static com.here.xyz.hub.task.LazyTableClearing.takeMaterialized;
 import static com.here.xyz.hub.util.SpaceTableResolver.getTableIdentity;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_VND_MAPBOX_VECTOR_TILE;
@@ -250,25 +254,42 @@ public class FeatureTaskHandler {
       if (eventToExecute instanceof ModifyFeaturesEvent) {
         ((ModifyFeaturesEvent) eventToExecute).setFailed(null);
       }
+      /*
+      The callbacks below use only these two locals, never the event (see the note above task.consumeEvent()).
+      For a space carrying the lazy-table flag the contentUpdatedAt store is deferred until the flag has been cleared,
+      because an earlier store could write the flag back after the clear.
+       */
+      final SpaceContext spaceContext = eventToExecute instanceof ContextAwareEvent<?> cae ? cae.getContext() : null;
+      final boolean deferred = task instanceof FeatureTask.ConditionalOperation && !isErase
+          && defersContentUpdate(task.space, spaceContext);
       //Do the actual storage call
       try {
         setAdditionalEventProps(task, task.storage, eventToExecute);
         final long storageRequestStart = Core.currentTimeMillis();
         responseContext.rpcContext = getRpcClient(task.storage).execute(task.getMarker(), eventToExecute, storageResult -> {
-          if (task.getState().isFinal()) return;
+          if (task.getState().isFinal()) {
+            storeDeferredContentUpdate(task, deferred);
+            return;
+          }
           addConnectorPerformanceInfo(task, Core.currentTimeMillis() - storageRequestStart, responseContext.rpcContext, "S");
           recordQueryTimeoutOutcome(task, storageResult);
           if (storageResult.failed()) {
+            storeDeferredContentUpdate(task, deferred);
             callback.exception(storageResult.cause());
             return;
           }
           XyzResponse response = storageResult.result();
+          boolean materialized = takeMaterialized(response);
           responseContext.enrichResponse(task, response);
 
           //Do the post-processing here before sending back the response and notifying response-listeners
           notifyProcessors(task, eventType, response, postProcessingResult -> {
-            if (task.getState().isFinal()) return;
+            if (task.getState().isFinal()) {
+              storeDeferredContentUpdate(task, deferred);
+              return;
+            }
             if (postProcessingResult.failed() || postProcessingResult.result() instanceof ErrorResponse) {
+              storeDeferredContentUpdate(task, deferred);
               handleProcessorFailure(task.getMarker(), postProcessingResult, callback);
               return;
             }
@@ -287,6 +308,12 @@ public class FeatureTaskHandler {
               //Send an additional ContentModifiedNotification to all components which are interested
               scheduleContentModifiedNotification(task);
             }
+            //The client has its response: clear the lazy-table flag if the connector reported the first write
+            clearAfterWrite(task.getMarker(), task.space, spaceContext, materialized)
+                .onComplete(clear -> {
+                  if (deferred)
+                    task.space.updateContentUpdatedAt(task.getMarker(), clear.succeeded() && isCleared(clear.result()));
+                });
           });
         }, task.space, task.getRequesterId());
 
@@ -316,7 +343,7 @@ public class FeatureTaskHandler {
       if (task instanceof FeatureTask.ConditionalOperation) {
         if (isErase)
           task.space.resetTimestamps(task.getMarker());
-        else
+        else if (!deferred)
           task.space.updateContentUpdatedAt(task.getMarker());
       }
       //Send event to potentially registered request-listeners
@@ -324,6 +351,14 @@ public class FeatureTaskHandler {
         notifyListeners(task, eventType, requestListenerPayload);
     });
     if (event instanceof ModifySpaceEvent) sendSpaceModificationNotification(task.getMarker(), event);
+  }
+
+  /**
+   * Stores the contentUpdatedAt timestamp of a deferred write that ended without a clear, with the flag as today.
+   */
+  private static <T extends FeatureTask> void storeDeferredContentUpdate(T task, boolean deferred) {
+    if (deferred)
+      task.space.updateContentUpdatedAt(task.getMarker());
   }
 
   private static RpcClient getRpcClient(Connector refConnector) throws HttpException {
