@@ -25,6 +25,7 @@ import static com.google.common.net.MediaType.GEO_JSON;
 import static com.google.common.net.MediaType.JSON_UTF_8;
 import static com.here.xyz.XyzSerializable.deserialize;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.time.temporal.ChronoUnit.SECONDS;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -47,6 +48,7 @@ import com.here.xyz.util.service.BaseConfig;
 import java.net.URLEncoder;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Arrays;
@@ -209,6 +211,24 @@ public class HubWebClient extends XyzWebClient {
     request(HttpRequest.newBuilder()
             .DELETE()
             .uri(uri("/spaces/" + spaceId)));
+  }
+
+  /**
+   * Removes the lazyTable flag of a space whose table exists now. The Hub clears it only if the space is still on the
+   * provided connector and has the provided table name. The operation is idempotent, so retries are safe.
+   *
+   * @param spaceId The space ID
+   * @param connectorId The storage ID of the connector the table was written on
+   * @param tableName The physical table name, or null for a space without an explicit table name
+   * @throws ErrorResponseException if the Hub does not answer with 204
+   */
+  public void clearLazyTable(String spaceId, String connectorId, String tableName) throws WebClientException {
+    HttpResponse<byte[]> response = request(HttpRequest.newBuilder()
+        .DELETE()
+        .uri(uri("/admin/spaces/" + URLEncoder.encode(spaceId, UTF_8) + "/lazyTable?connector="
+            + URLEncoder.encode(connectorId, UTF_8) + (tableName != null ? "&table=" + URLEncoder.encode(tableName, UTF_8) : ""))));
+    if (response.statusCode() != 204)
+      throw new ErrorResponseException(response);
   }
 
   public StatisticsResponse loadSpaceStatistics(String spaceId) throws WebClientException {
