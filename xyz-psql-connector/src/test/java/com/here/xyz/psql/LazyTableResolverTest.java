@@ -58,6 +58,7 @@ import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzError;
+import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.Random;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import com.here.xyz.util.db.datasource.DatabaseSettings;
@@ -505,6 +506,170 @@ class LazyTableResolverTest {
 
     ErrorResponseException e = assertThrows(ErrorResponseException.class, () -> connector.prepareMapped(lazy(new GetFeaturesByIdEvent())));
     assertEquals("57014".equals(sqlState) ? XyzError.TIMEOUT : XyzError.EXCEPTION, e.getErrorResponse().getError());
+  }
+
+  //------------ The safety net and the replica option ------------
+
+  private static ErrorResponseException missingRelation() {
+    return new ErrorResponseException(XyzError.NOT_FOUND, "Space not found in backend",
+        new SQLException("ERROR: relation \"t\" does not exist", "42P01"));
+  }
+
+  /**
+   * A connector whose reads and writes fail with a missing relation as many times as configured, and record the events they see.
+   */
+  static class FailingConnector extends PSQLXyzConnector {
+    int failures;
+    final List<Event<?>> dispatched = new ArrayList<>();
+    final List<Map<String, Object>> dispatchedParams = new ArrayList<>();
+    final List<Boolean> dispatchedPreferPrimary = new ArrayList<>();
+
+    FailingConnector(int failures, LazyTableResolver resolver) {
+      this.failures = failures;
+      setResolver(resolver);
+    }
+
+    private FeatureCollection dispatch(Event<?> event) throws ErrorResponseException {
+      dispatched.add(event);
+      dispatchedParams.add(event.getParams());
+      dispatchedPreferPrimary.add(event.getPreferPrimaryDataSource());
+      if (failures-- > 0)
+        throw missingRelation();
+      return new FeatureCollection();
+    }
+
+    @Override
+    protected FeatureCollection processGetFeaturesByIdEvent(GetFeaturesByIdEvent event) throws Exception {
+      return dispatch(event);
+    }
+
+    @Override
+    protected FeatureCollection processWriteFeaturesEvent(WriteFeaturesEvent event) throws Exception {
+      return dispatch(event);
+    }
+  }
+
+  @Test
+  void safetyNetRetriesAReadOnceOnTheWriter() throws Exception {
+    StubChecker checker = new StubChecker(EXISTS, true);
+    FailingConnector connector = new FailingConnector(1, resolver(new StubSettings(TemplateCheck.VERIFIED), checker));
+    GetFeaturesByIdEvent event = lazy(new GetFeaturesByIdEvent());
+    Map<String, Object> original = event.getParams();
+
+    assertTrue(connector.processEvent(event) instanceof FeatureCollection);
+    assertEquals(List.of(false, true), connector.dispatchedPreferPrimary, "The retried read prefers the writer");
+    assertEquals(2, checker.calls.get(), "The retry checks again, the cache entry is gone");
+    assertSame(original, connector.dispatchedParams.get(1), "The retry starts from the original params");
+  }
+
+  @Test
+  void safetyNetRetriesOnlyOnce() throws Exception {
+    FailingConnector connector = new FailingConnector(2, resolver(new StubSettings(TemplateCheck.VERIFIED),
+        new StubChecker(EXISTS, true)));
+    ErrorResponseException e = assertThrows(ErrorResponseException.class, () -> connector.processEvent(lazy(new GetFeaturesByIdEvent())));
+    assertEquals(XyzError.NOT_FOUND, e.getErrorResponse().getError());
+    assertEquals(2, connector.dispatched.size());
+  }
+
+  @Test
+  void otherErrorsAndSpacesWithoutLazyLevelGetNoRetry() throws Exception {
+    FailingConnector connector = new FailingConnector(0, resolver(new StubSettings(TemplateCheck.VERIFIED),
+        new StubChecker(EXISTS, true))) {
+      @Override
+      protected FeatureCollection processGetFeaturesByIdEvent(GetFeaturesByIdEvent event) throws Exception {
+        dispatched.add(event);
+        throw new ErrorResponseException(XyzError.EXCEPTION, "other", new SQLException("other", "XX000"));
+      }
+    };
+    assertThrows(ErrorResponseException.class, () -> connector.processEvent(lazy(new GetFeaturesByIdEvent())));
+    assertEquals(1, connector.dispatched.size());
+
+    FailingConnector notLazy = new FailingConnector(1, resolver(new StubSettings(TemplateCheck.VERIFIED),
+        new StubChecker(EXISTS, true)));
+    assertThrows(ErrorResponseException.class, () -> notLazy.processEvent(new GetFeaturesByIdEvent().withSpace("s")
+        .withParams(Map.of(Space.TABLE_NAME, "t")).withConnectorParams(Map.of("connectorId", "c"))));
+    assertEquals(1, notLazy.dispatched.size(), "A space without a lazy level gets no safety net");
+  }
+
+  @Test
+  void secondPrepareUsesTheSameMapping() throws Exception {
+    //The table was dropped since it was cached, and the template is gone as well
+    StubChecker checker = new StubChecker(EXISTS, true);
+    StubSettings settings = new StubSettings(TemplateCheck.VERIFIED);
+    FailingConnector connector = new FailingConnector(1, new LazyTableResolver(() -> new StubDataSourceProvider(settings),
+        () -> true, () -> "c") {
+      @Override
+      XyzResponse prepare(Event event) throws SQLException, ErrorResponseException {
+        if (checker.calls.get() == 1) {
+          checker.state = NEVER_MATERIALIZED;
+          checker.templatePresent = false;
+        }
+        return super.prepare(event);
+      }
+    }.withWriterChecker(checker));
+
+    ErrorResponseException e = assertThrows(ErrorResponseException.class, () -> connector.processEvent(lazy(new GetFeaturesByIdEvent())));
+    assertEquals(XyzError.EXCEPTION, e.getErrorResponse().getError());
+    assertEquals("Empty-space template missing or not identical on the database", e.getErrorResponse().getErrorMessage());
+    assertTrue(e.getCause() instanceof TemplateUnavailableException);
+    assertEquals(1, connector.dispatched.size());
+  }
+
+  @Test
+  void retriedWriteReportsMaterialized() throws Exception {
+    StubChecker checker = new StubChecker(EXISTS, true);
+    StubMaterializer materializer = new StubMaterializer();
+    StubSettings settings = new StubSettings(TemplateCheck.VERIFIED);
+    FailingConnector connector = new FailingConnector(1, new LazyTableResolver(() -> new StubDataSourceProvider(settings),
+        () -> true, () -> "c") {
+      @Override
+      XyzResponse prepare(Event event) throws SQLException, ErrorResponseException {
+        //The cached table was dropped, the second check finds it missing
+        if (checker.calls.get() == 1)
+          checker.state = NEVER_MATERIALIZED;
+        return super.prepare(event);
+      }
+    }.withWriterChecker(checker).withMaterializer(materializer));
+    WriteFeaturesEvent event = lazy(new WriteFeaturesEvent());
+
+    XyzResponse response = connector.processEvent(event);
+    assertEquals(Boolean.TRUE, ((FeatureCollection) response).getMaterialized());
+    assertEquals(1, materializer.tables.size(), "The retry materializes the table again");
+    assertEquals(List.of(false, false), connector.dispatchedPreferPrimary, "A write always uses the writer");
+  }
+
+  @Test
+  void replicaCheckWithoutTheTemplateIsRepeatedOnTheWriter() throws Exception {
+    StubSettings settings = new StubSettings(TemplateCheck.VERIFIED);
+    StubChecker replica = new StubChecker(NEVER_MATERIALIZED, false);
+    StubChecker writer = new StubChecker(NEVER_MATERIALIZED, true);
+    LazyTableResolver resolver = resolver(settings, writer).withReaderChecker(replica);
+    GetFeaturesByIdEvent event = lazy(new GetFeaturesByIdEvent());
+    event.getConnectorParams().put("lazyCheckOnReplica", true);
+
+    assertNull(resolver.prepare(event));
+    assertEquals(1, replica.calls.get());
+    assertEquals(1, writer.calls.get());
+    assertEquals(TEMPLATE_TABLE, event.getParams().get(Space.TABLE_NAME));
+    assertEquals(0, settings.markedMissing, "A replica result alone never marks the template missing");
+  }
+
+  @Test
+  void onlyReplicaReadsCheckOnTheReplica() throws Exception {
+    StubChecker replica = new StubChecker(EXISTS, true);
+    StubChecker writer = new StubChecker(EXISTS, true);
+    StubSettings settings = new StubSettings(TemplateCheck.VERIFIED);
+    for (Event<?> event : List.<Event<?>>of(lazy(new GetFeaturesByIdEvent()), lazy(new LoadFeaturesEvent()),
+        lazy(new WriteFeaturesEvent()), lazy(new GetFeaturesByIdEvent()).withPreferPrimaryDataSource(true))) {
+      event.getConnectorParams().put("lazyCheckOnReplica", true);
+      resolver(settings, writer).withReaderChecker(replica).withMaterializer(new StubMaterializer()).prepare(event);
+    }
+    assertEquals(1, replica.calls.get(), "Only the plain read checks on the replica");
+    assertEquals(3, writer.calls.get());
+
+    //Without the param every check runs on the writer
+    resolver(settings, writer).withReaderChecker(replica).prepare(lazy(new GetFeaturesByIdEvent()));
+    assertEquals(1, replica.calls.get());
   }
 
   private static FunctionRuntime runtime(int remainingMillis) {

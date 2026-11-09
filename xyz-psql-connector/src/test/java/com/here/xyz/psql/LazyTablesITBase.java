@@ -67,6 +67,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.CopyOnWriteArrayList;
+import javax.sql.DataSource;
 import org.apache.commons.dbutils.ResultSetHandler;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -136,6 +137,96 @@ public abstract class LazyTablesITBase extends PSQLAbstractIT {
   }
 
   /**
+   * The second database of the local stack, which plays a replica that lags behind: it has only what a test creates there.
+   */
+  protected static final String LAGGING_REPLICA_DB = "postgres_db2";
+
+  /**
+   * A writer on the test database and a reader on {@link #LAGGING_REPLICA_DB}, with the same connector schema.
+   */
+  protected static class LaggingReplicaDataSources extends DataSourceProvider {
+    private final PooledDataSources writer;
+    private final PooledDataSources reader;
+
+    LaggingReplicaDataSources(DatabaseSettings writerSettings, DatabaseSettings readerSettings) {
+      super(null);
+      dbSettings = writerSettings;
+      writer = new PooledDataSources(writerSettings);
+      reader = new PooledDataSources(readerSettings);
+    }
+
+    @Override
+    public DataSource getReader() {
+      return reader.getWriter();
+    }
+
+    @Override
+    public DataSource getWriter() {
+      return writer.getWriter();
+    }
+
+    @Override
+    public void close() throws Exception {
+      writer.close();
+      reader.close();
+    }
+  }
+
+  /**
+   * @return Settings of the lagging replica for the schema of the connector, with another ID, so that it has a script check of its
+   *  own, and without the template
+   */
+  protected static DatabaseSettings laggingReplicaSettings(TestConnector connector) {
+    return new DatabaseSettings(connector.id() + "_replica")
+        .withApplicationName(LazyTablesITBase.class.getSimpleName())
+        .withHost(PG_HOST)
+        .withDb(LAGGING_REPLICA_DB)
+        .withUser(PG_USER)
+        .withPassword(PG_PW)
+        .withSchema(connector.schema())
+        .withDbMaxPoolSize(1)
+        .withEmptySpaceTemplate(false)
+        .withScriptResourcePaths(List.of(new ScriptResourcePath("/sql", "hub", "common")));
+  }
+
+  /**
+   * @return A handler of the connector whose reads go to a replica that has the connector schema, but no table or template
+   */
+  protected static PSQLXyzConnector handlerWithLaggingReplica(TestConnector connector) throws Exception {
+    executeOnLaggingReplica(new SQLQuery("CREATE SCHEMA IF NOT EXISTS ${schema}").withVariable("schema", connector.schema()));
+    PSQLXyzConnector handler = new PSQLXyzConnector();
+    handler.dataSourceProvider = new LaggingReplicaDataSources(settingsOf(connector, true), laggingReplicaSettings(connector));
+    return handler;
+  }
+
+  /**
+   * Invokes a new handler whose reads go to the lagging replica, as Lambda does for every event.
+   */
+  protected static XyzResponse invokeWithLaggingReplica(TestConnector connector, Event event) throws Exception {
+    PSQLXyzConnector handler = handlerWithLaggingReplica(connector);
+    try {
+      return invoke(handler, connector, event);
+    }
+    finally {
+      handler.dataSourceProvider.close();
+    }
+  }
+
+  protected static void executeOnLaggingReplica(SQLQuery query) throws Exception {
+    //One ID, so that the script check runs once
+    try (DataSourceProvider dsp = getDataSourceProvider(new DatabaseSettings(LazyTablesITBase.class.getSimpleName() + "_replicaAdmin")
+        .withApplicationName(LazyTablesITBase.class.getSimpleName())
+        .withHost(PG_HOST)
+        .withDb(LAGGING_REPLICA_DB)
+        .withUser(PG_USER)
+        .withPassword(PG_PW)
+        .withDbMaxPoolSize(1)
+        .withScriptResourcePaths(List.of(new ScriptResourcePath("/sql", "hub", "common"))))) {
+      query.write(dsp);
+    }
+  }
+
+  /**
    * @return The schemas this test class created, which its clean-up drops
    */
   protected abstract Set<String> schemas();
@@ -145,6 +236,9 @@ public abstract class LazyTablesITBase extends PSQLAbstractIT {
       for (String schema : schemas)
         new SQLQuery("DROP SCHEMA IF EXISTS ${schema} CASCADE").withVariable("schema", schema).write(dsp);
     }
+    //A lagging replica may have got the schema too
+    for (String schema : schemas)
+      executeOnLaggingReplica(new SQLQuery("DROP SCHEMA IF EXISTS ${schema} CASCADE").withVariable("schema", schema));
   }
 
   protected String newId() {

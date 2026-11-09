@@ -609,6 +609,116 @@ public class PSQLLazyTableIT extends LazyTablesITBase {
         e.getCause().getMessage());
   }
 
+  //------------ The safety net and the replica option ------------
+
+  private static List<String> safetyNetLines(String spaceId) {
+    return logLines("WARN lazy safety net: retrying ").stream().filter(line -> line.contains(" of space " + spaceId + " ")).toList();
+  }
+
+  private static List<String> checkLines(TestConnector connector, String source) {
+    return logLines("INFO lazyCheck connector=" + connector.id() + " ").stream().filter(line -> line.endsWith("source=" + source))
+        .toList();
+  }
+
+  @Test
+  public void fastStatisticsReplicaLag() throws Exception {
+    TestConnector connector = newConnector().with("lazyTableCreation", true);
+    String table = newTable();
+    String spaceId = newId();
+    assertFeatureCollection(invoke(connector, insertEvent(spaceId, true, lazyWriteParams(table), "F1", "F2")));
+    XyzResponse onWriter = invoke(connector, new GetStatisticsEvent().withFastMode(true).withSpace(spaceId)
+        .withParams(lazyParams(table)));
+
+    //The table is cached, the replica does not have it yet
+    XyzResponse withLag = invokeWithLaggingReplica(connector, new GetStatisticsEvent().withFastMode(true).withSpace(spaceId)
+        .withParams(lazyParams(table)));
+    assertEquals(comparable(onWriter), comparable(withLag), withLag.serialize());
+    assertEquals(1, safetyNetLines(spaceId).size());
+  }
+
+  @Test
+  public void templateReplicaLagRetriesOnWriter() throws Exception {
+    TestConnector connector = newConnector().with("lazyTableCreation", true);
+    String spaceId = newId();
+    FeatureCollection read = assertFeatureCollection(invokeWithLaggingReplica(connector, new GetFeaturesByIdEvent()
+        .withSpace(spaceId).withParams(lazyParams(newTable())).withIds(List.of("F1"))));
+    assertEquals(List.of(), ids(read.getFeatures()));
+    assertEquals(1, safetyNetLines(spaceId).size(), "One retry on the writer");
+  }
+
+  @Test
+  public void safetyNetAfterExternalDrop() throws Exception {
+    TestConnector connector = newConnector().with("lazyTableCreation", true);
+    String table = newTable();
+    String spaceId = newId();
+    assertFeatureCollection(invoke(connector, insertEvent(spaceId, true, lazyWriteParams(table), "F1")));
+
+    //The cached table is dropped: a read answers from the template
+    dropTableSet(connector.schema(), table);
+    FeatureCollection read = assertFeatureCollection(invoke(connector, new GetFeaturesByIdEvent().withSpace(spaceId)
+        .withParams(lazyParams(table)).withIds(List.of("F1"))));
+    assertEquals(List.of(), ids(read.getFeatures()));
+    assertEquals(1, safetyNetLines(spaceId).size());
+
+    //A write after a drop of the cached table materializes it again, for both writers
+    for (boolean legacyWriter : List.of(true, false)) {
+      assertFeatureCollection(invoke(connector, insertEvent(spaceId, true, lazyWriteParams(table), "F2")));
+      dropTableSet(connector.schema(), table);
+      String id = legacyWriter ? "L1" : "W1";
+      FeatureCollection written = assertFeatureCollection(invoke(connector, legacyWriter
+          ? insertEvent(spaceId, true, lazyWriteParams(table), id) : writeFeaturesEvent(spaceId, lazyWriteParams(table), id)));
+      assertEquals(Boolean.TRUE, written.getMaterialized());
+      assertEquals(List.of(id), ids(assertFeatureCollection(invoke(connector, new GetFeaturesByIdEvent().withSpace(spaceId)
+          .withParams(lazyParams(table)).withIds(List.of(id, "F1", "F2")))).getFeatures()));
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void missingTableAfterNextVersion(boolean transactional) throws Exception {
+    TestConnector connector = newConnector().with("lazyTableCreation", true);
+    String table = newTable();
+    String spaceId = newId();
+    assertFeatureCollection(invoke(connector, insertEvent(spaceId, true, lazyWriteParams(table), "F1")));
+    //The table set is gone after the version was taken: only the version sequence is left
+    dropTableSet(connector.schema(), table);
+    execute(new SQLQuery("CREATE SEQUENCE IF NOT EXISTS ${schema}.${sequence}")
+        .withVariable("schema", connector.schema())
+        .withVariable("sequence", table + "_version_seq"));
+
+    XyzResponse response = invoke(connector, insertEvent(spaceId, transactional, lazyWriteParams(table), "F2"));
+    if (response instanceof FeatureCollection written) {
+      assertEquals(List.of("F2"), written.getInserted(), written.serialize());
+      assertEquals(List.of("F2"), ids(assertFeatureCollection(invoke(connector, new GetFeaturesByIdEvent().withSpace(spaceId)
+          .withParams(lazyParams(table)).withIds(List.of("F2")))).getFeatures()), "A reported write must be readable");
+    }
+    else
+      assertTrue(response instanceof ErrorResponse, response.serialize());
+  }
+
+  @Test
+  public void lazyCheckOnReplica() throws Exception {
+    TestConnector connector = newConnector().with("lazyTableCreation", true).with("lazyCheckOnReplica", true);
+    //Installs the template on the writer
+    assertOk(invoke(connector, modifySpaceEvent(Operation.CREATE, newId(), lazyParams(newTable()))));
+
+    //A read checks on the replica, which lacks the template, so the writer checks again: the result is empty, no error
+    String spaceId = newId();
+    FeatureCollection read = assertFeatureCollection(invokeWithLaggingReplica(connector, new GetFeaturesByIdEvent()
+        .withSpace(spaceId).withParams(lazyParams(newTable())).withIds(List.of("F1"))));
+    assertEquals(List.of(), ids(read.getFeatures()));
+    assertEquals(1, checkLines(connector, "replica").size());
+    int writerChecks = checkLines(connector, "writer").size();
+    assertTrue(writerChecks >= 1, "The writer checks again after the replica found no template");
+
+    //Writes and LoadFeatures check on the writer
+    assertFeatureCollection(invokeWithLaggingReplica(connector, insertEvent(newId(), true, lazyWriteParams(newTable()), "F1")));
+    assertFeatureCollection(invokeWithLaggingReplica(connector, new LoadFeaturesEvent().withSpace(newId())
+        .withParams(lazyParams(newTable())).withIdsMap(new HashMap<>(Map.of("F1", "0")))));
+    assertEquals(1, checkLines(connector, "replica").size(), "Only the read checks on the replica");
+    assertEquals(writerChecks + 2, checkLines(connector, "writer").size());
+  }
+
   @Test
   public void droppedTemplateStopsLazyCreates() throws Exception {
     TestConnector connector = newConnector().with("lazyTableCreation", true);

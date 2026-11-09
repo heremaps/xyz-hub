@@ -130,6 +130,8 @@ public class LazyTableResolver {
   private final BooleanSupplier lazyTablesSupported;
   private final Supplier<String> connectorId;
   private LevelChecker writerChecker = LazySpaceTables::checkLevels;
+  private LevelChecker readerChecker = (dsp, schema, levels) ->
+      LazySpaceTables.buildCheckLevelsQuery(schema, levels).run(dsp, LazySpaceTables.checkLevelsHandler(levels), true);
   private Materializer materializer = (dsp, schema, table, spaceId, onDemandIndexes, budgetMillis) ->
       LazySpaceTables.materialize(dsp, schema, table, spaceId, Profile.FULL, onDemandIndexes, null, budgetMillis);
 
@@ -137,6 +139,8 @@ public class LazyTableResolver {
   private Map<String, Object> originalParams;
   //Whether the write target carries the lazyTable flag and exists after the preparation
   private boolean writeTargetExists;
+  //Whether the safety net has retried the event
+  private boolean retried;
 
   LazyTableResolver(Supplier<DataSourceProvider> dataSourceProvider, BooleanSupplier lazyTablesSupported,
       Supplier<String> connectorId) {
@@ -152,6 +156,11 @@ public class LazyTableResolver {
 
   LazyTableResolver withMaterializer(Materializer materializer) {
     this.materializer = materializer;
+    return this;
+  }
+
+  LazyTableResolver withReaderChecker(LevelChecker readerChecker) {
+    this.readerChecker = readerChecker;
     return this;
   }
 
@@ -195,12 +204,15 @@ public class LazyTableResolver {
     DatabaseSettings settings = dsp.getDatabaseSettings();
     String schema = settings.getSchema();
     List<Level> levels = resolveTables(event, LazySpaceTables.lazyLevels(originalParams));
-    LevelResult result = checkLevels(dsp, settings, schema, levels);
+    boolean onReplica = checksOnReplica(event, eventClass);
+    LevelResult result = checkLevels(dsp, settings, schema, levels, onReplica);
+    List<Level> missing = missingLevels(levels, result);
 
-    List<Level> missing = new ArrayList<>();
-    for (int i = 0; i < levels.size(); i++)
-      if (result.states().get(i) == NEVER_MATERIALIZED)
-        missing.add(levels.get(i));
+    //A replica that lags behind the template would fail the read, the writer decides about the template
+    if (onReplica && !result.templatePresent() && !missing.isEmpty()) {
+      result = checkLevels(dsp, settings, schema, levels, false);
+      missing = missingLevels(levels, result);
+    }
 
     if (eventClass == EventClass.WRITE)
       return prepareWrite(event, dsp, settings, schema, levels, result, missing);
@@ -213,6 +225,58 @@ public class LazyTableResolver {
 
     substitute(event, settings, schema, result, missing);
     return null;
+  }
+
+  private static List<Level> missingLevels(List<Level> levels, LevelResult result) {
+    List<Level> missing = new ArrayList<>();
+    for (int i = 0; i < levels.size(); i++)
+      if (result.states().get(i) == NEVER_MATERIALIZED)
+        missing.add(levels.get(i));
+    return missing;
+  }
+
+  /**
+   * With lazyCheckOnReplica, the reads that are served by the replica check there too and accept its lag. Writes, the reads of
+   * conditional writes (LoadFeatures) and reads that prefer the writer check on the writer.
+   */
+  private static boolean checksOnReplica(Event event, EventClass eventClass) {
+    return eventClass == EventClass.READ && !(event instanceof LoadFeaturesEvent) && !event.getPreferPrimaryDataSource()
+        && ConnectorParameters.fromEvent(event).isLazyCheckOnReplica();
+  }
+
+  /**
+   * Marks the start of an event. The safety net retries an event at most once.
+   */
+  void beginEvent() {
+    retried = false;
+  }
+
+  /**
+   * @return Whether a failed event is retried once: it has a lazy level, was not retried yet, and failed on a missing relation
+   *  (42P01), which may be a table that was dropped since it was cached or a relation that a replica does not have yet
+   */
+  boolean isSafetyNetCase(Event event, Exception failure) {
+    return !retried && isActive(event) && LazySpaceTables.hasLazyLevel(originalParams)
+        && DatabaseWriter.findUndefinedTable(failure) != null;
+  }
+
+  /**
+   * Prepares the retry of the safety net: forgets the cached tables of the event, restores its original params and lets a read
+   * use the writer.
+   */
+  void prepareRetry(Event event) {
+    retried = true;
+    if (originalParams != null)
+      event.setParams(originalParams);
+    DataSourceProvider dsp = dataSourceProvider.get();
+    DatabaseSettings settings = dsp.getDatabaseSettings();
+    List<Level> levels = resolveTables(event, LazySpaceTables.lazyLevels(event.getParams()));
+    for (Level level : levels)
+      EXISTING_TABLES.remove(cacheKey(settings, settings.getSchema(), level.table()));
+    if (classify(event) == EventClass.READ)
+      event.setPreferPrimaryDataSource(true);
+    logger.warn("lazy safety net: retrying {} of space {} after a missing relation, tables {}", event.getClass().getSimpleName(),
+        event.getSpace(), levels.stream().map(Level::table).toList());
   }
 
   /**
@@ -333,8 +397,8 @@ public class LazyTableResolver {
    */
   record LevelResult(List<LevelState> states, boolean templatePresent) {}
 
-  private LevelResult checkLevels(DataSourceProvider dsp, DatabaseSettings settings, String schema, List<Level> levels)
-      throws SQLException {
+  private LevelResult checkLevels(DataSourceProvider dsp, DatabaseSettings settings, String schema, List<Level> levels,
+      boolean onReplica) throws SQLException {
     List<LevelState> states = new ArrayList<>();
     List<Level> uncached = new ArrayList<>();
     for (Level level : levels) {
@@ -347,10 +411,10 @@ public class LazyTableResolver {
       return new LevelResult(states, true);
 
     long start = System.currentTimeMillis();
-    LevelCheck check = writerChecker.check(dsp, schema, uncached);
+    LevelCheck check = (onReplica ? readerChecker : writerChecker).check(dsp, schema, uncached);
     long elapsed = System.currentTimeMillis() - start;
-    if (!check.templatePresent())
-      //This container stops creating lazy spaces, a read on the writer found no template
+    if (!check.templatePresent() && !onReplica)
+      //This container stops creating lazy spaces, a read on the writer found no template. A replica may only lag behind.
       settings.markEmptySpaceTemplateMissing();
 
     int missing = 0;
@@ -364,8 +428,8 @@ public class LazyTableResolver {
       else
         missing++;
     }
-    logger.info("lazyCheck connector={} levels={} missing={} ms={} source=writer", connectorId.get(), uncached.size(), missing,
-        elapsed);
+    logger.info("lazyCheck connector={} levels={} missing={} ms={} source={}", connectorId.get(), uncached.size(), missing,
+        elapsed, onReplica ? "replica" : "writer");
     return new LevelResult(states, check.templatePresent());
   }
 

@@ -150,10 +150,21 @@ public abstract class DatabaseHandler extends StorageConnector {
         //No lazy level, a connector without lazy tables or no event: one map lookup and no database access
         if (!resolver.isActive(event))
             return super.processEvent(event);
+        resolver.beginEvent();
         XyzResponse shortCircuit = prepareMapped(event);
         if (shortCircuit != null)
             return shortCircuit;
-        return resolver.reportMaterialized(event, super.processEvent(event));
+        try {
+            return resolver.reportMaterialized(event, super.processEvent(event));
+        }
+        catch (ErrorResponseException e) {
+            //A table dropped since it was cached, or a relation a replica does not have yet: check again on the writer, once
+            if (!resolver.isSafetyNetCase(event, e))
+                throw e;
+            resolver.prepareRetry(event);
+            shortCircuit = prepareMapped(event);
+            return shortCircuit != null ? shortCircuit : resolver.reportMaterialized(event, super.processEvent(event));
+        }
     }
 
     /**
