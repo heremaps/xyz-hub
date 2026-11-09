@@ -26,15 +26,27 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.GetFeaturesByIdEvent;
+import com.here.xyz.events.GetStatisticsEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent.Operation;
+import com.here.xyz.events.PropertiesQuery;
+import com.here.xyz.events.PropertyQuery;
+import com.here.xyz.events.PropertyQuery.QueryOperation;
+import com.here.xyz.events.PropertyQueryList;
+import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.hub.Space;
+import com.here.xyz.responses.ErrorResponse;
+import com.here.xyz.responses.StatisticsResponse;
+import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.pg.LazySpaceTables;
 import java.util.HashMap;
 import java.util.List;
@@ -234,6 +246,131 @@ public class PSQLLazyCompositeIT extends LazyTablesITBase {
     Set<String> eagerRows = catalogRows(connector.schema(), eagerTable);
     assertTrue(eagerRows.stream().anyMatch(row -> row.contains("foo")), eagerRows.toString());
     assertEquals(eagerRows, catalogRows(connector.schema(), extension.table()));
+  }
+
+  //------------ Statistics and the search guard ------------
+
+  private static Map<String, Object> comparable(XyzResponse response) throws Exception {
+    Map<String, Object> json = XyzSerializable.deserialize(response.serialize(), new TypeReference<Map<String, Object>>() {});
+    json.remove("streamId");
+    return json;
+  }
+
+  private void assertStatisticsParity(List<Lvl> levels) throws Exception {
+    List<Lvl> twins = new java.util.ArrayList<>();
+    for (Lvl level : levels)
+      twins.add(twin(level));
+    for (boolean fastMode : List.of(false, true))
+      for (SpaceContext context : List.of(DEFAULT, EXTENSION)) {
+        XyzResponse eager = invoke(connector, new GetStatisticsEvent().withFastMode(fastMode).withSpace("composite")
+            .withParams(params(twins)).withContext(context));
+        XyzResponse lazy = invoke(connector, new GetStatisticsEvent().withFastMode(fastMode).withSpace("composite")
+            .withParams(params(levels)).withContext(context));
+        assertTrue(eager instanceof StatisticsResponse, eager.serialize());
+        assertEquals(comparable(eager), comparable(lazy), "fastMode " + fastMode + ", context " + context);
+      }
+  }
+
+  @Test
+  public void fullStatisticsOfALazyExtensionOfAnEagerBase() throws Exception {
+    assertStatisticsParity(List.of(lazy(), eager("b1", "b2")));
+  }
+
+  @Test
+  public void fullStatisticsOfAnEagerExtensionOfALazyBase() throws Exception {
+    assertStatisticsParity(List.of(eager("x1"), lazy()));
+  }
+
+  @Test
+  public void fullStatisticsOfALazyExtensionOfALazyBase() throws Exception {
+    assertStatisticsParity(List.of(lazy(), lazy()));
+  }
+
+  /**
+   * A table above the size threshold of the search guard, with an on-demand index on "foo" like every level of a composite whose
+   * root has "foo" as searchable property.
+   */
+  private Lvl big() throws Exception {
+    String table = newTable();
+    String spaceId = newId();
+    assertOk(invoke(connector, modifySpaceEvent(Operation.CREATE, spaceId, eagerParams(table))
+        .withSpaceDefinition(new Space().withId(spaceId).withSearchableProperties(Map.of("foo", true)))));
+    execute(new SQLQuery("""
+        INSERT INTO ${schema}.${table} (id, version, operation, jsondata)
+          SELECT 'g' || n, 1, 'I', jsonb_build_object('id', 'g' || n, 'type', 'Feature',
+            'properties', jsonb_build_object('foo', n, 'bar', n))
+          FROM generate_series(1, 10100) n""")
+        .withVariable("schema", connector.schema())
+        .withVariable("table", table));
+    execute(new SQLQuery("ANALYZE ${schema}.${table}").withVariable("schema", connector.schema()).withVariable("table", table));
+    return new Lvl(spaceId, table, false);
+  }
+
+  /**
+   * An eager twin that has the inherited on-demand index too.
+   */
+  private Lvl indexedTwin(Lvl level) throws Exception {
+    if (!level.lazy())
+      return level;
+    String table = newTable();
+    String spaceId = newId();
+    assertOk(invoke(connector, modifySpaceEvent(Operation.CREATE, spaceId, eagerParams(table))
+        .withSpaceDefinition(new Space().withId(spaceId).withSearchableProperties(Map.of("foo", true)))));
+    return new Lvl(spaceId, table, false);
+  }
+
+  private static SearchForFeaturesEvent<?> search(String property) {
+    PropertyQueryList list = new PropertyQueryList();
+    list.add(new PropertyQuery().withKey("properties." + property).withOperation(QueryOperation.EQUALS).withValues(List.of(5)));
+    PropertiesQuery query = new PropertiesQuery();
+    query.add(list);
+    return new SearchForFeaturesEvent<>().withPropertiesQuery(query).withLimit(10);
+  }
+
+  private static Object searchResult(XyzResponse response) throws Exception {
+    if (response instanceof ErrorResponse error)
+      return error.getError() + ": " + error.getErrorMessage();
+    return ids(assertFeatureCollection(response));
+  }
+
+  private void assertSearchGuardParity(List<Lvl> levels, boolean unindexedAllowed) throws Exception {
+    List<Lvl> twins = new java.util.ArrayList<>();
+    for (Lvl level : levels)
+      twins.add(indexedTwin(level));
+    for (String property : List.of("foo", "bar")) {
+      SearchForFeaturesEvent<?> eagerEvent = search(property);
+      eagerEvent.setSpace("composite");
+      eagerEvent.setParams(params(twins));
+      SearchForFeaturesEvent<?> lazyEvent = search(property);
+      lazyEvent.setSpace("composite");
+      lazyEvent.setParams(params(levels));
+      Object eager = searchResult(invoke(connector, eagerEvent));
+      assertEquals(eager, searchResult(invoke(connector, lazyEvent)), "Search on " + property);
+      if ("bar".equals(property))
+        assertEquals(unindexedAllowed, !(eager instanceof String), "Search on the unindexed property: " + eager);
+      else
+        assertTrue(eager instanceof Set, "Search on the indexed property: " + eager);
+    }
+  }
+
+  @Test
+  public void searchGuardOfALazyExtensionOfABigBase() throws Exception {
+    assertSearchGuardParity(List.of(lazy(), big()), false);
+  }
+
+  @Test
+  public void searchGuardOfABigExtensionOfALazyBase() throws Exception {
+    assertSearchGuardParity(List.of(big(), lazy()), false);
+  }
+
+  @Test
+  public void searchGuardOfALazyExtensionOfALazyBase() throws Exception {
+    assertSearchGuardParity(List.of(lazy(), lazy()), true);
+  }
+
+  @Test
+  public void searchGuardOfALazyExtensionOfABigIntermediateAndALazyRoot() throws Exception {
+    assertSearchGuardParity(List.of(lazy(), big(), lazy()), false);
   }
 
   @Test
