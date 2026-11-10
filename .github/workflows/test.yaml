@@ -33,7 +33,9 @@ jobs:
             modules: xyz-jobs/xyz-job-steps
           - name: job-service
             modules: xyz-jobs/xyz-job-service
-          #Everything the slices above do not claim, so a new module is covered without touching this list
+          #Everything the slices above do not claim, so a new module is covered without touching this list.
+          #This includes the lazy space table ITs of xyz-util (profile lazy-space-table-its), which use the
+          #postgres of the stack.
           - name: rest
             modules: '!xyz-hub-test,!xyz-jobs/xyz-job-steps,!xyz-jobs/xyz-job-service'
     steps:

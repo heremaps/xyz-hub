@@ -29,6 +29,7 @@ import com.here.xyz.test.featurewriter.sql.composite.nohistory.SQLComposite_SUPE
 import com.here.xyz.test.featurewriter.sql.noncomposite.nohistory.SQLNonCompositeNoHistoryTestSuiteIT;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -37,6 +38,7 @@ import org.junit.jupiter.params.provider.MethodSource;
  * by the write of the test, and the extension is never written and is read from the empty-space template. The assertions are the
  * ones of the eager suite.
  */
+@Tag("lazy-space-tables")
 public class SQLLazySuperTestSuiteIT extends SQLComposite_SUPER_NoHistoryTestSuiteIT {
 
   //The SUPER suite sets featureExistsInSuper from featureExists

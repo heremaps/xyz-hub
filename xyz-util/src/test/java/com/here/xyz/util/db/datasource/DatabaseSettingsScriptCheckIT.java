@@ -40,6 +40,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 public class DatabaseSettingsScriptCheckIT {
@@ -103,6 +104,7 @@ public class DatabaseSettingsScriptCheckIT {
   }
 
   @Test
+  @Tag("lazy-space-tables")
   public void templateIsVerifiedByTheScriptCheckAndFoundAgainInANewJvmState() throws Exception {
     String id = newId();
     String schema = newTemplateSchema();
@@ -121,6 +123,7 @@ public class DatabaseSettingsScriptCheckIT {
   }
 
   @Test
+  @Tag("lazy-space-tables")
   public void heldTemplateLockLeadsToARetryThatInstallsTheTemplate() throws Exception {
     String id = newId();
     String schema = newTemplateSchema();
@@ -150,6 +153,7 @@ public class DatabaseSettingsScriptCheckIT {
   }
 
   @Test
+  @Tag("lazy-space-tables")
   public void installTimeoutFromTheConnectorParamIsClampedToItsMinimum() throws Exception {
     String id = newId();
     String schema = newTemplateSchema();
@@ -175,6 +179,7 @@ public class DatabaseSettingsScriptCheckIT {
   }
 
   @Test
+  @Tag("lazy-space-tables")
   public void templateFoundMissingAtRuntimeStartsNoCheck() throws Exception {
     String id = newId();
     String schema = newTemplateSchema();
@@ -206,6 +211,7 @@ public class DatabaseSettingsScriptCheckIT {
   }
 
   @Test
+  @Tag("lazy-space-tables")
   public void settingsWithoutTheTemplateDoNotCheckIt() throws Exception {
     String id = newId();
     String schema = newTemplateSchema();

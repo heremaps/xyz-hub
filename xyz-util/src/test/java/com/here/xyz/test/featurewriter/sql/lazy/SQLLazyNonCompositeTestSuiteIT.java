@@ -24,6 +24,7 @@ import com.here.xyz.test.featurewriter.SpaceWriter;
 import com.here.xyz.test.featurewriter.sql.SQLSpaceWriter;
 import com.here.xyz.test.featurewriter.sql.noncomposite.nohistory.SQLNonCompositeNoHistoryTestSuiteIT;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -31,6 +32,7 @@ import org.junit.jupiter.params.provider.MethodSource;
  * All scenarios of {@link SQLNonCompositeNoHistoryTestSuiteIT} on a lazy space: its table is created by the first write,
  * and reads before that use the empty-space template. The assertions are the ones of the eager suite.
  */
+@Tag("lazy-space-tables")
 public class SQLLazyNonCompositeTestSuiteIT extends SQLNonCompositeNoHistoryTestSuiteIT {
 
   public static Stream<TestArgs> testScenarios() throws JsonProcessingException {

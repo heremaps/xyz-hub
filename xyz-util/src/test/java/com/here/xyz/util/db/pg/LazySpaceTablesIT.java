@@ -73,8 +73,10 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+@Tag("lazy-space-tables")
 public class LazySpaceTablesIT extends SQLITBase {
   private static final Set<String> SCHEMAS = ConcurrentHashMap.newKeySet();
   //A schema with the template, installed once for the tests that need it

@@ -56,6 +56,56 @@
 <!--    </plugins>-->
 <!--  </build>-->
 
+  <profiles>
+    <!--
+      Runs the ITs of the lazy space tables, which need postgres only, with -DskipTests=false, like the other modules.
+      The other ITs of this module stay unbound: the Hub*TestSuiteIT classes need the full stack, and the rest have not
+      run in a build so far.
+    -->
+    <profile>
+      <id>lazy-space-table-its</id>
+      <activation>
+        <property>
+          <name>skipTests</name>
+          <value>false</value>
+        </property>
+      </activation>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-failsafe-plugin</artifactId>
+            <executions>
+              <execution>
+                <configuration>
+                  <encoding>UTF-8</encoding>
+                  <includes>
+                    <include>com.here.xyz.util.db.pg.LazySpaceTablesIT</include>
+                    <include>com.here.xyz.test.featurewriter.sql.lazy.SQLLazy*TestSuiteIT</include>
+                    <include>com.here.xyz.test.sql.base.ScriptInstallerIT</include>
+                    <include>com.here.xyz.util.db.datasource.DatabaseSettingsScriptCheckIT</include>
+                    <include>com.here.xyz.test.sql.spacemanagement.XyzSpaceTableHelperIT</include>
+                  </includes>
+                  <!--The three older classes above run only their lazy space table cases-->
+                  <groups>lazy-space-tables</groups>
+                </configuration>
+                <id>integration-test</id>
+                <goals>
+                  <goal>integration-test</goal>
+                </goals>
+              </execution>
+              <execution>
+                <id>verify</id>
+                <goals>
+                  <goal>verify</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
   <build>
     <plugins>
       <!--

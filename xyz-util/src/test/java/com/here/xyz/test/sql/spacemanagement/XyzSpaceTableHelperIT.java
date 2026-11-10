@@ -43,6 +43,7 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 public class XyzSpaceTableHelperIT extends SQLITBase {
@@ -94,6 +95,7 @@ public class XyzSpaceTableHelperIT extends SQLITBase {
     }
 
     @Test
+    @Tag("lazy-space-tables")
     public void fullSystemIndexListCreatesTheSameRelations() throws Exception {
         //All three names have the same length, so generated partition index names are truncated alike
         String defaultTable = newTable("d");
@@ -113,6 +115,7 @@ public class XyzSpaceTableHelperIT extends SQLITBase {
     }
 
     @Test
+    @Tag("lazy-space-tables")
     public void systemIndexWhitelistCreatesOnlyThoseIndexes() throws Exception {
         String defaultTable = newTable("d");
         String whitelistTable = newTable("w");

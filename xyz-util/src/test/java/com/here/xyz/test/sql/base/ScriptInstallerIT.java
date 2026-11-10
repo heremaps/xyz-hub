@@ -66,6 +66,7 @@ import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.logging.log4j.core.config.Property;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.Isolated;
 
@@ -741,6 +742,7 @@ public class ScriptInstallerIT extends SQLITBase {
   }
 
   @Test
+  @Tag("lazy-space-tables")
   public void templateIsInstalledAfterTheScriptsAndFoundByTheNextCheck() throws Exception {
     String schema = newTemplateSchema();
     TemplateProbe publicBefore = probe("public");
@@ -766,6 +768,7 @@ public class ScriptInstallerIT extends SQLITBase {
   }
 
   @Test
+  @Tag("lazy-space-tables")
   public void concurrentInstallersCreateTheTemplateOnce() throws Exception {
     String schema = newTemplateSchema();
     int installers = 4;
@@ -795,6 +798,7 @@ public class ScriptInstallerIT extends SQLITBase {
   }
 
   @Test
+  @Tag("lazy-space-tables")
   public void heldTemplateLockLeadsToNotVerifiedAndAWarning() throws Exception {
     String schema = newTemplateSchema();
     //Log the INFO summary of the check as well
@@ -834,6 +838,7 @@ public class ScriptInstallerIT extends SQLITBase {
   }
 
   @Test
+  @Tag("lazy-space-tables")
   public void tooLittleRemainingTimeLeadsToNotVerifiedWithoutTemplateDdl() throws Exception {
     String schema = newTemplateSchema();
     installTemplateFunctions(schema);
@@ -847,6 +852,7 @@ public class ScriptInstallerIT extends SQLITBase {
   }
 
   @Test
+  @Tag("lazy-space-tables")
   public void templatesThatAreNotIdenticalAreLeftAlone() throws Exception {
     Map<String, List<String>> damages = new LinkedHashMap<>();
     damages.put("foreign relation", List.of("CREATE SCHEMA ${schema}", "CREATE TABLE ${schema}.xyz_empty_space_v1 (id INT)"));
@@ -886,6 +892,7 @@ public class ScriptInstallerIT extends SQLITBase {
   }
 
   @Test
+  @Tag("lazy-space-tables")
   public void missingScriptTargetLeadsToNotVerifiedWithoutTemplateDdl() throws Exception {
     String schema = newTemplateSchema();
     String prefix = newPrefix();
@@ -906,6 +913,7 @@ public class ScriptInstallerIT extends SQLITBase {
   }
 
   @Test
+  @Tag("lazy-space-tables")
   public void oldScriptVersionsAreUninstalledAfterATemplateInstallation() throws Exception {
     String prefix = newPrefix();
     String scriptId = prefix + ".functions";
@@ -933,6 +941,7 @@ public class ScriptInstallerIT extends SQLITBase {
   }
 
   @Test
+  @Tag("lazy-space-tables")
   public void droppedTemplateWithTheGuardFunctionLeftIsInstalledAgain() throws Exception {
     String schema = newTemplateSchema();
     assertEquals(TemplateCheck.VERIFIED, templateCheck(checkWithTemplate(schema)));

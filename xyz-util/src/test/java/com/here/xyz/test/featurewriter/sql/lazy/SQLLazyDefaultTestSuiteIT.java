@@ -27,6 +27,7 @@ import com.here.xyz.test.featurewriter.sql.SQLSpaceWriter;
 import com.here.xyz.test.featurewriter.sql.composite.nohistory.SQLComposite_DEFAULT_NoHistoryTestSuiteIT;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -35,6 +36,7 @@ import org.junit.jupiter.params.provider.MethodSource;
  * written and is read from the empty-space template, the extension is created by its first write. The assertions are the ones of
  * the eager suite.
  */
+@Tag("lazy-space-tables")
 public class SQLLazyDefaultTestSuiteIT extends SQLComposite_DEFAULT_NoHistoryTestSuiteIT {
 
   public static Stream<TestArgs> testScenarios() {
