@@ -692,6 +692,19 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
     return outputSetGroup;
   }
 
+  /**
+   * The group under which the outputs of this step are exposed to the user.
+   * Steps that do not declare a group (e.g., the step that delegates the user-facing outputs of an export)
+   * belong to the {@link InputSet#DEFAULT_SET_GROUP}, so that their outputs can be listed and addressed like all others.
+   *
+   * @return The (effective) output set group, never <code>null</code>
+   */
+  @JsonIgnore
+  public String effectiveOutputSetGroup() {
+    String group = getOutputSetGroup();
+    return group == null || group.isEmpty() ? InputSet.DEFAULT_SET_GROUP : group;
+  }
+
   public void setOutputSetGroup(String outputSetGroup) {
     this.outputSetGroup = outputSetGroup;
   }
