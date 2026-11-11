@@ -221,9 +221,10 @@ public class GetFeaturesByBBoxClustered<E extends GetFeaturesByBBoxEvent, R exte
     Map<String, Object> clusteringParams = event.getClusteringParams();
     String statisticalProperty = (String) clusteringParams.get(HEXBIN_PROPERTY);
 
+    //NOTE: The named parameters of all fragments end up in one map, so the two property paths below need distinct names
     if (statisticalPropertyProvided)
-      query.setQueryFragment("aggregationField", new SQLQuery("jsonb_set('{}'::jsonb, #{path}, agg::jsonb)::json")
-          .withNamedParameter("path", new String[]{statisticalProperty}));
+      query.setQueryFragment("aggregationField", new SQLQuery("jsonb_set('{}'::jsonb, #{aggregationPath}, agg::jsonb)::json")
+          .withNamedParameter("aggregationPath", new String[]{statisticalProperty}));
     else
       query.setQueryFragment("aggregationField", "agg");
 
@@ -238,7 +239,7 @@ public class GetFeaturesByBBoxClustered<E extends GetFeaturesByBBoxEvent, R exte
         .withQueryFragment("pointModeOrStandardFlavor", !pointmode ? h3sqlMid_1a : h3sqlMid_1b)
         .withNamedParameter("h3Resolution", h3Resolution)
         .withQueryFragment("statisticalValue", statisticalPropertyProvided
-            ? new SQLQuery("(jsondata#>> #{path})::numeric").withNamedParameter("path",
+            ? new SQLQuery("(jsondata#>> #{statisticalValuePath})::numeric").withNamedParameter("statisticalValuePath",
               Streams.concat(Stream.of("properties"), Arrays.stream(statisticalProperty.split("\\."))).toArray(String[]::new))
             : new SQLQuery("(0.0)::numeric"))
         .withNamedParameter("zLevel", zLevel)
