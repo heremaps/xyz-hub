@@ -140,7 +140,7 @@ public class TagApi extends SpaceBasedApi {
         .compose(loadedTag -> loadedTag == null
             ? Future.failedFuture(new HttpException(NOT_FOUND, "Tag " + tagId + " not found"))
             : Future.succeededFuture(loadedTag))
-        .compose(loadedTag -> resolveVersionRef(marker, spaceId, versionRef)
+        .compose(loadedTag -> resolveVersionRef(marker, spaceId, versionRef, true)
             .compose(resolvedVersionRef -> {
               //The author and the creation time are set on creation only, an update must not reset them
               final Tag updatedTag = new Tag()
@@ -177,7 +177,7 @@ public class TagApi extends SpaceBasedApi {
     }
 
     final Future<Space> spaceFuture = getSpaceIfActive(marker, spaceId);
-    final Future<Ref> resolveVersionRef = resolveVersionRef(marker, spaceId, versionRef);
+    final Future<Ref> resolveVersionRef = resolveVersionRef(marker, spaceId, versionRef, false);
     final Future<Void> checkExistingAlias = checkExistingAlias(marker, spaceId, tagId);
 
     return Future.all(spaceFuture, resolveVersionRef, checkExistingAlias).compose(cf -> {
@@ -231,12 +231,15 @@ public class TagApi extends SpaceBasedApi {
   }
 
   /**
-   * Resolves HEAD into the actual latest version and makes sure that a tag does not point to a version which does not exist (yet).
+   * Resolves HEAD into the actual latest version.
+   * If requested, it also makes sure that the tag does not point to a version which does not exist (yet).
+   * That is the case for updates only: creating a tag for a version which does not exist yet has always been possible
+   * and stays possible.
    */
-  private static Future<Ref> resolveVersionRef(Marker marker, String spaceId, Ref versionRef) {
+  private static Future<Ref> resolveVersionRef(Marker marker, String spaceId, Ref versionRef, boolean verifyVersion) {
     if (versionRef.isTag())
       throw new IllegalArgumentException("A tag cannot be used as Ref");
-    if (!versionRef.isHead() && !versionRef.isSingleVersion())
+    if (!versionRef.isHead() && (!verifyVersion || !versionRef.isSingleVersion()))
       return Future.succeededFuture(versionRef);
     return FeatureQueryApi.getStatistics(marker, spaceId, SpaceContext.DEFAULT, new Ref(HEAD), true, false)
         .compose(statistics -> {

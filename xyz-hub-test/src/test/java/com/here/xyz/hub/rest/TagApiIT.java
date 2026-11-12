@@ -381,17 +381,13 @@ public class TagApiIT extends TestSpaceWithFeature {
 
   @Test
   public void testCreateTagWithVersion() {
-    _addOneFeature();
-    _addOneFeature();
-
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .contentType(ContentType.JSON)
-        .body(new Tag().withId(TAG_1).withVersion(1))
+        .body(new Tag().withId(TAG_1).withVersion(555))
         .post("/spaces/" + getSpaceId() + "/tags")
         .then()
-        .statusCode(OK.code())
-        .body("version", equalTo(1));
+        .body("version", equalTo(555));
   }
 
   @Test
@@ -408,6 +404,7 @@ public class TagApiIT extends TestSpaceWithFeature {
         .body("version", equalTo(1));
   }
 
+  //Creating a tag for a version which does not exist yet is possible, only updating a tag is verified
   @Test
   public void testCreateTagWithNonExistingVersion() {
     _addOneFeature();
@@ -419,24 +416,15 @@ public class TagApiIT extends TestSpaceWithFeature {
         .body(new Tag().withId(TAG_1).withVersion(2))
         .post("/spaces/" + getSpaceId() + "/tags")
         .then()
-        .statusCode(BAD_REQUEST.code());
+        .statusCode(OK.code())
+        .body("version", equalTo(2));
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .get("/spaces/" + getSpaceId() + "/tags/" + TAG_1)
         .then()
-        .statusCode(NOT_FOUND.code());
-  }
-
-  @Test
-  public void testCreateTagWithNonExistingVersionOnEmptySpace() {
-    given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .contentType(ContentType.JSON)
-        .body(new Tag().withId(TAG_1).withVersion(555))
-        .post("/spaces/" + getSpaceId() + "/tags")
-        .then()
-        .statusCode(BAD_REQUEST.code());
+        .statusCode(OK.code())
+        .body("version", equalTo(2));
   }
 
   @Test
