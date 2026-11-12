@@ -111,6 +111,26 @@ public class RefTests {
   }
 
   @Test
+  public void rangeOperatorWithoutEndpointsIsRejectedWithReadableMessage() {
+    for (String value : new String[]{"..", "...", ".. ", "..1", "1..", "tagV1..", "..tagV1"}) {
+      InvalidRef e = assertThrows(value, InvalidRef.class, () -> new Ref(value));
+
+      assertTrue(value + ": " + e.getMessage(), e.getMessage().contains("A range can only have one start and one end"));
+    }
+  }
+
+  @Test
+  public void invalidReferencesNeverFailWithAnythingElseThanInvalidRef() {
+    for (String value : new String[]{"..", "...", "....", "1....2", "..HEAD", "HEAD..", "*..*", "1..2..", "..1..2", ":", "..:.."})
+      try {
+        new Ref(value);
+      }
+      catch (InvalidRef ignored) {
+        //Expected for invalid refs, everything else (e.g. an IndexOutOfBoundsException) would be a bug
+      }
+  }
+
+  @Test
   public void tagsNoLongerPersistBranchIdentifiers() {
     Tag tag = new Tag().withId("myTag").withVersionRef(new Ref(42));
     assertEquals(42, tag.getVersion());
