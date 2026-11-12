@@ -296,7 +296,7 @@ class DatabaseWriter {
    */
   insertHistoryRow(inputFeature, onVersionConflict, baseVersion, baseFeature, version, operation, author, resultHandler) {
     //TODO: Improve performance by reading geo inside JS and then pass it separately and use TEXT / WKB / BYTEA
-    this.enrichTimestamps(inputFeature, operation == "I" || operation == "H", baseFeature);
+    this.enrichTimestamps(inputFeature, (operation == "I" && !this._isInheritedFromBase(baseFeature)) || operation == "H", baseFeature);
     let extraCols = '';
     let extraVals = '';
 
@@ -483,6 +483,18 @@ class DatabaseWriter {
 
     if (!this.batchMode)
       return this.execute()[0];
+  }
+
+  /**
+   * Checks whether the given (currently visible) feature is only inherited from a base space of a composite space,
+   * so it does not exist in the table which is being written to.
+   * Writing such a feature into the extension is a modification of an existing feature, not a creation of a new one,
+   * even though it is stored as a new row (operation "I") in the extension table.
+   * @param {Object} baseFeature The currently visible feature as loaded by the FeatureWriter, or null
+   * @returns {boolean}
+   */
+  _isInheritedFromBase(baseFeature) {
+    return baseFeature != null && baseFeature.dataset < queryContext().tables.length - 1;
   }
 
   enrichTimestamps(feature, isCreation = false, baseFeature = null) {
