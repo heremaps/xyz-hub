@@ -127,7 +127,8 @@ public class ExportJobTestIT extends JobTest {
 
     @Test
     public void testReusingSimpleExportMatch() throws Exception {
-        Job exportJob1 = buildExportJob();
+        //Only jobs that are kept long enough are reused, the default retention after the end of a job is too short
+        Job exportJob1 = buildExportJob().withKeepUntil(System.currentTimeMillis() + Job.LONG_RETENTION);
         createSelfRunningJob(exportJob1);
         checkSucceededJob(exportJob1, featureCount);
 
@@ -148,8 +149,21 @@ public class ExportJobTestIT extends JobTest {
     }
 
     @Test
-    public void testRecreationOfSpaceExport() throws Exception {
+    public void testExportWithDefaultRetentionIsNotReused() throws Exception {
+        //The first job is kept for the default retention after its end only, so its outputs could be deleted while being reused
         Job exportJob1 = buildExportJob();
+        createSelfRunningJob(exportJob1);
+        checkSucceededJob(exportJob1, featureCount);
+
+        Job exportJob2 = buildExportJob(generateJobId());
+        createSelfRunningJob(exportJob2);
+        checkJobReusage(exportJob1, exportJob2, featureCount, false);
+    }
+
+    @Test
+    public void testRecreationOfSpaceExport() throws Exception {
+        //Kept long enough to be reused, so only the change of the export prevents the reuse
+        Job exportJob1 = buildExportJob().withKeepUntil(System.currentTimeMillis() + Job.LONG_RETENTION);
         createSelfRunningJob(exportJob1);
         checkSucceededJob(exportJob1, featureCount);
 
@@ -165,7 +179,8 @@ public class ExportJobTestIT extends JobTest {
 
     @Test
     public void testReusingSimpleExportMismatch() throws Exception {
-        Job exportJob1 = buildExportJob();
+        //Kept long enough to be reused, so only the change of the export prevents the reuse
+        Job exportJob1 = buildExportJob().withKeepUntil(System.currentTimeMillis() + Job.LONG_RETENTION);
         createSelfRunningJob(exportJob1);
         checkSucceededJob(exportJob1, featureCount);
 
