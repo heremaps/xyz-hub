@@ -29,6 +29,8 @@ import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.Properties;
@@ -37,6 +39,7 @@ import io.restassured.http.ContentType;
 import io.restassured.response.ValidatableResponse;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -173,11 +176,13 @@ public class TagApiIT extends TestSpaceWithFeature {
   @Test
   public void updateTagVersion() {
     _createTag();
+    _addOneFeature();
+    _addOneFeature();
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .contentType(ContentType.JSON)
-        .body(new Tag().withVersion(999).serialize())
+        .body(new Tag().withVersion(2).serialize())
         .patch("/spaces/" + getSpaceId() + "/tags/" + TAG_1)
         .then()
         .statusCode(OK.code());
@@ -187,7 +192,73 @@ public class TagApiIT extends TestSpaceWithFeature {
         .get("/spaces/" + getSpaceId() + "/tags/" + TAG_1)
         .then()
         .statusCode(OK.code())
-        .body("version", equalTo(999));
+        .body("version", equalTo(2));
+  }
+
+  @Test
+  public void updateTagToNonExistingVersion() {
+    _addOneFeature();
+    _createTag();
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .contentType(ContentType.JSON)
+        .body(new Tag().withVersion(999).serialize())
+        .patch("/spaces/" + getSpaceId() + "/tags/" + TAG_1)
+        .then()
+        .statusCode(BAD_REQUEST.code());
+
+    //The tag still points to the version it had before
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .get("/spaces/" + getSpaceId() + "/tags/" + TAG_1)
+        .then()
+        .statusCode(OK.code())
+        .body("version", equalTo(1));
+  }
+
+  @Test
+  public void updateTagKeepsAuthorAndCreationTime() {
+    _createTag();
+    Map<String, Object> created = getTag();
+    assertEquals(AuthProfile.ACCESS_ALL.payload.aid, created.get("author"));
+    assertNotEquals(-1, ((Number) created.get("createdAt")).longValue());
+
+    Map<String, Object> updateResponse = given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .contentType(ContentType.JSON)
+        .body(new Tag().withDescription("updated").withVersion(0).serialize())
+        .patch("/spaces/" + getSpaceId() + "/tags/" + TAG_1)
+        .then()
+        .statusCode(OK.code())
+        .extract().jsonPath().getMap("$");
+
+    assertEquals("updated", updateResponse.get("description"));
+    assertEquals(created.get("author"), updateResponse.get("author"));
+    assertEquals(created.get("createdAt"), updateResponse.get("createdAt"));
+
+    //What has been stored is what the update has answered, no matter if the tag is read on its own or as part of the list
+    Map<String, Object> readAfterUpdate = getTag();
+    assertEquals(updateResponse, readAfterUpdate);
+    assertEquals(readAfterUpdate, listTags().stream().filter(tag -> TAG_1.equals(tag.get("id"))).findFirst().orElseThrow());
+  }
+
+  private Map<String, Object> getTag() {
+    return given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .get("/spaces/" + getSpaceId() + "/tags/" + TAG_1)
+        .then()
+        .statusCode(OK.code())
+        .extract().jsonPath().getMap("$");
+  }
+
+  private List<Map<String, Object>> listTags() {
+    return given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .get("/spaces/" + getSpaceId() + "/tags")
+        .then()
+        .statusCode(OK.code())
+        .extract().jsonPath().getList("$");
   }
 
   @Test
@@ -310,13 +381,62 @@ public class TagApiIT extends TestSpaceWithFeature {
 
   @Test
   public void testCreateTagWithVersion() {
+    _addOneFeature();
+    _addOneFeature();
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .contentType(ContentType.JSON)
+        .body(new Tag().withId(TAG_1).withVersion(1))
+        .post("/spaces/" + getSpaceId() + "/tags")
+        .then()
+        .statusCode(OK.code())
+        .body("version", equalTo(1));
+  }
+
+  @Test
+  public void testCreateTagWithLatestVersion() {
+    _addOneFeature();
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .contentType(ContentType.JSON)
+        .body(new Tag().withId(TAG_1).withVersion(1))
+        .post("/spaces/" + getSpaceId() + "/tags")
+        .then()
+        .statusCode(OK.code())
+        .body("version", equalTo(1));
+  }
+
+  @Test
+  public void testCreateTagWithNonExistingVersion() {
+    _addOneFeature();
+
+    //The space has the versions 0 and 1
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .contentType(ContentType.JSON)
+        .body(new Tag().withId(TAG_1).withVersion(2))
+        .post("/spaces/" + getSpaceId() + "/tags")
+        .then()
+        .statusCode(BAD_REQUEST.code());
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .get("/spaces/" + getSpaceId() + "/tags/" + TAG_1)
+        .then()
+        .statusCode(NOT_FOUND.code());
+  }
+
+  @Test
+  public void testCreateTagWithNonExistingVersionOnEmptySpace() {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .contentType(ContentType.JSON)
         .body(new Tag().withId(TAG_1).withVersion(555))
         .post("/spaces/" + getSpaceId() + "/tags")
         .then()
-        .body("version", equalTo(555));
+        .statusCode(BAD_REQUEST.code());
   }
 
   @Test
@@ -543,7 +663,7 @@ public class TagApiIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .contentType(ContentType.JSON)
-        .body(new Tag().withId(TAG_1).withVersion(1).withDescription("description"))
+        .body(new Tag().withId(TAG_1).withVersion(0).withDescription("description"))
         .patch("/spaces/" + getSpaceId() + "/tags/" + TAG_1)
         .then()
         .statusCode(OK.code())
