@@ -24,6 +24,7 @@ import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonSetter;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
@@ -52,6 +53,18 @@ public class Filters {
 
   @JsonView({Public.class, Static.class})
   private String jsonPath;
+
+  /**
+   * A version selector is not a filter. Without this setter, {@code ref} would be dropped silently (unknown properties are ignored)
+   * and a request like <code>"filters": {"ref": "2"}</code> would read the HEAD version instead of the requested one.
+   *
+   * @param ref the value of the misplaced property, never used
+   * @throws IllegalArgumentException always
+   */
+  @JsonSetter("ref")
+  private void rejectRef(Object ref) {
+    throw new IllegalArgumentException("\"ref\" is not a filter property. Use \"versionRef\" on the source to select a version.");
+  }
 
   public PropertiesQuery getPropertyFilter() {
     return propertyFilter;
