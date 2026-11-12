@@ -46,6 +46,7 @@ import com.here.xyz.util.db.pg.LockHelper;
 import io.restassured.response.Response;
 import io.restassured.response.ValidatableResponse;
 import io.restassured.specification.RequestSpecification;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -157,6 +158,36 @@ public class LazySpaceApiIT extends TestSpaceWithFeature {
 
     assertTrue(isFlagged(lazySpaceId));
     assertEquals("A read creates no table", 0, relationCount(DB_URL, tableName(lazySpaceId)));
+  }
+
+  @Test
+  public void fullStatisticsListTheSearchablePropertiesLikeAnEagerEmptySpace() throws SQLException {
+    JsonObject properties = new JsonObject().put("searchableProperties", new JsonObject()
+        .put("value", true)
+        .put("d01.nested", true)
+        .put("off", false));
+    String eagerBaseId = createSpaceOn("statbase", EAGER_CONNECTOR, properties);
+    String lazyBaseId = createSpaceOn("statlazy", LAZY_CONNECTOR, properties);
+    String eagerExtensionId = createExtension("statbaseext", eagerBaseId);
+    String lazyExtensionId = createExtension("statlazyext", lazyBaseId);
+
+    for (String query : List.of("", "?fastMode=true"))
+      assertEquals("Base" + query, statisticsWithoutSizes(get(eagerBaseId, "/statistics" + query)),
+          statisticsWithoutSizes(get(lazyBaseId, "/statistics" + query)));
+    for (String context : List.of("DEFAULT", "EXTENSION", "SUPER"))
+      for (String fastMode : List.of("", "&fastMode=true")) {
+        String path = "/statistics?context=" + context + fastMode;
+        assertEquals("Extension " + path, statisticsWithoutSizes(get(eagerExtensionId, path)),
+            statisticsWithoutSizes(get(lazyExtensionId, path)));
+      }
+
+    JsonArray listed = statisticsWithoutSizes(get(eagerBaseId, "/statistics")).getJsonObject("properties").getJsonArray("value");
+    assertEquals(List.of("d01.nested", "value"), listed.stream().map(property -> ((JsonObject) property).getString("key")).toList());
+    listed.forEach(property -> assertTrue(property.toString(), ((JsonObject) property).getBoolean("searchable")));
+    for (String lazyId : List.of(lazyBaseId, lazyExtensionId)) {
+      assertTrue(isFlagged(lazyId));
+      assertEquals("A read creates no table", 0, relationCount(DB_URL, tableName(lazyId)));
+    }
   }
 
   @Test
@@ -475,6 +506,19 @@ public class LazySpaceApiIT extends TestSpaceWithFeature {
   private static JsonObject comparable(Response response) {
     JsonObject body = new JsonObject(response.asString());
     body.remove("contentUpdatedAt");
+    return body;
+  }
+
+  /**
+   * @return The comparable statistics body without the byte and data size, which differ between the empty-space template and a
+   *  table with on-demand indexes, and without the etag, which is a hash of the body including the sizes
+   */
+  private static JsonObject statisticsWithoutSizes(Response response) {
+    assertEquals(response.asString(), OK.code(), response.statusCode());
+    JsonObject body = comparable(response);
+    body.remove("byteSize");
+    body.remove("dataSize");
+    body.remove("etag");
     return body;
   }
 
