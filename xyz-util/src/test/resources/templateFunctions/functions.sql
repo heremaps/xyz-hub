@@ -17,8 +17,8 @@
  * License-Filename: LICENSE
  */
 -- The two functions of ext.sql (xyz-psql-connector) that the creation of a space table calls. The installer tests of the
--- empty-space template use this script instead of ext.sql, which is not on the class path of xyz-util. The functions exist only
--- in the script schema, so a template installation succeeds only with the script schemas on its search path.
+-- empty-space template use these copies, so that they install into their own prefixed schemas without the hub scripts. The
+-- functions exist only in the script schema, so a template installation succeeds only with the script schemas on its search path.
 CREATE OR REPLACE FUNCTION max_bigint() RETURNS BIGINT AS
 $BODY$
 BEGIN

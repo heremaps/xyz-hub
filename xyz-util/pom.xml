@@ -107,6 +107,22 @@
     </profile>
   </profiles>
   <build>
+    <!--
+      The hub script check of the ITs lists ext.sql and h3.sql of xyz-psql-connector under /sql. Without them on the test class
+      path, the ITs would depend on a hub.ext schema that someone else installed in the test database.
+    -->
+    <testResources>
+      <testResource>
+        <directory>${project.basedir}/src/test/resources</directory>
+      </testResource>
+      <testResource>
+        <directory>${project.basedir}/../xyz-psql-connector/src/main/resources</directory>
+        <includes>
+          <include>sql/ext.sql</include>
+          <include>sql/h3.sql</include>
+        </includes>
+      </testResource>
+    </testResources>
     <plugins>
       <!--
         Publish the test classes as a separate test-jar artifact.
@@ -129,6 +145,12 @@
             <goals>
               <goal>test-jar</goal>
             </goals>
+            <configuration>
+              <!--The copies of the connector scripts must not shadow the ones of xyz-psql-connector in other modules-->
+              <excludes>
+                <exclude>sql/**</exclude>
+              </excludes>
+            </configuration>
           </execution>
         </executions>
       </plugin>
