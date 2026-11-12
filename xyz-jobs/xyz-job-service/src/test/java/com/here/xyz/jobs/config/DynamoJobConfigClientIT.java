@@ -286,6 +286,36 @@ public class DynamoJobConfigClientIT {
   }
 
   @Test
+  public void updateStatusWritesTheKeepUntilOfTheJobAndItsResourceKeys() throws Exception {
+    Job job = storeJobForConditions("_keepUntil", RUNNING, RUNNING);
+    long keepUntilInSeconds = (System.currentTimeMillis() + 7_200_000) / 1000;
+    job.setKeepUntil(keepUntilInSeconds * 1000);
+    job.getStatus().setState(SUCCEEDED);
+
+    await(client.updateStatus(job, RUNNING));
+
+    assertEquals(keepUntilInSeconds * 1000, await(client.loadJob(job.getId())).getKeepUntil());
+    assertTrue(!job.getResourceKeys().isEmpty(), "The job must have resource keys");
+    for (String resourceKey : job.getResourceKeys())
+      assertEquals(keepUntilInSeconds, new DynamoClient(TABLE_ARN_PREFIX + "job-resources", null).getTable()
+          .getItem("resourceKey", resourceKey, "jobId", job.getId()).getLong("keepUntil"), "keepUntil of resource key " + resourceKey);
+  }
+
+  @Test
+  public void updateStatusDoesNotWriteAKeepUntilOfZero() throws Exception {
+    Job job = storeJobForConditions("_noKeepUntil", RUNNING, RUNNING);
+    long storedKeepUntil = await(client.loadJob(job.getId())).getKeepUntil();
+    job.setKeepUntil(0);
+    job.getStatus().setState(SUCCEEDED);
+
+    await(client.updateStatus(job, RUNNING));
+
+    Job loadedJob = await(client.loadJob(job.getId()));
+    assertEquals(SUCCEEDED, loadedJob.getStatus().getState());
+    assertEquals(storedKeepUntil, loadedJob.getKeepUntil());
+  }
+
+  @Test
   public void nonFinalUpdateOfAFinalStepIsIgnoredWithoutError() throws Exception {
     Job job = storeJobForConditions("_step", RUNNING, SUCCEEDED);
     Step<?> step = job.getSteps().stepStream().findFirst().get();

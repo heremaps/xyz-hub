@@ -420,15 +420,28 @@ public class DynamoJobConfigClient extends JobConfigClient {
     });
   }
 
+  /**
+   * Updates the status of the job and its keepUntil, which can change with the state (see {@link Job#updateKeepUntil()}).
+   * The keepUntil of the job's resource keys is updated as well, so that they do not expire before the job, as e.g. the check for
+   * conflicting PENDING jobs finds the jobs through them.
+   */
   @Override
   public Future<Void> updateStatus(Job job, State expectedPreviousState) {
     return dynamoClient.executeQueryAsync(() -> {
-      final Map<String, String> nameMap = Map.of("#status", "status", "#state", "state");
+      final Map<String, String> nameMap = new HashMap<>(Map.of("#status", "status", "#state", "state"));
       final Map<String, Object> valueMap = new HashMap<>(Map.of(":newStatus", job.getStatus().toMap(), ":newState",
           job.getStatus().getState().toString()));
+      String updateExpression = "SET #status = :newStatus, #state = :newState";
+      //Never write a keepUntil of 0, the TTL would remove the job immediately
+      final long keepUntil = job.getKeepUntil() / 1000;
+      if (keepUntil > 0) {
+        nameMap.put("#keepUntil", "keepUntil");
+        valueMap.put(":keepUntil", keepUntil);
+        updateExpression += ", #keepUntil = :keepUntil";
+      }
       final UpdateItemSpec updateItemSpec = new UpdateItemSpec()
           .withPrimaryKey("id", job.getId())
-          .withUpdateExpression("SET #status = :newStatus, #state = :newState")
+          .withUpdateExpression(updateExpression)
           .withNameMap(nameMap)
           .withValueMap(valueMap);
 
@@ -440,6 +453,8 @@ public class DynamoJobConfigClient extends JobConfigClient {
       }
 
       jobTable.updateItem(updateItemSpec);
+      if (keepUntil > 0 && job.getResourceKeys() != null && !job.getResourceKeys().isEmpty())
+        batchWriteResourceKeys(job.getId(), job.getResourceKeys(), keepUntil);
       return null;
     });
   }

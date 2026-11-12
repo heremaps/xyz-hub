@@ -104,6 +104,12 @@ public class Job implements XyzSerializable {
   private long updatedAt;
   @JsonView({Public.class, Static.class})
   private long keepUntil;
+  /**
+   * How long (in ms) to keep this job after it succeeded, see {@link #updateKeepUntil()}.
+   * 0 means that {@link #keepUntil} is not managed by the framework, e.g., because the creator of the job defined it.
+   */
+  @JsonView(Static.class)
+  private long retention;
   @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
   private Map<String, Input> inputs;
   //Caller defined properties:
@@ -133,7 +139,15 @@ public class Job implements XyzSerializable {
 
   private static final Async ASYNC = new Async(100, Job.class);
   private static final Logger logger = LogManager.getLogger();
-  private static final long DEFAULT_JOB_TTL = TimeUnit.DAYS.toMillis(2 * 7); //2 weeks
+  /**
+   * How long a job is kept after it succeeded (the default retention).
+   */
+  public static final long SHORT_RETENTION = TimeUnit.DAYS.toMillis(1);
+  /**
+   * How long a job is kept while waiting for its inputs (after its creation), while it is processed (after each state change)
+   * and after it failed or was cancelled (to debug and resume it).
+   */
+  public static final long LONG_RETENTION = TimeUnit.DAYS.toMillis(7);
 
   /**
    * Creates a new Job.
@@ -158,6 +172,8 @@ public class Job implements XyzSerializable {
 
   /**
    * Has to be called at the initial creation of a new job to initialize its ID, status and timestamps.
+   * If the creator of the job did not define keepUntil, the framework manages it (see {@link #updateKeepUntil()}).
+   * A keepUntil defined by the creator is kept as is.
    *
    * @return This job instance for chaining
    */
@@ -165,10 +181,38 @@ public class Job implements XyzSerializable {
     //Define the framework standard properties
     if (getId() == null)
       setId(randomAlpha());
-    return withStatus(new RuntimeStatus().withState(NOT_READY))
+    withStatus(new RuntimeStatus().withState(NOT_READY))
         .withCreatedAt(Core.currentTimeMillis())
-        .withUpdatedAt(getCreatedAt())
-        .withKeepUntil(getKeepUntil() <= 0 ? getCreatedAt() + DEFAULT_JOB_TTL : getKeepUntil());
+        .withUpdatedAt(getCreatedAt());
+    if (getKeepUntil() > 0)
+      return withRetention(0);
+    return withKeepUntil(getCreatedAt() + LONG_RETENTION)
+        .withRetention(SHORT_RETENTION);
+  }
+
+  /**
+   * Updates keepUntil according to the current state of this job. Called before the job or its status gets stored.
+   * Does nothing if keepUntil is not managed by the framework (see {@link #getRetention()}) or if this job is a pipeline.
+   *
+   *  - NOT_READY: unchanged, so a job that does not get its inputs expires {@link #LONG_RETENTION} after its creation
+   *  - SUCCEEDED: the retention of this job from now on
+   *  - FAILED, CANCELLED: at least {@link #LONG_RETENTION} from now on, to allow debugging and resuming the job
+   *  - all other states: extended to at least {@link #LONG_RETENTION} from now on, so that a waiting or running job does not expire
+   *
+   * NOTE: The final states set the keepUntil each time they are stored, so a later write of a finished job (e.g., a late event of
+   *  its state machine) extends it once more from that time on.
+   */
+  void updateKeepUntil() {
+    if (getRetention() <= 0 || isPipeline() || getStatus() == null)
+      return;
+
+    long now = Core.currentTimeMillis();
+    switch (getStatus().getState()) {
+      case NONE, NOT_READY -> {}
+      case SUCCEEDED -> setKeepUntil(now + getRetention());
+      case FAILED, CANCELLED -> setKeepUntil(now + Math.max(getRetention(), LONG_RETENTION));
+      default -> setKeepUntil(Math.max(getKeepUntil(), now + LONG_RETENTION));
+    }
   }
 
   //TODO: Make sure also the step states are always set accordingly (prior to execution)
@@ -580,11 +624,13 @@ public class Job implements XyzSerializable {
 
   public Future<Void> store() {
     //TODO: Validate changes on the job and make sure the job may be stored in the current state
+    updateKeepUntil();
     return JobConfigClient.getInstance().storeJob(this);
   }
 
   public Future<Void> storeStatus(State expectedPreviousState) {
     logger.info("[{}] Store Job-Status: {}", getId(), getStatus().getState());
+    updateKeepUntil();
     return JobConfigClient.getInstance().updateStatus(this, expectedPreviousState);
   }
 
@@ -974,6 +1020,29 @@ public class Job implements XyzSerializable {
 
   public Job withKeepUntil(long keepUntil) {
     setKeepUntil(keepUntil);
+    return this;
+  }
+
+  /**
+   * @return How long (in ms) this job is kept after it succeeded.
+   *  0 means that keepUntil is not managed by the framework (see {@link #updateKeepUntil()}).
+   */
+  public long getRetention() {
+    return retention;
+  }
+
+  /**
+   * Sets how long (in ms) to keep this job after it succeeded.
+   * A compiler can use it to keep the outputs of a job longer, e.g., for reusing them in later jobs.
+   * NOTE: A compiler must use this method rather than setting keepUntil, because the framework sets keepUntil when the job ends.
+   * A value > 0 also lets the framework manage keepUntil, even if the creator of the job defined it.
+   */
+  public void setRetention(long retention) {
+    this.retention = retention;
+  }
+
+  public Job withRetention(long retention) {
+    setRetention(retention);
     return this;
   }
 

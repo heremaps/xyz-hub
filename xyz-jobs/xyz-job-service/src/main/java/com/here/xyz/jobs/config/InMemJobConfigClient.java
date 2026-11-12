@@ -209,7 +209,13 @@ public class InMemJobConfigClient extends JobConfigClient {
       return Future.failedFuture(stateConflict(job, expectedPreviousState));
 
     RuntimeStatus status = XyzSerializable.fromMap(job.getStatus().toMap(), RuntimeStatus.class);
-    jobMap.put(job.getId(), storedJob == null ? copy(job) : storedJob.withStatus(status));
+    if (storedJob != null) {
+      storedJob.setStatus(status);
+      //Like the DynamoDB client, the keepUntil is updated with the status
+      if (job.getKeepUntil() > 0)
+        storedJob.setKeepUntil(job.getKeepUntil());
+    }
+    jobMap.put(job.getId(), storedJob == null ? copy(job) : storedJob);
     return Future.succeededFuture();
   }
 

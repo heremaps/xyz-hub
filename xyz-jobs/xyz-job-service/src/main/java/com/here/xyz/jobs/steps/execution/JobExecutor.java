@@ -74,6 +74,8 @@ public abstract class JobExecutor implements Initializable {
   private static final long CANCELLATION_TIMEOUT = 10 * 60 * 1_000; //10 min
   private static final long CANCELLATION_CHECK_RERUN_PERIOD = 10_000; //10 sec
   private static final long JOB_START_TIMEOUT = 60_000;
+  //A job is only reused if it is kept for at least that long more, see keptLongEnoughForReuse()
+  static final long MIN_REMAINING_TIME_FOR_REUSE = Job.SHORT_RETENTION;
   private static Set<Predicate<Job>> singleJobAllowedPolicies = new ConcurrentHashSet<>();
 
   public record SchedulerState(
@@ -587,6 +589,7 @@ public abstract class JobExecutor implements Initializable {
     if (job.getResourceKeys().isEmpty() || job.getSteps().stepStream().anyMatch(step -> step instanceof DelegateStep))
       return Future.succeededFuture();
     return JobConfigClient.getInstance().loadJobs(job.getResourceKeys(), SUCCEEDED)
+        .map(JobExecutor::keptLongEnoughForReuse)
         .compose(candidates -> {
           Set<String> candidateIds = candidates.stream().map(candidate -> candidate.getId()).collect(Collectors.toSet());
           return Future.succeededFuture(candidates.stream()
@@ -599,6 +602,23 @@ public abstract class JobExecutor implements Initializable {
               .orElse(null));
         })
         .compose(fusedGraph -> fusedGraph == null ? Future.succeededFuture() : job.withSteps(fusedGraph).store());
+  }
+
+  /**
+   * The outputs of a reused step stay under the job that produced them and get deleted with it. The reusing job reads them while it
+   * runs, so only jobs that are kept for at least {@link #MIN_REMAINING_TIME_FOR_REUSE} more are reused. That also skips jobs that
+   * expired already, but were not removed yet.
+   * As the candidates remaining here are also the ones that the delegations of a candidate may point to (see
+   * {@link #filterByExistingReferees(Job, Set)}), a candidate delegating to a job that expires soon is not reused either.
+   *
+   * @param candidates The jobs that could be reused
+   * @return The candidates that are kept long enough to be reused
+   */
+  static List<Job> keptLongEnoughForReuse(Collection<Job> candidates) {
+    long minKeepUntil = Core.currentTimeMillis() + MIN_REMAINING_TIME_FOR_REUSE;
+    return candidates.stream()
+        .filter(candidate -> candidate.getKeepUntil() > minKeepUntil)
+        .toList();
   }
 
   //TODO: Remove the following workaround once S3 reference-counting was fixed
