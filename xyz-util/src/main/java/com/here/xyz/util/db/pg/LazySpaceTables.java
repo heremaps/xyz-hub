@@ -80,7 +80,8 @@ public class LazySpaceTables {
    */
   public static final String TEMPLATE_SPACE_ID = "xyz-empty-space-template";
   /**
-   * The event parameter with the on-demand indexes to create when a write materializes the table.
+   * The event parameter with the on-demand indexes to create when a write materializes the table, and to list in the full
+   * statistics of never written levels.
    */
   public static final String ON_DEMAND_INDEXES = "onDemandIndexes";
   /**

@@ -375,6 +375,49 @@ public class PSQLLazyTableIT extends LazyTablesITBase {
     assertEquals(Set.of(), relations(connector.schema(), lazyTable));
   }
 
+  private static XyzResponse statistics(TestConnector connector, String spaceId, Map<String, Object> params, boolean fastMode)
+      throws Exception {
+    return invoke(connector, new GetStatisticsEvent().withFastMode(fastMode).withSpace(spaceId).withParams(params));
+  }
+
+  @Test
+  public void fullStatisticsOfANeverWrittenSpaceListItsSearchableProperties() throws Exception {
+    TestConnector connector = newConnector().with("lazyTableCreation", true);
+    String eagerTable = newTable();
+    String lazyTable = newTable();
+    String eagerSpace = newId();
+    String spaceId = newId();
+    assertOk(invoke(connector, modifySpaceEvent(Operation.CREATE, eagerSpace, eagerParams(eagerTable))
+        .withSpaceDefinition(new Space().withId(eagerSpace).withSearchableProperties(SEARCHABLE_PROPERTIES))));
+    assertOk(invoke(connector, modifySpaceEvent(Operation.CREATE, spaceId, lazyParams(lazyTable))
+        .withSpaceDefinition(new Space().withId(spaceId).withSearchableProperties(SEARCHABLE_PROPERTIES))));
+
+    for (boolean fastMode : List.of(false, true)) {
+      Map<String, Object> eager = statisticsWithoutSizes(statistics(connector, spaceId, eagerParams(eagerTable), fastMode));
+      Map<String, Object> lazy = statisticsWithoutSizes(statistics(connector, spaceId,
+          lazyWriteParams(lazyTable, SEARCHABLE_INDEXES.toArray(String[]::new)), fastMode));
+      assertEquals(eager, lazy, "fastMode " + fastMode);
+      if (!fastMode) {
+        assertEquals(List.of("d01.nested 0 unknown", "typed 0 unknown", "value 0 unknown"), listedProperties(eager),
+            "The eager empty space lists its searchable properties");
+        assertEquals("ALL", ((Map<?, ?>) eager.get("properties")).get("searchable"));
+      }
+    }
+    assertEquals(Set.of(), relations(connector.schema(), lazyTable), "A read must not create the table");
+  }
+
+  @Test
+  public void fullStatisticsOfANeverWrittenSpaceWithoutOnDemandIndexesListNoProperties() throws Exception {
+    TestConnector connector = newConnector().with("lazyTableCreation", true);
+    String lazyTable = newTable();
+    String spaceId = newId();
+    assertOk(invoke(connector, modifySpaceEvent(Operation.CREATE, spaceId, lazyParams(lazyTable))));
+
+    //A Hub that sends no on-demand indexes with statistics events gets the properties of the template
+    assertEquals(List.of(), listedProperties(statisticsWithoutSizes(statistics(connector, spaceId, lazyParams(lazyTable), false))));
+    assertEquals(Set.of(), relations(connector.schema(), lazyTable), "A read must not create the table");
+  }
+
   /**
    * @return A handler whose settings request no template, so that its schema has none
    */

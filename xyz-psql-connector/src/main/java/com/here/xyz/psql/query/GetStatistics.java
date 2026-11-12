@@ -34,6 +34,7 @@ import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.StatisticsResponse.Value;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
+import com.here.xyz.util.db.pg.LazySpaceTables;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
@@ -66,11 +67,34 @@ public class GetStatistics extends ExtendedSpace<GetStatisticsEvent, StatisticsR
         .filter(Objects::nonNull)
         .toArray(String[]::new);
 
-    return new SQLQuery("SELECT * FROM xyz_statistic_space(#{schema}, #{table}, #{isExtension}, #{baseTables}::TEXT[])")
+    String defaultTable = getDefaultTable(event);
+    String indexProperties = templateIndexProperties(event.getParams(),
+        Stream.concat(Stream.of(defaultTable), Stream.of(baseTables)).toList());
+
+    return new SQLQuery("SELECT * FROM xyz_statistic_space(#{schema}, #{table}, #{isExtension}, #{baseTables}::TEXT[]${{indexProperties}})")
         .withNamedParameter(SCHEMA, getSchema())
-        .withNamedParameter(TABLE, getDefaultTable(event))
+        .withNamedParameter(TABLE, defaultTable)
         .withNamedParameter("isExtension", event.getContext() == SpaceContext.EXTENSION)
-        .withNamedParameter("baseTables", baseTables);
+        .withNamedParameter("baseTables", baseTables)
+        .withQueryFragment("indexProperties", indexProperties == null ? new SQLQuery("")
+            : new SQLQuery(", #{indexProperties}::JSONB").withNamedParameter("indexProperties", indexProperties));
+  }
+
+  /**
+   * The empty-space template, which stands in for the never written levels of lazy spaces, has none of the on-demand indexes
+   * that the first write creates. So that the full statistics of such a level list the searchable properties as those of an
+   * empty table with these indexes do, the on-demand indexes that the Hub sends with the event are passed for the template.
+   *
+   * @param params The event params, after the substitution of the never written levels
+   * @param tables The tables the statistics read
+   * @return The JSON map from the template's table name to the valid on-demand indexes, or null if the params have no lazy
+   *  level, no table is the template or the params carry no list of on-demand indexes
+   */
+  static String templateIndexProperties(Map<String, Object> params, List<String> tables) {
+    if (!LazySpaceTables.hasLazyLevel(params) || !tables.contains(LazySpaceTables.TEMPLATE_TABLE)
+        || !(params.get(LazySpaceTables.ON_DEMAND_INDEXES) instanceof List<?> onDemandIndexes))
+      return null;
+    return XyzSerializable.serialize(Map.of(LazySpaceTables.TEMPLATE_TABLE, LazySpaceTables.validateOnDemandIndexes(onDemandIndexes)));
   }
 
   @Override

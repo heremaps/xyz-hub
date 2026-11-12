@@ -27,6 +27,7 @@ import static com.here.xyz.util.db.datasource.DatabaseSettings.PSQL_USER;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.Event;
@@ -484,6 +485,40 @@ public abstract class LazyTablesITBase extends PSQLAbstractIT {
     Map<String, Object> params = lazyParams(table);
     params.put(LazySpaceTables.ON_DEMAND_INDEXES, List.of(onDemandIndexes));
     return params;
+  }
+
+  /**
+   * The searchable properties of the spaces in the statistics tests: a nested and a typed path, and the property "value" that
+   * {@link #features(String...)} writes.
+   */
+  protected static final Map<String, Boolean> SEARCHABLE_PROPERTIES = Map.of("value", true, "d01.nested", true,
+      "typed::string", true);
+  /**
+   * The on-demand indexes the Hub sends with the events of a lazy space with {@link #SEARCHABLE_PROPERTIES}.
+   */
+  protected static final List<String> SEARCHABLE_INDEXES = List.of("d01.nested", "typed::string", "value");
+
+  /**
+   * @return The statistics response as JSON, without the stream ID and without the byte and data size, which differ between the
+   *  template and a table with on-demand indexes
+   */
+  protected static Map<String, Object> statisticsWithoutSizes(XyzResponse response) throws Exception {
+    Map<String, Object> json = XyzSerializable.deserialize(response.serialize(), new TypeReference<Map<String, Object>>() {});
+    json.remove("streamId");
+    json.remove("byteSize");
+    json.remove("dataSize");
+    return json;
+  }
+
+  /**
+   * @return The listed properties of a statistics response as JSON, each as "key count datatype", in the order of the response
+   */
+  @SuppressWarnings("unchecked")
+  protected static List<String> listedProperties(Map<String, Object> statistics) {
+    Map<String, Object> properties = (Map<String, Object>) statistics.get("properties");
+    return ((List<Map<String, Object>>) properties.get("value")).stream()
+        .map(property -> property.get("key") + " " + property.get("count") + " " + property.get("datatype"))
+        .toList();
   }
 
   /**

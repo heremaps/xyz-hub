@@ -287,6 +287,79 @@ public class PSQLLazyCompositeIT extends LazyTablesITBase {
   }
 
   /**
+   * An eager level with the on-demand indexes of {@link #SEARCHABLE_PROPERTIES}, which every level of a composite with these
+   * searchable properties on its root has.
+   */
+  private Lvl searchableEager(String... ids) throws Exception {
+    String table = newTable();
+    String spaceId = newId();
+    assertOk(invoke(connector, modifySpaceEvent(Operation.CREATE, spaceId, eagerParams(table))
+        .withSpaceDefinition(new Space().withId(spaceId).withSearchableProperties(SEARCHABLE_PROPERTIES))));
+    if (ids.length > 0)
+      insertInto(connector, table, ids);
+    return new Lvl(newId(), table, false);
+  }
+
+  /**
+   * Compares the statistics of the composite, whose events carry the on-demand indexes as the Hub sends them, with those of its
+   * eager twin with the on-demand indexes on every level.
+   *
+   * @param expectedInDefault The properties the full statistics of the eager twin list in context DEFAULT, in any order
+   */
+  private void assertStatisticsParityWithSearchableProperties(List<Lvl> levels, Set<String> expectedInDefault) throws Exception {
+    List<Lvl> twins = new java.util.ArrayList<>();
+    for (Lvl level : levels)
+      twins.add(level.lazy() ? searchableEager() : level);
+    for (boolean fastMode : List.of(false, true))
+      for (SpaceContext context : List.of(DEFAULT, EXTENSION)) {
+        Map<String, Object> lazyParams = params(levels);
+        lazyParams.put(LazySpaceTables.ON_DEMAND_INDEXES, SEARCHABLE_INDEXES);
+        XyzResponse eager = invoke(connector, new GetStatisticsEvent().withFastMode(fastMode).withSpace("composite")
+            .withParams(params(twins)).withContext(context));
+        XyzResponse lazy = invoke(connector, new GetStatisticsEvent().withFastMode(fastMode).withSpace("composite")
+            .withParams(lazyParams).withContext(context));
+        assertTrue(eager instanceof StatisticsResponse, eager.serialize());
+        assertEquals(statisticsWithoutSizes(eager), statisticsWithoutSizes(lazy), "fastMode " + fastMode + ", context " + context);
+        if (!fastMode && context == DEFAULT)
+          assertEquals(expectedInDefault, new TreeSet<>(listedProperties(statisticsWithoutSizes(eager))),
+              "The eager twin in context DEFAULT");
+      }
+    for (Lvl level : levels)
+      if (level.lazy())
+        assertEquals(Set.of(), relations(connector.schema(), level.table()), "A read must not create a table");
+  }
+
+  private static Set<String> searchableProperties(int valueCount) {
+    return Set.of("d01.nested 0 unknown", "typed 0 unknown", "value " + valueCount + " unknown");
+  }
+
+  @Test
+  public void fullStatisticsWithSearchablePropertiesOfALazyExtensionOfABaseWithData() throws Exception {
+    //The empty extension lists "value" as unknown, the merge of the levels takes the maximum datatype, so not the base's "string"
+    assertStatisticsParityWithSearchableProperties(List.of(lazy(), searchableEager("b1", "b2")), searchableProperties(2));
+  }
+
+  @Test
+  public void fullStatisticsWithSearchablePropertiesOfAnExtensionWithDataOfALazyBase() throws Exception {
+    assertStatisticsParityWithSearchableProperties(List.of(searchableEager("x1"), lazy()), searchableProperties(1));
+  }
+
+  @Test
+  public void fullStatisticsWithSearchablePropertiesOfALazyExtensionOfALazyBase() throws Exception {
+    assertStatisticsParityWithSearchableProperties(List.of(lazy(), lazy()), searchableProperties(0));
+  }
+
+  @Test
+  public void fullStatisticsWithSearchablePropertiesOfALazyExtensionOfAnIntermediateWithDataAndALazyRoot() throws Exception {
+    assertStatisticsParityWithSearchableProperties(List.of(lazy(), searchableEager("i1"), lazy()), searchableProperties(1));
+  }
+
+  @Test
+  public void fullStatisticsWithSearchablePropertiesOfTwoLevelsAllLazy() throws Exception {
+    assertStatisticsParityWithSearchableProperties(List.of(lazy(), lazy(), lazy()), searchableProperties(0));
+  }
+
+  /**
    * A table above the size threshold of the search guard, with an on-demand index on "foo" like every level of a composite whose
    * root has "foo" as searchable property.
    */
