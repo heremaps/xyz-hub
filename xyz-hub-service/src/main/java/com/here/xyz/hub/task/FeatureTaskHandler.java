@@ -945,7 +945,7 @@ public class FeatureTaskHandler {
                   if (space.getStorage().getParams() != null)
                     storageParams.putAll(space.getStorage().getParams());
                   storageParams.putAll(resolvedExtensions);
-                  if (task.getEvent() instanceof ModifyFeaturesEvent)
+                  if (FeatureHandler.sendsOnDemandIndexes(task.getEvent()))
                     FeatureHandler.injectOnDemandIndexes(storageParams, space);
 
                   task.getEvent().setParams(storageParams);

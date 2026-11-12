@@ -33,7 +33,9 @@ import static software.amazon.awssdk.utils.CollectionUtils.isNullOrEmpty;
 
 import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
+import com.here.xyz.events.Event;
 import com.here.xyz.events.GetStatisticsEvent;
+import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.WriteFeaturesEvent;
 import com.here.xyz.events.WriteFeaturesEvent.Modification;
 import com.here.xyz.hub.Service;
@@ -184,9 +186,19 @@ public class FeatureHandler {
   }
 
   /**
-   * Adds the on-demand indexes to the storage params of a write event of a space with a lazy level, so that the write that
-   * creates the table also creates them. They are the effective searchable properties of the space, which for an extension
-   * are the ones of the root base. Params without a lazy level stay unchanged.
+   * @return Whether the event of a task carries the on-demand indexes of a space with a lazy level: a write creates them when it
+   *  materializes the table, the full statistics list them for a never written level. A {@link WriteFeaturesEvent} gets them
+   *  through {@link #injectSpaceParams(ContextAwareEvent, Space)}.
+   */
+  static boolean sendsOnDemandIndexes(Event<?> event) {
+    return event instanceof ModifyFeaturesEvent || event instanceof GetStatisticsEvent statisticsEvent && !statisticsEvent.isFastMode();
+  }
+
+  /**
+   * Adds the on-demand indexes to the storage params of a write or full statistics event of a space with a lazy level, so that
+   * the write that creates the table also creates them and the statistics of a never written level list them. They are the
+   * effective searchable properties of the space, which for an extension are the ones of the root base. Params without a lazy
+   * level stay unchanged.
    *
    * @param storageParams The resolved storage params of the event, including the composite params
    * @param space The space, with {@link Extension#resolvedSpace} set on every level if it is an extension

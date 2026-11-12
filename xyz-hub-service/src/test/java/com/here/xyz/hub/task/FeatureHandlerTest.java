@@ -26,6 +26,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.GetStatisticsEvent;
+import com.here.xyz.events.ModifyFeaturesEvent;
+import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.events.WriteFeaturesEvent;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.models.hub.Space.ConnectorRef;
@@ -68,9 +70,25 @@ class FeatureHandlerTest {
 
   @Test
   void otherEventsOfALazySpaceCarryNoOnDemandIndexes() {
+    //injectSpaceParams adds them to writes only; its other caller is the count event of the feature quota
     Map<String, Object> params = params(new GetStatisticsEvent(), space("lazy", "psql", true, OWN_PROPERTIES));
 
     assertThat(params).doesNotContainKey(ON_DEMAND_INDEXES).containsEntry(LAZY_TABLE, true);
+  }
+
+  @Test
+  void writesAndFullStatisticsOfATaskSendOnDemandIndexes() {
+    assertThat(FeatureHandler.sendsOnDemandIndexes(new ModifyFeaturesEvent())).isTrue();
+    assertThat(FeatureHandler.sendsOnDemandIndexes(new GetStatisticsEvent())).isTrue();
+    assertThat(FeatureHandler.sendsOnDemandIndexes(new GetStatisticsEvent().withFastMode(false))).isTrue();
+  }
+
+  @Test
+  void otherEventsOfATaskSendNoOnDemandIndexes() {
+    assertThat(FeatureHandler.sendsOnDemandIndexes(new GetStatisticsEvent().withFastMode(true))).isFalse();
+    assertThat(FeatureHandler.sendsOnDemandIndexes(new SearchForFeaturesEvent<>())).isFalse();
+    //Handled by injectSpaceParams
+    assertThat(FeatureHandler.sendsOnDemandIndexes(new WriteFeaturesEvent())).isFalse();
   }
 
   @Test
