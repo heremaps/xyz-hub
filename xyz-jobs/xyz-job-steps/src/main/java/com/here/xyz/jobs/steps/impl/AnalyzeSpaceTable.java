@@ -19,6 +19,9 @@
 
 package com.here.xyz.jobs.steps.impl;
 
+import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.TableState.NEVER_MATERIALIZED;
+
+import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.util.db.SQLQuery;
@@ -34,6 +37,10 @@ import org.apache.logging.log4j.Logger;
 
 public class AnalyzeSpaceTable extends SpaceBasedStep<AnalyzeSpaceTable> {
   private static final Logger logger = LogManager.getLogger();
+
+  //Whether the last execution started no query, because the space has no table yet
+  @JsonView({Internal.class, Static.class})
+  private boolean skippedNeverMaterialized = false;
 
   @Override
   public List<Load> getNeededResources() {
@@ -78,8 +85,28 @@ public class AnalyzeSpaceTable extends SpaceBasedStep<AnalyzeSpaceTable> {
   }
 
   @Override
+  public AsyncExecutionState getExecutionState() throws UnknownStateException {
+    if (skippedNeverMaterialized)
+      return AsyncExecutionState.SUCCEEDED;
+    return super.getExecutionState();
+  }
+
+  @Override
   public void execute(boolean resume) {
     logger.info("Analyze table of space " + getSpaceId() + " ...");
+
+    skippedNeverMaterialized = false;
+    try {
+      //A lazy space without a table has nothing to analyze; the next state check succeeds and onAsyncSuccess() re-activates it
+      if (tableStateOrFail(space()) == NEVER_MATERIALIZED) {
+        logger.info("[{}] Skipping the analysis of space {}, which has no table yet", getGlobalStepId(), getSpaceId());
+        skippedNeverMaterialized = true;
+        return;
+      }
+    }
+    catch (WebClientException | TooManyResourcesClaimed e) {
+      throw new RuntimeException(e);
+    }
 
     try {
       runReadQueryAsync(buildAnalyseQuery(getSchema(db()), getRootTableName(space())), db(), calculateNeededAcus());

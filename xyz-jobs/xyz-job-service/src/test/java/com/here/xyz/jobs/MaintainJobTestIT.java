@@ -18,9 +18,12 @@
  */
 package com.here.xyz.jobs;
 
+import static com.here.xyz.models.hub.Space.TABLE_NAME;
+
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.processes.Maintain;
 import com.here.xyz.models.hub.Space;
+import com.here.xyz.models.hub.Space.ConnectorRef;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.StatisticsResponse.PropertyStatistics;
 import org.apache.logging.log4j.LogManager;
@@ -30,6 +33,10 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +44,8 @@ import java.util.Set;
 
 public class MaintainJobTestIT extends JobTest {
     private static final Logger logger = LogManager.getLogger();
+    /** A skipped index step reports its success at the next state check, which runs every minute */
+    private static final int LAZY_MAINTAIN_TIMEOUT_SECONDS = 600;
 
     static {
         XyzSerializable.registerSubtypes(Maintain.class);
@@ -101,6 +110,68 @@ public class MaintainJobTestIT extends JobTest {
 
             checkSearchableProperties(SPACE_ID + "-ext-" + i, maxAttempts);
             checkSearchableProperties(SPACE_ID + "-ext-ext-" + i, maxAttempts);
+        }
+    }
+
+    /**
+     * A Maintain job on a never-written lazy base, and the one it spawns for the base's never-written lazy extension, succeed without
+     * creating a table, and both spaces keep their flags.
+     */
+    @Test
+    public void testMaintainLazyCompositeSpace() throws Exception {
+        String lazyBase = SPACE_ID + "-lazyBase", lazyExtension = SPACE_ID + "-lazyBase-ext";
+        createSpace(new Space().withId(lazyBase).withStorage(new ConnectorRef().withId(LAZY_CONNECTOR))
+            .withSearchableProperties(Map.of("foo1", true)), false);
+        createSpace(new Space().withId(lazyExtension).withExtension(new Space.Extension().withSpaceId(lazyBase)), false);
+        try {
+            Assertions.assertTrue(isFlagged(lazyBase));
+            Assertions.assertTrue(isFlagged(lazyExtension));
+
+            patchSpace(lazyBase, Map.of("searchableProperties", Map.of("foo1", true, "new", true)));
+
+            for (String spaceId : List.of(lazyBase, lazyExtension)) {
+                String jobId = findJob(spaceId, 30);
+                pollJobStatus(jobId, LAZY_MAINTAIN_TIMEOUT_SECONDS);
+                Assertions.assertEquals(RuntimeInfo.State.SUCCEEDED, getJobStatus(jobId).getState(), "Maintain job of " + spaceId);
+                deleteJob(jobId);
+            }
+            Assertions.assertTrue(isFlagged(lazyBase));
+            Assertions.assertTrue(isFlagged(lazyExtension));
+            for (String spaceId : List.of(lazyBase, lazyExtension))
+                Assertions.assertNull(tableIfExists((String) loadSpace(spaceId).getStorage().getParams().get(TABLE_NAME)),
+                    spaceId + " has no table");
+        }
+        finally {
+            deleteSpace(lazyExtension);
+            deleteSpace(lazyBase);
+        }
+    }
+
+    private String findJob(String spaceId, int maxAttempts) throws InterruptedException, IOException {
+        while (maxAttempts-- > 0) {
+            try {
+                for (Map job : getJobsOnResource(spaceId, false))
+                    if (job.get("description").toString().endsWith(spaceId))
+                        return job.get("id").toString();
+            }
+            catch (RuntimeException e) {
+                if (!e.getMessage().contains("404 response"))
+                    throw e;
+            }
+            logger.info("Did not find job for space {}. Retrying...", spaceId);
+            Thread.sleep(1000);
+        }
+        return Assertions.fail("No job found for space " + spaceId);
+    }
+
+    private String tableIfExists(String table) throws SQLException {
+        try (Connection connection = getTestDatabaseConnection();
+            PreparedStatement statement = connection.prepareStatement("SELECT to_regclass(?)::TEXT")) {
+            statement.setString(1, "public.\"" + table + "\"");
+            try (ResultSet rs = statement.executeQuery()) {
+                rs.next();
+                return rs.getString(1);
+            }
         }
     }
 

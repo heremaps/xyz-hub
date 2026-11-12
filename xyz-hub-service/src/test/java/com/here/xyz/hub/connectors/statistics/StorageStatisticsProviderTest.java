@@ -19,11 +19,18 @@
 
 package com.here.xyz.hub.connectors.statistics;
 
+import static com.here.xyz.models.hub.Space.LAZY_TABLE;
 import static com.here.xyz.models.hub.Space.TABLE_NAME;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.models.hub.Space.ConnectorRef;
+import com.here.xyz.responses.StatisticsResponse.Value;
+import com.here.xyz.responses.StorageStatistics;
+import com.here.xyz.responses.StorageStatistics.SpaceByteSizes;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -46,6 +53,53 @@ class StorageStatisticsProviderTest {
         Map.of("first-space", "first_table", "second-space", "second_table"));
 
     assertEquals(Map.of("second-space", "second_table"), tableNames);
+  }
+
+  @Test
+  void setsTheStorageIdOfALazySpaceWithoutTable() {
+    StorageStatistics stats = statistics(Map.of("lazy-space", tableLess()));
+
+    StorageStatisticsProvider.addStorageIdsOfLazySpaces(stats,
+        List.of(space("lazy-space", Map.of(TABLE_NAME, "lazy_table", LAZY_TABLE, true))));
+
+    assertEquals("psql", stats.getByteSizes().get("lazy-space").getStorageId());
+    assertEquals(0L, stats.getByteSizes().get("lazy-space").getContentBytes().getValue());
+  }
+
+  @Test
+  void leavesAnEagerSpaceWithoutTableWithoutStorageId() {
+    StorageStatistics stats = statistics(Map.of("eager-space", tableLess(), "legacy-space", tableLess()));
+
+    StorageStatisticsProvider.addStorageIdsOfLazySpaces(stats, List.of(
+        space("eager-space", Map.of(TABLE_NAME, "eager_table")),
+        space("legacy-space", null)));
+
+    assertNull(stats.getByteSizes().get("eager-space").getStorageId());
+    assertNull(stats.getByteSizes().get("legacy-space").getStorageId());
+  }
+
+  @Test
+  void keepsTheReportedStorageIdAndAddsNoEntries() {
+    StorageStatistics stats = statistics(Map.of("lazy-space",
+        new SpaceByteSizes().withStorageId("reported").withContentBytes(new Value<>(100L).withEstimated(true))));
+
+    StorageStatisticsProvider.addStorageIdsOfLazySpaces(stats, List.of(
+        space("lazy-space", Map.of(TABLE_NAME, "lazy_table", LAZY_TABLE, true)),
+        space("unreported-space", Map.of(TABLE_NAME, "other_table", LAZY_TABLE, true))));
+
+    assertEquals("reported", stats.getByteSizes().get("lazy-space").getStorageId());
+    assertFalse(stats.getByteSizes().containsKey("unreported-space"));
+  }
+
+  private static StorageStatistics statistics(Map<String, SpaceByteSizes> byteSizes) {
+    return new StorageStatistics().withByteSizes(new HashMap<>(byteSizes));
+  }
+
+  /**
+   * @return The sizes a connector reports for a space whose table does not exist
+   */
+  private static SpaceByteSizes tableLess() {
+    return new SpaceByteSizes().withContentBytes(new Value<>(0L).withEstimated(true));
   }
 
   private static Space space(String id, Map<String, Object> params) {

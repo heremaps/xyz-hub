@@ -30,6 +30,7 @@ import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_EXECUTE;
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_ON_ASYNC_SUCCESS;
 import static com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace.Format.FAST_IMPORT_INTO_EMPTY;
 import static com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace.Format.GEOJSON;
+import static com.here.xyz.util.db.pg.LazySpaceTables.Profile.FULL;
 import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -267,10 +268,17 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
   }
 
   @Override
+  protected void prepareLazyTables() throws WebClientException, TooManyResourcesClaimed {
+    materializeTablesOrFail(space(), FULL);
+  }
+
+  @Override
   protected void prepareExecution(boolean resume) throws SQLException, TooManyResourcesClaimed, WebClientException {
     if (!resume) {
       //Fresh execution => retrieve a new version
       targetVersion = getOrIncreaseVersionSequence();
+      //The version was taken from the target's version sequence, here or by a step before
+      clearLazyTableFlag(space());
       return;
     }
 
@@ -284,6 +292,7 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
       targetVersion = persistedVersion;
       infoLog(STEP_EXECUTE, "prepareExecution - resume: reusing persisted targetVersion " + targetVersion
               + " for the import into an empty layer.");
+      clearLazyTableFlag(space());
       return;
     }
 
@@ -304,6 +313,7 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
       infoLog(STEP_EXECUTE, "prepareExecution - resume: reusing persisted targetVersion " + targetVersion
               + " (maxVersion=" + maxVersion + ").");
     }
+    clearLazyTableFlag(space());
   }
 
   @Override

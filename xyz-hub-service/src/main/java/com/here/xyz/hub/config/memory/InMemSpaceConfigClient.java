@@ -19,6 +19,9 @@
 
 package com.here.xyz.hub.config.memory;
 
+import static com.here.xyz.models.hub.Space.LAZY_TABLE;
+import static com.here.xyz.models.hub.Space.TABLE_NAME;
+
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.PropertyQuery.QueryOperation;
 import com.here.xyz.hub.config.SpaceConfigClient;
@@ -27,7 +30,9 @@ import io.vertx.core.Future;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -55,6 +60,32 @@ public class InMemSpaceConfigClient extends SpaceConfigClient {
   @Override
   public Future<Space> deleteSpace(Marker marker, String spaceId) {
     return Future.succeededFuture(spaceMap.remove(spaceId));
+  }
+
+  @Override
+  protected Future<ClearResult> clearLazyTableFlag(Marker marker, String spaceId, String connectorId, String tableName) {
+    AtomicReference<ClearResult> result = new AtomicReference<>(ClearResult.CONDITION_FAILED);
+    spaceMap.computeIfPresent(spaceId, (id, space) -> {
+      if (!storageMatches(space, connectorId, tableName))
+        return space;
+      if (!space.getStorage().getParams().containsKey(LAZY_TABLE)) {
+        result.set(ClearResult.ABSENT);
+        return space;
+      }
+      result.set(ClearResult.REMOVED);
+      //The stored object may be shared by callers, so it is replaced by a copy rather than mutated
+      return space.copyWithoutLazyTable();
+    });
+    return Future.succeededFuture(result.get());
+  }
+
+  private static boolean storageMatches(Space space, String connectorId, String tableName) {
+    if (space.getStorage() == null || !Objects.equals(connectorId, space.getStorage().getId()))
+      return false;
+    Map<String, Object> params = space.getStorage().getParams();
+    if (params == null)
+      return false;
+    return tableName == null ? !params.containsKey(TABLE_NAME) : tableName.equals(params.get(TABLE_NAME));
   }
 
   @Override

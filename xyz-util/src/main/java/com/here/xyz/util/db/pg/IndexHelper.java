@@ -34,7 +34,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_DEFAULT;
 import static com.here.xyz.util.db.ConnectorParameters.TableLayout.OLD_LAYOUT;
@@ -260,18 +259,26 @@ public class IndexHelper {
   }
 
   public static List<SQLQuery> buildSpaceTableIndexQueries(String schema, String table, TableLayout layout) {
-    if(layout == OLD_LAYOUT)
-      return Arrays.asList(SystemIndex.values()).stream()
-              .map(index -> buildCreateIndexQuery(schema, table, index.getIndexContent(), index.getIndexType(), index.getIndexName(table)))
-              .toList();
+    return buildSpaceTableIndexQueries(schema, table, systemIndexes(layout));
+  }
+
+  /**
+   * Builds the creation queries for the given system indexes, in the order of the list.
+   */
+  public static List<SQLQuery> buildSpaceTableIndexQueries(String schema, String table, List<SystemIndex> systemIndexes) {
+    return systemIndexes.stream()
+        .map(index -> buildCreateIndexQuery(schema, table, index.getIndexContent(), index.getIndexType(), index.getIndexName(table)))
+        .toList();
+  }
+
+  /**
+   * @return All system indexes a space table of the given layout gets on creation
+   */
+  public static List<SystemIndex> systemIndexes(TableLayout layout) {
+    if (layout == OLD_LAYOUT)
+      return Arrays.asList(SystemIndex.values());
     else if (layout == NEW_LAYOUT)
-      return Stream.of(SystemIndex.GEO,
-                      SystemIndex.NEXT_VERSION,
-                      SystemIndex.VERSION_ID)
-              .map(index -> buildCreateIndexQuery(
-                      schema, table, index.getIndexContent(),
-                      index.getIndexType(), index.getIndexName(table))
-              ).toList();
+      return List.of(SystemIndex.GEO, SystemIndex.NEXT_VERSION, SystemIndex.VERSION_ID);
 
     throw new IllegalArgumentException("Unsupported layout " + layout);
   }

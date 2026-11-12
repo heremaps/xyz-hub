@@ -24,6 +24,7 @@ import com.here.xyz.events.GetStatisticsEvent;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.StatisticsResponse.Value;
 import com.here.xyz.util.db.SQLQuery;
+import com.here.xyz.util.db.pg.LazySpaceTables;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
@@ -37,11 +38,30 @@ public class GetFastStatistics extends GetStatistics {
 
   @Override
   protected SQLQuery buildQuery(GetStatisticsEvent event) throws SQLException, ErrorResponseException {
+    if (LazySpaceTables.hasLazyLevel(event.getParams()))
+      return buildLazyQuery(event);
     return new SQLQuery("select table_size, table_count, is_estimated, min_version, max_version" +
             " FROM calculate_space_statistics(to_regclass(#{table}), to_regclass(#{extTable}), #{context});")
             .withNamedParameter(TABLE, getSchema() +".\""+ getDefaultTable(event) +"_head\"")
             .withNamedParameter("extTable", getSchema() +".\""+ getExtendedTable(event) + "_head\"")
             .withNamedParameter("context", event.getContext().name());
+  }
+
+  /**
+   * For an event with a lazy level, a missing relation raises 42P01 instead of being skipped silently, so that a read from a
+   * replica that lags behind the creation of a table is retried on the writer.
+   */
+  private SQLQuery buildLazyQuery(GetStatisticsEvent event) {
+    String extendedTable = getExtendedTable(event);
+    SQLQuery query = new SQLQuery("select table_size, table_count, is_estimated, min_version, max_version" +
+            " FROM calculate_space_statistics(${{table}}, ${{extTable}}, #{context});")
+            .withQueryFragment("table", "#{table}::regclass")
+            .withQueryFragment("extTable", extendedTable == null ? "NULL::regclass" : "#{extTable}::regclass")
+            .withNamedParameter(TABLE, getSchema() +".\""+ getDefaultTable(event) +"_head\"")
+            .withNamedParameter("context", event.getContext().name());
+    if (extendedTable != null)
+      query.withNamedParameter("extTable", getSchema() +".\""+ extendedTable + "_head\"");
+    return query;
   }
 
   @Override

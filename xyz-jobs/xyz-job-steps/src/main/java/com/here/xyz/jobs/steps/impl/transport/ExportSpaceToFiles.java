@@ -529,10 +529,10 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
   }
 
   protected GetFeaturesByGeometryInput createGetFeaturesByGeometryInput(Space space, SpaceContext targetContext, SpatialFilter spatialFilter, Ref versionRef)
-      throws WebClientException {
+      throws WebClientException, TooManyResourcesClaimed {
 
     return new GetFeaturesByGeometryInput(space.getId(), hubWebClient().loadConnector(space.getStorage().getId()).params,
-        resolveSpaceParams(space), targetContext, space.getVersionsToKeep(), minSpaceVersion,
+        resolveReadableSpaceParamsOrFail(space, space()), targetContext, space.getVersionsToKeep(), minSpaceVersion,
         versionRef, spatialFilter != null ? spatialFilter.getGeometry() : null, spatialFilter != null ? spatialFilter.getRadius() : 0,
         spatialFilter != null && spatialFilter.isClip(), propertyFilter);
   }
@@ -551,12 +551,12 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
 
   private IRange resolveIRange() {
     try {
-      String table = getRootTableName(context == SUPER ? superSpace() : space());
+      String table = getReadableRootTableNameOrFail(context == SUPER ? superSpace() : space(), space());
       IRange iRange = loadIRange(table);
       if (space().getExtension() != null && (context == DEFAULT || context == null
               //TODO: Hack because of internal usage of Context.X
               || context == EXTENSION)) {
-        IRange superIRange = loadIRange(getRootTableName(superSpace()));
+        IRange superIRange = loadIRange(getReadableRootTableNameOrFail(superSpace(), space()));
         iRange = new IRange(Math.min(iRange.minI, superIRange.minI), Math.max(iRange.maxI, superIRange.maxI));
       }
       //just to display calculated ranges in admin view.
@@ -634,11 +634,11 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
   }
 
   private IterateChangesetsInput createIterateChangesetsInput(Space space, SpaceContext targetContext, Ref versionRef, Operation operation,
-      long startI, long endI) throws WebClientException {
+      long startI, long endI) throws WebClientException, TooManyResourcesClaimed {
     return new IterateChangesetsInput(
         space.getId(),
         hubWebClient().loadConnector(space.getStorage().getId()).params,
-        resolveSpaceParams(space),
+        resolveReadableSpaceParamsOrFail(space, space()),
         targetContext,
         space.getVersionsToKeep(),
         minSpaceVersion,
