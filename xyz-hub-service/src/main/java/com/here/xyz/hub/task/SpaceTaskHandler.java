@@ -725,7 +725,7 @@ public class SpaceTaskHandler {
    * an extension never exists without the protection.
    */
   static void protectBaseVersion(ConditionalOperation task, Callback<ConditionalOperation> callback) {
-    if (task.isDelete()) {
+    if (task.isDelete() || task.isUpdate() && sameBaseVersion(task.modifyOp.entries.get(0).head, task.modifyOp.entries.get(0).result)) {
       callback.call(task);
       return;
     }
@@ -901,13 +901,12 @@ public class SpaceTaskHandler {
       return;
     }
 
-    //If the space is being updated, check if the base version tag needs to be removed
+    //A re-pin on the same base overwrote the tag already, so only an unpinned or rebased extension leaves its old tag behind
     Space head = task.modifyOp.entries.get(0).head;
     Space result = task.modifyOp.entries.get(0).result;
-    boolean sameVersionTag = boundBaseId(head) != null && boundBaseId(head).equals(boundBaseId(result))
-        && head.getExtension().getVersion().equals(result.getExtension().getVersion());
+    boolean tagReplaced = boundBaseId(head) != null && boundBaseId(head).equals(boundBaseId(result));
 
-    (sameVersionTag ? Future.<Void>succeededFuture() : untagBaseVersion(task, head))
+    (tagReplaced ? Future.<Void>succeededFuture() : untagBaseVersion(task, head))
         .onFailure(t -> logger.error(task.getMarker(), "Failed to remove the version tag of space {}", head.getId(), t))
         .onComplete(ar -> callback.call(task));
   }
@@ -918,16 +917,35 @@ public class SpaceTaskHandler {
         ? null : space.getExtension().getSpaceId();
   }
 
+  private static boolean sameBaseVersion(Space head, Space result) {
+    return boundBaseId(head) != null && boundBaseId(head).equals(boundBaseId(result))
+        && head.getExtension().getVersion().equals(result.getExtension().getVersion());
+  }
+
+  /**
+   * @return The ID of the system tag on the base which keeps the version an extension is pinned to: {@code pin_<hash of the extension ID>}.
+   *     There is one such tag per extension, so re-pinning overwrites it. A tag ID must not start with a digit, hence the prefix.
+   */
+  public static String pinTagId(String extensionId) {
+    return "pin_" + Hasher.getHash(extensionId).substring(0, 16);
+  }
+
   private static Future<Void> tagBaseVersion(ConditionalOperation task, Space space) {
     if (task.modifyOp.dryRun || boundBaseId(space) == null)
       return Future.succeededFuture();
-    return Service.tagConfigClient.tagVersion(task.getMarker(), boundBaseId(space), new Ref(space.getExtension().getVersion()), "extension " + space.getId());
+    return Service.tagConfigClient.storeTag(task.getMarker(), new Tag()
+        .withId(pinTagId(space.getId()))
+        .withSpaceId(boundBaseId(space))
+        .withVersionRef(new Ref(space.getExtension().getVersion()))
+        .withSystem(true)
+        .withDescription("Keeps the version read by extension " + space.getId())
+        .withCreatedAt(Core.currentTimeMillis()));
   }
 
   private static Future<Void> untagBaseVersion(ConditionalOperation task, Space space) {
     if (task.modifyOp.dryRun || boundBaseId(space) == null)
       return Future.succeededFuture();
-    return Service.tagConfigClient.untagVersion(task.getMarker(), boundBaseId(space), new Ref(space.getExtension().getVersion()), "extension " + space.getId());
+    return Service.tagConfigClient.deleteTag(task.getMarker(), pinTagId(space.getId()), boundBaseId(space)).mapEmpty();
   }
 
   private static void resolveDependenciesForDeletion(ConditionalOperation task, Callback<ConditionalOperation> callback) {

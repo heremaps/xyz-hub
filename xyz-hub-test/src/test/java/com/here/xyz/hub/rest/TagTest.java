@@ -19,14 +19,13 @@
 
 package com.here.xyz.hub.rest;
 
-import static com.here.xyz.hub.config.TagConfigClient.versionTagId;
+import static com.here.xyz.hub.task.SpaceTaskHandler.pinTagId;
 import static com.here.xyz.models.hub.Tag.isValidId;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
-import com.here.xyz.models.hub.Ref;
 import org.junit.Test;
 
 public class TagTest {
@@ -57,16 +56,16 @@ public class TagTest {
   }
 
   @Test
-  public void testValidVersionTagNames() {
-    assertTrue(isValidId(versionTagId(new Ref(42), "extension hrn:here:data::olp-here:catalog:layer")));
-    assertTrue(isValidId(versionTagId(new Ref(Long.MAX_VALUE), "extension " + "x".repeat(200))));
+  public void testValidPinTagNames() {
+    assertTrue(isValidId(pinTagId("hrn:here:data::olp-here:catalog:layer")));
+    assertTrue(isValidId(pinTagId("x".repeat(200))));
   }
 
   @Test
-  public void testVersionTagNamesPerTaggedByAndVersion() {
-    assertEquals(versionTagId(new Ref(42), "extension a"), versionTagId(new Ref(42), "extension a"));
-    assertTrue(versionTagId(new Ref(42), "extension a").startsWith("pin_42_"));
-    assertNotEquals(versionTagId(new Ref(42), "extension a"), versionTagId(new Ref(43), "extension a"));
-    assertNotEquals(versionTagId(new Ref(42), "extension a"), versionTagId(new Ref(42), "extension b"));
+  public void testPinTagNamesPerExtension() {
+    assertEquals(pinTagId("a"), pinTagId("a"));
+    assertTrue(pinTagId("a").startsWith("pin_"));
+    assertEquals("pin_".length() + 16, pinTagId("a").length());
+    assertNotEquals(pinTagId("a"), pinTagId("b"));
   }
 }

@@ -28,6 +28,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasItem;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.here.xyz.models.geojson.implementation.Properties;
 import io.restassured.response.ValidatableResponse;
@@ -108,6 +109,22 @@ public class PinnedVersionPurgeProtectionIT extends TestSpaceWithFeature {
     spaces.remove(higherDelta);
     tags(base, true).body("size()", equalTo(0));
     statistics(base).body("minVersion.value", equalTo(4));
+  }
+
+  @Test
+  public void updatesKeepingThePinDoNotRewriteTheTag() {
+    String base = newBase(3);
+    String delta = newExtension(base, 2L);
+    String tagId = tags(base, true).extract().jsonPath().getString("[0].id");
+    long createdAt = tags(base, true).extract().jsonPath().getLong("[0].createdAt");
+
+    patchSpace(delta, new JsonObject().put("title", "renamed"));
+    tags(base, true).body("size()", equalTo(1)).body("[0].id", equalTo(tagId));
+    assertEquals(createdAt, tags(base, true).extract().jsonPath().getLong("[0].createdAt"));
+
+    //Re-pinning overwrites the same tag instead of adding another one
+    patchSpace(delta, new JsonObject().put("extends", new JsonObject().put("spaceId", base).put("version", 3)));
+    tags(base, true).body("size()", equalTo(1)).body("[0].id", equalTo(tagId)).body("[0].version", equalTo(3));
   }
 
   @Test
