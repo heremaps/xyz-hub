@@ -96,6 +96,18 @@ public class ScriptInstallerIT extends SQLITBase {
     }
   }
 
+  @BeforeAll
+  public static void requirePostgis() throws Exception {
+    //The template table has a geometry column. The hub's common.sql creates PostGIS, the test scripts do not. Creating PostGIS
+    //alone is no option: common.sql skips the creation of all its extensions (e.g., plv8) once PostGIS exists.
+    //Initializing a provider with the hub settings runs their script check, as it does in the other classes.
+    try (DataSourceProvider dsp = getDataSourceProvider()) {
+      assertEquals("The hub's common.sql must have created PostGIS", Boolean.TRUE,
+          new SQLQuery("SELECT EXISTS(SELECT 1 FROM pg_extension WHERE extname = 'postgis')")
+              .run(dsp, rs -> rs.next() && rs.getBoolean(1)));
+    }
+  }
+
   @AfterAll
   public static void dropSchemas() throws Exception {
     try {
