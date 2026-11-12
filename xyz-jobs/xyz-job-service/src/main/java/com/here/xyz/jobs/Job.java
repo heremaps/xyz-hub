@@ -782,7 +782,7 @@ public class Job implements XyzSerializable {
       final List<Step> stepsList = getSteps().stepStream().collect(Collectors.toList());
 
       for (Step step : stepsList) {
-        String group = step.getOutputSetGroup();
+        String group = step.effectiveOutputSetGroup();
         GroupPayloads groupSummary = groups.computeIfAbsent(group, g -> new GroupPayloads()
             .withSets(new HashMap<>())
             .withItemCount(0));
@@ -802,7 +802,7 @@ public class Job implements XyzSerializable {
           AtomicLong itemCount = new AtomicLong();
           AtomicLong byteSize = new AtomicLong();
           stepsList.stream()
-              .filter(step -> group.equals(step.getOutputSetGroup()) && step.getOutputSetOrNull(setName) != null)
+              .filter(step -> group.equals(step.effectiveOutputSetGroup()) && step.getOutputSetOrNull(setName) != null)
               .forEach(step -> {
                 Page<?> page = step.loadOutputsPage(Visibility.USER, setName, Integer.MAX_VALUE, null);
                 itemCount.addAndGet(page.getItems().size());
@@ -836,7 +836,7 @@ public class Job implements XyzSerializable {
       final java.util.List<Step> stepsList = getSteps().stepStream().collect(java.util.stream.Collectors.toList());
 
       for (Step step : stepsList) {
-        if (outputSetGroup.equals(step.getOutputSetGroup())) {
+        if (outputSetGroup.equals(step.effectiveOutputSetGroup())) {
           List<Step.OutputSet> outputSets = step.getOutputSets();
           for (Step.OutputSet os : outputSets) {
             sets.computeIfAbsent(os.name, s -> new SetPayloads()
@@ -849,7 +849,7 @@ public class Job implements XyzSerializable {
       for (java.util.Map.Entry<String, SetPayloads> entry : sets.entrySet()) {
         String setName = entry.getKey();
         long itemCount = stepsList.stream()
-            .filter(step -> outputSetGroup.equals(step.getOutputSetGroup()) && step.getOutputSetOrNull(setName) != null)
+            .filter(step -> outputSetGroup.equals(step.effectiveOutputSetGroup()) && step.getOutputSetOrNull(setName) != null)
             .mapToLong(step -> step.loadOutputsPage(Visibility.USER, setName, Integer.MAX_VALUE, null).getItems().size())
             .sum();
         entry.getValue().setItemCount(itemCount);
