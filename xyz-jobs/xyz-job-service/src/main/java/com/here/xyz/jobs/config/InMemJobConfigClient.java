@@ -263,4 +263,10 @@ public class InMemJobConfigClient extends JobConfigClient {
     //The steps are stored as part of the job, so there are no separately stored step configs to delete
     return Future.succeededFuture();
   }
+
+  @Override
+  public Future<Void> deleteResourceKeys(String jobId) {
+    //The resource keys are stored as part of the job, so there are no separately stored resource keys to delete
+    return Future.succeededFuture();
+  }
 }
