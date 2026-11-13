@@ -1397,10 +1397,10 @@ BEGIN
 
     super_join := CASE
         WHEN super_tbl IS NULL THEN
-            'LEFT JOIN LATERAL (SELECT NULL::TEXT AS id WHERE false) s ON true'
+            'LEFT JOIN LATERAL (SELECT NULL::TEXT AS id, NULL::JSONB AS jsondata WHERE false) s ON true'
         ELSE format(
             'LEFT JOIN LATERAL (
-                 SELECT st.id
+                 SELECT st.id, st.jsondata
                    FROM %s st
                   WHERE st.id = f.feature_id
                     AND %s
@@ -1423,7 +1423,8 @@ BEGIN
                        p.jsondata AS target_jsondata,
                        current_row.id IS NOT NULL AS current_exists,
                        current_row.jsondata AS current_jsondata,
-                       s.id IS NOT NULL AS super_exists
+                       s.id IS NOT NULL AS super_exists,
+                       s.jsondata AS super_jsondata
                   FROM pg_temp.xyz_express_import_final f
                   LEFT JOIN LATERAL (
                       SELECT t.id, t.operation, t.jsondata
@@ -1469,6 +1470,9 @@ BEGIN
                    CASE
                        WHEN current_exists THEN
                            COALESCE((current_jsondata#>>'{properties,@ns:com:here:xyz,createdAt}')::BIGINT, $3)
+                       -- A feature which is only inherited from the base space is modified, not created, by this write
+                       WHEN operation = 'I' AND $2 = 'DEFAULT' AND super_exists THEN
+                           COALESCE((super_jsondata#>>'{properties,@ns:com:here:xyz,createdAt}')::BIGINT, -1)
                        WHEN operation IN ('I', 'H') THEN $3
                        ELSE COALESCE(
                            (target_jsondata#>>'{properties,@ns:com:here:xyz,createdAt}')::BIGINT,

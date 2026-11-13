@@ -320,9 +320,20 @@ public abstract class TestSuite {
       assertThat("[" + testName + "] The feature's update timestamp has to be higher than the timestamp when the test started.",
           afterTableState.feature.getProperties().getXyzNamespace().getUpdatedAt(), isGreaterThanBeforeTimestamp);
       //Check if the feature's creation timestamp has been written properly
-      assertThat("[" + testName + "] The feature's creation timestamp has to be " + (featureOperation == I || featureOperation == H ? "higher" : "lower")
-          + " than the timestamp when the test started.", afterTableState.feature.getProperties().getXyzNamespace().getCreatedAt(),
-          featureOperation == I || featureOperation == H ? isGreaterThanBeforeTimestamp : not(isGreaterThanBeforeTimestamp));
+      long writtenCreatedAt = afterTableState.feature.getProperties().getXyzNamespace().getCreatedAt();
+      if (isInheritedFromSuper(featureOperation)) {
+        /*
+        The feature only existed in the super space, so writing it into the extension is a modification of an existing
+        feature (even though it is stored as an "I" row in the extension table). Its creation timestamp must be inherited.
+         */
+        long superCreatedAt = beforeState.tableStateForContext(SUPER).feature.getProperties().getXyzNamespace().getCreatedAt();
+        assertEquals("[" + testName + "] The feature's creation timestamp has to be inherited from the super space.",
+            superCreatedAt, writtenCreatedAt);
+      }
+      else
+        assertThat("[" + testName + "] The feature's creation timestamp has to be " + (featureOperation == I || featureOperation == H ? "higher" : "lower")
+            + " than the timestamp when the test started.", writtenCreatedAt,
+            featureOperation == I || featureOperation == H ? isGreaterThanBeforeTimestamp : not(isGreaterThanBeforeTimestamp));
     }
     else if (performedTableOperation == NONE) {
       //Check the state of the feature operation
@@ -337,6 +348,15 @@ public abstract class TestSuite {
       //Check whether the feature was actually deleted
       assertEquals(null, afterTableState.feature);
     }
+  }
+
+  /**
+   * @return Whether the written feature was visible only through the super space of a composite space with history before
+   *  the write and has been written into the extension as a new row
+   */
+  private boolean isInheritedFromSuper(Operation featureOperation) {
+    //NOTE: Spaces without history don't have changesets, so there the creation timestamp of the extension's row is not relevant
+    return history && featureOperation == I && composite && spaceContext == DEFAULT && featureExistsInSuper && !featureExistsInExtension;
   }
 
   private void applyAuthorWorkaround(Feature expectedFeature) {
