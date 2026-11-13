@@ -213,6 +213,13 @@ public abstract class JobConfigClient implements Initializable {
    */
   public abstract Future<Void> deleteStepConfigs(String jobId, List<String> stepIds);
 
+  /**
+   * Deletes only the separately-stored resource keys of a job, e.g., after its job item was removed by the TTL.
+   *
+   * @param jobId the job whose resource keys to delete
+   */
+  public abstract Future<Void> deleteResourceKeys(String jobId);
+
   /*
   TODO: Provide a more generic variant of the method #loadJobs ...
   E.g.:

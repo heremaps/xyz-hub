@@ -34,6 +34,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.amazonaws.services.dynamodbv2.document.Item;
+import com.amazonaws.services.dynamodbv2.document.Table;
 import com.amazonaws.services.dynamodbv2.document.spec.UpdateItemSpec;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.XyzSerializable.Static;
@@ -56,6 +58,7 @@ import io.vertx.core.Vertx;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -286,8 +289,9 @@ public class DynamoJobConfigClientIT {
   }
 
   @Test
-  public void updateStatusWritesTheKeepUntilOfTheJobAndItsResourceKeys() throws Exception {
+  public void updateStatusWritesTheKeepUntilOfTheJobOnly() throws Exception {
     Job job = storeJobForConditions("_keepUntil", RUNNING, RUNNING);
+    Map<String, Long> storedKeepUntilOfResourceKeys = keepUntilOfResourceKeys(job);
     long keepUntilInSeconds = (System.currentTimeMillis() + 7_200_000) / 1000;
     job.setKeepUntil(keepUntilInSeconds * 1000);
     job.getStatus().setState(SUCCEEDED);
@@ -295,10 +299,60 @@ public class DynamoJobConfigClientIT {
     await(client.updateStatus(job, RUNNING));
 
     assertEquals(keepUntilInSeconds * 1000, await(client.loadJob(job.getId())).getKeepUntil());
+    //The status update is one atomic update of the job item, the resource keys are not written
+    assertEquals(storedKeepUntilOfResourceKeys, keepUntilOfResourceKeys(job));
+  }
+
+  @Test
+  public void storeJobKeepsTheResourceKeysAtLeastTheMinimumTtl() throws Exception {
+    long before = System.currentTimeMillis();
+    //The job is kept one hour
+    Job job = storeJobForConditions("_shortKeepUntil", RUNNING, RUNNING);
+    long after = System.currentTimeMillis();
+
+    Map<String, Long> keepUntilOfResourceKeys = keepUntilOfResourceKeys(job);
+    assertEquals(job.getResourceKeys(), keepUntilOfResourceKeys.keySet());
+    //One second tolerance, as the client uses a cached clock
+    keepUntilOfResourceKeys.forEach((resourceKey, keepUntil) -> assertTrue(
+        keepUntil >= (before + DynamoJobConfigClient.RESOURCE_KEYS_MIN_TTL) / 1000 - 1
+            && keepUntil <= (after + DynamoJobConfigClient.RESOURCE_KEYS_MIN_TTL) / 1000 + 1, "keepUntil of resource key " + resourceKey));
+  }
+
+  @Test
+  public void storeJobKeepsTheResourceKeysAsLongAsALongerKeptJob() throws Exception {
+    Job job = storeJobForConditions("_longKeepUntil", RUNNING, RUNNING);
+    job.setKeepUntil(System.currentTimeMillis() + 2 * DynamoJobConfigClient.RESOURCE_KEYS_MIN_TTL);
+
+    await(client.storeJob(job));
+
+    keepUntilOfResourceKeys(job).forEach((resourceKey, keepUntil) -> assertEquals(job.getKeepUntil() / 1000, keepUntil,
+        "keepUntil of resource key " + resourceKey));
+  }
+
+  @Test
+  public void deleteResourceKeysRemovesAllResourceKeysOfTheJob() throws Exception {
+    Job job = storeJobForConditions("_deleteResourceKeys", SUCCEEDED, SUCCEEDED);
+    assertEquals(job.getResourceKeys(), keepUntilOfResourceKeys(job).keySet());
+
+    await(client.deleteResourceKeys(job.getId()));
+
+    assertTrue(keepUntilOfResourceKeys(job).isEmpty(), "All resource keys of the job must be deleted");
+    assertNotNull(await(client.loadJob(job.getId())), "The job item itself is not deleted");
+  }
+
+  /**
+   * @return The keepUntil (in epoch seconds) of each stored resource key of the job
+   */
+  private static Map<String, Long> keepUntilOfResourceKeys(Job job) {
     assertTrue(!job.getResourceKeys().isEmpty(), "The job must have resource keys");
-    for (String resourceKey : job.getResourceKeys())
-      assertEquals(keepUntilInSeconds, new DynamoClient(TABLE_ARN_PREFIX + "job-resources", null).getTable()
-          .getItem("resourceKey", resourceKey, "jobId", job.getId()).getLong("keepUntil"), "keepUntil of resource key " + resourceKey);
+    Table resourceKeyTable = new DynamoClient(TABLE_ARN_PREFIX + "job-resources", null).getTable();
+    Map<String, Long> keepUntilOfResourceKeys = new HashMap<>();
+    for (String resourceKey : job.getResourceKeys()) {
+      Item item = resourceKeyTable.getItem("resourceKey", resourceKey, "jobId", job.getId());
+      if (item != null)
+        keepUntilOfResourceKeys.put(resourceKey, item.getLong("keepUntil"));
+    }
+    return keepUntilOfResourceKeys;
   }
 
   @Test
