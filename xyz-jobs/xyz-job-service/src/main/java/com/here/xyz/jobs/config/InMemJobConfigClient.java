@@ -209,7 +209,13 @@ public class InMemJobConfigClient extends JobConfigClient {
       return Future.failedFuture(stateConflict(job, expectedPreviousState));
 
     RuntimeStatus status = XyzSerializable.fromMap(job.getStatus().toMap(), RuntimeStatus.class);
-    jobMap.put(job.getId(), storedJob == null ? copy(job) : storedJob.withStatus(status));
+    if (storedJob != null) {
+      storedJob.setStatus(status);
+      //Like the DynamoDB client, the keepUntil is updated with the status
+      if (job.getKeepUntil() > 0)
+        storedJob.setKeepUntil(job.getKeepUntil());
+    }
+    jobMap.put(job.getId(), storedJob == null ? copy(job) : storedJob);
     return Future.succeededFuture();
   }
 
@@ -255,6 +261,12 @@ public class InMemJobConfigClient extends JobConfigClient {
   @Override
   public Future<Void> deleteStepConfigs(String jobId, List<String> stepIds) {
     //The steps are stored as part of the job, so there are no separately stored step configs to delete
+    return Future.succeededFuture();
+  }
+
+  @Override
+  public Future<Void> deleteResourceKeys(String jobId) {
+    //The resource keys are stored as part of the job, so there are no separately stored resource keys to delete
     return Future.succeededFuture();
   }
 }

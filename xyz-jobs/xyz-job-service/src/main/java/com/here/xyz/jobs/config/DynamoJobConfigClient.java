@@ -42,6 +42,7 @@ import com.here.xyz.jobs.RuntimeInfo.State;
 import com.here.xyz.jobs.service.Config;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.util.ARN;
+import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.aws.dynamo.DynamoClient;
 import com.here.xyz.util.service.aws.dynamo.IndexDefinition;
 import io.vertx.core.Future;
@@ -55,6 +56,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
@@ -64,6 +66,10 @@ public class DynamoJobConfigClient extends JobConfigClient {
 
   private static final Logger logger = LogManager.getLogger();
   public static final int MAX_RESOURCE_KEYS = 256;
+  /**
+   * The resource keys of a job are kept for at least that long after they were written, see {@link #resourceKeysKeepUntil(Job)}.
+   */
+  static final long RESOURCE_KEYS_MIN_TTL = TimeUnit.DAYS.toMillis(30);
   public static final IndexDefinition JOB_ID_GSI = new IndexDefinition("jobId");
   public static final IndexDefinition STATE_GSI = new IndexDefinition("state");
   public static final IndexDefinition RESOURCE_KEY_GSI = new IndexDefinition("resourceKey");
@@ -378,10 +384,9 @@ public class DynamoJobConfigClient extends JobConfigClient {
   @Override
   public Future<Void> storeJob(Job job) {
     return dynamoClient.executeQueryAsync(() -> {
-      long keepUntil = job.getKeepUntil() / 1000;
       if (job.getSteps() != null)
-        stepConfigClient.storeSteps(job.getSteps().stepStream().map(step -> (Step<?>) step).collect(Collectors.toList()), keepUntil);
-      batchWriteResourceKeys(job.getId(), job.getResourceKeys(), keepUntil);
+        stepConfigClient.storeSteps(job.getSteps().stepStream().map(step -> (Step<?>) step).collect(Collectors.toList()));
+      batchWriteResourceKeys(job.getId(), job.getResourceKeys(), resourceKeysKeepUntil(job));
       //TODO: Ensure that concurrent writes do not produce invalid state-transitions using atomic writes
       jobTable.putItem(convertJobToItem(job));
       return null;
@@ -403,6 +408,20 @@ public class DynamoJobConfigClient extends JobConfigClient {
     dynamoClient.batchWrite(resourceKeyTable.getTableName(), writeRequests);
   }
 
+  /**
+   * The resource keys are written whenever the job is stored (e.g., when it is created and when its execution starts), but not with
+   * the updates of its status (see {@link #updateStatus(Job, State)}), which can extend the keepUntil of the job. So the resource keys
+   * are kept at least {@link #RESOURCE_KEYS_MIN_TTL} from now on, which is much longer than an unfinished job is kept after its last
+   * status update (see {@link Job#updateKeepUntil()}), and at least as long as the job's current keepUntil.
+   * The resource keys are deleted together with their job. Their keepUntil only removes the ones of jobs that were deleted otherwise,
+   * e.g., directly in DynamoDB.
+   *
+   * @return The keepUntil of the resource keys in epoch seconds
+   */
+  static long resourceKeysKeepUntil(Job job) {
+    return Math.max(job.getKeepUntil(), Core.currentTimeMillis() + RESOURCE_KEYS_MIN_TTL) / 1000;
+  }
+
   @Override
   public Future<Void> updateState(Job job, State expectedPreviousState) {
     if (expectedPreviousState == job.getStatus().getState())
@@ -420,15 +439,28 @@ public class DynamoJobConfigClient extends JobConfigClient {
     });
   }
 
+  /**
+   * Updates the status of the job and its keepUntil, which can change with the state (see {@link Job#updateKeepUntil()}), in one
+   * atomic update of the job item. The resource keys and the steps are not touched, as they are kept long enough
+   * (see {@link #resourceKeysKeepUntil(Job)} and {@link StepConfigClient}).
+   */
   @Override
   public Future<Void> updateStatus(Job job, State expectedPreviousState) {
     return dynamoClient.executeQueryAsync(() -> {
-      final Map<String, String> nameMap = Map.of("#status", "status", "#state", "state");
+      final Map<String, String> nameMap = new HashMap<>(Map.of("#status", "status", "#state", "state"));
       final Map<String, Object> valueMap = new HashMap<>(Map.of(":newStatus", job.getStatus().toMap(), ":newState",
           job.getStatus().getState().toString()));
+      String updateExpression = "SET #status = :newStatus, #state = :newState";
+      //Never write a keepUntil of 0, the TTL would remove the job immediately
+      final long keepUntil = job.getKeepUntil() / 1000;
+      if (keepUntil > 0) {
+        nameMap.put("#keepUntil", "keepUntil");
+        valueMap.put(":keepUntil", keepUntil);
+        updateExpression += ", #keepUntil = :keepUntil";
+      }
       final UpdateItemSpec updateItemSpec = new UpdateItemSpec()
           .withPrimaryKey("id", job.getId())
-          .withUpdateExpression("SET #status = :newStatus, #state = :newState")
+          .withUpdateExpression(updateExpression)
           .withNameMap(nameMap)
           .withValueMap(valueMap);
 
@@ -453,7 +485,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
   public Future<Void> updateStep(Job job, Step<?> newStep) {
     return dynamoClient.executeQueryAsync(() -> {
       try {
-        stepConfigClient.storeStep(newStep, job.getKeepUntil() / 1000);
+        stepConfigClient.storeStep(newStep);
       }
       catch (ConditionalCheckFailedException e) {
         //E.g., an update that was sent before the final one, but arrived after it
@@ -563,7 +595,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
   public Future<Void> deleteJob(String jobId) {
     return dynamoClient.executeQueryAsync(() -> {
       jobTable.deleteItem(new DeleteItemSpec().withPrimaryKey("id", jobId));
-      deleteResourceKeys(jobId);
+      deleteAllResourceKeys(jobId);
       stepConfigClient.deleteSteps(jobId);
       return null;
     });
@@ -589,7 +621,18 @@ public class DynamoJobConfigClient extends JobConfigClient {
     });
   }
 
-  private void deleteResourceKeys(String jobId) {
+  /**
+   * Deletes the resource keys of a job. Used by {@link com.here.xyz.jobs.service.JobAdminApi} on the TTL/expiration path.
+   */
+  @Override
+  public Future<Void> deleteResourceKeys(String jobId) {
+    return dynamoClient.executeQueryAsync(() -> {
+      deleteAllResourceKeys(jobId);
+      return null;
+    });
+  }
+
+  private void deleteAllResourceKeys(String jobId) {
     deleteResourceKeys(jobId, loadAllResourceKeys(jobId));
   }
 

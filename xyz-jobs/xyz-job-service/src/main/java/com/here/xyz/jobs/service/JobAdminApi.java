@@ -110,7 +110,9 @@ public class JobAdminApi extends JobApiBase {
     Map<String, Object> jobItem = context.body().asJsonObject().getMap();
     JobConfigClient configClient = JobConfigClient.getInstance();
     configClient.hydrateJob(jobItem)
-        .compose(job -> job.deleteJobResources().compose(v -> configClient.deleteStepConfigs(job.getId())))
+        .compose(job -> job.deleteJobResources()
+            .compose(v -> configClient.deleteStepConfigs(job.getId()))
+            .compose(v -> configClient.deleteResourceKeys(job.getId())))
         .onSuccess(v -> sendResponse(context, NO_CONTENT.code(), null))
         .onFailure(t -> sendErrorResponse(context, t));
   }

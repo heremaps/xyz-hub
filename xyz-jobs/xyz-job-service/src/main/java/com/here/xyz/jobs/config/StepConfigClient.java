@@ -45,6 +45,8 @@ import java.util.stream.Stream;
 
 /**
  * Client for storing and loading step configs in DynamoDB.
+ * The step items do not expire (they have no keepUntil), they are deleted together with their job. That ensures that the steps of
+ * a job are never removed before the job, as the keepUntil of a job changes with its state (see {@link com.here.xyz.jobs.Job}).
  */
 public class StepConfigClient {
 
@@ -59,37 +61,35 @@ public class StepConfigClient {
   /**
    * Stores all given steps of a job, one item per step (batched).
    *
-   * @param steps     the steps to persist; a {@code null}/empty list is a no-op
-   * @param keepUntil the item TTL in epoch seconds (same as the owning job, so orphans self-expire as a backstop)
+   * @param steps the steps to persist; a {@code null}/empty list is a no-op
    */
-  public void storeSteps(List<Step<?>> steps, long keepUntil) {
+  public void storeSteps(List<Step<?>> steps) {
     if (steps == null || steps.isEmpty()) {
       return;
     }
     List<WriteRequest> writeRequests = steps.stream()
-        .map(step -> new WriteRequest(new PutRequest(ItemUtils.toAttributeValues(toItem(step, keepUntil)))))
+        .map(step -> new WriteRequest(new PutRequest(ItemUtils.toAttributeValues(toItem(step)))))
         .toList();
     dynamoClient.batchWrite(stepTable.getTableName(), writeRequests);
   }
 
   /**
    * Upserts a single step config item in the step-config table.
+   * A keepUntil of an item that was stored before the steps stopped expiring is removed.
    *
-   * @param step      the step to persist (its {@code jobId} + {@code id} form the item key)
-   * @param keepUntil the item TTL in epoch seconds
+   * @param step the step to persist (its {@code jobId} + {@code id} form the item key)
    */
-  public void storeStep(Step<?> step, long keepUntil) {
+  public void storeStep(Step<?> step) {
     final List<State> finalStates = Stream.of(State.values()).filter(State::isFinal).toList();
 
     Map<String, Object> valueMap = new HashMap<>();
     valueMap.put(":step", step.toMap(Static.class));
     valueMap.put(":state", stateOf(step));
-    valueMap.put(":keepUntil", keepUntil);
     finalStates.forEach(state -> valueMap.put(":" + state, state.toString()));
 
     stepTable.updateItem(new UpdateItemSpec()
         .withPrimaryKey("jobId", step.getJobId(), "id", step.getId())
-        .withUpdateExpression("SET #step = :step, #state = :state, keepUntil = :keepUntil")
+        .withUpdateExpression("SET #step = :step, #state = :state REMOVE keepUntil")
         //Do not overwrite a step that is already in a final state.
         .withConditionExpression("attribute_not_exists(#state) OR (" + finalStates.stream()
             .map(state -> "#state <> :" + state)
@@ -170,19 +170,17 @@ public class StepConfigClient {
     return step.getStatus() == null ? State.NONE.toString() : step.getStatus().getState().toString();
   }
 
-  private Item toItem(Step<?> step, long keepUntil) {
+  private Item toItem(Step<?> step) {
     return Item.fromMap(new StepConfig()
         .withJobId(step.getJobId())
         .withId(step.getId())
         .withStep(step.toMap(Static.class))
         .withState(stateOf(step))
-        .withKeepUntil(keepUntil)
         .toMap());
   }
 
   /**
-   * POJO mirroring one step-config item ({@code jobId}, {@code id}, the step config {@code step} map, its {@code state} and
-   * {@code keepUntil} TTL).
+   * POJO mirroring one step-config item ({@code jobId}, {@code id}, the step config {@code step} map and its {@code state}).
    */
   @JsonIgnoreProperties(ignoreUnknown = true)
   public static class StepConfig implements XyzSerializable {
@@ -195,8 +193,6 @@ public class StepConfigClient {
     private Map<String, Object> step;
     @JsonProperty
     private String state;
-    @JsonProperty
-    private long keepUntil;
 
     public String getJobId() {
       return jobId;
@@ -247,19 +243,6 @@ public class StepConfigClient {
 
     public StepConfig withState(String state) {
       setState(state);
-      return this;
-    }
-
-    public long getKeepUntil() {
-      return keepUntil;
-    }
-
-    public void setKeepUntil(long keepUntil) {
-      this.keepUntil = keepUntil;
-    }
-
-    public StepConfig withKeepUntil(long keepUntil) {
-      setKeepUntil(keepUntil);
       return this;
     }
   }

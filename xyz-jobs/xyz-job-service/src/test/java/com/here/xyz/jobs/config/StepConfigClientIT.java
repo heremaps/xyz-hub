@@ -24,17 +24,22 @@ import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
 import static com.here.xyz.jobs.RuntimeInfo.State.SUCCEEDED;
 import static com.here.xyz.util.Random.randomAlpha;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.amazonaws.services.dynamodbv2.document.Item;
+import com.amazonaws.services.dynamodbv2.document.Table;
 import com.amazonaws.services.dynamodbv2.model.ConditionalCheckFailedException;
+import com.here.xyz.XyzSerializable.Static;
 import com.here.xyz.jobs.RuntimeInfo.State;
 import com.here.xyz.jobs.config.StepConfigClient.StepConfig;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.execution.fusion.SimpleTestStep;
 import com.here.xyz.util.service.Core;
+import com.here.xyz.util.service.aws.dynamo.DynamoClient;
 import io.vertx.core.Vertx;
 import java.util.List;
 import java.util.Map;
@@ -49,7 +54,7 @@ public class StepConfigClientIT {
   private static final String TABLE_ARN = "arn:aws:dynamodb:" + DYNAMO_HOST + ":000000008000:table/xyz-job-steps-local";
 
   private StepConfigClient client;
-  private long keepUntil;
+  private Table table;
 
   @BeforeAll
   public static void initVertx() {
@@ -61,14 +66,14 @@ public class StepConfigClientIT {
   public void setUp() {
     client = new StepConfigClient(TABLE_ARN);
     client.initLocalTable();
-    keepUntil = (System.currentTimeMillis() + 3_600_000) / 1000;
+    table = new DynamoClient(TABLE_ARN, null).getTable();
   }
 
   @Test
   public void storeStepsThenLoadReturnsAllStepsOfTheJob() {
     String jobId = randomAlpha(6);
     List<Step<?>> steps = List.of(step(jobId, RUNNING), step(jobId, PENDING), step(jobId, SUCCEEDED));
-    client.storeSteps(steps, keepUntil);
+    client.storeSteps(steps);
 
     Map<String, StepConfig> stepConfigMap = client.loadStepsForJob(jobId).stream()
         .collect(Collectors.toMap(StepConfig::getId, config -> config));
@@ -88,8 +93,8 @@ public class StepConfigClientIT {
   public void loadIsScopedToTheRequestedJob() {
     String jobA = randomAlpha(6);
     String jobB = randomAlpha(6);
-    client.storeSteps(List.of(step(jobA, RUNNING), step(jobA, RUNNING)), keepUntil);
-    client.storeSteps(List.of(step(jobB, RUNNING)), keepUntil);
+    client.storeSteps(List.of(step(jobA, RUNNING), step(jobA, RUNNING)));
+    client.storeSteps(List.of(step(jobB, RUNNING)));
 
     assertEquals(2, client.loadStepsForJob(jobA).size());
     assertEquals(1, client.loadStepsForJob(jobB).size());
@@ -101,25 +106,59 @@ public class StepConfigClientIT {
     String jobId = randomAlpha(6);
     Step<?> step = step(jobId, RUNNING);
 
-    client.storeStep(step, keepUntil);
+    client.storeStep(step);
     assertEquals("RUNNING", storedState(jobId, step.getId()));
 
     //A non-final -> final update is allowed and overwrites.
     step.getStatus().setState(SUCCEEDED);
-    client.storeStep(step, keepUntil);
+    client.storeStep(step);
     assertEquals("SUCCEEDED", storedState(jobId, step.getId()));
 
     //Once the stored step is in a final state, any further write is rejected.
-    assertThrows(ConditionalCheckFailedException.class, () -> client.storeStep(step, keepUntil));
+    assertThrows(ConditionalCheckFailedException.class, () -> client.storeStep(step));
     assertEquals("SUCCEEDED", storedState(jobId, step.getId()), "the final state must not be overwritten");
+  }
+
+  @Test
+  public void storedStepsHaveNoKeepUntil() {
+    String jobId = randomAlpha(6);
+    Step<?> batchStored = step(jobId, RUNNING);
+    Step<?> singleStored = step(jobId, RUNNING);
+    client.storeSteps(List.of(batchStored));
+    client.storeStep(singleStored);
+
+    //The steps are deleted with their job, they must not expire before it
+    for (Step<?> step : List.of(batchStored, singleStored))
+      assertFalse(table.getItem("jobId", jobId, "id", step.getId()).hasAttribute("keepUntil"),
+          "step " + step.getId() + " must not have a keepUntil");
+  }
+
+  @Test
+  public void storeStepRemovesTheKeepUntilOfAStepStoredBefore() {
+    String jobId = randomAlpha(6);
+    Step<?> step = step(jobId, RUNNING);
+    //A step item as it was stored before the steps stopped expiring
+    table.putItem(Item.fromMap(Map.of(
+        "jobId", jobId,
+        "id", step.getId(),
+        "step", step.toMap(Static.class),
+        "state", RUNNING.toString(),
+        "keepUntil", (System.currentTimeMillis() + 3_600_000) / 1000)));
+
+    step.getStatus().setState(SUCCEEDED);
+    client.storeStep(step);
+
+    Item item = table.getItem("jobId", jobId, "id", step.getId());
+    assertEquals("SUCCEEDED", item.getString("state"));
+    assertFalse(item.hasAttribute("keepUntil"), "the keepUntil of the step must be removed");
   }
 
   @Test
   public void deleteStepsByJobIdRemovesOnlyThatJob() {
     String jobA = randomAlpha(6);
     String jobB = randomAlpha(6);
-    client.storeSteps(List.of(step(jobA, RUNNING), step(jobA, PENDING)), keepUntil);
-    client.storeSteps(List.of(step(jobB, RUNNING)), keepUntil);
+    client.storeSteps(List.of(step(jobA, RUNNING), step(jobA, PENDING)));
+    client.storeSteps(List.of(step(jobB, RUNNING)));
 
     client.deleteSteps(jobA);
 
@@ -133,7 +172,7 @@ public class StepConfigClientIT {
     Step<?> keep = step(jobId, RUNNING);
     Step<?> remove1 = step(jobId, RUNNING);
     Step<?> remove2 = step(jobId, RUNNING);
-    client.storeSteps(List.of(keep, remove1, remove2), keepUntil);
+    client.storeSteps(List.of(keep, remove1, remove2));
 
     client.deleteSteps(jobId, List.of(remove1.getId(), remove2.getId()));
 
@@ -145,7 +184,7 @@ public class StepConfigClientIT {
   @Test
   public void emptyStoreAndDeleteAreNoOps() {
     String jobId = randomAlpha(6);
-    client.storeSteps(List.of(), keepUntil);
+    client.storeSteps(List.of());
     client.deleteSteps(jobId, List.of());
     assertTrue(client.loadStepsForJob(jobId).isEmpty());
   }
@@ -155,7 +194,7 @@ public class StepConfigClientIT {
     String jobId = randomAlpha(6);
     Step<?> target = step(jobId, RUNNING);
     Step<?> other = step(jobId, PENDING);
-    client.storeSteps(List.of(target, other), keepUntil);
+    client.storeSteps(List.of(target, other));
 
     StepConfig loaded = client.loadStep(jobId, target.getId());
 
@@ -171,7 +210,7 @@ public class StepConfigClientIT {
   public void loadStepReturnsNullForAnUnknownStepOrJob() {
     String jobId = randomAlpha(6);
     Step<?> step = step(jobId, RUNNING);
-    client.storeSteps(List.of(step), keepUntil);
+    client.storeSteps(List.of(step));
 
     assertNull(client.loadStep(jobId, "s_does_not_exist"), "an unknown step id must yield null");
     assertNull(client.loadStep(randomAlpha(6), step.getId()), "an unknown job must yield null");
