@@ -274,6 +274,10 @@ public class PSQLXyzConnector extends DatabaseHandler {
         throw new ErrorResponseException(ILLEGAL_ARGUMENT, eMsg);
       }
 
+      case "22021": //22021 - character_not_in_repertoire, e.g. a NUL character (0x00) in a request parameter
+
+        throw new ErrorResponseException(ILLEGAL_ARGUMENT, "Invalid request parameters. The request contains a character which is not allowed (e.g. 0x00).");
+
       case "42P01":
         //Keeps the cause, so that a retry can tell a missing table from other errors
         throw new ErrorResponseException(NOT_FOUND, "Space not found in backend", e);
