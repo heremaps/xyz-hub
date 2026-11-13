@@ -33,7 +33,9 @@ import static software.amazon.awssdk.utils.CollectionUtils.isNullOrEmpty;
 
 import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
+import com.here.xyz.events.Event;
 import com.here.xyz.events.GetStatisticsEvent;
+import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.WriteFeaturesEvent;
 import com.here.xyz.events.WriteFeaturesEvent.Modification;
 import com.here.xyz.hub.Service;
@@ -50,6 +52,7 @@ import com.here.xyz.models.hub.Space.Extension;
 import com.here.xyz.models.hub.Space.ListenerConnectorRef;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.util.db.pg.LazySpaceTables;
 import com.here.xyz.util.service.HttpException;
 import com.here.xyz.util.service.errors.DetailedHttpException;
 import com.here.xyz.util.service.rest.TooManyRequestsException;
@@ -113,8 +116,17 @@ public class FeatureHandler {
                   });
               return promise.future()
                   .compose(response -> {
-                    if (!isNullOrEmpty(response.getInserted()) || !isNullOrEmpty(response.getUpdated()) || !isNullOrEmpty(response.getDeleted()))
-                      space.updateContentUpdatedAt(marker);
+                    boolean materialized = LazyTableClearing.takeMaterialized(response);
+                    boolean modified = !isNullOrEmpty(response.getInserted()) || !isNullOrEmpty(response.getUpdated())
+                        || !isNullOrEmpty(response.getDeleted());
+                    boolean deferred = LazyTableClearing.defersContentUpdate(space, spaceContext);
+                    //Not awaited: the response is returned at once, the contentUpdatedAt store follows the clear
+                    LazyTableClearing.clearAfterWrite(marker, space, spaceContext, materialized)
+                        .onComplete(clear -> {
+                          if (modified)
+                            space.updateContentUpdatedAt(marker,
+                                deferred && clear.succeeded() && LazyTableClearing.isCleared(clear.result()));
+                        });
                     return Future.succeededFuture(response);
                   });
             } catch (HttpException e) {
@@ -166,8 +178,48 @@ public class FeatureHandler {
     if (space.getExtension() != null)
       storageParams.putAll(space.resolveCompositeParams(space.getExtension().resolvedSpace));
 
+    if (event instanceof WriteFeaturesEvent)
+      injectOnDemandIndexes(storageParams, space);
+
     event.setParams(storageParams);
     return Future.succeededFuture();
+  }
+
+  /**
+   * @return Whether the event of a task carries the on-demand indexes of a space with a lazy level: a write creates them when it
+   *  materializes the table, the full statistics list them for a never written level. A {@link WriteFeaturesEvent} gets them
+   *  through {@link #injectSpaceParams(ContextAwareEvent, Space)}.
+   */
+  static boolean sendsOnDemandIndexes(Event<?> event) {
+    return event instanceof ModifyFeaturesEvent || event instanceof GetStatisticsEvent statisticsEvent && !statisticsEvent.isFastMode();
+  }
+
+  /**
+   * Adds the on-demand indexes to the storage params of a write or full statistics event of a space with a lazy level, so that
+   * the write that creates the table also creates them and the statistics of a never written level list them. They are the
+   * effective searchable properties of the space, which for an extension are the ones of the root base. Params without a lazy
+   * level stay unchanged.
+   *
+   * @param storageParams The resolved storage params of the event, including the composite params
+   * @param space The space, with {@link Extension#resolvedSpace} set on every level if it is an extension
+   */
+  static void injectOnDemandIndexes(Map<String, Object> storageParams, Space space) {
+    if (!LazySpaceTables.hasLazyLevel(storageParams))
+      return;
+
+    com.here.xyz.models.hub.Space extendedSpace = space.getExtension() == null ? null : space.getExtension().resolvedSpace;
+    Map<String, Boolean> searchableProperties = space.getEffectiveSearchableProperties(extendedSpace);
+    if (searchableProperties == null) {
+      //The connector creates the system indexes only and logs the missing parameter
+      logger.warn("Space {}: the root base of the extension is not resolved, no on-demand indexes are sent", space.getId());
+      return;
+    }
+
+    List<String> onDemandIndexes = searchableProperties.entrySet().stream()
+        .filter(property -> Boolean.TRUE.equals(property.getValue()))
+        .map(Map.Entry::getKey)
+        .toList();
+    storageParams.put(LazySpaceTables.ON_DEMAND_INDEXES, onDemandIndexes);
   }
 
   public static Future<Long> getCountForSpace(Marker marker, Space space, SpaceContext spaceContext, String requesterId,

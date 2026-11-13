@@ -26,13 +26,18 @@ import static com.here.xyz.util.db.pg.ScriptInstaller.State.VERIFIED;
 
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
+import com.here.xyz.util.db.pg.LazySpaceTables.TemplateProbe;
 import java.io.IOException;
+import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.SQLTimeoutException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.IntSupplier;
 import java.util.stream.Collectors;
@@ -85,15 +90,55 @@ public class ScriptInstaller {
   }
 
   /**
+   * The result of the check of one version of the empty-space template.
+   */
+  public enum TemplateCheck {
+    /**
+     * The template exists and is identical to the one the installer creates, or it was installed by the check.
+     */
+    VERIFIED,
+    /**
+     * Some relation of the template exists, but the set differs from the one the installer creates. Nothing was changed.
+     */
+    NOT_IDENTICAL,
+    /**
+     * The template is missing and could not be installed because of an error that is not expected to go away, or the scripts
+     * failed permanently.
+     */
+    FAILED_PERMANENT,
+    /**
+     * The template could not be checked or installed because of an error that may go away, too little time, or scripts that
+     * are not installed yet. To be retried like a transient script check.
+     */
+    NOT_VERIFIED,
+    /**
+     * The template was verified, but was found missing later at runtime. Never returned by the installer.
+     */
+    MISSING_AT_RUNTIME
+  }
+
+  /**
    * @param state The resulting state
    * @param schemas The schema for each script to be used in the search path, in the order of the scripts
    * @param statements The number of statements that were executed
    * @param snapshot The latest snapshot of the installed schemas, <code>null</code> if no snapshot could be loaded
    * @param permanentlyFailedScripts The IDs of the scripts whose missing schema failed to install with a permanent error in this check
    *  or in an earlier one. A later check of the same software version should pass them, so that it does not attempt them again.
+   * @param templateChecks The result per requested version of the empty-space template, by its root table name. Empty if no
+   *  template was requested.
    */
   public record Outcome(State state, List<String> schemas, int statements, InstalledScripts snapshot,
-      Set<String> permanentlyFailedScripts) {}
+      Set<String> permanentlyFailedScripts, Map<String, TemplateCheck> templateChecks) {
+
+    public Outcome(State state, List<String> schemas, int statements, InstalledScripts snapshot, Set<String> permanentlyFailedScripts) {
+      this(state, schemas, statements, snapshot, permanentlyFailedScripts, Map.of());
+    }
+  }
+
+  /**
+   * The versions of the empty-space template that are checked and installed, by their root table name.
+   */
+  static final List<String> TEMPLATE_VERSIONS = List.of(LazySpaceTables.TEMPLATE_TABLE);
 
   private ScriptInstaller() {}
 
@@ -112,8 +157,45 @@ public class ScriptInstaller {
    */
   public static Outcome checkAndInstall(List<Script> scripts, DataSourceProvider dataSourceProvider, String softwareVersion,
       int versionsToKeep, int installTimeoutSeconds, IntSupplier remainingMillis, Set<String> permanentlyFailedScripts) {
+    return checkAndInstall(scripts, dataSourceProvider, softwareVersion, versionsToKeep, installTimeoutSeconds, remainingMillis,
+        permanentlyFailedScripts, null);
+  }
+
+  /**
+   * Same as {@link #checkAndInstall(List, DataSourceProvider, String, int, int, IntSupplier, Set)}, but also checks the
+   * empty-space template in the provided schema once all scripts are installed, and installs it if none of its relations
+   * exists. The template DDL uses functions of the scripts, so it runs with their schemas on the search path.
+   *
+   * @param templateSchema The connector schema for the template, <code>null</code> to check no template
+   */
+  public static Outcome checkAndInstall(List<Script> scripts, DataSourceProvider dataSourceProvider, String softwareVersion,
+      int versionsToKeep, int installTimeoutSeconds, IntSupplier remainingMillis, Set<String> permanentlyFailedScripts,
+      String templateSchema) {
     return new Check(scripts, dataSourceProvider, softwareVersion, versionsToKeep, installTimeoutSeconds, remainingMillis,
-        permanentlyFailedScripts).run();
+        permanentlyFailedScripts, templateSchema).run();
+  }
+
+  /**
+   * @param probe The state of a template of which at least one relation exists
+   * @return VERIFIED if it is identical to the one the installer creates, NOT_IDENTICAL otherwise
+   */
+  static TemplateCheck classify(TemplateProbe probe) {
+    return probe.isIdentical() ? TemplateCheck.VERIFIED : TemplateCheck.NOT_IDENTICAL;
+  }
+
+  /**
+   * @param state The state of the scripts if they are not all installed
+   * @param templateSchema The template schema or <code>null</code>
+   * @return The result of each requested template version without a check: NOT_VERIFIED for transient scripts, FAILED_PERMANENT
+   *  for permanently failed ones; empty without a template schema
+   */
+  static Map<String, TemplateCheck> uncheckedTemplates(State state, String templateSchema) {
+    if (templateSchema == null)
+      return Map.of();
+    TemplateCheck result = state == PERMANENT ? TemplateCheck.FAILED_PERMANENT : TemplateCheck.NOT_VERIFIED;
+    Map<String, TemplateCheck> checks = new LinkedHashMap<>();
+    TEMPLATE_VERSIONS.forEach(table -> checks.put(table, result));
+    return Collections.unmodifiableMap(checks);
   }
 
   /**
@@ -157,6 +239,7 @@ public class ScriptInstaller {
     private final int versionsToKeep;
     private final int installTimeoutSeconds;
     private final IntSupplier remainingMillis;
+    private final String templateSchema;
     private final String dbId;
     private final long start = System.currentTimeMillis();
     private int statements;
@@ -169,13 +252,14 @@ public class ScriptInstaller {
     private final Set<Script> permanentlyFailedTargets = new HashSet<>();
 
     private Check(List<Script> scripts, DataSourceProvider dataSourceProvider, String softwareVersion, int versionsToKeep,
-        int installTimeoutSeconds, IntSupplier remainingMillis, Set<String> permanentlyFailedScripts) {
+        int installTimeoutSeconds, IntSupplier remainingMillis, Set<String> permanentlyFailedScripts, String templateSchema) {
       this.scripts = scripts;
       this.dataSourceProvider = dataSourceProvider;
       this.softwareVersion = softwareVersion;
       this.versionsToKeep = versionsToKeep;
       this.installTimeoutSeconds = Math.max(1, installTimeoutSeconds);
       this.remainingMillis = remainingMillis;
+      this.templateSchema = templateSchema;
       dbId = dataSourceProvider.getDatabaseSettings() == null ? "unknown" : dataSourceProvider.getDatabaseSettings().getId();
       if (permanentlyFailedScripts != null)
         scripts.stream().filter(script -> permanentlyFailedScripts.contains(script.getScriptId())).forEach(permanentlyFailedTargets::add);
@@ -185,7 +269,7 @@ public class ScriptInstaller {
       InstalledScripts snapshot = loadSnapshot();
       if (snapshot == null)
         //A failing check never leads to an installation. Without a snapshot, the earlier permanent failures are kept.
-        return finish(TRANSIENT, null, scriptIds(permanentlyFailedTargets));
+        return finish(TRANSIENT, null, scriptIds(permanentlyFailedTargets), uncheckedTemplates(TRANSIENT, templateSchema));
 
       installMissingSchemas(snapshot);
 
@@ -193,22 +277,83 @@ public class ScriptInstaller {
       if (ddlExecuted) {
         //The re-check must run with the timeout of the check, not with the one of the install statements
         if (!resetDdlTimeouts())
-          return finish(TRANSIENT, snapshot, permanentlyFailedScripts(missingTargets(snapshot)));
+          return finish(TRANSIENT, snapshot, permanentlyFailedScripts(missingTargets(snapshot)),
+              uncheckedTemplates(TRANSIENT, templateSchema));
         finalSnapshot = loadSnapshot();
         if (finalSnapshot == null)
-          return finish(TRANSIENT, snapshot, permanentlyFailedScripts(missingTargets(snapshot)));
+          return finish(TRANSIENT, snapshot, permanentlyFailedScripts(missingTargets(snapshot)),
+              uncheckedTemplates(TRANSIENT, templateSchema));
       }
 
       List<Script> missingTargets = missingTargets(finalSnapshot);
-      if (missingTargets.isEmpty())
-        return finish(VERIFIED, cleanup(finalSnapshot), Set.of());
+      if (missingTargets.isEmpty()) {
+        //The template DDL calls functions of the scripts, so it is handled only once all of them are installed
+        Map<String, TemplateCheck> templateChecks = checkTemplates(finalSnapshot);
+        return finish(VERIFIED, cleanup(finalSnapshot), Set.of(), templateChecks);
+      }
       //Only a permanent error on a missing target itself is permanent. E.g., an error while rewriting the unversioned schema of a
       //script whose versioned schema exists must not keep another script's transient miss for the lifetime of the JVM.
       //Any missing target without a permanent error keeps the whole check retryable. The retry gets the scripts that failed
       //permanently and does not attempt them again.
       Set<String> permanentlyFailedScripts = permanentlyFailedScripts(missingTargets);
-      return finish(permanentlyFailedScripts.size() == missingTargets.size() ? PERMANENT : TRANSIENT, finalSnapshot,
-          permanentlyFailedScripts);
+      State state = permanentlyFailedScripts.size() == missingTargets.size() ? PERMANENT : TRANSIENT;
+      return finish(state, finalSnapshot, permanentlyFailedScripts, uncheckedTemplates(state, templateSchema));
+    }
+
+    /**
+     * Checks each requested template version with the probe of the snapshot and installs a missing one.
+     */
+    private Map<String, TemplateCheck> checkTemplates(InstalledScripts snapshot) {
+      if (templateSchema == null)
+        return Map.of();
+      Map<String, TemplateCheck> checks = new LinkedHashMap<>();
+      for (String table : TEMPLATE_VERSIONS)
+        checks.put(table, checkTemplate(snapshot, table));
+      return Collections.unmodifiableMap(checks);
+    }
+
+    private TemplateCheck checkTemplate(InstalledScripts snapshot, String table) {
+      TemplateProbe probe = snapshot.getTemplateProbe(table);
+      if (probe == null)
+        return TemplateCheck.NOT_VERIFIED;
+      if (!probe.isAbsent())
+        return classifyAndLog(probe);
+      if (!hasTimeForDdl())
+        return TemplateCheck.NOT_VERIFIED;
+
+      long installStart = System.currentTimeMillis();
+      long budgetMillis = Math.min(installTimeoutSeconds * 1_000L, (long) remainingMillis() - RESERVED_MILLIS_FOR_REQUEST);
+      try (Connection connection = dataSourceProvider.getWriter().getConnection()) {
+        statements++;
+        TemplateProbe concurrentProbe = LazySpaceTables.installTemplate(connection, templateSchema,
+            resolveSchemas(scripts, softwareVersion, snapshot), budgetMillis);
+        if (concurrentProbe != null)
+          //Another installer created the set while this one waited for the lock
+          return classifyAndLog(concurrentProbe);
+        logger.warn("Installed the empty-space template on DB {} into schema {} in {} ms", dbId, templateSchema,
+            System.currentTimeMillis() - installStart);
+        return TemplateCheck.VERIFIED;
+      }
+      catch (SQLException e) {
+        boolean transientError = isTransient(e);
+        String message = "Could not install the empty-space template on DB {} into schema {}: SQLSTATE {} after {} ms";
+        Object[] arguments = {dbId, templateSchema, LazySpaceTables.sqlStateOf(e), System.currentTimeMillis() - installStart, e};
+        if (transientError)
+          logger.warn(message, arguments);
+        else
+          logger.error(message, arguments);
+        return transientError ? TemplateCheck.NOT_VERIFIED : TemplateCheck.FAILED_PERMANENT;
+      }
+      finally {
+        resetDdlTimeouts();
+      }
+    }
+
+    private TemplateCheck classifyAndLog(TemplateProbe probe) {
+      TemplateCheck check = classify(probe);
+      if (check == TemplateCheck.NOT_IDENTICAL)
+        logger.error("Empty-space template not identical on DB {} in schema {}: {}", dbId, templateSchema, probe.differences());
+      return check;
     }
 
     /**
@@ -224,7 +369,7 @@ public class ScriptInstaller {
 
     private InstalledScripts loadSnapshot() {
       try {
-        InstalledScripts snapshot = InstalledScripts.load(dataSourceProvider, scripts);
+        InstalledScripts snapshot = InstalledScripts.load(dataSourceProvider, scripts, templateSchema);
         statements += snapshot.getStatementCount();
         return snapshot;
       }
@@ -394,16 +539,18 @@ public class ScriptInstaller {
       return result;
     }
 
-    private Outcome finish(State state, InstalledScripts snapshot, Set<String> permanentlyFailedScripts) {
+    private Outcome finish(State state, InstalledScripts snapshot, Set<String> permanentlyFailedScripts,
+        Map<String, TemplateCheck> templateChecks) {
       List<String> schemas = resolveSchemas(scripts, softwareVersion, snapshot);
       long duration = System.currentTimeMillis() - start;
+      String templates = templateChecks.isEmpty() ? "" : ", templates: " + templateChecks;
       if (state == VERIFIED)
-        logger.info("Script check on DB {} for version {}: {} in {} ms with {} statements, schemas: {}", dbId, softwareVersion, state,
-            duration, statements, schemas);
+        logger.info("Script check on DB {} for version {}: {} in {} ms with {} statements, schemas: {}{}", dbId, softwareVersion, state,
+            duration, statements, schemas, templates);
       else
-        logger.warn("Script check on DB {} for version {}: {} in {} ms with {} statements, schemas: {}, permanently failed scripts: {}",
-            dbId, softwareVersion, state, duration, statements, schemas, permanentlyFailedScripts);
-      return new Outcome(state, schemas, statements, snapshot, permanentlyFailedScripts);
+        logger.warn("Script check on DB {} for version {}: {} in {} ms with {} statements, schemas: {}, permanently failed scripts: {}{}",
+            dbId, softwareVersion, state, duration, statements, schemas, permanentlyFailedScripts, templates);
+      return new Outcome(state, schemas, statements, snapshot, permanentlyFailedScripts, templateChecks);
     }
   }
 }

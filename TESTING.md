@@ -50,7 +50,9 @@ mvn -o verify -DskipTests=false -pl xyz-psql-connector
 
 Also `xyz-util`'s `SQL*TestSuiteIT`, `SQLQueryIT`, `SQLQueryLockIT`, `SQLScriptsIT`, `XyzSpaceTableHelperIT` and
 `GeometryValidatorIT` — the PLV8 FeatureWriter suites and the SQL helpers. Its `Hub*TestSuiteIT` classes go
-through `HubWebClient`, so running all of `xyz-util` needs the full stack.
+through `HubWebClient`, so running all of `xyz-util` needs the full stack. With `-DskipTests=false`, a build of
+`xyz-util` runs only the lazy space table ITs (the failsafe group `lazy-space-tables`), which need postgres; the
+other ITs of the module are not bound to the build and have to be started explicitly.
 
 ### 3. Express mode import — postgres plus the xyz-util test jar
 

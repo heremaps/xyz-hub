@@ -32,6 +32,7 @@ import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.jobs.datasets.files.FileFormat.EntityPerLine;
 import com.here.xyz.models.hub.Space;
+import com.here.xyz.models.hub.Space.ConnectorRef;
 import io.vertx.core.json.JsonObject;
 import java.util.HashMap;
 import java.util.stream.Collectors;
@@ -133,6 +134,32 @@ public class ImportJobTestIT extends JobTest {
     pollJobStatus(importJob.getId());
 
     checkImportedFeatures(importFeatures);
+  }
+
+  /**
+   * The wrapper's DropIndexes creates the table of a never-written lazy target, the import clears the flag once it has its version, and
+   * the indices are created afterwards as for an eager target.
+   */
+  @Test
+  public void testImportIntoLazySpace() throws Exception {
+    String lazySpaceId = SPACE_ID + "-lazy";
+    createSpace(new Space().withId(lazySpaceId).withStorage(new ConnectorRef().withId(LAZY_CONNECTOR))
+        .withSearchableProperties(Map.of("foo1", true)), false);
+    Assertions.assertTrue(isFlagged(lazySpaceId));
+    FeatureCollection importFeatures = createKnownFeatures("import", 5);
+
+    Job importJob = new Job()
+        .withId(JOB_ID)
+        .withDescription("Import Job Test")
+        .withSource(new Files<>().withInputSettings(
+            new FileInputSettings().withFormat(new GeoJson().withEntityPerLine(EntityPerLine.Feature))))
+        .withTarget(new DatasetDescription.Space<>().withId(lazySpaceId));
+    createAndStartJob(importJob, toGeoJsonLines(importFeatures));
+
+    Assertions.assertEquals(RuntimeInfo.State.SUCCEEDED, getJobStatus(importJob.getId()).getState());
+    Assertions.assertEquals(5, getFeaturesFromSmallSpace(lazySpaceId, null, false).getFeatures().size());
+    Assertions.assertFalse(isFlagged(lazySpaceId));
+    Assertions.assertTrue(loadSpace(lazySpaceId).isActive());
   }
 
   private void checkImportedFeatures(FeatureCollection importedFeatures) throws JsonProcessingException {

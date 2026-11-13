@@ -27,10 +27,13 @@ import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.hub.Ref;
+import com.here.xyz.models.hub.Space;
 
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.Set;
 
 import com.here.xyz.util.geo.GeometryValidator;
 import org.junit.jupiter.api.Assertions;
@@ -98,6 +101,26 @@ public class ExportStepTest extends ExportTestBase {
 
         executeExportStepAndCheckResults(SPACE_ID, null, spatialFilter,
                 PropertiesQuery.fromString(propertiesQuery), new Ref(HEAD), hubQuery);
+    }
+
+    /**
+     * A never-written lazy space exports like an empty eager space, without and with a filter (which always creates a task), and
+     * keeps its flag.
+     */
+    @Test
+    public void exportNeverWrittenLazySpaceLikeAnEmptySpace() throws Exception {
+        Space empty = createTestSpace(new Space().withId(SPACE_ID + "_empty"));
+        Space lazy = createLazyTestSpace(SPACE_ID + "_lazy", LAZY_CONNECTOR);
+        PropertiesQuery propertyFilter = PropertiesQuery.fromString(URLEncoder.encode("p.description=\"Point\"", StandardCharsets.UTF_8));
+
+        for (PropertiesQuery filter : Arrays.asList(null, propertyFilter)) {
+            ExportResult expected = export(empty.getId(), null, filter);
+            ExportResult actual = export(lazy.getId(), null, filter);
+            Assertions.assertEquals(Set.of(), expected.features());
+            Assertions.assertEquals(expected, actual, "filter " + filter);
+        }
+        Assertions.assertTrue(isFlagged(lazy.getId()));
+        Assertions.assertEquals(0, relationCount(DB_URL, tableName(lazy)));
     }
 
     @Test

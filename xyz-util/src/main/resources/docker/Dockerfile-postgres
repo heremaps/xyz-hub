@@ -39,6 +39,9 @@ RUN mkdir -p $PGCONFDIR && \
       "log_min_error_statement = info" \
       "log_statement = 'all'" \
       > $PGCONFDIR/logging.conf
+#Every warm lambda container of the step tests keeps a connection pool per connector it uses, and the running task queries
+#add their dblink connections. The default of 100 is not enough for a full run of the job step tests.
+RUN printf '%s\n' "max_connections = 200" > $PGCONFDIR/connections.conf
 
 #One-time database setup, persisted in the data dir together with the database
 RUN printf '%s\n' \

@@ -46,24 +46,32 @@ import static com.here.xyz.util.db.ConnectorParameters.TableLayout.OLD_LAYOUT;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.ModifySpaceEvent.Operation;
+import com.here.xyz.models.hub.Space;
 import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.util.db.ConnectorParameters;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
+import com.here.xyz.util.db.datasource.DatabaseSettings;
 import com.here.xyz.util.db.pg.IndexHelper;
+import com.here.xyz.util.db.pg.LazySpaceTables;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse> {
+    private static final Logger logger = LogManager.getLogger(ModifySpace.class);
 
     public static final String I_SEQUENCE_SUFFIX = "_i_seq";
     private Operation operation;
     private String spaceId;
     private boolean dryRun;
     private String rootTable;
+    private boolean lazyTable;
+    private boolean lazyTableCreation;
 
     public ModifySpace(ModifySpaceEvent event) throws SQLException, ErrorResponseException {
         super(event);
@@ -73,6 +81,8 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
         operation = event.getOperation();
         spaceId = event.getSpace();
         rootTable = getDefaultTable(event);
+        lazyTable = Space.isLazyTable(event.getParams());
+        lazyTableCreation = ConnectorParameters.fromEvent(event).isLazyTableCreation();
     }
 
     private void validateModifySpaceEvent(ModifySpaceEvent event) throws ErrorResponseException {
@@ -147,7 +157,9 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
                 return SQLQuery.batchOf(queries).withLock(table);
             }
             else if (event.getOperation() == DELETE) {
-                return SQLQuery.batchOf(buildCleanUpQuery(getSchema(), getDefaultTable(event), VERSION_SEQUENCE_SUFFIX, OLD_LAYOUT));
+                //The lock serializes the deletion with the creation and a materialization of the same table
+                final String table = getDefaultTable(event);
+                return SQLQuery.batchOf(buildCleanUpQuery(getSchema(), table, VERSION_SEQUENCE_SUFFIX, OLD_LAYOUT)).withLock(table);
             }
         }else if(getTableLayout().equals(ConnectorParameters.TableLayout.NEW_LAYOUT)){
             if (event.getOperation() == CREATE) {
@@ -157,14 +169,26 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
                         null, event.getSpace(), NEW_LAYOUT));
                 return SQLQuery.batchOf(queries).withLock(table);
             }
-            else if (event.getOperation() == DELETE)
-                return SQLQuery.batchOf(buildCleanUpQuery(getSchema(), getDefaultTable(event), VERSION_SEQUENCE_SUFFIX, NEW_LAYOUT));
+            else if (event.getOperation() == DELETE) {
+                final String table = getDefaultTable(event);
+                return SQLQuery.batchOf(buildCleanUpQuery(getSchema(), table, VERSION_SEQUENCE_SUFFIX, NEW_LAYOUT)).withLock(table);
+            }
         }
         throw new IllegalArgumentException("Unsupported Table Layout: " + getTableLayout());
     }
 
     @Override
     public SuccessResponse write(DataSourceProvider dataSourceProvider) throws SQLException, ErrorResponseException {
+        //The reserved names belong to the empty-space template, which no space may create, overwrite or drop
+        if (LazySpaceTables.isReserved(rootTable)) {
+            if (operation == CREATE)
+                throw new ErrorResponseException(ILLEGAL_ARGUMENT, "Reserved table name");
+            if (operation == DELETE) {
+                logger.error("Space {} has the reserved table name {}, its deletion drops no table.", spaceId, rootTable);
+                return new SuccessResponse().withStatus("OK");
+            }
+        }
+
         if (dryRun)
             return new SuccessResponse().withStatus("OK");
 
@@ -172,9 +196,32 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
         if (operation == UPDATE && getTableLayout() == OLD_LAYOUT)
             return new SuccessResponse().withStatus("OK");
 
+        //A lazy space gets its table with its first write, see LazySpaceTables.materialize()
+        if (operation == CREATE && getTableLayout() == OLD_LAYOUT && lazyTable && isLazyCreation(dataSourceProvider))
+            return new SuccessResponse().withStatus("OK");
+
         SuccessResponse response = super.write(dataSourceProvider);
 
         return response;
+    }
+
+    /**
+     * Whether a CREATE of a space with the lazyTable flag skips the table creation. It does only if the connector has
+     * lazyTableCreation and the script check of this container has verified the empty-space template, which the reads of the
+     * space need until its first write. Otherwise the space is created eagerly.
+     */
+    private boolean isLazyCreation(DataSourceProvider dataSourceProvider) {
+        if (!lazyTableCreation) {
+            logger.warn("Space {}: lazyTable without lazyTableCreation, creating eagerly", spaceId);
+            return false;
+        }
+        DatabaseSettings dbSettings = dataSourceProvider.getDatabaseSettings();
+        if (dbSettings == null || !dbSettings.isEmptySpaceTemplateVerified()) {
+            logger.warn("Space {}: empty-space template not verified, creating eagerly (template check: {})", spaceId,
+                dbSettings == null ? null : dbSettings.getEmptySpaceTemplateCheck());
+            return false;
+        }
+        return true;
     }
 
     @Override

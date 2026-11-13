@@ -100,6 +100,14 @@ public class NLConnector extends PSQLXyzConnector {
   //If seedingMode is active, we do not use the FeatureWriter, but a simple batch upsert and delete
   private boolean seedingMode = false;
 
+  /**
+   * The new table layout creates every space table eagerly and installs no empty-space template.
+   */
+  @Override
+  protected boolean lazyTablesSupported() {
+    return false;
+  }
+
   @Override
   protected StatisticsResponse processGetStatistics(GetStatisticsEvent event) throws Exception {
     //Only support fast statistics

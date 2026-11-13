@@ -26,6 +26,7 @@ import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.google.common.primitives.Longs;
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.XyzSerializable.Public;
 import com.here.xyz.XyzSerializable.Static;
 import com.here.xyz.hub.Service;
@@ -91,17 +92,44 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
   }
 
   public void updateContentUpdatedAt(Marker marker) {
+    updateContentUpdatedAt(marker, false);
+  }
+
+  /**
+   * Updates the contentUpdatedAt timestamp of this space and stores the space, at most once per
+   * {@link #CONTENT_UPDATED_AT_INTERVAL_MILLIS}.
+   *
+   * @param marker The log marker
+   * @param withoutLazyTable Whether to store a copy without the lazy-table flag instead of this object. Used once the flag
+   *     has been cleared in the space config store, so that the store does not write it back. This object stays unchanged
+   *     apart from its timestamps, because it may be shared with concurrent requests through the space cache.
+   */
+  public void updateContentUpdatedAt(Marker marker, boolean withoutLazyTable) {
     long now = Core.currentTimeMillis();
     if (now - getContentUpdatedAt() > CONTENT_UPDATED_AT_INTERVAL_MILLIS) {
       setContentUpdatedAt(Core.currentTimeMillis());
       volatilityAtLastContentUpdate = getVolatility();
-      storeUpdatedSpace(marker);
+      storeUpdatedSpace(marker, withoutLazyTable ? copyWithoutLazyTable() : this);
     }
   }
 
+  /**
+   * @return A copy of this space, made through its stored representation, without {@code storage.params.lazyTable}
+   */
+  public Space copyWithoutLazyTable() {
+    Map<String, Object> spaceData = XyzSerializable.toMap(this, Static.class);
+    if (spaceData.get("storage") instanceof Map<?, ?> storage && storage.get("params") instanceof Map<?, ?> params)
+      params.remove(LAZY_TABLE);
+    return XyzSerializable.fromMap(spaceData, Space.class);
+  }
+
   private void storeUpdatedSpace(Marker marker) {
+    storeUpdatedSpace(marker, this);
+  }
+
+  private void storeUpdatedSpace(Marker marker, Space spaceToStore) {
     //NOTE: Storing / updating the space-config is done asynchronously here by intention to prevent adding latency in the response phase
-    Service.spaceConfigClient.store(marker, this)
+    Service.spaceConfigClient.store(marker, spaceToStore)
         .onSuccess(v -> logger.info(marker, "Updated contentUpdatedAt for space {}", getId()))
         .onFailure(t -> logger.error(marker, "Error while updating contentUpdatedAt for space {}", getId(), t));
   }
@@ -159,7 +187,11 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
         .compose(extendedSpace -> extendedSpace == null ?
                 Future.failedFuture(new InvalidExtensionException("Unable to load extended resource with id: " + getExtension().getSpaceId())):
                 resolveSecondLevelExtension(marker, extendedSpace)
-                    .map(v -> resolveCompositeParams(extendedSpace)));
+                    .map(v -> {
+                      //Keep the loaded extended space available to the caller, as for the second level
+                      getExtension().resolvedSpace = extendedSpace;
+                      return resolveCompositeParams(extendedSpace);
+                    }));
   }
 
   private static Future<Void> resolveSecondLevelExtension(Marker marker, Space extendedSpace) {

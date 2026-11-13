@@ -31,10 +31,14 @@ import com.here.xyz.jobs.datasets.DatasetDescription;
 import com.here.xyz.jobs.datasets.Files;
 import com.here.xyz.jobs.datasets.files.FileInputSettings;
 import com.here.xyz.jobs.datasets.files.GeoJson;
+import com.here.xyz.jobs.service.Config;
 import com.here.xyz.jobs.steps.CompilationStepGraph;
+import com.here.xyz.jobs.steps.impl.DropIndexes;
 import com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace;
 import com.here.xyz.models.hub.Space;
+import java.util.List;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -46,6 +50,18 @@ import org.junit.jupiter.api.Test;
 public class ImportFromFilesTest extends JobTest {
 
   private final String SPACE_ID_EXT = SPACE_ID + "_ext";
+
+  /**
+   * The index wrapper of an import into an empty layer reads the job service config. Creating it would also replace the step config
+   * of the test base, which points to the local services.
+   */
+  @BeforeAll
+  public static void setUpServiceConfig() {
+    com.here.xyz.jobs.steps.Config stepConfig = com.here.xyz.jobs.steps.Config.instance;
+    if (Config.instance == null)
+      new Config();
+    com.here.xyz.jobs.steps.Config.instance = stepConfig;
+  }
 
   @BeforeEach
   public void setUp() {
@@ -89,17 +105,33 @@ public class ImportFromFilesTest extends JobTest {
         "No context must be set on the import step when none was provided on the target");
   }
 
+  /**
+   * An import into an empty layer is wrapped with the drop and re-creation of the indices. The DropIndexes step of that wrapper
+   * creates the table of a lazy target without its indices, which the wrapper creates afterwards.
+   */
+  @Test
+  public void testDropIndexesMaterializesLazyTable() {
+    List<DropIndexes> dropIndexSteps = compile(SPACE_ID, null).stepStream()
+        .filter(step -> step instanceof DropIndexes)
+        .map(step -> (DropIndexes) step)
+        .toList();
+    Assertions.assertEquals(1, dropIndexSteps.size());
+    Assertions.assertTrue(dropIndexSteps.get(0).isMaterializeLazyTable());
+  }
+
   private TaskedImportFilesToSpace compileAndGetImportStep(SpaceContext context) {
-    DatasetDescription.Space<?> target = new DatasetDescription.Space<>().withId(SPACE_ID_EXT);
-    if (context != null)
-      target.setFilters(new Filters().withContext(context));
-
-    CompilationStepGraph graph = new ImportFromFiles().compile(buildImportJob(target));
-
-    return (TaskedImportFilesToSpace) graph.stepStream()
+    return (TaskedImportFilesToSpace) compile(SPACE_ID_EXT, context).stepStream()
         .filter(step -> step instanceof TaskedImportFilesToSpace)
         .findFirst()
         .orElseThrow(() -> new AssertionError("No TaskedImportFilesToSpace step found in compiled graph"));
+  }
+
+  private CompilationStepGraph compile(String spaceId, SpaceContext context) {
+    DatasetDescription.Space<?> target = new DatasetDescription.Space<>().withId(spaceId);
+    if (context != null)
+      target.setFilters(new Filters().withContext(context));
+
+    return new ImportFromFiles().compile(buildImportJob(target));
   }
 
   private Job buildImportJob(DatasetDescription target) {

@@ -21,12 +21,14 @@ package com.here.xyz.jobs.steps.impl;
 
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
 import com.here.xyz.models.hub.Space;
+import com.here.xyz.models.hub.Space.ConnectorRef;
 import com.here.xyz.util.db.pg.IndexHelper.Index;
 import com.here.xyz.util.db.pg.IndexHelper.OnDemandIndex;
 import com.here.xyz.util.db.pg.IndexHelper.SystemIndex;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -115,6 +117,75 @@ public class DropIndexStepTest extends StepTest {
 
     Assertions.assertTrue(getOnDemandIndices(tableName).isEmpty(), "only system indices should remain");
     Assertions.assertFalse(getSystemIndices(tableName).isEmpty(),"system indices should remain");
+  }
+
+  @Test
+  public void bareMaterializationKeepsFlag() throws Exception {
+    Space lazy = createLazySpaceWithSearchableProperties();
+    String tableName = tableName(lazy);
+
+    LambdaBasedStep step = new DropIndexes()
+        .withSpaceId(lazy.getId())
+        .withMaterializeLazyTable(true)
+        .withIndexWhiteList(List.of(SystemIndex.VERSION_ID, SystemIndex.NEXT_VERSION, SystemIndex.OPERATION));
+    sendLambdaStepRequestBlock(step, true);
+
+    Assertions.assertTrue(tableExists(DB_URL, tableName));
+    Assertions.assertEquals(Set.of(SystemIndex.VERSION_ID, SystemIndex.NEXT_VERSION, SystemIndex.OPERATION),
+        Set.copyOf(getSystemIndices(tableName)), "only the whitelisted system indexes are created");
+    Assertions.assertEquals(0, getOnDemandIndices(tableName).size(), "no on-demand indexes are created");
+    Assertions.assertFalse(loadSpace(lazy.getId()).isActive(), "the space is deactivated as an eager one");
+    //A table without a version can still be dropped by the cleanup, so the flag stays
+    Assertions.assertTrue(isFlagged(lazy.getId()));
+  }
+
+  @Test
+  public void bareMaterializationWithoutWhitelistDeactivates() throws Exception {
+    Space lazy = createLazySpaceWithSearchableProperties();
+    String tableName = tableName(lazy);
+
+    sendLambdaStepRequestBlock(new DropIndexes().withSpaceId(lazy.getId()).withMaterializeLazyTable(true), true);
+
+    Assertions.assertTrue(tableExists(DB_URL, tableName));
+    Assertions.assertEquals(0, getAllExistingIndices(tableName).size(), "no indexes are created");
+    Assertions.assertFalse(loadSpace(lazy.getId()).isActive(), "the space is deactivated as an eager one");
+    Assertions.assertTrue(isFlagged(lazy.getId()));
+  }
+
+  @Test
+  public void bareMaterializationOfEagerSpaceIsUnchanged() throws Exception {
+    createTestSpace(true);
+    String tableName = getRootTableName(SPACE_ID);
+
+    LambdaBasedStep step = new DropIndexes()
+        .withSpaceId(SPACE_ID)
+        .withSpaceDeactivation(false)
+        .withMaterializeLazyTable(true)
+        .withIndexWhiteList(List.of(SystemIndex.VERSION_ID, SystemIndex.OPERATION));
+    sendLambdaStepRequestBlock(step, true);
+
+    Assertions.assertEquals(0, getOnDemandIndices(tableName).size(), "no on-demand indexes should remain");
+    Assertions.assertEquals(2, getSystemIndices(tableName).size(), "only 2 system indexes should remain");
+  }
+
+  @Test
+  public void lazyMaintainIsNoop() throws Exception {
+    Space lazy = createLazySpaceWithSearchableProperties();
+
+    sendLambdaStepRequestBlock(new DropIndexes().withSpaceId(lazy.getId()), true);
+
+    Assertions.assertEquals(0, relationCount(DB_URL, tableName(lazy)), "no table is created");
+    Assertions.assertTrue(loadSpace(lazy.getId()).isActive(), "a space without indexes is not deactivated");
+    Assertions.assertTrue(isFlagged(lazy.getId()));
+  }
+
+  private Space createLazySpaceWithSearchableProperties() {
+    Space lazy = createTestSpace(new Space()
+        .withId(SPACE_ID + "-lazy")
+        .withStorage(new ConnectorRef().withId(LAZY_CONNECTOR))
+        .withSearchableProperties(Map.of("foo1", true)));
+    Assertions.assertTrue(isFlagged(lazy.getId()));
+    return lazy;
   }
 
   private void createTestSpace(boolean withOnDemandIndices) {

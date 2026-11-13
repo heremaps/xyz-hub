@@ -34,14 +34,19 @@ import com.here.xyz.util.db.datasource.DataSourceProvider;
 import com.here.xyz.util.db.datasource.DatabaseSettings;
 import com.here.xyz.util.db.datasource.SingleConnectionDataSources;
 import com.here.xyz.util.db.pg.InstalledScripts;
+import com.here.xyz.util.db.pg.LazySpaceTables;
+import com.here.xyz.util.db.pg.LazySpaceTables.TemplateProbe;
 import com.here.xyz.util.db.pg.LockHelper;
 import com.here.xyz.util.db.pg.Script;
 import com.here.xyz.util.db.pg.ScriptInstaller;
 import com.here.xyz.util.db.pg.ScriptInstaller.Outcome;
+import com.here.xyz.util.db.pg.ScriptInstaller.TemplateCheck;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -51,6 +56,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.IntSupplier;
+import java.util.function.Predicate;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.LogEvent;
@@ -60,10 +66,16 @@ import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.logging.log4j.core.config.Property;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Isolated;
 
+//The tests count log lines, which they miss while other classes run concurrently
+@Isolated
 public class ScriptInstallerIT extends SQLITBase {
   private static final Set<String> PREFIXES = ConcurrentHashMap.newKeySet();
+  private static final Set<String> TEMPLATE_SCHEMAS = ConcurrentHashMap.newKeySet();
+  private static final String TEMPLATE_FUNCTIONS = "/templateFunctions/functions.sql";
   private static final int CHECK_TIMEOUT_SECONDS = 5;
   private static final int SOCKET_TIMEOUT_SECONDS = 20;
   private static final int INSTALL_TIMEOUT_SECONDS = 15;
@@ -84,6 +96,18 @@ public class ScriptInstallerIT extends SQLITBase {
     }
   }
 
+  @BeforeAll
+  public static void requirePostgis() throws Exception {
+    //The template table has a geometry column. The hub's common.sql creates PostGIS, the test scripts do not. Creating PostGIS
+    //alone is no option: common.sql skips the creation of all its extensions (e.g., plv8) once PostGIS exists.
+    //Initializing a provider with the hub settings runs their script check, as it does in the other classes.
+    try (DataSourceProvider dsp = getDataSourceProvider()) {
+      assertEquals("The hub's common.sql must have created PostGIS", Boolean.TRUE,
+          new SQLQuery("SELECT EXISTS(SELECT 1 FROM pg_extension WHERE extname = 'postgis')")
+              .run(dsp, rs -> rs.next() && rs.getBoolean(1)));
+    }
+  }
+
   @AfterAll
   public static void dropSchemas() throws Exception {
     try {
@@ -92,6 +116,10 @@ public class ScriptInstallerIT extends SQLITBase {
           for (String schema : listSchemas(prefix))
             new SQLQuery("DROP SCHEMA IF EXISTS ${schema} CASCADE").withVariable("schema", schema).write(dsp);
         }
+      try (SingleConnectionDataSources dsp = newProvider()) {
+        for (String schema : TEMPLATE_SCHEMAS)
+          new SQLQuery("DROP SCHEMA IF EXISTS ${schema} CASCADE").withVariable("schema", schema).write(dsp);
+      }
     }
     finally {
       for (int i = 0; i < PREVIOUS_LEVELS.size(); i++)
@@ -640,6 +668,303 @@ public class ScriptInstallerIT extends SQLITBase {
     }
   }
 
+  //------------ The empty-space template ------------
+
+  private static String newTemplateSchema() {
+    String schema = "lazy_" + randomAlpha(5);
+    TEMPLATE_SCHEMAS.add(schema);
+    return schema;
+  }
+
+  /**
+   * The script with the functions the template DDL calls. Each template schema gets the script schema of its own prefix, which
+   * is the one on the search path of its installation.
+   */
+  private static String templateFunctionsPrefix(String templateSchema) {
+    String prefix = "it" + templateSchema.substring("lazy_".length());
+    PREFIXES.add(prefix);
+    return prefix;
+  }
+
+  private static Outcome checkWithTemplate(DataSourceProvider dsp, String templateSchema, List<Script> otherScripts, String version,
+      int installTimeoutSeconds, int versionsToKeep, IntSupplier remainingMillis) {
+    List<Script> scripts = new ArrayList<>(List.of(new Script(TEMPLATE_FUNCTIONS, dsp, null, templateFunctionsPrefix(templateSchema))));
+    scripts.addAll(otherScripts);
+    return ScriptInstaller.checkAndInstall(scripts, dsp, version, versionsToKeep, installTimeoutSeconds, remainingMillis, Set.of(),
+        templateSchema);
+  }
+
+  /**
+   * Installs the functions script of the template schema without checking the template.
+   */
+  private static void installTemplateFunctions(String templateSchema) {
+    try (SingleConnectionDataSources dsp = newProvider()) {
+      assertEquals(VERIFIED, ScriptInstaller.checkAndInstall(List.of(new Script(TEMPLATE_FUNCTIONS, dsp, null,
+          templateFunctionsPrefix(templateSchema))), dsp, null, VERSIONS_TO_KEEP, INSTALL_TIMEOUT_SECONDS, null, Set.of()).state());
+    }
+  }
+
+  private static Outcome checkWithTemplate(String templateSchema) {
+    try (SingleConnectionDataSources dsp = newProvider()) {
+      return checkWithTemplate(dsp, templateSchema, List.of(), null, INSTALL_TIMEOUT_SECONDS, VERSIONS_TO_KEEP, null);
+    }
+  }
+
+  private static TemplateCheck templateCheck(Outcome outcome) {
+    assertEquals(Set.of(LazySpaceTables.TEMPLATE_TABLE), outcome.templateChecks().keySet());
+    return outcome.templateChecks().get(LazySpaceTables.TEMPLATE_TABLE);
+  }
+
+  private static TemplateProbe probe(String schema) throws SQLException {
+    try (SingleConnectionDataSources dsp = newProvider()) {
+      return LazySpaceTables.buildTemplateProbe(schema).run(dsp, rs -> rs.next() ? LazySpaceTables.readTemplateProbe(rs) : null);
+    }
+  }
+
+  private static void execute(String statement, String schema) throws SQLException {
+    try (SingleConnectionDataSources dsp = newProvider()) {
+      new SQLQuery(statement).withVariable("schema", schema).write(dsp);
+    }
+  }
+
+  /**
+   * @return The relations of the schema with their kind, sorted
+   */
+  private static List<String> relationsOf(String schema) throws SQLException {
+    try (SingleConnectionDataSources dsp = newProvider()) {
+      return new SQLQuery("""
+          SELECT c.relname || ' ' || c.relkind::TEXT FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE n.nspname = #{schema} ORDER BY 1
+          """)
+          .withNamedParameter("schema", schema)
+          .run(dsp, rs -> {
+            List<String> relations = new ArrayList<>();
+            while (rs.next())
+              relations.add(rs.getString(1));
+            return relations;
+          });
+    }
+  }
+
+  private static long countTemplateInstallations(List<String> messages, String schema) {
+    return messages.stream()
+        .filter(message -> message.startsWith("Installed the empty-space template on DB ")
+            && message.contains(" into schema " + schema + " in "))
+        .count();
+  }
+
+  @Test
+  @Tag("lazy-space-tables")
+  public void templateIsInstalledAfterTheScriptsAndFoundByTheNextCheck() throws Exception {
+    String schema = newTemplateSchema();
+    TemplateProbe publicBefore = probe("public");
+
+    Outcome first = checkWithTemplate(schema);
+    assertEquals(VERIFIED, first.state());
+    assertEquals(TemplateCheck.VERIFIED, templateCheck(first));
+    assertTrue("The installed template must be identical", probe(schema).isIdentical());
+
+    Outcome second = checkWithTemplate(schema);
+    assertEquals(VERIFIED, second.state());
+    assertEquals(TemplateCheck.VERIFIED, templateCheck(second));
+    assertEquals("The check of an installed template must be the one catalog query", 1, second.statements());
+
+    try (SingleConnectionDataSources dsp = newProvider()) {
+      Outcome withoutTemplate = ScriptInstaller.checkAndInstall(List.of(new Script(TEMPLATE_FUNCTIONS, dsp, null,
+          templateFunctionsPrefix(schema))), dsp, null, VERSIONS_TO_KEEP, INSTALL_TIMEOUT_SECONDS, null, Set.of());
+      assertEquals(VERIFIED, withoutTemplate.state());
+      assertEquals("Without a template schema the check stays the one catalog query", 1, withoutTemplate.statements());
+      assertEquals(Map.of(), withoutTemplate.templateChecks());
+    }
+    assertEquals("The installation into another schema must not touch the template state of public", publicBefore, probe("public"));
+  }
+
+  @Test
+  @Tag("lazy-space-tables")
+  public void concurrentInstallersCreateTheTemplateOnce() throws Exception {
+    String schema = newTemplateSchema();
+    int installers = 4;
+    CountDownLatch start = new CountDownLatch(1);
+    ExecutorService executor = Executors.newFixedThreadPool(installers);
+    CapturingAppender appender = startCapturing();
+    try {
+      List<Future<Outcome>> outcomes = new ArrayList<>();
+      for (int i = 0; i < installers; i++)
+        outcomes.add(executor.submit(() -> {
+          start.await();
+          return checkWithTemplate(schema);
+        }));
+      start.countDown();
+      for (Future<Outcome> outcome : outcomes)
+        assertEquals(TemplateCheck.VERIFIED, templateCheck(outcome.get(60, TimeUnit.SECONDS)));
+    }
+    finally {
+      executor.shutdownNow();
+      stopCapturing(appender);
+    }
+
+    assertEquals("Exactly one installer must create the template", 1,
+        countTemplateInstallations(appender.messages(Level.WARN, schema), schema));
+    assertEquals(List.of(), appender.messages(Level.WARN, "Could not install the empty-space template"));
+    assertTrue(probe(schema).isIdentical());
+  }
+
+  @Test
+  @Tag("lazy-space-tables")
+  public void heldTemplateLockLeadsToNotVerifiedAndAWarning() throws Exception {
+    String schema = newTemplateSchema();
+    //Log the INFO summary of the check as well
+    Configurator.setLevel(ScriptInstaller.class.getName(), Level.INFO);
+    CapturingAppender appender = startCapturing();
+    Outcome outcome;
+    long duration;
+    try (SingleConnectionDataSources lockDsp = newProvider()) {
+      Connection lockConnection = lockDsp.getWriter().getConnection();
+      LockHelper.advisoryLock(LazySpaceTables.templateLockKey(schema), lockConnection);
+      try (SingleConnectionDataSources dsp = newProvider()) {
+        long start = System.currentTimeMillis();
+        outcome = checkWithTemplate(dsp, schema, List.of(), null, 1, 100, null);
+        duration = System.currentTimeMillis() - start;
+      }
+      LockHelper.advisoryUnlock(LazySpaceTables.templateLockKey(schema), lockConnection);
+    }
+    finally {
+      stopCapturing(appender);
+      Configurator.setLevel(ScriptInstaller.class.getName(), Level.WARN);
+    }
+
+    assertEquals("The scripts are not affected by the template", VERIFIED, outcome.state());
+    assertEquals(TemplateCheck.NOT_VERIFIED, templateCheck(outcome));
+    assertTrue("The installation must give up after its budget of 1 s, took " + duration + " ms", duration < 4_000);
+    assertEquals(1, appender.messages(Level.WARN, "Could not install the empty-space template on DB ").stream()
+        .filter(message -> message.contains(" into schema " + schema + ": SQLSTATE 55P03 after "))
+        .count());
+    List<LogEvent> summaries = appender.events(message -> message.startsWith("Script check on DB ")
+        && message.contains(LazySpaceTables.TEMPLATE_TABLE + "=" + TemplateCheck.NOT_VERIFIED));
+    assertEquals(1, summaries.size());
+    assertEquals("The summary stays INFO while the scripts are verified", Level.INFO, summaries.get(0).getLevel());
+    assertTrue(probe(schema).isAbsent());
+
+    assertEquals("Without the lock the next check installs the template", TemplateCheck.VERIFIED,
+        templateCheck(checkWithTemplate(schema)));
+  }
+
+  @Test
+  @Tag("lazy-space-tables")
+  public void tooLittleRemainingTimeLeadsToNotVerifiedWithoutTemplateDdl() throws Exception {
+    String schema = newTemplateSchema();
+    installTemplateFunctions(schema);
+    try (SingleConnectionDataSources dsp = newProvider()) {
+      Outcome outcome = checkWithTemplate(dsp, schema, List.of(), null, INSTALL_TIMEOUT_SECONDS, 100, () -> 14_000);
+      assertEquals(VERIFIED, outcome.state());
+      assertEquals(TemplateCheck.NOT_VERIFIED, templateCheck(outcome));
+      assertEquals("Only the catalog query must run", 1, outcome.statements());
+    }
+    assertTrue(probe(schema).isAbsent());
+  }
+
+  @Test
+  @Tag("lazy-space-tables")
+  public void templatesThatAreNotIdenticalAreLeftAlone() throws Exception {
+    Map<String, List<String>> damages = new LinkedHashMap<>();
+    damages.put("foreign relation", List.of("CREATE SCHEMA ${schema}", "CREATE TABLE ${schema}.xyz_empty_space_v1 (id INT)"));
+    damages.put("dropped guard trigger", List.of("DROP TRIGGER xyz_empty_space_guard ON ${schema}.xyz_empty_space_v1_p0"));
+    damages.put("changed comment", List.of("COMMENT ON TABLE ${schema}.xyz_empty_space_v1 IS '{\"spaceId\":\"other\"}'"));
+    damages.put("usable sequence", List.of("ALTER SEQUENCE ${schema}.xyz_empty_space_v1_version_seq MAXVALUE 100"));
+    damages.put("table with the sequence name", List.of("CREATE SCHEMA ${schema}",
+        "CREATE TABLE ${schema}.xyz_empty_space_v1_version_seq (id INT)"));
+
+    for (Map.Entry<String, List<String>> damage : damages.entrySet()) {
+      String schema = newTemplateSchema();
+      if (damage.getValue().get(0).startsWith("CREATE SCHEMA"))
+        installTemplateFunctions(schema);
+      else
+        assertEquals(TemplateCheck.VERIFIED, templateCheck(checkWithTemplate(schema)));
+      for (String statement : damage.getValue())
+        execute(statement, schema);
+      List<String> relations = relationsOf(schema);
+
+      CapturingAppender appender = startCapturing();
+      Outcome outcome;
+      try {
+        outcome = checkWithTemplate(schema);
+      }
+      finally {
+        stopCapturing(appender);
+      }
+
+      assertEquals(damage.getKey(), VERIFIED, outcome.state());
+      assertEquals(damage.getKey(), TemplateCheck.NOT_IDENTICAL, templateCheck(outcome));
+      assertEquals(damage.getKey() + ": no DDL", 1, outcome.statements());
+      assertEquals(damage.getKey(), relations, relationsOf(schema));
+      assertEquals(damage.getKey(), 1, appender.messages(Level.ERROR, "Empty-space template not identical on DB ").stream()
+          .filter(message -> message.contains(" in schema " + schema + ": "))
+          .count());
+    }
+  }
+
+  @Test
+  @Tag("lazy-space-tables")
+  public void missingScriptTargetLeadsToNotVerifiedWithoutTemplateDdl() throws Exception {
+    String schema = newTemplateSchema();
+    String prefix = newPrefix();
+    String lockedSchema = prefix + ".functions:1.0.1";
+    Outcome outcome;
+    try (SingleConnectionDataSources lockDsp = newProvider()) {
+      Connection lockConnection = lockDsp.getWriter().getConnection();
+      LockHelper.advisoryLock(lockedSchema, lockConnection);
+      try (SingleConnectionDataSources dsp = newProvider()) {
+        outcome = checkWithTemplate(dsp, schema, List.of(new Script(SQL_SAMPLES, dsp, "1.0.1", prefix)), "1.0.1", 1, 100, null);
+      }
+      LockHelper.advisoryUnlock(lockedSchema, lockConnection);
+    }
+
+    assertEquals(TRANSIENT, outcome.state());
+    assertEquals(TemplateCheck.NOT_VERIFIED, templateCheck(outcome));
+    assertTrue("The template must not be installed before all scripts are", probe(schema).isAbsent());
+  }
+
+  @Test
+  @Tag("lazy-space-tables")
+  public void oldScriptVersionsAreUninstalledAfterATemplateInstallation() throws Exception {
+    String prefix = newPrefix();
+    String scriptId = prefix + ".functions";
+    for (int patch = 1; patch <= 7; patch++)
+      try (SingleConnectionDataSources dsp = newProvider()) {
+        assertEquals(VERIFIED, checkAndInstall(dsp, FUNCTIONS_2, "1.0." + patch, prefix, INSTALL_TIMEOUT_SECONDS, 100).state());
+      }
+
+    String schema = newTemplateSchema();
+    Outcome outcome;
+    try (SingleConnectionDataSources dsp = newProvider()) {
+      outcome = checkWithTemplate(dsp, schema, List.of(new Script(FUNCTIONS_2, dsp, "1.0.7", prefix)), "1.0.7",
+          INSTALL_TIMEOUT_SECONDS, VERSIONS_TO_KEEP, null);
+      assertEquals("The cleanup must run in autocommit after the template transaction", Boolean.TRUE,
+          dsp.getWriter().getConnection().getAutoCommit());
+    }
+
+    assertEquals(VERIFIED, outcome.state());
+    assertEquals(TemplateCheck.VERIFIED, templateCheck(outcome));
+    List<String> keptVersions = List.of("1.0.3", "1.0.4", "1.0.5", "1.0.6", "1.0.7");
+    assertEquals(keptVersions, outcome.snapshot().getVersions(scriptId));
+    List<String> expectedSchemas = new ArrayList<>(List.of(scriptId));
+    keptVersions.forEach(version -> expectedSchemas.add(scriptId + ":" + version));
+    assertEquals(expectedSchemas, listSchemas(prefix));
+  }
+
+  @Test
+  @Tag("lazy-space-tables")
+  public void droppedTemplateWithTheGuardFunctionLeftIsInstalledAgain() throws Exception {
+    String schema = newTemplateSchema();
+    assertEquals(TemplateCheck.VERIFIED, templateCheck(checkWithTemplate(schema)));
+    execute("DROP TABLE ${schema}.xyz_empty_space_v1 CASCADE", schema);
+    assertTrue(probe(schema).isAbsent());
+    assertEquals("The guard function must survive the drop of the tables", 1, countFunctions(schema, "xyz_empty_space_v1_guard"));
+
+    assertEquals(TemplateCheck.VERIFIED, templateCheck(checkWithTemplate(schema)));
+    assertTrue(probe(schema).isIdentical());
+  }
+
   private static class CapturingAppender extends AbstractAppender {
     private final List<LogEvent> events = new CopyOnWriteArrayList<>();
 
@@ -660,6 +985,15 @@ public class ScriptInstallerIT extends SQLITBase {
           .filter(event -> event.getLevel().isMoreSpecificThan(minimumLevel))
           .map(event -> event.getMessage().getFormattedMessage())
           .filter(message -> message.contains(containing))
+          .toList();
+    }
+
+    /**
+     * @return The captured events of any level whose message matches
+     */
+    List<LogEvent> events(Predicate<String> messageMatches) {
+      return events.stream()
+          .filter(event -> messageMatches.test(event.getMessage().getFormattedMessage()))
           .toList();
     }
   }

@@ -8,10 +8,12 @@ import com.here.xyz.models.geojson.coordinates.Position;
 import com.here.xyz.models.geojson.implementation.Polygon;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
+import com.here.xyz.models.hub.Space.ConnectorRef;
 import com.here.xyz.models.hub.Tag;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -100,6 +102,27 @@ public class CopyJobTestIT extends JobTest {
       Arguments.of(versionRange, 10),
       Arguments.of(versionRangeInvalid, 0)
     );
+  }
+
+  /**
+   * A copy job into a never-written lazy target materializes it with its version step, which also clears the flag.
+   */
+  @Test
+  public void testCopyIntoLazySpace() throws Exception {
+    String lazyTarget = SPACE_ID + "-lazyTarget";
+    createSpace(new Space().withId(lazyTarget).withVersionsToKeep(100).withStorage(new ConnectorRef().withId(LAZY_CONNECTOR)), false);
+    Assertions.assertTrue(isFlagged(lazyTarget));
+
+    Job copyJob = new Job()
+        .withId(JOB_ID)
+        .withDescription("Copy Job Test")
+        .withSource(new DatasetDescription.Space<>().withId(SrcSpc).withVersionRef(new Ref("HEAD")))
+        .withTarget(new DatasetDescription.Space<>().withId(lazyTarget));
+    createSelfRunningJob(copyJob);
+    checkSucceededJob(copyJob);
+
+    Assertions.assertEquals(40L, getStatistics(lazyTarget).getCount().getValue());
+    Assertions.assertFalse(isFlagged(lazyTarget));
   }
 
  @ParameterizedTest

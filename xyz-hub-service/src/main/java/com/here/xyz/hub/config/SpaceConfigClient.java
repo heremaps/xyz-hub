@@ -28,6 +28,7 @@ import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.admin.messages.RelayedMessage;
 import com.here.xyz.util.di.ImplementationProvider;
+import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.HttpException;
 import com.here.xyz.util.service.Initializable;
 import io.vertx.core.Future;
@@ -157,6 +158,45 @@ public abstract class SpaceConfigClient implements Initializable {
       });
   }
 
+  /**
+   * Removes {@code storage.params.lazyTable} from the stored configuration of a space, if {@code storage.id} equals the
+   * connector ID and the table name matches: {@code tableName} equals {@code storage.params.tableName}, or, for
+   * {@code tableName == null}, the space has {@code storage.params} without a {@code tableName} (a legacy space).
+   * The operation is conditional and touches no other attribute of the space, also not {@code updatedAt}.
+   *
+   * @param marker The log marker
+   * @param spaceId The ID of the space
+   * @param connectorId The storage ID the space must have
+   * @param tableName The physical table name the space must have, or {@code null} for a legacy space
+   * @param source Who asked for the clear, for the log line ({@code connector-report} or {@code admin-api})
+   * @return {@link ClearResult#REMOVED} if the flag was removed now, {@link ClearResult#ABSENT} if the conditions hold but
+   *     the flag was absent already, {@link ClearResult#CONDITION_FAILED} if the space does not exist or the conditions do
+   *     not hold
+   */
+  public Future<ClearResult> clearLazyTable(Marker marker, String spaceId, String connectorId, String tableName, String source) {
+    long start = Core.currentTimeMillis();
+    String table = tableName == null ? "legacy" : tableName;
+    Future<ClearResult> result;
+    try {
+      result = clearLazyTableFlag(marker, spaceId, connectorId, tableName);
+    }
+    catch (Exception e) {
+      result = Future.failedFuture(e);
+    }
+    return result
+        .onSuccess(clearResult -> {
+          if (clearResult == ClearResult.REMOVED)
+            invalidateCache(spaceId);
+          else if (clearResult == ClearResult.ABSENT)
+            //The request that removed the flag has broadcast the invalidation already
+            cache.remove(spaceId);
+          logger.info(marker, "lazyTable clear space={} connector={} table={} source={} result={} ms={}", spaceId, connectorId,
+              table, source, clearResult, Core.currentTimeMillis() - start);
+        })
+        .onFailure(t -> logger.warn(marker, "lazyTable clear space={} connector={} table={} source={} result=FAILED ms={}: {}",
+            spaceId, connectorId, table, source, Core.currentTimeMillis() - start, t.getMessage(), t));
+  }
+
   public Future<List<Space>> getSelected(Marker marker, SpaceAuthorizationCondition authorizedCondition,
       SpaceSelectionCondition selectedCondition, PropertiesQuery propsQuery) {
     return getSelectedSpaces(marker, authorizedCondition, selectedCondition, propsQuery)
@@ -185,9 +225,21 @@ public abstract class SpaceConfigClient implements Initializable {
 
   public abstract Future<List<Space>> getSpacesFromSuper(Marker marker, String parentSpaceId);
 
+  /**
+   * Removes {@code storage.params.lazyTable} in one conditional operation of the store, never by storing a loaded
+   * configuration. See {@link #clearLazyTable(Marker, String, String, String, String)} for the conditions and the results.
+   */
+  protected abstract Future<ClearResult> clearLazyTableFlag(Marker marker, String spaceId, String connectorId, String tableName);
+
   public void invalidateCache(String spaceId) {
     cache.remove(spaceId);
     new InvalidateSpaceCacheMessage().withId(spaceId).withGlobalRelay(true).broadcast();
+  }
+
+  public enum ClearResult {
+    REMOVED,
+    ABSENT,
+    CONDITION_FAILED
   }
 
   public static class SpaceAuthorizationCondition {

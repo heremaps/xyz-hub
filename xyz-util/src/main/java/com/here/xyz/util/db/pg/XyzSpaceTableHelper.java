@@ -25,11 +25,13 @@ import static com.here.xyz.util.db.ConnectorParameters.TableLayout.NEW_LAYOUT;
 import static com.here.xyz.util.db.pg.IndexHelper.OnDemandIndex;
 import static com.here.xyz.util.db.pg.IndexHelper.buildSpaceTableIndexQueries;
 import static com.here.xyz.util.db.pg.IndexHelper.buildOnDemandIndexCreationQuery;
+import static com.here.xyz.util.db.pg.IndexHelper.systemIndexes;
 
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.util.Hasher;
 import com.here.xyz.util.db.ConnectorParameters.TableLayout;
 import com.here.xyz.util.db.SQLQuery;
+import com.here.xyz.util.db.pg.IndexHelper.SystemIndex;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -64,13 +66,25 @@ public class XyzSpaceTableHelper {
     if (layout != TableLayout.OLD_LAYOUT && layout != TableLayout.NEW_LAYOUT) {
       throw new IllegalArgumentException("Unsupported Table Layout: " + layout);
     }
+    return buildCreateSpaceTableQueries(schema, table, onDemandIndices, spaceId, layout, systemIndexes(layout));
+  }
+
+  /**
+   * Same as {@link #buildCreateSpaceTableQueries(String, String, List, String, TableLayout)}, but creates only the given system
+   * indexes. With {@link IndexHelper#systemIndexes(TableLayout)} as list, the result equals the one of that method.
+   */
+  public static List<SQLQuery> buildCreateSpaceTableQueries(String schema, String table, List<OnDemandIndex> onDemandIndices,
+      String spaceId, TableLayout layout, List<SystemIndex> systemIndexes) {
+    if (layout != TableLayout.OLD_LAYOUT && layout != TableLayout.NEW_LAYOUT) {
+      throw new IllegalArgumentException("Unsupported Table Layout: " + layout);
+    }
 
     List<SQLQuery> queries = new ArrayList<>();
     queries.add(createConnectorSchema(schema));
     queries.add(buildCreateSpaceTableQuery(schema, table, layout));
     queries.add(buildAddTableCommentQuery(schema, table, new TableComment(spaceId, layout)));
     queries.add(buildColumnStorageAttributesQuery(schema, table, layout));
-    queries.addAll(buildSpaceTableIndexQueries(schema, table, layout));
+    queries.addAll(buildSpaceTableIndexQueries(schema, table, systemIndexes));
     queries.addAll(buildCreateHeadPartitionQuery(schema, table, layout));
     queries.add(buildCreateHistoryPartitionQuery(schema, table, 0L, true));
     queries.add(buildCreateSequenceQuery(schema, table, "version", layout));

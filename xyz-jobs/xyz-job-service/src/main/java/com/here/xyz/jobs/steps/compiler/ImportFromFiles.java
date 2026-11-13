@@ -125,7 +125,9 @@ public class ImportFromFiles implements JobCompilationInterceptor {
     List<List<SystemIndex>> indexTasks = Lists.partition(indices, indices.size() / 3);
 
     CompilationStepGraph wrappedStepGraph = (CompilationStepGraph) new CompilationStepGraph()
-        .addExecution(new DropIndexes().withSpaceId(spaceId).withSpaceDeactivation(true).withIndexWhiteList(keepIndices)) //Drop existing indices
+        //Drop existing indices. A lazy space gets its table here, without the indices that are created afterwards.
+        .addExecution(new DropIndexes().withSpaceId(spaceId).withSpaceDeactivation(true).withIndexWhiteList(keepIndices)
+            .withMaterializeLazyTable(true))
         .addExecution(stepExecution)
         //NOTE: Create *all* indices in parallel, make sure to (at least) keep the viz-index sequential #postgres-issue-with-partitions
         //No need to filter out indices from "keepIndices" as create index query checks for "IF NOT EXISTS"
