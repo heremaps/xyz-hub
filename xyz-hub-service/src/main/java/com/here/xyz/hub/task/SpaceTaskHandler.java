@@ -777,6 +777,21 @@ public class SpaceTaskHandler {
     callback.exception(error instanceof HttpException ? error : new HttpException(INTERNAL_SERVER_ERROR, errMsg, error));
   }
 
+  /**
+   * Protects the base version, which a version-bound extension reads, from being purged. That happens before the space is stored, so such
+   * an extension never exists without the protection.
+   */
+  static void protectBaseVersion(ConditionalOperation task, Callback<ConditionalOperation> callback) {
+    if (task.isDelete() || task.isUpdate() && sameBaseVersion(task.modifyOp.entries.get(0).head, task.modifyOp.entries.get(0).result)) {
+      callback.call(task);
+      return;
+    }
+
+    tagBaseVersion(task, task.modifyOp.entries.get(0).result)
+        .onSuccess(v -> callback.call(task))
+        .onFailure(callback::exception);
+  }
+
   static void sendEvents(ConditionalOperation task, Callback<ConditionalOperation> callback) {
     if (!task.isCreate() && !task.isUpdate() && !task.isDelete()) {
       callback.call(task);
@@ -943,7 +958,51 @@ public class SpaceTaskHandler {
       return;
     }
 
-    callback.call(task);
+    //A re-pin on the same base overwrote the tag already, so only an unpinned or rebased extension leaves its old tag behind
+    Space head = task.modifyOp.entries.get(0).head;
+    Space result = task.modifyOp.entries.get(0).result;
+    boolean tagReplaced = boundBaseId(head) != null && boundBaseId(head).equals(boundBaseId(result));
+
+    (tagReplaced ? Future.<Void>succeededFuture() : untagBaseVersion(task, head))
+        .onFailure(t -> logger.error(task.getMarker(), "Failed to remove the version tag of space {}", head.getId(), t))
+        .onComplete(ar -> callback.call(task));
+  }
+
+  //The ID of the space whose version the space is bound to, or null if it is no version-bound extension
+  private static String boundBaseId(Space space) {
+    return space == null || space.getExtension() == null || space.getExtension().getVersion() == null
+        ? null : space.getExtension().getSpaceId();
+  }
+
+  private static boolean sameBaseVersion(Space head, Space result) {
+    return boundBaseId(head) != null && boundBaseId(head).equals(boundBaseId(result))
+        && head.getExtension().getVersion().equals(result.getExtension().getVersion());
+  }
+
+  /**
+   * @return The ID of the system tag on the base which keeps the version an extension is pinned to: {@code pin_<hash of the extension ID>}.
+   *     There is one such tag per extension, so re-pinning overwrites it. A tag ID must not start with a digit, hence the prefix.
+   */
+  public static String pinTagId(String extensionId) {
+    return "pin_" + Hasher.getHash(extensionId).substring(0, 16);
+  }
+
+  private static Future<Void> tagBaseVersion(ConditionalOperation task, Space space) {
+    if (task.modifyOp.dryRun || boundBaseId(space) == null)
+      return Future.succeededFuture();
+    return Service.tagConfigClient.storeTag(task.getMarker(), new Tag()
+        .withId(pinTagId(space.getId()))
+        .withSpaceId(boundBaseId(space))
+        .withVersionRef(new Ref(space.getExtension().getVersion()))
+        .withSystem(true)
+        .withDescription("Keeps the version read by extension " + space.getId())
+        .withCreatedAt(Core.currentTimeMillis()));
+  }
+
+  private static Future<Void> untagBaseVersion(ConditionalOperation task, Space space) {
+    if (task.modifyOp.dryRun || boundBaseId(space) == null)
+      return Future.succeededFuture();
+    return Service.tagConfigClient.deleteTag(task.getMarker(), pinTagId(space.getId()), boundBaseId(space)).mapEmpty();
   }
 
   private static void resolveDependenciesForDeletion(ConditionalOperation task, Callback<ConditionalOperation> callback) {
@@ -951,6 +1010,9 @@ public class SpaceTaskHandler {
 
     final Future<List<Tag>> tagsFuture = Service.tagConfigClient.deleteTagsForSpace(task.getMarker(), spaceId)
         .onFailure(e->logger.error(task.getMarker(), "Failed to delete tags for space {}", spaceId, e));
+
+    final Future<Void> untagFuture = untagBaseVersion(task, task.responseSpaces.get(0))
+        .onFailure(e -> logger.error(task.getMarker(), "Failed to remove the version tag of space {}", spaceId, e));
 
     final Future<Void> deactivateFuture = getAllExtendingSpaces(task.getMarker(), spaceId)
         .map(spaces -> spaces.stream().map(space -> Service.spaceConfigClient.store(task.getMarker(), (Space) space.withActive(false))).collect(Collectors.toList()))
@@ -963,7 +1025,7 @@ public class SpaceTaskHandler {
         .onFailure(e -> logger.error(task.getMarker(),
             "Failed to expire DataReferences for space {}", spaceId,  e));
 
-    Future.all(tagsFuture, deactivateFuture, expireReferencesFuture)
+    Future.all(tagsFuture, untagFuture, deactivateFuture, expireReferencesFuture)
         .onComplete(v -> {
           if (v.failed())
             logger.error(task.getMarker(), "Failed to complete clean dependent resources for space {}", spaceId, v.cause());

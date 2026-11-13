@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,8 +19,11 @@
 
 package com.here.xyz.hub.rest;
 
+import static com.here.xyz.hub.task.SpaceTaskHandler.pinTagId;
 import static com.here.xyz.models.hub.Tag.isValidId;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
@@ -50,5 +53,19 @@ public class TagTest {
     assertTrue(isValidId("a"));
     assertTrue(isValidId("#27"));
     assertTrue(isValidId("_abc"));
+  }
+
+  @Test
+  public void testValidPinTagNames() {
+    assertTrue(isValidId(pinTagId("hrn:here:data::olp-here:catalog:layer")));
+    assertTrue(isValidId(pinTagId("x".repeat(200))));
+  }
+
+  @Test
+  public void testPinTagNamesPerExtension() {
+    assertEquals(pinTagId("a"), pinTagId("a"));
+    assertTrue(pinTagId("a").startsWith("pin_"));
+    assertEquals("pin_".length() + 16, pinTagId("a").length());
+    assertNotEquals(pinTagId("a"), pinTagId("b"));
   }
 }
