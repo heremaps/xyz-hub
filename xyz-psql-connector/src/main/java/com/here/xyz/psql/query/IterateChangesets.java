@@ -293,8 +293,8 @@ public class IterateChangesets<R  extends XyzResponse> extends IterateFeatures<I
         }
       }
       catch (ErrorResponseException e) {
-        //TODO: Throw ErrorResponseException instead
-        throw new SQLException(e.getMessage());
+        //Return the error response (e.g. PAYLOAD_TO_LARGE) as is, QueryRunner#run() throws it with its original error type
+        return (R) e.getErrorResponse();
       }
 
       prevVersion = version;
