@@ -35,6 +35,7 @@ import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.hub.Tag;
 import io.restassured.http.ContentType;
 import io.restassured.response.ValidatableResponse;
+import io.vertx.core.json.JsonObject;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.After;
@@ -53,6 +54,8 @@ public class TagApiIT extends TestSpaceWithFeature {
   private static final String TAG_1 = "XYZ_1" + TEST_SUFFIX.replace('-', '_');
   private static final String TAG_2 = "XYZ_2" + TEST_SUFFIX.replace('-', '_');
   private static final List<String> createdSpaces = new ArrayList<>();
+  //Subscription IDs are hub wide, so the one of these tests is fork local and differs from the one of SubscriptionApiIT
+  private static final String SUBSCRIPTION_ID = "tag-test-subscription" + TEST_SUFFIX;
 
   @BeforeClass
   public static void setupClass() {
@@ -73,11 +76,15 @@ public class TagApiIT extends TestSpaceWithFeature {
     _deleteSubscription();
   }
 
+  private static String subscriptionContent() {
+    return new JsonObject(content("/xyz/hub/createSubscription.json")).put("id", SUBSCRIPTION_ID).encode();
+  }
+
   private ValidatableResponse _deleteSubscription() {
     return given()
         .accept(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .delete("/spaces/" + getSpaceId() + "/subscriptions/test-subscription-1")
+        .delete("/spaces/" + getSpaceId() + "/subscriptions/" + SUBSCRIPTION_ID)
         .then();
   }
 
@@ -196,7 +203,7 @@ public class TagApiIT extends TestSpaceWithFeature {
         .accept(APPLICATION_JSON)
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .body(content("/xyz/hub/createSubscription.json"))
+        .body(subscriptionContent())
         .post("/spaces/" + getSpaceId() + "/subscriptions");
 
     given()
@@ -208,7 +215,7 @@ public class TagApiIT extends TestSpaceWithFeature {
     given()
         .accept(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .delete("/spaces/" + getSpaceId() + "/subscriptions/test-subscription-1")
+        .delete("/spaces/" + getSpaceId() + "/subscriptions/" + SUBSCRIPTION_ID)
         .then()
         .statusCode(OK.code());
   }
@@ -219,13 +226,13 @@ public class TagApiIT extends TestSpaceWithFeature {
         .accept(APPLICATION_JSON)
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .body(content("/xyz/hub/createSubscription.json"))
+        .body(subscriptionContent())
         .post("/spaces/" + getSpaceId() + "/subscriptions");
 
     given()
         .accept(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .delete("/spaces/" + getSpaceId() + "/subscriptions/test-subscription-1")
+        .delete("/spaces/" + getSpaceId() + "/subscriptions/" + SUBSCRIPTION_ID)
         .then()
         .statusCode(OK.code());
 
@@ -491,7 +498,7 @@ public class TagApiIT extends TestSpaceWithFeature {
     given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .body(content("/xyz/hub/createSubscription.json"))
+        .body(subscriptionContent())
         .post("/spaces/" + getSpaceId() + "/subscriptions");
 
     given()

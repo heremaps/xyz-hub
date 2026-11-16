@@ -114,6 +114,22 @@ public class Connector extends com.here.xyz.models.hub.Connector {
   }
 
   /**
+   * Returns the class name that the connector receives in its connector params. The precedence is the one of
+   * {@code RpcClient#injectConnectorParams}: the class name of an embedded or a lambda remote function, otherwise the
+   * {@code className} connector param.
+   *
+   * @return The effective class name or {@code null}
+   */
+  @JsonIgnore
+  public String getEffectiveClassName() {
+    if (getRemoteFunction() instanceof Embedded embedded)
+      return embedded.className;
+    if (getRemoteFunction() instanceof AWSLambda lambda)
+      return lambda.className;
+    return params == null ? null : (String) params.get("className");
+  }
+
+  /**
    * An object containing the list of different params and their names that should be forwarded from Hub to the connector.
    */
   public ForwardParamsConfig forwardParamsConfig;

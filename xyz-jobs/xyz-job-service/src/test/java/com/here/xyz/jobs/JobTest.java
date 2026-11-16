@@ -6,12 +6,22 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.here.xyz.jobs.datasets.DatasetDescription;
 import com.here.xyz.jobs.util.test.JobTestBase;
+import com.here.xyz.models.hub.Space;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 
 public class JobTest extends JobTestBase {
+  /** A local test connector that creates the tables of new spaces with their first write. */
+  protected static final String LAZY_CONNECTOR = "psql-lazy";
+
+  /**
+   * @return Whether the config of the space, read through the Hub, has the lazyTable flag
+   */
+  protected boolean isFlagged(String spaceId) {
+    return Space.isLazyTable(loadSpace(spaceId).getStorage().getParams());
+  }
 
   @AfterEach
   public void tearDown() throws IOException, InterruptedException {

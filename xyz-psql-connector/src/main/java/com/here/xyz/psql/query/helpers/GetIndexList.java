@@ -30,6 +30,7 @@ import com.here.xyz.psql.QueryRunner;
 import com.here.xyz.psql.query.ModifySpace;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
+import com.here.xyz.util.db.pg.LazySpaceTables;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -57,6 +58,18 @@ public class GetIndexList extends QueryRunner<String, List<String>> {
     this.baseTables = baseTables;
     //The base tables are part of the key, because they contribute to the row count the threshold gets checked against
     cacheKey = String.join(",", Stream.concat(Stream.of(tableName), baseTables.stream()).toList());
+  }
+
+  /**
+   * @return The table whose indexes are listed: the own table, or, if a never written lazy level reads from the empty-space
+   *  template, the first of the base tables that is not the template. Every materialized level of a composite carries the
+   *  searchable properties of the root. Without such a level this is always the own table.
+   */
+  static String indexListTable(String tableName, List<String> baseTables) {
+    return Stream.concat(Stream.of(tableName), baseTables.stream())
+        .filter(table -> !LazySpaceTables.TEMPLATE_TABLE.equals(table))
+        .findFirst()
+        .orElse(LazySpaceTables.TEMPLATE_TABLE);
   }
 
   @Override
@@ -94,7 +107,7 @@ public class GetIndexList extends QueryRunner<String, List<String>> {
         select idx_available from iindata where 0 < ( select count(*) from indata )
       """
         )
-        .withNamedParameter(TABLE, tableName)
+        .withNamedParameter(TABLE, indexListTable(tableName, baseTables))
         .withNamedParameter(SCHEMA, getSchema())
         .withNamedParameter("headTables", Stream.concat(Stream.of(tableName), baseTables.stream())
             .map(table -> table + HEAD_TABLE_SUFFIX).toArray(String[]::new))

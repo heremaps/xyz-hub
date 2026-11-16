@@ -29,6 +29,8 @@ public enum SQLError {
   VERSION_CONFLICT_ERROR("XYZ49"),
   RETRYABLE_VERSION_CONFLICT("XYZ33"),
   XYZ_EXCEPTION("XYZ50"),
+  //Raised by the guard triggers of the empty-space template, see LazySpaceTables
+  EMPTY_TEMPLATE_WRITE("XYZ52"),
   DUPLICATE_KEY("23505"),
   UNKNOWN("");
 

@@ -82,14 +82,14 @@ public class StepGraph implements StepExecution {
    */
   public Step getStepOrNull(String outputSetGroup, String setName) {
     return stepStream()
-        .filter(step -> outputSetGroup.equals(step.getOutputSetGroup()) && step.getOutputSetOrNull(setName) != null)
+        .filter(step -> outputSetGroup.equals(step.effectiveOutputSetGroup()) && step.getOutputSetOrNull(setName) != null)
         .findFirst()
         .orElse(null);
   }
 
   public List<Output> getStepOutputs(String outputSetGroup, String setName, Visibility visibility) {
     return stepStream()
-        .filter(step -> outputSetGroup.equals(step.getOutputSetGroup()) && step.getOutputSetOrNull(setName) != null)
+        .filter(step -> outputSetGroup.equals(step.effectiveOutputSetGroup()) && step.getOutputSetOrNull(setName) != null)
         .findFirst()
         .map(it -> it.loadOutputs(visibility))
         .orElse(Collections.emptyList());

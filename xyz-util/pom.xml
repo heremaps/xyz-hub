@@ -25,7 +25,7 @@
     <groupId>com.here.xyz</groupId>
     <artifactId>xyz-hub</artifactId>
     <relativePath>../pom.xml</relativePath>
-    <version>3.24.23-SNAPSHOT</version>
+    <version>4.0.1-SNAPSHOT</version>
   </parent>
 
   <licenses>
@@ -56,7 +56,73 @@
 <!--    </plugins>-->
 <!--  </build>-->
 
+  <profiles>
+    <!--
+      Runs the ITs of the lazy space tables, which need postgres only, with -DskipTests=false, like the other modules.
+      The other ITs of this module stay unbound: the Hub*TestSuiteIT classes need the full stack, and the rest have not
+      run in a build so far.
+    -->
+    <profile>
+      <id>lazy-space-table-its</id>
+      <activation>
+        <property>
+          <name>skipTests</name>
+          <value>false</value>
+        </property>
+      </activation>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-failsafe-plugin</artifactId>
+            <executions>
+              <execution>
+                <configuration>
+                  <encoding>UTF-8</encoding>
+                  <includes>
+                    <include>com.here.xyz.util.db.pg.LazySpaceTablesIT</include>
+                    <include>com.here.xyz.test.featurewriter.sql.lazy.SQLLazy*TestSuiteIT</include>
+                    <include>com.here.xyz.test.sql.base.ScriptInstallerIT</include>
+                    <include>com.here.xyz.util.db.datasource.DatabaseSettingsScriptCheckIT</include>
+                    <include>com.here.xyz.test.sql.spacemanagement.XyzSpaceTableHelperIT</include>
+                  </includes>
+                  <!--The three older classes above run only their lazy space table cases-->
+                  <groups>lazy-space-tables</groups>
+                </configuration>
+                <id>integration-test</id>
+                <goals>
+                  <goal>integration-test</goal>
+                </goals>
+              </execution>
+              <execution>
+                <id>verify</id>
+                <goals>
+                  <goal>verify</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
   <build>
+    <!--
+      The hub script check of the ITs lists ext.sql and h3.sql of xyz-psql-connector under /sql. Without them on the test class
+      path, the ITs would depend on a hub.ext schema that someone else installed in the test database.
+    -->
+    <testResources>
+      <testResource>
+        <directory>${project.basedir}/src/test/resources</directory>
+      </testResource>
+      <testResource>
+        <directory>${project.basedir}/../xyz-psql-connector/src/main/resources</directory>
+        <includes>
+          <include>sql/ext.sql</include>
+          <include>sql/h3.sql</include>
+        </includes>
+      </testResource>
+    </testResources>
     <plugins>
       <!--
         Publish the test classes as a separate test-jar artifact.
@@ -79,6 +145,12 @@
             <goals>
               <goal>test-jar</goal>
             </goals>
+            <configuration>
+              <!--The copies of the connector scripts must not shadow the ones of xyz-psql-connector in other modules-->
+              <excludes>
+                <exclude>sql/**</exclude>
+              </excludes>
+            </configuration>
           </execution>
         </executions>
       </plugin>

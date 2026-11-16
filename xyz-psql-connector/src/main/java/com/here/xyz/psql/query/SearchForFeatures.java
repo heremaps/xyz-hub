@@ -19,6 +19,7 @@
 
 package com.here.xyz.psql.query;
 
+import static com.here.xyz.events.PropertyQuery.QueryOperation.BEGINS_WITH;
 import static com.here.xyz.events.PropertyQuery.QueryOperation.CONTAINS;
 import static com.here.xyz.events.PropertyQuery.QueryOperation.NOT_EQUALS;
 import static com.here.xyz.responses.XyzError.ILLEGAL_ARGUMENT;
@@ -204,6 +205,8 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
                     "id".equals(key) || "geometry.type".equals(key) ? "" : "AND ${{keyPath}} != 'null'::jsonb");
           }
           else {
+            //Only checked for actual values, for null values the operation is ignored (see above)
+            checkOperationSupported(key, op);
             predicateQuery = new SQLQuery("${{keyPath}} ${{operation}} ${{value}}")
                 .withQueryFragment("keyPath", keyPath)
                 .withQueryFragment("operation", QueryOperation.getOutputRepresentation(op))
@@ -218,6 +221,19 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
     });
     return SQLQuery.join(disjunctionQueries, " OR ", false)
         .withNamedParameters(namedParams);
+  }
+
+  /**
+   * Rejects operations for which no valid SQL can be generated, so that the client gets a 400 instead of a database error.
+   */
+  private static void checkOperationSupported(String key, QueryOperation op) {
+    if (op == BEGINS_WITH)
+      throw new IllegalArgumentException("Invalid request parameters. The operation \"begins with\" (=bw=) is not supported for "
+          + "property \"" + key + "\".");
+
+    if (op == CONTAINS && ("id".equalsIgnoreCase(key) || "geometry.type".equalsIgnoreCase(key)))
+      throw new IllegalArgumentException("Invalid request parameters. The operation \"contains\" (=cs=) is not supported for "
+          + "property \"" + key + "\".");
   }
 
   protected static SQLQuery generateSearchQuery(final SearchForFeaturesEvent event) {

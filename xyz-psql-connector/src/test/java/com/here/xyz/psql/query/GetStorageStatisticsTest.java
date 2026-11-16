@@ -21,6 +21,7 @@ package com.here.xyz.psql.query;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 import com.here.xyz.events.GetStorageStatisticsEvent;
 import com.here.xyz.responses.StorageStatistics;
@@ -88,6 +89,19 @@ class GetStorageStatisticsTest {
     assertEquals(25L, statistics.getByteSizes().get("second-space").getSearchablePropertiesBytes().getValue());
   }
 
+  @Test
+  void reportsZeroBytesWithoutStorageIdForASpaceWithoutTable() throws Exception {
+    //The Hub adds the storage ID for a lazy space, see StorageStatisticsProvider
+    GetStorageStatisticsEvent event = event(List.of("empty-space"), Map.of("empty-space", "missing_table"));
+    GetStorageStatistics queryRunner = queryRunner(event);
+    queryRunner.buildQuery(event);
+
+    StorageStatistics statistics = queryRunner.handle(emptyResultSet());
+
+    assertEquals(0L, statistics.getByteSizes().get("empty-space").getContentBytes().getValue());
+    assertNull(statistics.getByteSizes().get("empty-space").getStorageId());
+  }
+
   private static GetStorageStatisticsEvent event(List<String> spaceIds, Map<String, String> tableNames) {
     return new GetStorageStatisticsEvent()
         .withSpaceIds(spaceIds)
@@ -105,6 +119,18 @@ class GetStorageStatisticsTest {
   }
 
   private static CachedRowSet resultSet(String tableName, long tableBytes, long indexBytes) throws Exception {
+    CachedRowSet rowSet = emptyResultSet();
+    rowSet.moveToInsertRow();
+    rowSet.updateString(1, tableName);
+    rowSet.updateLong(2, tableBytes);
+    rowSet.updateLong(3, indexBytes);
+    rowSet.insertRow();
+    rowSet.moveToCurrentRow();
+    rowSet.beforeFirst();
+    return rowSet;
+  }
+
+  private static CachedRowSet emptyResultSet() throws Exception {
     RowSetMetaDataImpl metadata = new RowSetMetaDataImpl();
     metadata.setColumnCount(3);
     metadata.setColumnName(1, "table_name");
@@ -116,13 +142,6 @@ class GetStorageStatisticsTest {
 
     CachedRowSet rowSet = RowSetProvider.newFactory().createCachedRowSet();
     rowSet.setMetaData(metadata);
-    rowSet.moveToInsertRow();
-    rowSet.updateString(1, tableName);
-    rowSet.updateLong(2, tableBytes);
-    rowSet.updateLong(3, indexBytes);
-    rowSet.insertRow();
-    rowSet.moveToCurrentRow();
-    rowSet.beforeFirst();
     return rowSet;
   }
 }

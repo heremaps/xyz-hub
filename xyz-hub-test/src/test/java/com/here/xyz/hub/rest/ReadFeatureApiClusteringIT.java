@@ -130,6 +130,33 @@ public class ReadFeatureApiClusteringIT extends TestSpaceWithFeature {
   }
 
   @Test
+  public void readByBoundingBoxWithHexbinClusteringAndStatisticalProperty() {
+    given().
+            accept(APPLICATION_GEO_JSON).
+            headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
+            when().
+            get(getSpacesPath() + "/" + SPACE_ID + "/bbox?west=12&north=51&east=15&south=54&clustering=hexbin&clustering.property=value").
+            then().
+            statusCode(OK.code()).
+            body("features.size()", equalTo(120)).
+            body("features.properties.aggregation.value.qty.sum()", equalTo(30000)).
+            body("features.properties.aggregation.value.findAll { it.min == null || it.max == null || it.avg == null }.size()", equalTo(0));
+  }
+
+  @Test
+  public void readByTileWithHexbinClusteringAndStatisticalProperty() {
+    given().
+            accept(APPLICATION_GEO_JSON).
+            headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
+            when().
+            get(getSpacesPath() + "/" + SPACE_ID + "/tile/web/5_17_10?clustering=hexbin&clustering.property=value").
+            then().
+            statusCode(OK.code()).
+            body("features.size()", equalTo(23)).
+            body("features.properties.aggregation.value.qty.sum()", equalTo(30000));
+  }
+
+  @Test
   public void readByTileWithQuadbinClustering() {
     given().
             accept(APPLICATION_GEO_JSON).

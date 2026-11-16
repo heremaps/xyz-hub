@@ -28,7 +28,9 @@ import static com.here.xyz.psql.DatabaseWriter.ModificationType.INSERT;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE;
 import static com.here.xyz.psql.query.ExtendedSpace.getBaseVersion;
 import static com.here.xyz.psql.query.XyzEventBasedQueryRunner.readTableFromEvent;
+import static com.here.xyz.responses.XyzError.EXCEPTION;
 import static com.here.xyz.responses.XyzError.NOT_IMPLEMENTED;
+import static com.here.xyz.responses.XyzError.TIMEOUT;
 import static com.here.xyz.util.db.pg.LockHelper.advisoryLock;
 import static com.here.xyz.util.db.pg.LockHelper.advisoryUnlock;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.PARTITION_SIZE;
@@ -52,6 +54,7 @@ import com.here.xyz.psql.query.helpers.FetchExistingIds.FetchIdsInput;
 import com.here.xyz.psql.query.helpers.versioning.GetNextVersion;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzError;
+import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.Random;
 import com.here.xyz.util.db.ConnectorParameters;
 import com.here.xyz.util.db.ECPSTool;
@@ -60,6 +63,10 @@ import com.here.xyz.util.db.datasource.CachedPooledDataSources;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import com.here.xyz.util.db.datasource.DatabaseSettings;
 import com.here.xyz.util.db.datasource.DatabaseSettings.ScriptResourcePath;
+import com.here.xyz.util.db.pg.LazySpaceTables;
+import com.here.xyz.util.db.pg.MaterializationTimeoutException;
+import com.here.xyz.util.db.pg.ReservedTableNameException;
+import com.here.xyz.util.db.pg.TemplateUnavailableException;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
 import com.here.xyz.util.runtime.FunctionRuntime;
 import com.here.xyz.util.runtime.LambdaFunctionRuntime;
@@ -114,6 +121,8 @@ public abstract class DatabaseHandler extends StorageConnector {
 
     protected DataSourceProvider dataSourceProvider;
     protected DatabaseSettings dbSettings;
+    private LazyTableResolver resolver = new LazyTableResolver(() -> dataSourceProvider, this::lazyTablesSupported,
+        () -> traceItem == null ? null : traceItem.getConnectorId());
 
     @Override
     protected void initialize(Event event) {
@@ -124,11 +133,75 @@ public abstract class DatabaseHandler extends StorageConnector {
         dbSettings = new DatabaseSettings(connectorId,
             ECPSTool.decryptToMap(FunctionRuntime.getInstance().getEnvironmentVariable(ECPS_PHRASE), connectorParams.getEcps()))
             .withApplicationName(FunctionRuntime.getInstance().getApplicationName())
-            .withScriptResourcePaths(SCRIPT_RESOURCE_PATHS);
+            .withScriptResourcePaths(SCRIPT_RESOURCE_PATHS)
+            //The script check of the data source provider installs the empty-space template, also for read-only connectors
+            .withEmptySpaceTemplate(lazyTablesSupported());
 
         applyConnectionPoolParams(dbSettings, connectorParams);
+        //Bounds the script check of this connector, including the installation of the empty-space template
+        if (connectorParams.getScriptInstallTimeoutSeconds() > 0)
+            dbSettings.withScriptInstallTimeoutSeconds(connectorParams.getScriptInstallTimeoutSeconds());
 
         initialize(dbSettings, null);
+    }
+
+    @Override
+    public XyzResponse processEvent(Event event) throws Exception {
+        //No lazy level, a connector without lazy tables or no event: one map lookup and no database access
+        if (!resolver.isActive(event))
+            return super.processEvent(event);
+        resolver.beginEvent();
+        XyzResponse shortCircuit = prepareMapped(event);
+        if (shortCircuit != null)
+            return shortCircuit;
+        try {
+            return resolver.reportMaterialized(event, super.processEvent(event));
+        }
+        catch (ErrorResponseException e) {
+            //A table dropped since it was cached, or a relation a replica does not have yet: check again on the writer, once
+            if (!resolver.isSafetyNetCase(event, e))
+                throw e;
+            resolver.prepareRetry(event);
+            //The second dispatch gets the internal retry of the legacy writer like any event, the first one may have used it up
+            retryAttempted = false;
+            shortCircuit = prepareMapped(event);
+            return shortCircuit != null ? shortCircuit : resolver.reportMaterialized(event, super.processEvent(event));
+        }
+    }
+
+    /**
+     * Runs the preparation of the lazy levels and maps its errors, because it runs outside the error handling of the event
+     * processing.
+     */
+    XyzResponse prepareMapped(Event event) throws Exception {
+        try {
+            return resolver.prepare(event);
+        }
+        catch (MaterializationTimeoutException e) {
+            throw new ErrorResponseException(TIMEOUT, "Materialization of the space table timed out, retry is safe", e);
+        }
+        catch (ReservedTableNameException e) {
+            throw new ErrorResponseException(EXCEPTION, "Internal error: reserved table name", e);
+        }
+        catch (TemplateUnavailableException e) {
+            throw new ErrorResponseException(EXCEPTION, "Empty-space template missing or not identical on the database", e);
+        }
+        catch (ErrorResponseException e) {
+            throw e;
+        }
+        catch (Exception e) {
+            //An SQLException is mapped by checkSQLException, everything else is rethrown
+            handleProcessingException(e, event);
+            throw e;
+        }
+    }
+
+    LazyTableResolver getResolver() {
+        return resolver;
+    }
+
+    void setResolver(LazyTableResolver resolver) {
+        this.resolver = resolver;
     }
 
     /**
@@ -151,6 +224,8 @@ public abstract class DatabaseHandler extends StorageConnector {
         if(dataSourceProvider ==  null) {
             if(dbSettings.getScriptResourcePaths() == null || dbSettings.getScriptResourcePaths().isEmpty()) {
                 dbSettings.setScriptResourcePaths(SCRIPT_RESOURCE_PATHS);
+                //Settings with their own script paths keep their own choice
+                dbSettings.setEmptySpaceTemplate(lazyTablesSupported());
             }
 
             dataSourceProvider = new CachedPooledDataSources(dbSettings);
@@ -159,6 +234,14 @@ public abstract class DatabaseHandler extends StorageConnector {
             DataSourceProvider.setDefaultProvider(dataSourceProvider);
             this.dbSettings = dbSettings;
         }
+    }
+
+    /**
+     * Whether this connector supports lazy space tables: it requests the empty-space template from the script check and
+     * resolves the lazy levels of its events. Connectors with another table layout do not.
+     */
+    protected boolean lazyTablesSupported() {
+        return true;
     }
 
     protected <R, T extends com.here.xyz.psql.QueryRunner<?, R>> R run(T runner) throws SQLException, ErrorResponseException {
@@ -350,6 +433,21 @@ public abstract class DatabaseHandler extends StorageConnector {
                     throw e;
                 }
 
+                //A missing table fails the write without a retry: it answers 404 instead of reporting a write that did not happen
+                SQLException missingTable = DatabaseWriter.findUndefinedTable(e);
+                if (missingTable != null) {
+                    if (event.getTransaction())
+                        connection.rollback();
+                    throw missingTable;
+                }
+
+                //A write that reached the empty-space template indicates a missed materialization, it must never succeed
+                if (LazySpaceTables.isTemplateWriteError(e)) {
+                    if (event.getTransaction())
+                        connection.rollback();
+                    throw new ErrorResponseException(EXCEPTION, LazySpaceTables.TEMPLATE_WRITE_MESSAGE, e);
+                }
+
                 /** Add objects which are responsible for the failed operation */
                 event.setFailed(fails);
 
@@ -380,29 +478,26 @@ public abstract class DatabaseHandler extends StorageConnector {
                 if (event.getTransaction()) {
                     connection.rollback();
 
-                    boolean tableDoesNotExist = e instanceof SQLException sqlException && sqlException.getSQLState() != null
-                            && sqlException.getSQLState().equalsIgnoreCase("42P01");
-                    if (!tableDoesNotExist) {
+                    logger.warn("{} Transaction has failed. ", traceItem, e);
+                    connection.close();
 
-                        logger.warn("{} Transaction has failed. ", traceItem, e);
-                        connection.close();
+                    Map<String, Object> errorDetails = new HashMap<>();
 
-                        Map<String, Object> errorDetails = new HashMap<>();
+                    if (e instanceof BatchUpdateException || fails.size() >= 1) {
+                        //23505 = Object already exists
+                        if (e instanceof BatchUpdateException bue && !bue.getSQLState().equalsIgnoreCase("23505"))
+                            throw e;
 
-                        if (e instanceof BatchUpdateException || fails.size() >= 1) {
-                            //23505 = Object already exists
-                            if (e instanceof BatchUpdateException bue && !bue.getSQLState().equalsIgnoreCase("23505"))
-                                throw e;
-
-                            errorDetails.put("FailedList", fails);
-                            throw new ErrorResponseException(new ErrorResponse().withErrorDetails(errorDetails).withError(XyzError.CONFLICT).withErrorMessage(DatabaseWriter.TRANSACTION_ERROR_GENERAL));
-                        }
-                        else {
-                            errorDetails.put(DatabaseWriter.TRANSACTION_ERROR_GENERAL,
-                                    (e instanceof SQLException sqlException && sqlException.getSQLState() != null)
-                                            ? "SQL-state: " + sqlException.getSQLState() : "Unexpected Error occurred");
-                            throw new ErrorResponseException(new ErrorResponse().withErrorDetails(errorDetails).withError(XyzError.BAD_GATEWAY).withErrorMessage(DatabaseWriter.TRANSACTION_ERROR_GENERAL));
-                        }
+                        errorDetails.put("FailedList", fails);
+                        throw new ErrorResponseException(new ErrorResponse().withErrorDetails(errorDetails).withError(XyzError.CONFLICT)
+                            .withErrorMessage(DatabaseWriter.TRANSACTION_ERROR_GENERAL));
+                    }
+                    else {
+                        errorDetails.put(DatabaseWriter.TRANSACTION_ERROR_GENERAL,
+                                (e instanceof SQLException sqlException && sqlException.getSQLState() != null)
+                                        ? "SQL-state: " + sqlException.getSQLState() : "Unexpected Error occurred");
+                        throw new ErrorResponseException(new ErrorResponse().withErrorDetails(errorDetails).withError(XyzError.BAD_GATEWAY)
+                            .withErrorMessage(DatabaseWriter.TRANSACTION_ERROR_GENERAL));
                     }
                 }
 
