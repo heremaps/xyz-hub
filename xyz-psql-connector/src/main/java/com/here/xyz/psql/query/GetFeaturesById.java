@@ -21,6 +21,7 @@ package com.here.xyz.psql.query;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.GetFeaturesByIdEvent;
+import com.here.xyz.events.SelectiveEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
@@ -29,10 +30,20 @@ import java.sql.SQLException;
 public class GetFeaturesById extends GetFeatures<GetFeaturesByIdEvent, FeatureCollection> {
 
   private boolean emptyRequest;
+  private boolean minVersionCheckEnabled = true;
 
   public GetFeaturesById(GetFeaturesByIdEvent event) throws SQLException, ErrorResponseException {
     super(event);
     emptyRequest = event.getIds() == null || event.getIds().size() == 0;
+  }
+
+  public void setMinVersionCheckEnabled(boolean minVersionCheckEnabled) {
+    this.minVersionCheckEnabled = minVersionCheckEnabled;
+  }
+
+  @Override
+  protected SQLQuery buildMinVersionFragment(SelectiveEvent event) {
+    return minVersionCheckEnabled ? super.buildMinVersionFragment(event) : new SQLQuery("");
   }
 
   @Override

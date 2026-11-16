@@ -71,6 +71,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -292,6 +293,7 @@ public abstract class DatabaseHandler extends StorageConnector {
             List<String> upsertIds = upserts.stream().map(Feature::getId).filter(Objects::nonNull).collect(Collectors.toList());
             List<String> existingIds = run(new FetchExistingIds(new FetchIdsInput(readTableFromEvent(event),
                 upsertIds)));
+            Map<String, Long> baseCreatedAts = loadBaseCreatedAts(event, upserts, existingIds);
             upserts.forEach(f -> {
                 if (existingIds.contains(f.getId())) {
                     //todo: check intension of setting createdAt to 0
@@ -299,7 +301,9 @@ public abstract class DatabaseHandler extends StorageConnector {
                     updates.add(f);
                 }
                 else {
-                    f.getProperties().getXyzNamespace().withCreatedAt(f.getProperties().getXyzNamespace().getUpdatedAt());
+                    XyzNamespace xyzNamespace = f.getProperties().getXyzNamespace();
+                    //A feature which is only inherited from the base space is modified, not created, by this write
+                    xyzNamespace.withCreatedAt(baseCreatedAts.getOrDefault(f.getId(), xyzNamespace.getUpdatedAt()));
                     inserts.add(f);
                 }
             });
@@ -578,6 +582,51 @@ public abstract class DatabaseHandler extends StorageConnector {
      */
     private Set<String> loadExistingBaseFeatureIds(ModifyFeaturesEvent event, List<String> idsToFetch)
         throws SQLException, ErrorResponseException {
+      GetFeatureIds baseIdsQuery = new GetFeatureIds(buildBaseFetchEvent(event, idsToFetch));
+      baseIdsQuery.setUseReadReplica(false);
+      baseIdsQuery.setMinVersionCheckEnabled(false);
+      return run(baseIdsQuery).getIds();
+    }
+
+    /**
+     * Loads the creation timestamps of the features which are visible in the immediate effective base (see {@link #loadExistingBaseFeatureIds})
+     * for those of the specified features that are about to be written into the extension for the first time.
+     * That is a modification of an existing feature, not a creation, so the new row has to keep the creation timestamp of the base feature.
+     * This is the legacy counterpart of the "inherited from base" handling of the FeatureWriter and the express import writer.
+     *
+     * Only relevant in the DEFAULT context of an extending space with history. Features which are marked as deleted (tombstones hiding a
+     * base feature) are creations of a new row, like in the other writers. A base feature without creation timestamp results in -1.
+     *
+     * @return The creation timestamps by feature ID, only containing the features that are visible in the base
+     */
+    private Map<String, Long> loadBaseCreatedAts(ModifyFeaturesEvent event, List<Feature> upserts, List<String> idsExistingInExtension)
+        throws SQLException, ErrorResponseException, JsonProcessingException {
+      if (!isForExtendingSpace(event) || event.getContext() != DEFAULT || event.getVersionsToKeep() <= 1)
+        return Collections.emptyMap();
+
+      Set<String> idsInExtension = new HashSet<>(idsExistingInExtension);
+      List<String> idsToFetch = upserts.stream()
+          .filter(f -> f.getId() != null && !idsInExtension.contains(f.getId()))
+          .filter(f -> !f.getProperties().getXyzNamespace().isDeleted())
+          .map(Feature::getId)
+          .distinct()
+          .collect(Collectors.toList());
+      if (idsToFetch.isEmpty())
+        return Collections.emptyMap();
+
+      GetFeaturesById baseFeaturesQuery = new GetFeaturesById(buildBaseFetchEvent(event, idsToFetch));
+      baseFeaturesQuery.setUseReadReplica(false);
+      baseFeaturesQuery.setMinVersionCheckEnabled(false);
+
+      Map<String, Long> createdAts = new HashMap<>();
+      for (Feature baseFeature : run(baseFeaturesQuery).getFeatures()) {
+        long createdAt = baseFeature.getProperties().getXyzNamespace().getCreatedAt();
+        createdAts.put(baseFeature.getId(), createdAt != 0 ? createdAt : -1);
+      }
+      return createdAts;
+    }
+
+    private GetFeaturesByIdEvent buildBaseFetchEvent(ModifyFeaturesEvent event, List<String> idsToFetch) {
       Map<String, Object> extension = (Map<String, Object>) event.getParams().get("extends");
       Object nestedExtension = extension.get("extends");
 
@@ -592,7 +641,7 @@ public abstract class DatabaseHandler extends StorageConnector {
           .map(Ref::new)
           .orElse(new Ref(HEAD));
 
-      GetFeaturesByIdEvent fetchEvent = new GetFeaturesByIdEvent()
+      return new GetFeaturesByIdEvent()
           .withSpace((String) extension.get("spaceId"))
           .withContext(DEFAULT)
           .withRef(baseRef)
@@ -602,11 +651,6 @@ public abstract class DatabaseHandler extends StorageConnector {
           .withIds(idsToFetch)
           //The base's own retention is unknown here; this lookup just needs the history-enabled read shape
           .withVersionsToKeep(Integer.MAX_VALUE);
-
-      GetFeatureIds baseIdsQuery = new GetFeatureIds(fetchEvent);
-      baseIdsQuery.setUseReadReplica(false);
-      baseIdsQuery.setMinVersionCheckEnabled(false);
-      return run(baseIdsQuery).getIds();
     }
 
     private List<String> getAllIds(List<Feature> inserts, List<Feature> updates, List<Feature> upserts, Map<String, ?> deletes) {
