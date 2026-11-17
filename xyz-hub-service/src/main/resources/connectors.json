@@ -616,5 +616,46 @@
         "protocolVersion": "0.5.0"
       }
     }
+  },
+  {
+    "id": "iceberg",
+    "params": {
+      "catalogName": "iceberg",
+      "catalogProperties": {
+        "catalog-impl": "org.apache.iceberg.jdbc.JdbcCatalog",
+        "uri": "jdbc:postgresql://${ICEBERG_JDBC_HOST}:${ICEBERG_JDBC_PORT}/${ICEBERG_JDBC_DB}?currentSchema=iceberg_catalog",
+        "jdbc.user": "${ICEBERG_JDBC_USER}",
+        "jdbc.password": "${ICEBERG_JDBC_PASSWORD}",
+        "warehouse": "s3://test-bucket/iceberg",
+        "io-impl": "org.apache.iceberg.aws.s3.S3FileIO",
+        "s3.endpoint": "${LOCALSTACK_ENDPOINT}",
+        "s3.path-style-access": "true",
+        "s3.access-key-id": "localstack",
+        "s3.secret-access-key": "localstack",
+        "client.region": "eu-west-1"
+      }
+    },
+    "capabilities": {
+      "preserializedResponseSupport": true,
+      "maxPayloadSize": 1073741824
+    },
+    "connectionSettings": {
+      "maxConnections": 8
+    },
+    "remoteFunctions": {
+      "local": {
+        "type": "Embedded",
+        "id": "xyz-iceberg-local",
+        "warmUp": 0,
+        "className": "com.here.xyz.iceberg.IcebergConnector",
+        "env": {
+          "ICEBERG_JDBC_HOST": "${PSQL_HOST}",
+          "ICEBERG_JDBC_PORT": "${PSQL_PORT}",
+          "ICEBERG_JDBC_DB": "${PSQL_DB}",
+          "ICEBERG_JDBC_USER": "${PSQL_USER}",
+          "ICEBERG_JDBC_PASSWORD": "${PSQL_PASSWORD}"
+        }
+      }
+    }
   }
 ]

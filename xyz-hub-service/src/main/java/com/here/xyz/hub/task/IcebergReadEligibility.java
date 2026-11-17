@@ -147,10 +147,9 @@ final class IcebergReadEligibility {
           break;
         case MVT:
         case MVT_FLATTENED:
-          //The MVT encoder clips, but it only supports web-mercator tiles
-          if (tile.getHereTileFlag())
-            return "MVT here-tile";
-          break;
+          //The connector answers with GeoJSON, so the Hub would have to encode the MVT itself. Its encoder (mapbox-vector-tile 3.1.0)
+          //fails on polygons with the Hub's JTS version, so MVT tiles stay with the space's own connector, which encodes them itself.
+          return "MVT tile, encoded by the space's connector";
         default:
           return "tile response type " + tile.getResponseType();
       }

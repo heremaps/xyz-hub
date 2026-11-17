@@ -187,7 +187,6 @@ class IcebergReadRoutingTest {
         request -> geometryTask(request, new GetFeaturesByGeometryEvent().withRadius(10)
             .withGeometry(new Point().withCoordinates(new PointCoordinates(8.0, 50.0))).withRef(new Ref(VERSION))),
         request -> tileTask(request, tileEvent(ResponseType.GEO_JSON)),
-        request -> tileTask(request, tileEvent(ResponseType.MVT).withClip(true)),
         request -> iterateTask(request, iterateEvent(100, null, new Ref(VERSION))),
         request -> searchTask(request, searchEvent(momTypeQuery("a"))));
     for (Function<Request, FeatureTask<?, ?>> task : tasks) {
