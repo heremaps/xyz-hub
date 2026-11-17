@@ -37,6 +37,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.models.geojson.implementation.Feature;
@@ -500,6 +501,49 @@ public class CompositeSpaceOnBaseVersionIT extends TestSpaceWithFeature {
         .patch(getSpacesPath() + "/" + spaceId + "/features/" + feature.getId())
         .then()
         .statusCode(OK.code());
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {1, 2})
+  public void iteratePagesThroughTheWholeComposite(int limit) {
+    for (String compositeId : List.of(extSpaceId, extOfExtSpaceId))
+      for (SpaceContext context : List.of(DEFAULT, EXTENSION, SUPER)) {
+        List<String> unpaged = loadFeatures(compositeId, context).extract().path("features.id");
+        assertEquals(sorted(unpaged), sorted(iterateAllPages(compositeId, context, limit)),
+            compositeId + " in context " + context + " with limit " + limit);
+      }
+  }
+
+  /**
+   * Iterates to the end, following the nextPageToken.
+   */
+  private List<String> iterateAllPages(String spaceId, SpaceContext context, int limit) {
+    List<String> ids = new ArrayList<>();
+    String token = null;
+    for (int pages = 0; pages < 100; pages++) {
+      Map<String, Object> queryParams = new HashMap<>(Map.of("context", context, "limit", limit));
+      if (token != null)
+        queryParams.put("handle", token);
+      ValidatableResponse page = given()
+          .contentType(APPLICATION_JSON)
+          .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+          .queryParams(queryParams)
+          .when()
+          .get(getSpacesPath() + "/" + spaceId + "/iterate")
+          .then()
+          .statusCode(OK.code());
+      ids.addAll(page.extract().path("features.id"));
+      token = page.extract().path("nextPageToken");
+      if (token == null)
+        return ids;
+    }
+    throw new AssertionError("The iteration of " + spaceId + " doesn't end");
+  }
+
+  private static List<String> sorted(List<String> ids) {
+    List<String> sorted = new ArrayList<>(ids);
+    sorted.sort(null);
+    return sorted;
   }
 
   private ValidatableResponse loadFeatures(String spaceId, SpaceContext context) {

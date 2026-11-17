@@ -60,6 +60,14 @@ public class IterateChangesets<R  extends XyzResponse> extends IterateFeatures<I
     return buildOrderByFragment(event);
   }
 
+  /**
+   * Changesets are paged by version and ID, not by (dataset, i).
+   */
+  @Override
+  protected boolean isPagedPerDataset(IterateChangesetsEvent event) {
+    return false;
+  }
+
   @Override
   protected String buildOrderByFragment(ContextAwareEvent event) {
     if (this.event.isSquashed())

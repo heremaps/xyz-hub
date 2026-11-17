@@ -41,9 +41,11 @@ import com.here.xyz.util.db.ConnectorParameters;
 import com.here.xyz.util.db.SQLQuery;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResponse> extends ExtendedSpace<E, R> {
@@ -64,7 +66,9 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     SQLQuery filterWhereClause = buildFilterWhereClause(event);
 
     SQLQuery query;
-    if (isCompositeQuery(event)) {
+    if (isCompositeQuery(event) && isPagedPerDataset(event))
+      query = buildPerDatasetPagedCompositeQuery(event, filterWhereClause);
+    else if (isCompositeQuery(event)) {
       int dataset = compositeDatasetNo(event, CompositeDataset.EXTENSION);
       SQLQuery versionCheckFragment = buildVersionCheckFragment(event);
 
@@ -98,6 +102,102 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
         .withVariable(TABLE, getDefaultTable(event))
         .withQueryFragment("outerOrderBy", buildOuterOrderByFragment(event))
         .withQueryFragment("limit", buildLimitFragment(event));
+  }
+
+  /**
+   * Whether a composite query is paged by (dataset, i), so that each page must hold the first rows of the composed result in that
+   * order. Such queries limit each dataset on its own, see {@link #buildPerDatasetPagedCompositeQuery(ContextAwareEvent, SQLQuery)}.
+   */
+  protected boolean isPagedPerDataset(E event) {
+    return false;
+  }
+
+  /**
+   * Builds a composite query whose result is ordered by (dataset, i) and limited after that order.
+   * <p>
+   * Each dataset is one arm of the union. An arm applies all its filters, including the anti-joins against the datasets above it,
+   * then takes its first rows in index order of i. The first rows of the composed result in (dataset, i) order lie among the first
+   * rows of each arm, so the outer order and limit pick the correct page, and no arm reads more than the limit after its filters.
+   * With the index on i, the planner can read each arm in index order and stop at the limit, so the cost of a page doesn't grow
+   * with the size of the datasets.
+   */
+  private SQLQuery buildPerDatasetPagedCompositeQuery(E event, SQLQuery filterWhereClause) {
+    boolean twoLevels = is2LevelExtendedSpace(event);
+    List<SQLQuery> arms = new ArrayList<>();
+    arms.add(buildExtensionArm(event, filterWhereClause));
+    if (twoLevels)
+      arms.add(buildIntermediateArm(event, filterWhereClause));
+    arms.add(buildSuperArm(event, filterWhereClause, twoLevels));
+
+    String union = event.getContext() == COMPOSITE_EXTENSION ? " UNION DISTINCT " : " UNION ALL ";
+    StringBuilder template = new StringBuilder("SELECT * FROM (");
+    for (int i = 0; i < arms.size(); i++)
+      template.append(i == 0 ? "" : union).append("(${{arm").append(i).append("}})");
+    template.append(") pagedQuery ${{outerOrderBy}} ${{limit}}");
+
+    SQLQuery query = new SQLQuery(template.toString());
+    for (int i = 0; i < arms.size(); i++)
+      query.withQueryFragment("arm" + i, arms.get(i));
+    if (twoLevels)
+      query.withVariable("intermediateExtensionTable", getIntermediateTable(event));
+    return query;
+  }
+
+  private SQLQuery buildExtensionArm(E event, SQLQuery filterWhereClause) {
+    int dataset = compositeDatasetNo(event, CompositeDataset.EXTENSION);
+    return new SQLQuery("SELECT ${{selectClause}} FROM ${schema}.${table} e WHERE ${{filters}} ${{versionCheck}} ${{orderBy}} ${{limit}}")
+        .withQueryFragment("selectClause", buildSelectClause(event, dataset))
+        .withQueryFragment("filters", buildFiltersFragment(event, true, filterWhereClause, dataset))
+        .withQueryFragment("versionCheck", buildVersionCheckFragment(event))
+        .withQueryFragment("orderBy", buildOrderByFragment(event))
+        .withQueryFragment("limit", buildLimitFragment(event));
+  }
+
+  /**
+   * The intermediate dataset of a two-level composite, without the features the extension overrides or hides.
+   */
+  private SQLQuery buildIntermediateArm(E event, SQLQuery filterWhereClause) {
+    SQLQuery versionCheckFragment = getBaseVersion(event)
+        .map(this::buildCompositeBaseVersionCheckFragment)
+        .orElse(buildBaseVersionCheckFragment("base2Version"));
+
+    int dataset = compositeDatasetNo(event, CompositeDataset.INTERMEDIATE);
+    return new SQLQuery("SELECT * FROM ("
+        + "  SELECT ${{selectClause}} FROM ${schema}.${intermediateExtensionTable} WHERE ${{filters}} ${{versionCheck}}"
+        + ") a ${{compositionFilter}} ${{orderBy}} ${{limit}}")
+        .withQueryFragment("selectClause", buildSelectClause(event, dataset))
+        .withQueryFragment("filters", buildFiltersFragment(event, false, filterWhereClause, dataset))
+        .withQueryFragment("versionCheck", versionCheckFragment)
+        .withQueryFragment("orderBy", buildOrderByFragment(event))
+        .withQueryFragment("compositionFilter", buildExtensionCompositionFilter(event))
+        .withQueryFragment("limit", buildLimitFragment(event));
+  }
+
+  /**
+   * The root dataset, without the features the levels above it override or hide.
+   */
+  private SQLQuery buildSuperArm(E event, SQLQuery filterWhereClause, boolean twoLevels) {
+    SQLQuery superQuery = twoLevels
+        ? new SQLQuery("SELECT * FROM (${{baseQuery}}) b ${{intermediateCompositionFilter}}")
+            .withQueryFragment("baseQuery", build1LevelBaseQuery(event, filterWhereClause, false))
+            .withQueryFragment("intermediateCompositionFilter", buildCompositionFilter(event, true,
+                buildIdComparisonFragment(event, "b.", getBaseVersion(event)
+                    .map(this::buildCompositeBaseVersionCheckFragment)
+                    .orElse(buildBaseVersionCheckFragment("base2Version")), isBoundIntermediate(event))))
+        : build1LevelBaseQuery(event, filterWhereClause, false);
+
+    return new SQLQuery("SELECT * FROM (${{superQuery}}) a ${{compositionFilter}} ${{orderBy}} ${{limit}}")
+        .withQueryFragment("superQuery", superQuery)
+        .withQueryFragment("compositionFilter", buildExtensionCompositionFilter(event))
+        .withQueryFragment("orderBy", buildOrderByFragment(event))
+        .withQueryFragment("limit", buildLimitFragment(event));
+  }
+
+  /**
+   * The filter of a lower dataset (aliased "a") against the features of the extension.
+   */
+  private SQLQuery buildExtensionCompositionFilter(E event) {
+    return buildCompositionFilter(event, false, buildIdComparisonFragment(event, "a.", buildVersionCheckFragment(event), false));
   }
 
   protected SQLQuery buildCompositionFilter(E event, boolean isL2, SQLQuery idComparisonFragment) {
@@ -249,6 +349,14 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   }
 
   private SQLQuery build1LevelBaseQuery(E event, SQLQuery filterWhereClause) {
+    return build1LevelBaseQuery(event, filterWhereClause, true);
+  }
+
+  /**
+   * @param ordered Whether the base query sorts its rows itself. A per-dataset paged arm sorts after its anti-joins instead, so that
+   *  the base query stays a simple subquery that the planner can pull up into the arm and read in index order up to the limit.
+   */
+  private SQLQuery build1LevelBaseQuery(E event, SQLQuery filterWhereClause, boolean ordered) {
     SQLQuery versionCheck = (is2LevelExtendedSpace(event) ? getIntermediateBaseVersion(event) : getBaseVersion(event))
             .map(this::buildCompositeBaseVersionCheckFragment)
             .orElse(buildBaseVersionCheckFragment("base1Version"));
@@ -259,7 +367,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
         .withQueryFragment("selectClause", buildSelectClause(event, dataset))
         .withQueryFragment("filters", buildFiltersFragment(event, false, filterWhereClause, dataset)) //NOTE: We know that the base space is not an extended one
         .withQueryFragment("versionCheck", versionCheck)
-        .withQueryFragment("orderBy", buildOrderByFragment(event));
+        .withQueryFragment("orderBy", ordered ? buildOrderByFragment(event) : "");
   }
 
   private SQLQuery build2LevelBaseQuery(E event, SQLQuery filterWhereClause) {

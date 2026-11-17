@@ -66,6 +66,14 @@ public class IterateFeatures<E extends IterateFeaturesEvent, R extends XyzRespon
     return "ORDER BY dataset, i";
   }
 
+  /**
+   * The next page token holds the (dataset, i) of the last row, so a composite page must be limited per dataset.
+   */
+  @Override
+  protected boolean isPagedPerDataset(E event) {
+    return true;
+  }
+
   @Override
   protected String buildOrderByFragment(ContextAwareEvent event) {
     return "ORDER BY i";
