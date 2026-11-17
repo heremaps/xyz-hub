@@ -24,6 +24,7 @@ import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.BINARY;
 import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.GEO_JSON;
 import static com.here.xyz.models.hub.IcebergLocation.EVENT_PARAM;
 import static com.here.xyz.models.hub.IcebergLocation.EVENT_PARAM_LOCATION;
+import static com.here.xyz.models.hub.IcebergLocation.EVENT_PARAM_MAX_RESPONSE_BYTES;
 import static com.here.xyz.models.hub.IcebergLocation.ITERATE_TOKEN_PREFIX;
 import static com.here.xyz.responses.XyzError.EXCEPTION;
 import static com.here.xyz.responses.XyzError.ILLEGAL_ARGUMENT;
@@ -220,7 +221,19 @@ public class IcebergConnector extends StorageConnector {
   private FeatureScan newScan(Event<?> event, SnapshotFiles files, long startTime) {
     return new FeatureScan(tables, files)
         .withBudget(new ReadBudget(config.maxBytesPerRequest(), startTime + config.requestTimeoutMs()))
-        .withMaxResponseBytes(config.maxResponseBytes());
+        .withMaxResponseBytes(maxResponseBytes(event));
+  }
+
+  /**
+   * The response limit of the configuration, or the lower one the event asks for in {@code params.iceberg.maxResponseBytes}
+   * (the Hub's shadow reads).
+   */
+  private long maxResponseBytes(Event<?> event) {
+    Object icebergParams = event.getParams() == null ? null : event.getParams().get(EVENT_PARAM);
+    Object requested = icebergParams instanceof Map<?, ?> map ? map.get(EVENT_PARAM_MAX_RESPONSE_BYTES) : null;
+    if (requested instanceof Number number && number.longValue() > 0)
+      return Math.min(config.maxResponseBytes(), number.longValue());
+    return config.maxResponseBytes();
   }
 
   private Result run(Event<?> event, IcebergLocation location, SnapshotFiles files, FeatureScan scan, long startTime) {

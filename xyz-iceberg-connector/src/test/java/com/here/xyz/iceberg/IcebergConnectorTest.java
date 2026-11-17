@@ -422,6 +422,14 @@ class IcebergConnectorTest {
   }
 
   @Test
+  void theEventCanLowerTheResponseLimit() throws Exception {
+    IterateFeaturesEvent<?> event = iterate("v2", 1000, null);
+    event.setParams(Map.of(IcebergLocation.EVENT_PARAM, Map.of(IcebergLocation.EVENT_PARAM_LOCATION,
+        new IcebergLocation(NAMESPACE, TABLE, "v2").toString(), IcebergLocation.EVENT_PARAM_MAX_RESPONSE_BYTES, 10)));
+    assertError(invoke(event), XyzError.PAYLOAD_TO_LARGE);
+  }
+
+  @Test
   void stopsAtTheResponseLimit() throws Exception {
     Event<?> event = withConnectorParams(iterate("v2", 1000, null), connectorParams(Map.of("maxResponseBytes", 10)));
     assertError(invoke(event), XyzError.PAYLOAD_TO_LARGE);

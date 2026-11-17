@@ -474,6 +474,48 @@ class IcebergReadRoutingTest {
   }
 
   @Test
+  void shadowDropsTooLargeResponsesBeforeTheComparisonQueue() throws Exception {
+    Service.configuration.ICEBERG_READS = "SHADOW";
+    CountDownLatch release = new CountDownLatch(1);
+    CountDownLatch running = new CountDownLatch(2);
+    CompletableFuture<Result> tooLarge = new CompletableFuture<>();
+    IcebergReadRouting.setShadowListener((result, comparison) -> {
+      if ("SKIPPED".equals(result)) {
+        if (comparison != null)
+          tooLarge.complete(comparison);
+        return;
+      }
+      running.countDown();
+      try {
+        release.await(5, TimeUnit.SECONDS);
+      }
+      catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+      }
+    });
+    try {
+      //Both comparison threads are blocked and the queue is full
+      for (int i = 0; i < 2; i++) {
+        icebergEvents.clear();
+        assertShadowed(send(bboxTask(bboxEvent())));
+      }
+      assertThat(running.await(5, TimeUnit.SECONDS)).isTrue();
+      for (int i = 0; i < 16; i++) {
+        icebergEvents.clear();
+        assertShadowed(send(bboxTask(bboxEvent())));
+      }
+      //A too large pair is skipped without a comparison thread
+      Service.configuration.ICEBERG_READS_SHADOW_MAX_BYTES = 10;
+      icebergEvents.clear();
+      assertShadowed(send(bboxTask(bboxEvent())));
+      assertThat(tooLarge.get(5, TimeUnit.SECONDS).reason()).isEqualTo(IcebergShadowComparison.TOO_LARGE);
+    }
+    finally {
+      release.countDown();
+    }
+  }
+
+  @Test
   void shadowOnlyRunsForTheSample() {
     Service.configuration.ICEBERG_READS = "SHADOW";
     Service.configuration.ICEBERG_READS_SHADOW_SAMPLE = 0;
@@ -496,8 +538,10 @@ class IcebergReadRoutingTest {
     pendingLoad.complete(List.of(ref((int) VERSION, "v" + VERSION)));
     assertThat(shadow.get(5, TimeUnit.SECONDS).result).isEqualTo("MATCH");
     assertThat(icebergEvents).hasSize(1);
+    //The shadow read asks the Iceberg connector for a response no larger than the comparison can take
     assertThat(icebergEvents.get(0).getParams()).containsEntry(IcebergLocation.EVENT_PARAM,
-        Map.of(IcebergLocation.EVENT_PARAM_LOCATION, LOCATION));
+        Map.of(IcebergLocation.EVENT_PARAM_LOCATION, LOCATION, IcebergLocation.EVENT_PARAM_MAX_RESPONSE_BYTES,
+            (long) Service.configuration.ICEBERG_READS_SHADOW_MAX_BYTES));
   }
 
   @Test

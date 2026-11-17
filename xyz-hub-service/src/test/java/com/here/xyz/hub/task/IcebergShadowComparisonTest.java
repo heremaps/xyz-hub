@@ -116,6 +116,15 @@ class IcebergShadowComparisonTest {
   }
 
   @Test
+  void theSizeIsCheckedWithoutComparing() {
+    FeatureCollection response = fc(feature("a"), feature("b"));
+    int length = com.here.xyz.XyzSerializable.serialize(response).length();
+    assertThat(IcebergShadowComparison.isLargerThan(response, length)).isFalse();
+    assertThat(IcebergShadowComparison.isLargerThan(response, length - 1)).isTrue();
+    assertThat(IcebergShadowComparison.isLargerThan(null, 0)).isFalse();
+  }
+
+  @Test
   void duplicateIdsAreIncomparable() {
     assertThat(IcebergShadowComparison.compare(fc(feature("a"), feature("a")), fc(feature("a")), LIMIT).outcome())
         .isEqualTo(INCOMPARABLE);

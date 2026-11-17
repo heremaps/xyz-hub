@@ -32,6 +32,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.Iterator;
@@ -150,6 +151,28 @@ public final class IcebergShadowComparison {
     return new Result(Outcome.MISMATCH, reason, primaryCount, icebergCount, sorted(missing), sorted(extra), sorted(differing));
   }
 
+  /**
+   * Checks the length of the JSON of a response without keeping it. For the features of a connector response, which are kept as
+   * a JSON string, this does not copy them.
+   *
+   * @return true if the JSON of the response is longer than the maximum
+   */
+  public static boolean isLargerThan(XyzResponse<?> response, long maxChars) {
+    if (response == null)
+      return false;
+    try {
+      Mappers.DEFAULT_MAPPER.get().writeValue(new CountingWriter(maxChars), response);
+      return false;
+    }
+    catch (Exception e) {
+      for (Throwable cause = e; cause != null; cause = cause.getCause())
+        if (cause instanceof TooLargeException)
+          return true;
+      //Unreadable responses are reported by the comparison
+      return false;
+    }
+  }
+
   private static List<String> sorted(List<String> ids) {
     return ids.stream().sorted().toList();
   }
@@ -180,7 +203,7 @@ public final class IcebergShadowComparison {
     }
 
     Map<String, String> hashes = new HashMap<>();
-    try (JsonParser parser = MAPPER.createParser(json.toString())) {
+    try (JsonParser parser = MAPPER.createParser(json.chars, 0, (int) json.length)) {
       if (parser.nextToken() != JsonToken.START_OBJECT)
         throw new IllegalArgumentException("no object");
       boolean featuresFound = false;
@@ -267,29 +290,31 @@ public final class IcebergShadowComparison {
   }
 
   /**
-   * Collects the serialized response and stops once it gets longer than the maximum.
+   * Counts the characters of the serialized response and stops once they are more than the maximum.
    */
-  private static final class BoundedWriter extends Writer {
+  private static class CountingWriter extends Writer {
 
     private final long maxChars;
-    private final StringBuilder json = new StringBuilder();
+    long length;
 
-    private BoundedWriter(long maxChars) {
+    private CountingWriter(long maxChars) {
       this.maxChars = maxChars;
     }
 
     @Override
     public void write(char[] buffer, int offset, int length) throws IOException {
-      if (json.length() + (long) length > maxChars)
-        throw new TooLargeException();
-      json.append(buffer, offset, length);
+      count(length);
     }
 
     @Override
     public void write(String value, int offset, int length) throws IOException {
-      if (json.length() + (long) length > maxChars)
+      count(length);
+    }
+
+    void count(int n) throws TooLargeException {
+      if (length + (long) n > maxChars)
         throw new TooLargeException();
-      json.append(value, offset, offset + length);
+      length += n;
     }
 
     @Override
@@ -297,10 +322,37 @@ public final class IcebergShadowComparison {
 
     @Override
     public void close() {}
+  }
+
+  /**
+   * Collects the serialized response and stops once it gets longer than the maximum. The parser reads the collected chars directly.
+   */
+  private static final class BoundedWriter extends CountingWriter {
+
+    private char[] chars = new char[8192];
+
+    private BoundedWriter(long maxChars) {
+      super(maxChars);
+    }
 
     @Override
-    public String toString() {
-      return json.toString();
+    public void write(char[] buffer, int offset, int length) throws IOException {
+      int at = reserve(length);
+      System.arraycopy(buffer, offset, chars, at, length);
+    }
+
+    @Override
+    public void write(String value, int offset, int length) throws IOException {
+      int at = reserve(length);
+      value.getChars(offset, offset + length, chars, at);
+    }
+
+    private int reserve(int n) throws IOException {
+      int at = (int) length;
+      count(n);
+      if (length > chars.length)
+        chars = Arrays.copyOf(chars, (int) Math.min(Integer.MAX_VALUE - 8, Math.max(length, 2L * chars.length)));
+      return at;
     }
   }
 

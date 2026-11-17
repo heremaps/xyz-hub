@@ -22,6 +22,7 @@ package com.here.xyz.hub.task;
 import static com.here.xyz.hub.cache.QueryTimeoutCache.Decision.PROBE;
 import static com.here.xyz.models.hub.IcebergLocation.EVENT_PARAM;
 import static com.here.xyz.models.hub.IcebergLocation.EVENT_PARAM_LOCATION;
+import static com.here.xyz.models.hub.IcebergLocation.EVENT_PARAM_MAX_RESPONSE_BYTES;
 import static com.here.xyz.models.hub.IcebergLocation.ITERATE_TOKEN_PREFIX;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
@@ -325,15 +326,19 @@ public final class IcebergReadRouting {
     Event<?> copy = task.getEvent().copy();
     if (copy == null)
       throw new IllegalStateException("Unable to copy the event");
-    return withIcebergParams(task, connector, location, copy);
+    return withIcebergParams(task, connector, location, copy, null);
   }
 
   /**
    * Adds the location and the connector specific properties to a copy of the task's event.
+   *
+   * @param maxResponseBytes A lower limit for the size of the response, or null for the connector's own limit
    */
-  private static Event<?> withIcebergParams(FeatureTask<?, ?> task, Connector connector, IcebergLocation location, Event<?> copy) {
+  private static Event<?> withIcebergParams(FeatureTask<?, ?> task, Connector connector, IcebergLocation location, Event<?> copy,
+      Long maxResponseBytes) {
     Map<String, Object> params = new HashMap<>(copy.getParams() == null ? Map.of() : copy.getParams());
-    params.put(EVENT_PARAM, Map.of(EVENT_PARAM_LOCATION, location.toString()));
+    params.put(EVENT_PARAM, maxResponseBytes == null ? Map.of(EVENT_PARAM_LOCATION, location.toString())
+        : Map.of(EVENT_PARAM_LOCATION, location.toString(), EVENT_PARAM_MAX_RESPONSE_BYTES, maxResponseBytes));
     copy.setParams(params);
     FeatureTaskHandler.setAdditionalEventProps(task, connector, copy);
     return copy;
@@ -480,7 +485,9 @@ public final class IcebergReadRouting {
     private final long version;
     private final long limit;
     private final String uri;
+    private final long maxChars = Math.max(0, Service.configuration.ICEBERG_READS_SHADOW_MAX_BYTES);
     private final long start = Core.currentTimeMillis();
+    private boolean tooLarge;
     private boolean primaryDone;
     private XyzResponse<?> primary;
     private long primaryMs;
@@ -507,7 +514,8 @@ public final class IcebergReadRouting {
       location = target.location();
       Event<?> icebergEvent;
       try {
-        icebergEvent = withIcebergParams(task, target.connector(), target.location(), copy);
+        //The Iceberg connector fails fast instead of building a response which would not be compared
+        icebergEvent = withIcebergParams(task, target.connector(), target.location(), copy, maxChars);
       }
       catch (Exception e) {
         logger.warn(marker, "iceberg-shadow space={}: Unable to start the shadow read", spaceId, e);
@@ -529,19 +537,24 @@ public final class IcebergReadRouting {
     }
 
     void primaryDone(XyzResponse<?> response) {
+      //Not kept while the Iceberg read runs, and not handed to the comparison, if it is too large to be compared
+      boolean large = IcebergShadowComparison.isLargerThan(response, maxChars);
       synchronized (this) {
         if (abandoned)
           return;
         primaryDone = true;
-        primary = response;
+        primary = large ? null : response;
+        tooLarge |= large;
         primaryMs = Core.currentTimeMillis() - start;
       }
       completeIfDone();
     }
 
     void icebergDone(AsyncResult<XyzResponse> result) {
+      boolean large = result.succeeded() && IcebergShadowComparison.isLargerThan(result.result(), maxChars);
       synchronized (this) {
-        iceberg = result;
+        iceberg = large ? Future.succeededFuture() : result;
+        tooLarge |= large;
         icebergMs = Core.currentTimeMillis() - start;
       }
       completeIfDone();
@@ -550,14 +563,22 @@ public final class IcebergReadRouting {
     private void completeIfDone() {
       XyzResponse<?> primaryResponse;
       AsyncResult<XyzResponse> icebergResult;
+      boolean skip;
       synchronized (this) {
         if (!primaryDone || iceberg == null || completed || abandoned)
           return;
         completed = true;
         primaryResponse = primary;
         icebergResult = iceberg;
+        skip = tooLarge;
         primary = null;
         iceberg = null;
+      }
+      if (skip) {
+        logger.info(marker, "iceberg-shadow space={} event={} version={} result=SKIPPED reason={} pgMs={} iceMs={} location={}",
+            spaceId, eventType, version, IcebergShadowComparison.TOO_LARGE, primaryMs, icebergMs, location);
+        report("SKIPPED", IcebergShadowComparison.Result.skipped(IcebergShadowComparison.TOO_LARGE));
+        return;
       }
       if (icebergResult.failed()) {
         logger.info(marker, "iceberg-shadow space={} event={} result=ERROR reason={} pgMs={} iceMs={} location={}", spaceId, eventType,
@@ -578,8 +599,7 @@ public final class IcebergReadRouting {
 
     private void compare(XyzResponse<?> primaryResponse, XyzResponse<?> icebergResponse) {
       try {
-        Result result = IcebergShadowComparison.compare(primaryResponse, icebergResponse, limit,
-            Math.max(0, Service.configuration.ICEBERG_READS_SHADOW_MAX_BYTES));
+        Result result = IcebergShadowComparison.compare(primaryResponse, icebergResponse, limit, maxChars);
         String message = "iceberg-shadow space={} event={} version={} result={} reason={} pgMs={} iceMs={} pgCount={} iceCount={} "
             + "missing={} extra={} differing={} location={}";
         if (result.outcome() == IcebergShadowComparison.Outcome.MISMATCH)
