@@ -538,6 +538,12 @@ public class Config extends BaseConfig {
   public double ICEBERG_READS_SHADOW_SAMPLE = 1.0;
 
   /**
+   * The maximum size (in characters of JSON) of each response which is compared in the mode SHADOW. Larger responses are not
+   * compared, which is logged as {@code result=SKIPPED reason=too large}.
+   */
+  public int ICEBERG_READS_SHADOW_MAX_BYTES = 16 * 1024 * 1024;
+
+  /**
    * The suffix of the Iceberg tags which hold the data of a composite space at a version, when the composite extends a pinned base
    * version. {@code {baseVersion}} and {@code {version}} are replaced by the pinned base version and the read version. Reads of
    * composites are only routed to tags with this suffix. Empty: composites are not routed.

@@ -22,6 +22,7 @@ package com.here.xyz.hub.task;
 import static com.here.xyz.hub.task.IcebergShadowComparison.Outcome.INCOMPARABLE;
 import static com.here.xyz.hub.task.IcebergShadowComparison.Outcome.MATCH;
 import static com.here.xyz.hub.task.IcebergShadowComparison.Outcome.MISMATCH;
+import static com.here.xyz.hub.task.IcebergShadowComparison.Outcome.SKIPPED;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.here.xyz.hub.task.IcebergShadowComparison.Result;
@@ -99,6 +100,26 @@ class IcebergShadowComparisonTest {
         .isEqualTo(INCOMPARABLE);
     assertThat(IcebergShadowComparison.compare(fc(feature("a")), fc(feature("a")).withHandle("ice:1:0:1"), LIMIT).outcome())
         .isEqualTo(INCOMPARABLE);
+  }
+
+  @Test
+  void responsesLargerThanTheMaximumAreSkipped() {
+    FeatureCollection primary = fc(feature("a"), feature("b"));
+    int length = com.here.xyz.XyzSerializable.serialize(primary).length();
+    assertThat(IcebergShadowComparison.compare(primary, fc(feature("a"), feature("b")), LIMIT, length).outcome()).isEqualTo(MATCH);
+
+    Result result = IcebergShadowComparison.compare(primary, fc(feature("a"), feature("b")), LIMIT, length - 1);
+    assertThat(result.outcome()).isEqualTo(SKIPPED);
+    assertThat(result.reason()).isEqualTo("too large");
+    //Also if only the Iceberg response is too large
+    assertThat(IcebergShadowComparison.compare(fc(feature("a")), primary, LIMIT, length - 1).outcome()).isEqualTo(SKIPPED);
+  }
+
+  @Test
+  void duplicateIdsAreIncomparable() {
+    assertThat(IcebergShadowComparison.compare(fc(feature("a"), feature("a")), fc(feature("a")), LIMIT).outcome())
+        .isEqualTo(INCOMPARABLE);
+    assertThat(IcebergShadowComparison.compare(fc("{\"type\":\"Feature\"}"), fc(), LIMIT).outcome()).isEqualTo(INCOMPARABLE);
   }
 
   @Test
