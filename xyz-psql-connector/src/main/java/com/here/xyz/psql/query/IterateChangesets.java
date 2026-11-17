@@ -61,6 +61,12 @@ public class IterateChangesets<R  extends XyzResponse> extends IterateFeatures<I
   }
 
   @Override
+  protected boolean limitsEachDataset(IterateChangesetsEvent event) {
+    //The page token of changesets does not refer to a dataset, see buildOffsetFilterFragment()
+    return false;
+  }
+
+  @Override
   protected String buildOrderByFragment(ContextAwareEvent event) {
     if (this.event.isSquashed())
       /*
