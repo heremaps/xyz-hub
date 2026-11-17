@@ -21,6 +21,7 @@ package com.here.xyz.iceberg;
 
 import com.here.xyz.util.runtime.FunctionRuntime;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.Function;
@@ -43,10 +44,13 @@ import java.util.regex.Pattern;
  * @param missingCacheTtlSeconds How long a table or ref which does not exist is remembered as missing, so that a stale location
  *     does not load the table from the catalog on every request
  * @param planningThreads The number of threads for planning the files of a snapshot
+ * @param filterColumns The root properties of the features (property query keys, e.g. {@code momType} for {@code f.momType})
+ *     which can be filtered by equality, mapped to the top-level string columns of the table which hold their values. Reads with
+ *     other property queries are answered with NOT_IMPLEMENTED. Default: {@link #DEFAULT_FILTER_COLUMNS}.
  */
 public record IcebergConnectorConfig(String catalogName, Map<String, String> catalogProperties, long maxBytesPerRequest,
     long maxResponseBytes, long requestTimeoutMs, double scanCacheHeapShare, double footerCacheHeapShare, long tableCacheTtlSeconds,
-    long missingCacheTtlSeconds, int planningThreads) {
+    long missingCacheTtlSeconds, int planningThreads, Map<String, String> filterColumns) {
 
   static final String DEFAULT_CATALOG_NAME = "iceberg";
   static final long DEFAULT_MAX_BYTES_PER_REQUEST = 256L * 1024 * 1024;
@@ -57,6 +61,8 @@ public record IcebergConnectorConfig(String catalogName, Map<String, String> cat
   static final long DEFAULT_TABLE_CACHE_TTL_SECONDS = 60;
   static final long DEFAULT_MISSING_CACHE_TTL_SECONDS = 30;
   static final int DEFAULT_PLANNING_THREADS = 2;
+  public static final Map<String, String> DEFAULT_FILTER_COLUMNS = Map.of("momType", "mom_type");
+  static final String FILTER_COLUMNS_PARAM = "filterColumns";
   /**
    * Iceberg's LegacyMd5Plugin is missing in the AWS SDK version of the Hub.
    */
@@ -65,6 +71,11 @@ public record IcebergConnectorConfig(String catalogName, Map<String, String> cat
 
   public IcebergConnectorConfig {
     catalogProperties = catalogProperties == null ? Map.of() : Collections.unmodifiableMap(new TreeMap<>(catalogProperties));
+    filterColumns = filterColumns == null ? DEFAULT_FILTER_COLUMNS : Collections.unmodifiableMap(new TreeMap<>(filterColumns));
+    filterColumns.forEach((property, column) -> {
+      if (property.isEmpty() || column == null || column.isEmpty() || column.contains("."))
+        throw new IllegalArgumentException(FILTER_COLUMNS_PARAM + " must map property names to top-level column names");
+    });
     if (catalogName == null || catalogName.isEmpty())
       throw new IllegalArgumentException("catalogName must not be empty");
     requirePositive(maxBytesPerRequest, "maxBytesPerRequest");
@@ -99,7 +110,28 @@ public record IcebergConnectorConfig(String catalogName, Map<String, String> cat
         doubleParam(params, "footerCacheHeapShare", DEFAULT_FOOTER_CACHE_HEAP_SHARE),
         longParam(params, "tableCacheTtlSeconds", DEFAULT_TABLE_CACHE_TTL_SECONDS),
         longParam(params, "missingCacheTtlSeconds", DEFAULT_MISSING_CACHE_TTL_SECONDS),
-        (int) longParam(params, "planningThreads", DEFAULT_PLANNING_THREADS));
+        (int) longParam(params, "planningThreads", DEFAULT_PLANNING_THREADS),
+        filterColumns(params));
+  }
+
+  /**
+   * Reads the filter columns from the connector params, see {@link #filterColumns()}.
+   *
+   * @throws IllegalArgumentException if the param is not an object of strings
+   */
+  public static Map<String, String> filterColumns(Map<String, Object> connectorParams) {
+    Object raw = connectorParams == null ? null : connectorParams.get(FILTER_COLUMNS_PARAM);
+    if (raw == null)
+      return DEFAULT_FILTER_COLUMNS;
+    if (!(raw instanceof Map<?, ?> map))
+      throw new IllegalArgumentException(FILTER_COLUMNS_PARAM + " must be an object");
+    Map<String, String> columns = new TreeMap<>();
+    map.forEach((property, column) -> {
+      if (!(column instanceof String columnName))
+        throw new IllegalArgumentException(FILTER_COLUMNS_PARAM + " must map property names to column names");
+      columns.put(property.toString(), columnName);
+    });
+    return columns;
   }
 
   /**
@@ -107,7 +139,7 @@ public record IcebergConnectorConfig(String catalogName, Map<String, String> cat
    */
   CatalogKey catalogKey() {
     return new CatalogKey(catalogName, catalogProperties, scanCacheHeapShare, footerCacheHeapShare, tableCacheTtlSeconds,
-        missingCacheTtlSeconds, planningThreads);
+        missingCacheTtlSeconds, planningThreads, filterColumns.values().stream().distinct().sorted().toList());
   }
 
   @Override
@@ -117,11 +149,12 @@ public record IcebergConnectorConfig(String catalogName, Map<String, String> cat
         + ", maxBytesPerRequest=" + maxBytesPerRequest + ", maxResponseBytes=" + maxResponseBytes + ", requestTimeoutMs="
         + requestTimeoutMs + ", scanCacheHeapShare=" + scanCacheHeapShare + ", footerCacheHeapShare=" + footerCacheHeapShare
         + ", tableCacheTtlSeconds=" + tableCacheTtlSeconds + ", missingCacheTtlSeconds=" + missingCacheTtlSeconds
-        + ", planningThreads=" + planningThreads + "]";
+        + ", planningThreads=" + planningThreads + ", filterColumns=" + filterColumns + "]";
   }
 
   record CatalogKey(String catalogName, Map<String, String> catalogProperties, double scanCacheHeapShare,
-      double footerCacheHeapShare, long tableCacheTtlSeconds, long missingCacheTtlSeconds, int planningThreads) {
+      double footerCacheHeapShare, long tableCacheTtlSeconds, long missingCacheTtlSeconds, int planningThreads,
+      List<String> statsColumns) {
 
     @Override
     public String toString() {

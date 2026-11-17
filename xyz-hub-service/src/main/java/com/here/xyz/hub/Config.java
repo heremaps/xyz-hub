@@ -536,4 +536,11 @@ public class Config extends BaseConfig {
    * The share (0 to 1) of the eligible reads which are compared with the Iceberg connector in the mode SHADOW.
    */
   public double ICEBERG_READS_SHADOW_SAMPLE = 1.0;
+
+  /**
+   * The suffix of the Iceberg tags which hold the data of a composite space at a version, when the composite extends a pinned base
+   * version. {@code {baseVersion}} and {@code {version}} are replaced by the pinned base version and the read version. Reads of
+   * composites are only routed to tags with this suffix. Empty: composites are not routed.
+   */
+  public String ICEBERG_READS_COMPOSITE_TAG_SUFFIX = "_b{baseVersion}_v{version}";
 }

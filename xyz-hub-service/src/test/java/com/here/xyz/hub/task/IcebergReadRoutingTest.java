@@ -274,6 +274,17 @@ class IcebergReadRoutingTest {
   }
 
   @Test
+  void propertyQueriesAreRoutedForTheConnectorsFilterProperties() {
+    PropertiesQuery kind = IcebergReadTestSupport.equalsQuery(List.of(List.<Object[]>of(new Object[]{"kind", "a"})));
+    assertNotRouted(send(searchTask(new Request(), searchEvent(kind))));
+    assertThat(loads).hasValue(0);
+    icebergConnector.params = new HashMap<>(Map.of("filterColumns", Map.of("kind", "kind")));
+    assertRouted(send(searchTask(new Request(), searchEvent(kind))));
+    icebergEvents.clear();
+    assertNotRouted(send(searchTask(new Request(), searchEvent(momTypeQuery("a")))));
+  }
+
+  @Test
   void aCacheHitIsNotRouted() {
     FeatureCollection cached = fc(feature("c"));
     Request request = new Request();

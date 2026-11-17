@@ -63,7 +63,7 @@ import org.locationtech.jts.io.WKBReader;
 /**
  * Scans the data files of a snapshot and collects the stored feature JSON of the matching rows.
  * Files are pruned by their column statistics, row groups by Parquet's statistics, and rows are filtered exactly: bbox overlap,
- * then a JTS intersection with the stored WKB geometry, then the momType predicate. Deletion vectors and position deletes are applied.
+ * then a JTS intersection with the stored WKB geometry, then the property filters. Deletion vectors and position deletes are applied.
  * <p>
  * A scan can start at a row position inside a file. It then reads the file from the row group which contains that position, so the
  * cost of a page does not grow with its position in the file.
@@ -71,12 +71,11 @@ import org.locationtech.jts.io.WKBReader;
 final class FeatureScan {
 
   static final String ID = "id";
-  static final String MOM_TYPE = "mom_type";
   static final String BBOX = "bbox";
   static final String GEOMETRY = "geometry";
   static final String FEATURE_JSON = "feature_json";
-  private static final List<String> PROJECTED_COLUMNS = List.of(ID, MOM_TYPE, "bbox.xmin", "bbox.ymin", "bbox.xmax", "bbox.ymax",
-      GEOMETRY, FEATURE_JSON);
+  private static final List<String> PROJECTED_COLUMNS = List.of(ID, "bbox.xmin", "bbox.ymin", "bbox.xmax", "bbox.ymax", GEOMETRY,
+      FEATURE_JSON);
   private static final String ROW_POSITION = MetadataColumns.ROW_POSITION.name();
   private static final int CHECK_INTERVAL_ROWS = 1024;
 
@@ -84,7 +83,7 @@ final class FeatureScan {
   private final SnapshotFiles files;
   private Envelope envelope;
   private PreparedGeometry geometry;
-  private List<List<Set<String>>> momTypes;
+  private List<List<ColumnFilter>> filters;
   private long limit = Long.MAX_VALUE;
   private Position start = new Position(0, 0);
   private ReadBudget budget;
@@ -106,10 +105,10 @@ final class FeatureScan {
   }
 
   /**
-   * Restricts the scan to features whose root momType matches: an OR of AND lists of value sets (IN).
+   * Restricts the scan to rows whose filter columns match: an OR of AND lists of column value sets (IN).
    */
-  FeatureScan withMomTypes(List<List<Set<String>>> momTypes) {
-    this.momTypes = momTypes;
+  FeatureScan withFilters(List<List<ColumnFilter>> filters) {
+    this.filters = filters;
     return this;
   }
 
@@ -143,7 +142,10 @@ final class FeatureScan {
 
   Result run() {
     Schema schema = files.schema();
-    Schema projection = TypeUtil.join(schema.select(PROJECTED_COLUMNS), new Schema(MetadataColumns.ROW_POSITION));
+    List<String> columns = new ArrayList<>(PROJECTED_COLUMNS);
+    if (filters != null)
+      filters.forEach(allOf -> allOf.forEach(filter -> columns.add(filter.column())));
+    Schema projection = TypeUtil.join(schema.select(columns), new Schema(MetadataColumns.ROW_POSITION));
     Expression filter = filterExpression();
     InclusiveMetricsEvaluator metrics = filter == null ? null : new InclusiveMetricsEvaluator(schema, filter);
     WKBReader wkbReader = new WKBReader();
@@ -196,12 +198,12 @@ final class FeatureScan {
               Expressions.lessThanOrEqual("bbox.xmin", envelope.getMaxX())),
           Expressions.and(Expressions.greaterThanOrEqual("bbox.ymax", envelope.getMinY()),
               Expressions.lessThanOrEqual("bbox.ymin", envelope.getMaxY())));
-    if (momTypes != null) {
+    if (filters != null) {
       Expression anyOf = Expressions.alwaysFalse();
-      for (List<Set<String>> allOf : momTypes) {
+      for (List<ColumnFilter> allOf : filters) {
         Expression conjunction = Expressions.alwaysTrue();
-        for (Set<String> values : allOf)
-          conjunction = Expressions.and(conjunction, Expressions.in(MOM_TYPE, values));
+        for (ColumnFilter columnFilter : allOf)
+          conjunction = Expressions.and(conjunction, Expressions.in(columnFilter.column(), columnFilter.values()));
         anyOf = Expressions.or(anyOf, conjunction);
       }
       filter = filter == null ? anyOf : Expressions.and(filter, anyOf);
@@ -262,7 +264,7 @@ final class FeatureScan {
   private boolean matches(Record record, WKBReader wkbReader) {
     if (geometry != null && !intersects(record, wkbReader))
       return false;
-    return momTypes == null || momTypeMatches((CharSequence) record.getField(MOM_TYPE));
+    return filters == null || filtersMatch(record);
   }
 
   private boolean intersects(Record record, WKBReader wkbReader) {
@@ -284,17 +286,16 @@ final class FeatureScan {
     }
   }
 
-  private boolean momTypeMatches(CharSequence value) {
-    if (value == null)
-      return false;
-    String momType = value.toString();
-    for (List<Set<String>> allOf : momTypes) {
+  private boolean filtersMatch(Record record) {
+    for (List<ColumnFilter> allOf : filters) {
       boolean all = true;
-      for (Set<String> values : allOf)
-        if (!values.contains(momType)) {
+      for (ColumnFilter columnFilter : allOf) {
+        Object value = record.getField(columnFilter.column());
+        if (value == null || !columnFilter.values().contains(value.toString())) {
           all = false;
           break;
         }
+      }
       if (all)
         return true;
     }
@@ -305,6 +306,11 @@ final class FeatureScan {
    * A position in the scan: the index of the file in the sorted file list and the position of the row in that file to continue at.
    */
   record Position(int fileIndex, long rowPosition) {}
+
+  /**
+   * Matches rows whose top-level string column has one of the values.
+   */
+  record ColumnFilter(String column, Set<String> values) {}
 
   /**
    * @param features The stored feature JSON strings

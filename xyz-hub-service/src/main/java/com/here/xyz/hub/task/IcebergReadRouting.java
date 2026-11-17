@@ -186,6 +186,18 @@ public final class IcebergReadRouting {
         }
         return;
       }
+      String filterReason = IcebergReadEligibility.reasonNotEligible(task, IcebergReadEligibility.filterProperties(connector));
+      if (filterReason != null) {
+        if (iceToken) {
+          logger.info(task.getMarker(), "iceberg-read space={} rejected nextPageToken: {}", task.space.getId(), filterReason);
+          callback.exception(new HttpException(BAD_REQUEST, "Invalid nextPageToken"));
+        }
+        else {
+          logger.debug(task.getMarker(), "iceberg-read space={} not routed: {}", task.space.getId(), filterReason);
+          callback.call(task);
+        }
+        return;
+      }
       lookup(task, version).onComplete(lookupResult -> {
         if (lookupResult.failed()) {
           if (iceToken)
@@ -213,7 +225,8 @@ public final class IcebergReadRouting {
    */
   private static <X extends FeatureTask<?, X>> void shadow(X task, Callback<X> callback, long version) {
     Future<Optional<Target>> target = resolveConnector(task).compose(connector -> {
-      if (connector == null || !connector.active)
+      if (connector == null || !connector.active
+          || IcebergReadEligibility.reasonNotEligible(task, IcebergReadEligibility.filterProperties(connector)) != null)
         return Future.succeededFuture(Optional.empty());
       return lookup(task, version).map(icebergVersion -> icebergVersion.map(v -> new Target(connector, v.location())));
     });

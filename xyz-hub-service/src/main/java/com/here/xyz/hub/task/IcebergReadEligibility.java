@@ -31,7 +31,9 @@ import com.here.xyz.events.PropertyQuery;
 import com.here.xyz.events.PropertyQuery.QueryOperation;
 import com.here.xyz.events.PropertyQueryList;
 import com.here.xyz.events.SearchForFeaturesEvent;
+import com.here.xyz.hub.Service;
 import com.here.xyz.hub.config.IcebergVersionCache.IcebergVersion;
+import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.rest.ApiParam;
 import com.here.xyz.hub.task.FeatureTask.BBoxQuery;
 import com.here.xyz.hub.task.FeatureTask.GeometryQuery;
@@ -39,24 +41,40 @@ import com.here.xyz.hub.task.FeatureTask.IterateQuery;
 import com.here.xyz.hub.task.FeatureTask.SearchQuery;
 import com.here.xyz.hub.task.FeatureTask.TileQuery;
 import com.here.xyz.models.geojson.coordinates.BBox;
+import com.here.xyz.iceberg.IcebergConnectorConfig;
 import com.here.xyz.models.hub.Space.Extension;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 /**
  * Decides whether a read can be served by the Iceberg connector with the same result as by the space's own connector.
  */
 final class IcebergReadEligibility {
 
-  private static final String MOM_TYPE_KEY = "momType";
   private static final String RAW_OPTIMIZATION_MODE = "raw";
+  static final String BASE_VERSION_PLACEHOLDER = "{baseVersion}";
+  static final String VERSION_PLACEHOLDER = "{version}";
 
   private IcebergReadEligibility() {}
 
   /**
-   * @return The reason why the read of the task can not be served by the Iceberg connector, or {@code null} if it can
+   * The checks which do not depend on the Iceberg connector. The property keys of a properties query are not checked, see
+   * {@link #reasonNotEligible(FeatureTask, Set)}.
+   *
+   * @return The reason why the read of the task can not be served by the Iceberg connector, or {@code null} if it might be
    */
   static String reasonNotEligible(FeatureTask<?, ?> task) {
+    return reasonNotEligible(task, null);
+  }
+
+  /**
+   * @param filterProperties The properties the Iceberg connector can filter by (see {@link #filterProperties(Connector)}), or
+   *     {@code null} to not check the property keys yet
+   * @return The reason why the read of the task can not be served by the Iceberg connector, or {@code null} if it can
+   */
+  static String reasonNotEligible(FeatureTask<?, ?> task, Set<String> filterProperties) {
     if (!(task instanceof GeometryQuery || task instanceof BBoxQuery || task instanceof TileQuery || task instanceof IterateQuery
         || task instanceof SearchQuery))
       return "task " + task.getClass().getSimpleName();
@@ -76,7 +94,7 @@ final class IcebergReadEligibility {
     if (event.isForce2D())
       return "force2D";
 
-    String reason = propertiesQueryReason(task, event);
+    String reason = propertiesQueryReason(task, event, filterProperties);
     if (reason == null)
       reason = eventReason(event);
     if (reason == null)
@@ -85,19 +103,38 @@ final class IcebergReadEligibility {
   }
 
   /**
+   * @return The properties (property query keys) the Iceberg connector can filter by, from its {@code filterColumns} param
+   */
+  static Set<String> filterProperties(Connector connector) {
+    try {
+      return IcebergConnectorConfig.filterColumns(connector.params).keySet();
+    }
+    catch (IllegalArgumentException e) {
+      return Set.of();
+    }
+  }
+
+  /**
    * The filter for the Iceberg versions which hold the data of the task's space at the given version. For a composite space,
-   * which extends a pinned base version B, only the tags {@code ..._b<B>_v<version>} hold the merged data.
+   * which extends a pinned base version B, only the tags ending with {@link com.here.xyz.hub.Config#ICEBERG_READS_COMPOSITE_TAG_SUFFIX}
+   * (by default {@code ..._b<B>_v<version>}) hold the merged data.
    * Must only be called for tasks which are eligible.
    */
   static Predicate<IcebergVersion> compositeFilter(FeatureTask<?, ?> task, long version) {
     Extension extension = task.space.getExtension();
     if (extension == null)
       return v -> true;
-    String suffix = "_b" + extension.getVersion() + "_v" + version;
+    String suffix = compositeTagSuffix().replace(BASE_VERSION_PLACEHOLDER, String.valueOf(extension.getVersion()))
+        .replace(VERSION_PLACEHOLDER, String.valueOf(version));
     return v -> v.location().ref().endsWith(suffix);
   }
 
-  private static String propertiesQueryReason(FeatureTask<?, ?> task, SearchForFeaturesEvent<?> event) {
+  private static String compositeTagSuffix() {
+    String suffix = Service.configuration == null ? null : Service.configuration.ICEBERG_READS_COMPOSITE_TAG_SUFFIX;
+    return suffix == null ? "" : suffix.trim();
+  }
+
+  private static String propertiesQueryReason(FeatureTask<?, ?> task, SearchForFeaturesEvent<?> event, Set<String> filterProperties) {
     PropertiesQuery propertiesQuery = event.getPropertiesQuery();
     if (task instanceof SearchQuery) {
       if (event.getClass() != SearchForFeaturesEvent.class)
@@ -105,18 +142,29 @@ final class IcebergReadEligibility {
       if (propertiesQuery == null || propertiesQuery.isEmpty())
         return "search without a properties query";
     }
-    if (propertiesQuery != null && !propertiesQuery.isEmpty() && !isMomTypeOnly(propertiesQuery))
-      return "properties query other than f.momType";
+    if (propertiesQuery == null || propertiesQuery.isEmpty())
+      return null;
+    if (filterProperties == null)
+      return isEqualsOnly(propertiesQuery, null) ? null : "properties query other than equals with string values";
+    if (filterProperties.isEmpty())
+      return "properties query, the Iceberg connector has no filterColumns";
+    if (!isEqualsOnly(propertiesQuery, filterProperties))
+      return "properties query other than " + filterProperties.stream().sorted().map(key -> "f." + key)
+          .collect(Collectors.joining(", "));
     return null;
   }
 
-  private static boolean isMomTypeOnly(PropertiesQuery propertiesQuery) {
+  /**
+   * @param keys The allowed property keys, or {@code null} for any key
+   */
+  private static boolean isEqualsOnly(PropertiesQuery propertiesQuery, Set<String> keys) {
     for (PropertyQueryList andList : propertiesQuery) {
       if (andList == null || andList.isEmpty())
         return false;
       for (PropertyQuery query : andList) {
-        if (!MOM_TYPE_KEY.equals(query.getKey()) || query.getOperation() != QueryOperation.EQUALS || query.getValues() == null
-            || query.getValues().isEmpty() || !query.getValues().stream().allMatch(value -> value instanceof String))
+        if ((keys != null && !keys.contains(query.getKey())) || query.getOperation() != QueryOperation.EQUALS
+            || query.getValues() == null || query.getValues().isEmpty()
+            || !query.getValues().stream().allMatch(value -> value instanceof String))
           return false;
       }
     }
@@ -191,6 +239,8 @@ final class IcebergReadEligibility {
     //The Hub reads a version E of an unpinned composite with the base as it was when E was written, which no tag records
     if (extension.getVersion() == null)
       return "unpinned composite";
+    if (compositeTagSuffix().isEmpty())
+      return "composite without ICEBERG_READS_COMPOSITE_TAG_SUFFIX";
     return null;
   }
 
