@@ -52,6 +52,7 @@ import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
@@ -100,6 +101,11 @@ public final class IcebergReadRouting {
         return thread;
       });
   private static final LongAdder skippedComparisons = new LongAdder();
+  /**
+   * How long a missing or inactive Iceberg connector is remembered, so that it is not looked up for every read
+   */
+  static final long MISSING_CONNECTOR_TTL_MS = 30_000;
+  private static volatile MissingConnector missingConnector;
 
   private IcebergReadRouting() {}
 
@@ -177,17 +183,15 @@ public final class IcebergReadRouting {
     resolveConnector(task).onComplete(connectorResult -> {
       Connector connector = connectorResult.succeeded() ? connectorResult.result() : null;
       if (connector == null || !connector.active) {
+        //resolveConnector logged it
         if (iceToken) {
           //Without the connector there are no valid Iceberg tokens, e.g. a crafted token while the routing is not configured
           logger.debug(task.getMarker(), "iceberg-read space={} rejected nextPageToken: The Iceberg connector {} is not available",
-              task.space.getId(), Service.configuration.ICEBERG_READS_CONNECTOR_ID, connectorResult.cause());
+              task.space.getId(), Service.configuration.ICEBERG_READS_CONNECTOR_ID);
           callback.exception(new HttpException(BAD_REQUEST, "Invalid nextPageToken"));
         }
-        else {
-          logger.warn(task.getMarker(), "iceberg-read space={}: The Iceberg connector {} is not available", task.space.getId(),
-              Service.configuration.ICEBERG_READS_CONNECTOR_ID, connectorResult.cause());
+        else
           callback.call(task);
-        }
         return;
       }
       String filterReason = IcebergReadEligibility.reasonNotEligible(task, IcebergReadEligibility.filterProperties(connector));
@@ -266,14 +270,36 @@ public final class IcebergReadRouting {
     });
   }
 
+  /**
+   * @return The Iceberg connector, null if it is missing or inactive (then remembered for {@value #MISSING_CONNECTOR_TTL_MS} ms),
+   *     or a failed future
+   */
   private static Future<Connector> resolveConnector(FeatureTask<?, ?> task) {
+    String connectorId = Service.configuration.ICEBERG_READS_CONNECTOR_ID;
+    MissingConnector missing = missingConnector;
+    if (missing != null && Objects.equals(missing.connectorId(), connectorId) && Core.currentTimeMillis() < missing.until())
+      return Future.succeededFuture();
+    Future<Connector> connector;
     try {
-      return connectorResolver.apply(task);
+      connector = connectorResolver.apply(task);
     }
     catch (Exception e) {
-      return Future.failedFuture(e);
+      connector = Future.failedFuture(e);
     }
+    return connector.transform(result -> {
+      if (result.succeeded() && result.result() != null && result.result().active)
+        return Future.succeededFuture(result.result());
+      missingConnector = new MissingConnector(connectorId, Core.currentTimeMillis() + MISSING_CONNECTOR_TTL_MS);
+      logger.warn(task.getMarker(), "iceberg-read: The Iceberg connector {} is not available, reads are not routed for {} ms",
+          connectorId, MISSING_CONNECTOR_TTL_MS, result.cause());
+      return Future.succeededFuture();
+    });
   }
+
+  /**
+   * A missing or inactive Iceberg connector, until when it is not looked up again
+   */
+  private record MissingConnector(String connectorId, long until) {}
 
   /**
    * The pipeline step right after invoke. It hands the response of the space's own connector to a running shadow read.
@@ -641,5 +667,6 @@ public final class IcebergReadRouting {
     connectorResolver = DEFAULT_CONNECTOR_RESOLVER;
     versionCache = null;
     shadowListener = null;
+    missingConnector = null;
   }
 }

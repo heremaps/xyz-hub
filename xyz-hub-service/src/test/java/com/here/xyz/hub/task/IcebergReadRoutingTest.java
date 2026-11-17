@@ -516,6 +516,31 @@ class IcebergReadRoutingTest {
   }
 
   @Test
+  void aMissingConnectorIsRememberedForAShortTime() {
+    AtomicInteger lookups = new AtomicInteger();
+    IcebergReadRouting.setConnectorResolver(task -> {
+      lookups.incrementAndGet();
+      return resolvedConnector;
+    });
+    resolvedConnector = Future.failedFuture(new RuntimeException("Connector not found"));
+    assertNotRouted(send(bboxTask(bboxEvent())));
+    assertNotRouted(send(bboxTask(bboxEvent())));
+    Reply page = send(iterateTask(new Request(), icebergPage()));
+    assertThat(((HttpException) page.error).status).isEqualTo(BAD_REQUEST);
+    Service.configuration.ICEBERG_READS = "SHADOW";
+    assertNotRouted(send(bboxTask(bboxEvent())));
+    assertThat(lookups).hasValue(1);
+    assertThat(loads).hasValue(0);
+
+    //Another connector ID is looked up
+    Service.configuration.ICEBERG_READS = "ON";
+    Service.configuration.ICEBERG_READS_CONNECTOR_ID = "other-iceberg";
+    resolvedConnector = Future.succeededFuture(icebergConnector);
+    assertRouted(send(bboxTask(bboxEvent())));
+    assertThat(lookups).hasValue(2);
+  }
+
+  @Test
   void shadowOnlyRunsForTheSample() {
     Service.configuration.ICEBERG_READS = "SHADOW";
     Service.configuration.ICEBERG_READS_SHADOW_SAMPLE = 0;
