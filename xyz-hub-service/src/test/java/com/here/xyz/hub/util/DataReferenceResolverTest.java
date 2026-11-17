@@ -400,6 +400,81 @@ class DataReferenceResolverTest {
         assertThat(result).containsExactly(valid);
     }
 
+    @Test
+    void filterForEntity_shouldKeepIcebergReferencesWithDifferentLocations() {
+        String entityId = "entity-id-1";
+        Space space = spaceWithCreatedAt(150L);
+
+        DataReference locationA = locatedRef(entityId, 180L, "ICEBERG", "warehouse/a");
+        DataReference locationB = locatedRef(entityId, 200L, "ICEBERG", "warehouse/b");
+
+        when(spaces.get(marker, entityId)).thenReturn(Future.succeededFuture(space));
+
+        List<DataReference> result = await(resolver.filterForEntity(marker, entityId, List.of(locationA, locationB), false));
+
+        assertThat(result).containsExactlyInAnyOrder(locationA, locationB);
+    }
+
+    @Test
+    void filterForEntity_shouldReturnNewestIcebergReference_whenLocationsAreEqual() {
+        String entityId = "entity-id-1";
+        Space space = spaceWithCreatedAt(150L);
+
+        DataReference older = locatedRef(entityId, 180L, "ICEBERG", "warehouse/a");
+        DataReference newer = locatedRef(entityId, 200L, "ICEBERG", "warehouse/a");
+
+        when(spaces.get(marker, entityId)).thenReturn(Future.succeededFuture(space));
+
+        List<DataReference> result = await(resolver.filterForEntity(marker, entityId, List.of(older, newer), false));
+
+        assertThat(result).containsExactly(newer);
+    }
+
+    @Test
+    void filterForEntity_shouldIgnoreLocation_forNonIcebergReferences() {
+        String entityId = "entity-id-1";
+        Space space = spaceWithCreatedAt(150L);
+
+        DataReference older = locatedRef(entityId, 180L, "S3", "bucket/a");
+        DataReference newer = locatedRef(entityId, 200L, "S3", "bucket/b");
+
+        when(spaces.get(marker, entityId)).thenReturn(Future.succeededFuture(space));
+
+        List<DataReference> result = await(resolver.filterForEntity(marker, entityId, List.of(older, newer), false));
+
+        assertThat(result).containsExactly(newer);
+    }
+
+    @Test
+    void loadEffectiveById_shouldReturnIcebergReplacementWithSameLocation_whenReferenceIsStale() {
+        UUID id = UUID.randomUUID();
+        Space space = spaceWithCreatedAt(500L);
+
+        DataReference stale = locatedRef("entity-id-1", 100L, "ICEBERG", "warehouse/a").withId(id);
+        DataReference sameLocation = locatedRef("entity-id-1", 600L, "ICEBERG", "warehouse/a");
+        DataReference otherLocationNewer = locatedRef("entity-id-1", 900L, "ICEBERG", "warehouse/b");
+
+        when(references.load(id)).thenReturn(Future.succeededFuture(Optional.of(stale)));
+        when(spaces.get(marker, "entity-id-1")).thenReturn(Future.succeededFuture(space));
+        when(references.load("entity-id-1", null, null, null, null, null, null))
+                .thenReturn(Future.succeededFuture(List.of(otherLocationNewer, sameLocation)));
+
+        Optional<DataReference> result = await(resolver.loadEffectiveById(marker, id));
+
+        assertThat(result).containsSame(sameLocation);
+    }
+
+    private static DataReference locatedRef(String entityId, Long createdAt, String targetSystem, String location) {
+        return ref(entityId, createdAt)
+                .withId(UUID.randomUUID())
+                .withEndVersion(10)
+                .withObjectType("features")
+                .withContentType("ct")
+                .withSourceSystem("src")
+                .withTargetSystem(targetSystem)
+                .withLocation(location);
+    }
+
     private static DataReference ref(String entityId, Long createdAt) {
         DataReference r = new DataReference().withEntityId(entityId);
         if (createdAt != null) {
