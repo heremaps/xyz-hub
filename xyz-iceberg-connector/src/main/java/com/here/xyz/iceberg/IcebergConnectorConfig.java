@@ -40,11 +40,13 @@ import java.util.regex.Pattern;
  * @param scanCacheHeapShare The share of the max heap for the cache of planned scans
  * @param footerCacheHeapShare The share of the max heap for the cache of Parquet footers
  * @param tableCacheTtlSeconds How long loaded table metadata is reused
+ * @param missingCacheTtlSeconds How long a table or ref which does not exist is remembered as missing, so that a stale location
+ *     does not load the table from the catalog on every request
  * @param planningThreads The number of threads for planning the files of a snapshot
  */
 public record IcebergConnectorConfig(String catalogName, Map<String, String> catalogProperties, long maxBytesPerRequest,
     long maxResponseBytes, long requestTimeoutMs, double scanCacheHeapShare, double footerCacheHeapShare, long tableCacheTtlSeconds,
-    int planningThreads) {
+    long missingCacheTtlSeconds, int planningThreads) {
 
   static final String DEFAULT_CATALOG_NAME = "iceberg";
   static final long DEFAULT_MAX_BYTES_PER_REQUEST = 256L * 1024 * 1024;
@@ -53,6 +55,7 @@ public record IcebergConnectorConfig(String catalogName, Map<String, String> cat
   static final double DEFAULT_SCAN_CACHE_HEAP_SHARE = 0.05;
   static final double DEFAULT_FOOTER_CACHE_HEAP_SHARE = 0.02;
   static final long DEFAULT_TABLE_CACHE_TTL_SECONDS = 60;
+  static final long DEFAULT_MISSING_CACHE_TTL_SECONDS = 30;
   static final int DEFAULT_PLANNING_THREADS = 2;
   /**
    * Iceberg's LegacyMd5Plugin is missing in the AWS SDK version of the Hub.
@@ -71,6 +74,7 @@ public record IcebergConnectorConfig(String catalogName, Map<String, String> cat
     requireShare(scanCacheHeapShare, "scanCacheHeapShare");
     requireShare(footerCacheHeapShare, "footerCacheHeapShare");
     requirePositive(tableCacheTtlSeconds, "tableCacheTtlSeconds");
+    requirePositive(missingCacheTtlSeconds, "missingCacheTtlSeconds");
     requirePositive(planningThreads, "planningThreads");
     if ("true".equalsIgnoreCase(catalogProperties.get(LEGACY_MD5_PLUGIN_PROPERTY)))
       throw new IllegalArgumentException(LEGACY_MD5_PLUGIN_PROPERTY + "=true is not supported by the AWS SDK version of the Hub");
@@ -94,6 +98,7 @@ public record IcebergConnectorConfig(String catalogName, Map<String, String> cat
         doubleParam(params, "scanCacheHeapShare", DEFAULT_SCAN_CACHE_HEAP_SHARE),
         doubleParam(params, "footerCacheHeapShare", DEFAULT_FOOTER_CACHE_HEAP_SHARE),
         longParam(params, "tableCacheTtlSeconds", DEFAULT_TABLE_CACHE_TTL_SECONDS),
+        longParam(params, "missingCacheTtlSeconds", DEFAULT_MISSING_CACHE_TTL_SECONDS),
         (int) longParam(params, "planningThreads", DEFAULT_PLANNING_THREADS));
   }
 
@@ -102,7 +107,7 @@ public record IcebergConnectorConfig(String catalogName, Map<String, String> cat
    */
   CatalogKey catalogKey() {
     return new CatalogKey(catalogName, catalogProperties, scanCacheHeapShare, footerCacheHeapShare, tableCacheTtlSeconds,
-        planningThreads);
+        missingCacheTtlSeconds, planningThreads);
   }
 
   @Override
@@ -111,11 +116,12 @@ public record IcebergConnectorConfig(String catalogName, Map<String, String> cat
     return "IcebergConnectorConfig[catalogName=" + catalogName + ", catalogProperties=" + catalogProperties.keySet()
         + ", maxBytesPerRequest=" + maxBytesPerRequest + ", maxResponseBytes=" + maxResponseBytes + ", requestTimeoutMs="
         + requestTimeoutMs + ", scanCacheHeapShare=" + scanCacheHeapShare + ", footerCacheHeapShare=" + footerCacheHeapShare
-        + ", tableCacheTtlSeconds=" + tableCacheTtlSeconds + ", planningThreads=" + planningThreads + "]";
+        + ", tableCacheTtlSeconds=" + tableCacheTtlSeconds + ", missingCacheTtlSeconds=" + missingCacheTtlSeconds
+        + ", planningThreads=" + planningThreads + "]";
   }
 
   record CatalogKey(String catalogName, Map<String, String> catalogProperties, double scanCacheHeapShare,
-      double footerCacheHeapShare, long tableCacheTtlSeconds, int planningThreads) {
+      double footerCacheHeapShare, long tableCacheTtlSeconds, long missingCacheTtlSeconds, int planningThreads) {
 
     @Override
     public String toString() {

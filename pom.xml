@@ -577,6 +577,18 @@
           </exclusion>
         </exclusions>
       </dependency>
+      <!--The connector reads Parquet footers to find the row group of a page token-->
+      <dependency>
+        <groupId>org.apache.parquet</groupId>
+        <artifactId>parquet-hadoop</artifactId>
+        <version>${parquet-version}</version>
+        <exclusions>
+          <exclusion>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+          </exclusion>
+        </exclusions>
+      </dependency>
       <!--Iceberg's Parquet reader needs the Hadoop Configuration and compression classes. The client jars relocate their own dependencies.-->
       <dependency>
         <groupId>org.apache.hadoop</groupId>
