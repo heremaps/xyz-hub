@@ -166,26 +166,107 @@ class IcebergConnectorTest {
 
   @Test
   void aDeepPageOnlyReadsFromItsRowGroup() {
-    IcebergTables tables = IcebergTables.forConfig(IcebergConnectorConfig.from(connectorParams(Map.of())));
-    SnapshotFiles files = tables.resolve(new IcebergLocation(NAMESPACE, ROW_GROUP_TABLE, "v1"));
+    IcebergTables tables = rowGroupTables();
+    SnapshotFiles files = rowGroupFiles(tables);
+    int fileIndex = rowGroupFileIndex(files);
+    FileScanTask task = files.tasks().get(fileIndex);
+    assertThat(task.file().splitOffsets()).hasSizeGreaterThanOrEqualTo(ROW_GROUP_TABLE_ROWS / ROW_GROUP_ROWS);
+
+    int lastRowGroup = task.file().splitOffsets().size() - 1;
+    FeatureScan scan = new FeatureScan(tables, files)
+        .withBudget(new ReadBudget(Long.MAX_VALUE, Long.MAX_VALUE))
+        .withLimit(2)
+        .withPaging(new FeatureScan.Position(fileIndex, lastRowGroup, 1));
+    Result result = scan.run();
+    assertThat(result.features()).hasSize(2);
+    assertThat(result.next()).isEqualTo(new FeatureScan.Position(fileIndex, lastRowGroup, 3));
+    //Only the rows of the last row group were decoded, not the whole file before the position
+    assertThat(scan.stats().rowGroupsRead).isEqualTo(1);
+    assertThat(scan.stats().rowsScanned).isLessThanOrEqualTo(ROW_GROUP_ROWS);
+  }
+
+  @Test
+  void pagesEndAtRowGroupBoundariesWithinTheBudget() {
+    IcebergTables tables = rowGroupTables();
+    SnapshotFiles files = rowGroupFiles(tables);
+    List<String> expected = new FeatureScan(tables, files)
+        .withBudget(new ReadBudget(Long.MAX_VALUE, Long.MAX_VALUE))
+        .withPaging(FeatureScan.Position.FIRST)
+        .run()
+        .features();
+    long maxRowGroupBytes = new FeatureScan(tables, files).maxRowGroupBytes(Long.MAX_VALUE);
+    assertThat(maxRowGroupBytes).isPositive();
+    long deleteBytes = files.tasks().stream().flatMap(task -> task.deletes().stream())
+        .mapToLong(delete -> delete.contentSizeInBytes() != null ? delete.contentSizeInBytes() : delete.fileSizeInBytes()).sum();
+    //Room for two row groups (the footers are cached by the first scan)
+    long maxBytes = deleteBytes + 2 * maxRowGroupBytes + maxRowGroupBytes / 2;
+
+    List<String> all = new ArrayList<>();
+    FeatureScan.Position position = FeatureScan.Position.FIRST;
+    int pages = 0;
+    do {
+      ReadBudget budget = new ReadBudget(maxBytes, Long.MAX_VALUE);
+      FeatureScan scan = new FeatureScan(tables, files).withBudget(budget).withLimit(1000).withPaging(position);
+      Result page = scan.run();
+      pages++;
+      assertThat(budget.bytesRead()).as("bytes read by page " + pages).isLessThanOrEqualTo(maxBytes);
+      assertThat(scan.stats().rowGroupsRead).isPositive();
+      all.addAll(page.features());
+      position = page.next();
+      if (position != null)
+        assertThat(position.rowOffset()).as("the page ends at a row group boundary").isZero();
+      assertThat(pages).isLessThan(100);
+    }
+    while (position != null);
+    assertThat(pages).isGreaterThan(2);
+    assertThat(all).isEqualTo(expected);
+  }
+
+  @Test
+  void anEmptyPageReadsOneRowGroupAboveTheBudget() {
+    IcebergTables tables = rowGroupTables();
+    SnapshotFiles files = rowGroupFiles(tables);
+    FeatureScan scan = new FeatureScan(tables, files).withBudget(new ReadBudget(1, Long.MAX_VALUE)).withLimit(1000)
+        .withPaging(FeatureScan.Position.FIRST);
+    Result page = scan.run();
+    assertThat(page.features()).isNotEmpty();
+    assertThat(scan.stats().rowGroupsRead).isEqualTo(1);
+    assertThat(page.next()).isNotNull();
+    assertThat(page.next().rowOffset()).isZero();
+  }
+
+  @Test
+  void aVersionWithARowGroupAboveTheBudgetIsNotIterated() throws Exception {
+    Map<String, Object> smallBudget = connectorParams(Map.of("maxBytesPerRequest", 10));
+    IterateFeaturesEvent<?> firstPage = locatedIterate(new IcebergLocation(NAMESPACE, ROW_GROUP_TABLE, "v1"));
+    assertError(invoke(withConnectorParams(firstPage, smallBudget)), XyzError.NOT_IMPLEMENTED);
+
+    //A started iteration continues, one row group per page
+    IterateFeaturesEvent<?> event = locatedIterate(new IcebergLocation(NAMESPACE, ROW_GROUP_TABLE, "v1"));
+    String token = featureCollection(invoke(withConnectorParams(event, connectorParams(Map.of())))).getNextPageToken();
+    assertThat(token).isNotNull();
+    IterateFeaturesEvent<?> nextPage = locatedIterate(new IcebergLocation(NAMESPACE, ROW_GROUP_TABLE, "v1"));
+    nextPage.setNextPageToken(token);
+    FeatureCollection page = featureCollection(invoke(withConnectorParams(nextPage, smallBudget)));
+    assertThat(ids(page)).isNotEmpty().hasSizeLessThanOrEqualTo(ROW_GROUP_ROWS);
+    assertThat(page.getNextPageToken()).isNotNull().endsWith(":0");
+  }
+
+  private static IcebergTables rowGroupTables() {
+    return IcebergTables.forConfig(IcebergConnectorConfig.from(connectorParams(Map.of())));
+  }
+
+  private static SnapshotFiles rowGroupFiles(IcebergTables tables) {
+    return tables.resolve(new IcebergLocation(NAMESPACE, ROW_GROUP_TABLE, "v1"));
+  }
+
+  private static int rowGroupFileIndex(SnapshotFiles files) {
     int fileIndex = -1;
     for (int i = 0; i < files.tasks().size(); i++)
       if (files.tasks().get(i).file().recordCount() == ROW_GROUP_TABLE_ROWS)
         fileIndex = i;
     assertThat(fileIndex).isNotNegative();
-    FileScanTask task = files.tasks().get(fileIndex);
-    assertThat(task.file().splitOffsets()).hasSizeGreaterThanOrEqualTo(ROW_GROUP_TABLE_ROWS / ROW_GROUP_ROWS);
-
-    long startPosition = ROW_GROUP_TABLE_ROWS - 3;
-    FeatureScan scan = new FeatureScan(tables, files)
-        .withBudget(new ReadBudget(Long.MAX_VALUE, Long.MAX_VALUE))
-        .withLimit(2)
-        .withStart(new FeatureScan.Position(fileIndex, startPosition));
-    Result result = scan.run();
-    assertThat(result.features()).hasSize(2);
-    assertThat(result.next()).isEqualTo(new FeatureScan.Position(fileIndex, startPosition + 2));
-    //Only the rows of the last row group(s) were decoded, not the whole file before the position
-    assertThat(scan.stats().rowsScanned).isLessThanOrEqualTo(2L * ROW_GROUP_ROWS);
+    return fileIndex;
   }
 
   @Test
@@ -200,6 +281,8 @@ class IcebergConnectorTest {
     String token = featureCollection(invoke(iterate("v1", 3, null))).getNextPageToken();
     assertError(invoke(iterate("v2", 3, token)), XyzError.ILLEGAL_ARGUMENT);
     assertError(invoke(iterate("v2", 3, "ice:not-a-token")), XyzError.ILLEGAL_ARGUMENT);
+    //The token format of a row position in the file
+    assertError(invoke(iterate("v2", 3, token.substring(0, token.lastIndexOf(':')))), XyzError.ILLEGAL_ARGUMENT);
   }
 
   @Test
@@ -334,7 +417,7 @@ class IcebergConnectorTest {
 
   @Test
   void stopsAtTheByteLimit() throws Exception {
-    Event<?> event = withConnectorParams(iterate("v2", 1000, null), connectorParams(Map.of("maxBytesPerRequest", 10)));
+    Event<?> event = withConnectorParams(bbox("v2", new BBox(-180, -90, 180, 90)), connectorParams(Map.of("maxBytesPerRequest", 10)));
     assertError(invoke(event), XyzError.PAYLOAD_TO_LARGE);
   }
 

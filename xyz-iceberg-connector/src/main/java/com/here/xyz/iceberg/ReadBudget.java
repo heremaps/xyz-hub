@@ -30,7 +30,7 @@ import java.util.concurrent.atomic.AtomicLong;
 final class ReadBudget {
 
   private final AtomicLong bytesRead = new AtomicLong();
-  private final long maxBytes;
+  private volatile long maxBytes;
   private final long deadlineMillis;
 
   ReadBudget(long maxBytes, long deadlineMillis) {
@@ -50,6 +50,20 @@ final class ReadBudget {
 
   long bytesRead() {
     return bytesRead.get();
+  }
+
+  /**
+   * @return The bytes which may still be read
+   */
+  long remaining() {
+    return Math.max(0, maxBytes - bytesRead.get());
+  }
+
+  /**
+   * Raises the limit, if needed, so that the given number of bytes may still be read.
+   */
+  void allow(long bytes) {
+    maxBytes = Math.max(maxBytes, bytesRead.get() + bytes);
   }
 
   /**

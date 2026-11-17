@@ -19,6 +19,9 @@
 
 package com.here.xyz.iceberg;
 
+import static com.here.xyz.responses.XyzError.TIMEOUT;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.RemovalCause;
@@ -31,10 +34,16 @@ import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.ToLongFunction;
 import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogUtil;
@@ -69,6 +78,7 @@ final class IcebergTables {
   static final List<String> BBOX_STATS_COLUMNS = List.of("bbox.xmin", "bbox.ymin", "bbox.xmax", "bbox.ymax");
   private static final int TASK_WEIGHT_BYTES = 2048;
   private static final int MAX_MISSING_ENTRIES = 10_000;
+  private static final int MAX_ROW_GROUP_SIZE_ENTRIES = 10_000;
   /**
    * Much longer than a request may take, so an instance is never closed while a request uses it.
    */
@@ -92,6 +102,10 @@ final class IcebergTables {
    * Tables (by identifier) and refs (by identifier and ref name) which do not exist
    */
   private final Cache<String, Boolean> missing;
+  /**
+   * The largest projected row group of a snapshot (see {@link FeatureScan#maxRowGroupBytes(long)})
+   */
+  private final Cache<RowGroupSizeKey, Long> maxRowGroupBytes;
 
   private IcebergTables(CatalogKey key) {
     this.key = key;
@@ -114,6 +128,9 @@ final class IcebergTables {
         .expireAfterWrite(Duration.ofSeconds(key.missingCacheTtlSeconds()))
         .maximumSize(MAX_MISSING_ENTRIES)
         .build();
+    maxRowGroupBytes = Caffeine.newBuilder()
+        .maximumSize(MAX_ROW_GROUP_SIZE_ENTRIES)
+        .build();
   }
 
   static IcebergTables forConfig(IcebergConnectorConfig config) {
@@ -127,6 +144,7 @@ final class IcebergTables {
     scans.invalidateAll();
     footers.invalidateAll();
     missing.invalidateAll();
+    maxRowGroupBytes.invalidateAll();
     if (catalog instanceof Closeable closeable) {
       try {
         closeable.close();
@@ -197,6 +215,54 @@ final class IcebergTables {
     return new TailCachingInputFile(new CountingInputFile(file, budget), footers);
   }
 
+  /**
+   * Returns the maximum of {@code fileMax} over the data files of the snapshot, cached per snapshot and projection. The files are
+   * evaluated in parallel on the planning pool.
+   *
+   * @param columns The projected columns, part of the cache key
+   * @param fileMax The value of one data file
+   * @param deadlineMillis The time after which the files are no longer awaited
+   * @throws ScanException with TIMEOUT if not all files were evaluated before the deadline; nothing is cached then
+   */
+  long maxRowGroupBytes(SnapshotFiles files, Set<String> columns, ToLongFunction<FileScanTask> fileMax, long deadlineMillis) {
+    RowGroupSizeKey key = new RowGroupSizeKey(files.table().name(), files.snapshotId(), columns);
+    Long cached = maxRowGroupBytes.getIfPresent(key);
+    if (cached != null)
+      return cached;
+
+    List<Future<Long>> futures = new ArrayList<>();
+    Set<String> locations = new HashSet<>();
+    for (FileScanTask task : files.tasks())
+      if (locations.add(task.file().location()))
+        futures.add(planningPool.submit(() -> fileMax.applyAsLong(task)));
+    long max = 0;
+    try {
+      for (Future<Long> future : futures) {
+        long wait = deadlineMillis - System.currentTimeMillis();
+        if (wait <= 0)
+          throw new TimeoutException();
+        max = Math.max(max, future.get(wait, MILLISECONDS));
+      }
+    }
+    catch (TimeoutException e) {
+      futures.forEach(future -> future.cancel(false));
+      throw new ScanException(TIMEOUT, "The Iceberg read did not finish in time");
+    }
+    catch (InterruptedException e) {
+      futures.forEach(future -> future.cancel(false));
+      Thread.currentThread().interrupt();
+      throw new ScanException(TIMEOUT, "The Iceberg read was interrupted");
+    }
+    catch (ExecutionException e) {
+      futures.forEach(future -> future.cancel(false));
+      if (e.getCause() instanceof RuntimeException runtimeException)
+        throw runtimeException;
+      throw new IllegalStateException(e.getCause());
+    }
+    maxRowGroupBytes.put(key, max);
+    return max;
+  }
+
   private List<FileScanTask> planFiles(Table table, Schema schema, long snapshotId) {
     List<String> statsColumns = Stream.concat(BBOX_STATS_COLUMNS.stream(), key.statsColumns().stream())
         .filter(column -> schema.findField(column) != null).toList();
@@ -231,4 +297,6 @@ final class IcebergTables {
   record SnapshotFiles(Table table, Schema schema, long snapshotId, List<FileScanTask> tasks) {}
 
   private record ScanKey(TableIdentifier table, long snapshotId) {}
+
+  private record RowGroupSizeKey(String table, long snapshotId, Set<String> columns) {}
 }
