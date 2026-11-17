@@ -130,7 +130,7 @@ public class IcebergConnector extends StorageConnector {
       throw notImplemented("Partitioned iteration (startI / endI)");
 
     Long tokenSnapshotId = null;
-    Position start = new Position(0, 0);
+    Position start = Position.FIRST;
     if (event.getNextPageToken() != null) {
       PageToken token = PageToken.parse(event.getNextPageToken());
       tokenSnapshotId = token.snapshotId();
@@ -145,7 +145,14 @@ public class IcebergConnector extends StorageConnector {
     if (start.fileIndex() > files.tasks().size())
       throw new ErrorResponseException(ILLEGAL_ARGUMENT, "Invalid page token");
 
-    FeatureScan scan = newScan(files, startTime).withFilters(filters).withLimit(event.getLimit()).withStart(start);
+    FeatureScan scan = newScan(event, files, startTime).withFilters(filters).withLimit(event.getLimit()).withPaging(start);
+    //An iteration never switches the backend, so it only starts here if no page can fail because of a row group above the budget
+    if (tokenSnapshotId == null) {
+      long maxRowGroupBytes = scan.maxRowGroupBytes(startTime + config.requestTimeoutMs());
+      if (maxRowGroupBytes > config.maxBytesPerRequest())
+        throw notImplemented("Iterating a version with a row group of " + maxRowGroupBytes + " bytes (more than maxBytesPerRequest "
+            + config.maxBytesPerRequest() + ")");
+    }
     Result result = run(event, location, files, scan, startTime);
     FeatureCollection response = response(result);
     if (result.next() != null) {
@@ -197,7 +204,7 @@ public class IcebergConnector extends StorageConnector {
     long startTime = System.currentTimeMillis();
     IcebergLocation location = location(event);
     SnapshotFiles files = tables.resolve(location);
-    FeatureScan scan = newScan(files, startTime).withFilters(filters).withLimit(event.getLimit());
+    FeatureScan scan = newScan(event, files, startTime).withFilters(filters).withLimit(event.getLimit());
     return response(run(event, location, files, scan, startTime));
   }
 
@@ -206,11 +213,11 @@ public class IcebergConnector extends StorageConnector {
     long startTime = System.currentTimeMillis();
     IcebergLocation location = location(event);
     SnapshotFiles files = tables.resolve(location);
-    FeatureScan scan = newScan(files, startTime).withGeometry(geometry).withFilters(filters).withLimit(event.getLimit());
+    FeatureScan scan = newScan(event, files, startTime).withGeometry(geometry).withFilters(filters).withLimit(event.getLimit());
     return response(run(event, location, files, scan, startTime));
   }
 
-  private FeatureScan newScan(SnapshotFiles files, long startTime) {
+  private FeatureScan newScan(Event<?> event, SnapshotFiles files, long startTime) {
     return new FeatureScan(tables, files)
         .withBudget(new ReadBudget(config.maxBytesPerRequest(), startTime + config.requestTimeoutMs()))
         .withMaxResponseBytes(config.maxResponseBytes());
@@ -224,10 +231,10 @@ public class IcebergConnector extends StorageConnector {
     }
     finally {
       FeatureScan.Stats stats = scan.stats();
-      logger.info("{} iceberg-read event={} location={} snapshot={} filesPlanned={} filesPruned={} filesRead={} bytesRead={} "
-              + "rowsScanned={} rowsMatched={} ms={} outcome={}", traceItem, event.getClass().getSimpleName(), location,
-          files.snapshotId(), stats.filesPlanned, stats.filesPruned, stats.filesRead, scan.bytesRead(), stats.rowsScanned,
-          stats.rowsMatched, System.currentTimeMillis() - startTime, result != null ? "ok" : "error");
+      logger.info("{} iceberg-read event={} location={} snapshot={} filesPlanned={} filesPruned={} filesRead={} rowGroupsRead={} "
+              + "bytesRead={} rowsScanned={} rowsMatched={} ms={} outcome={}", traceItem, event.getClass().getSimpleName(), location,
+          files.snapshotId(), stats.filesPlanned, stats.filesPruned, stats.filesRead, stats.rowGroupsRead, scan.bytesRead(),
+          stats.rowsScanned, stats.rowsMatched, System.currentTimeMillis() - startTime, result != null ? "ok" : "error");
     }
   }
 
@@ -414,8 +421,8 @@ public class IcebergConnector extends StorageConnector {
   }
 
   /**
-   * An iterate page token: {@code ice:<snapshotId>:<fileIndex>:<rowPosition>}, where the row position is the position in the data
-   * file of the first row which was not returned yet.
+   * An iterate page token: {@code ice:<snapshotId>:<fileIndex>:<rowGroup>:<rowOffset>}, the data file, the row group in that file
+   * and the offset in that row group of the first row which was not returned yet.
    */
   record PageToken(long snapshotId, Position position) {
 
@@ -423,15 +430,16 @@ public class IcebergConnector extends StorageConnector {
       if (!token.startsWith(ITERATE_TOKEN_PREFIX))
         throw new ErrorResponseException(ILLEGAL_ARGUMENT, "Invalid page token");
       String[] parts = token.substring(ITERATE_TOKEN_PREFIX.length()).split(":", -1);
-      if (parts.length != 3)
+      if (parts.length != 4)
         throw new ErrorResponseException(ILLEGAL_ARGUMENT, "Invalid page token");
       try {
         long snapshotId = Long.parseLong(parts[0]);
         int fileIndex = Integer.parseInt(parts[1]);
-        long rowPosition = Long.parseLong(parts[2]);
-        if (fileIndex < 0 || rowPosition < 0)
+        int rowGroup = Integer.parseInt(parts[2]);
+        long rowOffset = Long.parseLong(parts[3]);
+        if (fileIndex < 0 || rowGroup < 0 || rowOffset < 0)
           throw new ErrorResponseException(ILLEGAL_ARGUMENT, "Invalid page token");
-        return new PageToken(snapshotId, new Position(fileIndex, rowPosition));
+        return new PageToken(snapshotId, new Position(fileIndex, rowGroup, rowOffset));
       }
       catch (NumberFormatException e) {
         throw new ErrorResponseException(ILLEGAL_ARGUMENT, "Invalid page token");
@@ -440,7 +448,7 @@ public class IcebergConnector extends StorageConnector {
 
     @Override
     public String toString() {
-      return ITERATE_TOKEN_PREFIX + snapshotId + ":" + position.fileIndex() + ":" + position.rowPosition();
+      return ITERATE_TOKEN_PREFIX + snapshotId + ":" + position.fileIndex() + ":" + position.rowGroup() + ":" + position.rowOffset();
     }
   }
 }

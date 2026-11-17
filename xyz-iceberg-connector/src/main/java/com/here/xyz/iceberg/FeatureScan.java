@@ -27,6 +27,8 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -50,8 +52,13 @@ import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.PartitionUtil;
+import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnPath;
+import org.apache.parquet.hadoop.metadata.ParquetMetadata;
+import org.apache.parquet.schema.Type;
 import org.apache.parquet.io.DelegatingSeekableInputStream;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
@@ -65,8 +72,11 @@ import org.locationtech.jts.io.WKBReader;
  * Files are pruned by their column statistics, row groups by Parquet's statistics, and rows are filtered exactly: bbox overlap,
  * then a JTS intersection with the stored WKB geometry, then the property filters. Deletion vectors and position deletes are applied.
  * <p>
- * A scan can start at a row position inside a file. It then reads the file from the row group which contains that position, so the
- * cost of a page does not grow with its position in the file.
+ * A paged scan (iterate) reads one row group at a time and starts at the row group and row offset of its {@link Position}, so the
+ * cost of a page does not grow with its position in the file. Before it reads a row group, it compares the compressed size of the
+ * projected column chunks (from the cached footer) with the rest of the request's byte budget. If the row group does not fit, the
+ * page ends at the row group boundary. Only a page without features yet reads a row group that does not fit, so that every page
+ * makes progress.
  */
 final class FeatureScan {
 
@@ -85,10 +95,13 @@ final class FeatureScan {
   private PreparedGeometry geometry;
   private List<List<ColumnFilter>> filters;
   private long limit = Long.MAX_VALUE;
-  private Position start = new Position(0, 0);
+  private Position start = Position.FIRST;
+  private boolean paged;
   private ReadBudget budget;
   private long maxResponseBytes = Long.MAX_VALUE;
   private final Stats stats = new Stats();
+  private final List<String> features = new ArrayList<>();
+  private long responseBytes;
 
   FeatureScan(IcebergTables tables, SnapshotFiles files) {
     this.tables = tables;
@@ -117,8 +130,12 @@ final class FeatureScan {
     return this;
   }
 
-  FeatureScan withStart(Position start) {
+  /**
+   * Makes this a paged scan which reads row group by row group, starting at the position.
+   */
+  FeatureScan withPaging(Position start) {
     this.start = start;
+    paged = true;
     return this;
   }
 
@@ -142,52 +159,162 @@ final class FeatureScan {
 
   Result run() {
     Schema schema = files.schema();
-    List<String> columns = new ArrayList<>(PROJECTED_COLUMNS);
-    if (filters != null)
-      filters.forEach(allOf -> allOf.forEach(filter -> columns.add(filter.column())));
+    List<String> columns = projectedColumns();
     Schema projection = TypeUtil.join(schema.select(columns), new Schema(MetadataColumns.ROW_POSITION));
     Expression filter = filterExpression();
     InclusiveMetricsEvaluator metrics = filter == null ? null : new InclusiveMetricsEvaluator(schema, filter);
+    ProjectedColumns projected = projectedColumns(schema, columns);
     WKBReader wkbReader = new WKBReader();
     List<FileScanTask> tasks = files.tasks();
     stats.filesPlanned = tasks.size();
 
-    List<String> features = new ArrayList<>();
-    long responseBytes = 0;
-    for (int fileIndex = start.fileIndex(); fileIndex < tasks.size(); fileIndex++) {
-      budget.checkDeadline();
-      FileScanTask task = tasks.get(fileIndex);
-      if (metrics != null && !metrics.eval(task.file())) {
-        stats.filesPruned++;
-        continue;
-      }
-      long startPosition = fileIndex == start.fileIndex() ? start.rowPosition() : 0;
-      stats.filesRead++;
-      try (CloseableIterable<Record> records = open(task, projection, filter, startPosition)) {
-        for (Record record : records) {
-          if (++stats.rowsScanned % CHECK_INTERVAL_ROWS == 0)
-            budget.checkDeadline();
-          long position = (Long) record.getField(ROW_POSITION);
-          if (position < startPosition || !matches(record, wkbReader))
-            continue;
-          Object json = record.getField(FEATURE_JSON);
-          if (json == null)
-            continue;
-          String feature = json.toString();
-          responseBytes += feature.length();
-          if (responseBytes > maxResponseBytes)
-            throw new ScanException(PAYLOAD_TO_LARGE, "The response would be larger than " + maxResponseBytes + " bytes");
-          features.add(feature);
-          stats.rowsMatched++;
-          if (features.size() >= limit)
-            return new Result(features, new Position(fileIndex, position + 1));
+    try {
+      for (int fileIndex = start.fileIndex(); fileIndex < tasks.size(); fileIndex++) {
+        budget.checkDeadline();
+        FileScanTask task = tasks.get(fileIndex);
+        if (metrics != null && !metrics.eval(task.file())) {
+          stats.filesPruned++;
+          continue;
         }
-      }
-      catch (IOException e) {
-        throw new UncheckedIOException(e);
+        stats.filesRead++;
+        if (paged) {
+          Position next = scanRowGroups(fileIndex, task, projection, filter, projected, wkbReader);
+          if (next != null)
+            return new Result(features, next);
+        }
+        else if (scanFile(task, projection, filter, wkbReader))
+          return new Result(features, null);
       }
     }
+    catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
     return new Result(features, null);
+  }
+
+  /**
+   * The largest compressed size of the projected column chunks of a row group in the data files of the snapshot. The footers are
+   * read in parallel (through the footer cache) and the result is cached per snapshot.
+   *
+   * @param deadlineMillis The time after which the footers are no longer awaited (TIMEOUT)
+   */
+  long maxRowGroupBytes(long deadlineMillis) {
+    List<String> columns = projectedColumns();
+    ProjectedColumns projected = projectedColumns(files.schema(), columns);
+    //Footer reads for this check do not count against the budget of the page
+    ReadBudget footerBudget = new ReadBudget(Long.MAX_VALUE, deadlineMillis);
+    return tables.maxRowGroupBytes(files, Set.copyOf(columns), task -> {
+      long max = 0;
+      for (RowGroup rowGroup : rowGroups(footer(dataFile(task, footerBudget)), projected))
+        max = Math.max(max, rowGroup.projectedBytes());
+      return max;
+    }, deadlineMillis);
+  }
+
+  private List<String> projectedColumns() {
+    List<String> columns = new ArrayList<>(PROJECTED_COLUMNS);
+    if (filters != null)
+      filters.forEach(allOf -> allOf.forEach(filter -> columns.add(filter.column())));
+    return List.copyOf(new LinkedHashSet<>(columns));
+  }
+
+  /**
+   * Reads a whole file task.
+   *
+   * @return true if the limit was reached
+   */
+  private boolean scanFile(FileScanTask task, Schema projection, Expression filter, WKBReader wkbReader) throws IOException {
+    DeleteFilter<Record> deletes = new CountingDeleteFilter(files.table().io(), task, files.schema(), projection, budget);
+    try (CloseableIterable<Record> records = open(task, dataFile(task, budget), deletes, filter, task.start(), task.length())) {
+      for (Record record : records) {
+        countRow();
+        if (matches(record, wkbReader) && add(record))
+          return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Reads the row groups of a file task one by one, starting at the scan's start position if the file is the start file.
+   *
+   * @return The position to continue at if the page ends in this file, or null to continue with the next file
+   */
+  private Position scanRowGroups(int fileIndex, FileScanTask task, Schema projection, Expression filter, ProjectedColumns projected,
+      WKBReader wkbReader) throws IOException {
+    InputFile dataFile = dataFile(task, budget);
+    boolean startFile = fileIndex == start.fileIndex();
+    long splitStart = task.start(), splitEnd = task.start() + task.length();
+    DeleteFilter<Record> deletes = null;
+    for (RowGroup rowGroup : rowGroups(footer(dataFile), projected)) {
+      if (startFile && rowGroup.index() < start.rowGroup())
+        continue;
+      //Like Parquet's split filter: a row group belongs to the split which contains its midpoint
+      long midpoint = rowGroup.start() + rowGroup.length() / 2;
+      if (midpoint < splitStart || midpoint >= splitEnd)
+        continue;
+      long offset = startFile && rowGroup.index() == start.rowGroup() ? start.rowOffset() : 0;
+      if (offset >= rowGroup.rowCount())
+        continue;
+      budget.checkDeadline();
+
+      //The delete files of the file are read with its first row group
+      long bytes = rowGroup.projectedBytes() + (deletes == null ? deleteBytes(task) : 0);
+      if (bytes > budget.remaining()) {
+        if (!features.isEmpty())
+          return new Position(fileIndex, rowGroup.index(), offset);
+        //An empty page reads one row group even if it does not fit, so that every page makes progress
+        budget.allow(bytes);
+      }
+      if (deletes == null)
+        deletes = new CountingDeleteFilter(files.table().io(), task, files.schema(), projection, budget);
+      stats.rowGroupsRead++;
+      try (CloseableIterable<Record> records = open(task, dataFile, deletes, filter, rowGroup.start(), rowGroup.length())) {
+        for (Record record : records) {
+          countRow();
+          long row = (Long) record.getField(ROW_POSITION) - rowGroup.firstRow();
+          if (row < offset || !matches(record, wkbReader))
+            continue;
+          if (add(record))
+            return row + 1 < rowGroup.rowCount() ? new Position(fileIndex, rowGroup.index(), row + 1)
+                : new Position(fileIndex, rowGroup.index() + 1, 0);
+        }
+      }
+    }
+    return null;
+  }
+
+  private void countRow() {
+    if (++stats.rowsScanned % CHECK_INTERVAL_ROWS == 0)
+      budget.checkDeadline();
+  }
+
+  /**
+   * Adds the feature of a matching row to the response.
+   *
+   * @return true if the limit was reached
+   */
+  private boolean add(Record record) {
+    Object json = record.getField(FEATURE_JSON);
+    if (json == null)
+      return false;
+    String feature = json.toString();
+    responseBytes += feature.length();
+    if (responseBytes > maxResponseBytes)
+      throw new ScanException(PAYLOAD_TO_LARGE, "The response would be larger than " + maxResponseBytes + " bytes");
+    features.add(feature);
+    stats.rowsMatched++;
+    return features.size() >= limit;
+  }
+
+  /**
+   * The bytes of the delete files of a task; for a deletion vector only its blob.
+   */
+  private static long deleteBytes(FileScanTask task) {
+    long bytes = 0;
+    for (DeleteFile delete : task.deletes())
+      bytes += delete.contentSizeInBytes() != null ? delete.contentSizeInBytes() : delete.fileSizeInBytes();
+    return bytes;
   }
 
   private Expression filterExpression() {
@@ -212,53 +339,78 @@ final class FeatureScan {
   }
 
   /**
-   * Opens one task like Iceberg's (package-private) {@code org.apache.iceberg.data.GenericReader#open(FileScanTask)}, but with
-   * byte counting, the footer cache and the row group filter.
-   *
-   * @param startPosition The row position in the file to start at. Row groups before the one containing it are not read.
+   * Opens a data file so that the bytes read count against the budget and the Parquet footer comes from the footer cache.
    */
-  private CloseableIterable<Record> open(FileScanTask task, Schema projection, Expression filter, long startPosition)
-      throws IOException {
+  private InputFile dataFile(FileScanTask task, ReadBudget readBudget) {
     if (task.file().format() != FileFormat.PARQUET)
       throw new ScanException(NOT_IMPLEMENTED, "Reading " + task.file().format() + " files is not supported");
-    FileIO io = files.table().io();
-    InputFile dataFile = tables.dataFile(io.newInputFile(task.file()), budget);
-    long splitStart = task.start();
-    long splitEnd = task.start() + task.length();
-    if (startPosition > 0) {
-      long rowGroupStart = rowGroupStart(dataFile, startPosition);
-      if (rowGroupStart < 0)
-        return CloseableIterable.empty();
-      splitStart = Math.max(splitStart, rowGroupStart);
-      if (splitStart >= splitEnd)
-        return CloseableIterable.empty();
-    }
-    DeleteFilter<Record> deletes = new CountingDeleteFilter(io, task, files.schema(), projection, budget);
+    return tables.dataFile(files.table().io().newInputFile(task.file()), readBudget);
+  }
+
+  /**
+   * Opens a range of one task like Iceberg's (package-private) {@code org.apache.iceberg.data.GenericReader#open(FileScanTask)},
+   * but with byte counting, the footer cache and the row group filter.
+   * Parquet reads the row groups whose midpoint is inside the split, so the starting offset and the compressed size of a row group
+   * select exactly that row group.
+   */
+  private static CloseableIterable<Record> open(FileScanTask task, InputFile dataFile, DeleteFilter<Record> deletes,
+      Expression filter, long splitStart, long splitLength) {
     Schema readSchema = deletes.requiredSchema();
     Map<Integer, ?> partition = PartitionUtil.constantsMap(task, IdentityPartitionConverters::convertConstant);
-    //Parquet reads the row groups whose midpoint is inside the split. The starting offset of a row group selects it and all later ones.
     Parquet.ReadBuilder builder = Parquet.read(dataFile)
         .project(readSchema)
         .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(readSchema, fileSchema, partition))
-        .split(splitStart, splitEnd - splitStart);
+        .split(splitStart, splitLength);
     if (filter != null)
       builder.filter(filter);
     return deletes.filter(builder.build());
   }
 
-  /**
-   * @return The starting offset of the row group which contains the row position, or -1 if the file has fewer rows
-   */
-  private static long rowGroupStart(InputFile file, long position) throws IOException {
+  private static ParquetMetadata footer(InputFile file) {
     try (ParquetFileReader reader = ParquetFileReader.open(new ParquetInputFile(file))) {
-      long firstRow = 0;
-      for (BlockMetaData rowGroup : reader.getFooter().getBlocks()) {
-        if (position < firstRow + rowGroup.getRowCount())
-          return rowGroup.getStartingPos();
-        firstRow += rowGroup.getRowCount();
-      }
-      return -1;
+      return reader.getFooter();
     }
+    catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
+
+  /**
+   * The Parquet columns of the projection: by field ID, and by name for files without field IDs.
+   */
+  private static ProjectedColumns projectedColumns(Schema schema, List<String> columns) {
+    Set<Integer> fieldIds = new LinkedHashSet<>();
+    for (String column : columns)
+      if (schema.findField(column) != null)
+        fieldIds.add(schema.findField(column).fieldId());
+    return new ProjectedColumns(Set.copyOf(fieldIds), Set.copyOf(columns));
+  }
+
+  /**
+   * The row groups of a file, with the compressed size of their projected column chunks.
+   */
+  static List<RowGroup> rowGroups(ParquetMetadata footer, ProjectedColumns projected) {
+    Map<ColumnPath, Integer> fieldIds = new HashMap<>();
+    for (ColumnDescriptor column : footer.getFileMetaData().getSchema().getColumns()) {
+      Type.ID id = column.getPrimitiveType().getId();
+      if (id != null)
+        fieldIds.put(ColumnPath.get(column.getPath()), id.intValue());
+    }
+    List<RowGroup> rowGroups = new ArrayList<>();
+    long firstRow = 0;
+    List<BlockMetaData> blocks = footer.getBlocks();
+    for (int i = 0; i < blocks.size(); i++) {
+      BlockMetaData block = blocks.get(i);
+      long projectedBytes = 0;
+      for (ColumnChunkMetaData chunk : block.getColumns()) {
+        Integer id = fieldIds.get(chunk.getPath());
+        if (id != null ? projected.fieldIds().contains(id) : projected.names().contains(chunk.getPath().toDotString()))
+          projectedBytes += chunk.getTotalSize();
+      }
+      rowGroups.add(new RowGroup(i, firstRow, block.getRowCount(), block.getStartingPos(), block.getCompressedSize(), projectedBytes));
+      firstRow += block.getRowCount();
+    }
+    return rowGroups;
   }
 
   private boolean matches(Record record, WKBReader wkbReader) {
@@ -303,9 +455,29 @@ final class FeatureScan {
   }
 
   /**
-   * A position in the scan: the index of the file in the sorted file list and the position of the row in that file to continue at.
+   * A position in a paged scan: the index of the file in the sorted file list, the index of the row group in that file and the
+   * offset of the row in that row group to continue at.
    */
-  record Position(int fileIndex, long rowPosition) {}
+  record Position(int fileIndex, int rowGroup, long rowOffset) {
+
+    static final Position FIRST = new Position(0, 0, 0);
+  }
+
+  /**
+   * A row group of a data file.
+   *
+   * @param index The index of the row group in the file
+   * @param firstRow The position in the file of the first row of the row group
+   * @param start The starting offset of the row group in the file
+   * @param length The compressed size of all column chunks of the row group
+   * @param projectedBytes The compressed size of the projected column chunks, which a read of the row group reads
+   */
+  record RowGroup(int index, long firstRow, long rowCount, long start, long length, long projectedBytes) {}
+
+  /**
+   * The projected columns by Iceberg field ID, and by name for files without field IDs.
+   */
+  record ProjectedColumns(Set<Integer> fieldIds, Set<String> names) {}
 
   /**
    * Matches rows whose top-level string column has one of the values.
@@ -322,6 +494,7 @@ final class FeatureScan {
     int filesPlanned;
     int filesPruned;
     int filesRead;
+    int rowGroupsRead;
     long rowsScanned;
     long rowsMatched;
   }
