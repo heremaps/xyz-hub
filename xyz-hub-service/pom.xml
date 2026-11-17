@@ -183,6 +183,10 @@
       <groupId>${project.groupId}</groupId>
       <artifactId>xyz-psql-connector</artifactId>
     </dependency>
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>xyz-iceberg-connector</artifactId>
+    </dependency>
 
     <!-- Added only temporary; Can be removed when legacy job service was removed -->
     <dependency>
