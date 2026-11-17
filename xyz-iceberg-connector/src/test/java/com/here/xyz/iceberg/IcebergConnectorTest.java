@@ -35,6 +35,8 @@ import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.PropertyQuery;
 import com.here.xyz.events.PropertyQueryList;
 import com.here.xyz.events.SearchForFeaturesEvent;
+import com.here.xyz.iceberg.FeatureScan.Result;
+import com.here.xyz.iceberg.IcebergTables.SnapshotFiles;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.coordinates.LinearRingCoordinates;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
@@ -60,6 +62,7 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogUtil;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
@@ -76,15 +79,21 @@ class IcebergConnectorTest {
   private static final String BRANCH_TAG = BRANCH + "_v5";
   private static final Set<String> V1_IDS = Set.of("p1", "p2", "p3", "p4", "l1", "poly1", "n1", "r1", "r2", "r3", "far1", "far2");
   private static final Set<String> V2_IDS = Set.of("p1", "p2", "p4", "l1", "poly1", "n1", "r1", "r2", "r3", "far1", "far2", "p5");
+  //A table whose data file has many row groups of ROW_GROUP_ROWS rows
+  private static final String ROW_GROUP_TABLE = "space_row_groups";
+  private static final int ROW_GROUP_ROWS = 4;
+  private static final int ROW_GROUP_TABLE_ROWS = 40;
+  private static final Set<String> ROW_GROUP_DELETED_IDS = Set.of("g05", "g17", "g33");
 
   @TempDir
   static Path warehouseDir;
   private static String warehouse;
+  private static Catalog catalog;
 
   @BeforeAll
   static void writeTable() {
     warehouse = warehouseDir.toUri().toString();
-    Catalog catalog = CatalogUtil.buildIcebergCatalog("writer", Map.of("type", "hadoop", "warehouse", warehouse), new Configuration());
+    catalog = CatalogUtil.buildIcebergCatalog("writer", Map.of("type", "hadoop", "warehouse", warehouse), new Configuration());
     Table table = IcebergTestTables.createTable(catalog, TableIdentifier.of(Namespace.of(NAMESPACE), TABLE));
 
     IcebergTestTables.append(table, null, List.of(
@@ -110,6 +119,24 @@ class IcebergConnectorTest {
     IcebergTestTables.branchFromTag(table, BRANCH, "v2");
     IcebergTestTables.append(table, BRANCH, List.of(point("b1", "Road", 1.2, 1.2, "b1")));
     IcebergTestTables.tag(table, BRANCH_TAG, BRANCH);
+
+    Table rowGroups = IcebergTestTables.createTable(catalog, TableIdentifier.of(Namespace.of(NAMESPACE), ROW_GROUP_TABLE));
+    rowGroups.updateProperties()
+        .set("write.parquet.row-group-size-bytes", "1")
+        .set("write.parquet.row-group-check-min-record-count", String.valueOf(ROW_GROUP_ROWS))
+        .set("write.parquet.row-group-check-max-record-count", String.valueOf(ROW_GROUP_ROWS))
+        .commit();
+    List<String> features = new ArrayList<>();
+    for (int i = 0; i < ROW_GROUP_TABLE_ROWS; i++)
+      features.add(point(rowGroupId(i), "Road", 20 + i * 0.001, 20, "g" + i));
+    IcebergTestTables.append(rowGroups, null, features);
+    IcebergTestTables.upsertAndDelete(rowGroups, null, List.of(point("g10", "Road", 20.01, 20, "g10-v2")),
+        List.copyOf(ROW_GROUP_DELETED_IDS));
+    IcebergTestTables.tag(rowGroups, "v1");
+  }
+
+  private static String rowGroupId(int i) {
+    return String.format("g%02d", i);
   }
 
   @Test
@@ -122,6 +149,43 @@ class IcebergConnectorTest {
     assertThat(pages).allSatisfy(page -> assertThat(page.size()).isLessThanOrEqualTo(3));
 
     assertThat(iterateAll("v2", 3)).isEqualTo(pages);
+  }
+
+  @Test
+  void iteratesAFileWithManyRowGroups() throws Exception {
+    Set<String> expected = new HashSet<>();
+    for (int i = 0; i < ROW_GROUP_TABLE_ROWS; i++)
+      expected.add(rowGroupId(i));
+    expected.removeAll(ROW_GROUP_DELETED_IDS);
+
+    List<List<String>> pages = iterateAll(ROW_GROUP_TABLE, "v1", 3);
+    List<String> all = pages.stream().flatMap(List::stream).toList();
+    assertThat(all).doesNotHaveDuplicates();
+    assertThat(new HashSet<>(all)).isEqualTo(expected);
+  }
+
+  @Test
+  void aDeepPageOnlyReadsFromItsRowGroup() {
+    IcebergTables tables = IcebergTables.forConfig(IcebergConnectorConfig.from(connectorParams(Map.of())));
+    SnapshotFiles files = tables.resolve(new IcebergLocation(NAMESPACE, ROW_GROUP_TABLE, "v1"));
+    int fileIndex = -1;
+    for (int i = 0; i < files.tasks().size(); i++)
+      if (files.tasks().get(i).file().recordCount() == ROW_GROUP_TABLE_ROWS)
+        fileIndex = i;
+    assertThat(fileIndex).isNotNegative();
+    FileScanTask task = files.tasks().get(fileIndex);
+    assertThat(task.file().splitOffsets()).hasSizeGreaterThanOrEqualTo(ROW_GROUP_TABLE_ROWS / ROW_GROUP_ROWS);
+
+    long startPosition = ROW_GROUP_TABLE_ROWS - 3;
+    FeatureScan scan = new FeatureScan(tables, files)
+        .withBudget(new ReadBudget(Long.MAX_VALUE, Long.MAX_VALUE))
+        .withLimit(2)
+        .withStart(new FeatureScan.Position(fileIndex, startPosition));
+    Result result = scan.run();
+    assertThat(result.features()).hasSize(2);
+    assertThat(result.next()).isEqualTo(new FeatureScan.Position(fileIndex, startPosition + 2));
+    //Only the rows of the last row group(s) were decoded, not the whole file before the position
+    assertThat(scan.stats().rowsScanned).isLessThanOrEqualTo(2L * ROW_GROUP_ROWS);
   }
 
   @Test
@@ -216,6 +280,37 @@ class IcebergConnectorTest {
   }
 
   @Test
+  void aBranchIsRejected() throws Exception {
+    assertError(invoke(iterate(BRANCH, 10, null)), XyzError.ILLEGAL_ARGUMENT);
+  }
+
+  @Test
+  void missingTablesAndRefsAreRemembered() throws Exception {
+    Map<String, Object> rememberingParams = connectorParams(Map.of("missingCacheTtlSeconds", 3600));
+    IcebergLocation v1 = new IcebergLocation(NAMESPACE, "late_table", "v1");
+    IcebergLocation v2 = new IcebergLocation(NAMESPACE, "late_table", "v2");
+    assertError(invoke(withConnectorParams(locatedIterate(v1), rememberingParams)), XyzError.NOT_FOUND);
+
+    Table late = IcebergTestTables.createTable(catalog, TableIdentifier.of(Namespace.of(NAMESPACE), "late_table"));
+    IcebergTestTables.append(late, null, List.of(point("x1", "Road", 1, 1, "x1")));
+    IcebergTestTables.tag(late, "v1");
+    //Still missing for the configuration which remembered it, found by another one
+    assertError(invoke(withConnectorParams(locatedIterate(v1), rememberingParams)), XyzError.NOT_FOUND);
+    assertThat(ids(invoke(withConnectorParams(locatedIterate(v1), connectorParams(Map.of()))))).containsExactly("x1");
+
+    Map<String, Object> otherRememberingParams = connectorParams(Map.of("missingCacheTtlSeconds", 3601));
+    assertError(invoke(withConnectorParams(locatedIterate(v2), otherRememberingParams)), XyzError.NOT_FOUND);
+    IcebergTestTables.tag(late, "v2");
+    assertError(invoke(withConnectorParams(locatedIterate(v2), otherRememberingParams)), XyzError.NOT_FOUND);
+  }
+
+  private static IterateFeaturesEvent<?> locatedIterate(IcebergLocation location) {
+    IterateFeaturesEvent<?> event = new IterateFeaturesEvent<>().withLimit(10);
+    event.setParams(icebergParams(location));
+    return event;
+  }
+
+  @Test
   void unknownTableIsNotFound() throws Exception {
     IterateFeaturesEvent<?> event = new IterateFeaturesEvent<>()
         .withParams(icebergParams(new IcebergLocation(NAMESPACE, "no_such_table", "v1")));
@@ -279,10 +374,16 @@ class IcebergConnectorTest {
   }
 
   private static List<List<String>> iterateAll(String ref, int limit) throws Exception {
+    return iterateAll(TABLE, ref, limit);
+  }
+
+  private static List<List<String>> iterateAll(String table, String ref, int limit) throws Exception {
     List<List<String>> pages = new ArrayList<>();
     String token = null;
     do {
-      FeatureCollection page = featureCollection(invoke(iterate(ref, limit, token)));
+      IterateFeaturesEvent<?> event = new IterateFeaturesEvent<>().withLimit(limit).withNextPageToken(token);
+      event.setParams(icebergParams(new IcebergLocation(NAMESPACE, table, ref)));
+      FeatureCollection page = featureCollection(invoke(withConnectorParams(event, connectorParams(Map.of()))));
       pages.add(ids(page));
       token = page.getNextPageToken();
       assertThat(pages.size()).isLessThan(100);

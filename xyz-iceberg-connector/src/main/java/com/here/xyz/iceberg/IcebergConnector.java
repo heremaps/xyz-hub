@@ -409,7 +409,8 @@ public class IcebergConnector extends StorageConnector {
   }
 
   /**
-   * An iterate page token: {@code ice:<snapshotId>:<fileIndex>:<rowOffset>}.
+   * An iterate page token: {@code ice:<snapshotId>:<fileIndex>:<rowPosition>}, where the row position is the position in the data
+   * file of the first row which was not returned yet.
    */
   record PageToken(long snapshotId, Position position) {
 
@@ -422,10 +423,10 @@ public class IcebergConnector extends StorageConnector {
       try {
         long snapshotId = Long.parseLong(parts[0]);
         int fileIndex = Integer.parseInt(parts[1]);
-        long rowOffset = Long.parseLong(parts[2]);
-        if (fileIndex < 0 || rowOffset < 0)
+        long rowPosition = Long.parseLong(parts[2]);
+        if (fileIndex < 0 || rowPosition < 0)
           throw new ErrorResponseException(ILLEGAL_ARGUMENT, "Invalid page token");
-        return new PageToken(snapshotId, new Position(fileIndex, rowOffset));
+        return new PageToken(snapshotId, new Position(fileIndex, rowPosition));
       }
       catch (NumberFormatException e) {
         throw new ErrorResponseException(ILLEGAL_ARGUMENT, "Invalid page token");
@@ -434,7 +435,7 @@ public class IcebergConnector extends StorageConnector {
 
     @Override
     public String toString() {
-      return ITERATE_TOKEN_PREFIX + snapshotId + ":" + position.fileIndex() + ":" + position.rowOffset();
+      return ITERATE_TOKEN_PREFIX + snapshotId + ":" + position.fileIndex() + ":" + position.rowPosition();
     }
   }
 }

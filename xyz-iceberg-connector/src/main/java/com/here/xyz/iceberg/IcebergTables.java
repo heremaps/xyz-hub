@@ -21,16 +21,17 @@ package com.here.xyz.iceberg;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.RemovalCause;
+import com.github.benmanes.caffeine.cache.Scheduler;
 import com.here.xyz.iceberg.IcebergConnectorConfig.CatalogKey;
 import com.here.xyz.models.hub.IcebergLocation;
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -44,30 +45,55 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.NoSuchNamespaceException;
+import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * The catalog and the caches of one connector configuration. The Hub creates a new connector instance per request, so the instances
- * of this class are kept in a static map.
+ * of this class are kept in a static cache. An instance which was not used for {@link #IDLE_TIMEOUT} is closed and removed, so a
+ * changed configuration (or a rotated placeholder value) does not keep the catalog, the thread pool and the caches of the old one.
  */
 final class IcebergTables {
+
+  private static final Logger logger = LogManager.getLogger(IcebergTables.class);
 
   /**
    * The columns whose statistics are kept in the planned scans, used for pruning files.
    */
   static final List<String> STATS_COLUMNS = List.of("bbox.xmin", "bbox.ymin", "bbox.xmax", "bbox.ymax", "mom_type");
   private static final int TASK_WEIGHT_BYTES = 2048;
-  private static final Map<CatalogKey, IcebergTables> INSTANCES = new ConcurrentHashMap<>();
+  private static final int MAX_MISSING_ENTRIES = 10_000;
+  /**
+   * Much longer than a request may take, so an instance is never closed while a request uses it.
+   */
+  static final Duration IDLE_TIMEOUT = Duration.ofMinutes(10);
+  private static final Cache<CatalogKey, IcebergTables> INSTANCES = Caffeine.newBuilder()
+      .expireAfterAccess(IDLE_TIMEOUT)
+      .scheduler(Scheduler.systemScheduler())
+      .<CatalogKey, IcebergTables>removalListener((key, instance, cause) -> {
+        if (instance != null && cause != RemovalCause.REPLACED)
+          instance.close();
+      })
+      .build();
 
+  private final CatalogKey key;
   private final Catalog catalog;
   private final ExecutorService planningPool;
   private final Cache<TableIdentifier, Table> tables;
   private final Cache<ScanKey, List<FileScanTask>> scans;
   private final Cache<String, byte[]> footers;
+  /**
+   * Tables (by identifier) and refs (by identifier and ref name) which do not exist
+   */
+  private final Cache<String, Boolean> missing;
 
   private IcebergTables(CatalogKey key) {
+    this.key = key;
     catalog = CatalogUtil.buildIcebergCatalog(key.catalogName(), key.catalogProperties(), new Configuration());
     planningPool = Executors.newFixedThreadPool(key.planningThreads(), daemonThreads("iceberg-planning-" + key.catalogName()));
     long maxMemory = Runtime.getRuntime().maxMemory();
@@ -83,30 +109,65 @@ final class IcebergTables {
         .maximumWeight((long) (maxMemory * key.footerCacheHeapShare()))
         .<String, byte[]>weigher((location, tail) -> tail.length)
         .build();
+    missing = Caffeine.newBuilder()
+        .expireAfterWrite(Duration.ofSeconds(key.missingCacheTtlSeconds()))
+        .maximumSize(MAX_MISSING_ENTRIES)
+        .build();
   }
 
   static IcebergTables forConfig(IcebergConnectorConfig config) {
-    return INSTANCES.computeIfAbsent(config.catalogKey(), IcebergTables::new);
+    return INSTANCES.get(config.catalogKey(), IcebergTables::new);
+  }
+
+  private void close() {
+    logger.info("Closing the idle Iceberg catalog {}", key);
+    planningPool.shutdown();
+    tables.invalidateAll();
+    scans.invalidateAll();
+    footers.invalidateAll();
+    missing.invalidateAll();
+    if (catalog instanceof Closeable closeable) {
+      try {
+        closeable.close();
+      }
+      catch (IOException | RuntimeException e) {
+        logger.warn("Unable to close the Iceberg catalog {}", key, e);
+      }
+    }
   }
 
   /**
-   * Resolves the ref of the location to its snapshot and returns the data files of that snapshot.
+   * Resolves the tag of the location to its snapshot and returns the data files of that snapshot.
+   * Only tags are accepted: the Hub caches the responses of a version as immutable, and a branch can move.
+   * A missing table or ref is remembered for {@code missingCacheTtlSeconds}.
    *
    * @throws NotFoundException if the ref does not exist in the table
-   * @throws org.apache.iceberg.exceptions.NoSuchTableException if the table does not exist
+   * @throws NoSuchTableException if the table does not exist
+   * @throws IllegalArgumentException if the ref is a branch
    */
   SnapshotFiles resolve(IcebergLocation location) {
     TableIdentifier identifier = TableIdentifier.of(Namespace.of(location.namespace().split("\\.")), location.table());
-    Table table = tables.get(identifier, catalog::loadTable);
+    String tableKey = identifier.toString();
+    String refKey = tableKey + "@" + location.ref();
+    if (missing.getIfPresent(tableKey) != null)
+      throw new NoSuchTableException("Table does not exist: %s", identifier);
+    if (missing.getIfPresent(refKey) != null)
+      throw new NotFoundException("Ref %s does not exist in the Iceberg table %s", location.ref(), identifier);
+
+    Table table = loadTable(identifier, tableKey);
     SnapshotRef ref = table.refs().get(location.ref());
     if (ref == null) {
       //The ref might have been created after the table was cached
       tables.invalidate(identifier);
-      table = tables.get(identifier, catalog::loadTable);
+      table = loadTable(identifier, tableKey);
       ref = table.refs().get(location.ref());
     }
-    if (ref == null)
+    if (ref == null) {
+      missing.put(refKey, Boolean.TRUE);
       throw new NotFoundException("Ref %s does not exist in the Iceberg table %s", location.ref(), identifier);
+    }
+    if (!ref.isTag())
+      throw new IllegalArgumentException("The ref " + location.ref() + " of the Iceberg table " + identifier + " is not a tag");
 
     long snapshotId = ref.snapshotId();
     Snapshot snapshot = table.snapshot(snapshotId);
@@ -116,6 +177,16 @@ final class IcebergTables {
     Table scanTable = table;
     List<FileScanTask> tasks = scans.get(new ScanKey(identifier, snapshotId), k -> planFiles(scanTable, schema, snapshotId));
     return new SnapshotFiles(table, schema, snapshotId, tasks);
+  }
+
+  private Table loadTable(TableIdentifier identifier, String tableKey) {
+    try {
+      return tables.get(identifier, catalog::loadTable);
+    }
+    catch (NoSuchTableException | NoSuchNamespaceException e) {
+      missing.put(tableKey, Boolean.TRUE);
+      throw e;
+    }
   }
 
   /**

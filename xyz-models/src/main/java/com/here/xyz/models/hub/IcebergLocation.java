@@ -32,7 +32,7 @@ import java.net.URLEncoder;
  *
  * @param namespace The Iceberg namespace (levels separated by dots)
  * @param table The table name
- * @param ref The tag (or branch) name in the table that holds the exported version
+ * @param ref The name of the tag in the table that holds the exported version. Branches are not accepted, they can move.
  */
 public record IcebergLocation(String namespace, String table, String ref) {
 

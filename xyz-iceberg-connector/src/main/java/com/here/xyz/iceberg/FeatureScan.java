@@ -33,6 +33,7 @@ import java.util.Set;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.data.GenericDeleteFilter;
@@ -46,8 +47,12 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.PartitionUtil;
+import org.apache.parquet.hadoop.ParquetFileReader;
+import org.apache.parquet.hadoop.metadata.BlockMetaData;
+import org.apache.parquet.io.DelegatingSeekableInputStream;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.prep.PreparedGeometry;
@@ -59,6 +64,9 @@ import org.locationtech.jts.io.WKBReader;
  * Scans the data files of a snapshot and collects the stored feature JSON of the matching rows.
  * Files are pruned by their column statistics, row groups by Parquet's statistics, and rows are filtered exactly: bbox overlap,
  * then a JTS intersection with the stored WKB geometry, then the momType predicate. Deletion vectors and position deletes are applied.
+ * <p>
+ * A scan can start at a row position inside a file. It then reads the file from the row group which contains that position, so the
+ * cost of a page does not grow with its position in the file.
  */
 final class FeatureScan {
 
@@ -69,6 +77,7 @@ final class FeatureScan {
   static final String FEATURE_JSON = "feature_json";
   private static final List<String> PROJECTED_COLUMNS = List.of(ID, MOM_TYPE, "bbox.xmin", "bbox.ymin", "bbox.xmax", "bbox.ymax",
       GEOMETRY, FEATURE_JSON);
+  private static final String ROW_POSITION = MetadataColumns.ROW_POSITION.name();
   private static final int CHECK_INTERVAL_ROWS = 1024;
 
   private final IcebergTables tables;
@@ -134,7 +143,7 @@ final class FeatureScan {
 
   Result run() {
     Schema schema = files.schema();
-    Schema projection = schema.select(PROJECTED_COLUMNS);
+    Schema projection = TypeUtil.join(schema.select(PROJECTED_COLUMNS), new Schema(MetadataColumns.ROW_POSITION));
     Expression filter = filterExpression();
     InclusiveMetricsEvaluator metrics = filter == null ? null : new InclusiveMetricsEvaluator(schema, filter);
     WKBReader wkbReader = new WKBReader();
@@ -150,17 +159,14 @@ final class FeatureScan {
         stats.filesPruned++;
         continue;
       }
-      long skip = fileIndex == start.fileIndex() ? start.rowOffset() : 0;
-      long emittedInFile = 0;
+      long startPosition = fileIndex == start.fileIndex() ? start.rowPosition() : 0;
       stats.filesRead++;
-      try (CloseableIterable<Record> records = open(task, projection, filter)) {
+      try (CloseableIterable<Record> records = open(task, projection, filter, startPosition)) {
         for (Record record : records) {
           if (++stats.rowsScanned % CHECK_INTERVAL_ROWS == 0)
             budget.checkDeadline();
-          if (!matches(record, wkbReader))
-            continue;
-          emittedInFile++;
-          if (emittedInFile <= skip)
+          long position = (Long) record.getField(ROW_POSITION);
+          if (position < startPosition || !matches(record, wkbReader))
             continue;
           Object json = record.getField(FEATURE_JSON);
           if (json == null)
@@ -172,7 +178,7 @@ final class FeatureScan {
           features.add(feature);
           stats.rowsMatched++;
           if (features.size() >= limit)
-            return new Result(features, new Position(fileIndex, emittedInFile));
+            return new Result(features, new Position(fileIndex, position + 1));
         }
       }
       catch (IOException e) {
@@ -206,21 +212,51 @@ final class FeatureScan {
   /**
    * Opens one task like Iceberg's (package-private) {@code org.apache.iceberg.data.GenericReader#open(FileScanTask)}, but with
    * byte counting, the footer cache and the row group filter.
+   *
+   * @param startPosition The row position in the file to start at. Row groups before the one containing it are not read.
    */
-  private CloseableIterable<Record> open(FileScanTask task, Schema projection, Expression filter) {
+  private CloseableIterable<Record> open(FileScanTask task, Schema projection, Expression filter, long startPosition)
+      throws IOException {
     if (task.file().format() != FileFormat.PARQUET)
       throw new ScanException(NOT_IMPLEMENTED, "Reading " + task.file().format() + " files is not supported");
     FileIO io = files.table().io();
+    InputFile dataFile = tables.dataFile(io.newInputFile(task.file()), budget);
+    long splitStart = task.start();
+    long splitEnd = task.start() + task.length();
+    if (startPosition > 0) {
+      long rowGroupStart = rowGroupStart(dataFile, startPosition);
+      if (rowGroupStart < 0)
+        return CloseableIterable.empty();
+      splitStart = Math.max(splitStart, rowGroupStart);
+      if (splitStart >= splitEnd)
+        return CloseableIterable.empty();
+    }
     DeleteFilter<Record> deletes = new CountingDeleteFilter(io, task, files.schema(), projection, budget);
     Schema readSchema = deletes.requiredSchema();
     Map<Integer, ?> partition = PartitionUtil.constantsMap(task, IdentityPartitionConverters::convertConstant);
-    Parquet.ReadBuilder builder = Parquet.read(tables.dataFile(io.newInputFile(task.file()), budget))
+    //Parquet reads the row groups whose midpoint is inside the split. The starting offset of a row group selects it and all later ones.
+    Parquet.ReadBuilder builder = Parquet.read(dataFile)
         .project(readSchema)
         .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(readSchema, fileSchema, partition))
-        .split(task.start(), task.length());
+        .split(splitStart, splitEnd - splitStart);
     if (filter != null)
       builder.filter(filter);
     return deletes.filter(builder.build());
+  }
+
+  /**
+   * @return The starting offset of the row group which contains the row position, or -1 if the file has fewer rows
+   */
+  private static long rowGroupStart(InputFile file, long position) throws IOException {
+    try (ParquetFileReader reader = ParquetFileReader.open(new ParquetInputFile(file))) {
+      long firstRow = 0;
+      for (BlockMetaData rowGroup : reader.getFooter().getBlocks()) {
+        if (position < firstRow + rowGroup.getRowCount())
+          return rowGroup.getStartingPos();
+        firstRow += rowGroup.getRowCount();
+      }
+      return -1;
+    }
   }
 
   private boolean matches(Record record, WKBReader wkbReader) {
@@ -266,9 +302,9 @@ final class FeatureScan {
   }
 
   /**
-   * A position in the scan: the index of the file in the sorted file list and the number of matching rows already returned from it.
+   * A position in the scan: the index of the file in the sorted file list and the position of the row in that file to continue at.
    */
-  record Position(int fileIndex, long rowOffset) {}
+  record Position(int fileIndex, long rowPosition) {}
 
   /**
    * @param features The stored feature JSON strings
@@ -282,6 +318,33 @@ final class FeatureScan {
     int filesRead;
     long rowsScanned;
     long rowsMatched;
+  }
+
+  /**
+   * Reads an Iceberg input file with Parquet's file reader, like Iceberg's (package-private) {@code ParquetIO.file(InputFile)}.
+   */
+  private record ParquetInputFile(InputFile file) implements org.apache.parquet.io.InputFile {
+
+    @Override
+    public long getLength() {
+      return file.getLength();
+    }
+
+    @Override
+    public org.apache.parquet.io.SeekableInputStream newStream() {
+      org.apache.iceberg.io.SeekableInputStream stream = file.newStream();
+      return new DelegatingSeekableInputStream(stream) {
+        @Override
+        public long getPos() throws IOException {
+          return stream.getPos();
+        }
+
+        @Override
+        public void seek(long newPos) throws IOException {
+          stream.seek(newPos);
+        }
+      };
+    }
   }
 
   /**
