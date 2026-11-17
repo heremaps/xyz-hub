@@ -119,7 +119,9 @@ curl -s -o /dev/null -w 'jobs %{http_code}\n' http://localhost:7070/jobs
 
 `IcebergReadsIT` needs the hub's `ICEBERG_READS=ON`, which `docker-compose-dynamodb.yml` sets. It writes its Iceberg
 tables into a JdbcCatalog in the stack's postgres (schema `iceberg_catalog`) and the localstack bucket `test-bucket`; the
-hub reads them through the connector `iceberg` of `connectors.json`.
+hub reads them through the connector `iceberg` of `connectors.json`. The IT registers the ICEBERG references itself
+through `/hub/references`; the Hub serves whatever table a reference's `location` names, which is why that API must only
+be open to trusted callers outside of tests.
 
 ## Narrowing a run
 

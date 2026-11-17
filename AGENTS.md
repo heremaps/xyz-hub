@@ -42,6 +42,10 @@ xyz-connectors ┘     │                                                      
 `xyz-hub-service` depends on `xyz-job-service`, not the reverse. Apart from the first two modules, only
 `xyz-iceberg-connector` builds next to the main chain, so `mvn -T` gains little.
 
+Iceberg reads (`ICEBERG_READS`, `xyz-hub-service` `task/IcebergReadRouting`): the `location` of a space's ICEBERG
+data reference selects the Iceberg table and tag its version reads return, and nothing checks it. `/hub/references`
+must only be open to trusted callers wherever `ICEBERG_READS` is `SHADOW` or `ON`.
+
 Shared test utilities live in `src/main/java`: `StepTestBase` and `JobTestBase` are used by both job modules.
 
 ## Conventions
