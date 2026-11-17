@@ -46,6 +46,11 @@ public record IcebergLocation(String namespace, String table, String ref) {
    */
   public static final String EVENT_PARAM_LOCATION = "location";
   /**
+   * The optional key inside the {@link #EVENT_PARAM} map with a lower limit for the size of the features of the response (the Hub
+   * sets it for shadow reads).
+   */
+  public static final String EVENT_PARAM_MAX_RESPONSE_BYTES = "maxResponseBytes";
+  /**
    * The prefix of iterate page tokens created by the Iceberg connector.
    */
   public static final String ITERATE_TOKEN_PREFIX = "ice:";
