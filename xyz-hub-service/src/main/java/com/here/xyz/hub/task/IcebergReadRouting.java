@@ -72,6 +72,9 @@ import org.apache.logging.log4j.Marker;
  * space's own connector stays the source of truth and is the fallback if the Iceberg connector fails or does not respond in
  * time. See {@link com.here.xyz.hub.Config#ICEBERG_READS} for the modes.
  * <p>
+ * The table and tag of a read come from the {@code location} of the space's ICEBERG data reference, as stored. Nothing checks
+ * that they belong to the space, so the references API must only be open to trusted callers.
+ * <p>
  * The pages of an iterate served by the Iceberg connector carry tokens starting with
  * {@value IcebergLocation#ITERATE_TOKEN_PREFIX}. Such pages are always read from Iceberg, without a fallback.
  */

@@ -512,6 +512,10 @@ public class Config extends BaseConfig {
    * OFF: never (default), SHADOW: the space's own connector serves the read and the Iceberg connector reads the same data in
    * the background for a comparison, which is logged, ON: the Iceberg connector serves the read and the space's own connector
    * is the fallback. See {@link com.here.xyz.hub.task.IcebergReadRouting}.
+   * <p>
+   * The {@code location} of a space's ICEBERG data reference decides which Iceberg table and tag its version reads return, and
+   * the Hub does not check it. With SHADOW or ON, {@code /hub/references} must therefore only be open to trusted callers (for
+   * example the exporting jobs), not to the users of the spaces.
    */
   public String ICEBERG_READS = "OFF";
 

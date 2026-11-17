@@ -90,6 +90,9 @@ import org.locationtech.jts.geom.Point;
  * The Hub passes the location of the version ({@code iceberg://<namespace>/<table>?ref=<tag>}) in
  * {@code event.params.iceberg.location}; the catalog comes from the connector params (see {@link IcebergConnectorConfig}).
  * Unsupported events and options are answered with NOT_IMPLEMENTED, so the Hub can serve the request from the primary storage.
+ * <p>
+ * The connector reads whichever table of the catalog the location names. Whoever can set the location (in the Hub: the
+ * {@code location} of an ICEBERG data reference) decides which data a space read returns, so only trusted callers may set it.
  */
 public class IcebergConnector extends StorageConnector {
 
