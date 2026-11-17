@@ -640,7 +640,7 @@
       "maxPayloadSize": 1073741824
     },
     "connectionSettings": {
-      "maxConnections": 8
+      "maxConnections": 32
     },
     "remoteFunctions": {
       "local": {
