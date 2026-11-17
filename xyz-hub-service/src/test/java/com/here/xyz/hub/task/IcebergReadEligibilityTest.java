@@ -94,11 +94,11 @@ class IcebergReadEligibilityTest {
   }
 
   @Test
-  void mvtTilesAreEligibleWithClipButNotAsHereTiles() {
-    assertThat(reason(tileTask(tileEvent(ResponseType.MVT).withClip(true)))).isNull();
-    assertThat(reason(tileTask(tileEvent(ResponseType.MVT_FLATTENED).withClip(true)))).isNull();
-    assertThat(reason(tileTask(tileEvent(ResponseType.MVT).withHereTileFlag(true)))).contains("here-tile");
-    assertThat(reason(tileTask(tileEvent(ResponseType.MVT_FLATTENED).withHereTileFlag(true)))).contains("here-tile");
+  void mvtTilesAreNotEligible() {
+    assertThat(reason(tileTask(tileEvent(ResponseType.MVT).withClip(true)))).contains("MVT");
+    assertThat(reason(tileTask(tileEvent(ResponseType.MVT_FLATTENED).withClip(true)))).contains("MVT");
+    assertThat(reason(tileTask(tileEvent(ResponseType.MVT).withHereTileFlag(true)))).contains("MVT");
+    assertThat(reason(tileTask(tileEvent(ResponseType.MVT_FLATTENED).withHereTileFlag(true)))).contains("MVT");
   }
 
   @Test

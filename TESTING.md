@@ -117,6 +117,10 @@ curl -s -o /dev/null -w 'hub %{http_code}\n' http://localhost:8080/hub/spaces
 curl -s -o /dev/null -w 'jobs %{http_code}\n' http://localhost:7070/jobs
 ```
 
+`IcebergReadsIT` needs the hub's `ICEBERG_READS=ON`, which `docker-compose-dynamodb.yml` sets. It writes its Iceberg
+tables into a JdbcCatalog in the stack's postgres (schema `iceberg_catalog`) and the localstack bucket `test-bucket`; the
+hub reads them through the connector `iceberg` of `connectors.json`.
+
 ## Narrowing a run
 
 ```bash
