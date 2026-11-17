@@ -43,6 +43,7 @@ import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.hub.Config;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.config.IcebergVersionCache.IcebergVersion;
+import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.ApiResponseType;
 import com.here.xyz.hub.task.FeatureTask.BBoxQuery;
@@ -51,6 +52,7 @@ import com.here.xyz.hub.task.FeatureTask.IdsQuery;
 import com.here.xyz.hub.task.FeatureTask.IterateQuery;
 import com.here.xyz.hub.task.FeatureTask.SearchQuery;
 import com.here.xyz.hub.task.FeatureTask.TileQuery;
+import com.here.xyz.iceberg.IcebergConnectorConfig;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Point;
@@ -59,6 +61,7 @@ import com.here.xyz.models.hub.Space.ListenerConnectorRef;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Predicate;
 import org.junit.jupiter.api.AfterEach;
@@ -232,13 +235,44 @@ class IcebergReadEligibilityTest {
     assertThat(pinned.test(version("v7"))).isFalse();
   }
 
+  @Test
+  void theFilterPropertiesComeFromTheConnector() {
+    Connector connector = new Connector();
+    assertThat(IcebergReadEligibility.filterProperties(connector)).containsExactly("momType");
+    connector.params = new HashMap<>(Map.of("filterColumns", Map.of("kind", "kind")));
+    assertThat(IcebergReadEligibility.filterProperties(connector)).containsExactly("kind");
+    connector.params = new HashMap<>(Map.of("filterColumns", "invalid"));
+    assertThat(IcebergReadEligibility.filterProperties(connector)).isEmpty();
+
+    PropertiesQuery kind = equalsQuery(List.of(List.<Object[]>of(new Object[]{"kind", "a"})));
+    FeatureTask<?, ?> task = bboxTask(bboxEvent().withPropertiesQuery(kind));
+    //Without the connector's filter properties, only the operations and values are checked
+    assertThat(IcebergReadEligibility.reasonNotEligible(task)).isNull();
+    assertThat(IcebergReadEligibility.reasonNotEligible(task, Set.of("kind"))).isNull();
+    assertThat(IcebergReadEligibility.reasonNotEligible(task, Set.of("momType"))).isEqualTo("properties query other than f.momType");
+    assertThat(IcebergReadEligibility.reasonNotEligible(task, Set.of())).contains("no filterColumns");
+    assertThat(IcebergReadEligibility.reasonNotEligible(bboxTask(bboxEvent().withPropertiesQuery(notEquals())))).isNotNull();
+  }
+
+  @Test
+  void theCompositeTagSuffixIsConfigurable() {
+    space = composite(5L);
+    Service.configuration.ICEBERG_READS_COMPOSITE_TAG_SUFFIX = "@{baseVersion}-{version}";
+    Predicate<IcebergVersion> pinned = IcebergReadEligibility.compositeFilter(bboxTask(bboxEvent()), 7);
+    assertThat(pinned.test(version("t@5-7"))).isTrue();
+    assertThat(pinned.test(version("ext_t_b5_v7"))).isFalse();
+
+    Service.configuration.ICEBERG_READS_COMPOSITE_TAG_SUFFIX = "";
+    assertThat(reason(bboxTask(bboxEvent()), List.of(space(BASE_ID)))).contains("ICEBERG_READS_COMPOSITE_TAG_SUFFIX");
+  }
+
   private String reason(FeatureTask<?, ?> task) {
-    return IcebergReadEligibility.reasonNotEligible(task);
+    return IcebergReadEligibility.reasonNotEligible(task, IcebergConnectorConfig.DEFAULT_FILTER_COLUMNS.keySet());
   }
 
   private String reason(FeatureTask<?, ?> task, List<Space> extendedSpaces) {
     task.extendedSpaces = extendedSpaces;
-    return IcebergReadEligibility.reasonNotEligible(task);
+    return IcebergReadEligibility.reasonNotEligible(task, IcebergConnectorConfig.DEFAULT_FILTER_COLUMNS.keySet());
   }
 
   private static IcebergVersion version(String tag) {

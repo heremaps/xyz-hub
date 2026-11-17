@@ -39,6 +39,22 @@ class IcebergConnectorConfigTest {
     assertThat(config.footerCacheHeapShare()).isEqualTo(0.02);
     assertThat(config.tableCacheTtlSeconds()).isEqualTo(60);
     assertThat(config.planningThreads()).isEqualTo(2);
+    assertThat(config.missingCacheTtlSeconds()).isEqualTo(30);
+    assertThat(config.filterColumns()).isEqualTo(Map.of("momType", "mom_type"));
+  }
+
+  @Test
+  void readsTheFilterColumns() {
+    Map<String, Object> params = Map.of("filterColumns", Map.of("kind", "kind_col", "momType", "mom_type"));
+    assertThat(IcebergConnectorConfig.from(params, name -> null).filterColumns())
+        .isEqualTo(Map.of("kind", "kind_col", "momType", "mom_type"));
+    assertThat(IcebergConnectorConfig.filterColumns(params)).containsOnlyKeys("kind", "momType");
+    assertThat(IcebergConnectorConfig.filterColumns(Map.of("filterColumns", Map.of()))).isEmpty();
+    assertThat(IcebergConnectorConfig.filterColumns(null)).isEqualTo(IcebergConnectorConfig.DEFAULT_FILTER_COLUMNS);
+    assertThatThrownBy(() -> IcebergConnectorConfig.from(Map.of("filterColumns", "momType"), name -> null))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> IcebergConnectorConfig.from(Map.of("filterColumns", Map.of("kind", "nested.col")), name -> null))
+        .isInstanceOf(IllegalArgumentException.class);
   }
 
   @Test

@@ -55,6 +55,7 @@ import com.here.xyz.events.PropertyQueryList;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.events.SelectiveEvent;
 import com.here.xyz.events.WriteFeaturesEvent;
+import com.here.xyz.iceberg.FeatureScan.ColumnFilter;
 import com.here.xyz.iceberg.FeatureScan.Position;
 import com.here.xyz.iceberg.FeatureScan.Result;
 import com.here.xyz.iceberg.IcebergTables.SnapshotFiles;
@@ -93,7 +94,6 @@ import org.locationtech.jts.geom.Point;
 public class IcebergConnector extends StorageConnector {
 
   private static final Logger logger = LogManager.getLogger(IcebergConnector.class);
-  private static final String MOM_TYPE_KEY = "momType";
   private static final String RAW_OPTIMIZATION_MODE = "raw";
   private static final int BUFFER_QUADRANT_SEGMENTS = 8;
   private static final double MIN_UTM_LATITUDE = -80;
@@ -122,7 +122,7 @@ public class IcebergConnector extends StorageConnector {
 
   @Override
   protected FeatureCollection processIterateFeaturesEvent(IterateFeaturesEvent event) throws Exception {
-    List<List<Set<String>>> momTypes = checkSearchOptions(event);
+    List<List<ColumnFilter>> filters = checkSearchOptions(event);
     if (event.getStartI() != -1 || event.getEndI() != -1)
       throw notImplemented("Partitioned iteration (startI / endI)");
 
@@ -142,7 +142,7 @@ public class IcebergConnector extends StorageConnector {
     if (start.fileIndex() > files.tasks().size())
       throw new ErrorResponseException(ILLEGAL_ARGUMENT, "Invalid page token");
 
-    FeatureScan scan = newScan(files, startTime).withMomTypes(momTypes).withLimit(event.getLimit()).withStart(start);
+    FeatureScan scan = newScan(files, startTime).withFilters(filters).withLimit(event.getLimit()).withStart(start);
     Result result = run(event, location, files, scan, startTime);
     FeatureCollection response = response(result);
     if (result.next() != null) {
@@ -155,27 +155,27 @@ public class IcebergConnector extends StorageConnector {
 
   @Override
   protected FeatureCollection processGetFeaturesByBBoxEvent(GetFeaturesByBBoxEvent event) throws Exception {
-    List<List<Set<String>>> momTypes = checkBBoxOptions(event);
+    List<List<ColumnFilter>> filters = checkBBoxOptions(event);
     if (Boolean.TRUE.equals(event.getClip()))
       throw notImplemented("clip");
-    return spatialRead(event, envelopeGeometry(event.getBbox()), momTypes);
+    return spatialRead(event, envelopeGeometry(event.getBbox()), filters);
   }
 
   @Override
   protected FeatureCollection processGetFeaturesByTileEvent(GetFeaturesByTileEvent event) throws Exception {
-    List<List<Set<String>>> momTypes = checkBBoxOptions(event);
+    List<List<ColumnFilter>> filters = checkBBoxOptions(event);
     if (event.getResponseType() == BINARY)
       throw notImplemented("Binary tiles");
     //MVT tiles are clipped by the Hub when it transforms the GeoJSON response
     if ((event.getResponseType() == null || event.getResponseType() == GEO_JSON) && Boolean.TRUE.equals(event.getClip()))
       throw notImplemented("clip");
     //The bbox of the event already contains the margin
-    return spatialRead(event, envelopeGeometry(event.getBbox()), momTypes);
+    return spatialRead(event, envelopeGeometry(event.getBbox()), filters);
   }
 
   @Override
   protected FeatureCollection processGetFeaturesByGeometryEvent(GetFeaturesByGeometryEvent event) throws Exception {
-    List<List<Set<String>>> momTypes = checkSearchOptions(event);
+    List<List<ColumnFilter>> filters = checkSearchOptions(event);
     if (Boolean.TRUE.equals(event.getClip()))
       throw notImplemented("clip");
     if (event.getH3Index() != null)
@@ -185,25 +185,25 @@ public class IcebergConnector extends StorageConnector {
     Geometry geometry = event.getGeometry().getJTSGeometry();
     if (event.getRadius() > 0)
       geometry = buffer(geometry, event.getRadius());
-    return spatialRead(event, geometry, momTypes);
+    return spatialRead(event, geometry, filters);
   }
 
   @Override
   protected FeatureCollection processSearchForFeaturesEvent(SearchForFeaturesEvent event) throws Exception {
-    List<List<Set<String>>> momTypes = checkSearchOptions(event);
+    List<List<ColumnFilter>> filters = checkSearchOptions(event);
     long startTime = System.currentTimeMillis();
     IcebergLocation location = location(event);
     SnapshotFiles files = tables.resolve(location);
-    FeatureScan scan = newScan(files, startTime).withMomTypes(momTypes).withLimit(event.getLimit());
+    FeatureScan scan = newScan(files, startTime).withFilters(filters).withLimit(event.getLimit());
     return response(run(event, location, files, scan, startTime));
   }
 
-  private FeatureCollection spatialRead(SearchForFeaturesEvent<?> event, Geometry geometry, List<List<Set<String>>> momTypes)
+  private FeatureCollection spatialRead(SearchForFeaturesEvent<?> event, Geometry geometry, List<List<ColumnFilter>> filters)
       throws Exception {
     long startTime = System.currentTimeMillis();
     IcebergLocation location = location(event);
     SnapshotFiles files = tables.resolve(location);
-    FeatureScan scan = newScan(files, startTime).withGeometry(geometry).withMomTypes(momTypes).withLimit(event.getLimit());
+    FeatureScan scan = newScan(files, startTime).withGeometry(geometry).withFilters(filters).withLimit(event.getLimit());
     return response(run(event, location, files, scan, startTime));
   }
 
@@ -248,8 +248,8 @@ public class IcebergConnector extends StorageConnector {
     }
   }
 
-  private static List<List<Set<String>>> checkBBoxOptions(GetFeaturesByBBoxEvent<?> event) throws ErrorResponseException {
-    List<List<Set<String>>> momTypes = checkSearchOptions(event);
+  private List<List<ColumnFilter>> checkBBoxOptions(GetFeaturesByBBoxEvent<?> event) throws ErrorResponseException {
+    List<List<ColumnFilter>> filters = checkSearchOptions(event);
     if (event.getClusteringType() != null)
       throw notImplemented("clustering");
     if (event.getTweakType() != null)
@@ -261,15 +261,15 @@ public class IcebergConnector extends StorageConnector {
       throw new ErrorResponseException(ILLEGAL_ARGUMENT, "The bbox is missing");
     if (bbox.minLon() > bbox.maxLon())
       throw notImplemented("A bbox crossing the antimeridian");
-    return momTypes;
+    return filters;
   }
 
   /**
-   * Checks the options all supported reads share and returns the momType predicate (null if there is none).
+   * Checks the options all supported reads share and returns the property filters (null if there are none).
    */
-  private static List<List<Set<String>>> checkSearchOptions(SearchForFeaturesEvent<?> event) throws ErrorResponseException {
+  private List<List<ColumnFilter>> checkSearchOptions(SearchForFeaturesEvent<?> event) throws ErrorResponseException {
     checkSelectiveOptions(event);
-    return momTypes(event.getPropertiesQuery());
+    return filters(event.getPropertiesQuery(), config.filterColumns());
   }
 
   private static void checkSelectiveOptions(SelectiveEvent<?> event) throws ErrorResponseException {
@@ -282,28 +282,30 @@ public class IcebergConnector extends StorageConnector {
   }
 
   /**
-   * Converts a properties query that only filters by the root momType (EQUALS with String values) into an OR of AND lists of
-   * value sets.
+   * Converts a properties query that only filters by the configured filter properties (EQUALS with String values) into an OR of
+   * AND lists of column value sets.
    */
-  static List<List<Set<String>>> momTypes(PropertiesQuery propertiesQuery) throws ErrorResponseException {
+  static List<List<ColumnFilter>> filters(PropertiesQuery propertiesQuery, Map<String, String> filterColumns)
+      throws ErrorResponseException {
     if (propertiesQuery == null || propertiesQuery.isEmpty())
       return null;
-    List<List<Set<String>>> anyOf = new ArrayList<>();
+    List<List<ColumnFilter>> anyOf = new ArrayList<>();
     for (PropertyQueryList andList : propertiesQuery) {
       if (andList == null || andList.isEmpty())
         throw notImplemented("An empty properties query");
-      List<Set<String>> allOf = new ArrayList<>();
+      List<ColumnFilter> allOf = new ArrayList<>();
       for (PropertyQuery query : andList) {
-        if (!MOM_TYPE_KEY.equals(query.getKey()) || query.getOperation() != QueryOperation.EQUALS || query.getValues() == null
+        String column = filterColumns.get(query.getKey());
+        if (column == null || query.getOperation() != QueryOperation.EQUALS || query.getValues() == null
             || query.getValues().isEmpty())
-          throw notImplemented("Property queries other than momType equals");
+          throw notImplemented("Property queries other than equals on " + filterColumns.keySet());
         Set<String> values = new LinkedHashSet<>();
         for (Object value : query.getValues()) {
           if (!(value instanceof String stringValue))
-            throw notImplemented("Non-string momType values");
+            throw notImplemented("Non-string values of " + query.getKey());
           values.add(stringValue);
         }
-        allOf.add(values);
+        allOf.add(new ColumnFilter(column, values));
       }
       anyOf.add(allOf);
     }

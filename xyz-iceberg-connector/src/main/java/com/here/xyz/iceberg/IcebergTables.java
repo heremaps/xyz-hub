@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.FileScanTask;
@@ -63,9 +64,9 @@ final class IcebergTables {
   private static final Logger logger = LogManager.getLogger(IcebergTables.class);
 
   /**
-   * The columns whose statistics are kept in the planned scans, used for pruning files.
+   * The columns whose statistics are kept in the planned scans, used for pruning files, in addition to the filter columns.
    */
-  static final List<String> STATS_COLUMNS = List.of("bbox.xmin", "bbox.ymin", "bbox.xmax", "bbox.ymax", "mom_type");
+  static final List<String> BBOX_STATS_COLUMNS = List.of("bbox.xmin", "bbox.ymin", "bbox.xmax", "bbox.ymax");
   private static final int TASK_WEIGHT_BYTES = 2048;
   private static final int MAX_MISSING_ENTRIES = 10_000;
   /**
@@ -197,7 +198,8 @@ final class IcebergTables {
   }
 
   private List<FileScanTask> planFiles(Table table, Schema schema, long snapshotId) {
-    List<String> statsColumns = STATS_COLUMNS.stream().filter(column -> schema.findField(column) != null).toList();
+    List<String> statsColumns = Stream.concat(BBOX_STATS_COLUMNS.stream(), key.statsColumns().stream())
+        .filter(column -> schema.findField(column) != null).toList();
     List<FileScanTask> tasks = new ArrayList<>();
     try (CloseableIterable<FileScanTask> planned = table.newScan()
         .useSnapshot(snapshotId)

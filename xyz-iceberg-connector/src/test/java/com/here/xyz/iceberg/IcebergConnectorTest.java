@@ -250,6 +250,21 @@ class IcebergConnectorTest {
   }
 
   @Test
+  void filtersByConfiguredColumns() throws Exception {
+    PropertiesQuery query = new PropertiesQuery();
+    PropertyQueryList andList = new PropertyQueryList();
+    andList.add(new PropertyQuery().withKey("kind").withOperation(EQUALS).withValues(new ArrayList<>(List.of("Water"))));
+    query.add(andList);
+    SearchForFeaturesEvent<?> event = search("v2", query);
+    assertError(invoke(event), XyzError.NOT_IMPLEMENTED);
+    withConnectorParams(event, connectorParams(Map.of("filterColumns", Map.of("kind", "mom_type"))));
+    assertThat(ids(invoke(event))).containsExactlyInAnyOrder("r3", "far1");
+    //Without filter columns, no property query is supported
+    withConnectorParams(event, connectorParams(Map.of("filterColumns", Map.of())));
+    assertError(invoke(event), XyzError.NOT_IMPLEMENTED);
+  }
+
+  @Test
   void combinesSpatialAndMomTypeFilters() throws Exception {
     GetFeaturesByBBoxEvent<?> event = bbox("v2", new BBox(0, 0, 2, 2)).withPropertiesQuery(query(List.of(List.of(List.of("Road")))));
     assertThat(ids(invoke(event))).containsExactlyInAnyOrder("p1", "l1", "p5");
