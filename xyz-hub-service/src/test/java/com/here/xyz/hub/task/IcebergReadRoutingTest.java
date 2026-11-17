@@ -81,6 +81,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -418,6 +419,58 @@ class IcebergReadRoutingTest {
     icebergAnswer = () -> Future.failedFuture(new RuntimeException("Iceberg failure"));
     assertShadowed(send(bboxTask(bboxEvent())));
     assertThat(shadow.get(5, TimeUnit.SECONDS).result).isEqualTo("ERROR");
+  }
+
+  @Test
+  void shadowSkipsResponsesLargerThanTheMaximum() throws Exception {
+    Service.configuration.ICEBERG_READS = "SHADOW";
+    Service.configuration.ICEBERG_READS_SHADOW_MAX_BYTES = 10;
+    assertShadowed(send(bboxTask(bboxEvent())));
+    Shadow result = shadow.get(5, TimeUnit.SECONDS);
+    assertThat(result.result).isEqualTo("SKIPPED");
+    assertThat(result.comparison.reason()).isEqualTo("too large");
+  }
+
+  @Test
+  void shadowSkipsTheComparisonWhenTheQueueIsFull() throws Exception {
+    Service.configuration.ICEBERG_READS = "SHADOW";
+    CountDownLatch release = new CountDownLatch(1);
+    CountDownLatch running = new CountDownLatch(2);
+    CompletableFuture<String> skipped = new CompletableFuture<>();
+    List<String> results = new CopyOnWriteArrayList<>();
+    IcebergReadRouting.setShadowListener((result, comparison) -> {
+      results.add(result);
+      if ("SKIPPED".equals(result)) {
+        skipped.complete(result);
+        return;
+      }
+      running.countDown();
+      try {
+        release.await(5, TimeUnit.SECONDS);
+      }
+      catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+      }
+    });
+    try {
+      //Both comparison threads are blocked, 16 comparisons wait in the queue, the next one is skipped
+      for (int i = 0; i < 2; i++) {
+        icebergEvents.clear();
+        assertShadowed(send(bboxTask(bboxEvent())));
+      }
+      assertThat(running.await(5, TimeUnit.SECONDS)).isTrue();
+      for (int i = 0; i < 16; i++) {
+        icebergEvents.clear();
+        assertShadowed(send(bboxTask(bboxEvent())));
+      }
+      assertThat(skipped).isNotDone();
+      icebergEvents.clear();
+      assertShadowed(send(bboxTask(bboxEvent())));
+      assertThat(skipped.get(5, TimeUnit.SECONDS)).isEqualTo("SKIPPED");
+    }
+    finally {
+      release.countDown();
+    }
   }
 
   @Test

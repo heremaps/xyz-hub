@@ -575,7 +575,8 @@ public final class IcebergReadRouting {
 
     private void compare(XyzResponse<?> primaryResponse, XyzResponse<?> icebergResponse) {
       try {
-        Result result = IcebergShadowComparison.compare(primaryResponse, icebergResponse, limit);
+        Result result = IcebergShadowComparison.compare(primaryResponse, icebergResponse, limit,
+            Math.max(0, Service.configuration.ICEBERG_READS_SHADOW_MAX_BYTES));
         String message = "iceberg-shadow space={} event={} version={} result={} reason={} pgMs={} iceMs={} pgCount={} iceCount={} "
             + "missing={} extra={} differing={} location={}";
         if (result.outcome() == IcebergShadowComparison.Outcome.MISMATCH)
