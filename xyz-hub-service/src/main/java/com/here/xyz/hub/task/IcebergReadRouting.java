@@ -119,6 +119,11 @@ public final class IcebergReadRouting {
       callback.call(task);
       return;
     }
+    //invoke rejects the read if the space's connector is inactive
+    if (task.storage != null && !task.storage.active) {
+      callback.call(task);
+      return;
+    }
 
     Event<?> event = task.getEvent();
     String token = event instanceof IterateFeaturesEvent<?> iterate ? iterate.getNextPageToken() : null;
@@ -160,22 +165,25 @@ public final class IcebergReadRouting {
       return;
     }
 
-    Future<Connector> connectorFuture;
-    try {
-      connectorFuture = connectorResolver.apply(task);
+    if (!iceToken && mode == IcebergReadMode.SHADOW) {
+      shadow(task, callback, version);
+      return;
     }
-    catch (Exception e) {
-      connectorFuture = Future.failedFuture(e);
-    }
-    connectorFuture.onComplete(connectorResult -> {
+
+    resolveConnector(task).onComplete(connectorResult -> {
       Connector connector = connectorResult.succeeded() ? connectorResult.result() : null;
       if (connector == null || !connector.active) {
-        logger.warn(task.getMarker(), "iceberg-read space={}: The Iceberg connector {} is not available", task.space.getId(),
-            Service.configuration.ICEBERG_READS_CONNECTOR_ID, connectorResult.cause());
-        if (iceToken)
-          callback.exception(new HttpException(BAD_GATEWAY, "The connector for the nextPageToken is not available."));
-        else
+        if (iceToken) {
+          //Without the connector there are no valid Iceberg tokens, e.g. a crafted token while the routing is not configured
+          logger.debug(task.getMarker(), "iceberg-read space={} rejected nextPageToken: The Iceberg connector {} is not available",
+              task.space.getId(), Service.configuration.ICEBERG_READS_CONNECTOR_ID, connectorResult.cause());
+          callback.exception(new HttpException(BAD_REQUEST, "Invalid nextPageToken"));
+        }
+        else {
+          logger.warn(task.getMarker(), "iceberg-read space={}: The Iceberg connector {} is not available", task.space.getId(),
+              Service.configuration.ICEBERG_READS_CONNECTOR_ID, connectorResult.cause());
           callback.call(task);
+        }
         return;
       }
       lookup(task, version).onComplete(lookupResult -> {
@@ -194,15 +202,60 @@ public final class IcebergReadRouting {
             callback.call(task);
           return;
         }
-        IcebergLocation location = icebergVersion.get().location();
-        if (iceToken || mode == IcebergReadMode.ON)
-          executeRouted(task, callback, connector, location, version, iceToken);
-        else {
-          startShadow(task, connector, location, version);
-          callback.call(task);
-        }
+        executeRouted(task, callback, connector, icebergVersion.get().location(), version, iceToken);
       });
     });
+  }
+
+  /**
+   * Starts a shadow read for the task. The read of the space's own connector does not wait for the Iceberg connector and the
+   * version lookup: if they are not resolved yet, the pipeline continues at once and the shadow read starts when they are.
+   */
+  private static <X extends FeatureTask<?, X>> void shadow(X task, Callback<X> callback, long version) {
+    Future<Optional<Target>> target = resolveConnector(task).compose(connector -> {
+      if (connector == null || !connector.active)
+        return Future.succeededFuture(Optional.empty());
+      return lookup(task, version).map(icebergVersion -> icebergVersion.map(v -> new Target(connector, v.location())));
+    });
+    if (target.isComplete()) {
+      if (target.succeeded() && target.result().isPresent()) {
+        ShadowRun shadow = newShadow(task, target.result().get().location(), version);
+        Event<?> copy = copyEvent(task, shadow);
+        if (copy != null) {
+          task.icebergShadow = shadow;
+          XYZHubRESTVerticle.addStreamInfo(task.context, "ISH", 1);
+          shadow.start(task, target.result().get(), copy);
+        }
+      }
+      callback.call(task);
+      return;
+    }
+
+    //The event must be copied before invoke consumes it
+    ShadowRun shadow = newShadow(task, null, version);
+    Event<?> copy = copyEvent(task, shadow);
+    if (copy == null) {
+      callback.call(task);
+      return;
+    }
+    task.icebergShadow = shadow;
+    XYZHubRESTVerticle.addStreamInfo(task.context, "ISH", 1);
+    callback.call(task);
+    target.onComplete(result -> {
+      if (result.succeeded() && result.result().isPresent())
+        shadow.start(task, result.result().get(), copy);
+      else
+        shadow.abandon(result.failed() ? result.cause().getMessage() : "no Iceberg version");
+    });
+  }
+
+  private static Future<Connector> resolveConnector(FeatureTask<?, ?> task) {
+    try {
+      return connectorResolver.apply(task);
+    }
+    catch (Exception e) {
+      return Future.failedFuture(e);
+    }
   }
 
   /**
@@ -256,6 +309,13 @@ public final class IcebergReadRouting {
     Event<?> copy = task.getEvent().copy();
     if (copy == null)
       throw new IllegalStateException("Unable to copy the event");
+    return withIcebergParams(task, connector, location, copy);
+  }
+
+  /**
+   * Adds the location and the connector specific properties to a copy of the task's event.
+   */
+  private static Event<?> withIcebergParams(FeatureTask<?, ?> task, Connector connector, IcebergLocation location, Event<?> copy) {
     Map<String, Object> params = new HashMap<>(copy.getParams() == null ? Map.of() : copy.getParams());
     params.put(EVENT_PARAM, Map.of(EVENT_PARAM_LOCATION, location.toString()));
     copy.setParams(params);
@@ -267,7 +327,7 @@ public final class IcebergReadRouting {
    * Runs the event copy on the Iceberg connector with a timeout and calls the handler exactly once, with the response, the
    * failure or a timeout.
    */
-  private static void execute(FeatureTask<?, ?> task, Connector connector, Event<?> event,
+  private static void execute(FeatureTask<?, ?> task, Connector connector, Event<?> event, boolean cancelWithTask,
       Handler<AsyncResult<XyzResponse>> handler) {
     AtomicBoolean done = new AtomicBoolean();
     AtomicReference<RpcContext> rpcContext = new AtomicReference<>();
@@ -288,7 +348,8 @@ public final class IcebergReadRouting {
       rpcContext.set(context);
       if (done.get())
         cancel(context);
-      task.addCancellingHandler(t -> cancel(context));
+      if (cancelWithTask)
+        task.addCancellingHandler(t -> cancel(context));
     }
     catch (Exception e) {
       onceHandler.handle(Future.failedFuture(e));
@@ -319,7 +380,7 @@ public final class IcebergReadRouting {
       onRoutedFailure(task, callback, e, eventType, version, location, start, iceToken);
       return;
     }
-    execute(task, connector, event, result -> {
+    execute(task, connector, event, true, result -> {
       if (task.getState().isFinal())
         return;
       if (result.succeeded() && result.result() instanceof FeatureCollection response) {
@@ -357,22 +418,32 @@ public final class IcebergReadRouting {
     callback.call(task);
   }
 
-  private static void startShadow(FeatureTask<?, ?> task, Connector connector, IcebergLocation location, long version) {
+  private static ShadowRun newShadow(FeatureTask<?, ?> task, IcebergLocation location, long version) {
     Event<?> event = task.getEvent();
-    ShadowRun shadow = new ShadowRun(task.getMarker(), task.space.getId(), event.getClass().getSimpleName(), location, version,
+    return new ShadowRun(task.getMarker(), task.space.getId(), event.getClass().getSimpleName(), location, version,
         event instanceof SearchForFeaturesEvent<?> search ? search.getLimit() : 0, task.context.request().uri());
-    Event<?> icebergEvent;
+  }
+
+  /**
+   * @return A copy of the task's event, or null if it can not be copied
+   */
+  private static Event<?> copyEvent(FeatureTask<?, ?> task, ShadowRun shadow) {
     try {
-      icebergEvent = icebergEvent(task, connector, location);
+      Event<?> copy = task.getEvent().copy();
+      if (copy == null)
+        throw new IllegalStateException("Unable to copy the event");
+      return copy;
     }
     catch (Exception e) {
       logger.warn(task.getMarker(), "iceberg-shadow space={}: Unable to start the shadow read", shadow.spaceId, e);
-      return;
+      return null;
     }
-    task.icebergShadow = shadow;
-    XYZHubRESTVerticle.addStreamInfo(task.context, "ISH", 1);
-    execute(task, connector, icebergEvent, shadow::icebergDone);
   }
+
+  /**
+   * The Iceberg connector and the location of the version to read
+   */
+  private record Target(Connector connector, IcebergLocation location) {}
 
   private static void report(String result, Result comparison) {
     BiConsumer<String, Result> listener = shadowListener;
@@ -389,7 +460,7 @@ public final class IcebergReadRouting {
     private final Marker marker;
     private final String spaceId;
     private final String eventType;
-    private final IcebergLocation location;
+    private volatile IcebergLocation location;
     private final long version;
     private final long limit;
     private final String uri;
@@ -400,6 +471,7 @@ public final class IcebergReadRouting {
     private AsyncResult<XyzResponse> iceberg;
     private long icebergMs;
     private boolean completed;
+    private boolean abandoned;
 
     private ShadowRun(Marker marker, String spaceId, String eventType, IcebergLocation location, long version, long limit,
         String uri) {
@@ -412,8 +484,38 @@ public final class IcebergReadRouting {
       this.uri = uri;
     }
 
+    /**
+     * Starts the Iceberg read with the copy of the task's event.
+     */
+    void start(FeatureTask<?, ?> task, Target target, Event<?> copy) {
+      location = target.location();
+      Event<?> icebergEvent;
+      try {
+        icebergEvent = withIcebergParams(task, target.connector(), target.location(), copy);
+      }
+      catch (Exception e) {
+        logger.warn(marker, "iceberg-shadow space={}: Unable to start the shadow read", spaceId, e);
+        abandon(e.getMessage());
+        return;
+      }
+      execute(task, target.connector(), icebergEvent, false, this::icebergDone);
+    }
+
+    /**
+     * Ends the shadow read without an Iceberg read, e.g. because there is no Iceberg version.
+     */
+    void abandon(String reason) {
+      synchronized (this) {
+        abandoned = true;
+        primary = null;
+      }
+      logger.debug(marker, "iceberg-shadow space={} event={} not started: {}", spaceId, eventType, reason);
+    }
+
     void primaryDone(XyzResponse<?> response) {
       synchronized (this) {
+        if (abandoned)
+          return;
         primaryDone = true;
         primary = response;
         primaryMs = Core.currentTimeMillis() - start;
@@ -433,7 +535,7 @@ public final class IcebergReadRouting {
       XyzResponse<?> primaryResponse;
       AsyncResult<XyzResponse> icebergResult;
       synchronized (this) {
-        if (!primaryDone || iceberg == null || completed)
+        if (!primaryDone || iceberg == null || completed || abandoned)
           return;
         completed = true;
         primaryResponse = primary;
