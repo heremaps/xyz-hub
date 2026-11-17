@@ -71,6 +71,12 @@ public class IterateFeatures<E extends IterateFeaturesEvent, R extends XyzRespon
     return "ORDER BY i";
   }
 
+  @Override
+  protected boolean limitsEachDataset(E event) {
+    //A page has to consist of the first rows in the order of the page token, so that the next page continues after its last row
+    return true;
+  }
+
   protected SQLQuery buildOffsetFilterFragment(IterateFeaturesEvent event, int dataset) {
     if (event.getStartI() >= 0 || event.getEndI() >= 0) {
       return new SQLQuery("${{pagingStartI}} ${{pagingEndI}} ")
