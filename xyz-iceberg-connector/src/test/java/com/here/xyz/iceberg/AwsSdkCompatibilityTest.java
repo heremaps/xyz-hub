@@ -47,10 +47,23 @@ class AwsSdkCompatibilityTest {
 
   @Test
   void buildsTheClientsWithAnAssumedRole() {
-    assertClientsBuild(AwsClientFactories.from(Map.of(
-        "client.factory", "org.apache.iceberg.aws.AssumeRoleAwsClientFactory",
-        "client.assume-role.arn", "arn:aws:iam::123456789012:role/test",
-        "client.assume-role.region", "eu-west-1")));
+    //Iceberg's AssumeRoleAwsClientFactory builds its STS client with the SDK's default region chain (client.assume-role.region only
+    //applies to the S3 and Glue clients). Deployments get the region from AWS_REGION; the test sets it explicitly, so it doesn't
+    //depend on the environment of the machine running it.
+    String previousRegion = System.getProperty("aws.region");
+    System.setProperty("aws.region", "eu-west-1");
+    try {
+      assertClientsBuild(AwsClientFactories.from(Map.of(
+          "client.factory", "org.apache.iceberg.aws.AssumeRoleAwsClientFactory",
+          "client.assume-role.arn", "arn:aws:iam::123456789012:role/test",
+          "client.assume-role.region", "eu-west-1")));
+    }
+    finally {
+      if (previousRegion == null)
+        System.clearProperty("aws.region");
+      else
+        System.setProperty("aws.region", previousRegion);
+    }
   }
 
   @Test
