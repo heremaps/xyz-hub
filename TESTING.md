@@ -117,10 +117,12 @@ curl -s -o /dev/null -w 'hub %{http_code}\n' http://localhost:8080/hub/spaces
 curl -s -o /dev/null -w 'jobs %{http_code}\n' http://localhost:7070/jobs
 ```
 
-`IcebergReadsIT` needs the hub's `ICEBERG_READS=ON`, which `docker-compose-dynamodb.yml` sets by default. To check SHADOW,
-recreate the hub with `ICEBERG_READS=SHADOW docker compose -f docker-compose-dynamodb.yml up -d --no-deps xyz-hub` and run
-the IT with `-DicebergReads=SHADOW`: it then asserts that every read is served by postgres unchanged, with a shadow read
-(`ISH=1`); the comparisons are in the hub log (`iceberg-shadow ... result=`). It writes its Iceberg
+`IcebergReadsIT` runs against the hub's default `ICEBERG_READS=OFF` (`docker-compose-dynamodb.yml`) and switches Iceberg
+reads on for its own spaces with the internal space property `icebergReads` (`ON`, `OFF` or `SHADOW`, set with an admin
+token). Its last test puts one space into `SHADOW` and leaves the others `OFF`: the shadowed reads are served by postgres
+unchanged with a shadow read (`ISH=1`), and the comparisons are in the hub log (`iceberg-shadow ... result=`). No hub
+restart is needed for either mode. To run the other ITs with global `ON`, recreate the hub with
+`ICEBERG_READS=ON docker compose -f docker-compose-dynamodb.yml up -d --no-deps xyz-hub`. It writes its Iceberg
 tables into a JdbcCatalog in the stack's postgres (schema `iceberg_catalog`) and the localstack bucket `test-bucket`; the
 hub reads them through the connector `iceberg` of `connectors.json`. The IT registers the ICEBERG references itself
 through `/hub/references`; the Hub serves whatever table a reference's `location` names, which is why that API must only

@@ -221,6 +221,14 @@ public class Space {
   private long readOnlyHeadVersion = -1;
 
   /**
+   * Whether reads of this space's versions which were exported to Iceberg are served by the Iceberg connector: {@code OFF},
+   * {@code ON} or {@code SHADOW}. If not set, the Hub's setting {@code ICEBERG_READS} applies. Only Hub admins may set it.
+   */
+  @JsonInclude(Include.NON_NULL)
+  @JsonView({Internal.class, Static.class})
+  private String icebergReads;
+
+  /**
    * A map defined by the user which tells which of the feature-properties to make searchable. The key is the name of the property and the
    * value is a boolean flag telling whether the property should be searchable or not. Also nested properties can be referenced by
    * specifying a path with dots (e.g. "my.prop"). Setting the value to {@code false} the property won't be made searchable at all. (even if
@@ -534,6 +542,19 @@ public class Space {
 
   public Space withReadOnlyHeadVersion(long readOnlyHeadVersion) {
     setReadOnlyHeadVersion(readOnlyHeadVersion);
+    return this;
+  }
+
+  public String getIcebergReads() {
+    return icebergReads;
+  }
+
+  public void setIcebergReads(String icebergReads) {
+    this.icebergReads = icebergReads;
+  }
+
+  public Space withIcebergReads(String icebergReads) {
+    setIcebergReads(icebergReads);
     return this;
   }
 

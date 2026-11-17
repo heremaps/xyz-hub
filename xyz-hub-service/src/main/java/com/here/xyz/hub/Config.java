@@ -508,22 +508,20 @@ public class Config extends BaseConfig {
   public boolean QUERY_TIMEOUT_CACHE_ENABLED = false;
 
   /**
-   * Whether eligible reads of versions that were exported to Iceberg are served by the Iceberg connector.
-   * OFF: never (default), SHADOW: the space's own connector serves the read and the Iceberg connector reads the same data in
-   * the background for a comparison, which is logged, ON: the Iceberg connector serves the read and the space's own connector
-   * is the fallback. See {@link com.here.xyz.hub.task.IcebergReadRouting}.
+   * Whether eligible reads of versions that were exported to Iceberg are served by the Iceberg connector, for the spaces which
+   * do not set the space property {@code icebergReads}. OFF: never (default), ON: the Iceberg connector serves the read and the
+   * space's own connector is the fallback. Any other value, including SHADOW, is treated as OFF and logged once as a warning.
+   * <p>
+   * A space's property {@code icebergReads} (OFF, ON or SHADOW, set by Hub admins) takes precedence over this setting. SHADOW is
+   * only a space value: the space's own connector serves the read and the Iceberg connector reads the same data in the
+   * background for a comparison, which is logged. See {@link com.here.xyz.hub.task.IcebergReadMode} and
+   * {@link com.here.xyz.hub.task.IcebergReadRouting}.
    * <p>
    * The {@code location} of a space's ICEBERG data reference decides which Iceberg table and tag its version reads return, and
-   * the Hub does not check it. With SHADOW or ON, {@code /hub/references} must therefore only be open to trusted callers (for
-   * example the exporting jobs), not to the users of the spaces.
+   * the Hub does not check it. Wherever Iceberg reads are switched on for any space, {@code /hub/references} must therefore only
+   * be open to trusted callers (for example the exporting jobs), not to the users of the spaces.
    */
   public String ICEBERG_READS = "OFF";
-
-  /**
-   * A comma-separated list of the space IDs for which {@link #ICEBERG_READS} applies. If empty, it applies to all spaces with
-   * Iceberg references.
-   */
-  public String ICEBERG_READS_SPACES;
 
   /**
    * The ID of the connector which reads the Iceberg tables.
@@ -537,13 +535,13 @@ public class Config extends BaseConfig {
   public int ICEBERG_READS_TIMEOUT_MS = 10_000;
 
   /**
-   * The share (0 to 1) of the eligible reads which are compared with the Iceberg connector in the mode SHADOW.
+   * The share (0 to 1) of the eligible reads which are compared with the Iceberg connector, for the spaces in the mode SHADOW.
    */
   public double ICEBERG_READS_SHADOW_SAMPLE = 1.0;
 
   /**
-   * The maximum size (in characters of JSON) of each response which is compared in the mode SHADOW. Larger responses are not
-   * compared, which is logged as {@code result=SKIPPED reason=too large}.
+   * The maximum size (in characters of JSON) of each response which is compared for the spaces in the mode SHADOW. Larger
+   * responses are not compared, which is logged as {@code result=SKIPPED reason=too large}.
    */
   public int ICEBERG_READS_SHADOW_MAX_BYTES = 16 * 1024 * 1024;
 
