@@ -181,7 +181,8 @@ public final class DataReferenceResolver {
                 r.getObjectType(),
                 r.getContentType(),
                 r.getSourceSystem(),
-                r.getTargetSystem()
+                r.getTargetSystem(),
+                "ICEBERG".equals(r.getTargetSystem()) ? r.getLocation() : null
         );
     }
 
@@ -243,6 +244,7 @@ public final class DataReferenceResolver {
             String objectType,
             String contentType,
             String sourceSystem,
-            String targetSystem
+            String targetSystem,
+            String location
     ) {}
 }
