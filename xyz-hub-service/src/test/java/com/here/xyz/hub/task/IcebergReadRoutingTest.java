@@ -72,6 +72,7 @@ import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.HttpException;
 import io.vertx.core.Future;
+import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -415,6 +416,80 @@ class IcebergReadRoutingTest {
     Reply reply = send(bboxTask(bboxEvent()));
     assertNotRouted(reply);
     assertThat(reply.streamInfo("ISH")).isNull();
+  }
+
+  @Test
+  void shadowDoesNotWaitForTheVersionLookup() throws Exception {
+    Service.configuration.ICEBERG_READS = "SHADOW";
+    Promise<List<DataReference>> pendingLoad = Promise.promise();
+    loadResult = pendingLoad.future();
+    Reply reply = send(bboxTask(bboxEvent()));
+    assertThat(reply.invokeRan).isTrue();
+    assertThat(reply.response).isSameAs(postgresResponse);
+    assertThat(reply.streamInfo("ISH")).isEqualTo(1);
+    assertThat(icebergEvents).isEmpty();
+
+    pendingLoad.complete(List.of(ref((int) VERSION, "v" + VERSION)));
+    assertThat(shadow.get(5, TimeUnit.SECONDS).result).isEqualTo("MATCH");
+    assertThat(icebergEvents).hasSize(1);
+    assertThat(icebergEvents.get(0).getParams()).containsEntry(IcebergLocation.EVENT_PARAM,
+        Map.of(IcebergLocation.EVENT_PARAM_LOCATION, LOCATION));
+  }
+
+  @Test
+  void shadowWithoutAnIcebergVersionFoundLaterIsAbandoned() throws Exception {
+    Service.configuration.ICEBERG_READS = "SHADOW";
+    Promise<List<DataReference>> pendingLoad = Promise.promise();
+    loadResult = pendingLoad.future();
+    assertThat(send(bboxTask(bboxEvent())).invokeRan).isTrue();
+    pendingLoad.complete(List.of());
+    assertThat(icebergEvents).isEmpty();
+    assertThat(shadow).isNotDone();
+  }
+
+  @Test
+  void shadowComparesAnIcebergReadWhichFinishesAfterThePrimary() throws Exception {
+    Service.configuration.ICEBERG_READS = "SHADOW";
+    Promise<XyzResponse> pendingIceberg = Promise.promise();
+    icebergAnswer = pendingIceberg::future;
+    assertShadowed(send(bboxTask(bboxEvent())));
+    assertThat(shadow).isNotDone();
+    pendingIceberg.complete(icebergResponse);
+    assertThat(shadow.get(5, TimeUnit.SECONDS).result).isEqualTo("MATCH");
+  }
+
+  @Test
+  void shadowReportsAnIcebergTimeout() throws Exception {
+    Service.configuration.ICEBERG_READS = "SHADOW";
+    Service.configuration.ICEBERG_READS_TIMEOUT_MS = 50;
+    icebergAnswer = () -> null;
+    assertShadowed(send(bboxTask(bboxEvent())));
+    assertThat(shadow.get(5, TimeUnit.SECONDS).result).isEqualTo("ERROR");
+    assertThat(rpcCancelled).isTrue();
+  }
+
+  @Test
+  void aReadOfAnInactiveConnectorIsLeftToInvoke() {
+    Request request = new Request();
+    BBoxQuery task = bboxTask(request, bboxEvent());
+    task.storage = new Connector();
+    task.storage.active = false;
+    assertNotRouted(send(task));
+
+    IterateQuery page = iterateTask(new Request(), icebergPage());
+    page.storage = task.storage;
+    assertNotRouted(send(page));
+    assertThat(loads).hasValue(0);
+  }
+
+  @Test
+  void anIcebergTokenWithoutTheIcebergConnectorIsRejected() {
+    Service.configuration.ICEBERG_READS = "OFF";
+    resolvedConnector = Future.failedFuture(new RuntimeException("Connector not found"));
+    Reply reply = send(iterateTask(new Request(), icebergPage()));
+    assertThat(reply.invokeRan).isFalse();
+    assertThat(((HttpException) reply.error).status).isEqualTo(BAD_REQUEST);
+    assertThat(icebergEvents).isEmpty();
   }
 
   private void assertRouted(Reply reply) {
