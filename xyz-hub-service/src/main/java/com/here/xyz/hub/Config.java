@@ -506,4 +506,34 @@ public class Config extends BaseConfig {
    * without running again. See {@link com.here.xyz.hub.cache.QueryTimeoutCache}.
    */
   public boolean QUERY_TIMEOUT_CACHE_ENABLED = false;
+
+  /**
+   * Whether eligible reads of versions that were exported to Iceberg are served by the Iceberg connector.
+   * OFF: never (default), SHADOW: the space's own connector serves the read and the Iceberg connector reads the same data in
+   * the background for a comparison, which is logged, ON: the Iceberg connector serves the read and the space's own connector
+   * is the fallback. See {@link com.here.xyz.hub.task.IcebergReadRouting}.
+   */
+  public String ICEBERG_READS = "OFF";
+
+  /**
+   * A comma-separated list of the space IDs for which {@link #ICEBERG_READS} applies. If empty, it applies to all spaces with
+   * Iceberg references.
+   */
+  public String ICEBERG_READS_SPACES;
+
+  /**
+   * The ID of the connector which reads the Iceberg tables.
+   */
+  public String ICEBERG_READS_CONNECTOR_ID = "iceberg";
+
+  /**
+   * The time in milliseconds after which a read from the Iceberg connector is cancelled. The read then falls back to the space's
+   * own connector.
+   */
+  public int ICEBERG_READS_TIMEOUT_MS = 10_000;
+
+  /**
+   * The share (0 to 1) of the eligible reads which are compared with the Iceberg connector in the mode SHADOW.
+   */
+  public double ICEBERG_READS_SHADOW_SAMPLE = 1.0;
 }
