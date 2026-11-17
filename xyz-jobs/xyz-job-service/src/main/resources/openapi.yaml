@@ -269,24 +269,10 @@ components:
       scheme: bearer
       bearerFormat: JWT
   parameters:
-    SpaceId:
-      name: spaceId
-      in: query
-      description: The unique identifier of the space.
-      required: true
-      schema:
-        type: string
     JobId:
       name: jobId
       in: path
       description: The unique identifier of the job.
-      required: true
-      schema:
-        type: string
-    PayloadSetName:
-      name: setName
-      in: path
-      description: The name of a set of payloads.
       required: true
       schema:
         type: string
@@ -367,13 +353,6 @@ components:
             oneOf:
               - $ref: "#/components/schemas/UploadUrl"
   responses:
-    EmptyResponse:
-      description: >-
-        An empty response as a result of a user-request with accepted MIME type application/x-empty.
-      content:
-        application/x-empty:
-          schema:
-            type: string
     ErrorResponse400:
       description: Malformed or Bad Request.
       content:
@@ -396,28 +375,6 @@ components:
             streamId: 7480e28a-e273-11e8-9af8-7508bbe361d9
             error: Exception
             errorMessage: The requested resource does not exist.
-    ErrorResponse405:
-      description: Not found.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
-          example:
-            type: ErrorResponse
-            streamId: 7480e28a-e273-11e8-9af8-7508bbe361d9
-            error: Exception
-            errorMessage: Method Not Allowed.
-    ErrorResponse409:
-      description: An error response which indicates a conflict.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
-          example:
-            type: ErrorResponse
-            streamId: 7480e28a-e273-11e8-9af8-7508bbe361d9
-            error: Exception
-            errorMessage: The record exists.
     ErrorResponse412:
       description: An error response which indicates a failed precondition.
       content:
@@ -492,14 +449,6 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/InputItemsPage'
-    HealthResponse:
-      description: HealthCheck Response
-      content:
-        application/json:
-          examples:
-            response:
-              value:
-                status: OK
     JobStatusResponse:
       description: "The Job's runtime status"
       content:
@@ -1081,7 +1030,7 @@ components:
             - "RESUME"
         state:
           $ref: '#/components/schemas/JobState'
-        lastUpdatedAt:
+        updatedAt:
           description: A timestamp in milliseconds of when the job's status was updated the last time.
           type: "integer"
           format: "int64"
@@ -1101,8 +1050,8 @@ components:
           format: "int64"
       example:
         state: "RUNNING"
-        lastUpdatedAt: 123456789
-        startedAt: 123456789,
+        updatedAt: 123456789
+        startedAt: 123456789
         estimatedProgress: 0.5
         estimatedEndTime: 123456789
     JobState:
