@@ -179,7 +179,52 @@ class IcebergReadRoutingTest {
     assertNotRouted(send(bboxTask(bboxEvent())));
     Service.configuration.ICEBERG_READS = "unknown";
     assertNotRouted(send(bboxTask(bboxEvent())));
+    //SHADOW is only a space value
+    Service.configuration.ICEBERG_READS = "SHADOW";
+    Reply reply = send(bboxTask(bboxEvent()));
+    assertNotRouted(reply);
+    assertThat(reply.streamInfo("ISH")).isNull();
+    //The Iceberg versions are not looked up
     assertThat(loads).hasValue(0);
+  }
+
+  @Test
+  void theSpaceValueOverridesTheGlobalSetting() throws Exception {
+    Service.configuration.ICEBERG_READS = "OFF";
+    space.setIcebergReads("ON");
+    assertRouted(send(bboxTask(bboxEvent())));
+
+    Service.configuration.ICEBERG_READS = "ON";
+    space.setIcebergReads("OFF");
+    icebergEvents.clear();
+    assertNotRouted(send(bboxTask(bboxEvent())));
+    assertThat(loads).hasValue(1);
+
+    Service.configuration.ICEBERG_READS = "OFF";
+    space.setIcebergReads("SHADOW");
+    assertShadowed(send(bboxTask(bboxEvent())));
+    assertThat(shadow.get(5, TimeUnit.SECONDS).result).isEqualTo("MATCH");
+  }
+
+  @Test
+  void aCompositeUsesItsOwnValue() {
+    Service.configuration.ICEBERG_READS = "OFF";
+    loadResult = Future.succeededFuture(List.of(ref(7, "ext_t_b5_v7")));
+    Space base = space(BASE_ID);
+    base.setIcebergReads("ON");
+    space = composite(5L);
+    assertNotRouted(send(compositeTask(bboxEvent().withRef(new Ref(7)), List.of(base))));
+    assertThat(loads).hasValue(0);
+
+    Service.configuration.ICEBERG_READS = "ON";
+    base.setIcebergReads("OFF");
+    space.setIcebergReads("ON");
+    assertRouted(send(compositeTask(bboxEvent().withRef(new Ref(7)), List.of(base))));
+
+    base.setIcebergReads("ON");
+    space.setIcebergReads("OFF");
+    icebergEvents.clear();
+    assertNotRouted(send(compositeTask(bboxEvent().withRef(new Ref(7)), List.of(base))));
   }
 
   @Test
@@ -204,16 +249,6 @@ class IcebergReadRoutingTest {
           .doesNotContainKey(IcebergLocation.EVENT_PARAM);
     }
     assertThat(loads).hasValue(1);
-  }
-
-  @Test
-  void theAllowlistSelectsTheSpaces() {
-    Service.configuration.ICEBERG_READS_SPACES = "other-space";
-    assertNotRouted(send(bboxTask(bboxEvent())));
-    Service.configuration.ICEBERG_READS_SPACES = "other-space, " + SPACE_ID;
-    assertRouted(send(bboxTask(bboxEvent())));
-    Service.configuration.ICEBERG_READS_SPACES = "";
-    assertRouted(send(bboxTask(bboxEvent())));
   }
 
   @Test
@@ -385,7 +420,7 @@ class IcebergReadRoutingTest {
 
   @Test
   void shadowServesThePrimaryAndReportsAMatch() throws Exception {
-    Service.configuration.ICEBERG_READS = "SHADOW";
+    space.setIcebergReads("SHADOW");
     Reply reply = send(bboxTask(bboxEvent()));
     assertShadowed(reply);
     Shadow result = shadow.get(5, TimeUnit.SECONDS);
@@ -395,7 +430,7 @@ class IcebergReadRoutingTest {
 
   @Test
   void shadowReportsAMismatch() throws Exception {
-    Service.configuration.ICEBERG_READS = "SHADOW";
+    space.setIcebergReads("SHADOW");
     icebergResponse = fc(feature("a"), "{\"id\":\"b\",\"type\":\"Feature\",\"properties\":{\"name\":\"other\"}}", feature("c"));
     assertShadowed(send(bboxTask(bboxEvent())));
     Shadow result = shadow.get(5, TimeUnit.SECONDS);
@@ -406,7 +441,7 @@ class IcebergReadRoutingTest {
 
   @Test
   void shadowReportsIncomparableResponses() throws Exception {
-    Service.configuration.ICEBERG_READS = "SHADOW";
+    space.setIcebergReads("SHADOW");
     assertShadowed(send(iterateTask(new Request(), iterateEvent(2, null, new Ref(VERSION)))));
     Shadow result = shadow.get(5, TimeUnit.SECONDS);
     assertThat(result.result).isEqualTo("INCOMPARABLE");
@@ -415,7 +450,7 @@ class IcebergReadRoutingTest {
 
   @Test
   void shadowReportsIcebergErrors() throws Exception {
-    Service.configuration.ICEBERG_READS = "SHADOW";
+    space.setIcebergReads("SHADOW");
     icebergAnswer = () -> Future.failedFuture(new RuntimeException("Iceberg failure"));
     assertShadowed(send(bboxTask(bboxEvent())));
     assertThat(shadow.get(5, TimeUnit.SECONDS).result).isEqualTo("ERROR");
@@ -423,7 +458,7 @@ class IcebergReadRoutingTest {
 
   @Test
   void shadowSkipsResponsesLargerThanTheMaximum() throws Exception {
-    Service.configuration.ICEBERG_READS = "SHADOW";
+    space.setIcebergReads("SHADOW");
     Service.configuration.ICEBERG_READS_SHADOW_MAX_BYTES = 10;
     assertShadowed(send(bboxTask(bboxEvent())));
     Shadow result = shadow.get(5, TimeUnit.SECONDS);
@@ -433,7 +468,7 @@ class IcebergReadRoutingTest {
 
   @Test
   void shadowSkipsTheComparisonWhenTheQueueIsFull() throws Exception {
-    Service.configuration.ICEBERG_READS = "SHADOW";
+    space.setIcebergReads("SHADOW");
     CountDownLatch release = new CountDownLatch(1);
     CountDownLatch running = new CountDownLatch(2);
     CompletableFuture<String> skipped = new CompletableFuture<>();
@@ -475,7 +510,7 @@ class IcebergReadRoutingTest {
 
   @Test
   void shadowDropsTooLargeResponsesBeforeTheComparisonQueue() throws Exception {
-    Service.configuration.ICEBERG_READS = "SHADOW";
+    space.setIcebergReads("SHADOW");
     CountDownLatch release = new CountDownLatch(1);
     CountDownLatch running = new CountDownLatch(2);
     CompletableFuture<Result> tooLarge = new CompletableFuture<>();
@@ -527,13 +562,13 @@ class IcebergReadRoutingTest {
     assertNotRouted(send(bboxTask(bboxEvent())));
     Reply page = send(iterateTask(new Request(), icebergPage()));
     assertThat(((HttpException) page.error).status).isEqualTo(BAD_REQUEST);
-    Service.configuration.ICEBERG_READS = "SHADOW";
+    space.setIcebergReads("SHADOW");
     assertNotRouted(send(bboxTask(bboxEvent())));
     assertThat(lookups).hasValue(1);
     assertThat(loads).hasValue(0);
 
     //Another connector ID is looked up
-    Service.configuration.ICEBERG_READS = "ON";
+    space.setIcebergReads(null);
     Service.configuration.ICEBERG_READS_CONNECTOR_ID = "other-iceberg";
     resolvedConnector = Future.succeededFuture(icebergConnector);
     assertRouted(send(bboxTask(bboxEvent())));
@@ -542,7 +577,7 @@ class IcebergReadRoutingTest {
 
   @Test
   void shadowOnlyRunsForTheSample() {
-    Service.configuration.ICEBERG_READS = "SHADOW";
+    space.setIcebergReads("SHADOW");
     Service.configuration.ICEBERG_READS_SHADOW_SAMPLE = 0;
     Reply reply = send(bboxTask(bboxEvent()));
     assertNotRouted(reply);
@@ -551,7 +586,7 @@ class IcebergReadRoutingTest {
 
   @Test
   void shadowDoesNotWaitForTheVersionLookup() throws Exception {
-    Service.configuration.ICEBERG_READS = "SHADOW";
+    space.setIcebergReads("SHADOW");
     Promise<List<DataReference>> pendingLoad = Promise.promise();
     loadResult = pendingLoad.future();
     Reply reply = send(bboxTask(bboxEvent()));
@@ -571,7 +606,7 @@ class IcebergReadRoutingTest {
 
   @Test
   void shadowWithoutAnIcebergVersionFoundLaterIsAbandoned() throws Exception {
-    Service.configuration.ICEBERG_READS = "SHADOW";
+    space.setIcebergReads("SHADOW");
     Promise<List<DataReference>> pendingLoad = Promise.promise();
     loadResult = pendingLoad.future();
     assertThat(send(bboxTask(bboxEvent())).invokeRan).isTrue();
@@ -582,7 +617,7 @@ class IcebergReadRoutingTest {
 
   @Test
   void shadowComparesAnIcebergReadWhichFinishesAfterThePrimary() throws Exception {
-    Service.configuration.ICEBERG_READS = "SHADOW";
+    space.setIcebergReads("SHADOW");
     Promise<XyzResponse> pendingIceberg = Promise.promise();
     icebergAnswer = pendingIceberg::future;
     assertShadowed(send(bboxTask(bboxEvent())));
@@ -593,7 +628,7 @@ class IcebergReadRoutingTest {
 
   @Test
   void shadowReportsAnIcebergTimeout() throws Exception {
-    Service.configuration.ICEBERG_READS = "SHADOW";
+    space.setIcebergReads("SHADOW");
     Service.configuration.ICEBERG_READS_TIMEOUT_MS = 50;
     icebergAnswer = () -> null;
     assertShadowed(send(bboxTask(bboxEvent())));

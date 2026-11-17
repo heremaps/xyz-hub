@@ -24,6 +24,9 @@ import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPL
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_VND_MAPBOX_VECTOR_TILE;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.STREAM_INFO;
 import static io.restassured.RestAssured.given;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -73,10 +76,10 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 /**
- * Reads of versions which were exported to Iceberg are served by the Iceberg connector (needs ICEBERG_READS=ON, see
- * docker-compose-dynamodb.yml) and return the same features as the space's own connector.
- * With {@code -DicebergReads=SHADOW}, against a hub with ICEBERG_READS=SHADOW, the same reads must be served by the space's own
- * connector unchanged, with a shadow read of Iceberg.
+ * Reads of versions which were exported to Iceberg are served by the Iceberg connector and return the same features as the
+ * space's own connector. The hub runs with the default ICEBERG_READS=OFF (see docker-compose-dynamodb.yml), and the test spaces
+ * switch the reads on with the space property icebergReads. With SHADOW on one space, its reads are served by the space's own
+ * connector unchanged, with a shadow read of Iceberg, while the other spaces stay OFF.
  * The Iceberg tables are written by this test with {@link IcebergTestTables} from the features the Hub returns from Postgres,
  * into a JdbcCatalog in the stack's Postgres (schema iceberg_catalog) and the localstack bucket test-bucket.
  */
@@ -96,7 +99,7 @@ public class IcebergReadsIT extends TestSpaceWithFeature {
   private static final String JDBC_USER = "postgres";
   private static final String JDBC_PASSWORD = "password";
   private static final ObjectMapper MAPPER = new ObjectMapper();
-  private static final boolean SHADOW = "SHADOW".equalsIgnoreCase(System.getProperty("icebergReads", "ON"));
+  private static final String ICEBERG_READS = "icebergReads";
   private static final int PAGE_LIMIT = 7;
   private static final int TILE_LEVEL = 13;
   private static final double TILE_LON = 8.03, TILE_LAT = 50.02;
@@ -151,6 +154,10 @@ public class IcebergReadsIT extends TestSpaceWithFeature {
     }
     fallbackBaseline = read(FALLBACK_SPACE_ID, fallbackVersion, ITERATE, 1000).features();
 
+    //The hub's ICEBERG_READS is OFF, the test spaces switch the reads on
+    for (String spaceId : List.of(BASE_SPACE_ID, COMPOSITE_SPACE_ID, FALLBACK_SPACE_ID))
+      setIcebergReads(spaceId, "ON");
+
     referenceIds.put(V1, createReference(BASE_SPACE_ID, v1, location(TABLE, "v1")));
     referenceIds.put(V2, createReference(BASE_SPACE_ID, v2, location(TABLE, "v2")));
     referenceIds.put(COMPOSITE, createReference(COMPOSITE_SPACE_ID, compositeVersion, location(TABLE, compositeTag)));
@@ -186,6 +193,55 @@ public class IcebergReadsIT extends TestSpaceWithFeature {
     return TARGETS.stream().flatMap(target -> READS.stream().map(read -> Arguments.of(target, read)));
   }
 
+  @Order(0)
+  @Test
+  public void thePropertyIsInternalAndOnlyAdminsMaySetIt() {
+    //Not in the public view
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_NO_ADMIN))
+        .when()
+        .get(getSpacesPath() + "/" + BASE_SPACE_ID)
+        .then()
+        .statusCode(200)
+        .body("$", not(hasKey(ICEBERG_READS)));
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .when()
+        .get(getSpacesPath() + "/" + BASE_SPACE_ID)
+        .then()
+        .statusCode(200)
+        .body(ICEBERG_READS, equalTo("ON"));
+
+    //A space manager without admin rights may neither change nor remove it
+    for (String value : new String[]{"OFF", null})
+      given()
+          .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_NO_ADMIN))
+          .contentType(APPLICATION_JSON)
+          .body(new JsonObject().put(ICEBERG_READS, value).encode())
+          .when()
+          .patch(getSpacesPath() + "/" + BASE_SPACE_ID)
+          .then()
+          .statusCode(403);
+
+    //Unknown values are rejected
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .contentType(APPLICATION_JSON)
+        .body(new JsonObject().put(ICEBERG_READS, "on").encode())
+        .when()
+        .patch(getSpacesPath() + "/" + BASE_SPACE_ID)
+        .then()
+        .statusCode(400);
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .when()
+        .get(getSpacesPath() + "/" + BASE_SPACE_ID)
+        .then()
+        .statusCode(200)
+        .body(ICEBERG_READS, equalTo("ON"));
+  }
+
   @Order(1)
   @ParameterizedTest(name = "{0} {1}")
   @MethodSource("routedReads")
@@ -201,16 +257,13 @@ public class IcebergReadsIT extends TestSpaceWithFeature {
     for (String target : TARGETS) {
       ReadResult result = read(spaceOf(target), versionOf(target), ITERATE, PAGE_LIMIT);
       assertRouted(result, target + " paged iterate");
-      assertTrue(result.tokens().size() >= (SHADOW ? 1 : 2), "Expected several pages for " + target + ", got tokens "
-          + result.tokens());
+      assertTrue(result.tokens().size() >= 2, "Expected several pages for " + target + ", got tokens " + result.tokens());
       for (String token : result.tokens())
-        assertEquals(!SHADOW, token.startsWith("ice:"), "Token " + token);
+        assertTrue(token.startsWith("ice:"), "Token " + token);
       Set<String> ids = new HashSet<>();
       for (JsonNode feature : result.features())
         assertTrue(ids.add(feature.get("id").asText()), "Duplicate feature " + feature.get("id") + " in the pages of " + target);
-      //In SHADOW the pages are the ones of postgres, which differ from the unpaged read for the composite
-      assertMatch(SHADOW ? pagedBaselines.get(target) : baselines.get(target + " " + ITERATE), result.features(),
-          target + " paged iterate");
+      assertMatch(baselines.get(target + " " + ITERATE), result.features(), target + " paged iterate");
     }
   }
 
@@ -231,14 +284,10 @@ public class IcebergReadsIT extends TestSpaceWithFeature {
   @Test
   public void missingTableFallsBackToPostgres() throws Exception {
     ReadResult result = read(FALLBACK_SPACE_ID, fallbackVersion, ITERATE, 1000);
-    if (SHADOW)
-      //The shadow read fails, the response is the one of postgres
-      assertRouted(result, "fallback iterate");
-    else
-      for (String streamInfo : result.streamInfos()) {
-        assertTrue(streamInfo.contains("IFB=1;"), "No fallback: " + streamInfo);
-        assertFalse(streamInfo.contains("SID=" + ICEBERG_CONNECTOR_ID + ";"), "Routed: " + streamInfo);
-      }
+    for (String streamInfo : result.streamInfos()) {
+      assertTrue(streamInfo.contains("IFB=1;"), "No fallback: " + streamInfo);
+      assertFalse(streamInfo.contains("SID=" + ICEBERG_CONNECTOR_ID + ";"), "Routed: " + streamInfo);
+    }
     assertMatch(fallbackBaseline, result.features(), "fallback iterate");
   }
 
@@ -266,6 +315,48 @@ public class IcebergReadsIT extends TestSpaceWithFeature {
     ReadResult result = read(BASE_SPACE_ID, v1, ITERATE, 1000);
     assertNotRouted(result, "V1 after deleting its reference");
     assertMatch(baselines.get(V1 + " " + ITERATE), result.features(), "V1 after deleting its reference");
+  }
+
+  @Order(7)
+  @Test
+  public void shadowOnOneSpace() throws Exception {
+    //The base space in SHADOW, the composite without the property follows ICEBERG_READS=OFF, the fallback space is OFF
+    setIcebergReads(BASE_SPACE_ID, "SHADOW");
+    setIcebergReads(COMPOSITE_SPACE_ID, null);
+    setIcebergReads(FALLBACK_SPACE_ID, "OFF");
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .when()
+        .get(getSpacesPath() + "/" + COMPOSITE_SPACE_ID)
+        .then()
+        .statusCode(200)
+        .body("$", not(hasKey(ICEBERG_READS)));
+
+    for (String read : READS) {
+      ReadResult result = read(BASE_SPACE_ID, v2, read, 1000);
+      assertShadowed(result, V2 + " " + read);
+      assertMatch(baselines.get(V2 + " " + read), result.features(), "SHADOW " + V2 + " " + read);
+    }
+    //The pages are the ones of the space's own connector
+    ReadResult paged = read(BASE_SPACE_ID, v2, ITERATE, PAGE_LIMIT);
+    assertShadowed(paged, V2 + " paged iterate");
+    assertFalse(paged.tokens().isEmpty(), "Expected several pages");
+    for (String token : paged.tokens())
+      assertFalse(token.startsWith("ice:"), "Token " + token);
+    assertMatch(pagedBaselines.get(V2), paged.features(), "SHADOW " + V2 + " paged iterate");
+
+    for (String read : READS) {
+      ReadResult result = read(COMPOSITE_SPACE_ID, compositeVersion, read, 1000);
+      assertOff(result, COMPOSITE + " " + read);
+      assertMatch(baselines.get(COMPOSITE + " " + read), result.features(), "OFF " + COMPOSITE + " " + read);
+    }
+    ReadResult fallback = read(FALLBACK_SPACE_ID, fallbackVersion, ITERATE, 1000);
+    assertOff(fallback, "fallback iterate");
+    assertMatch(fallbackBaseline, fallback.features(), "OFF fallback iterate");
+  }
+
+  private static void setIcebergReads(String spaceId, String mode) {
+    patchSpace(spaceId, new JsonObject().put(ICEBERG_READS, mode));
   }
 
   private static void writeSpaces() throws Exception {
@@ -510,20 +601,34 @@ public class IcebergReadsIT extends TestSpaceWithFeature {
   }
 
   /**
-   * ON: every page was served by the Iceberg connector. SHADOW: every page was served by the space's own connector, and the first
-   * one had a shadow read (later pages have tokens of the space's own connector).
+   * ON: every page was served by the Iceberg connector.
    */
   private static void assertRouted(ReadResult result, String description) {
-    if (SHADOW) {
-      assertTrue(result.streamInfos().get(0).contains("ISH=1;"), description + " had no shadow read: " + result.streamInfos().get(0));
-      for (String streamInfo : result.streamInfos()) {
-        assertFalse(streamInfo.contains("SID=" + ICEBERG_CONNECTOR_ID + ";"), description + " was routed: " + streamInfo);
-        assertFalse(streamInfo.contains("IFB=1;"), description + " fell back: " + streamInfo);
-      }
-      return;
-    }
     for (String streamInfo : result.streamInfos())
       assertTrue(streamInfo.contains("SID=" + ICEBERG_CONNECTOR_ID + ";"), description + " was not routed: " + streamInfo);
+  }
+
+  /**
+   * SHADOW: every page was served by the space's own connector, and the first one had a shadow read (later pages have tokens of
+   * the space's own connector).
+   */
+  private static void assertShadowed(ReadResult result, String description) {
+    assertTrue(result.streamInfos().get(0).contains("ISH=1;"), description + " had no shadow read: " + result.streamInfos().get(0));
+    for (String streamInfo : result.streamInfos()) {
+      assertFalse(streamInfo.contains("SID=" + ICEBERG_CONNECTOR_ID + ";"), description + " was routed: " + streamInfo);
+      assertFalse(streamInfo.contains("IFB=1;"), description + " fell back: " + streamInfo);
+    }
+  }
+
+  /**
+   * OFF: no page was routed, had a shadow read or fell back.
+   */
+  private static void assertOff(ReadResult result, String description) {
+    for (String streamInfo : result.streamInfos()) {
+      assertFalse(streamInfo.contains("SID=" + ICEBERG_CONNECTOR_ID + ";"), description + " was routed: " + streamInfo);
+      assertFalse(streamInfo.contains("ISH=1;"), description + " had a shadow read: " + streamInfo);
+      assertFalse(streamInfo.contains("IFB=1;"), description + " fell back: " + streamInfo);
+    }
   }
 
   private static void assertNotRouted(ReadResult result, String description) {

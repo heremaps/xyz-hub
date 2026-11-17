@@ -72,7 +72,9 @@ import org.apache.logging.log4j.Marker;
  * Routes eligible reads of versions, which were exported to Iceberg, to the Iceberg connector. Iceberg is a replica of the
  * immutable versions of a space: only reads of a specific version (or of the head of a read-only space) are routed, the
  * space's own connector stays the source of truth and is the fallback if the Iceberg connector fails or does not respond in
- * time. See {@link com.here.xyz.hub.Config#ICEBERG_READS} for the modes.
+ * time. The mode of each space is its property {@code icebergReads}, else the Hub setting
+ * {@link com.here.xyz.hub.Config#ICEBERG_READS}, see {@link IcebergReadMode}. The Iceberg versions of a space are only looked
+ * up if its mode is not OFF, or for a page with an Iceberg token.
  * <p>
  * The table and tag of a read come from the {@code location} of the space's ICEBERG data reference, as stored. Nothing checks
  * that they belong to the space, so the references API must only be open to trusted callers.
@@ -144,7 +146,8 @@ public final class IcebergReadRouting {
       return;
     }
 
-    IcebergReadMode mode = IcebergReadMode.current();
+    //The space's own mode, else the Hub setting; a composite has its own mode
+    IcebergReadMode mode = IcebergReadMode.of(task.space);
     if (iceToken) {
       String reason = task.readOnlyAccess ? IcebergReadEligibility.reasonNotEligible(task) : "no immutable version";
       if (reason != null) {
@@ -323,8 +326,6 @@ public final class IcebergReadRouting {
       return "not sampled";
     if (task.space == null)
       return "no space";
-    if (!IcebergReadMode.allowlist().isEmpty() && !IcebergReadMode.allowlist().contains(task.space.getId()))
-      return "space not in ICEBERG_READS_SPACES";
     String reason = IcebergReadEligibility.reasonNotEligible(task);
     if (reason != null)
       return reason;
