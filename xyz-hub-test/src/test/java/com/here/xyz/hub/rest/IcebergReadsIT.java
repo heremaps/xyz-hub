@@ -75,6 +75,8 @@ import org.junit.jupiter.params.provider.MethodSource;
 /**
  * Reads of versions which were exported to Iceberg are served by the Iceberg connector (needs ICEBERG_READS=ON, see
  * docker-compose-dynamodb.yml) and return the same features as the space's own connector.
+ * With {@code -DicebergReads=SHADOW}, against a hub with ICEBERG_READS=SHADOW, the same reads must be served by the space's own
+ * connector unchanged, with a shadow read of Iceberg.
  * The Iceberg tables are written by this test with {@link IcebergTestTables} from the features the Hub returns from Postgres,
  * into a JdbcCatalog in the stack's Postgres (schema iceberg_catalog) and the localstack bucket test-bucket.
  */
@@ -94,6 +96,8 @@ public class IcebergReadsIT extends TestSpaceWithFeature {
   private static final String JDBC_USER = "postgres";
   private static final String JDBC_PASSWORD = "password";
   private static final ObjectMapper MAPPER = new ObjectMapper();
+  private static final boolean SHADOW = "SHADOW".equalsIgnoreCase(System.getProperty("icebergReads", "ON"));
+  private static final int PAGE_LIMIT = 7;
   private static final int TILE_LEVEL = 13;
   private static final double TILE_LON = 8.03, TILE_LAT = 50.02;
 
@@ -110,6 +114,7 @@ public class IcebergReadsIT extends TestSpaceWithFeature {
   private static long fallbackVersion;
   private static String compositeTag;
   private static final Map<String, List<JsonNode>> baselines = new HashMap<>();
+  private static final Map<String, List<JsonNode>> pagedBaselines = new HashMap<>();
   private static final Map<String, byte[]> mvtBaselines = new HashMap<>();
   private static List<JsonNode> fallbackBaseline;
   private static final Map<String, UUID> referenceIds = new LinkedHashMap<>();
@@ -135,6 +140,8 @@ public class IcebergReadsIT extends TestSpaceWithFeature {
         assertFalse(result.features().isEmpty(), "The baseline of " + target + " " + read + " is empty");
         baselines.put(target + " " + read, result.features());
       }
+    for (String target : TARGETS)
+      pagedBaselines.put(target, read(spaceOf(target), versionOf(target), ITERATE, PAGE_LIMIT).features());
     for (String target : TARGETS) {
       Response mvt = mvtTile(spaceOf(target), versionOf(target));
       assertEquals(200, mvt.getStatusCode());
@@ -192,15 +199,18 @@ public class IcebergReadsIT extends TestSpaceWithFeature {
   @Test
   public void routedIteratePagesHaveIcebergTokens() throws Exception {
     for (String target : TARGETS) {
-      ReadResult result = read(spaceOf(target), versionOf(target), ITERATE, 7);
+      ReadResult result = read(spaceOf(target), versionOf(target), ITERATE, PAGE_LIMIT);
       assertRouted(result, target + " paged iterate");
-      assertTrue(result.tokens().size() >= 2, "Expected several pages for " + target + ", got tokens " + result.tokens());
+      assertTrue(result.tokens().size() >= (SHADOW ? 1 : 2), "Expected several pages for " + target + ", got tokens "
+          + result.tokens());
       for (String token : result.tokens())
-        assertTrue(token.startsWith("ice:"), "Not an Iceberg token: " + token);
+        assertEquals(!SHADOW, token.startsWith("ice:"), "Token " + token);
       Set<String> ids = new HashSet<>();
       for (JsonNode feature : result.features())
         assertTrue(ids.add(feature.get("id").asText()), "Duplicate feature " + feature.get("id") + " in the pages of " + target);
-      assertMatch(baselines.get(target + " " + ITERATE), result.features(), target + " paged iterate");
+      //In SHADOW the pages are the ones of postgres, which differ from the unpaged read for the composite
+      assertMatch(SHADOW ? pagedBaselines.get(target) : baselines.get(target + " " + ITERATE), result.features(),
+          target + " paged iterate");
     }
   }
 
@@ -221,10 +231,14 @@ public class IcebergReadsIT extends TestSpaceWithFeature {
   @Test
   public void missingTableFallsBackToPostgres() throws Exception {
     ReadResult result = read(FALLBACK_SPACE_ID, fallbackVersion, ITERATE, 1000);
-    for (String streamInfo : result.streamInfos()) {
-      assertTrue(streamInfo.contains("IFB=1;"), "No fallback: " + streamInfo);
-      assertFalse(streamInfo.contains("SID=" + ICEBERG_CONNECTOR_ID + ";"), "Routed: " + streamInfo);
-    }
+    if (SHADOW)
+      //The shadow read fails, the response is the one of postgres
+      assertRouted(result, "fallback iterate");
+    else
+      for (String streamInfo : result.streamInfos()) {
+        assertTrue(streamInfo.contains("IFB=1;"), "No fallback: " + streamInfo);
+        assertFalse(streamInfo.contains("SID=" + ICEBERG_CONNECTOR_ID + ";"), "Routed: " + streamInfo);
+      }
     assertMatch(fallbackBaseline, result.features(), "fallback iterate");
   }
 
@@ -495,7 +509,19 @@ public class IcebergReadsIT extends TestSpaceWithFeature {
     return streamInfo == null ? "" : streamInfo;
   }
 
+  /**
+   * ON: every page was served by the Iceberg connector. SHADOW: every page was served by the space's own connector, and the first
+   * one had a shadow read (later pages have tokens of the space's own connector).
+   */
   private static void assertRouted(ReadResult result, String description) {
+    if (SHADOW) {
+      assertTrue(result.streamInfos().get(0).contains("ISH=1;"), description + " had no shadow read: " + result.streamInfos().get(0));
+      for (String streamInfo : result.streamInfos()) {
+        assertFalse(streamInfo.contains("SID=" + ICEBERG_CONNECTOR_ID + ";"), description + " was routed: " + streamInfo);
+        assertFalse(streamInfo.contains("IFB=1;"), description + " fell back: " + streamInfo);
+      }
+      return;
+    }
     for (String streamInfo : result.streamInfos())
       assertTrue(streamInfo.contains("SID=" + ICEBERG_CONNECTOR_ID + ";"), description + " was not routed: " + streamInfo);
   }
