@@ -22,6 +22,7 @@ mvn -o clean verify -DskipTests=false        # everything, roughly 6 minutes
 | Module | Tests | Needs |
 |---|---|---|
 | `xyz-models`, `xyz-connectors` | unit | nothing |
+| `xyz-iceberg-connector` | unit | nothing |
 | `xyz-hub-service` | unit | nothing |
 | `xyz-psql-connector` | 15 ITs | postgres |
 | `xyz-util` | SQL FeatureWriter suites, SQL helpers | postgres |
@@ -38,7 +39,7 @@ Each needs everything the ones above it need.
 ### 1. Unit tests — nothing running
 
 ```bash
-mvn -o test -DskipTests=false -pl xyz-models,xyz-connectors,xyz-hub-service
+mvn -o test -DskipTests=false -pl xyz-models,xyz-connectors,xyz-iceberg-connector,xyz-hub-service
 ```
 
 ### 2. Postgres only
