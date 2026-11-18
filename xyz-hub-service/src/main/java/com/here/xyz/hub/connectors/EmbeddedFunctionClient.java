@@ -42,6 +42,7 @@ import org.apache.logging.log4j.Marker;
 public class EmbeddedFunctionClient extends RemoteFunctionClient {
 
   private static final Logger logger = LogManager.getLogger();
+  static final int CORE_POOL_SIZE = 8;
   /**
    * The thread pool being used for running calls to embedded connectors asynchronously.
    */
@@ -62,8 +63,17 @@ public class EmbeddedFunctionClient extends RemoteFunctionClient {
     if (!(getConnectorConfig().getRemoteFunction() instanceof RemoteFunctionConfig.Embedded)) {
       throw new IllegalArgumentException("Invalid remoteFunctionConfig argument, must be an instance of Embedded");
     }
-    int maxConnections = getMaxConnections();
-    embeddedExecutor = new ThreadPoolExecutor(8, maxConnections, 10, TimeUnit.MINUTES,
+    embeddedExecutor = newExecutor(connectorId, getMaxConnections());
+  }
+
+  /**
+   * The executor of an embedded connector's requests: up to {@code maxConnections} threads, of which up to {@value #CORE_POOL_SIZE}
+   * are kept. The core size is capped at the maximum: a connector's maximum connections per node can be below
+   * {@value #CORE_POOL_SIZE} (its {@code maxConnections} divided by the number of nodes), and a core size above the maximum makes
+   * {@link ThreadPoolExecutor} throw.
+   */
+  static ThreadPoolExecutor newExecutor(String connectorId, int maxConnections) {
+    return new ThreadPoolExecutor(Math.min(CORE_POOL_SIZE, maxConnections), maxConnections, 10, TimeUnit.MINUTES,
         new SynchronousQueue<>(), Core.newThreadFactory("embeddedRfc-" + connectorId));
   }
 
