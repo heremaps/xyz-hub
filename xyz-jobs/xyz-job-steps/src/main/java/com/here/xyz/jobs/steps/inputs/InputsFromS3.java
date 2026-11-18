@@ -19,8 +19,10 @@
 
 package com.here.xyz.jobs.steps.inputs;
 
+import com.here.xyz.jobs.util.S3Client;
 import com.here.xyz.util.service.aws.s3.S3Uri;
 import java.util.List;
+import java.util.function.Supplier;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
 public class InputsFromS3 extends Input<InputsFromS3> {
@@ -56,20 +58,32 @@ public class InputsFromS3 extends Input<InputsFromS3> {
   }
 
   public void dereference(String forJob, String setName) {
-    List<Input> inputs = null;
+    //First load the inputs from the (foreign) bucket
+    List<Input> inputs = mapAccessDenied(() -> loadInputsInParallel(getBucket(), getPrefix()));
+    inputs.forEach(input -> input.setS3Bucket(getBucket()));
+    //Store the metadata for the job that accesses the bucket
+    storeMetadata(forJob, inputs, null, new S3Uri(getBucket(), getPrefix()), setName);
+  }
+
+  /**
+   * Lists at most one object below the prefix to check whether the service may list the bucket at all.
+   * In contrast to {@link #dereference(String, String)}, this takes a single S3 request, independent of the number of objects.
+   *
+   * @throws BucketAccessDeniedException if the bucket policy does not grant the service the access
+   */
+  public void checkAccess() {
+    mapAccessDenied(() -> S3Client.getInstance(getBucket()).scanFolder(getPrefix(), null, 1));
+  }
+
+  private <R> R mapAccessDenied(Supplier<R> bucketAccess) {
     try {
-      //First load the inputs from the (foreign) bucket
-      inputs = loadInputsInParallel(getBucket(), getPrefix());
+      return bucketAccess.get();
     }
     catch (S3Exception e) {
       if (e.statusCode() == 403)
         throw new BucketAccessDeniedException(new S3Uri(getBucket(), getPrefix()), e);
-      else
-        throw e;
+      throw e;
     }
-    inputs.forEach(input -> input.setS3Bucket(getBucket()));
-    //Store the metadata for the job that accesses the bucket
-    storeMetadata(forJob, inputs, null, new S3Uri(getBucket(), getPrefix()), setName);
   }
 
   /**
