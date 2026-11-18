@@ -521,6 +521,31 @@ components:
           oneOf:
             - $ref: '#/components/schemas/TargetFilesDataset'
             - $ref: '#/components/schemas/SpaceDataset'
+        createdAt:
+          description: A timestamp in milliseconds of when the job was created.
+          type: integer
+          format: int64
+          readOnly: true
+        updatedAt:
+          description: A timestamp in milliseconds of when the job was updated the last time.
+          type: integer
+          format: int64
+          readOnly: true
+        keepUntil:
+          description: >-
+            A timestamp in milliseconds until which the job and its outputs are kept. The default is two weeks after the
+            creation of the job. A value smaller than 1704067200000 (2024-01-01) is read as seconds and converted into
+            milliseconds.
+          type: integer
+          format: int64
+          example: 1830297600000
+        resumable:
+          description: >-
+            Whether the job can be resumed with the desiredAction RESUME. This is the case if the job is in a state
+            from which it can be resumed (CANCELLED or FAILED) and each of its steps is either cancelled, succeeded
+            or failed in a way that can be retried.
+          type: boolean
+          readOnly: true
       example:
         description: This job exports some data from my space into GeoJSON files
         source:
@@ -1002,13 +1027,34 @@ components:
               enum:
                 - FeatureStatistics
             featureCount:
-              description: The resultant feature count of the job.
+              description: >-
+                The resultant feature count of the job.
+                The value is -1 if the count was skipped, which a copy does for a source of 50,000 features or more.
               example: 28075
               type: number
             byteSize:
-              description: The size of the data to be downloaded in bytes.
+              description: >-
+                The size of the data to be downloaded in bytes.
+                The value is -1 if the count was skipped, which a copy does for a source of 50,000 features or more.
               example: 409600
               type: number
+            versionRef:
+              description: The version (or version range) of the source which was exported. Only present if it is known.
+              example: "5"
+              type: string
+            fileCount:
+              description: The number of files which were written. Only present if it is greater than 0.
+              example: 12
+              type: number
+            tag:
+              description: The tag which was used to define the exported version. Only present if a tag was used.
+              example: release-2026-11
+              type: string
+          additionalProperties:
+            description: >-
+              Metadata of the output, as string properties next to the statistics. The keys depend on the step which
+              produced the output, for example the ID of the space or layer the statistics belong to.
+            type: string
     JobStatus:
       type: "object"
       description: >-
@@ -1044,10 +1090,23 @@ components:
           format: "float"
           minimum: 0
           maximum: 1
+        estimatedStartTime:
+          description: A timestamp in milliseconds of when the job most probably will start, while it waits for free execution resources. The value is -1 if there is no estimation.
+          type: "integer"
+          format: "int64"
         estimatedEndTime:
           description: A timestamp in milliseconds of when the job most probably will complete its execution. This is a rough estimation and the actual value could differ.
           type: "integer"
           format: "int64"
+        errorMessage:
+          description: A message which describes why the job failed. Only set if the job has failed.
+          type: "string"
+        errorCause:
+          description: A short description of the cause of the failure, for example the message of the underlying exception. Only set if the job has failed.
+          type: "string"
+        errorCode:
+          description: A code which identifies the kind of failure, if one is available. Only set if the job has failed.
+          type: "string"
       example:
         state: "RUNNING"
         updatedAt: 123456789
