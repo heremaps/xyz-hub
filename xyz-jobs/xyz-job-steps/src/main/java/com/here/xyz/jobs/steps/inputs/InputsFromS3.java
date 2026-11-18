@@ -20,6 +20,8 @@
 package com.here.xyz.jobs.steps.inputs;
 
 import com.here.xyz.jobs.util.S3Client;
+import com.here.xyz.util.pagination.Page;
+import com.here.xyz.util.service.aws.s3.S3ObjectSummary;
 import com.here.xyz.util.service.aws.s3.S3Uri;
 import java.util.List;
 import java.util.function.Supplier;
@@ -66,13 +68,17 @@ public class InputsFromS3 extends Input<InputsFromS3> {
   }
 
   /**
-   * Lists at most one object below the prefix to check whether the service may list the bucket at all.
-   * In contrast to {@link #dereference(String, String)}, this takes a single S3 request, independent of the number of objects.
+   * Lists at most one object below the prefix to check whether the service may list the bucket at all and whether the prefix contains
+   * any input. In contrast to {@link #dereference(String, String)}, this takes a single S3 request, independent of the number of objects.
    *
    * @throws BucketAccessDeniedException if the bucket policy does not grant the service the access
+   * @throws NoInputsFoundException if there is no object with content below the prefix
    */
-  public void checkAccess() {
-    mapAccessDenied(() -> S3Client.getInstance(getBucket()).scanFolder(getPrefix(), null, 1));
+  public void checkAccessAndPresence() {
+    Page<S3ObjectSummary> firstObject = mapAccessDenied(() -> S3Client.getInstance(getBucket()).scanFolder(getPrefix(), null, 1));
+    //Empty objects (e.g., the marker of a folder created in the S3 console) are no inputs, see Input#loadAndTransformAllInputs
+    if (firstObject.getNextPageToken() == null && firstObject.getItems().stream().allMatch(S3ObjectSummary::isEmpty))
+      throw new NoInputsFoundException(new S3Uri(getBucket(), getPrefix()));
   }
 
   private <R> R mapAccessDenied(Supplier<R> bucketAccess) {
@@ -92,6 +98,18 @@ public class InputsFromS3 extends Input<InputsFromS3> {
   public static class BucketAccessDeniedException extends RuntimeException {
     public BucketAccessDeniedException(S3Uri s3Uri, S3Exception cause) {
       super("Access to \"" + s3Uri + "\" was denied: " + cause.getMessage(), cause);
+    }
+  }
+
+  /**
+   * Thrown if there is no object with content below the provided prefix, so the job would never get any inputs from it.
+   */
+  public static class NoInputsFoundException extends RuntimeException {
+    public final S3Uri s3Uri;
+
+    public NoInputsFoundException(S3Uri s3Uri) {
+      super("No input files were found at \"" + s3Uri + "\".");
+      this.s3Uri = s3Uri;
     }
   }
 }
