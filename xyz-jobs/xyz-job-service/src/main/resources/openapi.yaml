@@ -1027,11 +1027,15 @@ components:
               enum:
                 - FeatureStatistics
             featureCount:
-              description: The resultant feature count of the job.
+              description: >-
+                The resultant feature count of the job.
+                The value is -1 if the count was skipped, which a copy does for a source of 50,000 features or more.
               example: 28075
               type: number
             byteSize:
-              description: The size of the data to be downloaded in bytes.
+              description: >-
+                The size of the data to be downloaded in bytes.
+                The value is -1 if the count was skipped, which a copy does for a source of 50,000 features or more.
               example: 409600
               type: number
             versionRef:
@@ -1046,6 +1050,11 @@ components:
               description: The tag which was used to define the exported version. Only present if a tag was used.
               example: release-2026-11
               type: string
+          additionalProperties:
+            description: >-
+              Metadata of the output, as string properties next to the statistics. The keys depend on the step which
+              produced the output, for example the ID of the space or layer the statistics belong to.
+            type: string
     JobStatus:
       type: "object"
       description: >-
