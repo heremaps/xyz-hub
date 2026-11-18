@@ -75,5 +75,12 @@
     "status": 412,
     "cause": "Access to the provided S3 bucket was denied, e.g. because its bucket policy does not grant the service access.",
     "action": "Please, grant the service the permissions to list the bucket and to read its objects under the provided prefix in the bucket policy"
+  },
+  {
+    "title": "No input files found at the provided S3 location.",
+    "code": "E319012",
+    "status": 400,
+    "cause": "There is no object with content below ${s3Uri}.",
+    "action": "Please, check the bucket and the prefix of the provided inputs, or upload the input files before creating the job"
   }
 ]

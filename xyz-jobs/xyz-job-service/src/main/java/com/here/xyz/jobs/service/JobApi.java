@@ -43,6 +43,7 @@ import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.inputs.InputsFromJob;
 import com.here.xyz.jobs.steps.inputs.InputsFromS3;
 import com.here.xyz.jobs.steps.inputs.InputsFromS3.BucketAccessDeniedException;
+import com.here.xyz.jobs.steps.inputs.InputsFromS3.NoInputsFoundException;
 import com.here.xyz.jobs.steps.inputs.ModelBasedInput;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.Output;
@@ -114,6 +115,10 @@ public class JobApi extends JobApiBase {
     if (isBucketAccessDenied(error))
       return new DetailedHttpException("E319011", null, errorDetails, error);
 
+    NoInputsFoundException noInputsFound = findCause(error, NoInputsFoundException.class);
+    if (noInputsFound != null)
+      return new DetailedHttpException("E319012", Map.of("s3Uri", noInputsFound.s3Uri.toString()), errorDetails, error);
+
     if (error instanceof CompilationError)
       return new DetailedHttpException("E319002", placeholdersFor(error), errorDetails, error);
 
@@ -137,10 +142,14 @@ public class JobApi extends JobApiBase {
   }
 
   private static boolean isBucketAccessDenied(Throwable error) {
+    return findCause(error, BucketAccessDeniedException.class) != null;
+  }
+
+  private static <T extends Throwable> T findCause(Throwable error, Class<T> causeType) {
     for (Throwable current = error; current != null; current = current.getCause())
-      if (current instanceof BucketAccessDeniedException)
-        return true;
-    return false;
+      if (causeType.isInstance(current))
+        return causeType.cast(current);
+    return null;
   }
 
   protected Throwable normalizeInputRegistrationError(Throwable error, String jobId) {
@@ -163,10 +172,13 @@ public class JobApi extends JobApiBase {
     if (!job.getInputs().values().stream().allMatch(input -> input instanceof InputsFromS3))
       return Future.failedFuture("Only inputs of type " + InputsFromS3.class.getSimpleName() + " are supported as inline inputs.");
 
-    //Check the bucket access with a single request per input set, so that a denied access is still answered with E319011
+    /*
+    Check the bucket access and that the prefix is not empty with a single request per input set, so that a denied access is still answered
+    with E319011 and an empty prefix with E319012. Otherwise, the job would wait in state NOT_READY for inputs that never get registered.
+     */
     return Future.all(job.getInputs().values().stream()
             .map(input -> Core.vertx.executeBlocking(() -> {
-              ((InputsFromS3) input).checkAccess();
+              ((InputsFromS3) input).checkAccessAndPresence();
               return null;
             }, false))
             .toList())
