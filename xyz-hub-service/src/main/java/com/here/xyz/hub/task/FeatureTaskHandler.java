@@ -143,6 +143,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import net.jodah.expiringmap.ExpirationPolicy;
 import net.jodah.expiringmap.ExpiringMap;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -464,8 +465,8 @@ public class FeatureTaskHandler {
   }
 
   /**
-   * Replies with the connector's timeout error without running the query, if the same spatial query timed out in the database repeatedly
-   * just before. See {@link QueryTimeoutCache}.
+   * Replies with the connector's timeout or the "response too large" error without running the query, if the same spatial query failed
+   * in that way just before. See {@link QueryTimeoutCache}.
    */
   private static <T extends FeatureTask> void readQueryTimeoutMarker(T task, String cacheKey, Callback<T> callback) {
     if (!(task instanceof GeometryQuery) || Service.queryTimeoutCache == null || !Service.queryTimeoutCache.isEnabled()) {
@@ -473,7 +474,7 @@ public class FeatureTaskHandler {
       return;
     }
 
-    Service.queryTimeoutCache.lookUp(cacheKey, task.storage.id).onComplete(ar -> {
+    Service.queryTimeoutCache.lookUp(cacheKey, task.storage.id, isImmutableVersion(task)).onComplete(ar -> {
       QueryTimeoutCache.Lookup lookup = ar.succeeded() ? ar.result() : null;
       if (lookup == null || lookup.decision == RUN) {
         task.queryTimeoutLookup = lookup;
@@ -482,12 +483,14 @@ public class FeatureTaskHandler {
       }
       //Add "Negative-Cache" stream-info: S = short-cut (the query did not run), P = probe (the query ran after a short-cut period)
       XYZHubRESTVerticle.addStreamInfo(task.context, "NC", lookup.decision == SHORT_CUT ? "S" : "P");
-      //Add the time since the last statement timeout of the query
+      //Add the status of the remembered failure: 504 = statement timeout, 513 = response too large
+      XYZHubRESTVerticle.addStreamInfo(task.context, "NCStatus", lookup.status());
+      //Add the time since the last counted failure of the query
       XYZHubRESTVerticle.addStreamInfo(task.context, "NCAge", lookup.markerAge);
       if (lookup.decision == SHORT_CUT) {
-        logger.info(task.getMarker(), "Query timeout marker HIT for cache key {}, replying with a timeout without running the query",
-            cacheKey);
-        callback.exception(new DetailedHttpException("E318540"));
+        logger.info(task.getMarker(), "Query timeout marker HIT for cache key {}, replying with a {} without running the query",
+            cacheKey, lookup.status());
+        callback.exception(lookup.shortCutReply());
       }
       else {
         logger.info(task.getMarker(), "Query timeout marker PROBE for cache key {}, running the query", cacheKey);
@@ -495,6 +498,24 @@ public class FeatureTaskHandler {
         callback.call(task);
       }
     });
+  }
+
+  /**
+   * Whether the task reads a version of its space which cannot change any more, so that a too large response stays too large.
+   * That is a single version, after {@link #checkImmutability} made a HEAD read of a read-only space a read of its readOnlyHeadVersion,
+   * at or below the readOnlyHeadVersion of a space which is still read-only. A space extending another one qualifies only if each
+   * extension down the chain is bound to a version, as the version of the extending space does not fix the content of the extended one
+   * otherwise.
+   */
+  static boolean isImmutableVersion(FeatureTask<?, ?> task) {
+    if (!task.readOnlyAccess || !task.space.isReadOnly() || task.space.getReadOnlyHeadVersion() < 0
+        || !(task.getEvent() instanceof SelectiveEvent<?> event))
+      return false;
+    Ref ref = event.getRef();
+    if (ref == null || ref.isTag() || ref.isHead() || !ref.isSingleVersion() || ref.getVersion() > task.space.getReadOnlyHeadVersion())
+      return false;
+    return Stream.concat(Stream.of(task.space), Stream.ofNullable(task.extendedSpaces).flatMap(Collection::stream))
+        .allMatch(space -> space.getExtension() == null || space.getExtension().getVersion() != null);
   }
 
   /**
