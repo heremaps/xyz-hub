@@ -32,6 +32,7 @@ import com.here.xyz.hub.rest.ApiParam.Path;
 import com.here.xyz.hub.rest.ApiParam.Query;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Tag;
+import com.here.xyz.models.hub.jwt.JWTPayload;
 import com.here.xyz.responses.ChangesetsStatisticsResponse;
 import com.here.xyz.util.service.BaseHttpServerVerticle;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
@@ -58,7 +59,7 @@ public class TagApi extends SpaceBasedApi {
 
   // TODO auth
   private void createTag(RoutingContext context) {
-    String author = BaseHttpServerVerticle.getAuthor(context);
+    String author = getRequestAuthor(context);
     deserializeTag(context.body().asString())
         .compose(tag -> createTag(
             getMarker(context),
@@ -139,16 +140,19 @@ public class TagApi extends SpaceBasedApi {
         .compose(loadedTag -> loadedTag == null
             ? Future.failedFuture(new HttpException(NOT_FOUND, "Tag " + tagId + " not found"))
             : Future.succeededFuture(loadedTag))
-        .compose(loadedTag -> resolveVersionRef(marker, spaceId, versionRef)
-            .compose(resolvedVersionRef -> Service.tagConfigClient.storeTag(marker, new Tag()
-                .withId(tagId)
-                .withSpaceId(spaceId)
-                .withVersionRef(resolvedVersionRef)
-                .withSystem(loadedTag.isSystem())
-                .withDescription(description == null ? loadedTag.getDescription() : description))
-                .map(loadedTag.withVersionRef(resolvedVersionRef))))
-        .map(loadedTag -> loadedTag
-            .withDescription(description == null ? loadedTag.getDescription() : description));
+        .compose(loadedTag -> resolveVersionRef(marker, spaceId, versionRef, true)
+            .compose(resolvedVersionRef -> {
+              //The author and the creation time are set on creation only, an update must not reset them
+              final Tag updatedTag = new Tag()
+                  .withId(tagId)
+                  .withSpaceId(spaceId)
+                  .withVersionRef(resolvedVersionRef)
+                  .withSystem(loadedTag.isSystem())
+                  .withDescription(description == null ? loadedTag.getDescription() : description)
+                  .withAuthor(loadedTag.getAuthor())
+                  .withCreatedAt(loadedTag.getCreatedAt());
+              return Service.tagConfigClient.storeTag(marker, updatedTag).map(v -> updatedTag);
+            }));
   }
 
   public static Future<Tag> createTag(Marker marker, String spaceId, String tagId, String author) {
@@ -173,7 +177,7 @@ public class TagApi extends SpaceBasedApi {
     }
 
     final Future<Space> spaceFuture = getSpaceIfActive(marker, spaceId);
-    final Future<Ref> resolveVersionRef = resolveVersionRef(marker, spaceId, versionRef);
+    final Future<Ref> resolveVersionRef = resolveVersionRef(marker, spaceId, versionRef, false);
     final Future<Void> checkExistingAlias = checkExistingAlias(marker, spaceId, tagId);
 
     return Future.all(spaceFuture, resolveVersionRef, checkExistingAlias).compose(cf -> {
@@ -226,16 +230,45 @@ public class TagApi extends SpaceBasedApi {
             : Future.succeededFuture(s));
   }
 
-  private static Future<Ref> resolveVersionRef(Marker marker, String spaceId, Ref versionRef) {
+  /**
+   * Resolves HEAD into the actual latest version.
+   * If requested, it also makes sure that the tag does not point to a version which does not exist (yet).
+   * That is the case for updates only: creating a tag for a version which does not exist yet has always been possible
+   * and stays possible.
+   */
+  private static Future<Ref> resolveVersionRef(Marker marker, String spaceId, Ref versionRef, boolean verifyVersion) {
     if (versionRef.isTag())
       throw new IllegalArgumentException("A tag cannot be used as Ref");
+    if (!versionRef.isHead() && (!verifyVersion || !versionRef.isSingleVersion()))
+      return Future.succeededFuture(versionRef);
+    return FeatureQueryApi.getStatistics(marker, spaceId, SpaceContext.DEFAULT, new Ref(HEAD), true, false)
+        .compose(statistics -> {
+          if (versionRef.isHead())
+            return Future.succeededFuture(new Ref(statistics.getMaxVersion().getValue()));
+          //The storage of the space does not report versions, the version can not be verified
+          if (statistics.getMaxVersion() == null)
+            return Future.succeededFuture(versionRef);
+          final long maxVersion = statistics.getMaxVersion().getValue();
+          if (versionRef.getVersion() > maxVersion)
+            return Future.failedFuture(new ValidationException("Invalid version parameter, the version " + versionRef.getVersion()
+                + " does not exist. The latest version of the space is " + maxVersion + "."));
+          return Future.succeededFuture(versionRef);
+        });
+  }
 
-    Future<Ref> future = Future.succeededFuture(versionRef);
-    if (versionRef.isHead()) {
-      future = future.compose(v -> FeatureQueryApi.getStatistics(marker, spaceId, SpaceContext.DEFAULT, versionRef, true, false)
-          .map(statistics -> new Ref(statistics.getMaxVersion().getValue())));
-    }
-    return future;
+  /**
+   * The author of a tag is the author of the request. If the request does not provide one (e.g. a call by an application
+   * without an "Author" header while the author is expected in that header) the account of the token is used,
+   * as a tag without an author would be reported as being created by "system".
+   */
+  private static String getRequestAuthor(RoutingContext context) {
+    return resolveAuthor(BaseHttpServerVerticle.getAuthor(context), BaseHttpServerVerticle.getJWT(context));
+  }
+
+  static String resolveAuthor(String requestAuthor, JWTPayload jwt) {
+    if (StringUtils.isNotBlank(requestAuthor) || jwt == null)
+      return requestAuthor;
+    return StringUtils.firstNonBlank(jwt.aid, jwt.cid, requestAuthor);
   }
 
   private static String getAuthor(Future<Tag> tagFuture, String author) {
