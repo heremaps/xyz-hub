@@ -19,7 +19,7 @@
 
 package com.here.xyz.iceberg;
 
-import static com.here.xyz.responses.XyzError.PAYLOAD_TO_LARGE;
+import static com.here.xyz.models.hub.IcebergLocation.LIMIT_READ_BYTES;
 import static com.here.xyz.responses.XyzError.TIMEOUT;
 
 import java.util.concurrent.atomic.AtomicLong;
@@ -45,7 +45,7 @@ final class ReadBudget {
    */
   void addBytesRead(long bytes) {
     if (bytesRead.addAndGet(bytes) > maxBytes)
-      throw new ScanException(PAYLOAD_TO_LARGE, "The request would read more than " + maxBytes + " bytes from Iceberg");
+      throw tooMuch();
   }
 
   /**
@@ -59,9 +59,13 @@ final class ReadBudget {
     do {
       read = bytesRead.get();
       if (read + bytes > maxBytes)
-        throw new ScanException(PAYLOAD_TO_LARGE, "The request would read more than " + maxBytes + " bytes from Iceberg");
+        throw tooMuch();
     }
     while (!bytesRead.compareAndSet(read, read + bytes));
+  }
+
+  private ScanException tooMuch() {
+    return ScanException.tooLarge(LIMIT_READ_BYTES, maxBytes, "The request would read more than " + maxBytes + " bytes from Iceberg");
   }
 
   long bytesRead() {

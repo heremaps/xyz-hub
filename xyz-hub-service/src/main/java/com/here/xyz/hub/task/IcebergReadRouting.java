@@ -20,10 +20,15 @@
 package com.here.xyz.hub.task;
 
 import static com.here.xyz.hub.cache.QueryTimeoutCache.Decision.PROBE;
+import static com.here.xyz.models.hub.IcebergLocation.ERROR_DETAIL_COMPLETE;
+import static com.here.xyz.models.hub.IcebergLocation.ERROR_DETAIL_LIMIT;
+import static com.here.xyz.models.hub.IcebergLocation.ERROR_DETAIL_MAX_BYTES;
 import static com.here.xyz.models.hub.IcebergLocation.EVENT_PARAM;
+import static com.here.xyz.models.hub.IcebergLocation.EVENT_PARAM_COUNT_MATCHES;
 import static com.here.xyz.models.hub.IcebergLocation.EVENT_PARAM_LOCATION;
 import static com.here.xyz.models.hub.IcebergLocation.EVENT_PARAM_MAX_RESPONSE_BYTES;
 import static com.here.xyz.models.hub.IcebergLocation.ITERATE_TOKEN_PREFIX;
+import static com.here.xyz.models.hub.IcebergLocation.LIMIT_RESPONSE_BYTES;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.GATEWAY_TIMEOUT;
@@ -36,9 +41,11 @@ import com.here.xyz.hub.Service;
 import com.here.xyz.hub.XYZHubRESTVerticle;
 import com.here.xyz.hub.config.IcebergVersionCache;
 import com.here.xyz.hub.config.IcebergVersionCache.IcebergVersion;
+import com.here.xyz.hub.connectors.PayloadTooLargeException;
 import com.here.xyz.hub.connectors.RpcClient;
 import com.here.xyz.hub.connectors.RpcClient.RpcContext;
 import com.here.xyz.hub.connectors.models.Connector;
+import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.task.IcebergShadowComparison.Result;
 import com.here.xyz.hub.task.TaskPipeline.Callback;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
@@ -72,7 +79,8 @@ import org.apache.logging.log4j.Marker;
  * Routes eligible reads of versions, which were exported to Iceberg, to the Iceberg connector. Iceberg is a replica of the
  * immutable versions of a space: only reads of a specific version (or of the head of a read-only space) are routed, the
  * space's own connector stays the source of truth and is the fallback if the Iceberg connector fails or does not respond in
- * time. The mode of each space is its property {@code icebergReads}, else the Hub setting
+ * time, except for a too large response which the space's own connector could not deliver either, see
+ * {@link #isFinalTooLarge(Throwable)}. The mode of each space is its property {@code icebergReads}, else the Hub setting
  * {@link com.here.xyz.hub.Config#ICEBERG_READS}, see {@link IcebergReadMode}. The Iceberg versions of a space are only looked
  * up if its mode is not OFF, or for a page with an Iceberg token.
  * <p>
@@ -347,25 +355,38 @@ public final class IcebergReadRouting {
   }
 
   /**
-   * @return A copy of the task's event for the Iceberg connector
+   * @return A copy of the task's event for the Iceberg connector. It asks for the Hub's {@code MAX_UNCOMPRESSED_RESPONSE_SIZE} as the
+   *     response limit, so that a response above it is refused by the connector, which knows whether the read has all its matches,
+   *     see {@link #isFinalTooLarge(Throwable)}, rather than by the Hub's own check of the response. For that, it asks the connector
+   *     to count the matches after the response limit ({@code countMatches}), within the read's limit, the read budget and the
+   *     deadline. Without that Hub limit, no 513 is final, so the connector fails fast at its own limit.
    */
   private static Event<?> icebergEvent(FeatureTask<?, ?> task, Connector connector, IcebergLocation location) {
     Event<?> copy = task.getEvent().copy();
     if (copy == null)
       throw new IllegalStateException("Unable to copy the event");
-    return withIcebergParams(task, connector, location, copy, null);
+    long hubLimit = Service.configuration.MAX_UNCOMPRESSED_RESPONSE_SIZE;
+    return withIcebergParams(task, connector, location, copy, hubLimit > 0 ? hubLimit : null, hubLimit > 0);
   }
 
   /**
    * Adds the location and the connector specific properties to a copy of the task's event.
    *
    * @param maxResponseBytes A lower limit for the size of the response, or null for the connector's own limit
+   * @param countMatches Whether the connector counts the matches after the response limit, see
+   *     {@link IcebergLocation#EVENT_PARAM_COUNT_MATCHES}; else it fails fast at that limit
    */
   private static Event<?> withIcebergParams(FeatureTask<?, ?> task, Connector connector, IcebergLocation location, Event<?> copy,
-      Long maxResponseBytes) {
+      Long maxResponseBytes, boolean countMatches) {
     Map<String, Object> params = new HashMap<>(copy.getParams() == null ? Map.of() : copy.getParams());
-    params.put(EVENT_PARAM, maxResponseBytes == null ? Map.of(EVENT_PARAM_LOCATION, location.toString())
-        : Map.of(EVENT_PARAM_LOCATION, location.toString(), EVENT_PARAM_MAX_RESPONSE_BYTES, maxResponseBytes));
+    Map<String, Object> icebergParams = new HashMap<>();
+    icebergParams.put(EVENT_PARAM_LOCATION, location.toString());
+    if (maxResponseBytes != null)
+      icebergParams.put(EVENT_PARAM_MAX_RESPONSE_BYTES, maxResponseBytes);
+    if (countMatches)
+      icebergParams.put(EVENT_PARAM_COUNT_MATCHES, true);
+    //Replaces whatever the event had under this key
+    params.put(EVENT_PARAM, icebergParams);
     copy.setParams(params);
     FeatureTaskHandler.setAdditionalEventProps(task, connector, copy);
     return copy;
@@ -459,11 +480,72 @@ public final class IcebergReadRouting {
       callback.exception(cause instanceof Exception ? cause : new HttpException(GATEWAY_TIMEOUT, "The Iceberg read failed.", cause));
       return;
     }
+    if (isFinalTooLarge(cause)) {
+      XYZHubRESTVerticle.addStreamInfo(task.context, "ITL", 1);
+      logger.info(task.getMarker(), "iceberg-read too large, not falling back space={} event={} version={} location={} ms={}: {}",
+          task.space.getId(), eventType, version, location, ms, cause.getMessage());
+      //Counted by the query timeout cache as the same 513 of the space's own connector would be in invoke
+      FeatureTaskHandler.recordQueryTimeoutOutcome(task, Future.failedFuture(cause));
+      callback.exception(cause);
+      return;
+    }
     XYZHubRESTVerticle.addStreamInfo(task.context, "IFB", 1);
     logger.warn(task.getMarker(), "iceberg-read fallback space={} event={} version={} location={} ms={}", task.space.getId(),
         eventType, version, location, ms, cause);
     //invoke runs the original event on the space's own connector
     callback.call(task);
+  }
+
+  /**
+   * Whether a failure of a routed read is a 513 which the space's own connector would end in as well, so that it is replied to the
+   * client instead of falling back. The exception is the one RpcClient creates for the same 513 of any connector, so the client gets
+   * the same status and body as from the space's own connector.
+   * <ul>
+   *   <li>The Iceberg connector's response limit ({@code PAYLOAD_TO_LARGE} with {@code errorDetails.limit = maxResponseBytes}). Final
+   *   only if both hold:
+   *   <ul>
+   *     <li>{@code errorDetails.complete} is true: the read has all its matches, as the scan ended without reaching the limit of the
+   *     read. Then the space's own connector returns the same features. A read cut off by its limit may return other features from
+   *     the space's own connector, as the order differs (Iceberg: data file order; Postgres: no ORDER BY), e.g. only small ones
+   *     besides a large one, so it falls back. So does a read whose budget or deadline ran out while the connector counted the
+   *     matches.</li>
+   *     <li>That limit ({@code errorDetails.maxBytes}) is not lower than the Hub's {@code MAX_UNCOMPRESSED_RESPONSE_SIZE}. The
+   *     connector counts the characters of the features, so the response would have more than that many bytes, and so would the
+   *     response of the space's own connector with the same features, which RpcClient checks against that limit for every connector
+   *     after decompressing, unless that connector refused it before with its own 513 (the Postgres connector stops at
+   *     min(100 MiB, MAX_UNCOMPRESSED_RESPONSE_SIZE)). With a lower Iceberg limit, or without that Hub limit, the space's own
+   *     connector might deliver it, so the read falls back. The deprecated MAX_HTTP_RESPONSE_SIZE and MAX_SERVICE_RESPONSE_SIZE are
+   *     no fixed limit of the uncompressed response, as they check the compressed size of a compressed response.</li>
+   *   </ul></li>
+   *   <li>The Hub's own size check of the Iceberg response which arrived (plain 513, {@code RESPONSE_PAYLOAD_TOO_LARGE}): the bytes are
+   *   rejected before they are parsed, so it is not known whether the read has all its matches. Falls back. As routed reads ask for
+   *   the Hub's limit as the response limit, see {@link #icebergEvent}, this only happens if the features fit into that limit but the
+   *   response does not, e.g. because of multibyte characters or the envelope of the features.</li>
+   *   <li>The Iceberg connector's read budget ({@code errorDetails.limit = maxBytesPerRequest}): says nothing about the size of the
+   *   response, the space's own connector may answer it fast. Falls back, as does a {@code PAYLOAD_TO_LARGE} without these
+   *   details.</li>
+   * </ul>
+   * {@code capabilities.maxPayloadSize} (at most 50 MiB for embedded connectors) is not involved: it limits the event sent to a
+   * connector, not the response.
+   */
+  static boolean isFinalTooLarge(Throwable cause) {
+    if (!(cause instanceof PayloadTooLargeException tooLarge) || tooLarge.connectorDetails == null
+        || !LIMIT_RESPONSE_BYTES.equals(tooLarge.connectorDetails.get(ERROR_DETAIL_LIMIT))
+        || !Boolean.TRUE.equals(tooLarge.connectorDetails.get(ERROR_DETAIL_COMPLETE))
+        || !(tooLarge.connectorDetails.get(ERROR_DETAIL_MAX_BYTES) instanceof Number maxBytes))
+      return false;
+    long hubLimit = Service.configuration.MAX_UNCOMPRESSED_RESPONSE_SIZE;
+    return hubLimit > 0 && maxBytes.longValue() >= hubLimit;
+  }
+
+  /**
+   * Whether a failure of an Iceberg read is a refusal of a too large response: the Iceberg connector's response limit
+   * ({@code errorDetails.limit = maxResponseBytes}) or the Hub's own size check of the arrived response. Not the read budget.
+   */
+  static boolean isResponseTooLarge(Throwable cause) {
+    if (cause instanceof PayloadTooLargeException tooLarge)
+      return tooLarge.connectorDetails != null && LIMIT_RESPONSE_BYTES.equals(tooLarge.connectorDetails.get(ERROR_DETAIL_LIMIT));
+    return cause instanceof HttpException httpException && Api.RESPONSE_PAYLOAD_TOO_LARGE.equals(httpException.status);
   }
 
   private static ShadowRun newShadow(FeatureTask<?, ?> task, IcebergLocation location, long version) {
@@ -541,8 +623,9 @@ public final class IcebergReadRouting {
       location = target.location();
       Event<?> icebergEvent;
       try {
-        //The Iceberg connector fails fast instead of building a response which would not be compared
-        icebergEvent = withIcebergParams(task, target.connector(), target.location(), copy, maxChars);
+        //The Iceberg connector fails fast at the first feature over maxChars instead of building a response which would not be compared
+        //or counting the matches after it (no countMatches), so a shadow read does no more work than a comparable response needs
+        icebergEvent = withIcebergParams(task, target.connector(), target.location(), copy, maxChars, false);
       }
       catch (Exception e) {
         logger.warn(marker, "iceberg-shadow space={}: Unable to start the shadow read", spaceId, e);
@@ -578,7 +661,9 @@ public final class IcebergReadRouting {
     }
 
     void icebergDone(AsyncResult<XyzResponse> result) {
-      boolean large = result.succeeded() && IcebergShadowComparison.isLargerThan(result.result(), maxChars);
+      //A response which is too large for the comparison, or which was refused as too large, is reported as SKIPPED (too large)
+      boolean large = result.succeeded() ? IcebergShadowComparison.isLargerThan(result.result(), maxChars)
+          : isResponseTooLarge(result.cause());
       synchronized (this) {
         iceberg = large ? Future.succeededFuture() : result;
         tooLarge |= large;

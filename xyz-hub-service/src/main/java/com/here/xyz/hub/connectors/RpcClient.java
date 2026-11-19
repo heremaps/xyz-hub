@@ -439,7 +439,7 @@ public class RpcClient {
         case BAD_GATEWAY:
           throw new HttpException(BAD_GATEWAY, "Connector error.", errorResponse.getErrorDetails());
         case PAYLOAD_TO_LARGE:
-          throw new DetailedHttpException("E318541");
+          throw new PayloadTooLargeException(errorResponse.getErrorDetails());
       }
     }
   }

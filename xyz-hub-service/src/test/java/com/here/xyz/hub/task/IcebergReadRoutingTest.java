@@ -35,6 +35,8 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import com.here.xyz.events.Event;
@@ -47,9 +49,11 @@ import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.hub.Config;
 import com.here.xyz.hub.Service;
+import com.here.xyz.hub.cache.QueryTimeoutCache;
 import com.here.xyz.hub.config.DataReferenceConfigClient;
 import com.here.xyz.hub.config.IcebergVersionCache;
 import com.here.xyz.hub.config.IcebergVersionCacheTestSupport;
+import com.here.xyz.hub.connectors.PayloadTooLargeException;
 import com.here.xyz.hub.connectors.RpcClient.RpcContext;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Space;
@@ -96,6 +100,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 /**
@@ -105,10 +110,16 @@ import org.junit.jupiter.params.provider.ValueSource;
 class IcebergReadRoutingTest {
 
   private static final long VERSION = 3;
+  private static final long MIB = 1024 * 1024;
+  /**
+   * The Hub's MAX_UNCOMPRESSED_RESPONSE_SIZE in the tests of too large responses
+   */
+  private static final long HUB_LIMIT = 50 * MIB;
   private static final String LOCATION = new IcebergLocation("ns", "table", "v" + VERSION).toString();
   private static Vertx createdVertx;
 
   private Config previousConfiguration;
+  private QueryTimeoutCache previousQueryTimeoutCache;
   private Space space;
   private Connector icebergConnector;
   private Future<Connector> resolvedConnector;
@@ -153,6 +164,7 @@ class IcebergReadRoutingTest {
   @BeforeEach
   void setUp() {
     previousConfiguration = Service.configuration;
+    previousQueryTimeoutCache = Service.queryTimeoutCache;
     Service.configuration = new Config();
     Service.configuration.ICEBERG_READS = "ON";
     space = space(SPACE_ID);
@@ -188,6 +200,7 @@ class IcebergReadRoutingTest {
   void tearDown() {
     IcebergReadRouting.resetTestSeams();
     Service.configuration = previousConfiguration;
+    Service.queryTimeoutCache = previousQueryTimeoutCache;
   }
 
   @Test
@@ -384,22 +397,132 @@ class IcebergReadRoutingTest {
   }
 
   /**
-   * A read whose Iceberg response is too large (e.g. because of a feature of more than 100 MB) is answered from the space's own
-   * connector, whether the Iceberg connector reports PAYLOAD_TO_LARGE or the Hub's own response size check fails.
+   * A routed read whose response failed the Hub's own size check falls back: the bytes are rejected before they are parsed, so it is
+   * not known whether the read was cut off by its limit, and the space's own connector might return other, smaller features.
    */
-  @ParameterizedTest(name = "{0}")
-  @ValueSource(strings = {"connector", "hub"})
-  void aTooLargeIcebergResponseFallsBack(String limit) {
-    HttpException failure = "connector".equals(limit) ? new DetailedHttpException("E318541")
-        : new HttpException(Api.RESPONSE_PAYLOAD_TOO_LARGE, Api.RESPONSE_PAYLOAD_TOO_LARGE_MESSAGE);
-    assertThat(failure.status.code()).isEqualTo(513);
+  @Test
+  void theHubsResponseSizeCheckFallsBack() {
+    Service.configuration.MAX_UNCOMPRESSED_RESPONSE_SIZE = HUB_LIMIT;
+    //As RpcClient#throwResponseSizeException creates it for each connector
+    icebergAnswer = () -> Future.failedFuture(new HttpException(Api.RESPONSE_PAYLOAD_TOO_LARGE, Api.RESPONSE_PAYLOAD_TOO_LARGE_MESSAGE));
+    assertFallback(send(bboxTask(bboxEvent())));
+  }
+
+  /**
+   * A routed read asks for the Hub's MAX_UNCOMPRESSED_RESPONSE_SIZE as the response limit, so that the Iceberg connector, which knows
+   * whether the read has all its matches, refuses a too large response before the Hub's own check does. It asks the connector to
+   * count the matches after that limit (countMatches), which the decision needs. Without that Hub limit, no 513 is final: the
+   * connector's own limit applies and the connector fails fast at it.
+   */
+  @ParameterizedTest(name = "hubLimit={0}")
+  @ValueSource(longs = {HUB_LIMIT, 0})
+  void aRoutedReadAsksForTheHubsResponseLimit(long hubLimit) {
+    Service.configuration.MAX_UNCOMPRESSED_RESPONSE_SIZE = hubLimit;
+    assertRouted(send(bboxTask(bboxEvent())));
+    assertThat(icebergEvents.get(0).getParams()).containsEntry(IcebergLocation.EVENT_PARAM, hubLimit > 0
+        ? Map.of(IcebergLocation.EVENT_PARAM_LOCATION, LOCATION, IcebergLocation.EVENT_PARAM_MAX_RESPONSE_BYTES, hubLimit,
+            IcebergLocation.EVENT_PARAM_COUNT_MATCHES, true)
+        : Map.of(IcebergLocation.EVENT_PARAM_LOCATION, LOCATION));
+  }
+
+  /**
+   * The Iceberg connector refused a response larger than its response limit, which is not lower than the Hub's
+   * MAX_UNCOMPRESSED_RESPONSE_SIZE, and the read has all its matches: the response of the space's own connector has the same features
+   * and would exceed that limit too.
+   */
+  @ParameterizedTest(name = "maxResponseBytes={0}")
+  @ValueSource(longs = {HUB_LIMIT, 2 * HUB_LIMIT})
+  void aCompleteResponseLimitNotBelowTheHubsLimitIsFinal(long maxResponseBytes) {
+    Service.configuration.MAX_UNCOMPRESSED_RESPONSE_SIZE = HUB_LIMIT;
+    PayloadTooLargeException failure = tooLarge(IcebergLocation.LIMIT_RESPONSE_BYTES, maxResponseBytes, true);
     icebergAnswer = () -> Future.failedFuture(failure);
     Reply reply = send(bboxTask(bboxEvent()));
-    assertThat(reply.error).isNull();
-    assertThat(reply.invokeRan).isTrue();
-    assertThat(reply.response).isSameAs(postgresResponse);
-    assertThat(reply.streamInfo("IFB")).isEqualTo(1);
-    assertThat(icebergEvents).hasSize(1);
+    assertFinalTooLarge(reply);
+    assertThat(reply.error).isSameAs(failure);
+    //The same status and body as RpcClient creates for the PAYLOAD_TO_LARGE of the space's own connector
+    DetailedHttpException ofTheSpacesConnector = new PayloadTooLargeException(null);
+    DetailedHttpException error = (DetailedHttpException) reply.error;
+    assertThat(error.status).isEqualTo(ofTheSpacesConnector.status);
+    assertThat(error.errorDefinition.getCode()).isEqualTo("E318541");
+    assertThat(error.getMessage()).isEqualTo(ofTheSpacesConnector.getMessage());
+    assertThat(error.placeholders).isEqualTo(ofTheSpacesConnector.placeholders);
+    assertThat(error.errorDetails).isNull();
+  }
+
+  /**
+   * The Iceberg connector refused a response at a limit not lower than the Hub's, but the read may be cut off by its limit (or the
+   * completeness is not reported): with more matches than the limit, the space's own connector may return other features in its
+   * order, e.g. only small ones besides a large one, and deliver them.
+   */
+  @ParameterizedTest(name = "complete={0}")
+  @ValueSource(strings = {"false", "missing"})
+  void aResponseLimitOfAReadWhichMayBeCutOffByItsLimitFallsBack(String complete) {
+    Service.configuration.MAX_UNCOMPRESSED_RESPONSE_SIZE = HUB_LIMIT;
+    PayloadTooLargeException failure = "missing".equals(complete) ? new PayloadTooLargeException(Map.of(
+        IcebergLocation.ERROR_DETAIL_LIMIT, IcebergLocation.LIMIT_RESPONSE_BYTES, IcebergLocation.ERROR_DETAIL_MAX_BYTES, 2 * HUB_LIMIT))
+        : tooLarge(IcebergLocation.LIMIT_RESPONSE_BYTES, 2 * HUB_LIMIT, false);
+    icebergAnswer = () -> Future.failedFuture(failure);
+    assertFallback(send(bboxTask(bboxEvent())));
+  }
+
+  /**
+   * The Iceberg connector refused a complete response which the space's own connector might deliver: its response limit is below the
+   * Hub's MAX_UNCOMPRESSED_RESPONSE_SIZE, the Hub has no such limit, or the error does not say which limit was hit.
+   */
+  @ParameterizedTest(name = "hubLimit={0} details={1}")
+  @CsvSource({
+      HUB_LIMIT + ", " + (HUB_LIMIT - 1),
+      "0, " + 2 * HUB_LIMIT,
+      HUB_LIMIT + ", none",
+      HUB_LIMIT + ", unknown limit"})
+  void aResponseLimitWhichTheSpacesConnectorMightNotHaveFallsBack(long hubLimit, String details) {
+    Service.configuration.MAX_UNCOMPRESSED_RESPONSE_SIZE = hubLimit;
+    HttpException failure = switch (details) {
+      case "none" -> new PayloadTooLargeException(null);
+      case "unknown limit" -> tooLarge("other", 2 * HUB_LIMIT, true);
+      default -> tooLarge(IcebergLocation.LIMIT_RESPONSE_BYTES, Long.parseLong(details), true);
+    };
+    icebergAnswer = () -> Future.failedFuture(failure);
+    assertFallback(send(bboxTask(bboxEvent())));
+  }
+
+  /**
+   * The Iceberg connector refused a read which would read more than its read budget. That says nothing about the size of the
+   * response, the space's own connector may answer it.
+   */
+  @Test
+  void aReadBudgetRefusalFallsBack() {
+    Service.configuration.MAX_UNCOMPRESSED_RESPONSE_SIZE = HUB_LIMIT;
+    icebergAnswer = () -> Future.failedFuture(tooLarge(IcebergLocation.LIMIT_READ_BYTES, 256 * MIB, false));
+    assertFallback(send(bboxTask(bboxEvent())));
+  }
+
+  /**
+   * The query timeout cache counts a final 513 of a routed read as it counts the 513 of the space's own connector in invoke.
+   */
+  @Test
+  void aFinalTooLargeIsCountedByTheQueryTimeoutCache() {
+    Service.configuration.MAX_UNCOMPRESSED_RESPONSE_SIZE = HUB_LIMIT;
+    QueryTimeoutCache cache = mock(QueryTimeoutCache.class);
+    Service.queryTimeoutCache = cache;
+    PayloadTooLargeException failure = tooLarge(IcebergLocation.LIMIT_RESPONSE_BYTES, HUB_LIMIT, true);
+    icebergAnswer = () -> Future.failedFuture(failure);
+    Request request = new Request();
+    request.queryTimeoutLookup = mock(QueryTimeoutCache.Lookup.class);
+    Reply reply = send(bboxTask(request, bboxEvent()));
+    assertFinalTooLarge(reply);
+    verify(cache).onFailure(request.queryTimeoutLookup, failure);
+    assertThat(reply.task.queryTimeoutLookup).isNull();
+
+    //A fallback leaves the lookup to invoke
+    icebergAnswer = () -> Future.failedFuture(tooLarge(IcebergLocation.LIMIT_RESPONSE_BYTES, HUB_LIMIT, false));
+    Request fallback = new Request();
+    fallback.queryTimeoutLookup = mock(QueryTimeoutCache.Lookup.class);
+    icebergEvents.clear();
+    reply = send(bboxTask(fallback, bboxEvent()));
+    assertFallback(reply);
+    assertThat(reply.task.queryTimeoutLookup).isSameAs(fallback.queryTimeoutLookup);
+    verifyNoMoreInteractions(cache);
   }
 
   @Test
@@ -490,6 +613,58 @@ class IcebergReadRoutingTest {
     icebergAnswer = () -> Future.failedFuture(new RuntimeException("Iceberg failure"));
     assertShadowed(send(bboxTask(bboxEvent())));
     assertThat(shadow.get(5, TimeUnit.SECONDS).result).isEqualTo("ERROR");
+  }
+
+  /**
+   * A shadow read refused as too large, by the Iceberg connector's response limit (failing fast, without the detail complete) or by
+   * the Hub's own size check, serves the primary and is a data point SKIPPED (too large), as is a too large response.
+   */
+  @ParameterizedTest(name = "{0}")
+  @ValueSource(strings = {"connector", "hub"})
+  void shadowServesThePrimaryAndSkipsATooLargeIcebergResponse(String check) throws Exception {
+    space.setIcebergReads("SHADOW");
+    Service.configuration.MAX_UNCOMPRESSED_RESPONSE_SIZE = HUB_LIMIT;
+    long maxBytes = Service.configuration.ICEBERG_READS_SHADOW_MAX_BYTES;
+    HttpException failure = "connector".equals(check)
+        ? new PayloadTooLargeException(Map.of(IcebergLocation.ERROR_DETAIL_LIMIT, IcebergLocation.LIMIT_RESPONSE_BYTES,
+            IcebergLocation.ERROR_DETAIL_MAX_BYTES, maxBytes))
+        //As RpcClient#throwResponseSizeException creates it for each connector
+        : new HttpException(Api.RESPONSE_PAYLOAD_TOO_LARGE, Api.RESPONSE_PAYLOAD_TOO_LARGE_MESSAGE);
+    icebergAnswer = () -> Future.failedFuture(failure);
+    Reply reply = send(bboxTask(bboxEvent()));
+    assertShadowed(reply);
+    assertThat(reply.streamInfo("ITL")).isNull();
+    Shadow result = shadow.get(5, TimeUnit.SECONDS);
+    assertThat(result.result).isEqualTo("SKIPPED");
+    assertThat(result.comparison.reason()).isEqualTo(IcebergShadowComparison.TOO_LARGE);
+  }
+
+  /**
+   * The read budget says nothing about the size of the response: a shadow read refused by it is an ERROR, as before
+   */
+  @Test
+  void shadowReportsAReadBudgetRefusalAsAnError() throws Exception {
+    space.setIcebergReads("SHADOW");
+    icebergAnswer = () -> Future.failedFuture(tooLarge(IcebergLocation.LIMIT_READ_BYTES, 256L * 1024 * 1024, false));
+    assertShadowed(send(bboxTask(bboxEvent())));
+    assertThat(shadow.get(5, TimeUnit.SECONDS).result).isEqualTo("ERROR");
+  }
+
+  /**
+   * A shadow read asks the Iceberg connector for the comparison's maximum as the response limit and not to count the matches after
+   * it, also with a Hub response limit: the connector fails fast at that limit, so a shadow read does no more work than a comparable
+   * response needs. A normal-sized read is still compared.
+   */
+  @Test
+  void aShadowReadFailsFastAtItsResponseLimit() throws Exception {
+    space.setIcebergReads("SHADOW");
+    Service.configuration.MAX_UNCOMPRESSED_RESPONSE_SIZE = HUB_LIMIT;
+    assertShadowed(send(bboxTask(bboxEvent())));
+    assertThat(shadow.get(5, TimeUnit.SECONDS).result).isEqualTo("MATCH");
+    assertThat(icebergEvents).hasSize(1);
+    assertThat(icebergEvents.get(0).getParams()).containsEntry(IcebergLocation.EVENT_PARAM,
+        Map.of(IcebergLocation.EVENT_PARAM_LOCATION, LOCATION, IcebergLocation.EVENT_PARAM_MAX_RESPONSE_BYTES,
+            (long) Service.configuration.ICEBERG_READS_SHADOW_MAX_BYTES));
   }
 
   @Test
@@ -706,6 +881,33 @@ class IcebergReadRoutingTest {
     assertThat(icebergEvents).isNotEmpty();
   }
 
+  private void assertFinalTooLarge(Reply reply) {
+    assertThat(reply.error).isInstanceOf(HttpException.class);
+    assertThat(((HttpException) reply.error).status.code()).isEqualTo(513);
+    assertThat(reply.invokeRan).isFalse();
+    assertThat(reply.response).isNull();
+    assertThat(reply.streamInfo("ITL")).isEqualTo(1);
+    assertThat(reply.streamInfo("IFB")).isNull();
+    assertThat(icebergEvents).hasSize(1);
+  }
+
+  private void assertFallback(Reply reply) {
+    assertThat(reply.error).isNull();
+    assertThat(reply.invokeRan).isTrue();
+    assertThat(reply.response).isSameAs(postgresResponse);
+    assertThat(reply.streamInfo("IFB")).isEqualTo(1);
+    assertThat(reply.streamInfo("ITL")).isNull();
+    assertThat(icebergEvents).hasSize(1);
+  }
+
+  /**
+   * The PAYLOAD_TO_LARGE of the Iceberg connector as RpcClient maps it
+   */
+  private static PayloadTooLargeException tooLarge(String limit, long maxBytes, boolean complete) {
+    return new PayloadTooLargeException(Map.of(IcebergLocation.ERROR_DETAIL_LIMIT, limit, IcebergLocation.ERROR_DETAIL_MAX_BYTES,
+        maxBytes, IcebergLocation.ERROR_DETAIL_COMPLETE, complete));
+  }
+
   private void assertNotRouted(Reply reply) {
     assertThat(reply.error).isNull();
     assertThat(reply.invokeRan).isTrue();
@@ -775,6 +977,8 @@ class IcebergReadRoutingTest {
     final Map<String, Object> contextData = new HashMap<>();
     final AtomicBoolean invokeRan = new AtomicBoolean();
     XyzResponse cached;
+    //The lookup of the query timeout cache, as readCache sets it
+    QueryTimeoutCache.Lookup queryTimeoutLookup;
   }
 
   private record Reply(FeatureTask<?, ?> task, boolean invokeRan, XyzResponse response, Throwable error,
@@ -882,6 +1086,7 @@ class IcebergReadRoutingTest {
         .then((t, callback) -> {
           if (request.cached != null)
             t.setResponse(request.cached);
+          t.queryTimeoutLookup = request.queryTimeoutLookup;
           callback.call(t);
         })
         .then(IcebergReadRouting::route)

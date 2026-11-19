@@ -541,7 +541,8 @@ public class Config extends BaseConfig {
 
   /**
    * The maximum size (in characters of JSON) of each response which is compared for the spaces in the mode SHADOW. Larger
-   * responses are not compared, which is logged as {@code result=SKIPPED reason=too large}.
+   * responses are not compared, which is logged as {@code result=SKIPPED reason=too large}. The shadow read asks the Iceberg
+   * connector for it as the response limit, so that the connector stops at the first feature over it.
    */
   public int ICEBERG_READS_SHADOW_MAX_BYTES = 16 * 1024 * 1024;
 

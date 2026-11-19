@@ -19,7 +19,14 @@
 
 package com.here.xyz.iceberg;
 
+import static com.here.xyz.models.hub.IcebergLocation.ERROR_DETAIL_COMPLETE;
+import static com.here.xyz.models.hub.IcebergLocation.ERROR_DETAIL_LIMIT;
+import static com.here.xyz.models.hub.IcebergLocation.ERROR_DETAIL_MAX_BYTES;
+import static com.here.xyz.responses.XyzError.PAYLOAD_TO_LARGE;
+
+import com.here.xyz.models.hub.IcebergLocation;
 import com.here.xyz.responses.XyzError;
+import java.util.Map;
 
 /**
  * Stops a scan with a specific error, e.g. when a limit of the request was hit.
@@ -28,13 +35,47 @@ import com.here.xyz.responses.XyzError;
 class ScanException extends RuntimeException {
 
   private final XyzError error;
+  private final Map<String, Object> details;
 
   ScanException(XyzError error, String message) {
+    this(error, message, null);
+  }
+
+  private ScanException(XyzError error, String message, Map<String, Object> details) {
     super(message);
     this.error = error;
+    this.details = details;
+  }
+
+  /**
+   * A PAYLOAD_TO_LARGE error whose {@link #details()} name the limit which was hit, so that the Hub can tell a too large response
+   * from a read which would read too much.
+   *
+   * @param limit {@link IcebergLocation#LIMIT_RESPONSE_BYTES} or {@link IcebergLocation#LIMIT_READ_BYTES}
+   * @param maxBytes The value of the limit
+   */
+  static ScanException tooLarge(String limit, long maxBytes, String message) {
+    return new ScanException(PAYLOAD_TO_LARGE, message, Map.of(ERROR_DETAIL_LIMIT, limit, ERROR_DETAIL_MAX_BYTES, maxBytes));
+  }
+
+  /**
+   * A PAYLOAD_TO_LARGE error of a limit with the detail whether the read has all its matches.
+   *
+   * @param complete See {@link IcebergLocation#ERROR_DETAIL_COMPLETE}
+   */
+  static ScanException tooLarge(String limit, long maxBytes, boolean complete, String message) {
+    return new ScanException(PAYLOAD_TO_LARGE, message, Map.of(ERROR_DETAIL_LIMIT, limit, ERROR_DETAIL_MAX_BYTES, maxBytes,
+        ERROR_DETAIL_COMPLETE, complete));
   }
 
   XyzError error() {
     return error;
+  }
+
+  /**
+   * @return The errorDetails of the connector's error response, or null
+   */
+  Map<String, Object> details() {
+    return details;
   }
 }

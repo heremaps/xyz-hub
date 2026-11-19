@@ -19,8 +19,8 @@
 
 package com.here.xyz.iceberg;
 
+import static com.here.xyz.models.hub.IcebergLocation.LIMIT_RESPONSE_BYTES;
 import static com.here.xyz.responses.XyzError.NOT_IMPLEMENTED;
-import static com.here.xyz.responses.XyzError.PAYLOAD_TO_LARGE;
 
 import com.here.xyz.iceberg.IcebergTables.SnapshotFiles;
 import java.io.IOException;
@@ -109,6 +109,16 @@ final class FeatureScan {
   private final Stats stats = new Stats();
   private final List<String> features = new ArrayList<>();
   private long responseBytes;
+  /**
+   * The matching features so far, also those which were not collected because the response is too large
+   */
+  private long matched;
+  /**
+   * Set once the response of a scan which counts the matches would be larger than the response limit, see
+   * {@link #addFeature(String)}
+   */
+  private boolean tooLarge;
+  private boolean countMatches;
 
   FeatureScan(IcebergTables tables, SnapshotFiles files) {
     this.tables = tables;
@@ -157,6 +167,15 @@ final class FeatureScan {
   }
 
   /**
+   * Lets the scan count the matches after the response limit instead of failing fast at it, see
+   * {@link com.here.xyz.models.hub.IcebergLocation#EVENT_PARAM_COUNT_MATCHES}.
+   */
+  FeatureScan withCountMatches(boolean countMatches) {
+    this.countMatches = countMatches;
+    return this;
+  }
+
+  /**
    * Lets a spatial read which is not paged use the two-step page-index reader.
    */
   FeatureScan withTwoStepReads(boolean twoStepReads) {
@@ -200,10 +219,10 @@ final class FeatureScan {
         else if (paged) {
           Position next = scanRowGroups(fileIndex, task, projection, filter, projected, wkbReader);
           if (next != null)
-            return new Result(features, next);
+            return result(next);
         }
         else if (scanFile(task, projection, filter, wkbReader))
-          return new Result(features, null);
+          return result(null);
       }
       if (twoStep)
         new TwoStepScan(this, tables, files, envelope, geometry, filters, budget, stats).run(twoStepTasks);
@@ -211,7 +230,24 @@ final class FeatureScan {
     catch (IOException e) {
       throw new UncheckedIOException(e);
     }
-    return new Result(features, null);
+    return result(null);
+  }
+
+  /**
+   * @param next The position to continue at, or null if the scan is complete
+   * @throws ScanException with PAYLOAD_TO_LARGE if the response of a scan which counts the matches would be larger than the response
+   *     limit. Its detail {@link com.here.xyz.models.hub.IcebergLocation#ERROR_DETAIL_COMPLETE} is true if the read has all its
+   *     matches: the scan ended without reaching the limit of the read (or the end of a page). Only then the space's own connector,
+   *     whose order of the features may differ, returns the same features, so that its response is too large as well.
+   */
+  private Result result(Position next) {
+    if (tooLarge)
+      throw ScanException.tooLarge(LIMIT_RESPONSE_BYTES, maxResponseBytes, next == null && matched < limit, tooLargeMessage());
+    return new Result(features, next);
+  }
+
+  private String tooLargeMessage() {
+    return "The response would be larger than " + maxResponseBytes + " bytes";
   }
 
   /**
@@ -246,7 +282,7 @@ final class FeatureScan {
    * @return The number of features which are still missing to reach the limit
    */
   long missingFeatures() {
-    return limit - features.size();
+    return limit - matched;
   }
 
   private List<String> projectedColumns() {
@@ -299,7 +335,7 @@ final class FeatureScan {
       //The delete files of the file are read with its first row group
       long bytes = rowGroup.projectedBytes() + (deletes == null ? deleteBytes(task) : 0);
       if (bytes > budget.remaining()) {
-        if (!features.isEmpty())
+        if (matched > 0)
           return new Position(fileIndex, rowGroup.index(), offset);
         //An empty page reads one row group even if it does not fit, so that every page makes progress
         budget.allow(bytes);
@@ -338,18 +374,30 @@ final class FeatureScan {
   }
 
   /**
-   * Adds the feature JSON of a matching row to the response.
+   * Adds the feature JSON of a matching row to the response. Once the response would be larger than the response limit, the scan
+   * fails fast, unless it counts the matches (see {@link #withCountMatches(boolean)}): then the features are dropped and the scan only
+   * counts the matches up to the limit of the read, within the read budget and the deadline, so that {@link #result(Position)} can
+   * tell whether the read has all its matches.
    *
    * @return true if the limit was reached
-   * @throws ScanException with PAYLOAD_TO_LARGE if the response would be larger than the response limit
+   * @throws ScanException with PAYLOAD_TO_LARGE, without {@link com.here.xyz.models.hub.IcebergLocation#ERROR_DETAIL_COMPLETE}, at
+   *     the first feature over the response limit of a scan which does not count the matches
    */
   boolean addFeature(String feature) {
-    responseBytes += feature.length();
-    if (responseBytes > maxResponseBytes)
-      throw new ScanException(PAYLOAD_TO_LARGE, "The response would be larger than " + maxResponseBytes + " bytes");
-    features.add(feature);
+    matched++;
     stats.rowsMatched++;
-    return features.size() >= limit;
+    if (!tooLarge) {
+      responseBytes += feature.length();
+      if (responseBytes > maxResponseBytes) {
+        if (!countMatches)
+          throw ScanException.tooLarge(LIMIT_RESPONSE_BYTES, maxResponseBytes, tooLargeMessage());
+        tooLarge = true;
+        features.clear();
+      }
+      else
+        features.add(feature);
+    }
+    return matched >= limit;
   }
 
   /**
