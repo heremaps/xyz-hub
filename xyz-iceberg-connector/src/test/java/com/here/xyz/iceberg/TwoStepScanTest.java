@@ -301,6 +301,79 @@ class TwoStepScanTest {
   }
 
   @Test
+  void aLimitedReadOverManyFilesStopsAtTheLimit() {
+    SnapshotFiles files = manyFiles("limit_many_files", false);
+    Read read = new Read(box(4.99, 49.99, 5.01, 50.01), null, 10);
+    FeatureScan rowGroups = scan(files, read, false);
+    List<String> expected = rowGroups.run().features();
+    assertThat(expected).hasSize(10);
+    long rowGroupBytes = rowGroups.bytesRead();
+
+    //A budget which the row-group reader fits
+    FeatureScan twoStep = scan(files, read, true, new ReadBudget(rowGroupBytes + 1, Long.MAX_VALUE));
+    assertThat(twoStep.run().features()).isEqualTo(expected);
+    assertThat(twoStep.stats().reader).isEqualTo("TS");
+    assertThat(twoStep.stats().pageIndexBytes).as("page indexes of the first file only").isLessThan(rowGroupBytes / 4);
+    assertThat(twoStep.bytesRead()).isLessThanOrEqualTo(rowGroupBytes);
+    assertThat(twoStep.stats().unplannedReads).isZero();
+
+    //More features than the first file holds
+    Read more = new Read(read.geometry(), null, 4500);
+    List<String> expectedMore = scan(files, more, false).run().features();
+    FeatureScan twoStepMore = scan(files, more, true);
+    assertThat(twoStepMore.run().features()).isEqualTo(expectedMore).hasSize(4500);
+    assertThat(twoStepMore.stats().reader).isEqualTo("TS");
+    //One group of the five files which are estimated to hold twice the limit
+    assertThat(twoStepMore.stats().rounds).isLessThanOrEqualTo(3);
+  }
+
+  @Test
+  void aLimitedReadWhoseFirstRoundDoesNotFitUsesTheRowGroupReader() {
+    //One far point per file spreads the bbox bounds of each file, so that the estimate puts all files into the first group
+    SnapshotFiles files = manyFiles("limit_round1_too_large", true);
+    Read read = new Read(box(4.99, 49.99, 5.01, 50.01), null, 10);
+    //Footers and page indexes are cached
+    scan(files, new Read(read.geometry(), null, Long.MAX_VALUE), true).run();
+    FeatureScan rowGroups = scan(files, read, false);
+    List<String> expected = rowGroups.run().features();
+    assertThat(expected).hasSize(10);
+
+    FeatureScan twoStep = scan(files, read, true, new ReadBudget(rowGroups.bytesRead() + 1, Long.MAX_VALUE));
+    assertThat(twoStep.run().features()).isEqualTo(expected);
+    assertThat(twoStep.stats().reader).isEqualTo("RG");
+    assertThat(twoStep.stats().rangeReads).isZero();
+    //Without a limit, the read still fails before round 1
+    ReadBudget budget = new ReadBudget(rowGroups.bytesRead() + 1, Long.MAX_VALUE);
+    FeatureScan unlimited = scan(files, new Read(read.geometry(), null, Long.MAX_VALUE), true, budget);
+    assertThatThrownBy(unlimited::run).isInstanceOfSatisfying(ScanException.class,
+        e -> assertThat(e.error()).isEqualTo(XyzError.PAYLOAD_TO_LARGE));
+    assertThat(budget.bytesRead()).isZero();
+  }
+
+  /**
+   * A table of 20 data files of 2,000 points each, in one partition, around (5.0, 50.0).
+   *
+   * @param farPoint Whether each file also has a point at (0.5, 45.5)
+   */
+  private static SnapshotFiles manyFiles(String name, boolean farPoint) {
+    Table table = IcebergTestTables.createTable(catalog, id(name), Layout.CELL, Map.of("write.parquet.page-row-limit", "2000"));
+    Random random = new Random(13);
+    for (int file = 0; file < 20; file++) {
+      List<String> features = new ArrayList<>();
+      for (int i = 0; i < 2000; i++)
+        features.add(pointFeature(String.format("m%02d_%04d", file, i), "Road", 4.995 + random.nextDouble() * 0.01,
+            49.995 + random.nextDouble() * 0.01, "m" + file + "_" + i));
+      if (farPoint)
+        features.add(pointFeature(String.format("m%02d_far", file), "Road", 0.5, 45.5, "far" + file));
+      IcebergTestTables.append(table, null, features);
+    }
+    IcebergTestTables.tag(table, "v1");
+    SnapshotFiles files = resolve(name);
+    assertThat(files.tasks()).hasSize(20);
+    return files;
+  }
+
+  @Test
   void thePageIndexIsCached() {
     String name = "page_index_cache";
     Table table = IcebergTestTables.createTable(catalog, id(name), Layout.CURRENT, MANY_PAGES);
@@ -392,8 +465,12 @@ class TwoStepScanTest {
   private record Read(Geometry geometry, List<List<ColumnFilter>> filters, long limit) {}
 
   private static FeatureScan scan(SnapshotFiles files, Read read, boolean twoStep) {
+    return scan(files, read, twoStep, new ReadBudget(Long.MAX_VALUE, Long.MAX_VALUE));
+  }
+
+  private static FeatureScan scan(SnapshotFiles files, Read read, boolean twoStep, ReadBudget budget) {
     FeatureScan scan = new FeatureScan(tables, files)
-        .withBudget(new ReadBudget(Long.MAX_VALUE, Long.MAX_VALUE))
+        .withBudget(budget)
         .withGeometry(read.geometry())
         .withLimit(read.limit())
         .withTwoStepReads(twoStep);
