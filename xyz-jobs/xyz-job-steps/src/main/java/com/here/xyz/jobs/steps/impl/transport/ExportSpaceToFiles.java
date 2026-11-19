@@ -556,8 +556,11 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
       if (space().getExtension() != null && (context == DEFAULT || context == null
               //TODO: Hack because of internal usage of Context.X
               || context == EXTENSION)) {
-        IRange superIRange = loadIRange(getReadableRootTableNameOrFail(superSpace(), space()));
-        iRange = new IRange(Math.min(iRange.minI, superIRange.minI), Math.max(iRange.maxI, superIRange.maxI));
+        Space superSpace = superSpace();
+        iRange = iRange.union(loadIRange(getReadableRootTableNameOrFail(superSpace, space())));
+        //For a 2-level composite the export query also reads the root table, so its i values have to be covered too
+        if (superSpace.getExtension() != null)
+          iRange = iRange.union(loadIRange(getReadableRootTableNameOrFail(space(superSpace.getExtension().getSpaceId()), space())));
       }
       //just to display calculated ranges in admin view.
       this.minI = iRange.minI;
@@ -578,7 +581,11 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles,
     });
   }
 
-  private record IRange(long minI, long maxI) {}
+  private record IRange(long minI, long maxI) {
+    IRange union(IRange other) {
+      return new IRange(Math.min(minI, other.minI), Math.max(maxI, other.maxI));
+    }
+  }
 
   /**
    * Generates a content query for the export plugin based on the task data and context. This method
