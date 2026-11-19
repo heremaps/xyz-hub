@@ -40,6 +40,7 @@ import com.here.xyz.util.service.errors.ErrorManager;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Handler;
 import java.lang.reflect.Method;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
@@ -85,6 +86,20 @@ class RpcClientTimeoutTest {
     connector.setRemoteFunction(new Embedded());
     rpcClient = mock(RpcClient.class);
     when(rpcClient.getConnector()).thenReturn(connector);
+  }
+
+  @Test
+  void theDetailsOfAPayloadTooLargeAreKeptButNotReplied() throws Exception {
+    Map<String, Object> details = Map.of("limit", "maxResponseBytes", "maxBytes", 10);
+    Throwable e = parse(new ErrorResponse().withError(XyzError.PAYLOAD_TO_LARGE).withErrorMessage("The response would be too large")
+        .withErrorDetails(details).serialize());
+
+    PayloadTooLargeException tooLarge = assertInstanceOf(PayloadTooLargeException.class, e);
+    assertEquals(details, tooLarge.connectorDetails);
+    //The client gets the same 513 as for any other connector
+    assertEquals(513, tooLarge.status.code());
+    assertEquals("E318541", tooLarge.errorDefinition.getCode());
+    assertTrue(tooLarge.errorDetails == null && tooLarge.placeholders.isEmpty());
   }
 
   @Test

@@ -22,6 +22,7 @@ package com.here.xyz.iceberg;
 import static com.here.xyz.events.PropertyQuery.QueryOperation.EQUALS;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.Event;
@@ -71,6 +72,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class IcebergConnectorTest {
@@ -451,29 +453,82 @@ class IcebergConnectorTest {
   void stopsAtTheByteLimit(boolean twoStep) throws Exception {
     Event<?> event = withConnectorParams(bbox("v2", new BBox(-180, -90, 180, 90)), connectorParams(Map.of("maxBytesPerRequest", 10,
         "twoStepReads", twoStep)));
-    assertError(invoke(event), XyzError.PAYLOAD_TO_LARGE);
+    assertTooLarge(invoke(event), IcebergLocation.LIMIT_READ_BYTES, 10);
   }
 
   @Test
   void theEventCanLowerTheResponseLimit() throws Exception {
     IterateFeaturesEvent<?> event = iterate("v2", 1000, null);
     event.setParams(Map.of(IcebergLocation.EVENT_PARAM, Map.of(IcebergLocation.EVENT_PARAM_LOCATION,
-        new IcebergLocation(NAMESPACE, TABLE, "v2").toString(), IcebergLocation.EVENT_PARAM_MAX_RESPONSE_BYTES, 10)));
-    assertError(invoke(event), XyzError.PAYLOAD_TO_LARGE);
+        new IcebergLocation(NAMESPACE, TABLE, "v2").toString(), IcebergLocation.EVENT_PARAM_MAX_RESPONSE_BYTES, 10,
+        IcebergLocation.EVENT_PARAM_COUNT_MATCHES, true)));
+    assertTooLarge(invoke(event), IcebergLocation.LIMIT_RESPONSE_BYTES, 10, true);
   }
 
-  @Test
-  void stopsAtTheResponseLimit() throws Exception {
-    Event<?> event = withConnectorParams(iterate("v2", 1000, null), connectorParams(Map.of("maxResponseBytes", 10)));
-    assertError(invoke(event), XyzError.PAYLOAD_TO_LARGE);
+  /**
+   * With countMatches, a page with fewer matches than its limit has all its matches (complete), one with more may be cut off by its
+   * limit
+   */
+  @ParameterizedTest(name = "limit={0}")
+  @ValueSource(ints = {1000, 2})
+  void stopsAtTheResponseLimit(int limit) throws Exception {
+    Event<?> event = withConnectorParams(countingMatches(iterate("v2", limit, null)), connectorParams(Map.of("maxResponseBytes", 10)));
+    assertTooLarge(invoke(event), IcebergLocation.LIMIT_RESPONSE_BYTES, 10, limit > 2);
   }
 
+  /**
+   * With countMatches, after the response limit, the scan counts the matches up to the limit of the read: complete if there are
+   * fewer, as then the space's own connector has the same features. Exactly as many matches as the limit count as cut off.
+   */
+  @ParameterizedTest(name = "twoStepReads={0} limit={1}")
+  @CsvSource({"true, 1000", "false, 1000", "true, 2", "false, 2", "true, 11", "false, 11"})
+  void spatialReadsStopAtTheResponseLimit(boolean twoStep, long limit) throws Exception {
+    BBox world = new BBox(-180, -90, 180, 90);
+    long matches = ids(invoke(reader(bbox("v2", world), twoStep))).size();
+    assertThat(matches).isEqualTo(11);
+    Event<?> event = withConnectorParams(countingMatches(bbox("v2", world).withLimit(limit)), connectorParams(Map.of(
+        "maxResponseBytes", 10, "twoStepReads", twoStep)));
+    assertTooLarge(invoke(event), IcebergLocation.LIMIT_RESPONSE_BYTES, 10, limit > matches);
+  }
+
+  /**
+   * Without countMatches (the Hub's shadow reads), a read fails fast at the response limit: the error has no detail complete, so the
+   * Hub would not take it as final.
+   */
   @ParameterizedTest(name = "twoStepReads={0}")
   @ValueSource(booleans = {true, false})
-  void spatialReadsStopAtTheResponseLimit(boolean twoStep) throws Exception {
-    Event<?> event = withConnectorParams(bbox("v2", new BBox(-180, -90, 180, 90)), connectorParams(Map.of("maxResponseBytes", 10,
-        "twoStepReads", twoStep)));
-    assertError(invoke(event), XyzError.PAYLOAD_TO_LARGE);
+  void withoutCountingTheMatchesAReadFailsFastAtTheResponseLimit(boolean twoStep) throws Exception {
+    Event<?> event = withConnectorParams(bbox("v2", new BBox(-180, -90, 180, 90)).withLimit(1000), connectorParams(Map.of(
+        "maxResponseBytes", 10, "twoStepReads", twoStep)));
+    XyzResponse response = invoke(event);
+    assertTooLarge(response, IcebergLocation.LIMIT_RESPONSE_BYTES, 10);
+    assertThat(((ErrorResponse) response).getErrorDetails()).doesNotContainKey(IcebergLocation.ERROR_DETAIL_COMPLETE);
+  }
+
+  /**
+   * A scan without countMatches stops at the first feature over the response limit, one with it goes on to count the matches up to
+   * the limit of the read.
+   */
+  @ParameterizedTest(name = "countMatches={0}")
+  @ValueSource(booleans = {false, true})
+  void aScanCountsTheMatchesAfterTheResponseLimitOnlyIfAsked(boolean countMatches) {
+    IcebergTables tables = rowGroupTables();
+    SnapshotFiles files = rowGroupFiles(tables);
+    int matches = new FeatureScan(tables, files).withBudget(new ReadBudget(Long.MAX_VALUE, Long.MAX_VALUE))
+        .withPaging(FeatureScan.Position.FIRST).run().features().size();
+    assertThat(matches).isGreaterThan(1);
+    FeatureScan scan = new FeatureScan(tables, files).withBudget(new ReadBudget(Long.MAX_VALUE, Long.MAX_VALUE)).withLimit(1000)
+        .withPaging(FeatureScan.Position.FIRST).withMaxResponseBytes(10).withCountMatches(countMatches);
+    assertThatThrownBy(scan::run).isInstanceOfSatisfying(ScanException.class, e -> {
+      assertThat(e.error()).isEqualTo(XyzError.PAYLOAD_TO_LARGE);
+      assertThat(e.details()).containsEntry(IcebergLocation.ERROR_DETAIL_LIMIT, IcebergLocation.LIMIT_RESPONSE_BYTES);
+      if (countMatches)
+        assertThat(e.details()).containsEntry(IcebergLocation.ERROR_DETAIL_COMPLETE, true);
+      else
+        assertThat(e.details()).doesNotContainKey(IcebergLocation.ERROR_DETAIL_COMPLETE);
+    });
+    //The first feature is larger than 10 characters
+    assertThat(scan.stats().rowsMatched).isEqualTo(countMatches ? matches : 1);
   }
 
   @Test
@@ -588,6 +643,17 @@ class IcebergConnectorTest {
     return event;
   }
 
+  /**
+   * Adds countMatches to the Iceberg params of the event, as the Hub does for routed reads
+   */
+  @SuppressWarnings("unchecked")
+  private static <T extends Event<?>> T countingMatches(T event) {
+    Map<String, Object> icebergParams = new HashMap<>((Map<String, Object>) event.getParams().get(IcebergLocation.EVENT_PARAM));
+    icebergParams.put(IcebergLocation.EVENT_PARAM_COUNT_MATCHES, true);
+    event.setParams(Map.of(IcebergLocation.EVENT_PARAM, icebergParams));
+    return event;
+  }
+
   private static Map<String, Object> icebergParams(IcebergLocation location) {
     return Map.of(IcebergLocation.EVENT_PARAM, Map.of(IcebergLocation.EVENT_PARAM_LOCATION, location.toString()));
   }
@@ -647,6 +713,24 @@ class IcebergConnectorTest {
   private static void assertError(XyzResponse response, XyzError expected) {
     assertThat(response).isInstanceOf(ErrorResponse.class);
     assertThat(((ErrorResponse) response).getError()).as(((ErrorResponse) response).getErrorMessage()).isEqualTo(expected);
+  }
+
+  /**
+   * A PAYLOAD_TO_LARGE whose errorDetails name the limit which was hit, so that the Hub can tell them apart
+   */
+  static void assertTooLarge(XyzResponse response, String limit, long maxBytes) {
+    assertError(response, XyzError.PAYLOAD_TO_LARGE);
+    Map<String, Object> details = ((ErrorResponse) response).getErrorDetails();
+    assertThat(details).containsEntry(IcebergLocation.ERROR_DETAIL_LIMIT, limit);
+    assertThat(((Number) details.get(IcebergLocation.ERROR_DETAIL_MAX_BYTES)).longValue()).isEqualTo(maxBytes);
+  }
+
+  /**
+   * A PAYLOAD_TO_LARGE of the response limit, with whether the read has all its matches
+   */
+  static void assertTooLarge(XyzResponse response, String limit, long maxBytes, boolean complete) {
+    assertTooLarge(response, limit, maxBytes);
+    assertThat(((ErrorResponse) response).getErrorDetails()).containsEntry(IcebergLocation.ERROR_DETAIL_COMPLETE, complete);
   }
 
   private static PolygonCoordinates polygon(double minX, double minY, double maxX, double maxY) {

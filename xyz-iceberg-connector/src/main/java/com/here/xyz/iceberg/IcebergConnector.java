@@ -23,6 +23,7 @@ import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.BINARY;
 import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.GEO_JSON;
 import static com.here.xyz.models.hub.IcebergLocation.EVENT_PARAM;
+import static com.here.xyz.models.hub.IcebergLocation.EVENT_PARAM_COUNT_MATCHES;
 import static com.here.xyz.models.hub.IcebergLocation.EVENT_PARAM_LOCATION;
 import static com.here.xyz.models.hub.IcebergLocation.EVENT_PARAM_MAX_RESPONSE_BYTES;
 import static com.here.xyz.models.hub.IcebergLocation.ITERATE_TOKEN_PREFIX;
@@ -222,12 +223,13 @@ public class IcebergConnector extends StorageConnector {
     return new FeatureScan(tables, files)
         .withBudget(new ReadBudget(config.maxBytesPerRequest(), startTime + config.requestTimeoutMs()))
         .withMaxResponseBytes(maxResponseBytes(event))
+        .withCountMatches(countMatches(event))
         .withTwoStepReads(config.twoStepReads());
   }
 
   /**
    * The response limit of the configuration, or the lower one the event asks for in {@code params.iceberg.maxResponseBytes}
-   * (the Hub's shadow reads).
+   * (the Hub's shadow reads and routed reads).
    */
   private long maxResponseBytes(Event<?> event) {
     Object icebergParams = event.getParams() == null ? null : event.getParams().get(EVENT_PARAM);
@@ -235,6 +237,15 @@ public class IcebergConnector extends StorageConnector {
     if (requested instanceof Number number && number.longValue() > 0)
       return Math.min(config.maxResponseBytes(), number.longValue());
     return config.maxResponseBytes();
+  }
+
+  /**
+   * Whether the event asks to count the matches after the response limit ({@code params.iceberg.countMatches}, the Hub's routed
+   * reads). Without it, a read fails fast at the response limit.
+   */
+  private static boolean countMatches(Event<?> event) {
+    Object icebergParams = event.getParams() == null ? null : event.getParams().get(EVENT_PARAM);
+    return icebergParams instanceof Map<?, ?> map && Boolean.TRUE.equals(map.get(EVENT_PARAM_COUNT_MATCHES));
   }
 
   private Result run(Event<?> event, IcebergLocation location, SnapshotFiles files, FeatureScan scan, long startTime) {
@@ -369,7 +380,8 @@ public class IcebergConnector extends StorageConnector {
       throw exception;
     for (Throwable cause = exception; cause != null; cause = cause.getCause()) {
       if (cause instanceof ScanException scanException)
-        throw new ErrorResponseException(scanException.error(), scanException.getMessage());
+        throw new ErrorResponseException(scanException.error(), scanException.getMessage())
+            .withErrorResponseDetails(scanException.details());
       if (cause instanceof NoSuchTableException || cause instanceof NoSuchNamespaceException || cause instanceof NotFoundException)
         throw new ErrorResponseException(NOT_FOUND, cause.getMessage());
     }

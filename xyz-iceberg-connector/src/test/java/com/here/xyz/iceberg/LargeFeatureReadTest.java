@@ -29,7 +29,6 @@ import com.here.xyz.iceberg.IcebergTables.SnapshotFiles;
 import com.here.xyz.iceberg.IcebergTestTables.Layout;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.hub.IcebergLocation;
-import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.service.aws.lambda.SimulatedContext;
@@ -139,13 +138,35 @@ class LargeFeatureReadTest {
     GetFeaturesByBBoxEvent<?> event = new GetFeaturesByBBoxEvent<>().withBbox(new BBox(8.7, 49.99, 8.8, 50.01));
     event.setParams(Map.of(IcebergLocation.EVENT_PARAM, Map.of(IcebergLocation.EVENT_PARAM_LOCATION,
         new IcebergLocation(NAMESPACE, TABLE, "v1").toString(), IcebergLocation.EVENT_PARAM_MAX_RESPONSE_BYTES,
-        RESPONSE_LIMIT_OF_THE_HUB)));
+        RESPONSE_LIMIT_OF_THE_HUB, IcebergLocation.EVENT_PARAM_COUNT_MATCHES, true)));
     event.setConnectorParams(TwoStepScanTest.connectorParams(warehouse, Map.of("catalogName", "large", "twoStepReads", twoStep)));
     event.setStreamId("large-feature-test");
     event.setSpace("test-space");
-    XyzResponse response = invoke(event);
-    assertThat(response).isInstanceOf(ErrorResponse.class);
-    assertThat(((ErrorResponse) response).getError()).isEqualTo(XyzError.PAYLOAD_TO_LARGE);
+    //The response limit, not the read budget, and the only match: the Hub does not fall back to the space's own connector
+    IcebergConnectorTest.assertTooLarge(invoke(event), IcebergLocation.LIMIT_RESPONSE_BYTES, RESPONSE_LIMIT_OF_THE_HUB, true);
+  }
+
+  /**
+   * A read of the large feature and the 200 small ones near it, the large one last in file order. With a limit at or below the
+   * matches, the read may be cut off by its limit: the space's own connector might return only small features in its order, so the
+   * Hub falls back. With a limit above, the read has all its matches and the Hub replies the 513.
+   */
+  @ParameterizedTest(name = "limit={0}")
+  @ValueSource(longs = {201, 202, 1000})
+  void aTooLargeReadTellsWhetherItHasAllItsMatches(long limit) {
+    long matches = 201;
+    FeatureScan scan = scan(box(7.9, 49.99, 9.7, 50.7), IcebergConnectorConfig.DEFAULT_MAX_BYTES_PER_REQUEST)
+        .withMaxResponseBytes(RESPONSE_LIMIT_OF_THE_HUB).withCountMatches(true).withLimit(limit);
+    assertThatThrownBy(scan::run).isInstanceOfSatisfying(ScanException.class, e -> {
+      assertThat(e.error()).isEqualTo(XyzError.PAYLOAD_TO_LARGE);
+      assertThat(e.details()).containsEntry(IcebergLocation.ERROR_DETAIL_LIMIT, IcebergLocation.LIMIT_RESPONSE_BYTES)
+          .containsEntry(IcebergLocation.ERROR_DETAIL_COMPLETE, limit > matches);
+    });
+    assertThat(scan.stats().rowsMatched).isEqualTo(matches);
+
+    //Below the matches, the read leaves out the large feature, which the space's own connector might return
+    assertThat(scan(box(7.9, 49.99, 9.7, 50.7), IcebergConnectorConfig.DEFAULT_MAX_BYTES_PER_REQUEST)
+        .withMaxResponseBytes(RESPONSE_LIMIT_OF_THE_HUB).withLimit(matches - 1).run().features()).hasSize((int) matches - 1);
   }
 
   @Test
@@ -186,8 +207,12 @@ class LargeFeatureReadTest {
     assertThat(largePages).isGreaterThan(budget);
 
     FeatureScan scan = scan(box(8.7, 49.99, 8.8, 50.01), budget).withMaxResponseBytes(200 * MIB);
-    assertThatThrownBy(scan::run).isInstanceOfSatisfying(ScanException.class,
-        e -> assertThat(e.error()).isEqualTo(XyzError.PAYLOAD_TO_LARGE));
+    //The read budget, not the response limit: the Hub falls back to the space's own connector
+    assertThatThrownBy(scan::run).isInstanceOfSatisfying(ScanException.class, e -> {
+      assertThat(e.error()).isEqualTo(XyzError.PAYLOAD_TO_LARGE);
+      assertThat(e.details()).containsEntry(IcebergLocation.ERROR_DETAIL_LIMIT, IcebergLocation.LIMIT_READ_BYTES)
+          .containsEntry(IcebergLocation.ERROR_DETAIL_MAX_BYTES, budget);
+    });
     //Round 2 is counted before it is fetched, so only the footer, the page index and round 1 were read
     assertThat(scan.bytesRead()).isLessThan(MIB);
   }

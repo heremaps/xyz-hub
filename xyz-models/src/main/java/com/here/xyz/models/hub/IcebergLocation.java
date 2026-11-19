@@ -47,9 +47,43 @@ public record IcebergLocation(String namespace, String table, String ref) {
   public static final String EVENT_PARAM_LOCATION = "location";
   /**
    * The optional key inside the {@link #EVENT_PARAM} map with a lower limit for the size of the features of the response (the Hub
-   * sets it for shadow reads).
+   * sets it for shadow reads and for routed reads).
    */
   public static final String EVENT_PARAM_MAX_RESPONSE_BYTES = "maxResponseBytes";
+  /**
+   * The optional key inside the {@link #EVENT_PARAM} map: if true, a read whose response exceeds the response limit goes on to
+   * count its matches, up to the limit of the read and within the read budget and the deadline, so that the error tells in
+   * {@link #ERROR_DETAIL_COMPLETE} whether the read has all its matches. Without it, the read fails fast at the first feature over
+   * the response limit and the error has no {@link #ERROR_DETAIL_COMPLETE}. The Hub sets it for routed reads only, which need it to
+   * decide whether a too large response is final; shadow reads fail fast. It raises no limit.
+   */
+  public static final String EVENT_PARAM_COUNT_MATCHES = "countMatches";
+  /**
+   * The key in the {@code errorDetails} of the Iceberg connector's {@code PAYLOAD_TO_LARGE} error with the limit which was hit:
+   * {@link #LIMIT_RESPONSE_BYTES} or {@link #LIMIT_READ_BYTES}.
+   */
+  public static final String ERROR_DETAIL_LIMIT = "limit";
+  /**
+   * The key in the {@code errorDetails} of the Iceberg connector's {@code PAYLOAD_TO_LARGE} error with the value of that limit in
+   * bytes.
+   */
+  public static final String ERROR_DETAIL_MAX_BYTES = "maxBytes";
+  /**
+   * The key in the {@code errorDetails} of the Iceberg connector's {@code PAYLOAD_TO_LARGE} error of {@link #LIMIT_RESPONSE_BYTES}
+   * whether the read has all its matches (true), or may be cut off by its limit or the end of its page (false). The features of a
+   * read cut off by its limit may differ between the Iceberg connector and the space's own connector, as their order differs. Only
+   * set for a read with {@link #EVENT_PARAM_COUNT_MATCHES}.
+   */
+  public static final String ERROR_DETAIL_COMPLETE = "complete";
+  /**
+   * The size of the features of the response would exceed the response limit ({@code maxResponseBytes}).
+   */
+  public static final String LIMIT_RESPONSE_BYTES = "maxResponseBytes";
+  /**
+   * The read would read more bytes from Iceberg than allowed per request ({@code maxBytesPerRequest}), whatever the size of the
+   * response.
+   */
+  public static final String LIMIT_READ_BYTES = "maxBytesPerRequest";
   /**
    * The prefix of iterate page tokens created by the Iceberg connector.
    */
