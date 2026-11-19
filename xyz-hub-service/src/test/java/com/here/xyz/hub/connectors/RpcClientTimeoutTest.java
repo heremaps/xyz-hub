@@ -19,12 +19,17 @@
 
 package com.here.xyz.hub.connectors;
 
+import static com.here.xyz.util.service.rest.Api.RESPONSE_PAYLOAD_TOO_LARGE_MESSAGE;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -35,6 +40,7 @@ import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Embedde
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.util.service.HttpException;
 import com.here.xyz.util.service.errors.DetailedHttpException;
 import com.here.xyz.util.service.errors.ErrorManager;
 import io.vertx.core.AsyncResult;
@@ -50,8 +56,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
- * Checks how the connector's timeout responses are mapped, using the real response parsing of {@link RpcClient} on a client whose only
- * stubbed method is {@link RpcClient#getConnector()}.
+ * Checks how the connector's timeout and "too large" responses are mapped, using the real response parsing of {@link RpcClient} on a
+ * client whose only stubbed method is {@link RpcClient#getConnector()}. The protected size checks only run where a test asks for them.
  */
 class RpcClientTimeoutTest {
 
@@ -126,6 +132,39 @@ class RpcClientTimeoutTest {
 
     assertFalse(e instanceof StatementTimeoutException);
     assertTimeoutReply(e);
+  }
+
+  @Test
+  void theConnectorsPayloadTooLargeIsE318541() throws Exception {
+    Throwable e = parse(new ErrorResponse().withError(XyzError.PAYLOAD_TO_LARGE)
+        .withErrorMessage("Maximum response char limit of 10 reached").serialize());
+
+    //The query timeout cache replies a remembered one as new DetailedHttpException("E318541")
+    DetailedHttpException tooLarge = assertInstanceOf(DetailedHttpException.class, e);
+    assertEquals(513, tooLarge.status.code());
+    assertEquals("E318541", tooLarge.errorDefinition.getCode());
+    assertNull(tooLarge.errorDetails);
+  }
+
+  @Test
+  void theServicesOwnSizeLimitIsAPlain513() throws Exception {
+    long previousLimit = Service.configuration.MAX_UNCOMPRESSED_RESPONSE_SIZE;
+    Service.configuration.MAX_UNCOMPRESSED_RESPONSE_SIZE = 10;
+    try {
+      doCallRealMethod().when(rpcClient).checkUncompressedResponseSize(any(), any());
+      doCallRealMethod().when(rpcClient).throwResponseSizeException(any());
+      Throwable e = parse("{\"type\":\"FeatureCollection\",\"features\":[]}");
+
+      //The query timeout cache replies a remembered one as a new HttpException with the same status and message
+      assertSame(HttpException.class, e.getClass());
+      HttpException tooLarge = (HttpException) e;
+      assertEquals(513, tooLarge.status.code());
+      assertEquals(RESPONSE_PAYLOAD_TOO_LARGE_MESSAGE, tooLarge.getMessage());
+      assertNull(tooLarge.errorDetails);
+    }
+    finally {
+      Service.configuration.MAX_UNCOMPRESSED_RESPONSE_SIZE = previousLimit;
+    }
   }
 
   private static void assertTimeoutReply(Throwable e) {

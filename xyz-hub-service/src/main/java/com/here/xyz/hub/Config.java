@@ -501,9 +501,10 @@ public class Config extends BaseConfig {
   public boolean ENABLE_UNIQUE_PHYSICAL_TABLE_NAMES = true;
 
   /**
-   * If set to true, a spatial query whose statement timed out in the database
-   * {@link com.here.xyz.hub.cache.QueryTimeoutCache#QUERY_TIMEOUT_CACHE_THRESHOLD} times in a row gets the same 504 reply for a while
-   * without running again. See {@link com.here.xyz.hub.cache.QueryTimeoutCache}.
+   * If set to true, a spatial query whose statement timed out in the database, or whose response was too large,
+   * {@link com.here.xyz.hub.cache.QueryTimeoutCache#QUERY_TIMEOUT_CACHE_THRESHOLD} times in a row gets the same 504 or 513 reply for a
+   * while without running again. On a version which cannot change any more, the first 513 is enough. See
+   * {@link com.here.xyz.hub.cache.QueryTimeoutCache}.
    */
   public boolean QUERY_TIMEOUT_CACHE_ENABLED = false;
 
