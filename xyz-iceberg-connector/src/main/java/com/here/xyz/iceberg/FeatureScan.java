@@ -77,6 +77,9 @@ import org.locationtech.jts.io.WKBReader;
  * projected column chunks (from the cached footer) with the rest of the request's byte budget. If the row group does not fit, the
  * page ends at the row group boundary. Only a page without features yet reads a row group that does not fit, so that every page
  * makes progress.
+ * <p>
+ * A spatial read which is not paged uses the two-step page-index reader {@link TwoStepScan} if {@link #withTwoStepReads(boolean)}
+ * is set. It returns the same features in the same order, but reads only the pages of the matching rows.
  */
 final class FeatureScan {
 
@@ -99,6 +102,10 @@ final class FeatureScan {
   private boolean paged;
   private ReadBudget budget;
   private long maxResponseBytes = Long.MAX_VALUE;
+  private boolean twoStepReads;
+  private Schema projection;
+  private Expression filter;
+  private WKBReader wkbReader;
   private final Stats stats = new Stats();
   private final List<String> features = new ArrayList<>();
   private long responseBytes;
@@ -149,6 +156,14 @@ final class FeatureScan {
     return this;
   }
 
+  /**
+   * Lets a spatial read which is not paged use the two-step page-index reader.
+   */
+  FeatureScan withTwoStepReads(boolean twoStepReads) {
+    this.twoStepReads = twoStepReads;
+    return this;
+  }
+
   Stats stats() {
     return stats;
   }
@@ -160,13 +175,16 @@ final class FeatureScan {
   Result run() {
     Schema schema = files.schema();
     List<String> columns = projectedColumns();
-    Schema projection = TypeUtil.join(schema.select(columns), new Schema(MetadataColumns.ROW_POSITION));
-    Expression filter = filterExpression();
+    projection = TypeUtil.join(schema.select(columns), new Schema(MetadataColumns.ROW_POSITION));
+    filter = filterExpression();
     InclusiveMetricsEvaluator metrics = filter == null ? null : new InclusiveMetricsEvaluator(schema, filter);
     ProjectedColumns projected = projectedColumns(schema, columns);
-    WKBReader wkbReader = new WKBReader();
+    wkbReader = new WKBReader();
     List<FileScanTask> tasks = files.tasks();
     stats.filesPlanned = tasks.size();
+    boolean twoStep = twoStepReads && geometry != null && !paged;
+    stats.reader = twoStep ? "TS" : "RG";
+    List<FileScanTask> twoStepTasks = new ArrayList<>();
 
     try {
       for (int fileIndex = start.fileIndex(); fileIndex < tasks.size(); fileIndex++) {
@@ -177,7 +195,9 @@ final class FeatureScan {
           continue;
         }
         stats.filesRead++;
-        if (paged) {
+        if (twoStep)
+          twoStepTasks.add(task);
+        else if (paged) {
           Position next = scanRowGroups(fileIndex, task, projection, filter, projected, wkbReader);
           if (next != null)
             return new Result(features, next);
@@ -185,6 +205,8 @@ final class FeatureScan {
         else if (scanFile(task, projection, filter, wkbReader))
           return new Result(features, null);
       }
+      if (twoStep)
+        new TwoStepScan(this, tables, files, envelope, geometry, filters, budget, stats).run(twoStepTasks);
     }
     catch (IOException e) {
       throw new UncheckedIOException(e);
@@ -209,6 +231,22 @@ final class FeatureScan {
         max = Math.max(max, rowGroup.projectedBytes());
       return max;
     }, deadlineMillis);
+  }
+
+  /**
+   * Reads a whole file task with the row-group reader, for the tasks which {@link TwoStepScan} cannot read.
+   *
+   * @return true if the limit was reached
+   */
+  boolean scanTask(FileScanTask task) throws IOException {
+    return scanFile(task, projection, filter, wkbReader);
+  }
+
+  /**
+   * @return The number of features which are still missing to reach the limit
+   */
+  long missingFeatures() {
+    return limit - features.size();
   }
 
   private List<String> projectedColumns() {
@@ -296,9 +334,16 @@ final class FeatureScan {
    */
   private boolean add(Record record) {
     Object json = record.getField(FEATURE_JSON);
-    if (json == null)
-      return false;
-    String feature = json.toString();
+    return json != null && addFeature(json.toString());
+  }
+
+  /**
+   * Adds the feature JSON of a matching row to the response.
+   *
+   * @return true if the limit was reached
+   * @throws ScanException with PAYLOAD_TO_LARGE if the response would be larger than the response limit
+   */
+  boolean addFeature(String feature) {
     responseBytes += feature.length();
     if (responseBytes > maxResponseBytes)
       throw new ScanException(PAYLOAD_TO_LARGE, "The response would be larger than " + maxResponseBytes + " bytes");
@@ -366,7 +411,7 @@ final class FeatureScan {
     return deletes.filter(builder.build());
   }
 
-  private static ParquetMetadata footer(InputFile file) {
+  static ParquetMetadata footer(InputFile file) {
     try (ParquetFileReader reader = ParquetFileReader.open(new ParquetInputFile(file))) {
       return reader.getFooter();
     }
@@ -497,6 +542,33 @@ final class FeatureScan {
     int rowGroupsRead;
     long rowsScanned;
     long rowsMatched;
+    /**
+     * RG (the row-group reader), TS (the two-step reader) or TS+RG (the two-step reader, some files with the row-group reader)
+     */
+    String reader;
+    /**
+     * The rounds of parallel range reads of the two-step reader
+     */
+    int rounds;
+    long rangeReads;
+    /**
+     * The reads of the two-step reader which its planning did not foresee
+     */
+    long unplannedReads;
+    long pagesRead;
+    /**
+     * The rows whose bbox the first step of the two-step reader decoded
+     */
+    long round1Rows;
+    /**
+     * The thread CPU time of the planning and decoding of the first step, and of the decoding of the second step
+     */
+    long round1Nanos;
+    long round2Nanos;
+    /**
+     * The bytes of page indexes which were read (not cached)
+     */
+    long pageIndexBytes;
   }
 
   /**

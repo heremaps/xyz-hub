@@ -62,6 +62,10 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.parquet.hadoop.metadata.BlockMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
+import org.apache.parquet.hadoop.metadata.ParquetMetadata;
+import org.apache.parquet.internal.hadoop.metadata.IndexReference;
 
 /**
  * The catalog and the caches of one connector configuration. The Hub creates a new connector instance per request, so the instances
@@ -95,9 +99,12 @@ final class IcebergTables {
   private final CatalogKey key;
   private final Catalog catalog;
   private final ExecutorService planningPool;
+  private final ExecutorService rangeReadPool;
+  private final RangeReader rangeReader;
   private final Cache<TableIdentifier, Table> tables;
   private final Cache<ScanKey, List<FileScanTask>> scans;
   private final Cache<String, byte[]> footers;
+  private final Cache<String, PageIndex> pageIndexes;
   /**
    * Tables (by identifier) and refs (by identifier and ref name) which do not exist
    */
@@ -111,6 +118,8 @@ final class IcebergTables {
     this.key = key;
     catalog = CatalogUtil.buildIcebergCatalog(key.catalogName(), key.catalogProperties(), new Configuration());
     planningPool = Executors.newFixedThreadPool(key.planningThreads(), daemonThreads("iceberg-planning-" + key.catalogName()));
+    rangeReadPool = Executors.newFixedThreadPool(key.rangeReadThreads(), daemonThreads("iceberg-range-read-" + key.catalogName()));
+    rangeReader = new RangeReader(rangeReadPool);
     long maxMemory = Runtime.getRuntime().maxMemory();
     tables = Caffeine.newBuilder()
         .expireAfterWrite(Duration.ofSeconds(key.tableCacheTtlSeconds()))
@@ -123,6 +132,10 @@ final class IcebergTables {
     footers = Caffeine.newBuilder()
         .maximumWeight((long) (maxMemory * key.footerCacheHeapShare()))
         .<String, byte[]>weigher((location, tail) -> tail.length)
+        .build();
+    pageIndexes = Caffeine.newBuilder()
+        .maximumWeight((long) (maxMemory * key.pageIndexCacheHeapShare()))
+        .<String, PageIndex>weigher((location, index) -> index.bytes().length)
         .build();
     missing = Caffeine.newBuilder()
         .expireAfterWrite(Duration.ofSeconds(key.missingCacheTtlSeconds()))
@@ -140,9 +153,11 @@ final class IcebergTables {
   private void close() {
     logger.info("Closing the idle Iceberg catalog {}", key);
     planningPool.shutdown();
+    rangeReadPool.shutdown();
     tables.invalidateAll();
     scans.invalidateAll();
     footers.invalidateAll();
+    pageIndexes.invalidateAll();
     missing.invalidateAll();
     maxRowGroupBytes.invalidateAll();
     if (catalog instanceof Closeable closeable) {
@@ -213,6 +228,56 @@ final class IcebergTables {
    */
   InputFile dataFile(InputFile file, ReadBudget budget) {
     return new TailCachingInputFile(new CountingInputFile(file, budget), footers);
+  }
+
+  /**
+   * The parallel range reads of the two-step reader
+   */
+  RangeReader rangeReader() {
+    return rangeReader;
+  }
+
+  /**
+   * The cached tail of a data file (its Parquet footer, see {@link TailCachingInputFile}), or null.
+   */
+  byte[] cachedTail(String location) {
+    return footers.getIfPresent(location);
+  }
+
+  /**
+   * The cached page index of a data file, or null.
+   */
+  PageIndex cachedPageIndex(String location) {
+    return pageIndexes.getIfPresent(location);
+  }
+
+  /**
+   * Returns the page index of a data file: the bytes of all its column indexes and offset indexes, which Parquet writes as one
+   * region between the last row group and the footer. They are read with one range read, which counts against the budget before
+   * it starts, and cached by file location (data files are immutable).
+   *
+   * @param file The data file, not counting its reads (the bytes count against the budget before the read)
+   * @return The page index, or null if the file has none
+   */
+  PageIndex pageIndex(InputFile file, ParquetMetadata footer, ReadBudget budget) {
+    PageIndex cached = pageIndexes.getIfPresent(file.location());
+    if (cached != null)
+      return cached;
+    long start = Long.MAX_VALUE, end = 0;
+    for (BlockMetaData block : footer.getBlocks())
+      for (ColumnChunkMetaData chunk : block.getColumns())
+        for (IndexReference reference : new IndexReference[] {chunk.getColumnIndexReference(), chunk.getOffsetIndexReference()})
+          if (reference != null) {
+            start = Math.min(start, reference.getOffset());
+            end = Math.max(end, reference.getOffset() + reference.getLength());
+          }
+    if (end <= start || end - start > Integer.MAX_VALUE)
+      return null;
+    int length = (int) (end - start);
+    budget.reserve(length);
+    PageIndex index = new PageIndex(start, rangeReader.read(file, start, length));
+    pageIndexes.put(file.location(), index);
+    return index;
   }
 
   /**
@@ -295,6 +360,13 @@ final class IcebergTables {
    * used in page tokens.
    */
   record SnapshotFiles(Table table, Schema schema, long snapshotId, List<FileScanTask> tasks) {}
+
+  /**
+   * The column indexes and offset indexes of a Parquet file.
+   *
+   * @param offset The position of the first byte in the file
+   */
+  record PageIndex(long offset, byte[] bytes) {}
 
   private record ScanKey(TableIdentifier table, long snapshotId) {}
 

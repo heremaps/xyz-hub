@@ -70,6 +70,8 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class IcebergConnectorTest {
 
@@ -285,35 +287,40 @@ class IcebergConnectorTest {
     assertError(invoke(iterate("v2", 3, token.substring(0, token.lastIndexOf(':')))), XyzError.ILLEGAL_ARGUMENT);
   }
 
-  @Test
-  void readsByBBox() throws Exception {
-    assertThat(ids(invoke(bbox("v2", new BBox(0, 0, 2, 2))))).containsExactlyInAnyOrder("p1", "p2", "l1", "p5");
+  @ParameterizedTest(name = "twoStepReads={0}")
+  @ValueSource(booleans = {true, false})
+  void readsByBBox(boolean twoStep) throws Exception {
+    assertThat(ids(invoke(reader(bbox("v2", new BBox(0, 0, 2, 2)), twoStep)))).containsExactlyInAnyOrder("p1", "p2", "l1", "p5");
   }
 
-  @Test
-  void readsByTileWithMargin() throws Exception {
+  @ParameterizedTest(name = "twoStepReads={0}")
+  @ValueSource(booleans = {true, false})
+  void readsByTileWithMargin(boolean twoStep) throws Exception {
     BBox tile = new BBox(0, 0, 1.9, 1.9);
     BBox tileWithMargin = new BBox(-0.15, -0.15, 2.05, 2.05);
-    assertThat(ids(invoke(tile("v2", tile, 0)))).containsExactlyInAnyOrder("p1", "l1", "p5");
-    assertThat(ids(invoke(tile("v2", tileWithMargin, 20)))).containsExactlyInAnyOrder("p1", "p2", "l1", "p5");
+    assertThat(ids(invoke(reader(tile("v2", tile, 0), twoStep)))).containsExactlyInAnyOrder("p1", "l1", "p5");
+    assertThat(ids(invoke(reader(tile("v2", tileWithMargin, 20), twoStep)))).containsExactlyInAnyOrder("p1", "p2", "l1", "p5");
   }
 
-  @Test
-  void mvtTilesAreReadAsGeoJson() throws Exception {
+  @ParameterizedTest(name = "twoStepReads={0}")
+  @ValueSource(booleans = {true, false})
+  void mvtTilesAreReadAsGeoJson(boolean twoStep) throws Exception {
     GetFeaturesByTileEvent event = tile("v2", new BBox(0, 0, 2, 2), 0).withResponseType(ResponseType.MVT).withClip(true);
-    assertThat(ids(invoke(event))).containsExactlyInAnyOrder("p1", "p2", "l1", "p5");
+    assertThat(ids(invoke(reader(event, twoStep)))).containsExactlyInAnyOrder("p1", "p2", "l1", "p5");
   }
 
-  @Test
-  void readsByIntersectingPolygon() throws Exception {
+  @ParameterizedTest(name = "twoStepReads={0}")
+  @ValueSource(booleans = {true, false})
+  void readsByIntersectingPolygon(boolean twoStep) throws Exception {
     Polygon polygon = new Polygon().withCoordinates(polygon(4, 4, 7, 7));
-    assertThat(ids(invoke(geometry("v2", polygon, 0)))).containsExactlyInAnyOrder("p4", "poly1");
+    assertThat(ids(invoke(reader(geometry("v2", polygon, 0), twoStep)))).containsExactlyInAnyOrder("p4", "poly1");
   }
 
-  @Test
-  void readsByRadiusAroundAPoint() throws Exception {
+  @ParameterizedTest(name = "twoStepReads={0}")
+  @ValueSource(booleans = {true, false})
+  void readsByRadiusAroundAPoint(boolean twoStep) throws Exception {
     Point point = new Point().withCoordinates(new PointCoordinates(10, 10));
-    assertThat(ids(invoke(geometry("v2", point, 50_000)))).containsExactlyInAnyOrder("r1", "r3");
+    assertThat(ids(invoke(reader(geometry("v2", point, 50_000), twoStep)))).containsExactlyInAnyOrder("r1", "r3");
   }
 
   @Test
@@ -347,10 +354,33 @@ class IcebergConnectorTest {
     assertError(invoke(event), XyzError.NOT_IMPLEMENTED);
   }
 
-  @Test
-  void combinesSpatialAndMomTypeFilters() throws Exception {
+  @ParameterizedTest(name = "twoStepReads={0}")
+  @ValueSource(booleans = {true, false})
+  void combinesSpatialAndMomTypeFilters(boolean twoStep) throws Exception {
     GetFeaturesByBBoxEvent<?> event = bbox("v2", new BBox(0, 0, 2, 2)).withPropertiesQuery(query(List.of(List.of(List.of("Road")))));
-    assertThat(ids(invoke(event))).containsExactlyInAnyOrder("p1", "l1", "p5");
+    assertThat(ids(invoke(reader(event, twoStep)))).containsExactlyInAnyOrder("p1", "l1", "p5");
+  }
+
+  @ParameterizedTest(name = "twoStepReads={0}")
+  @ValueSource(booleans = {true, false})
+  void spatialReadsApplyDeletionVectors(boolean twoStep) throws Exception {
+    FeatureCollection v1 = featureCollection(invoke(reader(bbox("v1", new BBox(-180, -90, 180, 90)), twoStep)));
+    FeatureCollection v2 = featureCollection(invoke(reader(bbox("v2", new BBox(-180, -90, 180, 90)), twoStep)));
+    Set<String> withoutGeometry = Set.of("n1");
+    assertThat(ids(v1)).containsExactlyInAnyOrderElementsOf(V1_IDS.stream().filter(id -> !withoutGeometry.contains(id)).toList());
+    assertThat(ids(v2)).containsExactlyInAnyOrderElementsOf(V2_IDS.stream().filter(id -> !withoutGeometry.contains(id)).toList());
+    assertThat(names(v1, "p2")).containsExactly("p2-v1");
+    assertThat(names(v2, "p2")).containsExactly("p2-v2");
+
+    Set<String> expected = new HashSet<>();
+    for (int i = 0; i < ROW_GROUP_TABLE_ROWS; i++)
+      expected.add(rowGroupId(i));
+    expected.removeAll(ROW_GROUP_DELETED_IDS);
+    GetFeaturesByBBoxEvent<?> rowGroups = new GetFeaturesByBBoxEvent<>().withBbox(new BBox(19, 19, 21, 21));
+    rowGroups.setParams(icebergParams(new IcebergLocation(NAMESPACE, ROW_GROUP_TABLE, "v1")));
+    FeatureCollection rowGroupRead = featureCollection(invoke(reader(rowGroups, twoStep)));
+    assertThat(ids(rowGroupRead)).containsExactlyInAnyOrderElementsOf(expected);
+    assertThat(names(rowGroupRead, "g10")).containsExactly("g10-v2");
   }
 
   @Test
@@ -364,12 +394,13 @@ class IcebergConnectorTest {
     assertThat(v1.getNextPageToken()).isNull();
   }
 
-  @Test
-  void readsABranchTag() throws Exception {
+  @ParameterizedTest(name = "twoStepReads={0}")
+  @ValueSource(booleans = {true, false})
+  void readsABranchTag(boolean twoStep) throws Exception {
     Set<String> expected = new HashSet<>(V2_IDS);
     expected.add("b1");
     assertThat(ids(invoke(iterate(BRANCH_TAG, 1000, null)))).containsExactlyInAnyOrderElementsOf(expected);
-    assertThat(ids(invoke(bbox(BRANCH_TAG, new BBox(1.1, 1.1, 1.3, 1.3))))).containsExactly("b1");
+    assertThat(ids(invoke(reader(bbox(BRANCH_TAG, new BBox(1.1, 1.1, 1.3, 1.3)), twoStep)))).containsExactly("b1");
   }
 
   @Test
@@ -415,9 +446,11 @@ class IcebergConnectorTest {
     assertError(invoke(withConnectorParams(event, connectorParams(Map.of()))), XyzError.NOT_FOUND);
   }
 
-  @Test
-  void stopsAtTheByteLimit() throws Exception {
-    Event<?> event = withConnectorParams(bbox("v2", new BBox(-180, -90, 180, 90)), connectorParams(Map.of("maxBytesPerRequest", 10)));
+  @ParameterizedTest(name = "twoStepReads={0}")
+  @ValueSource(booleans = {true, false})
+  void stopsAtTheByteLimit(boolean twoStep) throws Exception {
+    Event<?> event = withConnectorParams(bbox("v2", new BBox(-180, -90, 180, 90)), connectorParams(Map.of("maxBytesPerRequest", 10,
+        "twoStepReads", twoStep)));
     assertError(invoke(event), XyzError.PAYLOAD_TO_LARGE);
   }
 
@@ -435,9 +468,25 @@ class IcebergConnectorTest {
     assertError(invoke(event), XyzError.PAYLOAD_TO_LARGE);
   }
 
+  @ParameterizedTest(name = "twoStepReads={0}")
+  @ValueSource(booleans = {true, false})
+  void spatialReadsStopAtTheResponseLimit(boolean twoStep) throws Exception {
+    Event<?> event = withConnectorParams(bbox("v2", new BBox(-180, -90, 180, 90)), connectorParams(Map.of("maxResponseBytes", 10,
+        "twoStepReads", twoStep)));
+    assertError(invoke(event), XyzError.PAYLOAD_TO_LARGE);
+  }
+
   @Test
   void stopsAtTheTimeout() throws Exception {
     Event<?> event = withConnectorParams(iterate("v2", 1000, null), connectorParams(Map.of("requestTimeoutMs", 0)));
+    assertError(invoke(event), XyzError.TIMEOUT);
+  }
+
+  @ParameterizedTest(name = "twoStepReads={0}")
+  @ValueSource(booleans = {true, false})
+  void spatialReadsStopAtTheTimeout(boolean twoStep) throws Exception {
+    Event<?> event = withConnectorParams(bbox("v2", new BBox(-180, -90, 180, 90)), connectorParams(Map.of("requestTimeoutMs", 0,
+        "twoStepReads", twoStep)));
     assertError(invoke(event), XyzError.TIMEOUT);
   }
 
@@ -523,6 +572,13 @@ class IcebergConnectorTest {
   private static <T extends Event<?>> T prepare(T event, String ref) {
     event.setParams(icebergParams(new IcebergLocation(NAMESPACE, TABLE, ref)));
     return withConnectorParams(event, connectorParams(Map.of()));
+  }
+
+  /**
+   * Selects the reader of a spatial read: the two-step page-index reader or the row-group reader.
+   */
+  private static <T extends Event<?>> T reader(T event, boolean twoStep) {
+    return withConnectorParams(event, connectorParams(Map.of("twoStepReads", twoStep)));
   }
 
   private static <T extends Event<?>> T withConnectorParams(T event, Map<String, Object> connectorParams) {

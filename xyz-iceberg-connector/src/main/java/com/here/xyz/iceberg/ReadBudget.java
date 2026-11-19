@@ -48,8 +48,28 @@ final class ReadBudget {
       throw new ScanException(PAYLOAD_TO_LARGE, "The request would read more than " + maxBytes + " bytes from Iceberg");
   }
 
+  /**
+   * Counts bytes before they are read from storage, so that a read which does not fit fails before it starts.
+   * Bytes which do not fit are not counted.
+   *
+   * @throws ScanException with PAYLOAD_TO_LARGE if the bytes do not fit into the allowed bytes
+   */
+  void reserve(long bytes) {
+    long read;
+    do {
+      read = bytesRead.get();
+      if (read + bytes > maxBytes)
+        throw new ScanException(PAYLOAD_TO_LARGE, "The request would read more than " + maxBytes + " bytes from Iceberg");
+    }
+    while (!bytesRead.compareAndSet(read, read + bytes));
+  }
+
   long bytesRead() {
     return bytesRead.get();
+  }
+
+  long deadlineMillis() {
+    return deadlineMillis;
   }
 
   /**
