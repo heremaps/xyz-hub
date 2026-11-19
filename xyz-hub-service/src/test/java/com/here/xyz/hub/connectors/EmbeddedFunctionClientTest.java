@@ -37,8 +37,13 @@ class EmbeddedFunctionClientTest {
   @BeforeAll
   static void setUpAll() {
     previousConfiguration = Service.configuration;
-    //RemoteFunctionClient reads the configuration when its class is initialized
-    Service.configuration = new Config();
+    //RemoteFunctionClient reads the configuration when its class is initialized, baking the values into static finals.
+    //Use non-zero values so that this test does not permanently poison those finals with zero, in case it is the one
+    //that triggers that class' initialization first within the shared test JVM.
+    Config config = new Config();
+    config.GLOBAL_MAX_QUEUE_SIZE = 1; //MB
+    config.REMOTE_FUNCTION_REQUEST_TIMEOUT = 10; //seconds
+    Service.configuration = config;
   }
 
   @AfterAll
