@@ -39,6 +39,7 @@ import com.here.xyz.iceberg.RangeReader.FileRanges;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadMXBean;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -52,6 +53,7 @@ import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
@@ -61,6 +63,7 @@ import org.apache.iceberg.data.BaseDeleteLoader;
 import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.column.ColumnDescriptor;
@@ -107,6 +110,12 @@ import org.locationtech.jts.io.WKBReader;
  *   the response limit, row by row in file order. If the read has a limit, round 2 is split into batches of a few times the
  *   missing features, so that a read which ends early does not fetch the pages of all candidates.</li>
  * </ol>
+ * A read without a limit runs the rounds once for all file tasks. A read with a limit runs them on consecutive groups of tasks,
+ * in task order, and stops when the limit is reached: each group holds an estimated twice the missing features (from the row
+ * counts and bbox bounds of the files) and at least twice the tasks of the previous group. So a small read is one group, and a
+ * read over a large area does not read the page indexes and bbox pages of all its files. If the round 1 of a group does not fit
+ * into the rest of the budget, the row-group reader reads the remaining tasks in order, as it may reach the limit earlier.
+ * <p>
  * All pages are read with bounded, parallel range reads, which count against the byte budget before they start. Each column is
  * decoded on its own with <em>page-aligned</em> row ranges, i.e. whole pages: parquet-java returns values of the wrong rows when
  * the row ranges of a filtered read skip rows inside a page of a column whose pages are not aligned with the other columns. The
@@ -129,6 +138,10 @@ final class TwoStepScan {
    * The smallest batch of kept rows of round 2 if the read has a limit
    */
   private static final int MIN_BATCH_ROWS = 64;
+  /**
+   * A group of file tasks of a read with a limit holds an estimated this many times the missing features
+   */
+  private static final double GROUP_MATCHES_FACTOR = 2;
   private static final ThreadMXBean THREADS = ManagementFactory.getThreadMXBean();
 
   private final FeatureScan scan;
@@ -141,7 +154,17 @@ final class TwoStepScan {
   private final Stats stats;
   private final List<String> round1Columns;
   private final WKBReader wkbReader = new WKBReader();
+  /**
+   * The table fields of bbox.xmin, bbox.ymin, bbox.xmax and bbox.ymax (an element is null if the field is missing)
+   */
+  private final List<NestedField> bboxFields;
   private long checkCounter;
+  /**
+   * Set once the round 1 of a group of a read with a limit did not fit into the budget
+   */
+  private boolean rowGroupReader;
+  private long twoStepTasks;
+  private long rowGroupTasks;
 
   TwoStepScan(FeatureScan scan, IcebergTables tables, SnapshotFiles files, Envelope envelope, PreparedGeometry geometry,
       List<List<ColumnFilter>> filters, ReadBudget budget, Stats stats) {
@@ -157,6 +180,7 @@ final class TwoStepScan {
     if (filters != null)
       filters.forEach(allOf -> allOf.forEach(filter -> columns.add(filter.column())));
     round1Columns = List.copyOf(new LinkedHashSet<>(columns));
+    bboxFields = BBOX_COLUMNS.stream().map(name -> files.schema().findField(name)).toList();
   }
 
   /**
@@ -169,17 +193,100 @@ final class TwoStepScan {
     for (FileScanTask task : tasks)
       fileTasks.add(new FileTask(task));
 
-    round0(fileTasks);
-    long cpu = cpuNanos();
+    try {
+      if (!limited())
+        return runGroup(fileTasks);
+      int from = 0, minFiles = 1;
+      while (from < fileTasks.size()) {
+        int to = groupEnd(fileTasks, from, minFiles);
+        if (runGroup(fileTasks.subList(from, to)))
+          return true;
+        minFiles = 2 * (to - from);
+        from = to;
+      }
+      return false;
+    }
+    finally {
+      stats.reader = rowGroupTasks == 0 ? "TS" : twoStepTasks == 0 ? "RG" : "TS+RG";
+    }
+  }
+
+  /**
+   * Reads consecutive file tasks with rounds 0 to 2.
+   *
+   * @return true if the limit was reached
+   */
+  private boolean runGroup(List<FileTask> fileTasks) throws IOException {
+    if (rowGroupReader)
+      fileTasks.forEach(fileTask -> fileTask.twoStep = false);
+    else {
+      round0(fileTasks);
+      long cpu = cpuNanos();
+      for (FileTask fileTask : fileTasks)
+        if (fileTask.twoStep)
+          plan(fileTask);
+      round1(fileTasks);
+      stats.round1Nanos += cpuNanos() - cpu;
+    }
     for (FileTask fileTask : fileTasks)
       if (fileTask.twoStep)
-        plan(fileTask);
-    round1(fileTasks);
-    stats.round1Nanos += cpuNanos() - cpu;
-
-    long twoStepTasks = fileTasks.stream().filter(fileTask -> fileTask.twoStep).count();
-    stats.reader = twoStepTasks == fileTasks.size() ? "TS" : twoStepTasks == 0 ? "RG" : "TS+RG";
+        twoStepTasks++;
+      else
+        rowGroupTasks++;
     return round2(fileTasks);
+  }
+
+  /**
+   * Whether the read has a limit, so that it may end before it reads all file tasks
+   */
+  private boolean limited() {
+    return scan.missingFeatures() <= Integer.MAX_VALUE / 4;
+  }
+
+  /**
+   * The end of the next group of file tasks of a read with a limit: at least {@code minFiles} tasks, and as many as are
+   * estimated to hold {@link #GROUP_MATCHES_FACTOR} times the missing features. After the row-group reader took over, all
+   * remaining tasks.
+   */
+  private int groupEnd(List<FileTask> fileTasks, int from, int minFiles) {
+    if (rowGroupReader)
+      return fileTasks.size();
+    double target = GROUP_MATCHES_FACTOR * scan.missingFeatures(), estimated = 0;
+    int to = from;
+    while (to < fileTasks.size() && (to - from < minFiles || estimated < target))
+      estimated += estimatedMatches(fileTasks.get(to++).task);
+    return to;
+  }
+
+  /**
+   * The rows of a file which overlap the query envelope, estimated from the file's row count and bbox bounds, as if the rows were
+   * spread evenly over the extent of the file. If the bounds are missing, all rows of the file.
+   */
+  private double estimatedMatches(FileScanTask task) {
+    DataFile file = task.file();
+    Double minX = bound(file.lowerBounds(), bboxFields.get(0)), minY = bound(file.lowerBounds(), bboxFields.get(1)),
+        maxX = bound(file.upperBounds(), bboxFields.get(2)), maxY = bound(file.upperBounds(), bboxFields.get(3));
+    if (minX == null || minY == null || maxX == null || maxY == null)
+      return file.recordCount();
+    return file.recordCount() * overlap(minX, maxX, envelope.getMinX(), envelope.getMaxX())
+        * overlap(minY, maxY, envelope.getMinY(), envelope.getMaxY());
+  }
+
+  private static Double bound(Map<Integer, ByteBuffer> bounds, NestedField field) {
+    ByteBuffer bound = field == null || bounds == null ? null : bounds.get(field.fieldId());
+    if (bound == null)
+      return null;
+    Object value = Conversions.fromByteBuffer(field.type(), bound);
+    return value instanceof Double d && !d.isNaN() ? d : null;
+  }
+
+  /**
+   * The share of the extent [min, max] of a file which [queryMin, queryMax] overlaps
+   */
+  private static double overlap(double min, double max, double queryMin, double queryMax) {
+    if (max <= min)
+      return min <= queryMax && max >= queryMin ? 1 : 0;
+    return Math.max(0, Math.min(max, queryMax) - Math.max(min, queryMin)) / (max - min);
   }
 
   /**
@@ -275,6 +382,7 @@ final class TwoStepScan {
    */
   private void round1(List<FileTask> fileTasks) throws IOException {
     budget.checkDeadline();
+    long pagesPlanned = 0;
     Map<String, List<long[]>> pageRanges = new LinkedHashMap<>();
     Map<String, FileTask> byLocation = new LinkedHashMap<>();
     for (FileTask fileTask : fileTasks)
@@ -284,12 +392,22 @@ final class TwoStepScan {
           Chunk chunk = rowGroup.chunks.get(column);
           int[] pages = chunk.pages(selection, rowGroup.rowCount);
           rowGroup.round1Pages.put(column, pages);
-          addRanges(pageRanges.computeIfAbsent(fileTask.location, k -> new ArrayList<>()), chunk, pages);
+          pagesPlanned += addRanges(pageRanges.computeIfAbsent(fileTask.location, k -> new ArrayList<>()), chunk, pages);
           byLocation.putIfAbsent(fileTask.location, fileTask);
         }
       }
     if (pageRanges.isEmpty())
       return;
+    if (limited() && mergedBytes(pageRanges) > budget.remaining()) {
+      //The row-group reader may reach the limit within the budget: it reads the remaining tasks in order
+      rowGroupReader = true;
+      for (FileTask fileTask : fileTasks) {
+        fileTask.twoStep = false;
+        fileTask.rowGroups.clear();
+      }
+      return;
+    }
+    stats.pagesRead += pagesPlanned;
     Map<String, List<Long>> fetched = fetch(pageRanges, byLocation);
 
     for (FileTask fileTask : fileTasks)
@@ -416,7 +534,7 @@ final class TwoStepScan {
         Chunk chunk = slice.rowGroup.chunks.get(column);
         int[] pages = chunk.pages(selection, slice.rowGroup.rowCount);
         slice.pages.put(column, pages);
-        addRanges(pageRanges.computeIfAbsent(slice.fileTask.location, k -> new ArrayList<>()), chunk, pages);
+        stats.pagesRead += addRanges(pageRanges.computeIfAbsent(slice.fileTask.location, k -> new ArrayList<>()), chunk, pages);
         byLocation.putIfAbsent(slice.fileTask.location, slice.fileTask);
       }
     }
@@ -499,15 +617,29 @@ final class TwoStepScan {
   /**
    * Adds the byte ranges of the pages of a column chunk, and of its dictionary page if it has one.
    */
-  private void addRanges(List<long[]> ranges, Chunk chunk, int[] pages) {
+  /**
+   * @return The number of pages
+   */
+  private static int addRanges(List<long[]> ranges, Chunk chunk, int[] pages) {
     if (pages.length == 0)
-      return;
+      return 0;
     long firstPage = chunk.offsetIndex.getOffset(0);
     if (chunk.meta.getStartingPos() < firstPage)
       ranges.add(new long[] {chunk.meta.getStartingPos(), firstPage - chunk.meta.getStartingPos()});
     for (int page : pages)
       ranges.add(new long[] {chunk.offsetIndex.getOffset(page), chunk.offsetIndex.getCompressedPageSize(page)});
-    stats.pagesRead += pages.length;
+    return pages.length;
+  }
+
+  /**
+   * The bytes which {@link RangeReader#fetch} reads for the page ranges.
+   */
+  private static long mergedBytes(Map<String, List<long[]>> pageRanges) {
+    long bytes = 0;
+    for (List<long[]> ranges : pageRanges.values())
+      for (long[] range : RangeReader.merge(ranges))
+        bytes += range[1];
+    return bytes;
   }
 
   /**
