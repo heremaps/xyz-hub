@@ -71,6 +71,9 @@ import com.here.xyz.models.hub.Ref;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.HttpException;
+import com.here.xyz.util.service.errors.DetailedHttpException;
+import com.here.xyz.util.service.errors.ErrorManager;
+import com.here.xyz.util.service.rest.Api;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
@@ -92,6 +95,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 /**
  * Runs reads through the routing steps around a stand-in for invoke, which answers with a response of the space's own connector,
@@ -123,6 +128,18 @@ class IcebergReadRoutingTest {
   static void startVertx() {
     if (Core.vertx == null)
       Core.vertx = createdVertx = Vertx.vertx();
+  }
+
+  @BeforeAll
+  static void loadErrors() {
+    try {
+      ErrorManager.loadErrors("hub-errors.json");
+    }
+    catch (RuntimeException e) {
+      //Another test class in the same JVM loaded them already
+      if (!(e.getCause() instanceof IllegalStateException) || !e.getCause().getMessage().contains("already registered"))
+        throw e;
+    }
   }
 
   @AfterAll
@@ -360,6 +377,25 @@ class IcebergReadRoutingTest {
   void anIcebergErrorFallsBack() {
     icebergAnswer = () -> Future.failedFuture(new HttpException(BAD_REQUEST, "Not implemented"));
     Reply reply = send(bboxTask(bboxEvent()));
+    assertThat(reply.invokeRan).isTrue();
+    assertThat(reply.response).isSameAs(postgresResponse);
+    assertThat(reply.streamInfo("IFB")).isEqualTo(1);
+    assertThat(icebergEvents).hasSize(1);
+  }
+
+  /**
+   * A read whose Iceberg response is too large (e.g. because of a feature of more than 100 MB) is answered from the space's own
+   * connector, whether the Iceberg connector reports PAYLOAD_TO_LARGE or the Hub's own response size check fails.
+   */
+  @ParameterizedTest(name = "{0}")
+  @ValueSource(strings = {"connector", "hub"})
+  void aTooLargeIcebergResponseFallsBack(String limit) {
+    HttpException failure = "connector".equals(limit) ? new DetailedHttpException("E318541")
+        : new HttpException(Api.RESPONSE_PAYLOAD_TOO_LARGE, Api.RESPONSE_PAYLOAD_TOO_LARGE_MESSAGE);
+    assertThat(failure.status.code()).isEqualTo(513);
+    icebergAnswer = () -> Future.failedFuture(failure);
+    Reply reply = send(bboxTask(bboxEvent()));
+    assertThat(reply.error).isNull();
     assertThat(reply.invokeRan).isTrue();
     assertThat(reply.response).isSameAs(postgresResponse);
     assertThat(reply.streamInfo("IFB")).isEqualTo(1);
