@@ -47,10 +47,16 @@ import java.util.regex.Pattern;
  * @param filterColumns The root properties of the features (property query keys, e.g. {@code momType} for {@code f.momType})
  *     which can be filtered by equality, mapped to the top-level string columns of the table which hold their values. Reads with
  *     other property queries are answered with NOT_IMPLEMENTED. Default: {@link #DEFAULT_FILTER_COLUMNS}.
+ * @param twoStepReads Whether spatial reads use the two-step page-index reader ({@link TwoStepScan}): it first reads the
+ *     bbox pages which the column indexes select, then only the geometry and feature pages of the rows whose bbox overlaps. If
+ *     false, spatial reads read whole row groups like iterations and searches.
+ * @param rangeReadThreads The number of threads for the parallel range reads of the two-step reader
+ * @param pageIndexCacheHeapShare The share of the max heap for the cache of the Parquet page indexes (column and offset indexes)
  */
 public record IcebergConnectorConfig(String catalogName, Map<String, String> catalogProperties, long maxBytesPerRequest,
     long maxResponseBytes, long requestTimeoutMs, double scanCacheHeapShare, double footerCacheHeapShare, long tableCacheTtlSeconds,
-    long missingCacheTtlSeconds, int planningThreads, Map<String, String> filterColumns) {
+    long missingCacheTtlSeconds, int planningThreads, Map<String, String> filterColumns, boolean twoStepReads, int rangeReadThreads,
+    double pageIndexCacheHeapShare) {
 
   static final String DEFAULT_CATALOG_NAME = "iceberg";
   static final long DEFAULT_MAX_BYTES_PER_REQUEST = 256L * 1024 * 1024;
@@ -61,6 +67,9 @@ public record IcebergConnectorConfig(String catalogName, Map<String, String> cat
   static final long DEFAULT_TABLE_CACHE_TTL_SECONDS = 60;
   static final long DEFAULT_MISSING_CACHE_TTL_SECONDS = 30;
   static final int DEFAULT_PLANNING_THREADS = 2;
+  static final boolean DEFAULT_TWO_STEP_READS = true;
+  static final int DEFAULT_RANGE_READ_THREADS = 32;
+  static final double DEFAULT_PAGE_INDEX_CACHE_HEAP_SHARE = 0.05;
   public static final Map<String, String> DEFAULT_FILTER_COLUMNS = Map.of("momType", "mom_type");
   static final String FILTER_COLUMNS_PARAM = "filterColumns";
   /**
@@ -87,6 +96,8 @@ public record IcebergConnectorConfig(String catalogName, Map<String, String> cat
     requirePositive(tableCacheTtlSeconds, "tableCacheTtlSeconds");
     requirePositive(missingCacheTtlSeconds, "missingCacheTtlSeconds");
     requirePositive(planningThreads, "planningThreads");
+    requirePositive(rangeReadThreads, "rangeReadThreads");
+    requireShare(pageIndexCacheHeapShare, "pageIndexCacheHeapShare");
     if ("true".equalsIgnoreCase(catalogProperties.get(LEGACY_MD5_PLUGIN_PROPERTY)))
       throw new IllegalArgumentException(LEGACY_MD5_PLUGIN_PROPERTY + "=true is not supported by the AWS SDK version of the Hub");
   }
@@ -111,7 +122,10 @@ public record IcebergConnectorConfig(String catalogName, Map<String, String> cat
         longParam(params, "tableCacheTtlSeconds", DEFAULT_TABLE_CACHE_TTL_SECONDS),
         longParam(params, "missingCacheTtlSeconds", DEFAULT_MISSING_CACHE_TTL_SECONDS),
         (int) longParam(params, "planningThreads", DEFAULT_PLANNING_THREADS),
-        filterColumns(params));
+        filterColumns(params),
+        boolParam(params, "twoStepReads", DEFAULT_TWO_STEP_READS),
+        intParam(params, "rangeReadThreads", DEFAULT_RANGE_READ_THREADS),
+        doubleParam(params, "pageIndexCacheHeapShare", DEFAULT_PAGE_INDEX_CACHE_HEAP_SHARE));
   }
 
   /**
@@ -139,7 +153,8 @@ public record IcebergConnectorConfig(String catalogName, Map<String, String> cat
    */
   CatalogKey catalogKey() {
     return new CatalogKey(catalogName, catalogProperties, scanCacheHeapShare, footerCacheHeapShare, tableCacheTtlSeconds,
-        missingCacheTtlSeconds, planningThreads, filterColumns.values().stream().distinct().sorted().toList());
+        missingCacheTtlSeconds, planningThreads, filterColumns.values().stream().distinct().sorted().toList(), rangeReadThreads,
+        pageIndexCacheHeapShare);
   }
 
   @Override
@@ -149,12 +164,13 @@ public record IcebergConnectorConfig(String catalogName, Map<String, String> cat
         + ", maxBytesPerRequest=" + maxBytesPerRequest + ", maxResponseBytes=" + maxResponseBytes + ", requestTimeoutMs="
         + requestTimeoutMs + ", scanCacheHeapShare=" + scanCacheHeapShare + ", footerCacheHeapShare=" + footerCacheHeapShare
         + ", tableCacheTtlSeconds=" + tableCacheTtlSeconds + ", missingCacheTtlSeconds=" + missingCacheTtlSeconds
-        + ", planningThreads=" + planningThreads + ", filterColumns=" + filterColumns + "]";
+        + ", planningThreads=" + planningThreads + ", filterColumns=" + filterColumns + ", twoStepReads=" + twoStepReads
+        + ", rangeReadThreads=" + rangeReadThreads + ", pageIndexCacheHeapShare=" + pageIndexCacheHeapShare + "]";
   }
 
   record CatalogKey(String catalogName, Map<String, String> catalogProperties, double scanCacheHeapShare,
       double footerCacheHeapShare, long tableCacheTtlSeconds, long missingCacheTtlSeconds, int planningThreads,
-      List<String> statsColumns) {
+      List<String> statsColumns, int rangeReadThreads, double pageIndexCacheHeapShare) {
 
     @Override
     public String toString() {
@@ -204,6 +220,26 @@ public record IcebergConnectorConfig(String catalogName, Map<String, String> cat
     catch (NumberFormatException e) {
       throw new IllegalArgumentException(name + " must be a number");
     }
+  }
+
+  private static int intParam(Map<String, Object> params, String name, int defaultValue) {
+    long value = longParam(params, name, defaultValue);
+    if (value != (int) value)
+      throw new IllegalArgumentException(name + " is too large");
+    return (int) value;
+  }
+
+  private static boolean boolParam(Map<String, Object> params, String name, boolean defaultValue) {
+    Object value = params.get(name);
+    if (value == null)
+      return defaultValue;
+    if (value instanceof Boolean bool)
+      return bool;
+    if ("true".equalsIgnoreCase(value.toString()))
+      return true;
+    if ("false".equalsIgnoreCase(value.toString()))
+      return false;
+    throw new IllegalArgumentException(name + " must be true or false");
   }
 
   private static double doubleParam(Map<String, Object> params, String name, double defaultValue) {

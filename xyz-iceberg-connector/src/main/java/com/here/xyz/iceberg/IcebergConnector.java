@@ -221,7 +221,8 @@ public class IcebergConnector extends StorageConnector {
   private FeatureScan newScan(Event<?> event, SnapshotFiles files, long startTime) {
     return new FeatureScan(tables, files)
         .withBudget(new ReadBudget(config.maxBytesPerRequest(), startTime + config.requestTimeoutMs()))
-        .withMaxResponseBytes(maxResponseBytes(event));
+        .withMaxResponseBytes(maxResponseBytes(event))
+        .withTwoStepReads(config.twoStepReads());
   }
 
   /**
@@ -244,10 +245,14 @@ public class IcebergConnector extends StorageConnector {
     }
     finally {
       FeatureScan.Stats stats = scan.stats();
-      logger.info("{} iceberg-read event={} location={} snapshot={} filesPlanned={} filesPruned={} filesRead={} rowGroupsRead={} "
-              + "bytesRead={} rowsScanned={} rowsMatched={} ms={} outcome={}", traceItem, event.getClass().getSimpleName(), location,
-          files.snapshotId(), stats.filesPlanned, stats.filesPruned, stats.filesRead, stats.rowGroupsRead, scan.bytesRead(),
-          stats.rowsScanned, stats.rowsMatched, System.currentTimeMillis() - startTime, result != null ? "ok" : "error");
+      logger.info("{} iceberg-read event={} location={} snapshot={} reader={} filesPlanned={} filesPruned={} filesRead={} "
+              + "rowGroupsRead={} bytesRead={} rowsScanned={} rowsMatched={} rounds={} rangeReads={} unplannedReads={} pagesRead={} "
+              + "round1Rows={} round1CpuMs={} round2CpuMs={} pageIndexBytes={} ms={} outcome={}", traceItem,
+          event.getClass().getSimpleName(), location, files.snapshotId(), stats.reader, stats.filesPlanned, stats.filesPruned,
+          stats.filesRead, stats.rowGroupsRead, scan.bytesRead(), stats.rowsScanned, stats.rowsMatched, stats.rounds,
+          stats.rangeReads, stats.unplannedReads, stats.pagesRead, stats.round1Rows, stats.round1Nanos / 1_000_000,
+          stats.round2Nanos / 1_000_000, stats.pageIndexBytes, System.currentTimeMillis() - startTime,
+          result != null ? "ok" : "error");
     }
   }
 

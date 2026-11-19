@@ -41,6 +41,46 @@ class IcebergConnectorConfigTest {
     assertThat(config.planningThreads()).isEqualTo(2);
     assertThat(config.missingCacheTtlSeconds()).isEqualTo(30);
     assertThat(config.filterColumns()).isEqualTo(Map.of("momType", "mom_type"));
+    assertThat(config.twoStepReads()).isTrue();
+    assertThat(config.rangeReadThreads()).isEqualTo(32);
+    assertThat(config.pageIndexCacheHeapShare()).isEqualTo(0.05);
+  }
+
+  @Test
+  void readsTheTwoStepReadParams() {
+    IcebergConnectorConfig config = IcebergConnectorConfig.from(Map.of("twoStepReads", false, "rangeReadThreads", "8",
+        "pageIndexCacheHeapShare", 0.1), name -> null);
+    assertThat(config.twoStepReads()).isFalse();
+    assertThat(config.rangeReadThreads()).isEqualTo(8);
+    assertThat(config.pageIndexCacheHeapShare()).isEqualTo(0.1);
+    assertThat(IcebergConnectorConfig.from(Map.of("twoStepReads", "TRUE"), name -> null).twoStepReads()).isTrue();
+    assertThat(IcebergConnectorConfig.from(Map.of("twoStepReads", "false"), name -> null).twoStepReads()).isFalse();
+    assertThat(config.toString()).contains("twoStepReads=false", "rangeReadThreads=8", "pageIndexCacheHeapShare=0.1");
+  }
+
+  @Test
+  void rejectsInvalidTwoStepReadParams() {
+    assertThatThrownBy(() -> IcebergConnectorConfig.from(Map.of("twoStepReads", "yes"), name -> null))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> IcebergConnectorConfig.from(Map.of("rangeReadThreads", 0), name -> null))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> IcebergConnectorConfig.from(Map.of("rangeReadThreads", 1L << 32), name -> null))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> IcebergConnectorConfig.from(Map.of("pageIndexCacheHeapShare", 0), name -> null))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> IcebergConnectorConfig.from(Map.of("pageIndexCacheHeapShare", 1), name -> null))
+        .isInstanceOf(IllegalArgumentException.class);
+  }
+
+  @Test
+  void theRangeReadResourcesArePartOfTheCatalogKey() {
+    Map<String, Object> catalog = Map.of("type", "hadoop", "warehouse", "file:/tmp/w");
+    IcebergConnectorConfig a = IcebergConnectorConfig.from(Map.of("catalogProperties", catalog), n -> null);
+    IcebergConnectorConfig b = IcebergConnectorConfig.from(Map.of("catalogProperties", catalog, "rangeReadThreads", 4), n -> null);
+    IcebergConnectorConfig c = IcebergConnectorConfig.from(Map.of("catalogProperties", catalog, "pageIndexCacheHeapShare", 0.2),
+        n -> null);
+    IcebergConnectorConfig d = IcebergConnectorConfig.from(Map.of("catalogProperties", catalog, "twoStepReads", false), n -> null);
+    assertThat(a.catalogKey()).isNotEqualTo(b.catalogKey()).isNotEqualTo(c.catalogKey()).isEqualTo(d.catalogKey());
   }
 
   @Test
