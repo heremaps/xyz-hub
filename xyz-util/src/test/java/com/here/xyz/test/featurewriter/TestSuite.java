@@ -320,9 +320,16 @@ public abstract class TestSuite {
       assertThat("[" + testName + "] The feature's update timestamp has to be higher than the timestamp when the test started.",
           afterTableState.feature.getProperties().getXyzNamespace().getUpdatedAt(), isGreaterThanBeforeTimestamp);
       //Check if the feature's creation timestamp has been written properly
-      assertThat("[" + testName + "] The feature's creation timestamp has to be " + (featureOperation == I || featureOperation == H ? "higher" : "lower")
-          + " than the timestamp when the test started.", afterTableState.feature.getProperties().getXyzNamespace().getCreatedAt(),
-          featureOperation == I || featureOperation == H ? isGreaterThanBeforeTimestamp : not(isGreaterThanBeforeTimestamp));
+      //NOTE: Spaces without history don't have changesets, so there the creation timestamp of the extension's row is not relevant
+      if (history && featureOperation == I && composite && spaceContext == DEFAULT && featureExistsInSuper && !featureExistsInExtension)
+        //The feature only existed in the super space, so writing it into the extension modifies it, even though it is an "I" row
+        assertEquals("[" + testName + "] The feature's creation timestamp has to be inherited from the super space.",
+            beforeState.tableStateForContext(SUPER).feature.getProperties().getXyzNamespace().getCreatedAt(),
+            afterTableState.feature.getProperties().getXyzNamespace().getCreatedAt());
+      else
+        assertThat("[" + testName + "] The feature's creation timestamp has to be " + (featureOperation == I || featureOperation == H ? "higher" : "lower")
+            + " than the timestamp when the test started.", afterTableState.feature.getProperties().getXyzNamespace().getCreatedAt(),
+            featureOperation == I || featureOperation == H ? isGreaterThanBeforeTimestamp : not(isGreaterThanBeforeTimestamp));
     }
     else if (performedTableOperation == NONE) {
       //Check the state of the feature operation
