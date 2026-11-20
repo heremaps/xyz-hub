@@ -132,6 +132,9 @@ class FeatureWriter {
       this.onNotExists = "CREATE";
       this.operation = "H";
       this._transformToDeletedFeature();
+      //The deletion marker is written in any case, also if the feature was not visible (not existing or deleted already)
+      if (existingFeature == null || existingFeature.operation == "H" || existingFeature.operation == "J")
+        FeatureWriter._markAsInvisibleBefore(this.inputFeature);
       return this.writeRow();
     }
     else if (this.context == null || this.context == "EXTENSION" || this.context == "SUPER") {
@@ -154,6 +157,14 @@ class FeatureWriter {
 
   static _transformToDeletedFeature(featureId) {
     return {type: "Feature", id: featureId, properties: {[XYZ_NS]: {deleted: true}}};
+  }
+
+  /**
+   * Marks a deleted feature whose deletion gets written although the feature was not visible before.
+   * NOTE: The marker is not enumerable, so it never becomes part of a written or returned feature.
+   */
+  static _markAsInvisibleBefore(feature) {
+    Object.defineProperty(feature, "invisibleBefore", {value: true, enumerable: false});
   }
 
   /**
@@ -942,6 +953,8 @@ class FeatureWriter {
       result.inserted = result.inserted.concat(featureCollections[i].inserted);
       result.updated = result.updated.concat(featureCollections[i].updated);
       result.deleted = result.deleted.concat(featureCollections[i].deleted);
+      for (const action in result.invisibleDeletions)
+        result.invisibleDeletions[action] += featureCollections[i].invisibleDeletions[action];
     }
 
     return result;
@@ -979,17 +992,27 @@ class FeatureWriter {
         result.features.push(execution.feature);
       if (execution.action != ExecutionAction.NONE)
         result[execution.action].push(execution.feature.id);
+      //A deletion marker may be reported as inserted, updated or deleted, depending on how it was written
+      if (execution.action != ExecutionAction.NONE && execution.feature.invisibleBefore)
+        result.invisibleDeletions[execution.action]++;
     }
   }
 
   static newFeatureCollection() {
-    return {
+    let result = {
       type: "FeatureCollection",
       features: [],
       inserted: [],
       updated: [],
       deleted: []
     };
+    /*
+    The numbers of deletion markers in "inserted", "updated" and "deleted", which were written for features that were not visible
+    before (not existing or deleted already), so they did not change what the space shows.
+    It is not enumerable, so it does not change the returned FeatureCollection.
+     */
+    Object.defineProperty(result, "invisibleDeletions", {value: {inserted: 0, updated: 0, deleted: 0}, enumerable: false});
+    return result;
   }
 
   /**

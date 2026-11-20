@@ -157,6 +157,90 @@ public class ExpressWriterSmokeIT {
     }
   }
 
+  /**
+   * A batch reports what it has changed in the space as it is visible. Three batches into a non-composite space: the first
+   * one inserts a, b and c. The second one changes a, re-sends b unchanged, deletes c, adds d and deletes the not existing x.
+   * The third one deletes c again and changes d.
+   *
+   * <p>With history, every feature of the batch gets written as a new version, so the unchanged b counts as updated.
+   * Without history, b is not written at all, so it is not counted. The deletion of a feature which is not visible
+   * (x, or c the second time) is not counted as a deletion, even if a deletion marker gets written for it.</p>
+   */
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void reportsTheWrittenFeaturesOfABatch(boolean historyEnabled) throws Exception {
+    String table = "express_smoke_counts_" + (historyEnabled ? "history" : "nohistory");
+    String stagingTable = table + "_staging";
+
+    try (DataSourceProvider dsp = ExpressWriterDataSources.getDataSourceProvider()) {
+      dropResources(dsp, table, stagingTable);
+      createResources(dsp, table, stagingTable);
+
+      stage(dsp, stagingTable, feature("a", "a1"), feature("b", "b1"), feature("c", "c1"));
+      BatchResult first = executeExpressImportBatch(dsp, stagingTable, table, 1, allocateVersion(dsp, table), historyEnabled);
+      assertEquals(3, first.pulledCount());
+      assertEquals(3, first.insertedCount(), "All features are new.");
+      assertEquals(0, first.updatedCount());
+      assertEquals(0, first.deletedCount());
+
+      stage(dsp, stagingTable, feature("a", "a2"), feature("b", "b1"), deletion("c"), feature("d", "d1"), deletion("x"));
+      BatchResult second = executeExpressImportBatch(dsp, stagingTable, table, first.selectedRangeEnd() + 1,
+          allocateVersion(dsp, table), historyEnabled);
+      assertEquals(5, second.pulledCount());
+      assertEquals(1, second.insertedCount(), "Only d is new.");
+      assertEquals(historyEnabled ? 2 : 1, second.updatedCount(),
+          historyEnabled ? "a and the unchanged b get a new version." : "Only a has changed, b is skipped.");
+      assertEquals(1, second.deletedCount(), "Only c was deleted, x did not exist.");
+      assertEquals(3, headRowCount(dsp, table), "a, b and d remain.");
+
+      //Deleting c again and re-adding d: c is not visible anymore (a deletion marker or no row at all)
+      stage(dsp, stagingTable, deletion("c"), feature("d", "d2"));
+      BatchResult third = executeExpressImportBatch(dsp, stagingTable, table, second.selectedRangeEnd() + 1,
+          allocateVersion(dsp, table), historyEnabled);
+      assertEquals(0, third.deletedCount(), "c was deleted already.");
+      assertEquals(1, third.updatedCount(), "d has changed.");
+      assertEquals(0, third.insertedCount());
+
+      BatchResult finished = executeExpressImportBatch(dsp, stagingTable, table, third.selectedRangeEnd() + 1,
+          allocateVersion(dsp, table), historyEnabled);
+      assertTrue(finished.finished());
+      assertEquals(0, finished.insertedCount() + finished.updatedCount() + finished.deletedCount(),
+          "A batch which pulled nothing has written nothing.");
+    }
+    finally {
+      try (DataSourceProvider dsp = ExpressWriterDataSources.getDataSourceProvider()) {
+        dropResources(dsp, table, stagingTable);
+      }
+    }
+  }
+
+  /**
+   * A feature contained more than once in a batch is collapsed to its last occurrence, so it is written and counted once.
+   */
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void countsAFeatureContainedTwiceInABatchOnce(boolean historyEnabled) throws Exception {
+    String table = "express_smoke_duplicates_" + (historyEnabled ? "history" : "nohistory");
+    String stagingTable = table + "_staging";
+
+    try (DataSourceProvider dsp = ExpressWriterDataSources.getDataSourceProvider()) {
+      dropResources(dsp, table, stagingTable);
+      createResources(dsp, table, stagingTable);
+
+      stage(dsp, stagingTable, feature("a", "first"), feature("a", "second"), feature("b", "b1"));
+      BatchResult batch = executeExpressImportBatch(dsp, stagingTable, table, 1, allocateVersion(dsp, table), historyEnabled);
+
+      assertEquals(3, batch.pulledCount());
+      assertEquals(2, batch.insertedCount());
+      assertEquals(0, batch.updatedCount() + batch.deletedCount());
+    }
+    finally {
+      try (DataSourceProvider dsp = ExpressWriterDataSources.getDataSourceProvider()) {
+        dropResources(dsp, table, stagingTable);
+      }
+    }
+  }
+
   private String stagedId(DataSourceProvider dsp, String stagingTable, long i) throws Exception {
     return new SQLQuery("SELECT jsondata::JSONB->>'id' AS id FROM ${schema}.${table} WHERE i = #{i}")
         .withVariable("schema", SCHEMA)
@@ -214,8 +298,34 @@ public class ExpressWriterSmokeIT {
         .withNamedParameter("historyEnabled", historyEnabled)
         .run(dsp, rs -> rs.next()
             ? new BatchResult(rs.getInt("pulled_count"), rs.getLong("pulled_bytes"), rs.getLong("selected_range_start"),
-                rs.getLong("selected_range_end"), rs.getBoolean("finished"))
+                rs.getLong("selected_range_end"), rs.getBoolean("finished"), rs.getLong("inserted_count"),
+                rs.getLong("updated_count"), rs.getLong("deleted_count"))
             : null);
+  }
+
+  private void stage(DataSourceProvider dsp, String stagingTable, String... features) throws Exception {
+    for (String jsondata : features)
+      new SQLQuery("INSERT INTO ${schema}.${table} (jsondata) VALUES (#{jsondata})")
+          .withVariable("schema", SCHEMA)
+          .withVariable("table", stagingTable)
+          .withNamedParameter("jsondata", jsondata)
+          .write(dsp);
+  }
+
+  private static String feature(String id, String name) {
+    return "{\"type\":\"Feature\",\"id\":\"" + id + "\",\"geometry\":{\"type\":\"Point\",\"coordinates\":[8,50,0]},"
+        + "\"properties\":{\"name\":\"" + name + "\"}}";
+  }
+
+  private static String deletion(String id) {
+    return "{\"type\":\"Feature\",\"id\":\"" + id + "\",\"properties\":{\"@ns:com:here:xyz\":{\"deleted\":true}}}";
+  }
+
+  private long headRowCount(DataSourceProvider dsp, String table) throws Exception {
+    return new SQLQuery("SELECT count(*) FROM ${schema}.${table} WHERE next_version = max_bigint() AND operation NOT IN ('D', 'H', 'J')")
+        .withVariable("schema", SCHEMA)
+        .withVariable("table", table)
+        .run(dsp, rs -> rs.next() ? rs.getLong(1) : -1L);
   }
 
   private WrittenRow readHeadRow(DataSourceProvider dsp, String table) throws Exception {
@@ -234,7 +344,7 @@ public class ExpressWriterSmokeIT {
   }
 
   private record BatchResult(int pulledCount, long pulledBytes, long selectedRangeStart, long selectedRangeEnd,
-      boolean finished) {}
+      boolean finished, long insertedCount, long updatedCount, long deletedCount) {}
 
   private record WrittenRow(String id, long version, String operation, String author, String firstName, String geo) {}
 }

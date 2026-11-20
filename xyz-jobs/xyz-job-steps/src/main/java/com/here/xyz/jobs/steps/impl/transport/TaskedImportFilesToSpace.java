@@ -43,6 +43,7 @@ import com.here.xyz.jobs.steps.execution.StepException;
 import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
 import com.here.xyz.jobs.steps.impl.transport.tasks.inputs.ImportInput;
 import com.here.xyz.jobs.steps.impl.transport.tasks.outputs.ImportOutput;
+import com.here.xyz.jobs.steps.impl.transport.tasks.outputs.ImportOutput.WrittenFeatures;
 import com.here.xyz.jobs.steps.impl.transport.tools.ImportFilesQuickValidator;
 import com.here.xyz.jobs.steps.impl.transport.tools.ImportQueryBuilder;
 import com.here.xyz.jobs.steps.inputs.Input;
@@ -582,17 +583,49 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
       long totalImportedRows = finalizedTaskItems.stream().mapToLong(item -> item.output().extractRowCount()).sum();
       long totalImportedBytes = finalizedTaskItems.stream().mapToLong(item -> item.output().fileBytes()).sum();
 
-      statistics = new FeatureStatistics()
+      statistics = withWrittenFeatures(new FeatureStatistics()
               .withFeatureCount(totalImportedRows)
-              .withByteSize(totalImportedBytes);
+              .withByteSize(totalImportedBytes), finalizedTaskItems.stream().map(FinalizedTaskItem::output).toList());
       statistics.withFileName(STATISTICS + ".json");
     }
 
-    infoLog(STEP_ON_ASYNC_SUCCESS, "Job Statistics: bytes=" + statistics.getByteSize() + " rows=" + statistics.getFeatureCount());
+    infoLog(STEP_ON_ASYNC_SUCCESS, "Job Statistics: bytes=" + statistics.getByteSize() + " rows=" + statistics.getFeatureCount()
+        + " inserted=" + statistics.getInsertedCount() + " updated=" + statistics.getUpdatedCount()
+        + " deleted=" + statistics.getDeletedCount() + " unchanged=" + statistics.getUnchangedCount());
     registerOutputs(List.of(statistics), STATISTICS);
 
     infoLog(STEP_ON_ASYNC_SUCCESS, "Set contentUpdatedAt on target space");
     hubWebClient().patchSpace(getSpaceId(), Map.of("contentUpdatedAt", Core.currentTimeMillis()));
+  }
+
+  /**
+   * Adds how the requested features (the featureCount of the statistics) were actually written into the target.
+   * <ul>
+   *   <li>Import into a non-empty layer: The tasks have written the features in batches, each one reporting what it has written
+   *   (summed up in {@link ImportOutput#written()}). What was not written is unchanged, e.g., features which did not differ from
+   *   the existing ones, deletions of not existing features, or features contained more than once in the input.</li>
+   *   <li>Import into an empty layer: The rows were inserted by the database import directly, all of them are inserted.</li>
+   * </ul>
+   * NOTE: The kind of import is told by the task outputs, as only the batched import reports a progress. #useFeatureWriter() can not
+   * be used, as it checks the feature count of the target, which has changed by now.
+   */
+  static FeatureStatistics withWrittenFeatures(FeatureStatistics statistics, List<ImportOutput> taskOutputs) {
+    boolean batched = taskOutputs.stream().anyMatch(output -> output.progress() != null || output.written() != null);
+    if (!batched)
+      return statistics
+          .withInsertedCount(statistics.getFeatureCount())
+          .withUpdatedCount(0L)
+          .withDeletedCount(0L)
+          .withUnchangedCount(0L);
+
+    WrittenFeatures written = taskOutputs.stream()
+        .map(ImportOutput::written)
+        .reduce(WrittenFeatures.NONE, WrittenFeatures::plus);
+    return statistics
+        .withInsertedCount(written.inserted())
+        .withUpdatedCount(written.updated())
+        .withDeletedCount(written.deleted())
+        .withUnchangedCount(statistics.getFeatureCount() - written.total());
   }
 
   protected String bucketRegion(String bucketName) {
