@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ package com.here.xyz.jobs.steps.outputs;
 import static com.fasterxml.jackson.annotation.JsonInclude.Include.ALWAYS;
 import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_DEFAULT;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.here.xyz.models.hub.Ref;
@@ -30,6 +31,9 @@ import com.here.xyz.models.hub.Ref;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class FeatureStatistics extends ModelBasedOutput {
 
+    /**
+     * For an import: The number of features which were requested to be written, that is the number of rows in the input files.
+     */
     @JsonInclude(ALWAYS)
     private long featureCount;
     @JsonInclude(ALWAYS)
@@ -38,6 +42,26 @@ public class FeatureStatistics extends ModelBasedOutput {
     private Ref versionRef;
     @JsonInclude(NON_DEFAULT)
     private long fileCount;
+    /*
+    For an import: What the requested features changed in the target, as the space shows it. null if not counted.
+    Together they add up to the featureCount. unchangedCount covers the features which did not change it, e.g., as they did not
+    differ from the existing ones, as they were contained in the input more than once, or as they were deletions of features
+    which did not exist or were deleted already.
+    NOTE: They are not serialized, so they are neither stored with the output nor returned by the job API. For now they are only
+    used for the logs of the import step (see TaskedImportFilesToSpace#processFinalizedTasks()).
+    TODO: Decide how to publish them, e.g.:
+      - Return them with the output: remove @JsonIgnore and document them in the FeatureStatistics schema of the job API (openapi.yaml).
+      - Report them as metrics: a reporter (e.g., a job finalize observer) reads them from the stored output, which needs them to be
+        serialized as well (e.g., only in the Static view), or the step registers them as a separate output with SYSTEM visibility.
+     */
+    @JsonIgnore
+    private Long insertedCount;
+    @JsonIgnore
+    private Long updatedCount;
+    @JsonIgnore
+    private Long deletedCount;
+    @JsonIgnore
+    private Long unchangedCount;
     @JsonInclude(NON_DEFAULT)
     private String tag;
 
@@ -103,6 +127,58 @@ public class FeatureStatistics extends ModelBasedOutput {
 
     public FeatureStatistics withTag(String tag) {
         setTag(tag);
+        return this;
+    }
+
+    public Long getInsertedCount() {
+        return insertedCount;
+    }
+
+    public void setInsertedCount(Long insertedCount) {
+        this.insertedCount = insertedCount;
+    }
+
+    public FeatureStatistics withInsertedCount(Long insertedCount) {
+        setInsertedCount(insertedCount);
+        return this;
+    }
+
+    public Long getUpdatedCount() {
+        return updatedCount;
+    }
+
+    public void setUpdatedCount(Long updatedCount) {
+        this.updatedCount = updatedCount;
+    }
+
+    public FeatureStatistics withUpdatedCount(Long updatedCount) {
+        setUpdatedCount(updatedCount);
+        return this;
+    }
+
+    public Long getDeletedCount() {
+        return deletedCount;
+    }
+
+    public void setDeletedCount(Long deletedCount) {
+        this.deletedCount = deletedCount;
+    }
+
+    public FeatureStatistics withDeletedCount(Long deletedCount) {
+        setDeletedCount(deletedCount);
+        return this;
+    }
+
+    public Long getUnchangedCount() {
+        return unchangedCount;
+    }
+
+    public void setUnchangedCount(Long unchangedCount) {
+        this.unchangedCount = unchangedCount;
+    }
+
+    public FeatureStatistics withUnchangedCount(Long unchangedCount) {
+        setUnchangedCount(unchangedCount);
         return this;
     }
 }

@@ -24,7 +24,9 @@ CREATE EXTENSION IF NOT EXISTS plv8;
  * @param {string} json_input The actual payload(s) (of the type that is specified by parameter input_type) to be written by the FeatureWriter
  * @param {string} input_type The type of the JSON input. Possible values: "FeatureCollection", "Features", "Feature", "Modifications"
  * @param {string} author The ID of the user that is committing the change
- * @param {boolean} return_result = false Whether to return all data that has been actually written. If `false` is specified, only an object containing the written count is returned like: `{"count": 42}`
+ * @param {boolean} return_result = false Whether to return all data that has been actually written. If `false` is specified, only an object containing the counts is returned like: `{"count": 42, "inserted": 30, "updated": 10, "deleted": 5}`
+ *  "count" is the number of resulting features (deleted ones excluded, unchanged ones included), "inserted", "updated" and "deleted" are the numbers of features which were actually written that way.
+ *  "deleted" only counts features which were visible before: the deletion of a feature which did not exist (or was deleted already) is not counted, even if a deletion marker was written for it.
  * @param {number} version = null The version number to be used for the change. That must be a version larger than the current HEAD version or the current HEAD version. If not specified, HEAD + 1 will be used by default
  * @throws VersionConflictError, MergeConflictError, FeatureExistsError
  */
@@ -76,7 +78,14 @@ $BODY$
       else
         throw new Error("Invalid input_type: " + input_type);
 
-      return JSON.stringify(return_result ? result : {count: result.features.length});
+      //The deletion markers written for features which were not visible before did not change what the space shows
+      const invisible = result.invisibleDeletions || {inserted: 0, updated: 0, deleted: 0};
+      return JSON.stringify(return_result ? result : {
+        count: result.features.length,
+        inserted: result.inserted.length - invisible.inserted,
+        updated: result.updated.length - invisible.updated,
+        deleted: result.deleted.length - invisible.deleted
+      });
     }
     catch (error) {
       if (!error.code)

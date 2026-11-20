@@ -72,13 +72,13 @@ public class TaskedSpaceBasedQueryBuilder extends DatabaseStepQueryBuilder {
                       COALESCE(task_output, '{}'::JSONB) || #{taskUpdate}::JSONB
                   ) || jsonb_build_object(
                       'taskOutput',
-                      COALESCE(task_output->'taskOutput', '{}'::JSONB)
-                      || COALESCE((#{taskUpdate}::JSONB)->'taskOutput', '{}'::JSONB)
+                      ${{taskOutputMerge}}
                   )
                   WHERE task_id = #{taskId} AND ${{updateCondition}};
             """)
             .withVariable("schema", schema)
             .withVariable("table", getTemporaryJobTableName())
+            .withQueryFragment("taskOutputMerge", buildTaskOutputMergeExpression())
             .withQueryFragment("updateCondition", buildTaskOutputUpdateCondition())
             .withNamedParameter("taskId", update.taskId)
             .withNamedParameter("taskUpdate", XyzSerializable.serialize(update));
@@ -86,6 +86,14 @@ public class TaskedSpaceBasedQueryBuilder extends DatabaseStepQueryBuilder {
 
   protected SQLQuery buildTaskOutputUpdateCondition() {
     return new SQLQuery("TRUE");
+  }
+
+  /**
+   * The expression for the new {@code taskOutput} of a task, after a non-final update. By default, the properties of the update
+   * replace the existing ones. The stored task output is available as {@code task_output}, the update as {@code #{taskUpdate}}.
+   */
+  protected SQLQuery buildTaskOutputMergeExpression() {
+    return new SQLQuery("COALESCE(task_output->'taskOutput', '{}'::JSONB) || COALESCE((#{taskUpdate}::JSONB)->'taskOutput', '{}'::JSONB)");
   }
 
   public SQLQuery buildResetTaskItemWhichAreNotFinalizedStatement() {
