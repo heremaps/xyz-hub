@@ -284,8 +284,8 @@ public class GraphTransformer {
         TaskState.builder());
     if (step instanceof RunEmrJob emrStep)
       compile(emrStep, state);
-    else if ( step instanceof EcsTaskStep ecsTaskStep )
-      compile( ecsTaskStep, state);
+    else if (step instanceof EcsTaskStep ecsTaskStep)
+      compile(ecsTaskStep, state);
     else if (step instanceof LambdaBasedStep lambdaStep)
       compile(lambdaStep, state);
     else
@@ -352,8 +352,7 @@ public class GraphTransformer {
       return;
     }
 
-    taskParametersLookup.put(state.stateName, ecsTaskStep.getEcsTaskConfig( ecsTaskStep.serialize() ));
-
+    taskParametersLookup.put(state.stateName, ecsTaskStep.getEcsTaskConfig(ecsTaskStep.serialize()));
     state.stateBuilder.resource(ECS_INVOKE_RESOURCE);
   }
 

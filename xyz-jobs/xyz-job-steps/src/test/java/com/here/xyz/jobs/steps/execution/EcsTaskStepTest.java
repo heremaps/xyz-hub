@@ -94,6 +94,15 @@ class EcsTaskStepTest {
   }
 
   @Test
+  void blankAssignPublicIpIsUnset() {
+    Config.instance.ECS_ASSIGN_PUBLIC_IP = " ";
+
+    Map<String, Object> network = (Map<String, Object>) new EcsTaskStep().getEcsTaskConfig("somePayload").get("NetworkConfiguration");
+
+    assertEquals("DISABLED", ((Map<String, Object>) network.get("AwsvpcConfiguration")).get("AssignPublicIp"));
+  }
+
+  @Test
   void completeConfiguration() {
     assertDoesNotThrow(EcsTaskStep::checkConfiguration);
   }

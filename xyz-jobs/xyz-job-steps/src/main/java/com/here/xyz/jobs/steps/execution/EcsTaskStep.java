@@ -1,57 +1,71 @@
+/*
+ * Copyright (C) 2017-2026 HERE Europe B.V.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ * License-Filename: LICENSE
+ */
+
 package com.here.xyz.jobs.steps.execution;
-
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class EcsTaskStep extends SyncLambdaStep<EcsTaskStep> {
-
   private static final Logger logger = LogManager.getLogger();
-
-  private Map<String,Object> ecsTaskConfig;
+  private Map<String, Object> ecsTaskConfig;
+  private String additionalEcsInfo;
 
   public void setEcsTaskConfig(Map<String, Object> ecsTaskConfig) {
     this.ecsTaskConfig = ecsTaskConfig;
   }
 
-  private String additionalEcsInfo;
-
   public String getAdditionalEcsInfo() {
-	return additionalEcsInfo;
+    return additionalEcsInfo;
   }
 
   public void setAdditionalEcsInfo(String additionalEcsInfo) {
-	this.additionalEcsInfo = additionalEcsInfo;
+    this.additionalEcsInfo = additionalEcsInfo;
   }
 
   public EcsTaskStep withAdditionalEcsInfo(String additionalEcsInfo) {
-	setAdditionalEcsInfo( additionalEcsInfo );
+    setAdditionalEcsInfo(additionalEcsInfo);
     return this;
   }
 
-  public Map<String,Object> getEcsTaskConfig( String payload )
-  {
-   if( ecsTaskConfig == null)
-    ecsTaskConfig = defaultEcsTaskConfig();
+  public Map<String, Object> getEcsTaskConfig(String payload) {
+    if (ecsTaskConfig == null)
+      ecsTaskConfig = defaultEcsTaskConfig();
 
-    ecsTaskConfig = new HashMap<String,Object>(ecsTaskConfig); // orig possibly immutable
+    //The original map may be immutable
+    ecsTaskConfig = new HashMap<>(ecsTaskConfig);
 
     ecsTaskConfig.put("Overrides", Map.of(
-          "ContainerOverrides", List.of(
+        "ContainerOverrides", List.of(
             Map.of(
-              "Name", requiredSetting("ECS_CONTAINER_NAME", Config.instance.ECS_CONTAINER_NAME),
-              "Environment", List.of(Map.of("Name","EcsTaskStep","Value",payload ))
-          ))
-      ));
+                "Name", requiredSetting("ECS_CONTAINER_NAME", Config.instance.ECS_CONTAINER_NAME),
+                "Environment", List.of(Map.of("Name", "EcsTaskStep", "Value", payload))
+            ))
+    ));
 
-    logger.info(ecsTaskConfig);
+    logger.info("[{}] Created the RunTask parameters of the step.", getGlobalStepId());
 
     return ecsTaskConfig;
   }
@@ -70,7 +84,8 @@ public class EcsTaskStep extends SyncLambdaStep<EcsTaskStep> {
             "AwsvpcConfiguration", Map.of(
                 "Subnets", requiredList("ECS_SUBNETS", config.ecsSubnets()),
                 "SecurityGroups", requiredList("ECS_SECURITY_GROUPS", config.ecsSecurityGroups()),
-                "AssignPublicIp", config.ECS_ASSIGN_PUBLIC_IP != null ? config.ECS_ASSIGN_PUBLIC_IP : "DISABLED"
+                "AssignPublicIp", config.ECS_ASSIGN_PUBLIC_IP != null && !config.ECS_ASSIGN_PUBLIC_IP.isBlank()
+                    ? config.ECS_ASSIGN_PUBLIC_IP : "DISABLED"
             )
         )
     );
@@ -97,67 +112,51 @@ public class EcsTaskStep extends SyncLambdaStep<EcsTaskStep> {
     return values;
   }
 
-    @Override
-    public int getEstimatedExecutionSeconds() {
-        return 60 * 60 * 6; // 6h
-    }
+  @Override
+  public int getEstimatedExecutionSeconds() {
+    return 60 * 60 * 6; //6h
+  }
 
-    @Override
-    public String getDescription() {
-        return "stepfunction running as standalone task on ecs";
-    }
+  @Override
+  public String getDescription() {
+    return "stepfunction running as standalone task on ecs";
+  }
 
-    @Override
-    public void execute(boolean resume) throws Exception {
+  @Override
+  public void execute(boolean resume) throws Exception {
+    logger.info("[{}] execute -> {}", getGlobalStepId(), getAdditionalEcsInfo());
+  }
 
-     // if( Config.instance.LOCALSTACK_ENDPOINT != null ) {}
-     logger.info("execute ->" + getAdditionalEcsInfo());
-
-    }
-
-    @Override
-    public boolean validate() throws ValidationException {
-    super.validate();
-
+  @Override
+  public boolean validate() throws ValidationException {
     return true;
   }
 
+  /**
+   * The entrypoint of the ECS task's container (see ecs.java.dockerfile).
+   * Reads the step from the environment variable "EcsTaskStep" and executes it.
+   */
   public static void main(String[] args) {
+    try {
+      //Initialize Config from environment variables, as the step lambda does (LambdaBasedStepExecutor). The steps read it on construction.
+      if (Config.instance == null) {
+        XyzSerializable.fromMap(Map.copyOf(System.getenv()), Config.class);
+        LambdaBasedStepExecutor.loadPlugins();
+      }
 
-   int i = 0;
-   for (String arg : args) {
-    logger.info( String.format( "%d - %s", i, arg ) );
-   }
+      LambdaBasedStep<?> step = XyzSerializable.deserialize(System.getenv("EcsTaskStep"), LambdaBasedStep.class);
 
-
-   String inputJson = System.getenv("EcsTaskStep");
-   logger.info( String.format( "Env->[%s]", inputJson ) );
-
-   try {
-    //Initialize Config from environment variables, as the step lambda does (LambdaBasedStepExecutor). The steps read it on construction.
-    if (Config.instance == null) {
-      XyzSerializable.fromMap(Map.copyOf(System.getenv()), Config.class);
-      LambdaBasedStepExecutor.loadPlugins();
+      if (step instanceof EcsTaskStep ecsTaskStep) {
+        logger.info("[{}] Starting the execution of the step ...", ecsTaskStep.getGlobalStepId());
+        ecsTaskStep.execute(false);
+        logger.info("[{}] Execution of the step has been completed.", ecsTaskStep.getGlobalStepId());
+      }
+      else
+        throw new ValidationException(String.format("class %s must be instanceof EcsTaskStep", step.getClass().getCanonicalName()));
     }
-
-    LambdaBasedStep<?> lr = XyzSerializable.deserialize(inputJson, LambdaBasedStep.class);
-
-    if( lr instanceof EcsTaskStep ecst )
-    {
-      ecst.execute(false);
-      EcsTaskStep.logger.info("ecst.execute(false);");
+    catch (Exception e) {
+      logger.error("Error executing the ECS task step.", e);
+      System.exit(1);
     }
-    else
-    {
-     EcsTaskStep.logger.info("--->>> " + lr.getClass().getCanonicalName() );
-     throw new ValidationException(String.format("class %s must be instanceof EcsTaskStep",lr.getClass().getCanonicalName()));
-    }
-
-   } catch (Exception e) {
-	   logger.error("", e);
-     System.exit(1);
-   }
-
   }
-
 }

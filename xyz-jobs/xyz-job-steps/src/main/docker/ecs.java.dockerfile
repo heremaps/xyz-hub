@@ -20,8 +20,5 @@ WORKDIR /opt/EcsTaskStep
 COPY xyz-jobs/xyz-job-steps/target/xyz-job-steps-fat.jar .
 ADD xyz-jobs/xyz-job-steps/src/main/docker/ecs.java.dockerfile /
 
-#COPY ./xyz-job-steps-fat.jar .
-#ADD ./ecs.java.dockerfile /
-
 #The shell expands JAVA_OPTS (JVM settings of the task definition), exec keeps java as PID 1 to receive the stop signal
 ENTRYPOINT [ "sh", "-c", "exec java $JAVA_OPTS -cp xyz-job-steps-fat.jar com.here.xyz.jobs.steps.execution.EcsTaskStep \"$@\"", "--" ]
