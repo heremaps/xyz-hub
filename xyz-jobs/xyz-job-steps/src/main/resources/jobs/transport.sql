@@ -1206,6 +1206,8 @@ $BODY$;
  */
 --super_bound_version was added; without dropping the old signature, a reused versioned schema keeps both overloads and 9-arg calls become ambiguous
 DROP FUNCTION IF EXISTS execute_express_import_batch(REGCLASS, REGCLASS, REGCLASS, TEXT, BIGINT, NUMERIC, TEXT, BIGINT, BOOLEAN);
+--The written counts were added to the result; CREATE OR REPLACE can not change the result columns of an existing function
+DROP FUNCTION IF EXISTS execute_express_import_batch(REGCLASS, REGCLASS, REGCLASS, TEXT, BIGINT, NUMERIC, TEXT, BIGINT, BOOLEAN, BIGINT);
 CREATE OR REPLACE FUNCTION execute_express_import_batch(
         source_tbl REGCLASS,
         target_tbl REGCLASS,
@@ -1223,7 +1225,11 @@ RETURNS TABLE(
         pulled_bytes BIGINT,
         selected_range_start BIGINT,
         selected_range_end BIGINT,
-        finished BOOLEAN
+        finished BOOLEAN,
+        --The features this batch has written, by the operation as it ended up in the target
+        inserted_count BIGINT,
+        updated_count BIGINT,
+        deleted_count BIGINT
     )
     LANGUAGE 'plpgsql'
     VOLATILE
@@ -1241,6 +1247,7 @@ DECLARE
     super_version_predicate TEXT;
     sql_text TEXT;
     has_stale_head BOOLEAN;
+    written_deletions BIGINT;
     is_composite BOOLEAN := super_tbl IS NOT NULL;
     is_old_layout BOOLEAN;
 BEGIN
@@ -1286,6 +1293,9 @@ BEGIN
     selected_range_start := NULL;
     selected_range_end := NULL;
     finished := false;
+    inserted_count := 0;
+    updated_count := 0;
+    deleted_count := 0;
 
     DROP TABLE IF EXISTS pg_temp.xyz_express_import_batch;
     CREATE TEMP TABLE xyz_express_import_batch (
@@ -1462,7 +1472,10 @@ BEGIN
                                END
                            WHEN target_live THEN 'D'
                            ELSE NULL
-                       END::CHAR AS operation
+                       END::CHAR AS operation,
+                       --Whether the space showed the feature before: its row is no deletion, or only the base space has it
+                       (target_exists AND target_operation NOT IN ('D', 'H', 'J'))
+                           OR (NOT target_exists AND super_exists) AS visible_before
                   FROM state
             )
             SELECT classified.*,
@@ -1537,6 +1550,18 @@ BEGIN
                 ),
                 geo = EXCLUDED.geo
         $fmt$, target_tbl) USING current_version, author, batch_timestamp;
+
+        /*
+         * With history, every UPSERT gets written as a new version (also if it does not differ from the previous one).
+         * The counts tell what happened to the feature as the space shows it (see visible_before), so the deletion of a
+         * feature which was not visible is written (as a marker), but not counted as deleted.
+         */
+        SELECT COUNT(*) FILTER (WHERE NOT is_deleted AND NOT visible_before),
+               COUNT(*) FILTER (WHERE NOT is_deleted AND visible_before),
+               COUNT(*) FILTER (WHERE is_deleted AND visible_before)
+          INTO inserted_count, updated_count, deleted_count
+          FROM pg_temp.xyz_express_import_writes
+         WHERE action = 'UPSERT';
     ELSE
         sql_text := format($fmt$
             CREATE TEMP TABLE xyz_express_import_writes ON COMMIT DROP AS
@@ -1544,6 +1569,9 @@ BEGIN
                    t.id IS NOT NULL AS target_exists,
                    t.id IS NOT NULL AND t.operation != 'D' AS target_live,
                    s.id IS NOT NULL AS super_exists,
+                   --Whether the space showed the feature before: its row is no deletion, or only the base space has it
+                   (t.id IS NOT NULL AND t.operation NOT IN ('D', 'H', 'J'))
+                       OR (t.id IS NULL AND s.id IS NOT NULL) AS visible_before,
                    CASE
                        WHEN NOT f.is_deleted THEN 'UPSERT'
                        WHEN $1 != 'DEFAULT' THEN CASE WHEN t.id IS NOT NULL THEN 'DELETE' ELSE 'NOOP' END
@@ -1572,43 +1600,68 @@ BEGIN
             target_tbl
         );
 
+        --The counts tell what happened to the feature as the space shows it (see visible_before), so removing a deletion marker
+        --(context EXTENSION) is not counted as a deletion
+        SELECT COUNT(*)
+          INTO deleted_count
+          FROM pg_temp.xyz_express_import_writes
+         WHERE action = 'DELETE'
+           AND visible_before;
+
+        /*
+         * Without history, an UPSERT of an existing feature is skipped if it does not differ (see the WHERE of the
+         * ON CONFLICT clause). Only the rows which were actually written are returned, so they are the ones counted.
+         * The deletion of a feature which was not visible is written (as a marker), but not counted as deleted.
+         */
         EXECUTE format($fmt$
-            INSERT INTO %1$s AS tbl
-                (id, version, operation, author, jsondata, geo)
-            SELECT w.feature_id,
-                   $1,
-                   w.operation,
-                   $2,
-                   jsonb_set(
-                       w.normalized_jsondata,
-                       '{properties,@ns:com:here:xyz}',
-                       COALESCE(
-                           w.normalized_jsondata#>'{properties,@ns:com:here:xyz}',
-                           '{}'::JSONB
-                       ) || jsonb_build_object(
-                           'createdAt', $3,
-                           'updatedAt', $3
+            WITH written AS (
+                INSERT INTO %1$s AS tbl
+                    (id, version, operation, author, jsondata, geo)
+                SELECT w.feature_id,
+                       $1,
+                       w.operation,
+                       $2,
+                       jsonb_set(
+                           w.normalized_jsondata,
+                           '{properties,@ns:com:here:xyz}',
+                           COALESCE(
+                               w.normalized_jsondata#>'{properties,@ns:com:here:xyz}',
+                               '{}'::JSONB
+                           ) || jsonb_build_object(
+                               'createdAt', $3,
+                               'updatedAt', $3
+                           ),
+                           true
                        ),
-                       true
-                   ),
-                   w.normalized_geo
-              FROM pg_temp.xyz_express_import_writes w
-             WHERE w.action = 'UPSERT'
-            ON CONFLICT (id, next_version) DO UPDATE SET
-                version = greatest(tbl.version, EXCLUDED.version),
-                operation = CASE WHEN EXCLUDED.operation = 'H' THEN 'J' ELSE 'U' END,
-                author = EXCLUDED.author,
-                jsondata = jsonb_set(
-                    EXCLUDED.jsondata,
-                    '{properties,@ns:com:here:xyz,createdAt}',
-                    tbl.jsondata#>'{properties,@ns:com:here:xyz,createdAt}'
-                ),
-                geo = EXCLUDED.geo
-            WHERE
-                EXCLUDED.jsondata #- ARRAY['properties', '@ns:com:here:xyz']
-                    IS DISTINCT FROM tbl.jsondata #- ARRAY['properties', '@ns:com:here:xyz']
-                OR EXCLUDED.geo IS DISTINCT FROM tbl.geo
-        $fmt$, target_tbl) USING current_version, author, batch_timestamp;
+                       w.normalized_geo
+                  FROM pg_temp.xyz_express_import_writes w
+                 WHERE w.action = 'UPSERT'
+                ON CONFLICT (id, next_version) DO UPDATE SET
+                    version = greatest(tbl.version, EXCLUDED.version),
+                    operation = CASE WHEN EXCLUDED.operation = 'H' THEN 'J' ELSE 'U' END,
+                    author = EXCLUDED.author,
+                    jsondata = jsonb_set(
+                        EXCLUDED.jsondata,
+                        '{properties,@ns:com:here:xyz,createdAt}',
+                        tbl.jsondata#>'{properties,@ns:com:here:xyz,createdAt}'
+                    ),
+                    geo = EXCLUDED.geo
+                WHERE
+                    EXCLUDED.jsondata #- ARRAY['properties', '@ns:com:here:xyz']
+                        IS DISTINCT FROM tbl.jsondata #- ARRAY['properties', '@ns:com:here:xyz']
+                    OR EXCLUDED.geo IS DISTINCT FROM tbl.geo
+                RETURNING tbl.id
+            )
+            SELECT COUNT(*) FILTER (WHERE NOT w.is_deleted AND NOT w.visible_before),
+                   COUNT(*) FILTER (WHERE NOT w.is_deleted AND w.visible_before),
+                   COUNT(*) FILTER (WHERE w.is_deleted AND w.visible_before)
+              FROM written
+              JOIN pg_temp.xyz_express_import_writes w ON w.feature_id = written.id
+        $fmt$, target_tbl)
+        INTO inserted_count, updated_count, written_deletions
+        USING current_version, author, batch_timestamp;
+
+        deleted_count := deleted_count + written_deletions;
     END IF;
 
     RETURN NEXT;
@@ -1713,6 +1766,12 @@ BEGIN
                         'endI', batch_result.selected_range_end
                     ),
                     'expressImport', true,
+                    --The features written by this batch, the stored task output sums them up (see ImportQueryBuilder)
+                    'written', jsonb_build_object(
+                        'inserted', batch_result.inserted_count,
+                        'updated', batch_result.updated_count,
+                        'deleted', batch_result.deleted_count
+                    ),
                     'rows', batch_result.pulled_count,
                     'bytes', batch_result.pulled_bytes,
                     'oversizedSingleton',
@@ -1780,7 +1839,7 @@ BEGIN
 	$wrappedinner$
 	DECLARE
         feature_collection TEXT;
-        featureCount INT := 0;
+        write_result JSONB;
         pulled_count INT := 0;
         pulled_bytes BIGINT := 0;
         selected_range_start BIGINT := NULL;
@@ -1903,7 +1962,7 @@ BEGIN
                   ERRCODE = 'XYZ40';
         END IF;
 
-        SELECT (write_features(
+        SELECT write_features(
                 feature_collection,
                 'FeatureCollection',
                 author,
@@ -1914,11 +1973,8 @@ BEGIN
                 onVersionConflict,
                 onMergeConflict,
                 isPartial
-                )::jsonb ->> 'count')::int
-        INTO featureCount;
-
-        --currently we are not using this
-        --import_statistics := format('%s rows imported', featureCount);
+                )::jsonb
+        INTO write_result;
 
 		PERFORM report_task_progress(
 			 lambda_function_arn,
@@ -1931,6 +1987,12 @@ BEGIN
                     'tmpTableLoaded', false,
                     'startI', selected_range_start,
                     'endI', selected_range_end
+                ),
+                --The features written by this batch, the stored task output sums them up (see ImportQueryBuilder)
+                'written', jsonb_build_object(
+                    'inserted', COALESCE((write_result->>'inserted')::BIGINT, 0),
+                    'updated', COALESCE((write_result->>'updated')::BIGINT, 0),
+                    'deleted', COALESCE((write_result->>'deleted')::BIGINT, 0)
                 ),
 		        'targetVersion', currentVersion,
                 'type', 'ImportOutput'

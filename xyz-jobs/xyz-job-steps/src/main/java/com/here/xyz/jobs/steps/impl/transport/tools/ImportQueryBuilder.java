@@ -67,6 +67,29 @@ public class ImportQueryBuilder extends TaskedSpaceBasedQueryBuilder {
         """);
   }
 
+  /**
+   * Every batch of a task reports the features it has written ({@code written}, see ImportOutput.WrittenFeatures). The stored task
+   * output keeps their sum. Duplicate or outdated updates never reach this, they are rejected by
+   * {@link #buildTaskOutputUpdateCondition()} in the same statement, so a batch is counted once.
+   */
+  @Override
+  protected SQLQuery buildTaskOutputMergeExpression() {
+    return new SQLQuery("""
+        (${{defaultMerge}}) || CASE
+          WHEN (#{taskUpdate}::JSONB) #> '{taskOutput,written}' IS NULL THEN '{}'::JSONB
+          ELSE jsonb_build_object('written', jsonb_build_object(
+            'inserted', COALESCE((task_output #>> '{taskOutput,written,inserted}')::BIGINT, 0)
+                      + COALESCE(((#{taskUpdate}::JSONB) #>> '{taskOutput,written,inserted}')::BIGINT, 0),
+            'updated', COALESCE((task_output #>> '{taskOutput,written,updated}')::BIGINT, 0)
+                      + COALESCE(((#{taskUpdate}::JSONB) #>> '{taskOutput,written,updated}')::BIGINT, 0),
+            'deleted', COALESCE((task_output #>> '{taskOutput,written,deleted}')::BIGINT, 0)
+                      + COALESCE(((#{taskUpdate}::JSONB) #>> '{taskOutput,written,deleted}')::BIGINT, 0)
+          ))
+        END
+        """)
+        .withQueryFragment("defaultMerge", super.buildTaskOutputMergeExpression());
+  }
+
   public SQLQuery buildNextVersionQuery(String versionTable){
     return new SQLQuery("SELECT nextval('${schema}.${sequence}')")
             .withVariable("schema", schema)
