@@ -140,9 +140,9 @@ public class Job implements XyzSerializable {
   private static final Async ASYNC = new Async(100, Job.class);
   private static final Logger logger = LogManager.getLogger();
   /**
-   * How long a job is kept after it succeeded (the default retention).
+   * How long a job is kept after it succeeded (the default retention). Long enough to look at a job that finished over a weekend.
    */
-  public static final long SHORT_RETENTION = TimeUnit.DAYS.toMillis(1);
+  public static final long SHORT_RETENTION = TimeUnit.DAYS.toMillis(3);
   /**
    * How long a job is kept while waiting for its inputs (after its creation), while it is processed (after each state change)
    * and after it failed or was cancelled (to debug and resume it).
