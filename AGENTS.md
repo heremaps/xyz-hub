@@ -42,6 +42,10 @@ xyz-connectors ┘     │                                                      
 `xyz-hub-service` depends on `xyz-job-service`, not the reverse. Apart from the first two modules, only
 `xyz-iceberg-connector` builds next to the main chain, so `mvn -T` gains little.
 
+The Iceberg connector's Lambda artifact is the shaded jar `xyz-iceberg-connector/target/xyz-iceberg-connector-<version>-lambda.jar`
+(classifier `lambda`, handler `com.here.xyz.iceberg.IcebergConnector::handleRequest`), built with
+`mvn -DskipTests -pl xyz-iceberg-connector -am package`. The Hub keeps using the thin jar.
+
 Iceberg reads (`xyz-hub-service` `task/IcebergReadRouting`, `task/IcebergReadMode`): the hub setting `ICEBERG_READS`
 (`OFF` by default, or `ON`) applies to spaces without the internal space property `icebergReads` (`OFF`, `ON` or
 `SHADOW`, admin-only). The `location` of a space's ICEBERG data reference selects the Iceberg table and tag its version
