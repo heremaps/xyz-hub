@@ -108,6 +108,19 @@
             </transformer>
             <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
           </transformers>
+          <artifactSet>
+            <!--Pulled in through xyz-util, unused by the Iceberg connector (no DynamoDB, Secrets Manager, CloudWatch or Aurora access). The v1 KMS client stays, KmsEventDecryptor uses it.-->
+            <excludes>
+              <exclude>software.amazon.awssdk:lambda</exclude>
+              <exclude>software.amazon.awssdk:cloudwatch</exclude>
+              <exclude>software.amazon.awssdk:secretsmanager</exclude>
+              <exclude>com.amazonaws:aws-java-sdk-dynamodb</exclude>
+              <exclude>com.amazonaws:aws-java-sdk-s3</exclude>
+              <exclude>com.amazonaws:aws-java-sdk-secretsmanager</exclude>
+              <!--The connector reads Parquet only; ORC comes in through iceberg-data-->
+              <exclude>org.apache.orc:*</exclude>
+            </excludes>
+          </artifactSet>
           <filters>
             <filter>
               <artifact>*:*</artifact>
@@ -115,6 +128,64 @@
                 <exclude>META-INF/*.SF</exclude>
                 <exclude>META-INF/*.DSA</exclude>
                 <exclude>META-INF/*.RSA</exclude>
+              </excludes>
+            </filter>
+            <!--
+              Lambda's unzipped package limit is 250 MB. Drop what the read-only Parquet/Glue/S3 path never loads:
+              Hadoop's HDFS and YARN clients (MapReduce stays, parquet-hadoop extends its input format), the Curator, Kerby, Avro, Jetty, JLine, Jersey, Nimbus, dnsjava and commons-math parts of the shaded Hadoop runtime, and
+              the native libraries of platforms other than Linux x86_64 and aarch64 (Lambda runs on those two only).
+            -->
+            <filter>
+              <artifact>org.apache.hadoop:*</artifact>
+              <excludes>
+                <exclude>org/apache/hadoop/hdfs/**</exclude>
+                <exclude>org/apache/hadoop/yarn/**</exclude>
+                <exclude>org/apache/hadoop/shaded/org/apache/curator/**</exclude>
+                <exclude>org/apache/hadoop/shaded/org/apache/kerby/**</exclude>
+                <exclude>org/apache/hadoop/shaded/org/apache/avro/**</exclude>
+                <exclude>org/apache/hadoop/shaded/org/xbill/**</exclude>
+                <exclude>org/apache/hadoop/shaded/org/eclipse/**</exclude>
+                <exclude>org/apache/hadoop/shaded/org/jline/**</exclude>
+                <exclude>org/apache/hadoop/shaded/com/nimbusds/**</exclude>
+                <exclude>org/apache/hadoop/shaded/com/sun/jersey/**</exclude>
+                <exclude>org/apache/hadoop/shaded/org/apache/commons/math3/**</exclude>
+                <exclude>yarn-default.xml</exclude>
+                <exclude>webapps/**</exclude>
+              </excludes>
+            </filter>
+            <filter>
+              <artifact>com.github.luben:zstd-jni</artifact>
+              <excludes>
+                <exclude>aix/**</exclude>
+                <exclude>darwin/**</exclude>
+                <exclude>freebsd/**</exclude>
+                <exclude>win/**</exclude>
+                <exclude>linux/arm/**</exclude>
+                <exclude>linux/i386/**</exclude>
+                <exclude>linux/loongarch64/**</exclude>
+                <exclude>linux/mips64/**</exclude>
+                <exclude>linux/ppc64/**</exclude>
+                <exclude>linux/ppc64le/**</exclude>
+                <exclude>linux/riscv64/**</exclude>
+                <exclude>linux/s390x/**</exclude>
+              </excludes>
+            </filter>
+            <filter>
+              <artifact>org.xerial.snappy:snappy-java</artifact>
+              <excludes>
+                <exclude>org/xerial/snappy/native/AIX/**</exclude>
+                <exclude>org/xerial/snappy/native/FreeBSD/**</exclude>
+                <exclude>org/xerial/snappy/native/Mac/**</exclude>
+                <exclude>org/xerial/snappy/native/SunOS/**</exclude>
+                <exclude>org/xerial/snappy/native/Windows/**</exclude>
+                <exclude>org/xerial/snappy/native/Linux/arm/**</exclude>
+                <exclude>org/xerial/snappy/native/Linux/armv7/**</exclude>
+                <exclude>org/xerial/snappy/native/Linux/ppc64/**</exclude>
+                <exclude>org/xerial/snappy/native/Linux/ppc64le/**</exclude>
+                <exclude>org/xerial/snappy/native/Linux/s390x/**</exclude>
+                <exclude>org/xerial/snappy/native/Linux/x86/**</exclude>
+                <exclude>org/xerial/snappy/native/Linux/riscv64/**</exclude>
+                <exclude>org/xerial/snappy/native/Linux/loongarch64/**</exclude>
               </excludes>
             </filter>
           </filters>
