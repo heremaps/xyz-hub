@@ -33,7 +33,8 @@ import java.util.List;
  */
 @JsonSubTypes({
     @JsonSubTypes.Type(value = CompressFiles.class),
-    @JsonSubTypes.Type(value = S3MetricsCollectorStep.class)
+    @JsonSubTypes.Type(value = S3MetricsCollectorStep.class),
+    @JsonSubTypes.Type(value = EcsTaskStep.class)
 })
 public abstract class SyncLambdaStep<T extends SyncLambdaStep> extends LambdaBasedStep<T> {
 

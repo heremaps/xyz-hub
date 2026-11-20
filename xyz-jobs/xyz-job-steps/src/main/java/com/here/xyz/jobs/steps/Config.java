@@ -89,7 +89,50 @@ public class Config extends BaseConfig {
    */
   public Integer FEATURE_WRITER_IMPORT_MAX_TASKS_PER_DB;
 
+  /**
+   * The ARN of the ECS cluster that runs the standalone (Fargate) tasks of the EcsTaskStep
+   */
+  public String ECS_CLUSTER_ARN;
+
+  /**
+   * The task definition (family[:revision] or ARN) of the EcsTaskStep's tasks
+   */
+  public String ECS_TASK_DEFINITION;
+
+  /**
+   * The name of the container in the task definition that receives the step payload
+   */
+  public String ECS_CONTAINER_NAME;
+
+  /**
+   * A comma separated list of the subnet IDs the EcsTaskStep's tasks run in
+   */
+  public String ECS_SUBNETS;
+
+  /**
+   * A comma separated list of the security group IDs of the EcsTaskStep's tasks
+   */
+  public String ECS_SECURITY_GROUPS;
+
+  /**
+   * Whether the EcsTaskStep's tasks get a public IP (ENABLED or DISABLED). Default: DISABLED
+   */
+  public String ECS_ASSIGN_PUBLIC_IP;
+
   public List<String> stepPlugins() {
     return fromCommaSeparatedList(STEP_PLUGINS);
+  }
+
+  public List<String> ecsSubnets() {
+    return nonEmpty(fromCommaSeparatedList(ECS_SUBNETS));
+  }
+
+  public List<String> ecsSecurityGroups() {
+    return nonEmpty(fromCommaSeparatedList(ECS_SECURITY_GROUPS));
+  }
+
+  //An empty setting (e.g. a deployment without ECS tasks) yields an empty list
+  private static List<String> nonEmpty(List<String> values) {
+    return values.stream().filter(value -> !value.isEmpty()).toList();
   }
 }

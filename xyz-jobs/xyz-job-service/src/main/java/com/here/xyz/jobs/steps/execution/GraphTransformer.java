@@ -56,6 +56,7 @@ public class GraphTransformer {
 
   private static final String LAMBDA_INVOKE_RESOURCE = "arn:aws:states:::lambda:invoke";
   private static final String EMR_INVOKE_RESOURCE = "arn:aws:states:::emr-serverless:startJobRun.sync";
+  private static final String ECS_INVOKE_RESOURCE = "arn:aws:states:::ecs:runTask.sync";
   private static final int STATE_MACHINE_EXECUTION_TIMEOUT_SECONDS = 7 * 24 * 3600; //7d
   private static final int EMR_EXECUTION_TIMEOUT_MINUTES = 12 * 60; //6h
   private static final int MIN_STEP_TIMEOUT_SECONDS = 5 * 60;
@@ -145,6 +146,8 @@ public class GraphTransformer {
           taskState.put("Credentials", Map.of("RoleArn", lambdaParameters.invocationRoleArn));
       }
       else if (resource.equals(EMR_INVOKE_RESOURCE))
+        taskState.put("Parameters", taskParametersLookup.get(taskName));
+      else if (resource.equals(ECS_INVOKE_RESOURCE))
         taskState.put("Parameters", taskParametersLookup.get(taskName));
     }
   }
@@ -281,6 +284,8 @@ public class GraphTransformer {
         TaskState.builder());
     if (step instanceof RunEmrJob emrStep)
       compile(emrStep, state);
+    else if ( step instanceof EcsTaskStep ecsTaskStep )
+      compile( ecsTaskStep, state);
     else if (step instanceof LambdaBasedStep lambdaStep)
       compile(lambdaStep, state);
     else
@@ -339,6 +344,17 @@ public class GraphTransformer {
     if (executionMode == ASYNC)
       state.stateBuilder.heartbeatSeconds(lambdaStep.getStepExecutionHeartBeatTimeoutOverride() == 0 ? STEP_EXECUTION_HEARTBEAT_TIMEOUT_SECONDS :
               lambdaStep.getStepExecutionHeartBeatTimeoutOverride());
+  }
+
+  private void compile(EcsTaskStep ecsTaskStep, NamedState<TaskState.Builder> state) {
+    if (Config.instance.LOCALSTACK_ENDPOINT != null) {
+      compile((LambdaBasedStep<?>) ecsTaskStep, state);
+      return;
+    }
+
+    taskParametersLookup.put(state.stateName, ecsTaskStep.getEcsTaskConfig( ecsTaskStep.serialize() ));
+
+    state.stateBuilder.resource(ECS_INVOKE_RESOURCE);
   }
 
   private void compile(RunEmrJob emrStep, NamedState<TaskState.Builder> state) {
