@@ -31,7 +31,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -111,33 +110,87 @@ class SpaceTaskHandlerTest {
   }
 
   @Test
+  void stripsAClientSuppliedTableNameWhenUniqueTableNamesAreDisabled() {
+    Service.configuration.ENABLE_UNIQUE_PHYSICAL_TABLE_NAMES = false;
+    useConnector(embeddedConnector(PSQL_CONNECTOR_CLASS_NAME, Map.of(LAZY_TABLE_CREATION, true)));
+    Space result = createSpace(Map.of(TABLE_NAME, "client_table"));
+    Space resultWithOtherParam = createSpace(Map.of(TABLE_NAME, "client_table", "otherParam", "value"));
+
+    //The table name is derived from the space ID, and such a space is never lazy
+    assertNull(result.getStorage().getParams());
+    assertEquals(Map.of("otherParam", "value"), resultWithOtherParam.getStorage().getParams());
+  }
+
+  @Test
   void preservesThePersistedTableNameOnUpdate() {
-    ModifySpaceOp modifyOp = new ModifySpaceOp(List.of(new HashMap<>(Map.of("id", "my-space"))), CREATE, PATCH, true, false);
-    Space head = spaceWithParams(Map.of(TABLE_NAME, "persisted_table"));
     Space result = spaceWithParams(Map.of(TABLE_NAME, "replacement_table", "otherParam", "value"));
-    modifyOp.entries.get(0).head = head;
-    modifyOp.entries.get(0).result = result;
-    ConditionalOperation task = new ConditionalOperation(routingContext(), ApiResponseType.EMPTY, modifyOp, false);
 
-    SpaceTaskHandler.assignTableName(task, successfulCallback());
+    update(spaceWithParams(Map.of(TABLE_NAME, "persisted_table")), result);
 
-    assertEquals("persisted_table", result.getStorage().getParams().get(TABLE_NAME));
-    assertEquals("value", result.getStorage().getParams().get("otherParam"));
+    assertEquals(Map.of(TABLE_NAME, "persisted_table", "otherParam", "value"), result.getStorage().getParams());
   }
 
   @Test
   void doesNotAllowAddingATableNameToALegacySpaceOnUpdate() {
-    ModifySpaceOp modifyOp = new ModifySpaceOp(List.of(new HashMap<>(Map.of("id", "legacy-space"))), CREATE, PATCH, true, false);
-    Space head = spaceWithParams(null);
     Space result = spaceWithParams(Map.of(TABLE_NAME, "replacement_table", "otherParam", "value"));
-    modifyOp.entries.get(0).head = head;
-    modifyOp.entries.get(0).result = result;
 
-    SpaceTaskHandler.assignTableName(
-        new ConditionalOperation(routingContext(), ApiResponseType.EMPTY, modifyOp, false), successfulCallback());
+    update(spaceWithParams(null), result);
 
     assertFalse(result.getStorage().getParams().containsKey(TABLE_NAME));
     assertEquals("value", result.getStorage().getParams().get("otherParam"));
+  }
+
+  @Test
+  void doesNotAllowRemovingTheTableNameOnUpdate() {
+    Map<String, Object> nullTableName = new HashMap<>(Map.of("otherParam", "value"));
+    nullTableName.put(TABLE_NAME, null);
+    Space withoutTableName = spaceWithParams(Map.of("otherParam", "value"));
+    Space withoutParams = spaceWithParams(null);
+    Space withNullTableName = spaceWithParams(nullTableName);
+
+    for (Space result : List.of(withoutTableName, withoutParams, withNullTableName))
+      update(spaceWithParams(Map.of(TABLE_NAME, "persisted_table")), result);
+
+    assertEquals(Map.of(TABLE_NAME, "persisted_table", "otherParam", "value"), withoutTableName.getStorage().getParams());
+    assertEquals(Map.of(TABLE_NAME, "persisted_table"), withoutParams.getStorage().getParams());
+    assertEquals(Map.of(TABLE_NAME, "persisted_table", "otherParam", "value"), withNullTableName.getStorage().getParams());
+  }
+
+  @Test
+  void keepsTheLazyTableFlagOfAUniquelyNamedSpaceOnUpdate() {
+    Space result = spaceWithParams(Map.of(TABLE_NAME, "other_table", LAZY_TABLE, false));
+    Space resultWithoutFlag = spaceWithParams(Map.of(TABLE_NAME, "persisted_table"));
+
+    update(spaceWithParams(Map.of(TABLE_NAME, "persisted_table", LAZY_TABLE, true)), result);
+    update(spaceWithParams(Map.of(TABLE_NAME, "persisted_table", LAZY_TABLE, true)), resultWithoutFlag);
+
+    assertEquals(Map.of(TABLE_NAME, "persisted_table", LAZY_TABLE, true), result.getStorage().getParams());
+    assertEquals(Map.of(TABLE_NAME, "persisted_table", LAZY_TABLE, true), resultWithoutFlag.getStorage().getParams());
+  }
+
+  @Test
+  void preserveTableNameLeavesAResultWithoutStorageToTheValidation() {
+    Space result = new Space();
+    result.setId("my-space");
+
+    update(spaceWithParams(Map.of(TABLE_NAME, "persisted_table")), result);
+
+    assertNull(result.getStorage());
+  }
+
+  @Test
+  void assignTableNameDoesNotTouchUpdates() {
+    ModifySpaceOp modifyOp = new ModifySpaceOp(List.of(new HashMap<>(Map.of("id", "my-space"))), CREATE, PATCH, true, false);
+    Space result = spaceWithParams(Map.of(TABLE_NAME, "replacement_table"));
+    modifyOp.entries.get(0).head = spaceWithParams(Map.of(TABLE_NAME, "persisted_table"));
+    modifyOp.entries.get(0).result = result;
+    AtomicBoolean called = new AtomicBoolean();
+
+    SpaceTaskHandler.assignTableName(new ConditionalOperation(routingContext(), ApiResponseType.EMPTY, modifyOp, false),
+        callback(called));
+
+    assertTrue(called.get(), "The pipeline must continue");
+    assertEquals(Map.of(TABLE_NAME, "replacement_table"), result.getStorage().getParams());
   }
 
   @Test
@@ -205,11 +258,13 @@ class SpaceTaskHandlerTest {
   }
 
   @Test
-  void setsNoLazyTableFlagForAClientSuppliedTableName() {
+  void ignoresAClientSuppliedTableNameAndSetsTheLazyTableFlag() {
     useConnector(embeddedConnector(PSQL_CONNECTOR_CLASS_NAME, Map.of(LAZY_TABLE_CREATION, true)));
     Space result = createSpace(Map.of(TABLE_NAME, "client_table", LAZY_TABLE, true));
 
-    assertEquals(Map.of(TABLE_NAME, "client_table"), result.getStorage().getParams());
+    Object tableName = result.getStorage().getParams().get(TABLE_NAME);
+    assertTrue(tableName instanceof String name && name.matches("[0-9a-f]{32}"), "generated name: " + tableName);
+    assertEquals(Map.of(TABLE_NAME, tableName, LAZY_TABLE, true), result.getStorage().getParams());
   }
 
   @Test
@@ -234,13 +289,14 @@ class SpaceTaskHandlerTest {
   }
 
   @Test
-  void rejectsAReservedTableName() {
+  void ignoresAReservedClientTableName() {
     useConnector(embeddedConnector(PSQL_CONNECTOR_CLASS_NAME, Map.of(LAZY_TABLE_CREATION, true)));
-    ConditionalOperation task = createTask(Map.of(TABLE_NAME, LazySpaceTables.RESERVED_PREFIX + "v1"));
+    Space result = createSpace(Map.of(TABLE_NAME, LazySpaceTables.RESERVED_PREFIX + "v1"));
 
-    IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-        () -> SpaceTaskHandler.assignTableName(task, successfulCallback()));
-    assertTrue(e.getMessage().contains("reserved prefix"));
+    String tableName = (String) result.getStorage().getParams().get(TABLE_NAME);
+    assertTrue(tableName.matches("[0-9a-f]{32}"), "generated name: " + tableName);
+    assertFalse(LazySpaceTables.isReserved(tableName));
+    assertTrue(Space.isLazyTable(result.getStorage().getParams()));
   }
 
   @Test
@@ -263,13 +319,8 @@ class SpaceTaskHandlerTest {
   @Test
   void keepsTheLazyTableFlagOfALegacySpaceOnUpdates() {
     Space head = spaceWithParams(Map.of(LAZY_TABLE, true));
-    for (Space result : List.of(spaceWithParams(null), new Space(), spaceWithParams(Map.of(LAZY_TABLE, false)))) {
-      ModifySpaceOp modifyOp = new ModifySpaceOp(List.of(new HashMap<>(Map.of("id", "my-space"))), CREATE, PATCH, true, false);
-      modifyOp.entries.get(0).head = head;
-      modifyOp.entries.get(0).result = result;
-
-      SpaceTaskHandler.assignTableName(
-          new ConditionalOperation(routingContext(), ApiResponseType.EMPTY, modifyOp, false), successfulCallback());
+    for (Space result : List.of(spaceWithParams(null), spaceWithParams(Map.of(LAZY_TABLE, false)))) {
+      update(head, result);
 
       assertEquals(Map.of(LAZY_TABLE, true), result.getStorage().getParams());
     }
@@ -292,7 +343,23 @@ class SpaceTaskHandlerTest {
   private static Space createSpace(Map<String, Object> params) {
     ConditionalOperation task = createTask(params);
     AtomicBoolean called = new AtomicBoolean();
-    SpaceTaskHandler.assignTableName(task, new Callback<>() {
+    SpaceTaskHandler.assignTableName(task, callback(called));
+    assertTrue(called.get(), "The pipeline must continue");
+    return task.modifyOp.entries.get(0).result;
+  }
+
+  private static void update(Space head, Space result) {
+    ModifySpaceOp modifyOp = new ModifySpaceOp(List.of(new HashMap<>(Map.of("id", "my-space"))), CREATE, PATCH, true, false);
+    modifyOp.entries.get(0).head = head;
+    modifyOp.entries.get(0).result = result;
+    AtomicBoolean called = new AtomicBoolean();
+    SpaceTaskHandler.preserveTableName(new ConditionalOperation(routingContext(), ApiResponseType.EMPTY, modifyOp, false),
+        callback(called));
+    assertTrue(called.get(), "The pipeline must continue");
+  }
+
+  private static Callback<ConditionalOperation> callback(AtomicBoolean called) {
+    return new Callback<>() {
       @Override
       public void exception(Throwable e) {
         throw new AssertionError(e);
@@ -302,9 +369,7 @@ class SpaceTaskHandlerTest {
       public void call(ConditionalOperation value) {
         called.set(true);
       }
-    });
-    assertTrue(called.get(), "The pipeline must continue");
-    return task.modifyOp.entries.get(0).result;
+    };
   }
 
   private static void useConnector(Connector connector) {
