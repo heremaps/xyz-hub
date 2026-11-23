@@ -42,6 +42,8 @@ Each needs everything the ones above it need.
 mvn -o test -DskipTests=false -pl xyz-models,xyz-connectors,xyz-iceberg-connector,xyz-hub-service
 ```
 
+`IcebergConnectorLambdaHandlerTest` covers the Lambda entry point of the Iceberg connector. The `lambda` classifier jar it is deployed as comes from `mvn -DskipTests -pl xyz-iceberg-connector -am package`.
+
 ### 2. Postgres only
 
 ```bash

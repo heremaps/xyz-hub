@@ -539,11 +539,16 @@ public class TaskedImportStepTest extends StepTest {
       sendLambdaStepRequest(step, START_EXECUTION, true);
       waitTillTaskItemsAreFinalized(step);
       long targetVersion = loadTargetVersionOfTaskItems(jobTable);
+      //The final clean-up of the first attempt drops the import trigger asynchronously, after the task items are finalized.
+      //Wait for it, so that it can neither make the DROP below fail nor drop the trigger which the resume recreates.
+      long cleanUpDeadline = System.currentTimeMillis() + 30_000;
+      while (loadImportTriggerDefinition(rootTable) != null && System.currentTimeMillis() < cleanUpDeadline)
+        Thread.sleep(200);
 
       //Rewind to the state of an attempt which failed before its tasks were finalized and whose trigger got dropped
       //in between, as it happens when the script version providing the trigger function gets cleaned up
       runStatements(
-              "DROP TRIGGER insertTrigger ON public.\"" + rootTable + "\"",
+              "DROP TRIGGER IF EXISTS insertTrigger ON public.\"" + rootTable + "\"",
               "DELETE FROM public.\"" + rootTable + "\"",
               "UPDATE public.\"" + jobTable + "\" SET finalized = false, task_output = NULL");
       Assertions.assertNull(loadImportTriggerDefinition(rootTable));
