@@ -974,7 +974,7 @@ components:
           - type: FeatureStatistics
             featureCount: 28075
             byteSize: 409600
-        nextPageToken: eyJwYWdlIjoyfQ==
+        nextPageToken: "<nextPageToken from the previous response>"
 
     InputItemsPage:
       type: object
