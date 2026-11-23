@@ -23,6 +23,7 @@ import static com.here.xyz.jobs.steps.Step.Visibility.SYSTEM;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_EXECUTE;
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_RESUME;
+import static com.here.xyz.util.db.pg.LazySpaceTables.Profile.FULL;
 
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.outputs.CreatedVersion;
@@ -86,7 +87,11 @@ public class GetNextSpaceVersion<T extends GetNextSpaceVersion> extends SpaceBas
     if (resume)
       infoLog(STEP_RESUME,  "resume was called");
     infoLog(STEP_EXECUTE,  String.format("Fetch next version for %s%s", getSpaceId(), resume ? " - resumed" : "") );
-    registerOutputs(List.of(new CreatedVersion().withVersion(setVersionToNextInSequence())), VERSION);
+    materializeTablesOrFail(space(), FULL);
+    long version = setVersionToNextInSequence();
+    //The space has a version now, so its table is no longer lazy
+    clearLazyTableFlag(space());
+    registerOutputs(List.of(new CreatedVersion().withVersion(version)), VERSION);
   }
 
   private long setVersionToNextInSequence() throws SQLException, TooManyResourcesClaimed, XyzWebClient.WebClientException {

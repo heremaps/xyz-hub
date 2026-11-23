@@ -19,11 +19,13 @@
 
 package com.here.xyz.hub.util;
 
+import static com.here.xyz.models.hub.Space.LAZY_TABLE;
 import static com.here.xyz.models.hub.Space.TABLE_NAME;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.generateUniqueTableName;
 
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Space.ConnectorRef;
+import com.here.xyz.util.db.pg.LazySpaceTables;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
@@ -94,6 +96,8 @@ public class SpaceTableResolver {
   /**
    * Copies the immutable physical table identity from one incarnation of a space definition to another.
    * Legacy spaces intentionally keep the property absent so connector-side ID resolution remains in effect.
+   * The lazy-table flag of the source is copied as well (also for legacy spaces), and a flag of the target that the
+   * source does not have is removed.
    *
    * @param source The authoritative space definition
    * @param target The space definition to normalize
@@ -102,17 +106,27 @@ public class SpaceTableResolver {
     if (target == null)
       return;
 
+    boolean lazyTable = source != null && source.getStorage() != null && Space.isLazyTable(source.getStorage().getParams());
     String tableName = getTableName(source);
     if (target.getStorage() == null) {
-      if (tableName == null)
+      if (tableName == null && !lazyTable)
         return;
 
       ConnectorRef sourceStorage = source.getStorage();
       Map<String, Object> sourceParams = sourceStorage.getParams() == null
           ? new HashMap<>()
           : new HashMap<>(sourceStorage.getParams());
+      preserveLazyTable(lazyTable, sourceParams);
       target.setStorage(new ConnectorRef().withId(sourceStorage.getId()).withParams(sourceParams));
       return;
+    }
+
+    //The lazy-table flag is owned by the service: an update always keeps the value of the authoritative definition
+    Map<String, Object> targetParams = target.getStorage().getParams();
+    if (lazyTable || targetParams != null && targetParams.containsKey(LAZY_TABLE)) {
+      Map<String, Object> params = targetParams == null ? new HashMap<>() : new HashMap<>(targetParams);
+      preserveLazyTable(lazyTable, params);
+      target.getStorage().setParams(params.isEmpty() ? null : params);
     }
 
     Map<String, Object> currentParams = target.getStorage().getParams();
@@ -127,6 +141,42 @@ public class SpaceTableResolver {
     target.getStorage().setParams(params.isEmpty() ? null : params);
   }
 
+  private static void preserveLazyTable(boolean lazyTable, Map<String, Object> params) {
+    //Only a boolean true is kept, so that no other value survives an update
+    if (lazyTable)
+      params.put(LAZY_TABLE, true);
+    else
+      params.remove(LAZY_TABLE);
+  }
+
+  /**
+   * Removes a client-supplied lazy-table flag from the storage params of a space that is about to be created.
+   * The flag is set by the service only, see {@link Space#LAZY_TABLE}.
+   *
+   * @param space The space to be created
+   */
+  public static void removeLazyTable(Space space) {
+    if (space == null || space.getStorage() == null || space.getStorage().getParams() == null
+        || !space.getStorage().getParams().containsKey(LAZY_TABLE))
+      return;
+
+    Map<String, Object> params = new HashMap<>(space.getStorage().getParams());
+    params.remove(LAZY_TABLE);
+    space.getStorage().setParams(params.isEmpty() ? null : params);
+  }
+
+  /**
+   * Marks a space that is about to be created as lazy: its table is created by the first write.
+   *
+   * @param space The space to be created
+   */
+  public static void setLazyTable(Space space) {
+    ConnectorRef storage = space.getStorage();
+    Map<String, Object> params = storage.getParams() == null ? new HashMap<>() : new HashMap<>(storage.getParams());
+    params.put(LAZY_TABLE, true);
+    storage.setParams(params);
+  }
+
   /**
    * Returns an incarnation-aware cache identity for a space. Persisted physical table names distinguish recreated
    * spaces, while legacy spaces retain their logical-ID based identity.
@@ -139,26 +189,35 @@ public class SpaceTableResolver {
     return String.valueOf(storageId) + ":" + (tableName != null ? "physical:" + tableName : "legacy:" + space.getId());
   }
 
-  private static void validateTableName(String tableName) {
+  /**
+   * @param tableName A physical table name given by a client
+   * @throws IllegalArgumentException If the name contains a null character, exceeds the maximum identifier length of
+   *     PostgreSQL or starts with the reserved prefix
+   */
+  public static void validateTableName(String tableName) {
     if (tableName.indexOf('\0') >= 0)
       throw new IllegalArgumentException("The physical table name must not contain a null character.");
     if (tableName.getBytes(StandardCharsets.UTF_8).length > POSTGRES_IDENTIFIER_MAX_BYTES)
       throw new IllegalArgumentException(
           "The physical table name must not exceed " + POSTGRES_IDENTIFIER_MAX_BYTES + " UTF-8 bytes.");
+    if (LazySpaceTables.isReserved(tableName))
+      throw new IllegalArgumentException(
+          "The physical table name must not start with the reserved prefix \"" + LazySpaceTables.RESERVED_PREFIX + "\".");
   }
 
   /**
-   * Removes an inherited physical table name from the specified params.
+   * Removes an inherited physical table name and the lazy-table flag from the specified params.
    * <p>
    * That is necessary whenever the storage definition of another space is copied (e.g., for extending spaces),
-   * because the physical table name must never be shared between two spaces.
+   * because the physical table name must never be shared between two spaces, and the flag belongs to the table.
    *
    * @param storageParams The storage params to be sanitized (may be {@code null})
-   * @return A modifiable copy of the specified params without the table name
+   * @return A modifiable copy of the specified params without the table name and without the lazy-table flag
    */
   public static Map<String, Object> withoutTableName(Map<String, Object> storageParams) {
     Map<String, Object> params = storageParams == null ? new HashMap<>() : new HashMap<>(storageParams);
     params.remove(TABLE_NAME);
+    params.remove(LAZY_TABLE);
     return params;
   }
 }

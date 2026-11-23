@@ -20,6 +20,7 @@
 package com.here.xyz.hub.rest;
 
 import com.here.xyz.hub.config.DataReferenceConfigClient;
+import com.here.xyz.hub.config.IcebergVersionCache;
 import com.here.xyz.hub.util.DataReferenceResolver;
 import com.here.xyz.models.hub.DataReference;
 import com.here.xyz.util.service.Core;
@@ -48,6 +49,7 @@ public final class DataReferenceApi extends Api {
 
   private final DataReferenceConfigClient dataReferences = DataReferenceConfigClient.getInstance();
   private final DataReferenceResolver resolver = new DataReferenceResolver(dataReferences);
+  private final IcebergVersionCache icebergVersions = IcebergVersionCache.getInstance();
 
   public DataReferenceApi(RouterBuilder rb) {
     rb.getRoute("createDataReference").setDoValidation(false).addHandler(handle(this::createDataReference, CREATED));
@@ -62,7 +64,8 @@ public final class DataReferenceApi extends Api {
 
     return failIfDataReferenceIsInvalid(dataReference)
       .compose(this::failIfReferenceAlreadyExists)
-      .compose(referenceToCreate -> dataReferences.store(referenceToCreate).map(referenceToCreate::withId));
+      .compose(referenceToCreate -> dataReferences.store(referenceToCreate).map(referenceToCreate::withId))
+      .onSuccess(icebergVersions::invalidateIfIceberg);
   }
 
   private static Future<DataReference> failIfDataReferenceIsInvalid(DataReference dataReference) {
@@ -159,7 +162,12 @@ public final class DataReferenceApi extends Api {
   }
 
   private Future<Void> deleteDataReference(RoutingContext routingContext) {
-    return dataReferences.delete(referenceIdFromRequestPath(routingContext));
+    UUID referenceId = referenceIdFromRequestPath(routingContext);
+    //Load the reference first, to know whether the Iceberg versions of its space must be invalidated
+    return dataReferences.load(referenceId)
+      .recover(t -> Future.succeededFuture(Optional.empty()))
+      .compose(maybeReference -> dataReferences.delete(referenceId)
+        .onSuccess(v -> maybeReference.ifPresent(icebergVersions::invalidateIfIceberg)));
   }
 
   private static UUID referenceIdFromRequestPath(RoutingContext routingContext) {

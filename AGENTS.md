@@ -3,7 +3,8 @@
 Follows the [agents.md](https://agents.md) convention.
 
 Java 17, Maven multi-module. `xyz-hub-service` is the REST service, `xyz-psql-connector` the database layer,
-`xyz-jobs` the import/export/copy jobs, `xyz-hub-test` the REST integration tests.
+`xyz-iceberg-connector` a read-only connector for versions exported to Iceberg tables, `xyz-jobs` the
+import/export/copy jobs, `xyz-hub-test` the REST integration tests.
 
 ## Tests
 
@@ -11,7 +12,7 @@ Read [TESTING.md](TESTING.md) first.
 
 - `-DskipTests=false` is mandatory. `xyz-hub-test` and both `xyz-jobs` modules set `skipTests` to `true` as a
   POM property, so without it they run nothing and still report success.
-- Only `xyz-models`, `xyz-connectors` and `xyz-hub-service` run without containers.
+- Only `xyz-models`, `xyz-connectors`, `xyz-iceberg-connector` and `xyz-hub-service` run without containers.
 - The express-mode import tests (`Express*IT`) need postgres plus `xyz-util`'s **test jar** — they reuse its
   FeatureWriter test framework, so run `mvn install -pl xyz-models,xyz-util -am -DskipTests=true` first. No
   lambda involved.
@@ -34,11 +35,22 @@ time is mostly the image build.
 ```
 xyz-models ──┐
              ├─> xyz-util ─> xyz-psql-connector ─> xyz-job-steps ─> xyz-job-service ─> xyz-hub-service ─> xyz-hub-test
-xyz-connectors ┘
+xyz-connectors ┘     │                                                                  ▲
+                     └─> xyz-iceberg-connector ─────────────────────────────────────────┘
 ```
 
-`xyz-hub-service` depends on `xyz-job-service`, not the reverse. Only the first two modules can build
-concurrently, so `mvn -T` gains nothing.
+`xyz-hub-service` depends on `xyz-job-service`, not the reverse. Apart from the first two modules, only
+`xyz-iceberg-connector` builds next to the main chain, so `mvn -T` gains little.
+
+The Iceberg connector's Lambda artifact is the shaded jar `xyz-iceberg-connector/target/xyz-iceberg-connector-<version>-lambda.jar`
+(classifier `lambda`, handler `com.here.xyz.iceberg.IcebergConnector::handleRequest`), built with
+`mvn -DskipTests -pl xyz-iceberg-connector -am package`. The Hub keeps using the thin jar.
+
+Iceberg reads (`xyz-hub-service` `task/IcebergReadRouting`, `task/IcebergReadMode`): the hub setting `ICEBERG_READS`
+(`OFF` by default, or `ON`) applies to spaces without the internal space property `icebergReads` (`OFF`, `ON` or
+`SHADOW`, admin-only). The `location` of a space's ICEBERG data reference selects the Iceberg table and tag its version
+reads return, and nothing checks it. `/hub/references` must only be open to trusted callers wherever any space reads
+from Iceberg (`ON` or `SHADOW`).
 
 Shared test utilities live in `src/main/java`: `StepTestBase` and `JobTestBase` are used by both job modules.
 

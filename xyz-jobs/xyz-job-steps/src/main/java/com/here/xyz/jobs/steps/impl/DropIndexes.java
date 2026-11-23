@@ -21,6 +21,7 @@ package com.here.xyz.jobs.steps.impl;
 
 import static com.here.xyz.util.db.pg.IndexHelper.buildLoadSpaceTableIndicesQuery;
 import static com.here.xyz.util.db.pg.IndexHelper.buildSpaceTableDropIndexQueries;
+import static com.here.xyz.util.db.pg.LazySpaceTables.Profile.BARE;
 
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.jobs.steps.execution.StepException;
@@ -30,6 +31,7 @@ import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.pg.IndexHelper.Index;
 import com.here.xyz.util.db.pg.IndexHelper.OnDemandIndex;
 import com.here.xyz.util.db.pg.IndexHelper.SystemIndex;
+import com.here.xyz.util.db.pg.LazySpaceTables.MaterializationResult;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -49,6 +51,21 @@ public class DropIndexes extends SpaceBasedStep<DropIndexes> {
   private boolean spaceDeactivation = true;
   //If not set, the step will drop all indexes of the space.
   private List<Index> indexWhiteList;
+  //If set, the tables of a lazy space without tables are created first, with only the whitelisted system indexes
+  private boolean materializeLazyTable = false;
+
+  public boolean isMaterializeLazyTable() {
+    return materializeLazyTable;
+  }
+
+  public void setMaterializeLazyTable(boolean materializeLazyTable) {
+    this.materializeLazyTable = materializeLazyTable;
+  }
+
+  public DropIndexes withMaterializeLazyTable(boolean materializeLazyTable) {
+    setMaterializeLazyTable(materializeLazyTable);
+    return this;
+  }
 
   public List<Index> getIndexWhiteList() {
     return indexWhiteList;
@@ -116,6 +133,17 @@ public class DropIndexes extends SpaceBasedStep<DropIndexes> {
 
   @Override
   public void execute(boolean resume) throws SQLException, TooManyResourcesClaimed, WebClientException {
+    MaterializationResult materialization = MaterializationResult.NOT_LAZY;
+    if (materializeLazyTable) {
+      try {
+        //The tables of a lazy space get only the whitelisted system indexes, the following steps create the others
+        materialization = materializeTablesOrFail(space(), BARE, whitelistedSystemIndexes());
+      }
+      catch (WebClientException e) {
+        throw new StepException("Error while dropping indices for space " + getSpaceId(), e).withRetryable(true);
+      }
+    }
+
     try {
       logger.info("Gathering indices of space " + getSpaceId());
       String tableName = getRootTableName(space());
@@ -125,14 +153,15 @@ public class DropIndexes extends SpaceBasedStep<DropIndexes> {
           buildLoadSpaceTableIndicesQuery(getSchema(db()), tableName), db(), calculateNeededAcus(),
           DropIndexes::getIndicesFromResultSet);
 
-      if (indexes.isEmpty())
+      if (indexes.isEmpty()) {
+        //A materialized lazy space without whitelisted indexes is deactivated as an eager space with indexes would be
+        if (materialization != MaterializationResult.NOT_LAZY)
+          deactivateSpace();
         noIndicesPresent();
+      }
       else {
         /* Shift to */
-        if (spaceDeactivation) {
-          logger.info("[{}] Deactivating the space {} ...", getGlobalStepId(), getSpaceId());
-          hubWebClient().patchSpace(getSpaceId(), Map.of("active", false));
-        }
+        deactivateSpace();
 
         //List of all index names excluding whitelisted indexes
         //This will drop all the indexes (system and on-demand) except for the white-listed ones
@@ -172,6 +201,22 @@ public class DropIndexes extends SpaceBasedStep<DropIndexes> {
         throw new StepException("Unknown index source '" + src + "' for index '" + idxName);
     }
     return result;
+  }
+
+  private void deactivateSpace() throws WebClientException {
+    if (spaceDeactivation) {
+      logger.info("[{}] Deactivating the space {} ...", getGlobalStepId(), getSpaceId());
+      hubWebClient().patchSpace(getSpaceId(), Map.of("active", false));
+    }
+  }
+
+  private List<SystemIndex> whitelistedSystemIndexes() {
+    if (indexWhiteList == null)
+      return List.of();
+    return indexWhiteList.stream()
+        .filter(SystemIndex.class::isInstance)
+        .map(SystemIndex.class::cast)
+        .toList();
   }
 
   private void noIndicesPresent() {

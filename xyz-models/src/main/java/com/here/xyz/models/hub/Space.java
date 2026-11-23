@@ -47,6 +47,11 @@ public class Space {
   public static final int DEFAULT_VERSIONS_TO_KEEP = 1;
   /** Immutable physical storage-table identity persisted in {@link ConnectorRef#getParams() storage parameters}. */
   public static final String TABLE_NAME = "tableName";
+  /**
+   * Storage parameter marking a space whose table has not been created yet. Only a JSON boolean {@code true} is the flag,
+   * see {@link #isLazyTable(Map)}.
+   */
+  public static final String LAZY_TABLE = "lazyTable";
 
   /**
    * Beta release date: 2018-10-01T00:00Z[UTC]
@@ -214,6 +219,14 @@ public class Space {
   @JsonInclude(Include.NON_DEFAULT)
   @JsonView({Internal.class, Static.class})
   private long readOnlyHeadVersion = -1;
+
+  /**
+   * Whether reads of this space's versions which were exported to Iceberg are served by the Iceberg connector: {@code OFF},
+   * {@code ON} or {@code SHADOW}. If not set, the Hub's setting {@code ICEBERG_READS} applies. Only Hub admins may set it.
+   */
+  @JsonInclude(Include.NON_NULL)
+  @JsonView({Internal.class, Static.class})
+  private String icebergReads;
 
   /**
    * A map defined by the user which tells which of the feature-properties to make searchable. The key is the name of the property and the
@@ -532,6 +545,19 @@ public class Space {
     return this;
   }
 
+  public String getIcebergReads() {
+    return icebergReads;
+  }
+
+  public void setIcebergReads(String icebergReads) {
+    this.icebergReads = icebergReads;
+  }
+
+  public Space withIcebergReads(String icebergReads) {
+    setIcebergReads(icebergReads);
+    return this;
+  }
+
   public Map<String, Boolean> getSearchableProperties() {
     return searchableProperties;
   }
@@ -761,11 +787,43 @@ public class Space {
     }
   }
 
+  /**
+   * Tells whether the given storage parameters (or the parameters of one composite level) carry the lazy-table flag.
+   * Only a boolean {@code true} counts; any other value means the space is not lazy.
+   */
+  public static boolean isLazyTable(Map<String, Object> params) {
+    return params != null && Boolean.TRUE.equals(params.get(LAZY_TABLE));
+  }
+
+  /**
+   * Returns the searchable properties that apply to this space: its own if it does not extend another space, otherwise those
+   * of the root base of its extension chain.
+   *
+   * @param extendedSpace The space this space extends, with {@link Extension#resolvedSpace} set if it is an extension itself
+   * @return The effective searchable properties, an empty map if the space that defines them has none, or {@code null} if the
+   *     root base is not known
+   */
+  public Map<String, Boolean> getEffectiveSearchableProperties(Space extendedSpace) {
+    if (getExtension() == null)
+      return searchablePropertiesOrEmpty(this);
+    if (extendedSpace == null)
+      return null;
+    if (extendedSpace.getExtension() == null)
+      return searchablePropertiesOrEmpty(extendedSpace);
+    Space rootBase = extendedSpace.getExtension().resolvedSpace;
+    return rootBase == null ? null : searchablePropertiesOrEmpty(rootBase);
+  }
+
+  private static Map<String, Boolean> searchablePropertiesOrEmpty(Space space) {
+    return space.getSearchableProperties() == null ? Collections.emptyMap() : space.getSearchableProperties();
+  }
+
   public Map<String, Object> resolveCompositeParams(Space extendedSpace) {
     if (getExtension() == null)
       return Collections.emptyMap();
+    String ownStorageId = getStorage() == null ? null : getStorage().getId();
     //Storage params are taken from the input and then resolved based on the extensions
-    final Map<String, Object> extendsMap = resolveExtensionParams(getExtension(), extendedSpace);
+    final Map<String, Object> extendsMap = resolveExtensionParams(getExtension(), extendedSpace, ownStorageId);
 
     //TODO: Remove this once Job-API was fixed to configure that on job-level
     if (extendedSpace != null && extendedSpace.isReadOnly())
@@ -776,17 +834,23 @@ public class Space {
   /**
    * Resolves the connector parameters for one level of a composite-space definition. Explicit physical table names
    * are transported alongside logical space IDs, while legacy spaces without such a name keep using connector-side
-   * space-ID resolution.
+   * space-ID resolution. A level is marked with {@link #LAZY_TABLE} only if it is lazy and has the composite's own storage ID.
    */
-  private static Map<String, Object> resolveExtensionParams(Extension extension, Space extendedSpace) {
+  private static Map<String, Object> resolveExtensionParams(Extension extension, Space extendedSpace, String ownStorageId) {
     Map<String, Object> extensionParams = extension.toMap();
     String tableName = getExplicitTableName(extendedSpace);
     if (tableName != null)
       extensionParams.put(TABLE_NAME, tableName);
+    //A level with another storage ID (normally on another database) is not lazy for this composite:
+    //a missing table there answers 404 as for an eager level
+    if (extendedSpace != null && extendedSpace.getStorage() != null && ownStorageId != null
+        && ownStorageId.equals(extendedSpace.getStorage().getId())
+        && isLazyTable(extendedSpace.getStorage().getParams()))
+      extensionParams.put(LAZY_TABLE, true);
 
     if (extendedSpace != null && extendedSpace.getExtension() != null) {
       Space secondLevelSpace = extendedSpace.getExtension().resolvedSpace;
-      extensionParams.put("extends", resolveExtensionParams(extendedSpace.getExtension(), secondLevelSpace));
+      extensionParams.put("extends", resolveExtensionParams(extendedSpace.getExtension(), secondLevelSpace, ownStorageId));
     }
     return extensionParams;
   }

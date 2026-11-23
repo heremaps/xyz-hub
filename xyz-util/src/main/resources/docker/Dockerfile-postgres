@@ -5,10 +5,12 @@ ENV PGPASSWORD=password
 
 USER root
 
-RUN echo "deb http://deb.debian.org/debian trixie main" >> /etc/apt/sources.list
+#The PostgreSQL modules from trixie must not be newer than the server of the base image (17.1): e.g. plpython3 17.12 needs
+#symbols which the 17.1 server doesn't have (heap_datum_check). So trixie is frozen to a snapshot with PostgreSQL 17.11.
+RUN echo "deb [check-valid-until=no] http://snapshot.debian.org/archive/debian/20261120T000000Z trixie main" >> /etc/apt/sources.list
 
 RUN apt-get update && \
-    apt-get -y install postgresql-17-postgis-3 postgresql-17-h3 postgresql-plpython3-17 git python3-boto3 make
+    apt-get -y install postgresql-17-postgis-3 postgresql-17-h3 postgresql-plpython3-17=17.11-0+deb13u1 git python3-boto3 make
 
 ##following mappings are due to overall test state of pg.v17 for modules and assumend to be not needed when stable
 RUN for file in /usr/share/postgresql/17/extension/plpython3*; do ln -sf $file /opt/bitnami/postgresql/share/extension/$(basename "$file"); done
@@ -39,6 +41,9 @@ RUN mkdir -p $PGCONFDIR && \
       "log_min_error_statement = info" \
       "log_statement = 'all'" \
       > $PGCONFDIR/logging.conf
+#Every warm lambda container of the step tests keeps a connection pool per connector it uses, and the running task queries
+#add their dblink connections. The default of 100 is not enough for a full run of the job step tests.
+RUN printf '%s\n' "max_connections = 200" > $PGCONFDIR/connections.conf
 
 #One-time database setup, persisted in the data dir together with the database
 RUN printf '%s\n' \

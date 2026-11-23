@@ -127,6 +127,10 @@ public abstract class DataReferenceConfigClient implements Initializable {
                       "expireForEntity: failed to update keepUntil for reference id={} entityId={}",
                       reference.getId(), entityId, t)))
               .toList())
+          .onSuccess(v -> {
+            if (references.stream().anyMatch(reference -> IcebergVersionCache.TARGET_SYSTEM.equals(reference.getTargetSystem())))
+              IcebergVersionCache.getInstance().invalidate(entityId);
+          })
           .mapEmpty();
     });
   }

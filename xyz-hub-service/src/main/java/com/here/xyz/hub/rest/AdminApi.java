@@ -22,6 +22,7 @@ package com.here.xyz.hub.rest;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.createBodyHandler;
 import static io.netty.handler.codec.http.HttpHeaderValues.TEXT_PLAIN;
+import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
 import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
@@ -30,9 +31,12 @@ import com.here.xyz.hub.Service;
 import com.here.xyz.hub.auth.Authorization;
 import com.here.xyz.hub.auth.XyzHubActionMatrix;
 import com.here.xyz.hub.auth.XyzHubAttributeMap;
+import com.here.xyz.hub.config.SpaceConfigClient.ClearResult;
 import com.here.xyz.hub.connectors.RemoteFunctionClient;
 import com.here.xyz.hub.connectors.statistics.StorageStatisticsProvider;
+import com.here.xyz.hub.rest.ApiParam.Path;
 import com.here.xyz.hub.rest.ApiParam.Query;
+import com.here.xyz.hub.task.LazyTableClearing;
 import com.here.xyz.models.hub.jwt.ActionMatrix;
 import com.here.xyz.util.service.BaseHttpServerVerticle;
 import com.here.xyz.util.service.HttpException;
@@ -53,11 +57,16 @@ public class AdminApi extends Api {
   public static final String ADMIN_MESSAGES_ENDPOINT = MAIN_ADMIN_ENDPOINT + "messages";
   public static final String ADMIN_STORAGE_STATISTICS = MAIN_ADMIN_ENDPOINT + "statistics/spaces/storage";
   public static final String ADMIN_METRICS_ENDPOINT = MAIN_ADMIN_ENDPOINT + "metrics";
+  public static final String ADMIN_SPACE_LAZY_TABLE_ENDPOINT = MAIN_ADMIN_ENDPOINT + "spaces/:spaceId/lazyTable";
 
   private static final String ADMIN_CAPABILITY_MESSAGING = "messaging";
   public static final String ADMIN_CAPABILITY_STATISTICS = "statistics";
+  public static final String ADMIN_CAPABILITY_LAZY_TABLE = "lazyTable";
 
   public static final String INCLUDE_CHANGES_SINCE = "includeChangesSince";
+  static final String CONNECTOR = "connector";
+  static final String TABLE = "table";
+  static final String STORAGE_MISMATCH_MESSAGE = "Space storage does not match the given connector or table";
 
   public AdminApi(Vertx vertx, Router router, AuthenticationHandler auth) {
     router.route(HttpMethod.POST, ADMIN_MESSAGES_ENDPOINT)
@@ -72,6 +81,35 @@ public class AdminApi extends Api {
     router.route(HttpMethod.GET, ADMIN_METRICS_ENDPOINT)
         .handler(auth)
         .handler(this::onGetMetrics);
+
+    router.route(HttpMethod.DELETE, ADMIN_SPACE_LAZY_TABLE_ENDPOINT)
+        .handler(auth)
+        .handler(this::onClearLazyTable);
+  }
+
+  /**
+   * Removes the lazy-table flag of a space that was written without the Hub's feature write paths, e.g. by a job step.
+   * The route trusts its caller to have written the space.
+   */
+  private void onClearLazyTable(final RoutingContext context) {
+    try {
+      AdminAuthorization.authorizeAdminCapability(context, ADMIN_CAPABILITY_LAZY_TABLE);
+      String spaceId = context.pathParam(Path.SPACE_ID);
+      String connector = Query.getString(context, CONNECTOR, null);
+      String table = Query.getString(context, TABLE, null);
+      LazyTableClearing.validateClearParams(spaceId, connector, table);
+      Service.spaceConfigClient.clearLazyTable(getMarker(context), spaceId, connector, table, LazyTableClearing.SOURCE_ADMIN_API)
+          .onFailure(t -> sendErrorResponse(context, t))
+          .onSuccess(result -> {
+            if (result == ClearResult.CONDITION_FAILED)
+              sendErrorResponse(context, new HttpException(CONFLICT, STORAGE_MISMATCH_MESSAGE));
+            else
+              context.response().setStatusCode(NO_CONTENT.code()).end();
+          });
+    }
+    catch (Exception e) {
+      sendErrorResponse(context, e);
+    }
   }
 
   private void onMessage(final RoutingContext context) {

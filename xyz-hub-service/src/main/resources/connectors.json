@@ -92,6 +92,56 @@
     }
   },
   {
+    "id": "psql-lazy",
+    "params": {
+      "autoIndexing": true,
+      "propertySearch": true,
+      "onDemandIdxLimit": 8,
+      "dbCheckoutTimeout": 12,
+      "dbAcquireRetryAttempts": 10,
+      "dbMaxPoolSize": 16,
+      "connectorId" : "psql-lazy",
+      "ecps": "$encrypt({\"PSQL_HOST\":\"${PSQL_HOST}\",\"PSQL_REPLICA_HOST\":\"${PSQL_HOST}\",\"PSQL_REPLICA_USER\":\"ro_user\",\"PSQL_PORT\":\"${PSQL_PORT}\",\"PSQL_DB\":\"${PSQL_DB}\",\"PSQL_USER\":\"${PSQL_USER}\",\"PSQL_PASSWORD\":\"${PSQL_PASSWORD}\"})",
+      "mvtSupport": true,
+      "lazyTableCreation": true,
+      "lazyMaterializationMaxBudget": 3000
+    },
+    "capabilities": {
+      "propertySearch": true,
+      "searchablePropertiesConfiguration": true,
+      "preserializedResponseSupport": true,
+      "enableAutoCache": true,
+      "maxPayloadSize": 1073741824,
+      "storageUtilizationReporting": true,
+      "clusteringTypes": [
+        "hexbin", "quadbin"
+      ],
+      "mvtSupport": true,
+      "extensionSupport": true
+    },
+    "connectionSettings": {
+      "maxConnections": 32
+    },
+    "remoteFunctions": {
+      "local": {
+        "type": "Embedded",
+        "id": "xyz-psql-local",
+        "warmUp": 1,
+        "className": "com.here.xyz.psql.PSQLXyzConnector",
+        "env": {
+          "ECPS_PHRASE": "local"
+        },
+        "protocolVersion": "0.7.0"
+      }
+    },
+    "trusted": true,
+    "forwardParamsConfig": {
+      "cookies": ["here_access", "here_access_st"],
+      "headers": ["AuthorizatioN", "realm"],
+      "queryParams": ["apiKey"]
+    }
+  },
+  {
     "id": "psql-http",
     "capabilities": {
       "clusteringTypes": [
@@ -141,6 +191,56 @@
       "enableHashedSpaceId" : true,
       "ecps": "$encrypt({\"PSQL_HOST\":\"${PSQL_HOST}\",\"PSQL_REPLICA_HOST\":\"${PSQL_HOST}\",\"PSQL_REPLICA_USER\":\"ro_user\",\"PSQL_PORT\":\"${PSQL_PORT}\",\"PSQL_DB\":\"postgres_db2\",\"PSQL_USER\":\"${PSQL_USER}\",\"PSQL_PASSWORD\":\"${PSQL_PASSWORD}\"})",
       "mvtSupport": true
+    },
+    "capabilities": {
+      "propertySearch": true,
+      "searchablePropertiesConfiguration": true,
+      "preserializedResponseSupport": true,
+      "enableAutoCache": true,
+      "maxPayloadSize": 1073741824,
+      "storageUtilizationReporting": true,
+      "clusteringTypes": [
+        "hexbin", "quadbin"
+      ],
+      "mvtSupport": true,
+      "extensionSupport": true
+    },
+    "connectionSettings": {
+      "maxConnections": 32
+    },
+    "remoteFunctions": {
+      "local": {
+        "type": "Embedded",
+        "id": "xyz-psql-local",
+        "warmUp": 1,
+        "className": "com.here.xyz.psql.PSQLXyzConnector",
+        "env": {
+          "ECPS_PHRASE": "local"
+        },
+        "protocolVersion": "0.7.0"
+      }
+    },
+    "trusted": true,
+    "forwardParamsConfig": {
+      "cookies": ["here_access", "here_access_st"],
+      "headers": ["AuthorizatioN", "realm"],
+      "queryParams": ["apiKey"]
+    }
+  },
+  {
+    "id": "psql-db2-lazy",
+    "params": {
+      "autoIndexing": true,
+      "propertySearch": true,
+      "onDemandIdxLimit": 8,
+      "dbCheckoutTimeout": 12,
+      "dbAcquireRetryAttempts": 10,
+      "connectorId" : "psql-db2-lazy",
+      "enableHashedSpaceId" : true,
+      "ecps": "$encrypt({\"PSQL_HOST\":\"${PSQL_HOST}\",\"PSQL_REPLICA_HOST\":\"${PSQL_HOST}\",\"PSQL_REPLICA_USER\":\"ro_user\",\"PSQL_PORT\":\"${PSQL_PORT}\",\"PSQL_DB\":\"postgres_db2\",\"PSQL_USER\":\"${PSQL_USER}\",\"PSQL_PASSWORD\":\"${PSQL_PASSWORD}\"})",
+      "mvtSupport": true,
+      "lazyTableCreation": true,
+      "lazyMaterializationMaxBudget": 3000
     },
     "capabilities": {
       "propertySearch": true,
@@ -514,6 +614,47 @@
         "warmUp": 0,
         "className": "com.here.xyz.hub.connectors.test.MockDelayStorageConnector",
         "protocolVersion": "0.5.0"
+      }
+    }
+  },
+  {
+    "id": "iceberg",
+    "params": {
+      "catalogName": "iceberg",
+      "catalogProperties": {
+        "catalog-impl": "org.apache.iceberg.jdbc.JdbcCatalog",
+        "uri": "jdbc:postgresql://${ICEBERG_JDBC_HOST}:${ICEBERG_JDBC_PORT}/${ICEBERG_JDBC_DB}?currentSchema=iceberg_catalog",
+        "jdbc.user": "${ICEBERG_JDBC_USER}",
+        "jdbc.password": "${ICEBERG_JDBC_PASSWORD}",
+        "warehouse": "s3://test-bucket/iceberg",
+        "io-impl": "org.apache.iceberg.aws.s3.S3FileIO",
+        "s3.endpoint": "${LOCALSTACK_ENDPOINT}",
+        "s3.path-style-access": "true",
+        "s3.access-key-id": "localstack",
+        "s3.secret-access-key": "localstack",
+        "client.region": "eu-west-1"
+      }
+    },
+    "capabilities": {
+      "preserializedResponseSupport": true,
+      "maxPayloadSize": 1073741824
+    },
+    "connectionSettings": {
+      "maxConnections": 32
+    },
+    "remoteFunctions": {
+      "local": {
+        "type": "Embedded",
+        "id": "xyz-iceberg-local",
+        "warmUp": 0,
+        "className": "com.here.xyz.iceberg.IcebergConnector",
+        "env": {
+          "ICEBERG_JDBC_HOST": "${PSQL_HOST}",
+          "ICEBERG_JDBC_PORT": "${PSQL_PORT}",
+          "ICEBERG_JDBC_DB": "${PSQL_DB}",
+          "ICEBERG_JDBC_USER": "${PSQL_USER}",
+          "ICEBERG_JDBC_PASSWORD": "${PSQL_PASSWORD}"
+        }
       }
     }
   }

@@ -24,7 +24,9 @@ import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
 import static com.here.xyz.jobs.steps.execution.db.Database.loadDatabase;
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_EXECUTE;
 import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.LogPhase.STEP_RESUME;
+import static com.here.xyz.util.db.pg.LazySpaceTables.Profile.FULL;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.models.filters.SpatialFilter;
@@ -90,6 +92,9 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
   private int estimatedSeconds = -1;
   @JsonView({Internal.class, Static.class}) //TODO: Remove static
   private long targetVersion = 0;
+  //The source params in which never written lazy levels read from the empty-space template, set by #execute()
+  @JsonIgnore
+  private Map<String, Object> readableSourceParams;
 
   public static double calculateNeededCopyAcus(long nrFeatureSource) {
     final double maxAcus = 5;
@@ -332,6 +337,16 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
   @Override
   public void execute(boolean resume) throws Exception {
     try {
+      //The target may be on another database; it gets no version here, so its lazy flag stays
+      materializeTablesOrFail(targetSpace(), FULL);
+      readableSourceParams = resolveReadableSpaceParamsOrFail(space());
+    }
+    catch (WebClientException e) {
+      throw new StepException("Error iml-copy chunk-id " + getThreadInfo()[0] + "/" + getThreadInfo()[1], e)
+          .withRetryable(true);
+    }
+
+    try {
       setTargetVersion(_getCreatedVersion());
 
       int threadId = getThreadInfo()[0],
@@ -485,7 +500,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     GetFeaturesByGeometryInput input = new GetFeaturesByGeometryInput(
         space().getId(),
         hubWebClient().loadConnector(space().getStorage().getId()).params,
-        resolveSpaceParams(space()),
+        readableSourceParams,
         EXTENSION,
         space().getVersionsToKeep(),
         minSpaceVersion,

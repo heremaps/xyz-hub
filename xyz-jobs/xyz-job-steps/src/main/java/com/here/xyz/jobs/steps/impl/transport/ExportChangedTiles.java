@@ -474,7 +474,7 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
     return queryBuilder.buildQuery(new GetFeaturesByIdsInput(
         space().getId(),
         hubWebClient().loadConnector(space().getStorage().getId()).params,
-        resolveSpaceParams(space()),
+        resolveReadableSpaceParamsOrFail(space()),
         context,
         space().getVersionsToKeep(),
         versionRef,

@@ -334,6 +334,22 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   protected void prepareExecution(boolean resume) throws SQLException, TooManyResourcesClaimed, WebClientException {}
 
   /**
+   * Materializes the lazy tables this step writes to, before anything touches them.
+   * <p>
+   * The framework calls this hook as the first statement of every {@link #execute(boolean)}, on a fresh execution and on a
+   * resume, before {@link #prepareExecution(boolean)}. A failure is reported with its own retryable flag and is never taken for a
+   * missing task table.
+   * </p>
+   * <p>
+   * Default: nothing. Steps that only read resolve the readable table names in their query builders.
+   * </p>
+   *
+   * @throws TooManyResourcesClaimed If too many resources are claimed while materializing.
+   * @throws WebClientException If an error occurs while interacting with the web client.
+   */
+  protected void prepareLazyTables() throws WebClientException, TooManyResourcesClaimed {}
+
+  /**
    * Ensures that all database objects the task queries rely on exist (e.g., triggers, partitions or helper tables).
    * <p>
    * The framework calls this hook right before it starts the first tasks - for a fresh execution as well as for
@@ -728,6 +744,8 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
 
   @Override
   public void execute(boolean resume) throws Exception {
+    //Outside the resume handling below, so that a failing materialization is never taken for a missing task table
+    prepareLazyTables();
     //The following code is running synchronously till the first task is getting started.
     if (!resume) {
       prepareExecution(false);
@@ -1384,10 +1402,12 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep, I ext
   protected <B extends DatabaseStepQueryBuilder> B initQueryBuilder(QueryBuilderFactory<B> factory) {
     try {
       Space superSpace = superSpace();
-      return factory.create(space(), context, getId(), getSchema(db()), getRootTableName(space()),
-              superSpace == null ? null : getRootTableName(superSpace));
+      //A step that writes its space has materialized it in prepareLazyTables() before any query builder exists
+      String rootTable = queryRunsOnWriter() ? getRootTableName(space()) : getReadableRootTableNameOrFail(space());
+      String superRootTable = superSpace == null ? null : getReadableRootTableNameOrFail(superSpace, space());
+      return factory.create(space(), context, getId(), getSchema(db()), rootTable, superRootTable);
     }
-    catch (WebClientException e) {
+    catch (WebClientException | TooManyResourcesClaimed | SQLException e) {
       throw new StepException("Unable to load resource.", e);
     }
   }
