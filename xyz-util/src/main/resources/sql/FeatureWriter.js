@@ -122,8 +122,32 @@ class FeatureWriter {
    * @returns {FeatureModificationExecutionResult}
    */
   deleteFeature() {
+    if (this.context != "DEFAULT" && this.context != null && this.context != "EXTENSION" && this.context != "SUPER")
+      throw new IllegalArgumentException(`Unsupported context for feature deletion: ${this.context}`);
+
+    /*
+    Whether the space showed the feature before, decided once for all exits below: A deletion marker (H / J) is loaded like a feature,
+    as only D rows are excluded, but the feature is not visible then. If it was not visible, whatever gets written or removed (e.g., a
+    new deletion marker, or the removal of an existing one) does not change what the space shows, so it is not counted (see
+    FeatureWriter._collectResult()).
+    NOTE: For the context DEFAULT the feature gets loaded anyway, for the other contexts it is cached for the following write.
+     */
+    let existingFeature = this.loadFeature(this.inputFeature.id);
+    let visibleBefore = existingFeature != null && existingFeature.operation != "H" && existingFeature.operation != "J";
+    let execution = this._deleteFeature(existingFeature);
+    //The result of the write (also a later one in batch mode) refers to the feature object that was written or removed
+    if (!visibleBefore && this.inputFeature != null)
+      FeatureWriter._invisibleBefore.add(this.inputFeature);
+    return execution;
+  }
+
+  /**
+   * @param existingFeature The HEAD of the feature in the context of this write
+   * @returns {FeatureModificationExecutionResult}
+   * @private
+   */
+  _deleteFeature(existingFeature) {
     if (this.context == "DEFAULT") {
-      let existingFeature = this.loadFeature(this.inputFeature.id);
       if (!this.historyEnabled && existingFeature && !existingFeature.containingDatasets.some(dataset => dataset < this.tables.length - 1))
         //Only delete the row directly iff the feature exists, but not in SUPER
         return this.deleteRow();
@@ -132,23 +156,16 @@ class FeatureWriter {
       this.onNotExists = "CREATE";
       this.operation = "H";
       this._transformToDeletedFeature();
-      //The deletion marker is written in any case, also if the feature was not visible (not existing or deleted already)
-      if (existingFeature == null || existingFeature.operation == "H" || existingFeature.operation == "J")
-        FeatureWriter._markAsInvisibleBefore(this.inputFeature);
       return this.writeRow();
     }
-    else if (this.context == null || this.context == "EXTENSION" || this.context == "SUPER") {
-      if (this.historyEnabled) {
-        //TODO: Only insert deletion row if the object actually exists in HEAD
-        this.onExists = "DELETE";
-        this.onNotExists = this.onNotExists == "ERROR" ? this.onNotExists : "RETAIN";
-        this._transformToDeletedFeature();
-        return this.writeRow();
-      }
-      return this.deleteRow();
+    if (this.historyEnabled) {
+      //TODO: Only insert deletion row if the object actually exists in HEAD
+      this.onExists = "DELETE";
+      this.onNotExists = this.onNotExists == "ERROR" ? this.onNotExists : "RETAIN";
+      this._transformToDeletedFeature();
+      return this.writeRow();
     }
-    else
-      throw new IllegalArgumentException(`Unsupported context for feature deletion: ${this.context}`);
+    return this.deleteRow();
   }
 
   _transformToDeletedFeature() {
@@ -160,12 +177,11 @@ class FeatureWriter {
   }
 
   /**
-   * Marks a deleted feature whose deletion gets written although the feature was not visible before.
-   * NOTE: The marker is not enumerable, so it never becomes part of a written or returned feature.
+   * The result features of deletions of features which were not visible before (see deleteFeature()).
+   * NOTE: They are kept apart from the features, so that neither an input feature nor a written one can carry or lose the mark.
+   * @type {WeakSet<object>}
    */
-  static _markAsInvisibleBefore(feature) {
-    Object.defineProperty(feature, "invisibleBefore", {value: true, enumerable: false});
-  }
+  static _invisibleBefore = new WeakSet();
 
   /**
    * @throws VersionConflictError, MergeConflictError, FeatureExistsError
@@ -993,7 +1009,7 @@ class FeatureWriter {
       if (execution.action != ExecutionAction.NONE)
         result[execution.action].push(execution.feature.id);
       //A deletion marker may be reported as inserted, updated or deleted, depending on how it was written
-      if (execution.action != ExecutionAction.NONE && execution.feature.invisibleBefore)
+      if (execution.action != ExecutionAction.NONE && FeatureWriter._invisibleBefore.has(execution.feature))
         result.invisibleDeletions[execution.action]++;
     }
   }
@@ -1007,8 +1023,8 @@ class FeatureWriter {
       deleted: []
     };
     /*
-    The numbers of deletion markers in "inserted", "updated" and "deleted", which were written for features that were not visible
-    before (not existing or deleted already), so they did not change what the space shows.
+    The numbers of deletions in "inserted", "updated" and "deleted" (e.g., a written deletion marker or a removed one) of features
+    which were not visible before (not existing or deleted already), so they did not change what the space shows.
     It is not enumerable, so it does not change the returned FeatureCollection.
      */
     Object.defineProperty(result, "invisibleDeletions", {value: {inserted: 0, updated: 0, deleted: 0}, enumerable: false});

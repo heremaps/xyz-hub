@@ -22,6 +22,7 @@ package com.here.xyz.jobs.steps.impl.transport;
 import static com.here.xyz.jobs.steps.impl.transport.TaskedImportFilesToSpace.withWrittenFeatures;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.here.xyz.XyzSerializable;
@@ -61,13 +62,26 @@ class ImportStatisticsTest {
   }
 
   @Test
-  void countsTasksWithoutWrittenFeaturesAsZero() {
-    //A file without any feature, or one whose features were all unchanged, has no batch which reported written features
+  void countsAnEmptyFileAsNothingWritten() {
+    //A file without any feature has no batch, so it reports nothing
     FeatureStatistics statistics = withWrittenFeatures(new FeatureStatistics().withFeatureCount(4), List.of(
-        new ImportOutput("4 rows imported", 100, 7, LOADED, null),
+        new ImportOutput("4 rows imported", 100, 7, LOADED, new WrittenFeatures(0, 1, 0)),
         new ImportOutput("0 rows imported", 0, 7, LOADED, null)));
 
-    assertCounts(statistics, 0, 0, 0, 4);
+    assertCounts(statistics, 0, 1, 0, 3);
+  }
+
+  @Test
+  void leavesTheCountsNullIfATaskWithRowsDidNotReportThem() {
+    //E.g., a task executed by a previous version of the import, which does not report what it has written yet
+    FeatureStatistics statistics = withWrittenFeatures(new FeatureStatistics().withFeatureCount(10), List.of(
+        new ImportOutput("6 rows imported", 100, 7, LOADED, new WrittenFeatures(6, 0, 0)),
+        new ImportOutput("4 rows imported", 60, 7, LOADED, null)));
+
+    assertNull(statistics.getInsertedCount());
+    assertNull(statistics.getUpdatedCount());
+    assertNull(statistics.getDeletedCount());
+    assertNull(statistics.getUnchangedCount());
   }
 
   /**

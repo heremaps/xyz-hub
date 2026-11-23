@@ -1433,6 +1433,7 @@ BEGIN
                        p.jsondata AS target_jsondata,
                        current_row.id IS NOT NULL AS current_exists,
                        current_row.jsondata AS current_jsondata,
+                       current_row.operation AS current_operation,
                        s.id IS NOT NULL AS super_exists,
                        s.jsondata AS super_jsondata
                   FROM pg_temp.xyz_express_import_final f
@@ -1446,7 +1447,7 @@ BEGIN
                        LIMIT 1
                   ) p ON true
                   LEFT JOIN LATERAL (
-                      SELECT t.id, t.jsondata
+                      SELECT t.id, t.jsondata, t.operation
                         FROM %1$s t
                        WHERE t.id = f.feature_id
                          AND t.version = $1
@@ -1474,9 +1475,16 @@ BEGIN
                            WHEN target_live THEN 'D'
                            ELSE NULL
                        END::CHAR AS operation,
-                       --Whether the space showed the feature before: its row is no deletion, or only the base space has it
-                       (target_exists AND target_operation NOT IN ('D', 'H', 'J'))
-                           OR (NOT target_exists AND super_exists) AS visible_before
+                       /*
+                        * Whether the space showed the feature before this batch: its latest row is no deletion, or only the base
+                        * space has it. A row an earlier batch of the same import has written (at the import version) is the
+                        * latest one, so a feature contained in several batches is counted as written once and then changed.
+                        */
+                       CASE
+                           WHEN current_exists THEN current_operation NOT IN ('D', 'H', 'J')
+                           ELSE (target_exists AND target_operation NOT IN ('D', 'H', 'J'))
+                               OR (NOT target_exists AND super_exists)
+                       END AS visible_before
                   FROM state
             )
             SELECT classified.*,
@@ -1596,21 +1604,22 @@ BEGIN
         $fmt$, target_tbl, super_join);
         EXECUTE sql_text USING space_context, is_composite;
 
-        EXECUTE format(
-            'DELETE FROM %s t
-                  USING pg_temp.xyz_express_import_writes w
-                  WHERE w.action = ''DELETE''
-                    AND t.id = w.feature_id',
-            target_tbl
-        );
-
-        --The counts tell what happened to the feature as the space shows it (see visible_before), so removing a deletion marker
-        --(context EXTENSION) is not counted as a deletion
-        SELECT COUNT(*)
-          INTO deleted_count
-          FROM pg_temp.xyz_express_import_writes
-         WHERE action = 'DELETE'
-           AND visible_before;
+        --Only the rows actually removed are counted. Removing a deletion marker (context EXTENSION) is not counted as a deletion,
+        --as the space did not show the feature before (see visible_before).
+        EXECUTE format($fmt$
+            WITH deleted AS (
+                DELETE FROM %1$s t
+                 USING pg_temp.xyz_express_import_writes w
+                 WHERE w.action = 'DELETE'
+                   AND t.id = w.feature_id
+                RETURNING t.id
+            )
+            SELECT COUNT(*)
+              FROM deleted
+              JOIN pg_temp.xyz_express_import_writes w ON w.feature_id = deleted.id
+             WHERE w.visible_before
+        $fmt$, target_tbl)
+        INTO deleted_count;
 
         /*
          * Without history, an UPSERT of an existing feature is skipped if it does not differ (see the WHERE of the
@@ -1994,9 +2003,9 @@ BEGIN
                 ),
                 --The features written by this batch, the stored task output sums them up (see ImportQueryBuilder)
                 'written', jsonb_build_object(
-                    'inserted', COALESCE((write_result->>'inserted')::BIGINT, 0),
-                    'updated', COALESCE((write_result->>'updated')::BIGINT, 0),
-                    'deleted', COALESCE((write_result->>'deleted')::BIGINT, 0)
+                    'inserted', COALESCE((write_result->>'insertedCount')::BIGINT, 0),
+                    'updated', COALESCE((write_result->>'updatedCount')::BIGINT, 0),
+                    'deleted', COALESCE((write_result->>'deletedCount')::BIGINT, 0)
                 ),
 		        'targetVersion', currentVersion,
                 'type', 'ImportOutput'

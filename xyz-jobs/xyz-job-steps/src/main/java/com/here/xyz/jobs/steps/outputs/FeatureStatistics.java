@@ -45,7 +45,8 @@ public class FeatureStatistics extends ModelBasedOutput {
     /**
      * For an import: The number of requested features which did not exist before (were not visible in the target) and exist now.
      * Together with {@link #updatedCount}, {@link #deletedCount} and {@link #unchangedCount} it adds up to the featureCount.
-     * All four are null if not counted.
+     * All four are null if not counted, e.g., for other steps than imports, or if a task of the import did not report what it has
+     * written (see TaskedImportFilesToSpace#withWrittenFeatures()).
      * <p>
      * NOTE: The four counts are not serialized, so they are neither stored with the output nor returned by the job API. For now they
      * are only used for the logs of the import step (see TaskedImportFilesToSpace#processFinalizedTasks()).
@@ -63,6 +64,8 @@ public class FeatureStatistics extends ModelBasedOutput {
     /**
      * For an import: The number of requested features which existed before and were written again. With history, this includes
      * features which did not differ from the existing ones, as they are still written as a new version.
+     * A feature contained in several batches of the input is counted by each of them, like separate writes: e.g., inserted by the
+     * first one, then updated (or, without history and not differing, unchanged) or deleted by the following ones.
      */
     @JsonIgnore
     private Long updatedCount;
@@ -72,9 +75,9 @@ public class FeatureStatistics extends ModelBasedOutput {
     @JsonIgnore
     private Long deletedCount;
     /**
-     * For an import: The number of requested features which did not change the target: features contained more than once in the
-     * input, deletions of features which did not exist or were deleted already, and, only without history, features which did not
-     * differ from the existing ones.
+     * For an import: The number of requested features which did not change the target: features contained more than once within
+     * one batch of the input (only the last one is written), deletions of features which did not exist or were deleted already, and,
+     * only without history, features which did not differ from the existing ones.
      */
     @JsonIgnore
     private Long unchangedCount;

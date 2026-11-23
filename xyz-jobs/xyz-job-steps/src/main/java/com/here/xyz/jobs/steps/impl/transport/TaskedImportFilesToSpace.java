@@ -589,6 +589,9 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
       statistics.withFileName(STATISTICS + ".json");
     }
 
+    if (!finalizedTaskItems.isEmpty() && statistics.getInsertedCount() == null)
+      infoLog(STEP_ON_ASYNC_SUCCESS, "The written features were not reported by all tasks, so they are not counted.");
+
     //More written than requested features is not expected. The count is kept as it is (not clamped), so that it is visible.
     if (statistics.getUnchangedCount() != null && statistics.getUnchangedCount() < 0)
       warnLog(STEP_ON_ASYNC_SUCCESS, "More features were written than requested: rows=" + statistics.getFeatureCount()
@@ -612,6 +615,8 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
    *   With history, such a feature is still written as a new version, so it is counted as updated.</li>
    *   <li>Import into an empty layer: The rows were inserted by the database import directly, all of them are inserted.</li>
    * </ul>
+   * The counts are left null, if a batched task with rows did not report what it has written, e.g., as it was executed by a previous
+   * version of the import (during a rollout or before a resume). Counting its rows as unchanged would look like a measured result.
    * NOTE: The kind of import is told by the task outputs, as only the batched import reports a progress. #useFeatureWriter() can not
    * be used, as it checks the feature count of the target, which has changed by now.
    */
@@ -623,6 +628,10 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
           .withUpdatedCount(0L)
           .withDeletedCount(0L)
           .withUnchangedCount(0L);
+
+    //Every batch of a task reports what it has written, so only a task without rows (an empty file) has nothing to report
+    if (taskOutputs.stream().anyMatch(output -> output.written() == null && output.extractRowCount() > 0))
+      return statistics;
 
     WrittenFeatures written = taskOutputs.stream()
         .map(ImportOutput::written)

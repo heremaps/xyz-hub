@@ -215,6 +215,49 @@ public class ExpressWriterSmokeIT {
   }
 
   /**
+   * All batches of one import write into the same version. A feature written by an earlier batch of the import counts as existing for
+   * a later one, like separate writes: insert/insert, insert/delete, insert/update and delete/insert.
+   * With history, the unchanged x1 gets written again and counts as updated, without history it is skipped.
+   */
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void countsAFeatureWrittenByAnEarlierBatchOfTheImportAsExisting(boolean historyEnabled) throws Exception {
+    String table = "express_smoke_cross_batch_" + (historyEnabled ? "history" : "nohistory");
+    String stagingTable = table + "_staging";
+
+    try (DataSourceProvider dsp = ExpressWriterDataSources.getDataSourceProvider()) {
+      dropResources(dsp, table, stagingTable);
+      createResources(dsp, table, stagingTable);
+      long importVersion = allocateVersion(dsp, table);
+
+      stage(dsp, stagingTable, feature("x1", "v1"), feature("x2", "v1"), feature("x3", "v1"));
+      BatchResult first = executeExpressImportBatch(dsp, stagingTable, table, 1, importVersion, historyEnabled);
+      assertEquals(3, first.insertedCount());
+      assertEquals(0, first.updatedCount() + first.deletedCount());
+
+      stage(dsp, stagingTable, feature("x1", "v1"), deletion("x2"), feature("x3", "v2"), deletion("y"));
+      BatchResult second = executeExpressImportBatch(dsp, stagingTable, table, first.selectedRangeEnd() + 1, importVersion,
+          historyEnabled);
+      assertEquals(0, second.insertedCount(), "x1 and x3 were inserted by the first batch, y does not exist.");
+      assertEquals(historyEnabled ? 2 : 1, second.updatedCount(), historyEnabled ? "x1 and x3 were written again." : "Only x3 changed.");
+      assertEquals(1, second.deletedCount(), "x2 was inserted by the first batch, y did not exist.");
+
+      stage(dsp, stagingTable, feature("y", "v1"));
+      BatchResult third = executeExpressImportBatch(dsp, stagingTable, table, second.selectedRangeEnd() + 1, importVersion,
+          historyEnabled);
+      assertEquals(1, third.insertedCount(), "Only the deletion of y was written before, the space did not show it.");
+      assertEquals(0, third.updatedCount() + third.deletedCount());
+
+      assertEquals(3, headRowCount(dsp, table), "x1, x3 and y remain.");
+    }
+    finally {
+      try (DataSourceProvider dsp = ExpressWriterDataSources.getDataSourceProvider()) {
+        dropResources(dsp, table, stagingTable);
+      }
+    }
+  }
+
+  /**
    * A feature contained more than once in a batch is collapsed to its last occurrence, so it is written and counted once.
    */
   @ParameterizedTest
