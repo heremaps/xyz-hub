@@ -106,7 +106,7 @@
     <log4j-version>2.25.5</log4j-version>
     <aws-log4j-version>1.5.1</aws-log4j-version>
     <jayway-jsonpath-version>2.10.0</jayway-jsonpath-version>
-    <iceberg-version>1.10.0</iceberg-version>
+    <iceberg-version>1.10.2</iceberg-version>
     <hadoop-version>3.4.1</hadoop-version>
     <!--The Parquet version of iceberg-version-->
     <parquet-version>1.16.0</parquet-version>
