@@ -314,11 +314,6 @@
         <version>${vertx-version}</version>
       </dependency>
       <dependency>
-        <artifactId>vertx-web-templ-handlebars</artifactId>
-        <groupId>io.vertx</groupId>
-        <version>${vertx-version}</version>
-      </dependency>
-      <dependency>
         <artifactId>vertx-web-client</artifactId>
         <groupId>io.vertx</groupId>
         <version>${vertx-version}</version>
