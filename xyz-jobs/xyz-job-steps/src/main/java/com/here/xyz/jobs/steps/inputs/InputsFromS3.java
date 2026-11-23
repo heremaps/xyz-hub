@@ -19,8 +19,12 @@
 
 package com.here.xyz.jobs.steps.inputs;
 
+import com.here.xyz.jobs.util.S3Client;
+import com.here.xyz.util.pagination.Page;
+import com.here.xyz.util.service.aws.s3.S3ObjectSummary;
 import com.here.xyz.util.service.aws.s3.S3Uri;
 import java.util.List;
+import java.util.function.Supplier;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
 public class InputsFromS3 extends Input<InputsFromS3> {
@@ -56,20 +60,36 @@ public class InputsFromS3 extends Input<InputsFromS3> {
   }
 
   public void dereference(String forJob, String setName) {
-    List<Input> inputs = null;
+    //First load the inputs from the (foreign) bucket
+    List<Input> inputs = mapAccessDenied(() -> loadInputsInParallel(getBucket(), getPrefix()));
+    inputs.forEach(input -> input.setS3Bucket(getBucket()));
+    //Store the metadata for the job that accesses the bucket
+    storeMetadata(forJob, inputs, null, new S3Uri(getBucket(), getPrefix()), setName);
+  }
+
+  /**
+   * Lists at most one object below the prefix to check whether the service may list the bucket at all and whether the prefix contains
+   * any input. In contrast to {@link #dereference(String, String)}, this takes a single S3 request, independent of the number of objects.
+   *
+   * @throws BucketAccessDeniedException if the bucket policy does not grant the service the access
+   * @throws NoInputsFoundException if there is no object with content below the prefix
+   */
+  public void checkAccessAndPresence() {
+    Page<S3ObjectSummary> firstObject = mapAccessDenied(() -> S3Client.getInstance(getBucket()).scanFolder(getPrefix(), null, 1));
+    //Empty objects (e.g., the marker of a folder created in the S3 console) are no inputs, see Input#loadAndTransformAllInputs
+    if (firstObject.getNextPageToken() == null && firstObject.getItems().stream().allMatch(S3ObjectSummary::isEmpty))
+      throw new NoInputsFoundException(new S3Uri(getBucket(), getPrefix()));
+  }
+
+  private <R> R mapAccessDenied(Supplier<R> bucketAccess) {
     try {
-      //First load the inputs from the (foreign) bucket
-      inputs = loadInputsInParallel(getBucket(), getPrefix());
+      return bucketAccess.get();
     }
     catch (S3Exception e) {
       if (e.statusCode() == 403)
         throw new BucketAccessDeniedException(new S3Uri(getBucket(), getPrefix()), e);
-      else
-        throw e;
+      throw e;
     }
-    inputs.forEach(input -> input.setS3Bucket(getBucket()));
-    //Store the metadata for the job that accesses the bucket
-    storeMetadata(forJob, inputs, null, new S3Uri(getBucket(), getPrefix()), setName);
   }
 
   /**
@@ -78,6 +98,18 @@ public class InputsFromS3 extends Input<InputsFromS3> {
   public static class BucketAccessDeniedException extends RuntimeException {
     public BucketAccessDeniedException(S3Uri s3Uri, S3Exception cause) {
       super("Access to \"" + s3Uri + "\" was denied: " + cause.getMessage(), cause);
+    }
+  }
+
+  /**
+   * Thrown if there is no object with content below the provided prefix, so the job would never get any inputs from it.
+   */
+  public static class NoInputsFoundException extends RuntimeException {
+    public final S3Uri s3Uri;
+
+    public NoInputsFoundException(S3Uri s3Uri) {
+      super("No input files were found at \"" + s3Uri + "\".");
+      this.s3Uri = s3Uri;
     }
   }
 }

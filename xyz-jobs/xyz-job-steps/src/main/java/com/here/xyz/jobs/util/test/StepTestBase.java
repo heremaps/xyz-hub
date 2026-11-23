@@ -92,6 +92,7 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -185,6 +186,18 @@ public class StepTestBase {
       System.out.println("Hub Error: " + e.getMessage());
     }
     return null;
+  }
+
+  /**
+   * @return The current config of the space, read through the Hub without its cache
+   */
+  protected Space loadSpace(String spaceId) {
+    try {
+      return hubWebClient().loadSpace(spaceId, true);
+    }
+    catch (XyzWebClient.WebClientException e) {
+      throw new AssertionError("Unable to load space " + spaceId, e);
+    }
   }
 
   protected void patchSpace(String spaceId, Map<String, Object> spaceUpdates) {
@@ -641,6 +654,88 @@ public class StepTestBase {
 
     S3ContentType(String value) {
       this.value = value;
+    }
+  }
+
+  /**
+   * Creates a connector as a copy of another one, with the provided params on top of the copied ones. The copy is adjusted to
+   * pass the Hub's validation of connector definitions, which the seeded local connectors do not.
+   *
+   * @param sourceConnectorId The connector to copy
+   * @param connectorId The ID of the new connector, also used as its param "connectorId"
+   * @param paramOverrides Params to set on the copy
+   */
+  @SuppressWarnings("unchecked")
+  protected void createConnectorCopy(String sourceConnectorId, String connectorId, Map<String, Object> paramOverrides) {
+    Map<String, Object> connector;
+    try {
+      connector = XyzSerializable.deserialize(sendHubRequest("GET", "/connectors/" + sourceConnectorId, null).body(), Map.class);
+    }
+    catch (JsonProcessingException e) {
+      throw new AssertionError("Unable to read connector " + sourceConnectorId, e);
+    }
+    connector.put("id", connectorId);
+    connector.remove("owner");
+    //The legacy single remote function is derived from the map of remote functions
+    connector.remove("remoteFunction");
+    if (connector.get("remoteFunctions") instanceof Map<?, ?> remoteFunctions)
+      remoteFunctions.values().forEach(remoteFunction -> ((Map<String, Object>) remoteFunction).put("warmUp", 0));
+    if (connector.get("capabilities") instanceof Map<?, ?> capabilities)
+      ((Map<String, Object>) capabilities).put("maxPayloadSize", 50 * 1024 * 1024);
+    if (!(connector.get("contactEmails") instanceof List<?> contactEmails) || contactEmails.isEmpty())
+      connector.put("contactEmails", List.of("test@example.com"));
+    Map<String, Object> params = connector.get("params") instanceof Map<?, ?> sourceParams
+        ? new HashMap<>((Map<String, Object>) sourceParams) : new HashMap<>();
+    params.put("connectorId", connectorId);
+    params.putAll(paramOverrides);
+    connector.put("params", params);
+    sendHubRequest("POST", "/connectors", XyzSerializable.serialize(connector));
+  }
+
+  /**
+   * Sets the provided params of a connector; the other params stay.
+   */
+  protected void patchConnectorParams(String connectorId, Map<String, Object> params) {
+    sendHubRequest("PATCH", "/connectors/" + connectorId, XyzSerializable.serialize(Map.of("id", connectorId, "params", params)));
+  }
+
+  /**
+   * Deletes a connector, if it exists.
+   */
+  protected void deleteConnector(String connectorId) {
+    try {
+      sendHubRequest("DELETE", "/connectors/" + connectorId, null);
+    }
+    catch (AssertionError e) {
+      System.out.println("Hub Error: " + e.getMessage());
+    }
+  }
+
+  /**
+   * Sends a JSON request to the Hub endpoint that the steps use.
+   *
+   * @param path The path below the endpoint, starting with "/"
+   * @param body The JSON body, or null
+   * @throws AssertionError If the request failed or was answered with a status of 400 or above
+   */
+  protected HttpResponse<String> sendHubRequest(String method, String path, String body) {
+    try {
+      HttpResponse<String> response = HttpClient.newHttpClient().send(HttpRequest.newBuilder()
+          .uri(URI.create(config.HUB_ENDPOINT + path))
+          .header(CONTENT_TYPE, MediaType.JSON_UTF_8.toString())
+          .method(method, body == null ? HttpRequest.BodyPublishers.noBody() : HttpRequest.BodyPublishers.ofString(body))
+          .version(HttpClient.Version.HTTP_1_1)
+          .build(), HttpResponse.BodyHandlers.ofString());
+      if (response.statusCode() >= 400)
+        throw new AssertionError(method + " " + path + " answered " + response.statusCode() + ": " + response.body());
+      return response;
+    }
+    catch (IOException e) {
+      throw new AssertionError(method + " " + path + " failed", e);
+    }
+    catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new AssertionError(method + " " + path + " was interrupted", e);
     }
   }
 

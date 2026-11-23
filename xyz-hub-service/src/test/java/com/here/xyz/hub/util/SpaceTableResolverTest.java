@@ -19,6 +19,7 @@
 
 package com.here.xyz.hub.util;
 
+import static com.here.xyz.models.hub.Space.LAZY_TABLE;
 import static com.here.xyz.models.hub.Space.TABLE_NAME;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.getTableNameFromSpaceParamsOrSpaceId;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -26,6 +27,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Space.ConnectorRef;
+import com.here.xyz.util.db.pg.LazySpaceTables;
 import java.util.HashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -191,6 +193,110 @@ class SpaceTableResolverTest {
     assertThat(target.getStorage().getParams())
         .doesNotContainKey(TABLE_NAME)
         .containsEntry("otherParam", "value");
+  }
+
+  @Test
+  void rejectsExplicitTableNamesWithTheReservedPrefix() {
+    Space space = spaceWithStorage(Map.of(TABLE_NAME, LazySpaceTables.RESERVED_PREFIX + "v1"));
+
+    assertThatThrownBy(() -> SpaceTableResolver.assignTableName(space))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("reserved prefix");
+  }
+
+  @Test
+  void lazyTableFlagIsNeverInheritedFromAnotherSpace() {
+    Map<String, Object> params = SpaceTableResolver.withoutTableName(
+        Map.of(TABLE_NAME, "base_table", LAZY_TABLE, true, "someParam", "someValue"));
+
+    assertThat(params).doesNotContainKeys(TABLE_NAME, LAZY_TABLE);
+    assertThat(params).containsEntry("someParam", "someValue");
+  }
+
+  @Test
+  void removesAClientSuppliedLazyTableFlag() {
+    Space space = spaceWithStorage(Map.of(LAZY_TABLE, true, "someParam", "someValue"));
+    Space onlyFlag = spaceWithStorage(Map.of(LAZY_TABLE, false));
+
+    SpaceTableResolver.removeLazyTable(space);
+    SpaceTableResolver.removeLazyTable(onlyFlag);
+
+    assertThat(space.getStorage().getParams()).doesNotContainKey(LAZY_TABLE).containsEntry("someParam", "someValue");
+    assertThat(onlyFlag.getStorage().getParams()).isNull();
+  }
+
+  @Test
+  void keepsTheLazyTableFlagOfAUniquelyNamedSpaceOnUpdates() {
+    Space source = spaceWithStorage(Map.of(TABLE_NAME, "persisted_table", LAZY_TABLE, true));
+    Space target = spaceWithStorage(Map.of(TABLE_NAME, "persisted_table", "otherParam", "value"));
+
+    SpaceTableResolver.preserveTableName(source, target);
+
+    assertThat(target.getStorage().getParams())
+        .containsEntry(LAZY_TABLE, true)
+        .containsEntry(TABLE_NAME, "persisted_table")
+        .containsEntry("otherParam", "value");
+  }
+
+  @Test
+  void keepsTheLazyTableFlagOfALegacySpaceOnAReplaceWithOnlyTheStorageId() {
+    Space source = spaceWithStorage(Map.of(LAZY_TABLE, true));
+    Space target = spaceWithStorage(null);
+
+    SpaceTableResolver.preserveTableName(source, target);
+
+    assertThat(target.getStorage().getParams()).isEqualTo(Map.of(LAZY_TABLE, true));
+  }
+
+  @Test
+  void keepsTheLazyTableFlagOfALegacySpaceWithoutStorageInTheResult() {
+    Space source = spaceWithStorage(Map.of(LAZY_TABLE, true, "otherParam", "value"));
+    Space target = new Space().withId("my-space");
+
+    SpaceTableResolver.preserveTableName(source, target);
+
+    assertThat(target.getStorage().getId()).isEqualTo("psql");
+    assertThat(target.getStorage().getParams()).isEqualTo(Map.of(LAZY_TABLE, true, "otherParam", "value"));
+  }
+
+  @Test
+  void keepsTheLazyTableFlagOfALegacySpaceAgainstAClientValue() {
+    Space source = spaceWithStorage(Map.of(LAZY_TABLE, true));
+    Space target = spaceWithStorage(Map.of(LAZY_TABLE, false, "otherParam", "value"));
+
+    SpaceTableResolver.preserveTableName(source, target);
+
+    assertThat(target.getStorage().getParams())
+        .containsEntry(LAZY_TABLE, true)
+        .containsEntry("otherParam", "value")
+        .doesNotContainKey(TABLE_NAME);
+  }
+
+  @Test
+  void removesALazyTableFlagThatTheStoredSpaceDoesNotHave() {
+    Space source = spaceWithStorage(Map.of(TABLE_NAME, "persisted_table"));
+    Space target = spaceWithStorage(Map.of(TABLE_NAME, "persisted_table", LAZY_TABLE, true));
+    Space legacySource = spaceWithStorage(null);
+    Space legacyTarget = spaceWithStorage(Map.of(LAZY_TABLE, true));
+
+    SpaceTableResolver.preserveTableName(source, target);
+    SpaceTableResolver.preserveTableName(legacySource, legacyTarget);
+
+    assertThat(target.getStorage().getParams()).isEqualTo(Map.of(TABLE_NAME, "persisted_table"));
+    assertThat(legacyTarget.getStorage().getParams()).isNull();
+  }
+
+  @Test
+  void aNonBooleanLazyTableValueDoesNotSurviveAnUpdate() {
+    Space source = spaceWithStorage(Map.of(TABLE_NAME, "persisted_table", LAZY_TABLE, "true"));
+    Space target = spaceWithStorage(Map.of(TABLE_NAME, "persisted_table", LAZY_TABLE, "true"));
+    Space targetWithoutStorage = new Space().withId("my-space");
+
+    SpaceTableResolver.preserveTableName(source, target);
+    SpaceTableResolver.preserveTableName(source, targetWithoutStorage);
+
+    assertThat(target.getStorage().getParams()).isEqualTo(Map.of(TABLE_NAME, "persisted_table"));
+    assertThat(targetWithoutStorage.getStorage().getParams()).isEqualTo(Map.of(TABLE_NAME, "persisted_table"));
   }
 
   @Test

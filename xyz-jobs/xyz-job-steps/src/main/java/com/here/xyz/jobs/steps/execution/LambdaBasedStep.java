@@ -95,6 +95,8 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   private static final String PIPELINE_INPUT_TEMPLATE = "$$.Execution.Input";
   private static final String EXECUTION_ID_TEMPLATE = "$$.Execution.Id";
   public static final String HEART_BEAT_PREFIX = "HeartBeat-";
+  //Waits before the retries of a heartbeat that SFN rejected with an invalid token, see #sendHeartbeat()
+  static final long[] INVALID_TOKEN_RETRY_DELAYS_MS = {250, 500, 1_000, 2_000};
   //TODO: Check if there are other possibilities
   @JsonView(Internal.class)
   protected boolean isSimulation = false; //TODO: Remove testing code
@@ -396,17 +398,52 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   protected boolean isTaskActiveInSfn() {
     if (isSimulation)
       return true;
-    if (taskActiveInSfn == null) {
+    if (taskActiveInSfn == null)
+      taskActiveInSfn = sendHeartbeat(() -> sfnClient().sendTaskHeartbeat(SendTaskHeartbeatRequest.builder().taskToken(taskToken)
+          .build()), Thread::sleep, getGlobalStepId());
+    return taskActiveInSfn;
+  }
+
+  /**
+   * Sends a heartbeat and returns whether SFN accepted it.
+   * A {@link TaskTimedOutException} means that the task does not exist in SFN anymore.
+   * An {@link InvalidTokenException} is retried with the delays of {@link #INVALID_TOKEN_RETRY_DELAYS_MS} first: an update callback
+   * can arrive while the START_EXECUTION invocation of the step is still running, and an SFN implementation may not accept heartbeats
+   * for the task before that invocation returned (e.g., LocalStack).
+   */
+  static boolean sendHeartbeat(Runnable heartbeat, Sleeper sleeper, String globalStepId) {
+    for (int attempt = 0; ; attempt++) {
       try {
-        sfnClient().sendTaskHeartbeat(SendTaskHeartbeatRequest.builder().taskToken(taskToken).build());
-        taskActiveInSfn = true;
+        heartbeat.run();
+        return true;
       }
-      catch (TaskTimedOutException | InvalidTokenException e) {
-        logger.warn("[{}] Task Heartbeat is failed. The task does not exist in SFN anymore.", getGlobalStepId(), e);
-        taskActiveInSfn = false;
+      catch (TaskTimedOutException e) {
+        logger.warn("[{}] Task Heartbeat is failed. The task does not exist in SFN anymore.", globalStepId, e);
+        return false;
+      }
+      catch (InvalidTokenException e) {
+        if (attempt >= INVALID_TOKEN_RETRY_DELAYS_MS.length) {
+          logger.warn("[{}] Task Heartbeat is failed after {} attempts. The task does not exist in SFN anymore.", globalStepId,
+              attempt + 1, e);
+          return false;
+        }
+        long delayMs = INVALID_TOKEN_RETRY_DELAYS_MS[attempt];
+        logger.info("[{}] Task Heartbeat was rejected with an invalid token, retrying in {} ms ...", globalStepId, delayMs);
+        try {
+          sleeper.sleep(delayMs);
+        }
+        catch (InterruptedException ie) {
+          Thread.currentThread().interrupt();
+          logger.warn("[{}] Task Heartbeat is failed. Interrupted while waiting for the next attempt.", globalStepId, e);
+          return false;
+        }
       }
     }
-    return taskActiveInSfn;
+  }
+
+  @FunctionalInterface
+  interface Sleeper {
+    void sleep(long millis) throws InterruptedException;
   }
 
   private void reportAsyncHeartbeat(boolean synchronize) {

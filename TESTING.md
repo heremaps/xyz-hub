@@ -22,6 +22,7 @@ mvn -o clean verify -DskipTests=false        # everything, roughly 6 minutes
 | Module | Tests | Needs |
 |---|---|---|
 | `xyz-models`, `xyz-connectors` | unit | nothing |
+| `xyz-iceberg-connector` | unit | nothing |
 | `xyz-hub-service` | unit | nothing |
 | `xyz-psql-connector` | 15 ITs | postgres |
 | `xyz-util` | SQL FeatureWriter suites, SQL helpers | postgres |
@@ -38,8 +39,10 @@ Each needs everything the ones above it need.
 ### 1. Unit tests — nothing running
 
 ```bash
-mvn -o test -DskipTests=false -pl xyz-models,xyz-connectors,xyz-hub-service
+mvn -o test -DskipTests=false -pl xyz-models,xyz-connectors,xyz-iceberg-connector,xyz-hub-service
 ```
+
+`IcebergConnectorLambdaHandlerTest` covers the Lambda entry point of the Iceberg connector. The `lambda` classifier jar it is deployed as comes from `mvn -DskipTests -pl xyz-iceberg-connector -am package`.
 
 ### 2. Postgres only
 
@@ -50,7 +53,9 @@ mvn -o verify -DskipTests=false -pl xyz-psql-connector
 
 Also `xyz-util`'s `SQL*TestSuiteIT`, `SQLQueryIT`, `SQLQueryLockIT`, `SQLScriptsIT`, `XyzSpaceTableHelperIT` and
 `GeometryValidatorIT` — the PLV8 FeatureWriter suites and the SQL helpers. Its `Hub*TestSuiteIT` classes go
-through `HubWebClient`, so running all of `xyz-util` needs the full stack.
+through `HubWebClient`, so running all of `xyz-util` needs the full stack. With `-DskipTests=false`, a build of
+`xyz-util` runs only the lazy space table ITs (the failsafe group `lazy-space-tables`), which need postgres; the
+other ITs of the module are not bound to the build and have to be started explicitly.
 
 ### 3. Express mode import — postgres plus the xyz-util test jar
 
@@ -113,6 +118,17 @@ Both should answer `200` before you start:
 curl -s -o /dev/null -w 'hub %{http_code}\n' http://localhost:8080/hub/spaces
 curl -s -o /dev/null -w 'jobs %{http_code}\n' http://localhost:7070/jobs
 ```
+
+`IcebergReadsIT` runs against the hub's default `ICEBERG_READS=OFF` (`docker-compose-dynamodb.yml`) and switches Iceberg
+reads on for its own spaces with the internal space property `icebergReads` (`ON`, `OFF` or `SHADOW`, set with an admin
+token). Its last test puts one space into `SHADOW` and leaves the others `OFF`: the shadowed reads are served by postgres
+unchanged with a shadow read (`ISH=1`), and the comparisons are in the hub log (`iceberg-shadow ... result=`). No hub
+restart is needed for either mode. To run the other ITs with global `ON`, recreate the hub with
+`ICEBERG_READS=ON docker compose -f docker-compose-dynamodb.yml up -d --no-deps xyz-hub`. It writes its Iceberg
+tables into a JdbcCatalog in the stack's postgres (schema `iceberg_catalog`) and the localstack bucket `test-bucket`; the
+hub reads them through the connector `iceberg` of `connectors.json`. The IT registers the ICEBERG references itself
+through `/hub/references`; the Hub serves whatever table a reference's `location` names, which is why that API must only
+be open to trusted callers outside of tests.
 
 ## Narrowing a run
 

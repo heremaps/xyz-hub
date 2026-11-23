@@ -148,7 +148,7 @@ public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
 
   private FeatureStatistics getCopiedFeatures(long fetchedVersion) throws SQLException, TooManyResourcesClaimed, WebClientException {
     String targetSchema = getSchema(db()),
-        targetTable = getRootTableName(space());
+        targetTable = getReadableRootTableNameOrFail(space());
 
     SQLQuery incVersionSql = new SQLQuery(
         """

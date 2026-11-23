@@ -1437,9 +1437,20 @@ $BODY$
 ------------------------------------------------
 ------------------------------------------------
 
+--index_properties was added to the full statistics functions; drop the old signatures so a reused versioned schema does not keep
+--both overloads and the calls without it become ambiguous
+--Qualified with current_schema() so it never drops a same-named function from another schema further down the search_path
+DO $$
+BEGIN
+    EXECUTE format('DROP FUNCTION IF EXISTS %I.xyz_statistic_space_v1(text, text)', current_schema());
+    EXECUTE format('DROP FUNCTION IF EXISTS %I.xyz_statistic_space_v2(text, text, text[])', current_schema());
+    EXECUTE format('DROP FUNCTION IF EXISTS %I.xyz_statistic_space(text, text, boolean, text[])', current_schema());
+END$$;
+
 CREATE OR REPLACE FUNCTION xyz_statistic_space_v1(
     IN schema text,
-    IN spaceid text)
+    IN spaceid text,
+    IN index_properties jsonb DEFAULT NULL)
   RETURNS TABLE(tablesize jsonb, geometrytypes jsonb, properties jsonb, tags jsonb, count jsonb, bbox jsonb, searchable text) AS
 $BODY$
 	/**
@@ -1448,6 +1459,8 @@ $BODY$
 	* Parameters:
 	*   @schema			- schema in which the XYZ-spaces are located
 	*   @spaceid		- id of the space (tablename)
+	*   @index_properties	- per table name, the property paths of the on-demand indexes to report instead of the table's own;
+	*					  for the empty-space template, which stands in for never written levels of lazy spaces
 	*
 	* Returns (table):
 	*   tabelsize		- storage size of space
@@ -1469,6 +1482,17 @@ $BODY$
 	DECLARE estimate_cnt bigint;
 
 	BEGIN
+		/** The properties an empty table with these on-demand indexes lists, like xyz_property_statistic_v2 does */
+		IF jsonb_typeof(index_properties -> spaceid) = 'array' THEN
+			RETURN QUERY SELECT s.tablesize, s.geometrytypes,
+				jsonb_build_object('value', COALESCE((SELECT jsonb_agg(jsonb_build_object('key', k.propkey, 'count', 0, 'datatype', 'unknown')
+					ORDER BY k.propkey) FROM (SELECT DISTINCT split_part(xyz_index_get_plain_propkey(p), ',', 1) AS propkey
+					FROM jsonb_array_elements_text(index_properties -> spaceid) p) k), '[]'::jsonb), 'estimated', false),
+				s.tags, s.count, s.bbox, s.searchable
+				FROM xyz_statistic_xs_space(schema, xyz_get_head_table(schema, spaceid)) s;
+			RETURN;
+		END IF;
+
 		SELECT reltuples into estimate_cnt FROM pg_class WHERE oid = ( select concat('"',$1, '"."', xyz_get_head_table(schema, spaceid), '"')::regclass);
 
 		IF estimate_cnt > big_space_threshold THEN
@@ -1481,10 +1505,12 @@ $BODY$
   LANGUAGE plpgsql VOLATILE;
 
 -- base_tables: the tables of the spaces the space extends (intermediate and extended table of a composite space)
+-- index_properties: see xyz_statistic_space_v1, applied per table
 CREATE OR REPLACE FUNCTION xyz_statistic_space_v2(
     IN schema text,
     IN spaceid text,
-    IN base_tables text[])
+    IN base_tables text[],
+    IN index_properties jsonb DEFAULT NULL)
   RETURNS TABLE(tablesize jsonb, geometrytypes jsonb, properties jsonb, tags jsonb, count jsonb, bbox jsonb, searchable text) AS
 $BODY$
 
@@ -1495,7 +1521,7 @@ iindata as
 ( select row_number() over () as idx, r.* from
 	(	select i.s as schem, unnest( array_remove( array[i.t] || coalesce( i.b, '{}'::text[] ), null ) ) as tbl from indata i ) r
 ),
-iiindata as ( select * from iindata i, lateral ( select * from xyz_statistic_space_v1(i.schem,i.tbl) ) l ),
+iiindata as ( select * from iindata i, lateral ( select * from xyz_statistic_space_v1(i.schem,i.tbl,xyz_statistic_space_v2.index_properties) ) l ),
 c1 as ( select jsonb_build_object( 'value', sum( (tablesize->'value')::bigint ), 'estimated', max( (tablesize->>'estimated') )::boolean) as tablesize from iiindata ),
 c2 as
 ( select jsonb_build_object( 'value', coalesce( jsonb_agg( distinct e1 ),'[]'::jsonb ), 'estimated', coalesce( max( e2::text )::boolean, false ) ) as geometrytypes
@@ -1536,15 +1562,17 @@ BEGIN
     EXECUTE format('DROP FUNCTION IF EXISTS %I.xyz_statistic_space(text, text, boolean)', current_schema());
 END$$;
 
-create or replace function xyz_statistic_space( schema text, spaceid text, ctx_extend boolean, base_tables text[] DEFAULT '{}')
+-- index_properties: see xyz_statistic_space_v1
+create or replace function xyz_statistic_space( schema text, spaceid text, ctx_extend boolean, base_tables text[] DEFAULT '{}',
+  index_properties jsonb DEFAULT NULL)
   returns table(tablesize jsonb, geometrytypes jsonb, properties jsonb, tags jsonb, count jsonb, bbox jsonb, searchable text) AS
 $body$
 begin
 
  if ctx_extend then
-  return query select * from xyz_statistic_space_v1( schema, spaceid );
+  return query select * from xyz_statistic_space_v1( schema, spaceid, index_properties );
  else
-  return query select * from xyz_statistic_space_v2( schema, spaceid, base_tables );
+  return query select * from xyz_statistic_space_v2( schema, spaceid, base_tables, index_properties );
  end if;
 
 end;

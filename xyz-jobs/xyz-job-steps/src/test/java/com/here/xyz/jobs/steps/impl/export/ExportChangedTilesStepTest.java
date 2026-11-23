@@ -29,11 +29,13 @@ import com.here.xyz.jobs.steps.outputs.TileInvalidations;
 import com.here.xyz.models.filters.SpatialFilter;
 import com.here.xyz.jobs.steps.impl.transport.ExportChangedTiles.QuadType;
 import com.here.xyz.models.geojson.coordinates.LinearRingCoordinates;
+import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.coordinates.PolygonCoordinates;
 import com.here.xyz.models.geojson.coordinates.Position;
 import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.geojson.implementation.Polygon;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
@@ -378,6 +380,67 @@ public class ExportChangedTilesStepTest extends ExportTestBase {
                         .withGeometry(new Polygon().withCoordinates(polygonCoordinates))
                         .withClip(false), null,
                 List.of(), new FeatureCollection());
+    }
+
+    /**
+     * The changed tiles of a written lazy extension of a never-written lazy base equal those of the same writes on an eager extension
+     * of an empty base. The base keeps its flag.
+     */
+    @Test
+    public void exportChangedTilesOfExtensionOfNeverWrittenLazyBase() throws Exception {
+        Space emptyBase = createTestSpace(new Space().withId(SPACE_ID + "_emptyBase").withVersionsToKeep(VERSIONS_TO_KEEP));
+        Space eagerExtension = createTestSpace(new Space().withId(SPACE_ID + "_eagerExt").withVersionsToKeep(VERSIONS_TO_KEEP)
+            .withExtension(new Space.Extension().withSpaceId(emptyBase.getId())));
+        Space lazyBase = createTestSpace(new Space().withId(SPACE_ID + "_lazyBase").withVersionsToKeep(VERSIONS_TO_KEEP)
+            .withStorage(new Space.ConnectorRef().withId(LAZY_CONNECTOR)));
+        Space lazyExtension = createTestSpace(new Space().withId(SPACE_ID + "_lazyExt").withVersionsToKeep(VERSIONS_TO_KEEP)
+            .withExtension(new Space.Extension().withSpaceId(lazyBase.getId())));
+        Assertions.assertTrue(isFlagged(lazyBase.getId()));
+        Assertions.assertTrue(isFlagged(lazyExtension.getId()));
+
+        for (Space extension : List.of(eagerExtension, lazyExtension)) {
+            //Version 1: two new features, version 2: one of them moved
+            putFeatureCollectionToSpace(extension.getId(), new FeatureCollection().withFeatures(List.of(
+                pointFeature("point1", 2.5924, 47.0581), pointFeature("point2", 34.89167, 39.68783))));
+            putFeatureCollectionToSpace(extension.getId(), new FeatureCollection().withFeatures(List.of(
+                pointFeature("point1", 7.59619, 59.5372))));
+        }
+
+        for (String ref : List.of("0..1", "1..2", "0..HEAD"))
+            Assertions.assertEquals(changedTiles(eagerExtension.getId(), ref), changedTiles(lazyExtension.getId(), ref), "ref " + ref);
+        Assertions.assertTrue(isFlagged(lazyBase.getId()));
+        Assertions.assertEquals(0, relationCount(DB_URL, tableName(lazyBase)));
+    }
+
+    private static Feature pointFeature(String id, double longitude, double latitude) {
+        return new Feature().withId(id).withGeometry(new Point().withCoordinates(new PointCoordinates(longitude, latitude)));
+    }
+
+    /**
+     * @return The sorted IDs of the exported features, then the sorted IDs of the invalidated tiles
+     */
+    private List<List<String>> changedTiles(String spaceId, String ref) throws IOException, InterruptedException {
+        ExportSpaceToFiles step = new ExportChangedTiles()
+            .withQuadType(QuadType.HERE_QUAD)
+            .withTargetLevel(5)
+            .withVersionRef(new Ref(ref))
+            .withSpaceId(spaceId)
+            .withJobId(JOB_ID);
+        sendLambdaStepRequestBlock(step, true);
+
+        List<String> featureIds = new ArrayList<>();
+        List<String> tileIds = new ArrayList<>();
+        List<Output> outputs = new ArrayList<>(step.loadOutputs(USER));
+        outputs.addAll(step.loadOutputs(SYSTEM));
+        for (Output output : outputs) {
+            if (output instanceof DownloadUrl downloadUrl)
+                downloadFileAndDeserializeFeatures(downloadUrl).forEach(feature -> featureIds.add(feature.getId()));
+            else if (output instanceof TileInvalidations tileInvalidations)
+                tileIds.addAll(tileInvalidations.getTileIds());
+        }
+        featureIds.sort(null);
+        tileIds.sort(null);
+        return List.of(featureIds, tileIds);
     }
 
   protected void executeExportChangedTilesStepAndCheckResults(String spaceId, int targetLevel,

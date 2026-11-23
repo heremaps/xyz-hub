@@ -199,8 +199,15 @@ public abstract class TestSuite {
     spaceWriter().cleanSpaceResources();
   }
 
+  /**
+   * @return The writer of the features that the preconditions of a test need
+   */
+  protected SpaceWriter preparationWriter() {
+    return new SQLSpaceWriter(composite, getClass().getSimpleName());
+  }
+
   protected void writeFeatureForPreparation(Feature feature, String author, SpaceContext context) throws Exception {
-    new SQLSpaceWriter(composite, getClass().getSimpleName())
+    preparationWriter()
         .writeFeature(feature, author, null, null, null, null, false, context, history);
     writtenSpaceVersions.get(context).increment();
   }

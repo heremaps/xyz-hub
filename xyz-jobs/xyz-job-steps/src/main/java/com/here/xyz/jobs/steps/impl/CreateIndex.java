@@ -38,6 +38,7 @@ import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import static com.here.xyz.jobs.steps.impl.SpaceBasedStep.TableState.NEVER_MATERIALIZED;
 import static com.here.xyz.util.db.pg.IndexHelper.buildSpaceTableIndexQuery;
 
 public class CreateIndex extends SpaceBasedStep<CreateIndex> {
@@ -46,6 +47,10 @@ public class CreateIndex extends SpaceBasedStep<CreateIndex> {
 
   @JsonView({Internal.class, Static.class})
   private int estimatedSeconds = -1;
+
+  //Whether the last execution started no query, because the space has no table yet
+  @JsonView({Internal.class, Static.class})
+  private boolean skippedNeverMaterialized = false;
 
   @Override
   public List<Load> getNeededResources() {
@@ -93,7 +98,27 @@ public class CreateIndex extends SpaceBasedStep<CreateIndex> {
   }
 
   @Override
+  public AsyncExecutionState getExecutionState() throws UnknownStateException {
+    if (skippedNeverMaterialized)
+      return AsyncExecutionState.SUCCEEDED;
+    return super.getExecutionState();
+  }
+
+  @Override
   public void execute(boolean resume) throws TooManyResourcesClaimed {
+    skippedNeverMaterialized = false;
+    try {
+      //A lazy space without a table gets its indexes with its first write
+      if (tableStateOrFail(space()) == NEVER_MATERIALIZED) {
+        logger.info("[{}] Skipping the index {} for space {}, which has no table yet", getGlobalStepId(), index, getSpaceId());
+        skippedNeverMaterialized = true;
+        return;
+      }
+    }
+    catch (WebClientException e) {
+      throw new StepException("Error while creating the index " + index + " for " + getSpaceId(), e).withRetryable(true);
+    }
+
     try {
       /*
       NOTE: In case of resume, no cleanup needed, in any case, sending the index creation query again will work

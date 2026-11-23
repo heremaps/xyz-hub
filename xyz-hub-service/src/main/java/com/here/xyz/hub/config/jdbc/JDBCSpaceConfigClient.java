@@ -97,6 +97,52 @@ public class JDBCSpaceConfigClient extends SpaceConfigClient {
   }
 
   @Override
+  protected Future<ClearResult> clearLazyTableFlag(Marker marker, String spaceId, String connectorId, String tableName) {
+    return client.write(withTable(buildClearLazyTableQuery(spaceId, connectorId, tableName)))
+        .compose(removedRows -> removedRows > 0
+            ? Future.succeededFuture(ClearResult.REMOVED)
+            : client.run(withTable(buildClearLazyTableCheckQuery(spaceId, connectorId, tableName)), rs -> rs.next())
+                .map(conditionsHold -> conditionsHold ? ClearResult.ABSENT : ClearResult.CONDITION_FAILED));
+  }
+
+  private static SQLQuery withTable(SQLQuery query) {
+    return query.withVariable("schema", SCHEMA).withVariable("table", SPACE_TABLE);
+  }
+
+  /**
+   * The statement that removes the lazy-table flag of a space if its storage matches, see
+   * {@link SpaceConfigClient#clearLazyTable(Marker, String, String, String, String)}. It changes one row if it removed the flag.
+   * The variables {@code schema} and {@code table} are not set.
+   */
+  public static SQLQuery buildClearLazyTableQuery(String spaceId, String connectorId, String tableName) {
+    return storageCondition(new SQLQuery("UPDATE ${schema}.${table} SET config = config #- '{storage,params,lazyTable}' WHERE "
+        + storageConditionText(tableName) + " AND config #> '{storage,params,lazyTable}' IS NOT NULL"), spaceId, connectorId, tableName);
+  }
+
+  /**
+   * The query that tells, after {@link #buildClearLazyTableQuery(String, String, String)} changed no row, whether the storage
+   * of the space matches (a row: the flag was absent already) or not (no row). The variables {@code schema} and {@code table}
+   * are not set.
+   */
+  public static SQLQuery buildClearLazyTableCheckQuery(String spaceId, String connectorId, String tableName) {
+    return storageCondition(new SQLQuery("SELECT 1 FROM ${schema}.${table} WHERE " + storageConditionText(tableName)), spaceId,
+        connectorId, tableName);
+  }
+
+  private static String storageConditionText(String tableName) {
+    return "id = #{spaceId} AND config #>> '{storage,id}' = #{connector} AND " + (tableName != null
+        ? "config #>> '{storage,params,tableName}' = #{table}"
+        : "config #> '{storage,params}' IS NOT NULL AND config #> '{storage,params,tableName}' IS NULL");
+  }
+
+  private static SQLQuery storageCondition(SQLQuery query, String spaceId, String connectorId, String tableName) {
+    query.withNamedParameter("spaceId", spaceId).withNamedParameter("connector", connectorId);
+    if (tableName != null)
+      query.withNamedParameter("table", tableName);
+    return query;
+  }
+
+  @Override
   protected Future<Space> deleteSpace(Marker marker, String spaceId) {
     SQLQuery query = client.getQuery("DELETE FROM ${schema}.${table} WHERE id = #{spaceId}")
         .withNamedParameter("spaceId", spaceId);

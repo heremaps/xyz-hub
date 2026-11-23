@@ -28,6 +28,7 @@ import com.here.xyz.psql.query.helpers.versioning.GetHeadVersion;
 import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
+import com.here.xyz.util.db.pg.LazySpaceTables;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
@@ -46,6 +47,10 @@ public class DeleteChangesets extends XyzQueryRunner<DeleteChangesetsEvent, Succ
       throw new ErrorResponseException(ILLEGAL_ARGUMENT, "Can not delete all changesets older than version " + event.getMinVersion()
               + " as it would also delete the HEAD (" + headVersion
               + ") version. Minimum version which may specified as new minimum version is HEAD.");
+
+    //A never written lazy space reads from the empty-space template, which has no changesets and rejects every write
+    if (LazySpaceTables.TEMPLATE_TABLE.equals(getDefaultTable(event)))
+      return new SuccessResponse();
 
     return super.write(dataSourceProvider);
   }

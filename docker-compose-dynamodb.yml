@@ -26,6 +26,7 @@ services:
             - SETTINGS_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-settings
             - REFERENCES_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-references
             - JOB_API_ENDPOINT=http://xyz-job-service:7070/
+            - ICEBERG_READS=${ICEBERG_READS:-OFF}
     xyz-job-service:
         image: "xyz-job"
         build:

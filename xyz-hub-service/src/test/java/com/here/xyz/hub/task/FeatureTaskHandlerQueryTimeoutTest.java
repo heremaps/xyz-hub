@@ -19,10 +19,15 @@
 
 package com.here.xyz.hub.task;
 
+import static com.here.xyz.hub.cache.QueryTimeoutCache.QUERY_TIMEOUT_CACHE_IMMUTABLE_TTL;
+import static com.here.xyz.hub.cache.QueryTimeoutCache.QUERY_TIMEOUT_CACHE_TTL;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.STREAM_INFO_CTX_KEY;
+import static com.here.xyz.util.service.rest.Api.RESPONSE_PAYLOAD_TOO_LARGE;
+import static com.here.xyz.util.service.rest.Api.RESPONSE_PAYLOAD_TOO_LARGE_MESSAGE;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.GATEWAY_TIMEOUT;
 import static java.util.concurrent.TimeUnit.DAYS;
+import static java.util.concurrent.TimeUnit.HOURS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -52,6 +57,8 @@ import com.here.xyz.hub.task.FeatureTask.GeometryQuery;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Point;
+import com.here.xyz.models.hub.Ref;
+import com.here.xyz.models.hub.Space.Extension;
 import com.here.xyz.models.hub.jwt.JWTPayload;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.service.HttpException;
@@ -73,6 +80,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.IntFunction;
+import java.util.function.Supplier;
 import java.util.stream.IntStream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -96,6 +104,7 @@ class FeatureTaskHandlerQueryTimeoutTest {
   private final FakeRedis redis = new FakeRedis();
   private Config previousConfiguration;
   private CacheClient previousVolatileCacheClient;
+  private CacheClient previousStaticCacheClient;
   private QueryTimeoutCache previousQueryTimeoutCache;
   private Space space;
   private Connector storage;
@@ -120,11 +129,15 @@ class FeatureTaskHandlerQueryTimeoutTest {
   void setUp() {
     previousConfiguration = Service.configuration;
     previousVolatileCacheClient = Service.volatileCacheClient;
+    previousStaticCacheClient = Service.staticCacheClient;
     previousQueryTimeoutCache = Service.queryTimeoutCache;
     Service.configuration = new Config();
     Service.configuration.QUERY_TIMEOUT_CACHE_ENABLED = true;
     Service.volatileCacheClient = mock(CacheClient.class);
     when(Service.volatileCacheClient.get(anyString())).thenReturn(Future.succeededFuture(null));
+    //Responses of immutable versions go to the static cache
+    Service.staticCacheClient = mock(CacheClient.class);
+    when(Service.staticCacheClient.get(anyString())).thenReturn(Future.succeededFuture(null));
     Service.queryTimeoutCache = new QueryTimeoutCache(redis, now::get);
 
     //Updated 2 days ago: cacheable
@@ -140,6 +153,7 @@ class FeatureTaskHandlerQueryTimeoutTest {
   void tearDown() {
     Service.configuration = previousConfiguration;
     Service.volatileCacheClient = previousVolatileCacheClient;
+    Service.staticCacheClient = previousStaticCacheClient;
     Service.queryTimeoutCache = previousQueryTimeoutCache;
   }
 
@@ -279,10 +293,10 @@ class FeatureTaskHandlerQueryTimeoutTest {
     Throwable shortCut = replies.get(3).error;
     assertFalse(replies.get(3).queryRan);
 
-    List<String> realReply = render(realStatementTimeout);
-    assertEquals(realReply, render(shortCut));
+    List<String> realReply = render(realStatementTimeout, 504, "E318540");
+    assertEquals(realReply, render(shortCut, 504, "E318540"));
     //Clients cannot tell a statement timeout from a connector Lambda timeout either
-    assertEquals(realReply, render(new DetailedHttpException("E318540")));
+    assertEquals(realReply, render(new DetailedHttpException("E318540"), 504, "E318540"));
   }
 
   @Test
@@ -296,6 +310,236 @@ class FeatureTaskHandlerQueryTimeoutTest {
     replies.forEach(reply -> assertNull(reply.streamInfo("NC")));
     replies.forEach(reply -> assertInstanceOf(StatementTimeoutException.class, reply.error));
     assertEquals(0, redis.calls);
+  }
+
+  @Test
+  void aTooLargeResponseOnAReadOnlyVersionIsShortCutAfterTheFirstOneForHours() {
+    readOnly(5);
+
+    Reply first = send(connectorTooLarge());
+    assertTrue(first.queryRan);
+    assertEquals(QUERY_TIMEOUT_CACHE_IMMUTABLE_TTL, redis.markerTtl());
+    assertEquals(HOURS.toSeconds(6), QUERY_TIMEOUT_CACHE_IMMUTABLE_TTL);
+    //A request every 9 s, and no probe after the 300 s of a writable space
+    for (int i = 0; i < 40; i++) {
+      now.addAndGet(SECONDS.toMillis(9));
+      assertTooLargeShortCut(send(connectorTooLarge()), "E318541");
+    }
+    now.addAndGet(HOURS.toMillis(6) - SECONDS.toMillis(9 * 40 + 1));
+    Reply last = send(connectorTooLarge());
+    assertTooLargeShortCut(last, "E318541");
+    assertEquals(HOURS.toMillis(6) - SECONDS.toMillis(1), last.streamInfo("NCAge"));
+    //The marker expires 6 h after the 513, the next request runs the query again and arms the marker again
+    now.addAndGet(SECONDS.toMillis(1));
+    Reply afterTtl = send(connectorTooLarge());
+    assertTrue(afterTtl.queryRan);
+    assertNull(afterTtl.streamInfo("NC"));
+    now.addAndGet(SECONDS.toMillis(9));
+    assertTooLargeShortCut(send(connectorTooLarge()), "E318541");
+  }
+
+  @Test
+  void theServicesOwnTooLargeResponseOnAReadOnlyVersionIsShortCutAfterTheFirstOne() {
+    readOnly(5);
+
+    assertTrue(send(responseTooLarge()).queryRan);
+    now.addAndGet(SECONDS.toMillis(9));
+    assertTooLargeShortCut(send(responseTooLarge()), null);
+    assertEquals(QUERY_TIMEOUT_CACHE_IMMUTABLE_TTL, redis.markerTtl());
+  }
+
+  @Test
+  void aVersionAtOrBelowTheReadOnlyHeadVersionIsImmutable() {
+    readOnly(5);
+
+    for (long version : new long[] {5, 3, 0}) {
+      assertTrue(send(spatialEvent(8.0).withRef(new Ref(version)), false, connectorTooLarge()).queryRan);
+      assertTooLargeShortCut(send(spatialEvent(8.0).withRef(new Ref(version)), false, connectorTooLarge()), "E318541");
+    }
+    //A HEAD read is a read of the readOnlyHeadVersion, so it shares the marker of version 5
+    assertTooLargeShortCut(send(connectorTooLarge()), "E318541");
+  }
+
+  @Test
+  void otherVersionsAndSpacesKeepTheThreshold() {
+    //Above the readOnlyHeadVersion
+    readOnly(5);
+    assertTooLargeNeedsTheThreshold(() -> spatialEvent(8.0).withRef(new Ref(6)));
+    //A version of a writable space
+    space.setReadOnly(false);
+    space.setReadOnlyHeadVersion(-1);
+    assertTooLargeNeedsTheThreshold(() -> spatialEvent(9.0).withRef(new Ref(3)));
+    //A read-only space without a readOnlyHeadVersion
+    space.setReadOnly(true);
+    assertTooLargeNeedsTheThreshold(() -> spatialEvent(10.0));
+    //A read-only space extending a space which is not bound to a version
+    readOnly(5);
+    space.setExtension(new Extension().withSpaceId("base-space"));
+    assertTooLargeNeedsTheThreshold(() -> spatialEvent(11.0));
+  }
+
+  @Test
+  void aReadOnlySpaceExtendingABoundVersionIsImmutable() {
+    readOnly(5);
+    space.setExtension(new Extension().withSpaceId("base-space").withVersion(2L));
+
+    assertTrue(send(connectorTooLarge()).queryRan);
+    assertTooLargeShortCut(send(connectorTooLarge()), "E318541");
+  }
+
+  @Test
+  void aTooLargeResponseOnAWritableSpaceNeedsTheThresholdAndIsProbed() {
+    List<Reply> replies = retry(10, attempt -> connectorTooLarge());
+
+    assertQueriesRan(replies, 1, 2, 3, 10);
+    replies.subList(3, 9).forEach(reply -> assertTooLargeShortCut(reply, "E318541"));
+    Reply probe = replies.get(9);
+    assertEquals("P", probe.streamInfo("NC"));
+    assertEquals(513, probe.streamInfo("NCStatus"));
+    assertEquals(SECONDS.toMillis(508), probe.streamInfo("NCAge"));
+    assertEquals(4, redis.markerCount());
+    assertEquals(QUERY_TIMEOUT_CACHE_TTL, redis.markerTtl());
+    //The probe succeeds: the marker is gone
+    now.addAndGet(SECONDS.toMillis(301));
+    assertNull(send((Throwable) null).error);
+    assertEquals(0, redis.size());
+
+    //The same for the service's own 513
+    replies = retry(4, attempt -> responseTooLarge());
+    assertQueriesRan(replies, 1, 2, 3);
+    assertTooLargeShortCut(replies.get(3), null);
+  }
+
+  @Test
+  void statementTimeoutsOnAReadOnlyVersionKeepTheThreshold() {
+    readOnly(5);
+
+    List<Reply> replies = retry(10, attempt -> new StatementTimeoutException());
+
+    assertQueriesRan(replies, 1, 2, 3, 10);
+    replies.subList(3, 9).forEach(FeatureTaskHandlerQueryTimeoutTest::assertShortCut);
+    replies.subList(3, 9).forEach(reply -> assertEquals(504, reply.streamInfo("NCStatus")));
+    assertEquals(QUERY_TIMEOUT_CACHE_TTL, redis.markerTtl());
+  }
+
+  @Test
+  void aTooLargeResponseAndAStatementTimeoutEndEachOthersSeries() {
+    send(new StatementTimeoutException());
+    send(new StatementTimeoutException());
+    send(connectorTooLarge());
+    assertEquals(1, redis.markerCount());
+    List<Reply> replies = retry(4, attempt -> new StatementTimeoutException());
+    assertQueriesRan(replies, 1, 2, 3);
+    assertShortCut(replies.get(3));
+
+    now.addAndGet(SECONDS.toMillis(301));
+    send(connectorTooLarge());
+    assertEquals(1, redis.markerCount());
+    replies = retry(4, attempt -> connectorTooLarge());
+    assertQueriesRan(replies, 1, 2);
+    assertTooLargeShortCut(replies.get(3), "E318541");
+  }
+
+  @Test
+  void bypassesOfTooLargeMarkers() {
+    //Writable space: skipCache and content updates
+    retry(3, attempt -> connectorTooLarge());
+    assertTrue(send(spatialEvent(8.0), true, connectorTooLarge()).queryRan);
+    long contentUpdatedAt = space.getContentUpdatedAt();
+    space.setContentUpdatedAt(System.currentTimeMillis());
+    assertTrue(send(connectorTooLarge()).queryRan);
+    space.setContentUpdatedAt(contentUpdatedAt + 1);
+    Reply afterUpdate = send(connectorTooLarge());
+    assertTrue(afterUpdate.queryRan);
+    assertNull(afterUpdate.streamInfo("NC"));
+
+    //Read-only version: skipCache, a non-cacheable space and a write after the space became writable again
+    readOnly(5);
+    Reply first = send(spatialEvent(9.0), false, connectorTooLarge());
+    assertTrue(first.queryRan);
+    assertTrue(send(spatialEvent(9.0), true, connectorTooLarge()).queryRan);
+    storage.capabilities.enableAutoCache = false;
+    assertTrue(send(spatialEvent(9.0), false, connectorTooLarge()).queryRan);
+    storage.capabilities.enableAutoCache = true;
+    assertTooLargeShortCut(send(spatialEvent(9.0), false, connectorTooLarge()), "E318541");
+    space.setReadOnly(false);
+    space.setReadOnlyHeadVersion(-1);
+    space.setContentUpdatedAt(System.currentTimeMillis());
+    assertTrue(send(spatialEvent(9.0), false, connectorTooLarge()).queryRan);
+  }
+
+  @Test
+  void anotherTimeoutOfTheConnectorPausesTooLargeMarkersToo() {
+    readOnly(5);
+    send(connectorTooLarge());
+
+    assertTrue(send(spatialEvent(9.0), false, new DetailedHttpException("E318540")).queryRan);
+    Reply paused = send(connectorTooLarge());
+    assertTrue(paused.queryRan);
+    assertNull(paused.streamInfo("NC"));
+  }
+
+  @Test
+  void theTooLargeShortCutReplyIsTheSameAsTheRealOne() {
+    readOnly(5);
+    for (Throwable tooLarge : List.of(connectorTooLarge(), responseTooLarge())) {
+      GetFeaturesByGeometryEvent event = spatialEvent(tooLarge instanceof DetailedHttpException ? 8.0 : 9.0);
+      Reply real = send(event, false, tooLarge);
+      Reply shortCut = send(event, false, tooLarge);
+      assertTrue(real.queryRan);
+      assertFalse(shortCut.queryRan);
+      String bodyPart = tooLarge instanceof DetailedHttpException ? "E318541" : RESPONSE_PAYLOAD_TOO_LARGE_MESSAGE;
+      assertEquals(render(real.error, 513, bodyPart), render(shortCut.error, 513, bodyPart));
+    }
+  }
+
+  /**
+   * Makes the space read-only at the given version, as the space API does.
+   */
+  private void readOnly(long readOnlyHeadVersion) {
+    space.setReadOnly(true);
+    space.setReadOnlyHeadVersion(readOnlyHeadVersion);
+  }
+
+  private void assertTooLargeNeedsTheThreshold(Supplier<GetFeaturesByGeometryEvent> event) {
+    List<Reply> replies = new ArrayList<>();
+    for (int i = 0; i < 4; i++) {
+      now.addAndGet(SECONDS.toMillis(9));
+      replies.add(send(event.get(), false, connectorTooLarge()));
+    }
+    assertQueriesRan(replies, 1, 2, 3);
+    assertTooLargeShortCut(replies.get(3), "E318541");
+  }
+
+  /**
+   * The connector's PAYLOAD_TO_LARGE error, as RpcClient maps it.
+   */
+  private static Throwable connectorTooLarge() {
+    return new DetailedHttpException("E318541");
+  }
+
+  /**
+   * The service's own check of the response size in RpcClient.
+   */
+  private static Throwable responseTooLarge() {
+    return new HttpException(RESPONSE_PAYLOAD_TOO_LARGE, RESPONSE_PAYLOAD_TOO_LARGE_MESSAGE);
+  }
+
+  /**
+   * @param errorCode The code of the expected error, null for the service's own 513
+   */
+  private static void assertTooLargeShortCut(Reply reply, String errorCode) {
+    assertFalse(reply.queryRan);
+    assertEquals("S", reply.streamInfo("NC"));
+    assertEquals(513, reply.streamInfo("NCStatus"));
+    HttpException tooLarge = assertInstanceOf(HttpException.class, reply.error);
+    assertEquals(513, tooLarge.status.code());
+    if (errorCode == null) {
+      assertFalse(tooLarge instanceof DetailedHttpException);
+      assertEquals(RESPONSE_PAYLOAD_TOO_LARGE_MESSAGE, tooLarge.getMessage());
+    }
+    else
+      assertEquals(errorCode, assertInstanceOf(DetailedHttpException.class, tooLarge).errorDefinition.getCode());
   }
 
   private static void assertShortCut(Reply reply) {
@@ -339,6 +583,7 @@ class FeatureTaskHandlerQueryTimeoutTest {
       @Override
       public TaskPipeline<GeometryQuery> createPipeline() {
         return TaskPipeline.<GeometryQuery>create(this)
+            .then(FeatureTaskHandler::checkImmutability)
             .then(FeatureTaskHandler::readCache)
             .then((t, callback) -> {
               t.consumeEvent();
@@ -380,7 +625,7 @@ class FeatureTaskHandlerQueryTimeoutTest {
   /**
    * Renders an exception the same way as the service does for a failed task, and returns all calls on the HTTP response.
    */
-  private static List<String> render(Throwable e) {
+  private static List<String> render(Throwable e, int status, String bodyPart) {
     RoutingContext context = routingContext(new HashMap<>());
     when(context.request().getHeader("Stream-Id")).thenReturn("test-stream");
     HttpServerResponse response = mock(HttpServerResponse.class, RETURNS_SELF);
@@ -391,8 +636,8 @@ class FeatureTaskHandlerQueryTimeoutTest {
     List<String> calls = mockingDetails(response).getInvocations().stream()
         .map(invocation -> invocation.getMethod().getName() + Arrays.toString(invocation.getArguments()))
         .toList();
-    assertTrue(calls.stream().anyMatch(call -> call.startsWith("setStatusCode[504]")));
-    assertTrue(calls.stream().anyMatch(call -> call.startsWith("end[") && call.contains("E318540")));
+    assertTrue(calls.stream().anyMatch(call -> call.startsWith("setStatusCode[" + status + "]")));
+    assertTrue(calls.stream().anyMatch(call -> call.startsWith("end[") && call.contains(bodyPart)));
     return calls;
   }
 
@@ -433,6 +678,7 @@ class FeatureTaskHandlerQueryTimeoutTest {
 
     private final Map<String, byte[]> values = new HashMap<>();
     private final Map<String, Long> expiries = new HashMap<>();
+    private final Map<String, Long> ttls = new HashMap<>();
     private int calls;
 
     @Override
@@ -446,6 +692,7 @@ class FeatureTaskHandlerQueryTimeoutTest {
       calls++;
       values.put(key, value);
       expiries.put(key, now.get() + SECONDS.toMillis(ttl));
+      ttls.put(key, ttl);
     }
 
     @Override
@@ -467,7 +714,17 @@ class FeatureTaskHandlerQueryTimeoutTest {
      */
     int markerCount() {
       assertEquals(1, size());
-      return Integer.parseInt(new String(values.values().iterator().next()).split(":")[0]);
+      String[] parts = new String(values.values().iterator().next()).split(":");
+      //A 513 marker starts with the kind of the 513
+      return Integer.parseInt(parts[parts.length - 2]);
+    }
+
+    /**
+     * @return The TTL in seconds the only marker was set with
+     */
+    long markerTtl() {
+      assertEquals(1, size());
+      return ttls.get(values.keySet().iterator().next());
     }
 
     private Map<String, byte[]> liveValues() {
