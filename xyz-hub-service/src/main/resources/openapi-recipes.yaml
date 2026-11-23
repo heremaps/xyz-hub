@@ -43,7 +43,6 @@ recipes:
       - tags.name=Manage Tags
       - tags.name=Manage Connectors
       - tags.name=Manage Subscriptions
-      - tags.name=Manage Jobs
       - paths.'/spaces/{spaceId}/tags'
       - paths.'/spaces/{spaceId}/tags/{tagId}'
       - paths.'/spaces/{spaceId}/changesets/statistics'
@@ -60,9 +59,6 @@ recipes:
       - paths.'/spaces/{spaceId}/iterate'.get.parameters.$ref~=^.*Part$
       - paths.'/spaces/{spaceId}/subscriptions'
       - paths.'/spaces/{spaceId}/subscriptions/{subscriptionId}'
-      - paths.'/spaces/{spaceId}/jobs'
-      - paths.'/spaces/{spaceId}/job/{jobId}'
-      - paths.'/spaces/{spaceId}/job/{jobId}/execute'
       - paths.'/connectors'
       - paths.'/connectors/{connectorId}'
       - components.parameters.ConnectorId
@@ -77,8 +73,6 @@ recipes:
       - components.parameters.TweaksParams
       - components.responses.ConnectorResponse
       - components.responses.ConnectorsResponse
-      - components.responses.JobResponse
-      - components.responses.JobsResponse
       - components.responses.SubscriptionResponse
       - components.responses.SubscriptionsResponse
       - components.responses.TagResponse
@@ -106,7 +100,6 @@ recipes:
       - components.schemas.Connector
       - components.schemas.Subscription
       - components.schemas.SubscriptionConfig
-      - components.schemas.Job
     replace:
       - type: value
         path: paths.'/spaces/{spaceId}/tile/{type}/{tileId}'.get.description
@@ -188,15 +181,6 @@ recipes:
       - type: key
         path: paths.'/spaces/{spaceId}/changesets/{version}'
         replace: paths.'/hub/spaces/{spaceId}/changesets/{version}'
-      - type: key
-        path: paths.'/spaces/{spaceId}/jobs'
-        replace: paths.'/hub/spaces/{spaceId}/jobs'
-      - type: key
-        path: paths.'/spaces/{spaceId}/job/{jobId}'
-        replace: paths.'/hub/spaces/{spaceId}/job/{jobId}'
-      - type: key
-        path: paths.'/spaces/{spaceId}/job/{jobId}/execute'
-        replace: paths.'/hub/spaces/{spaceId}/job/{jobId}/execute'
       - type: key
         path: paths.'/spaces/{spaceId}/tags'
         replace: paths.'/hub/spaces/{spaceId}/tags'

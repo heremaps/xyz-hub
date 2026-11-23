@@ -30,6 +30,10 @@ import static com.here.xyz.hub.task.FeatureTask.FeatureKey.BBOX;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.ID;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.PROPERTIES;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.TYPE;
+import static com.here.xyz.hub.task.LazyTableClearing.clearAfterWrite;
+import static com.here.xyz.hub.task.LazyTableClearing.defersContentUpdate;
+import static com.here.xyz.hub.task.LazyTableClearing.isCleared;
+import static com.here.xyz.hub.task.LazyTableClearing.takeMaterialized;
 import static com.here.xyz.hub.util.SpaceTableResolver.getTableIdentity;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_VND_MAPBOX_VECTOR_TILE;
@@ -139,6 +143,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import net.jodah.expiringmap.ExpirationPolicy;
 import net.jodah.expiringmap.ExpiringMap;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -250,25 +255,42 @@ public class FeatureTaskHandler {
       if (eventToExecute instanceof ModifyFeaturesEvent) {
         ((ModifyFeaturesEvent) eventToExecute).setFailed(null);
       }
+      /*
+      The callbacks below use only these two locals, never the event (see the note above task.consumeEvent()).
+      For a space carrying the lazy-table flag the contentUpdatedAt store is deferred until the flag has been cleared,
+      because an earlier store could write the flag back after the clear.
+       */
+      final SpaceContext spaceContext = eventToExecute instanceof ContextAwareEvent<?> cae ? cae.getContext() : null;
+      final boolean deferred = task instanceof FeatureTask.ConditionalOperation && !isErase
+          && defersContentUpdate(task.space, spaceContext);
       //Do the actual storage call
       try {
         setAdditionalEventProps(task, task.storage, eventToExecute);
         final long storageRequestStart = Core.currentTimeMillis();
         responseContext.rpcContext = getRpcClient(task.storage).execute(task.getMarker(), eventToExecute, storageResult -> {
-          if (task.getState().isFinal()) return;
+          if (task.getState().isFinal()) {
+            storeDeferredContentUpdate(task, deferred);
+            return;
+          }
           addConnectorPerformanceInfo(task, Core.currentTimeMillis() - storageRequestStart, responseContext.rpcContext, "S");
           recordQueryTimeoutOutcome(task, storageResult);
           if (storageResult.failed()) {
+            storeDeferredContentUpdate(task, deferred);
             callback.exception(storageResult.cause());
             return;
           }
           XyzResponse response = storageResult.result();
+          boolean materialized = takeMaterialized(response);
           responseContext.enrichResponse(task, response);
 
           //Do the post-processing here before sending back the response and notifying response-listeners
           notifyProcessors(task, eventType, response, postProcessingResult -> {
-            if (task.getState().isFinal()) return;
+            if (task.getState().isFinal()) {
+              storeDeferredContentUpdate(task, deferred);
+              return;
+            }
             if (postProcessingResult.failed() || postProcessingResult.result() instanceof ErrorResponse) {
+              storeDeferredContentUpdate(task, deferred);
               handleProcessorFailure(task.getMarker(), postProcessingResult, callback);
               return;
             }
@@ -287,6 +309,12 @@ public class FeatureTaskHandler {
               //Send an additional ContentModifiedNotification to all components which are interested
               scheduleContentModifiedNotification(task);
             }
+            //The client has its response: clear the lazy-table flag if the connector reported the first write
+            clearAfterWrite(task.getMarker(), task.space, spaceContext, materialized)
+                .onComplete(clear -> {
+                  if (deferred)
+                    task.space.updateContentUpdatedAt(task.getMarker(), clear.succeeded() && isCleared(clear.result()));
+                });
           });
         }, task.space, task.getRequesterId());
 
@@ -316,7 +344,7 @@ public class FeatureTaskHandler {
       if (task instanceof FeatureTask.ConditionalOperation) {
         if (isErase)
           task.space.resetTimestamps(task.getMarker());
-        else
+        else if (!deferred)
           task.space.updateContentUpdatedAt(task.getMarker());
       }
       //Send event to potentially registered request-listeners
@@ -324,6 +352,14 @@ public class FeatureTaskHandler {
         notifyListeners(task, eventType, requestListenerPayload);
     });
     if (event instanceof ModifySpaceEvent) sendSpaceModificationNotification(task.getMarker(), event);
+  }
+
+  /**
+   * Stores the contentUpdatedAt timestamp of a deferred write that ended without a clear, with the flag as today.
+   */
+  private static <T extends FeatureTask> void storeDeferredContentUpdate(T task, boolean deferred) {
+    if (deferred)
+      task.space.updateContentUpdatedAt(task.getMarker());
   }
 
   private static RpcClient getRpcClient(Connector refConnector) throws HttpException {
@@ -429,8 +465,8 @@ public class FeatureTaskHandler {
   }
 
   /**
-   * Replies with the connector's timeout error without running the query, if the same spatial query timed out in the database repeatedly
-   * just before. See {@link QueryTimeoutCache}.
+   * Replies with the connector's timeout or the "response too large" error without running the query, if the same spatial query failed
+   * in that way just before. See {@link QueryTimeoutCache}.
    */
   private static <T extends FeatureTask> void readQueryTimeoutMarker(T task, String cacheKey, Callback<T> callback) {
     if (!(task instanceof GeometryQuery) || Service.queryTimeoutCache == null || !Service.queryTimeoutCache.isEnabled()) {
@@ -438,7 +474,7 @@ public class FeatureTaskHandler {
       return;
     }
 
-    Service.queryTimeoutCache.lookUp(cacheKey, task.storage.id).onComplete(ar -> {
+    Service.queryTimeoutCache.lookUp(cacheKey, task.storage.id, isImmutableVersion(task)).onComplete(ar -> {
       QueryTimeoutCache.Lookup lookup = ar.succeeded() ? ar.result() : null;
       if (lookup == null || lookup.decision == RUN) {
         task.queryTimeoutLookup = lookup;
@@ -447,12 +483,14 @@ public class FeatureTaskHandler {
       }
       //Add "Negative-Cache" stream-info: S = short-cut (the query did not run), P = probe (the query ran after a short-cut period)
       XYZHubRESTVerticle.addStreamInfo(task.context, "NC", lookup.decision == SHORT_CUT ? "S" : "P");
-      //Add the time since the last statement timeout of the query
+      //Add the status of the remembered failure: 504 = statement timeout, 513 = response too large
+      XYZHubRESTVerticle.addStreamInfo(task.context, "NCStatus", lookup.status());
+      //Add the time since the last counted failure of the query
       XYZHubRESTVerticle.addStreamInfo(task.context, "NCAge", lookup.markerAge);
       if (lookup.decision == SHORT_CUT) {
-        logger.info(task.getMarker(), "Query timeout marker HIT for cache key {}, replying with a timeout without running the query",
-            cacheKey);
-        callback.exception(new DetailedHttpException("E318540"));
+        logger.info(task.getMarker(), "Query timeout marker HIT for cache key {}, replying with a {} without running the query",
+            cacheKey, lookup.status());
+        callback.exception(lookup.shortCutReply());
       }
       else {
         logger.info(task.getMarker(), "Query timeout marker PROBE for cache key {}, running the query", cacheKey);
@@ -460,6 +498,24 @@ public class FeatureTaskHandler {
         callback.call(task);
       }
     });
+  }
+
+  /**
+   * Whether the task reads a version of its space which cannot change any more, so that a too large response stays too large.
+   * That is a single version, after {@link #checkImmutability} made a HEAD read of a read-only space a read of its readOnlyHeadVersion,
+   * at or below the readOnlyHeadVersion of a space which is still read-only. A space extending another one qualifies only if each
+   * extension down the chain is bound to a version, as the version of the extending space does not fix the content of the extended one
+   * otherwise.
+   */
+  static boolean isImmutableVersion(FeatureTask<?, ?> task) {
+    if (!task.readOnlyAccess || !task.space.isReadOnly() || task.space.getReadOnlyHeadVersion() < 0
+        || !(task.getEvent() instanceof SelectiveEvent<?> event))
+      return false;
+    Ref ref = event.getRef();
+    if (ref == null || ref.isTag() || ref.isHead() || !ref.isSingleVersion() || ref.getVersion() > task.space.getReadOnlyHeadVersion())
+      return false;
+    return Stream.concat(Stream.of(task.space), Stream.ofNullable(task.extendedSpaces).flatMap(Collection::stream))
+        .allMatch(space -> space.getExtension() == null || space.getExtension().getVersion() != null);
   }
 
   /**
@@ -910,6 +966,8 @@ public class FeatureTaskHandler {
                   if (space.getStorage().getParams() != null)
                     storageParams.putAll(space.getStorage().getParams());
                   storageParams.putAll(resolvedExtensions);
+                  if (FeatureHandler.sendsOnDemandIndexes(task.getEvent()))
+                    FeatureHandler.injectOnDemandIndexes(storageParams, space);
 
                   task.getEvent().setParams(storageParams);
 

@@ -67,6 +67,12 @@ public class FeatureCollection extends XyzResponse<FeatureCollection> {
   @JsonView({Public.class})
   @JsonInclude(Include.NON_EMPTY)
   private Long version;
+  /**
+   * For write-responses of a connector: {@code true} if the write target carried the lazy-table flag, its table exists and the
+   * write was committed. Not part of any view, the service removes it before responding to clients.
+   */
+  @JsonInclude(Include.NON_NULL)
+  private Boolean materialized;
 
   public FeatureCollection() {
     setFeatures(new ArrayList<>());
@@ -382,6 +388,19 @@ public class FeatureCollection extends XyzResponse<FeatureCollection> {
 
   public FeatureCollection withVersion(long version) {
     setVersion(version);
+    return this;
+  }
+
+  public Boolean getMaterialized() {
+    return materialized;
+  }
+
+  public void setMaterialized(Boolean materialized) {
+    this.materialized = materialized;
+  }
+
+  public FeatureCollection withMaterialized(Boolean materialized) {
+    setMaterialized(materialized);
     return this;
   }
 

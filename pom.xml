@@ -41,7 +41,7 @@
 
   <groupId>com.here.xyz</groupId>
   <artifactId>xyz-hub</artifactId>
-  <version>3.24.23-SNAPSHOT</version>
+  <version>4.0.7-SNAPSHOT</version>
   <packaging>pom</packaging>
 
   <modules>
@@ -50,6 +50,7 @@
     <module>xyz-models</module>
     <module>xyz-connectors</module>
     <module>xyz-psql-connector</module>
+    <module>xyz-iceberg-connector</module>
     <module>xyz-util</module>
     <module>xyz-jobs</module>
   </modules>
@@ -105,6 +106,10 @@
     <log4j-version>2.25.5</log4j-version>
     <aws-log4j-version>1.5.1</aws-log4j-version>
     <jayway-jsonpath-version>2.10.0</jayway-jsonpath-version>
+    <iceberg-version>1.10.0</iceberg-version>
+    <hadoop-version>3.4.1</hadoop-version>
+    <!--The Parquet version of iceberg-version-->
+    <parquet-version>1.16.0</parquet-version>
   </properties>
 
   <!-- Release settings -->
@@ -236,6 +241,18 @@
         <groupId>${project.groupId}</groupId>
         <artifactId>xyz-psql-connector</artifactId>
         <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>${project.groupId}</groupId>
+        <artifactId>xyz-iceberg-connector</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <!--The test-jar of xyz-iceberg-connector exposes IcebergTestTables, which writes tables in the exported schema-->
+      <dependency>
+        <groupId>${project.groupId}</groupId>
+        <artifactId>xyz-iceberg-connector</artifactId>
+        <version>${project.version}</version>
+        <type>test-jar</type>
       </dependency>
       <dependency>
         <groupId>${project.groupId}</groupId>
@@ -453,6 +470,150 @@
           </exclusion>
         </exclusions>
       </dependency>
+      <dependency>
+        <groupId>software.amazon.awssdk</groupId>
+        <artifactId>glue</artifactId>
+        <version>${aws-sdk2-version}</version>
+        <exclusions>
+          <exclusion>
+            <artifactId>jackson-annotations</artifactId>
+            <groupId>com.fasterxml.jackson.core</groupId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>software.amazon.awssdk</groupId>
+        <artifactId>sts</artifactId>
+        <version>${aws-sdk2-version}</version>
+        <exclusions>
+          <exclusion>
+            <artifactId>jackson-annotations</artifactId>
+            <groupId>com.fasterxml.jackson.core</groupId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <!--Iceberg's AwsProperties (used by S3FileIO and the Glue catalog) has KMS model constants-->
+      <dependency>
+        <groupId>software.amazon.awssdk</groupId>
+        <artifactId>kms</artifactId>
+        <version>${aws-sdk2-version}</version>
+        <exclusions>
+          <exclusion>
+            <artifactId>jackson-annotations</artifactId>
+            <groupId>com.fasterxml.jackson.core</groupId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+
+      <!--
+        Apache Iceberg (read connector). Iceberg declares slf4j-api 2.x, the Hub keeps 1.7.36 (log4j-slf4j-impl binding),
+        Iceberg only uses the 1.x Logger API. Iceberg is built against a newer AWS SDK 2.x, the Hub keeps aws-sdk2-version:
+        the S3 and Glue client builders used by Iceberg exist in that version.
+      -->
+      <dependency>
+        <groupId>org.apache.iceberg</groupId>
+        <artifactId>iceberg-api</artifactId>
+        <version>${iceberg-version}</version>
+        <exclusions>
+          <exclusion>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.iceberg</groupId>
+        <artifactId>iceberg-core</artifactId>
+        <version>${iceberg-version}</version>
+        <exclusions>
+          <exclusion>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.iceberg</groupId>
+        <artifactId>iceberg-data</artifactId>
+        <version>${iceberg-version}</version>
+        <exclusions>
+          <exclusion>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.iceberg</groupId>
+        <artifactId>iceberg-parquet</artifactId>
+        <version>${iceberg-version}</version>
+        <exclusions>
+          <exclusion>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.iceberg</groupId>
+        <artifactId>iceberg-aws</artifactId>
+        <version>${iceberg-version}</version>
+        <exclusions>
+          <exclusion>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <!--Iceberg's Parquet reader and writer APIs expose Parquet types (MessageType), Iceberg declares Parquet as runtime only-->
+      <dependency>
+        <groupId>org.apache.parquet</groupId>
+        <artifactId>parquet-column</artifactId>
+        <version>${parquet-version}</version>
+        <exclusions>
+          <exclusion>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <!--The connector reads Parquet footers to find the row group of a page token-->
+      <dependency>
+        <groupId>org.apache.parquet</groupId>
+        <artifactId>parquet-hadoop</artifactId>
+        <version>${parquet-version}</version>
+        <exclusions>
+          <exclusion>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <!--Iceberg's Parquet reader needs the Hadoop Configuration and compression classes. The client jars relocate their own dependencies.-->
+      <dependency>
+        <groupId>org.apache.hadoop</groupId>
+        <artifactId>hadoop-client-api</artifactId>
+        <version>${hadoop-version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.hadoop</groupId>
+        <artifactId>hadoop-client-runtime</artifactId>
+        <version>${hadoop-version}</version>
+        <exclusions>
+          <exclusion>
+            <groupId>ch.qos.reload4j</groupId>
+            <artifactId>reload4j</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>org.slf4j</groupId>
+            <artifactId>*</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>commons-logging</groupId>
+            <artifactId>commons-logging</artifactId>
+          </exclusion>
+        </exclusions>
+      </dependency>
 
       <!-- AWS SDK 1.x -->
       <dependency>
@@ -610,6 +771,11 @@
         <artifactId>expiringmap</artifactId>
         <groupId>net.jodah</groupId>
         <version>0.5.10</version>
+      </dependency>
+      <dependency>
+        <groupId>com.github.ben-manes.caffeine</groupId>
+        <artifactId>caffeine</artifactId>
+        <version>2.9.3</version>
       </dependency>
 
       <!--  Geo -->

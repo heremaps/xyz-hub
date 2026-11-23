@@ -67,23 +67,32 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     if (isCompositeQuery(event)) {
       int dataset = compositeDatasetNo(event, CompositeDataset.EXTENSION);
       SQLQuery versionCheckFragment = buildVersionCheckFragment(event);
+      SQLQuery compositionFilter = buildCompositionFilter(event, false,
+          buildIdComparisonFragment(event, "a.", versionCheckFragment, false));
+      boolean limitEachDataset = limitsEachDataset(event);
+      boolean is2Level = is2LevelExtendedSpace(event);
 
       query = new SQLQuery(
           "SELECT * FROM (SELECT * FROM ("
-          + "     (SELECT ${{selectClause}} FROM ${schema}.${table} e WHERE ${{filters}} ${{versionCheck}} ${{orderBy}})"
+          + "     (SELECT ${{selectClause}} FROM ${schema}.${table} e WHERE ${{filters}} ${{versionCheck}}"
+          + "       ${{orderBy}} ${{limitExtension}})"
           + "   ${{unionAll}} "
-          + "     SELECT * FROM (${{baseQuery}}) a"
-          + "       ${{compositionFilter}}"
-          + ") limitQuery ${{limit}}) orderQuery ${{outerOrderBy}}")
+          + "     (SELECT * FROM (${{baseQuery}}) a"
+          + "       ${{compositionFilter}} ${{limitBase}})"
+          + ") limitQuery ${{limitOrderBy}} ${{limit}}) orderQuery ${{outerOrderBy}}")
           .withQueryFragment("selectClause", buildSelectClause(event, dataset))
           .withQueryFragment("filters", buildFiltersFragment(event, true, filterWhereClause, dataset))
           .withQueryFragment("orderBy", buildOrderByFragment(event))
           .withQueryFragment("versionCheck", versionCheckFragment)
           .withQueryFragment("unionAll", event.getContext() == COMPOSITE_EXTENSION ? "UNION DISTINCT" : "UNION ALL")
-          .withQueryFragment("compositionFilter", buildCompositionFilter(event, false, buildIdComparisonFragment(event, "a.", versionCheckFragment, false)))
-          .withQueryFragment("baseQuery", !is2LevelExtendedSpace(event)
+          .withQueryFragment("compositionFilter", compositionFilter)
+          .withQueryFragment("limitExtension", limitEachDataset ? buildLimitFragment(event) : new SQLQuery(""))
+          //The base of a 2-level extension consists of two datasets, which are limited each on its own
+          .withQueryFragment("limitBase", limitEachDataset && !is2Level ? buildDatasetLimitFragment(event) : new SQLQuery(""))
+          .withQueryFragment("limitOrderBy", limitEachDataset ? buildOuterOrderByFragment(event) : "")
+          .withQueryFragment("baseQuery", !is2Level
               ? build1LevelBaseQuery(event, filterWhereClause) //1-level extension
-              : build2LevelBaseQuery(event, filterWhereClause)); //2-level extension
+              : build2LevelBaseQuery(event, filterWhereClause, limitEachDataset ? compositionFilter : null)); //2-level extension
     }
     else {
       query = new SQLQuery(
@@ -262,24 +271,52 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
         .withQueryFragment("orderBy", buildOrderByFragment(event));
   }
 
-  private SQLQuery build2LevelBaseQuery(E event, SQLQuery filterWhereClause) {
+  /**
+   * @param extensionCompositionFilter If set, each dataset is filtered by it and limited on its own,
+   *     see {@link #limitsEachDataset(ContextAwareEvent)}
+   */
+  private SQLQuery build2LevelBaseQuery(E event, SQLQuery filterWhereClause, SQLQuery extensionCompositionFilter) {
     SQLQuery versionCheckFragment = getBaseVersion(event)
             .map(this::buildCompositeBaseVersionCheckFragment)
             .orElse(buildBaseVersionCheckFragment("base2Version"));
 
     int dataset = compositeDatasetNo(event, CompositeDataset.INTERMEDIATE);
-    return new SQLQuery("(SELECT ${{selectClause}}"
-        + "  FROM ${schema}.${intermediateExtensionTable} WHERE ${{filters}} ${{versionCheck}} ${{orderBy}}) "
-        + "UNION ALL"
-        + "  SELECT * FROM (${{baseQuery}}) b"
-        + "    ${{compositionFilter}}")
-        .withVariable("intermediateExtensionTable", getIntermediateTable(event))
+    SQLQuery intermediateQuery = new SQLQuery("SELECT ${{selectClause}}"
+        + "  FROM ${schema}.${intermediateExtensionTable} WHERE ${{filters}} ${{versionCheck}} ${{orderBy}}")
         .withQueryFragment("selectClause", buildSelectClause(event, dataset))
         .withQueryFragment("filters", buildFiltersFragment(event, false, filterWhereClause, dataset)) //NOTE: We know that the intermediate space is an extended one
         .withQueryFragment("versionCheck", versionCheckFragment)
-        .withQueryFragment("orderBy", buildOrderByFragment(event))
+        .withQueryFragment("orderBy", buildOrderByFragment(event));
+    SQLQuery rootQuery = new SQLQuery("SELECT * FROM (${{baseQuery}}) b"
+        + "    ${{compositionFilter}}")
         .withQueryFragment("baseQuery", build1LevelBaseQuery(event, filterWhereClause))
         .withQueryFragment("compositionFilter", buildCompositionFilter(event, true, buildIdComparisonFragment(event, "b.", versionCheckFragment, isBoundIntermediate(event))));
+
+    return new SQLQuery("(${{intermediateQuery}}) UNION ALL (${{rootQuery}})")
+        .withVariable("intermediateExtensionTable", getIntermediateTable(event))
+        .withQueryFragment("intermediateQuery", extensionCompositionFilter == null ? intermediateQuery
+            : buildLimitedDatasetQuery(event, intermediateQuery, extensionCompositionFilter))
+        .withQueryFragment("rootQuery", extensionCompositionFilter == null ? rootQuery
+            : buildLimitedDatasetQuery(event, rootQuery, extensionCompositionFilter));
+  }
+
+  /**
+   * Filters the rows of one dataset by the composition filter of the extension and limits them.
+   */
+  private SQLQuery buildLimitedDatasetQuery(E event, SQLQuery datasetQuery, SQLQuery extensionCompositionFilter) {
+    return new SQLQuery("SELECT * FROM (${{datasetQuery}}) a ${{compositionFilter}} ${{datasetLimit}}")
+        .withQueryFragment("datasetQuery", datasetQuery)
+        .withQueryFragment("compositionFilter", extensionCompositionFilter)
+        .withQueryFragment("datasetLimit", buildDatasetLimitFragment(event));
+  }
+
+  /**
+   * Limits the rows of one dataset in the order of {@link #buildOrderByFragment(ContextAwareEvent)}.
+   */
+  private SQLQuery buildDatasetLimitFragment(E event) {
+    return new SQLQuery("${{orderBy}} ${{limit}}")
+        .withQueryFragment("orderBy", buildOrderByFragment(event))
+        .withQueryFragment("limit", buildLimitFragment(event));
   }
 
   /**
@@ -463,6 +500,15 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
   protected String buildOuterOrderByFragment(ContextAwareEvent event) {
     return buildOrderByFragment(event);
+  }
+
+  /**
+   * Whether the limit of a composite query takes the first rows in the order of {@link #buildOuterOrderByFragment(ContextAwareEvent)}
+   * instead of any rows. Then each dataset is filtered completely, ordered by {@link #buildOrderByFragment(ContextAwareEvent)} and
+   * limited on its own first, so that the database does not have to sort all rows of the composite.
+   */
+  protected boolean limitsEachDataset(E event) {
+    return false;
   }
 
   protected String buildOrderByFragment(ContextAwareEvent event) {

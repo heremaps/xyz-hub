@@ -115,6 +115,11 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
   QueryTimeoutCache.Lookup queryTimeoutLookup;
 
   /**
+   * The read of the Iceberg connector which runs next to the read of the space's own connector, if any.
+   */
+  IcebergReadRouting.ShadowRun icebergShadow;
+
+  /**
    * The number of bytes the request body is / was having initially.
    */
   public final int requestBodySize;
@@ -321,7 +326,9 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
           .then(FeatureTaskHandler::checkImmutability)
           .then(FeatureTaskHandler::validate)
           .then(FeatureTaskHandler::readCache)
+          .then(IcebergReadRouting::route)
           .then(FeatureTaskHandler::invoke)
+          .then(IcebergReadRouting::recordPrimary)
           .then(FeatureTaskHandler::writeCache);
     }
 
@@ -452,7 +459,9 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
           .then(FeatureTaskHandler::checkImmutability)
           .then(FeatureTaskHandler::validate)
           .then(FeatureTaskHandler::readCache)
+          .then(IcebergReadRouting::route)
           .then(FeatureTaskHandler::invoke)
+          .then(IcebergReadRouting::recordPrimary)
           .then(FeatureTaskHandler::writeCache);
     }
   }
@@ -482,7 +491,9 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
           .then(FeatureTaskHandler::checkImmutability)
           .then(FeatureTaskHandler::validate)
           .then(FeatureTaskHandler::readCache)
+          .then(IcebergReadRouting::route)
           .then(FeatureTaskHandler::invoke)
+          .then(IcebergReadRouting::recordPrimary)
           .then(FeatureTaskHandler::transformResponse)
           .then(FeatureTaskHandler::writeCache);
     }
@@ -538,7 +549,9 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
           .then(FeatureTaskHandler::checkImmutability)
           .then(FeatureTaskHandler::validate)
           .then(FeatureTaskHandler::readCache)
+          .then(IcebergReadRouting::route)
           .then(FeatureTaskHandler::invoke)
+          .then(IcebergReadRouting::recordPrimary)
           .then(FeatureTaskHandler::writeCache);
     }
   }
@@ -559,7 +572,9 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
           .then(FeatureTaskHandler::checkImmutability)
           .then(FeatureTaskHandler::validate)
           .then(FeatureTaskHandler::readCache)
+          .then(IcebergReadRouting::route)
           .then(FeatureTaskHandler::invoke)
+          .then(IcebergReadRouting::recordPrimary)
           .then(FeatureTaskHandler::writeCache);
     }
   }

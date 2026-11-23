@@ -24,13 +24,17 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.Payload;
 import com.here.xyz.util.Hasher;
 import com.here.xyz.util.db.pg.InstalledScripts;
+import com.here.xyz.util.db.pg.LazySpaceTables;
 import com.here.xyz.util.db.pg.Script;
 import com.here.xyz.util.db.pg.ScriptInstaller;
 import com.here.xyz.util.db.pg.ScriptInstaller.Outcome;
+import com.here.xyz.util.db.pg.ScriptInstaller.TemplateCheck;
 import com.here.xyz.util.runtime.FunctionRuntime;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -60,6 +64,12 @@ public class DatabaseSettings extends Payload {
      * still has to be retried because of a transient failure. The retries do not attempt them again.
      */
     private static final Map<String, Set<String>> PERMANENTLY_FAILED_SCRIPTS = new ConcurrentHashMap<>();
+    /**
+     * The result per template version of the last empty-space template check per check key (settings ID, software version and
+     * whether the template is requested)
+     */
+    private static final Map<String, Map<String, TemplateCheck>> TEMPLATE_CHECKS = new ConcurrentHashMap<>();
+    private static final String TEMPLATE_CHECK_KEY_SUFFIX = "|tpl";
     /**
      * Whether the next initialization has to check the scripts: before the first check and after a check that fell back because of
      * a transient failure
@@ -159,6 +169,10 @@ public class DatabaseSettings extends Payload {
      */
     private int scriptCheckTimeoutSeconds = 5;
     private int scriptInstallTimeoutSeconds = 15;
+    /**
+     * Whether the script check also checks and installs the empty-space template in the connector schema
+     */
+    private boolean emptySpaceTemplate;
 
     private DatabaseSettings() {}
 
@@ -514,6 +528,67 @@ public class DatabaseSettings extends Payload {
         return this;
     }
 
+    /**
+     * @return Whether the script check also checks the empty-space template in the connector schema and installs it if it is absent
+     */
+    public boolean isEmptySpaceTemplate() {
+        return emptySpaceTemplate;
+    }
+
+    public void setEmptySpaceTemplate(boolean emptySpaceTemplate) {
+        this.emptySpaceTemplate = emptySpaceTemplate;
+    }
+
+    public DatabaseSettings withEmptySpaceTemplate(boolean emptySpaceTemplate) {
+        setEmptySpaceTemplate(emptySpaceTemplate);
+        return this;
+    }
+
+    /**
+     * @return The result of the last check of the empty-space template version the reads use, for the software version of this
+     *  JVM, or <code>null</code> if there is none yet. No database access.
+     */
+    @JsonIgnore
+    public TemplateCheck getEmptySpaceTemplateCheck() {
+        Map<String, TemplateCheck> checks = TEMPLATE_CHECKS.get(checkKey(softwareVersion()));
+        return checks == null ? null : checks.get(LazySpaceTables.TEMPLATE_TABLE);
+    }
+
+    /**
+     * @return Whether the last check verified the empty-space template the reads use. No database access.
+     */
+    @JsonIgnore
+    public boolean isEmptySpaceTemplateVerified() {
+        return getEmptySpaceTemplateCheck() == TemplateCheck.VERIFIED;
+    }
+
+    /**
+     * Records that the empty-space template the reads use was found missing at runtime, if it was verified before. The value is
+     * kept for the JVM like the verified one, so it starts no new check and no installation.
+     */
+    public void markEmptySpaceTemplateMissing() {
+        TEMPLATE_CHECKS.computeIfPresent(checkKey(softwareVersion()), (key, checks) -> {
+            if (checks.get(LazySpaceTables.TEMPLATE_TABLE) != TemplateCheck.VERIFIED)
+                return checks;
+            Map<String, TemplateCheck> updated = new LinkedHashMap<>(checks);
+            updated.put(LazySpaceTables.TEMPLATE_TABLE, TemplateCheck.MISSING_AT_RUNTIME);
+            return Collections.unmodifiableMap(updated);
+        });
+    }
+
+    private static String softwareVersion() {
+        FunctionRuntime runtime = FunctionRuntime.getInstance();
+        return runtime == null ? null : runtime.getSoftwareVersion();
+    }
+
+    /**
+     * @return The key of the script check results of these settings for the software version. Settings with the template get
+     *  another key, so that a check without the template never counts as a check of it.
+     */
+    private String checkKey(String softwareVersion) {
+        return getId() + "|" + softwareVersion + (emptySpaceTemplate ? TEMPLATE_CHECK_KEY_SUFFIX : "");
+    }
+
     @JsonIgnore
     private String getApplicationNameForJdbcUrl() {
         return getApplicationName() + "[" + getId() + "_" + getCacheKey() + "]";
@@ -567,7 +642,7 @@ public class DatabaseSettings extends Payload {
 
         FunctionRuntime runtime = FunctionRuntime.getInstance();
         String softwareVersion = runtime == null ? null : runtime.getSoftwareVersion();
-        String checkKey = getId() + "|" + softwareVersion;
+        String checkKey = checkKey(softwareVersion);
         List<String> scriptSchemas = RESOLVED_SCRIPT_SCHEMAS.get(checkKey);
         if (scriptSchemas == null)
             scriptSchemas = checkAndInstallScripts(checkKey, softwareVersion, runtime == null ? null : runtime::getRemainingTime);
@@ -601,20 +676,26 @@ public class DatabaseSettings extends Payload {
             getScriptCheckTimeoutSeconds(), getScriptInstallTimeoutSeconds() + 5)) {
             List<Script> scripts = loadScripts(dataSourceProvider, softwareVersion);
             Set<String> permanentlyFailedScripts = PERMANENTLY_FAILED_SCRIPTS.getOrDefault(checkKey, Set.of());
+            String templateSchema = isEmptySpaceTemplate() ? getScriptInstallationSettings().getSchema() : null;
             Outcome outcome;
             try {
                 outcome = ScriptInstaller.checkAndInstall(scripts, dataSourceProvider, softwareVersion, SCRIPT_VERSIONS_TO_KEEP,
-                    getScriptInstallTimeoutSeconds(), remainingMillis, permanentlyFailedScripts);
+                    getScriptInstallTimeoutSeconds(), remainingMillis, permanentlyFailedScripts, templateSchema);
             }
             catch (RuntimeException e) {
                 logger.error("Error checking / installing scripts.", e);
-                outcome = new Outcome(ScriptInstaller.State.TRANSIENT, null, 0, null, permanentlyFailedScripts);
+                outcome = new Outcome(ScriptInstaller.State.TRANSIENT, null, 0, null, permanentlyFailedScripts,
+                    templateSchema == null ? Map.of() : Map.of(LazySpaceTables.TEMPLATE_TABLE, TemplateCheck.NOT_VERIFIED));
             }
 
             if (outcome.snapshot() != null)
                 LAST_SCRIPT_SNAPSHOT.put(getId(), outcome.snapshot());
+            if (!outcome.templateChecks().isEmpty())
+                TEMPLATE_CHECKS.put(checkKey, outcome.templateChecks());
 
-            if (outcome.state() == ScriptInstaller.State.TRANSIENT) {
+            //A template that could not be verified for a reason that may go away is retried like a transient script check
+            if (outcome.state() == ScriptInstaller.State.TRANSIENT
+                || outcome.templateChecks().containsValue(TemplateCheck.NOT_VERIFIED)) {
                 SCRIPT_CHECK_RETRY_AFTER.put(getId(), System.currentTimeMillis() + SCRIPT_CHECK_RETRY_INTERVAL_MS);
                 //The retry must not repeat the installations that failed permanently
                 if (outcome.permanentlyFailedScripts().isEmpty())
@@ -654,6 +735,7 @@ public class DatabaseSettings extends Payload {
         LAST_SCRIPT_SNAPSHOT.clear();
         SCRIPT_CHECK_RETRY_AFTER.clear();
         PERMANENTLY_FAILED_SCRIPTS.clear();
+        TEMPLATE_CHECKS.clear();
     }
 
     /**

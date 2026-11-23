@@ -43,10 +43,12 @@ import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.inputs.InputsFromJob;
 import com.here.xyz.jobs.steps.inputs.InputsFromS3;
 import com.here.xyz.jobs.steps.inputs.InputsFromS3.BucketAccessDeniedException;
+import com.here.xyz.jobs.steps.inputs.InputsFromS3.NoInputsFoundException;
 import com.here.xyz.jobs.steps.inputs.ModelBasedInput;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
+import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.HttpException;
 import com.here.xyz.util.service.errors.DetailedHttpException;
 import io.vertx.core.Future;
@@ -113,6 +115,10 @@ public class JobApi extends JobApiBase {
     if (isBucketAccessDenied(error))
       return new DetailedHttpException("E319011", null, errorDetails, error);
 
+    NoInputsFoundException noInputsFound = findCause(error, NoInputsFoundException.class);
+    if (noInputsFound != null)
+      return new DetailedHttpException("E319012", Map.of("s3Uri", noInputsFound.s3Uri.toString()), errorDetails, error);
+
     if (error instanceof CompilationError)
       return new DetailedHttpException("E319002", placeholdersFor(error), errorDetails, error);
 
@@ -136,10 +142,14 @@ public class JobApi extends JobApiBase {
   }
 
   private static boolean isBucketAccessDenied(Throwable error) {
+    return findCause(error, BucketAccessDeniedException.class) != null;
+  }
+
+  private static <T extends Throwable> T findCause(Throwable error, Class<T> causeType) {
     for (Throwable current = error; current != null; current = current.getCause())
-      if (current instanceof BucketAccessDeniedException)
-        return true;
-    return false;
+      if (causeType.isInstance(current))
+        return causeType.cast(current);
+    return null;
   }
 
   protected Throwable normalizeInputRegistrationError(Throwable error, String jobId) {
@@ -162,7 +172,29 @@ public class JobApi extends JobApiBase {
     if (!job.getInputs().values().stream().allMatch(input -> input instanceof InputsFromS3))
       return Future.failedFuture("Only inputs of type " + InputsFromS3.class.getSimpleName() + " are supported as inline inputs.");
 
-    //Continue with the input scanning *asynchronously* but fail the job if something goes wrong (User can check the status)
+    /*
+    Check the bucket access and that the prefix is not empty with a single request per input set, so that a denied access is still answered
+    with E319011 and an empty prefix with E319012. Otherwise, the job would wait in state NOT_READY for inputs that never get registered.
+     */
+    return Future.all(job.getInputs().values().stream()
+            .map(input -> Core.vertx.executeBlocking(() -> {
+              ((InputsFromS3) input).checkAccessAndPresence();
+              return null;
+            }, false))
+            .toList())
+        /*
+        Return without waiting for the input scanning to complete.
+        The job will stay in state NOT_READY for some time but will proceed automatically afterwards.
+         */
+        .onSuccess(v -> scanInputs(job))
+        .mapEmpty();
+  }
+
+  /**
+   * Scans the inputs *asynchronously* but fails the job if something goes wrong (User can check the status).
+   * Submits the job once all input sets are scanned.
+   */
+  private void scanInputs(Job job) {
     Future.all(job.getInputs().entrySet().stream()
         .map(inputSet -> registerInput(job, (InputsFromS3) inputSet.getValue(), inputSet.getKey()))
         .toList())
@@ -171,16 +203,11 @@ public class JobApi extends JobApiBase {
           job.getStatus()
               .withState(FAILED)
               .withErrorMessage("Error while scanning inputs.")
-              .withErrorCause(t.getMessage());
+              //The message of a denied bucket access names the service's IAM principal, so it is not passed to the user
+              .withErrorCause(normalizeInputRegistrationError(t, job.getId()).getMessage());
           job.store();
         })
         .compose(v -> job.submit());
-
-    /*
-    Return without waiting for the input scanning to complete.
-    The job will stay in state NOT_READY for some time but will proceed automatically afterwards.
-     */
-    return Future.succeededFuture();
   }
 
   protected void getJobs(final RoutingContext context) {
@@ -267,8 +294,11 @@ public class JobApi extends JobApiBase {
   private static Future<Input> registerInput(Job job, InputsFromS3 s3Inputs, String inputSetName) {
     if (job.getStatus().getState() != NOT_READY)
       return Future.failedFuture(new DetailedHttpException("E319004"));
-    s3Inputs.dereference(job.getId(), inputSetName);
-    return Future.succeededFuture(null);
+    //Listing the prefix takes one S3 request per 1000 objects, so it runs on a worker thread and the returned future completes afterwards
+    return Core.vertx.executeBlocking(() -> {
+      s3Inputs.dereference(job.getId(), inputSetName);
+      return null;
+    }, false);
   }
 
   protected void getJobInputPayloadsPreview(final RoutingContext context) {

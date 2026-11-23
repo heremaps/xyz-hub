@@ -20,15 +20,18 @@ package com.here.xyz.jobs.steps.impl.transport;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.here.xyz.jobs.util.test.StepTestBase;
+import com.here.xyz.util.db.pg.LazySpaceTables;
 import java.io.InputStream;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.List;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -272,6 +275,76 @@ class ExpressImportSqlIT extends StepTestBase {
       assertEquals(expectedVisibleAtBound, result.getString("visible_at_bound"), boundDescription);
       assertEquals(expectedAddedAfterBound, result.getString("added_after_bound"), boundDescription);
       assertEquals(expectedRemovedAfterBound, result.getString("removed_after_bound"), boundDescription);
+    }
+  }
+
+  /**
+   * A never-written base of a lazy connector is read from the empty-space template. An import into an extension classifies against
+   * it exactly as against an empty base table, and the template stays empty.
+   */
+  @Test
+  void emptySpaceTemplateAsSuperTableClassifiesLikeAnEmptyBase() throws Exception {
+    //The template has the partitions of a new space, the other fixtures need none
+    statement.execute("""
+        CREATE OR REPLACE FUNCTION xyz_create_history_partition(
+            schema_name TEXT, table_name TEXT, partition_no BIGINT, partition_size BIGINT) RETURNS VOID
+            LANGUAGE plpgsql AS $$
+        BEGIN
+          EXECUTE format('CREATE TABLE IF NOT EXISTS %I.%I PARTITION OF %I.%I FOR VALUES FROM (%L) TO (%L)', schema_name,
+              table_name || '_p' || partition_no, schema_name, table_name, partition_size * partition_no,
+              partition_size * (partition_no + 1));
+        END
+        $$;
+        """);
+    assertNull(LazySpaceTables.installTemplate(connection, schema, List.of(), 30_000));
+
+    statement.execute("""
+        CREATE TABLE source_features(jsondata TEXT, i BIGSERIAL PRIMARY KEY);
+        CREATE TABLE empty_super_features(
+            id TEXT NOT NULL, version BIGINT NOT NULL,
+            next_version BIGINT NOT NULL DEFAULT 9223372036854775807,
+            operation CHAR NOT NULL, author TEXT, jsondata JSONB,
+            geo geometry(GeometryZ, 4326),
+            UNIQUE(id, next_version), PRIMARY KEY(id, version, next_version)
+        ) PARTITION BY RANGE(next_version);
+        CREATE TABLE empty_super_features_default PARTITION OF empty_super_features DEFAULT;
+        CREATE TABLE extension_over_empty(LIKE empty_super_features INCLUDING ALL) PARTITION BY RANGE(next_version);
+        CREATE TABLE extension_over_empty_default PARTITION OF extension_over_empty DEFAULT;
+        CREATE TABLE extension_over_template(LIKE empty_super_features INCLUDING ALL) PARTITION BY RANGE(next_version);
+        CREATE TABLE extension_over_template_default PARTITION OF extension_over_template DEFAULT;
+
+        INSERT INTO extension_over_empty(id, version, operation, author, jsondata) VALUES
+            ('updated', 1, 'I', 'old',
+                '{"type":"Feature","id":"updated","properties":{"@ns:com:here:xyz":{"createdAt":1}}}'),
+            ('deleted', 1, 'I', 'old',
+                '{"type":"Feature","id":"deleted","properties":{"@ns:com:here:xyz":{"createdAt":1}}}');
+        INSERT INTO extension_over_template SELECT * FROM extension_over_empty;
+        INSERT INTO source_features(jsondata) VALUES
+            ('{"type":"Feature","id":"updated","properties":{"name":"new"}}'),
+            ('{"type":"Feature","id":"deleted","properties":{"@ns:com:here:xyz":{"deleted":true}}}'),
+            ('{"type":"Feature","id":"never-existing","properties":{"@ns:com:here:xyz":{"deleted":true}}}'),
+            ('{"type":"Feature","id":"inserted","properties":{"name":"first"}}');
+
+        SELECT * FROM execute_express_import_batch(
+            'source_features', 'extension_over_empty', 'empty_super_features', 'DEFAULT', 1, 1, 'owner', 2, true);
+        SELECT * FROM execute_express_import_batch(
+            'source_features', 'extension_over_template', '%s', 'DEFAULT', 1, 1, 'owner', 2, true);
+        """.formatted(LazySpaceTables.TEMPLATE_TABLE));
+
+    String rows = "SELECT string_agg(id || ':' || version || ':' || next_version || ':' || operation, ',' ORDER BY id, version) FROM ";
+    try (ResultSet overEmpty = statement.executeQuery(rows + "extension_over_empty")) {
+      assertTrue(overEmpty.next());
+      String expected = overEmpty.getString(1);
+      assertTrue(expected.contains("inserted:2:"), expected);
+      try (Statement second = connection.createStatement();
+          ResultSet overTemplate = second.executeQuery(rows + "extension_over_template")) {
+        assertTrue(overTemplate.next());
+        assertEquals(expected, overTemplate.getString(1));
+      }
+    }
+    try (ResultSet template = statement.executeQuery("SELECT count(*) FROM " + LazySpaceTables.TEMPLATE_TABLE)) {
+      assertTrue(template.next());
+      assertEquals(0, template.getInt(1));
     }
   }
 

@@ -149,6 +149,20 @@ class DataReferenceConfigClientTest {
   }
 
   @Test
+  void expireForEntity_shouldComplete_whenAnIcebergReferenceIsPresent() {
+    DataReference iceberg = newRef(null).withTargetSystem(IcebergVersionCache.TARGET_SYSTEM);
+    DataReference other = newRef(null);
+    client.loadResult = Future.succeededFuture(List.of(iceberg, other));
+    long generationBefore = IcebergVersionCache.getInstance().generation(ENTITY_ID);
+
+    Void result = await(client.expireForEntity(marker, ENTITY_ID));
+
+    assertThat(result).isNull();
+    assertThat(client.storedRefs).containsExactlyInAnyOrder(iceberg, other);
+    assertThat(IcebergVersionCache.getInstance().generation(ENTITY_ID)).isEqualTo(generationBefore + 1);
+  }
+
+  @Test
   void expireForEntity_shouldRejectNullEntityId() {
     assertThatNullPointerException()
         .isThrownBy(() -> client.expireForEntity(marker, null));

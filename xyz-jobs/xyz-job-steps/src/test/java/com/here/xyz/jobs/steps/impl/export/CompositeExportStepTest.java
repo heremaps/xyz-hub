@@ -32,7 +32,9 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -152,6 +154,67 @@ public class CompositeExportStepTest extends ExportTestBase {
         //new_point exists in extension
         exportWithContextAndWithPropertyFilter(SpaceContext.EXTENSION,
                 URLEncoder.encode("f.id=\"new_point1\"", StandardCharsets.UTF_8));
+    }
+
+    /**
+     * A never-written lazy extension of a never-written lazy base exports like the eager composite of two empty spaces, in every
+     * context, and both keep their flags.
+     */
+    @Test
+    public void exportNeverWrittenLazyCompositeLikeAnEmptyComposite() throws Exception {
+        Space emptyBase = createTestSpace(new Space().withId(SPACE_ID + "_emptyBase"));
+        Space emptyExtension = createTestSpace(new Space().withId(SPACE_ID + "_emptyExt")
+            .withExtension(new Space.Extension().withSpaceId(emptyBase.getId())));
+        Space lazyBase = createLazyTestSpace(SPACE_ID + "_lazyBase", LAZY_CONNECTOR);
+        Space lazyExtension = createLazyExtension(lazyBase);
+
+        for (SpaceContext context : List.of(SpaceContext.DEFAULT, SpaceContext.EXTENSION, SpaceContext.SUPER)) {
+            ExportResult expected = export(emptyExtension.getId(), context, null);
+            Assertions.assertEquals(Set.of(), expected.features());
+            Assertions.assertEquals(expected, export(lazyExtension.getId(), context, null), "context " + context);
+        }
+        Assertions.assertTrue(isFlagged(lazyBase.getId()));
+        Assertions.assertTrue(isFlagged(lazyExtension.getId()));
+        Assertions.assertEquals(0, relationCount(DB_URL, tableName(lazyBase)));
+        Assertions.assertEquals(0, relationCount(DB_URL, tableName(lazyExtension)));
+    }
+
+    /**
+     * A written extension of a never-written lazy base reads the base from the empty-space template.
+     */
+    @Test
+    public void exportMaterializedExtensionOfNeverWrittenLazyBase() throws Exception {
+        Space lazyBase = createLazyTestSpace(SPACE_ID + "_lazyBase", LAZY_CONNECTOR);
+        Space extension = createLazyExtension(lazyBase);
+        putFeatureCollectionToSpace(extension.getId(),
+            readTestFeatureCollection("/testFeatureCollections/fcWithMixedGeometryTypes.geojson"));
+
+        for (SpaceContext context : List.of(SpaceContext.DEFAULT, SpaceContext.EXTENSION, SpaceContext.SUPER))
+            executeExportStepAndCheckResults(extension.getId(), context, null, null, new Ref(HEAD), "/search?context=" + context);
+        Assertions.assertTrue(isFlagged(lazyBase.getId()));
+        Assertions.assertEquals(0, relationCount(DB_URL, tableName(lazyBase)));
+    }
+
+    /**
+     * A never-written lazy extension of a written base exports the base's features.
+     */
+    @Test
+    public void exportNeverWrittenLazyExtensionOfWrittenBase() throws Exception {
+        Space base = createLazyTestSpace(SPACE_ID + "_writtenBase", LAZY_CONNECTOR);
+        putFeatureCollectionToSpace(base.getId(), readTestFeatureCollection("/testFeatureCollections/fcWithMixedGeometryTypes.geojson"));
+        Space lazyExtension = createLazyExtension(base);
+
+        for (SpaceContext context : List.of(SpaceContext.DEFAULT, SpaceContext.EXTENSION, SpaceContext.SUPER))
+            executeExportStepAndCheckResults(lazyExtension.getId(), context, null, null, new Ref(HEAD), "/search?context=" + context);
+        Assertions.assertTrue(isFlagged(lazyExtension.getId()));
+        Assertions.assertEquals(0, relationCount(DB_URL, tableName(lazyExtension)));
+    }
+
+    private Space createLazyExtension(Space base) {
+        Space extension = createTestSpace(new Space().withId(base.getId() + "_ext")
+            .withExtension(new Space.Extension().withSpaceId(base.getId())));
+        Assertions.assertTrue(isFlagged(extension.getId()));
+        return extension;
     }
 
     private void exportWithContextAndWithPropertyFilter(SpaceContext context, String propertiesQuery) throws Exception {
