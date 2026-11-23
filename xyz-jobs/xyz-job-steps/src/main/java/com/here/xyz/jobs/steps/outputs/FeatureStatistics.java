@@ -42,24 +42,40 @@ public class FeatureStatistics extends ModelBasedOutput {
     private Ref versionRef;
     @JsonInclude(NON_DEFAULT)
     private long fileCount;
-    /*
-    For an import: What the requested features changed in the target, as the space shows it. null if not counted.
-    Together they add up to the featureCount. unchangedCount covers the features which did not change it, e.g., as they did not
-    differ from the existing ones, as they were contained in the input more than once, or as they were deletions of features
-    which did not exist or were deleted already.
-    NOTE: They are not serialized, so they are neither stored with the output nor returned by the job API. For now they are only
-    used for the logs of the import step (see TaskedImportFilesToSpace#processFinalizedTasks()).
-    TODO: Decide how to publish them, e.g.:
-      - Return them with the output: remove @JsonIgnore and document them in the FeatureStatistics schema of the job API (openapi.yaml).
-      - Report them as metrics: a reporter (e.g., a job finalize observer) reads them from the stored output, which needs them to be
-        serialized as well (e.g., only in the Static view), or the step registers them as a separate output with SYSTEM visibility.
+    /**
+     * For an import: The number of requested features which did not exist before (were not visible in the target) and exist now.
+     * Together with {@link #updatedCount}, {@link #deletedCount} and {@link #unchangedCount} it adds up to the featureCount.
+     * All four are null if not counted.
+     * <p>
+     * NOTE: The four counts are not serialized, so they are neither stored with the output nor returned by the job API. For now they
+     * are only used for the logs of the import step (see TaskedImportFilesToSpace#processFinalizedTasks()).
+     * TODO: Decide how to publish them, e.g.:
+     * <ul>
+     *   <li>Return them with the output: remove @JsonIgnore and document them in the FeatureStatistics schema of the job API
+     *   (openapi.yaml).</li>
+     *   <li>Report them as metrics: a reporter (e.g., a job finalize observer) reads them from the stored output, which needs them to
+     *   be serialized as well (e.g., only in the Static view), or the step registers them as a separate output with SYSTEM
+     *   visibility.</li>
+     * </ul>
      */
     @JsonIgnore
     private Long insertedCount;
+    /**
+     * For an import: The number of requested features which existed before and were written again. With history, this includes
+     * features which did not differ from the existing ones, as they are still written as a new version.
+     */
     @JsonIgnore
     private Long updatedCount;
+    /**
+     * For an import: The number of requested features which existed before and are deleted now.
+     */
     @JsonIgnore
     private Long deletedCount;
+    /**
+     * For an import: The number of requested features which did not change the target: features contained more than once in the
+     * input, deletions of features which did not exist or were deleted already, and, only without history, features which did not
+     * differ from the existing ones.
+     */
     @JsonIgnore
     private Long unchangedCount;
     @JsonInclude(NON_DEFAULT)

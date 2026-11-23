@@ -589,6 +589,11 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
       statistics.withFileName(STATISTICS + ".json");
     }
 
+    //More written than requested features is not expected. The count is kept as it is (not clamped), so that it is visible.
+    if (statistics.getUnchangedCount() != null && statistics.getUnchangedCount() < 0)
+      warnLog(STEP_ON_ASYNC_SUCCESS, "More features were written than requested: rows=" + statistics.getFeatureCount()
+          + " written=" + (statistics.getFeatureCount() - statistics.getUnchangedCount()));
+
     infoLog(STEP_ON_ASYNC_SUCCESS, "Job Statistics: bytes=" + statistics.getByteSize() + " rows=" + statistics.getFeatureCount()
         + " inserted=" + statistics.getInsertedCount() + " updated=" + statistics.getUpdatedCount()
         + " deleted=" + statistics.getDeletedCount() + " unchanged=" + statistics.getUnchangedCount());
@@ -602,8 +607,9 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
    * Adds how the requested features (the featureCount of the statistics) were actually written into the target.
    * <ul>
    *   <li>Import into a non-empty layer: The tasks have written the features in batches, each one reporting what it has written
-   *   (summed up in {@link ImportOutput#written()}). What was not written is unchanged, e.g., features which did not differ from
-   *   the existing ones, deletions of not existing features, or features contained more than once in the input.</li>
+   *   (summed up in {@link ImportOutput#written()}). The rest is unchanged: features contained more than once in the input,
+   *   deletions of not existing features, and, only without history, features which did not differ from the existing ones.
+   *   With history, such a feature is still written as a new version, so it is counted as updated.</li>
    *   <li>Import into an empty layer: The rows were inserted by the database import directly, all of them are inserted.</li>
    * </ul>
    * NOTE: The kind of import is told by the task outputs, as only the batched import reports a progress. #useFeatureWriter() can not
