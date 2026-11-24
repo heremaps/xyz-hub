@@ -19,7 +19,6 @@
 
 package com.here.xyz.hub.task;
 
-import static com.here.xyz.util.service.BaseHttpServerVerticle.getAuthor;
 import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
 import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
@@ -87,7 +86,7 @@ public class SubscriptionHandler {
           return Future.failedFuture(new HttpException(CONFLICT, "Resource with the given ID already exists."));
         }, t -> {
           logger.info(marker, "Subscription with id: " + subscription.getId() + " not found.");
-          String author = getAuthor(context);
+          String author = TagApi.getRequestAuthor(context);
           return sendEvent(context, Operation.CREATE, subscription)
               .compose(v -> storeSubscription(marker, subscription, author));
         });
@@ -101,7 +100,7 @@ public class SubscriptionHandler {
       subscription.setStatus(new Subscription.SubscriptionStatus().withState(Subscription.SubscriptionStatus.State.ACTIVE));
     }
 
-    String author = getAuthor(context);
+    String author = TagApi.getRequestAuthor(context);
     return Service.subscriptionConfigClient.get(marker, subscription.getId())
         .map(Operation.UPDATE)
         .otherwise(Operation.CREATE)

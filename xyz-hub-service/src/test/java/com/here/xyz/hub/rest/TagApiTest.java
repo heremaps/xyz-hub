@@ -21,11 +21,30 @@ package com.here.xyz.hub.rest;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
+import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.jwt.JWTPayload;
+import com.here.xyz.models.hub.Tag;
+import com.here.xyz.util.service.errors.DetailedHttpException;
+import com.here.xyz.util.service.errors.ErrorManager;
+import io.vertx.core.Future;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 public class TagApiTest {
+
+  @BeforeClass
+  public static void loadErrors() {
+    try {
+      ErrorManager.loadErrors("hub-errors.json");
+    }
+    catch (RuntimeException e) {
+      //Another test class in the same JVM loaded them already
+      if (!(e.getCause() instanceof IllegalStateException) || !e.getCause().getMessage().contains("already registered"))
+        throw e;
+    }
+  }
   private static JWTPayload jwt(String aid, String cid) {
     JWTPayload jwt = new JWTPayload();
     jwt.aid = aid;
@@ -53,5 +72,52 @@ public class TagApiTest {
   public void noAuthorAtAll() {
     assertNull(TagApi.resolveAuthor(null, jwt(null, null)));
     assertNull(TagApi.resolveAuthor(null, null));
+  }
+
+  @Test
+  public void anonymousTokenIsNotUsed() {
+    //The token of the DUMMY authorization, as used by a Hub embedded behind a gateway
+    assertNull(TagApi.resolveAuthor(null, jwt("ANONYMOUS", null)));
+    JWTPayload anonymous = jwt("account", "client");
+    anonymous.anonymous = true;
+    assertNull(TagApi.resolveAuthor(null, anonymous));
+    assertEquals("author", TagApi.resolveAuthor("author", jwt("ANONYMOUS", null)));
+  }
+
+  @Test
+  public void tagCanNotPointToRangeAllVersionsOrTag() {
+    for (String ref : new String[]{"1..3", "1..HEAD", "*", "someTag"}) {
+      //Fails before the space is read, so no storage is needed
+      Future<Ref> result = TagApi.resolveVersionRef(null, "space", new Ref(ref));
+      assertTrue(ref, result.failed());
+      DetailedHttpException e = (DetailedHttpException) result.cause();
+      assertEquals(ref, "E318404", e.errorDefinition.getCode());
+      assertEquals(400, e.status.code());
+    }
+  }
+
+  @Test
+  public void versionIsNotVerified() {
+    //Resolved without reading the space, also if the version does not exist (yet)
+    Future<Ref> result = TagApi.resolveVersionRef(null, "space", new Ref(999));
+    assertTrue(result.succeeded());
+    assertEquals(999, result.result().getVersion());
+  }
+
+  @Test
+  public void updateKeepsAuthorAndCreationTime() {
+    Tag stored = new Tag().withAuthor("creator").withCreatedAt(1000);
+    assertEquals("creator", TagApi.keptAuthor(stored, "updater"));
+    assertEquals(1000, TagApi.keptCreatedAt(stored));
+  }
+
+  @Test
+  public void updateBackfillsMissingAuthorAndCreationTime() {
+    //How DynamoTagConfigClient reports a tag stored without author and creation time
+    Tag stored = new Tag().withAuthor("system").withCreatedAt(-1);
+    assertEquals("updater", TagApi.keptAuthor(stored, "updater"));
+    assertTrue(TagApi.keptCreatedAt(stored) > 0);
+    assertEquals("", TagApi.keptAuthor(new Tag().withAuthor(""), null));
+    assertEquals("updater", TagApi.keptAuthor(new Tag().withAuthor(""), "updater"));
   }
 }

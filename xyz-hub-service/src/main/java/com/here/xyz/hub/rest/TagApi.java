@@ -31,6 +31,7 @@ import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.ApiParam.Path;
 import com.here.xyz.hub.rest.ApiParam.Query;
 import com.here.xyz.models.hub.Ref;
+import com.here.xyz.models.hub.Ref.InvalidRef;
 import com.here.xyz.models.hub.Tag;
 import com.here.xyz.models.hub.jwt.JWTPayload;
 import com.here.xyz.responses.ChangesetsStatisticsResponse;
@@ -45,6 +46,7 @@ import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.router.RouterBuilder;
 import java.util.Map;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.logging.log4j.Marker;
 
 public class TagApi extends SpaceBasedApi {
@@ -121,13 +123,18 @@ public class TagApi extends SpaceBasedApi {
     final String tagId = context.pathParam(Path.TAG_ID);
     final Marker marker = getMarker(context);
 
-    String author = BaseHttpServerVerticle.getAuthor(context);
+    String author = getRequestAuthor(context);
     deserializeTag(context.body().asString())
         .compose(tag -> updateTag(marker, spaceId, tagId, tag.getVersionRef(), author, tag.getDescription()))
         .onSuccess(tag -> sendResponse(context, HttpResponseStatus.OK.code(), tag))
         .onFailure(t -> sendErrorResponse(context, t));
   }
 
+  /**
+   * Moves a tag to another version. The version is not verified (as on creation), only HEAD is resolved.
+   * The author and the creation time of the tag are kept. A tag stored without them gets the author of this request and the
+   * current time.
+   */
   public static Future<Tag> updateTag(Marker marker, String spaceId, String tagId, Ref versionRef, String author, String description) {
     if (spaceId == null)
       return Future.failedFuture(new ValidationException("Invalid parameter"));
@@ -140,7 +147,7 @@ public class TagApi extends SpaceBasedApi {
         .compose(loadedTag -> loadedTag == null
             ? Future.failedFuture(new HttpException(NOT_FOUND, "Tag " + tagId + " not found"))
             : Future.succeededFuture(loadedTag))
-        .compose(loadedTag -> resolveVersionRef(marker, spaceId, versionRef, true)
+        .compose(loadedTag -> resolveVersionRef(marker, spaceId, versionRef)
             .compose(resolvedVersionRef -> {
               //The author and the creation time are set on creation only, an update must not reset them
               final Tag updatedTag = new Tag()
@@ -149,8 +156,8 @@ public class TagApi extends SpaceBasedApi {
                   .withVersionRef(resolvedVersionRef)
                   .withSystem(loadedTag.isSystem())
                   .withDescription(description == null ? loadedTag.getDescription() : description)
-                  .withAuthor(loadedTag.getAuthor())
-                  .withCreatedAt(loadedTag.getCreatedAt());
+                  .withAuthor(keptAuthor(loadedTag, author))
+                  .withCreatedAt(keptCreatedAt(loadedTag));
               return Service.tagConfigClient.storeTag(marker, updatedTag).map(v -> updatedTag);
             }));
   }
@@ -177,7 +184,7 @@ public class TagApi extends SpaceBasedApi {
     }
 
     final Future<Space> spaceFuture = getSpaceIfActive(marker, spaceId);
-    final Future<Ref> resolveVersionRef = resolveVersionRef(marker, spaceId, versionRef, false);
+    final Future<Ref> resolveVersionRef = resolveVersionRef(marker, spaceId, versionRef);
     final Future<Void> checkExistingAlias = checkExistingAlias(marker, spaceId, tagId);
 
     return Future.all(spaceFuture, resolveVersionRef, checkExistingAlias).compose(cf -> {
@@ -216,8 +223,25 @@ public class TagApi extends SpaceBasedApi {
       }
       return Future.succeededFuture(tag);
     } catch (JsonProcessingException e) {
+      //Tag.setVersionRef() rejects a ref which is not a single version (a range, "*" or a tag)
+      if (ExceptionUtils.getRootCause(e) instanceof InvalidRef)
+        return Future.failedFuture(invalidTagVersionRef(String.valueOf(readVersionRef(body))));
       return Future.failedFuture(new ValidationException("Unable to parse body"));
     }
+  }
+
+  private static Object readVersionRef(String body) {
+    try {
+      return XyzSerializable.deserialize(body, Map.class).get("versionRef");
+    }
+    catch (JsonProcessingException | RuntimeException e) {
+      return null;
+    }
+  }
+
+  private static DetailedHttpException invalidTagVersionRef(String versionRef) {
+    return new DetailedHttpException("E318404", Map.of("versionRef", versionRef,
+        "cause", "A tag must point to a single version or HEAD, not to a range, all versions or another tag."));
   }
 
   private static Future<Space> getSpaceIfActive(Marker marker, String spaceId) {
@@ -231,52 +255,52 @@ public class TagApi extends SpaceBasedApi {
   }
 
   /**
-   * Resolves HEAD into the actual latest version.
-   * If requested, it also makes sure that the tag does not point to a version which does not exist (yet).
-   * That is the case for updates only: creating a tag for a version which does not exist yet has always been possible
-   * and stays possible.
+   * Resolves HEAD into the actual latest version. Other versions are not verified, so a tag can point to a version which does not
+   * exist yet: the latest version known to the Hub comes from a read replica and from the head table, which may both be behind
+   * the actual version of the space.
    */
-  private static Future<Ref> resolveVersionRef(Marker marker, String spaceId, Ref versionRef, boolean verifyVersion) {
-    if (versionRef.isTag())
-      throw new IllegalArgumentException("A tag cannot be used as Ref");
-    if (!versionRef.isHead() && (!verifyVersion || !versionRef.isSingleVersion()))
+  static Future<Ref> resolveVersionRef(Marker marker, String spaceId, Ref versionRef) {
+    //A tag points to exactly one version
+    if (versionRef.isTag() || !versionRef.isSingleVersion())
+      return Future.failedFuture(invalidTagVersionRef(versionRef.toString()));
+    if (!versionRef.isHead())
       return Future.succeededFuture(versionRef);
     return FeatureQueryApi.getStatistics(marker, spaceId, SpaceContext.DEFAULT, new Ref(HEAD), true, false)
-        .compose(statistics -> {
-          if (versionRef.isHead())
-            return Future.succeededFuture(new Ref(statistics.getMaxVersion().getValue()));
-          //The storage of the space does not report versions, the version can not be verified
-          if (statistics.getMaxVersion() == null)
-            return Future.succeededFuture(versionRef);
-          final long maxVersion = statistics.getMaxVersion().getValue();
-          if (versionRef.getVersion() > maxVersion)
-            return Future.failedFuture(new ValidationException("Invalid version parameter, the version " + versionRef.getVersion()
-                + " does not exist. The latest version of the space is " + maxVersion + "."));
-          return Future.succeededFuture(versionRef);
-        });
+        .compose(statistics -> statistics.getMaxVersion() == null
+            ? Future.failedFuture(new DetailedHttpException("E318404", Map.of("versionRef", HEAD,
+                "cause", "The storage of the space does not report its versions.")))
+            : Future.succeededFuture(new Ref(statistics.getMaxVersion().getValue())));
   }
 
   /**
    * The author of a tag is the author of the request. If the request does not provide one (e.g. a call by an application
    * without an "Author" header while the author is expected in that header) the account of the token is used,
    * as a tag without an author would be reported as being created by "system".
+   * The anonymous token of the DUMMY authorization (e.g. a Hub embedded behind a gateway that removes the token) identifies
+   * nobody, so it is not used.
    */
-  private static String getRequestAuthor(RoutingContext context) {
+  private static final String ANONYMOUS_AID = "ANONYMOUS";
+
+  public static String getRequestAuthor(RoutingContext context) {
     return resolveAuthor(BaseHttpServerVerticle.getAuthor(context), BaseHttpServerVerticle.getJWT(context));
   }
 
   static String resolveAuthor(String requestAuthor, JWTPayload jwt) {
-    if (StringUtils.isNotBlank(requestAuthor) || jwt == null)
+    //The DUMMY authorization's token (auth/dummyJwt.json) has the aid ANONYMOUS without the anonymous flag
+    if (StringUtils.isNotBlank(requestAuthor) || jwt == null || jwt.anonymous || ANONYMOUS_AID.equals(jwt.aid))
       return requestAuthor;
     return StringUtils.firstNonBlank(jwt.aid, jwt.cid, requestAuthor);
   }
 
-  private static String getAuthor(Future<Tag> tagFuture, String author) {
-    return tagFuture.result().getAuthor().isEmpty() ? author : tagFuture.result().getAuthor();
+  //DynamoTagConfigClient reports a tag stored without author as "system" and without creation time as -1
+  private static final String MISSING_AUTHOR = "system";
+
+  static String keptAuthor(Tag loadedTag, String requestAuthor) {
+    final String author = loadedTag.getAuthor();
+    return (StringUtils.isBlank(author) || MISSING_AUTHOR.equals(author)) && StringUtils.isNotBlank(requestAuthor) ? requestAuthor : author;
   }
 
-  private static long getCreatedAt(Future<Tag> tagFuture) {
-    return tagFuture.result().getCreatedAt() == 0L ?
-            Core.currentTimeMillis() : tagFuture.result().getCreatedAt();
+  static long keptCreatedAt(Tag loadedTag) {
+    return loadedTag.getCreatedAt() <= 0 ? Core.currentTimeMillis() : loadedTag.getCreatedAt();
   }
 }

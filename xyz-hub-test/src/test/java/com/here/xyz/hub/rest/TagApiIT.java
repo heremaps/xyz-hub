@@ -24,6 +24,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.restassured.RestAssured.given;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasKey;
@@ -202,6 +203,7 @@ public class TagApiIT extends TestSpaceWithFeature {
         .body("version", equalTo(2));
   }
 
+  //Like on creation, the version is not verified: the latest version known to the Hub may be behind the space
   @Test
   public void updateTagToNonExistingVersion() {
     _addOneFeature();
@@ -213,17 +215,37 @@ public class TagApiIT extends TestSpaceWithFeature {
         .body(new Tag().withVersion(999).serialize())
         .patch("/spaces/" + getSpaceId() + "/tags/" + TAG_1)
         .then()
-        .statusCode(BAD_REQUEST.code());
+        .statusCode(OK.code())
+        .body("version", equalTo(999));
+  }
 
-    //The tag still points to the version it had before
+  @Test
+  public void updateTagToRangeOrAllVersions() {
+    _addOneFeature();
+    _addOneFeature();
+    _createTag();
+
+    for (String versionRef : new String[]{"1..2", "1..HEAD", "*"})
+      given()
+          .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+          .contentType(ContentType.JSON)
+          .body("{\"versionRef\":\"" + versionRef + "\"}")
+          .patch("/spaces/" + getSpaceId() + "/tags/" + TAG_1)
+          .then()
+          .statusCode(BAD_REQUEST.code())
+          .body("code", equalTo("E318404"))
+          .body("cause", containsString("A tag must point to a single version or HEAD"));
+
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .get("/spaces/" + getSpaceId() + "/tags/" + TAG_1)
         .then()
         .statusCode(OK.code())
-        .body("version", equalTo(1));
+        .body("version", equalTo(2));
   }
 
+  //The IT stack runs with USE_AUTHOR_FROM_HEADER=false, so the author is the aid of the token on the old code too; the fallback
+  //to the token is covered by TagApiTest. Only the DynamoDB tag backend stores author and createdAt (JDBCTagConfigClient does not).
   @Test
   public void updateTagKeepsAuthorAndCreationTime() {
     _createTag();
