@@ -25,12 +25,8 @@ CREATE EXTENSION IF NOT EXISTS plv8;
  * @param {string} input_type The type of the JSON input. Possible values: "FeatureCollection", "Features", "Feature", "Modifications"
  * @param {string} author The ID of the user that is committing the change
  * @param {boolean} return_result = false Whether to return all data that has been actually written. If `false` is specified,
- *  only an object containing the counts is returned like: `{"count": 42, "insertedCount": 30, "updatedCount": 10, "deletedCount": 5}`
- *  "count" is the number of resulting features (deleted ones excluded, unchanged ones included).
- *  "insertedCount", "updatedCount" and "deletedCount" are the numbers of features which changed the space that way, i.e., which
- *  were not visible before and are now, which were visible and were written again, or which were visible and are deleted now.
- *  The deletion of a feature which was not visible (not existing or deleted already) is not counted, even if a deletion marker
- *  was written for it.
+ *  only an object containing the count is returned like: `{"count": 42}`. With "countWritten": true in the query context (imports),
+ *  it also contains what changed in the space as it is shown: `{"count": 42, "insertedCount": 30, "updatedCount": 10, "deletedCount": 5}`
  * @param {number} version = null The version number to be used for the change. That must be a version larger than the current HEAD version or the current HEAD version. If not specified, HEAD + 1 will be used by default
  * @throws VersionConflictError, MergeConflictError, FeatureExistsError
  */
@@ -65,6 +61,7 @@ $BODY$
       ${{DatabaseWriter.js}}
       //Init completed
 
+      FeatureWriter.countsRequested = !return_result && queryContext().countWritten === true;
       let input = JSON.parse(json_input);
 
       if (input_type == "FeatureCollection") {
@@ -82,13 +79,17 @@ $BODY$
       else
         throw new Error("Invalid input_type: " + input_type);
 
-      //The deletions of features which were not visible before did not change what the space shows
-      const invisible = result.invisibleDeletions || {inserted: 0, updated: 0, deleted: 0};
-      return JSON.stringify(return_result ? result : {
+      if (return_result)
+        return JSON.stringify(result);
+      if (!FeatureWriter.countsRequested)
+        return JSON.stringify({count: result.features.length});
+
+      const written = FeatureWriter.writtenCounts();
+      return JSON.stringify({
         count: result.features.length,
-        insertedCount: result.inserted.length - invisible.inserted,
-        updatedCount: result.updated.length - invisible.updated,
-        deletedCount: result.deleted.length - invisible.deleted
+        insertedCount: written.inserted,
+        updatedCount: written.updated,
+        deletedCount: written.deleted
       });
     }
     catch (error) {

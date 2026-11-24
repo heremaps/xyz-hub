@@ -114,7 +114,18 @@ class FeatureWriter {
    * @returns {FeatureModificationExecutionResult}
    */
   writeFeature() {
-    return this.isDelete ? this.deleteFeature() : this.writeRow();
+    if (this.isDelete)
+      return this.deleteFeature();
+    if (!FeatureWriter.countsRequested)
+      return this.writeRow();
+
+    //NOTE: Cached, writeRow() loads it anyway
+    let visibleBefore = FeatureWriter._isVisible(this.loadFeature(this.inputFeature.id));
+    let execution = this.writeRow();
+    //Null if nothing was written (partial write with onNotExists = RETAIN)
+    if (this.inputFeature != null)
+      FeatureWriter._visibleBefore.set(this.inputFeature, visibleBefore);
+    return execution;
   }
 
   /**
@@ -125,19 +136,12 @@ class FeatureWriter {
     if (this.context != "DEFAULT" && this.context != null && this.context != "EXTENSION" && this.context != "SUPER")
       throw new IllegalArgumentException(`Unsupported context for feature deletion: ${this.context}`);
 
-    /*
-    Whether the space showed the feature before, decided once for all exits below: A deletion marker (H / J) is loaded like a feature,
-    as only D rows are excluded, but the feature is not visible then. If it was not visible, whatever gets written or removed (e.g., a
-    new deletion marker, or the removal of an existing one) does not change what the space shows, so it is not counted (see
-    FeatureWriter._collectResult()).
-    NOTE: For the context DEFAULT the feature gets loaded anyway, for the other contexts it is cached for the following write.
-     */
-    let existingFeature = this.loadFeature(this.inputFeature.id);
-    let visibleBefore = existingFeature != null && existingFeature.operation != "H" && existingFeature.operation != "J";
+    //The context DEFAULT needs it anyway
+    let existingFeature = this.context == "DEFAULT" || FeatureWriter.countsRequested ? this.loadFeature(this.inputFeature.id) : null;
     let execution = this._deleteFeature(existingFeature);
-    //The result of the write (also a later one in batch mode) refers to the feature object that was written or removed
-    if (!visibleBefore && this.inputFeature != null)
-      FeatureWriter._invisibleBefore.add(this.inputFeature);
+
+    if (FeatureWriter.countsRequested && this.inputFeature != null)
+      FeatureWriter._visibleBefore.set(this.inputFeature, FeatureWriter._isVisible(existingFeature));
     return execution;
   }
 
@@ -177,11 +181,23 @@ class FeatureWriter {
   }
 
   /**
-   * The result features of deletions of features which were not visible before (see deleteFeature()).
-   * NOTE: They are kept apart from the features, so that neither an input feature nor a written one can carry or lose the mark.
-   * @type {WeakSet<object>}
+   * Whether the space showed a written feature before (only if counting). Kept apart, so that an input feature can not fake it.
+   * @type {WeakMap<object, boolean>}
    */
-  static _invisibleBefore = new WeakSet();
+  static _visibleBefore = new WeakMap();
+
+  /**
+   * @returns {boolean} Whether the space shows the HEAD feature, which is not the case for a deletion marker (H / J)
+   */
+  static _isVisible(headFeature) {
+    return headFeature != null && headFeature.operation != "H" && headFeature.operation != "J";
+  }
+
+  /**
+   * Whether the caller requested the counts ("countWritten" in the query context), so that other writes do no extra work.
+   * @type {boolean}
+   */
+  static countsRequested = false;
 
   /**
    * @throws VersionConflictError, MergeConflictError, FeatureExistsError
@@ -969,8 +985,6 @@ class FeatureWriter {
       result.inserted = result.inserted.concat(featureCollections[i].inserted);
       result.updated = result.updated.concat(featureCollections[i].updated);
       result.deleted = result.deleted.concat(featureCollections[i].deleted);
-      for (const action in result.invisibleDeletions)
-        result.invisibleDeletions[action] += featureCollections[i].invisibleDeletions[action];
     }
 
     return result;
@@ -1008,10 +1022,42 @@ class FeatureWriter {
         result.features.push(execution.feature);
       if (execution.action != ExecutionAction.NONE)
         result[execution.action].push(execution.feature.id);
-      //A deletion marker may be reported as inserted, updated or deleted, depending on how it was written
-      if (execution.action != ExecutionAction.NONE && FeatureWriter._invisibleBefore.has(execution.feature))
-        result.invisibleDeletions[execution.action]++;
+      if (FeatureWriter.countsRequested)
+        FeatureWriter._countResult(execution);
     }
+  }
+
+  /**
+   * For each changed feature ID: whether the space showed it before this call (its first result) and after it (its last result).
+   * NOTE: In batch mode, all writes of an ID see the state before the call, so an ID is counted once per call.
+   * @type {Map<string, {visibleBefore: boolean, visibleAfter: boolean}>}
+   */
+  static _changes = new Map();
+
+  static _countResult(execution) {
+    if (execution.action == ExecutionAction.NONE)
+      return;
+    let change = FeatureWriter._changes.get(execution.feature.id);
+    if (change == null) {
+      let visibleBefore = FeatureWriter._visibleBefore.get(execution.feature);
+      change = {visibleBefore: visibleBefore ?? execution.action != ExecutionAction.INSERTED};
+      FeatureWriter._changes.set(execution.feature.id, change);
+    }
+    change.visibleAfter = execution.action != ExecutionAction.DELETED && execution.feature.properties?.[XYZ_NS]?.deleted !== true;
+  }
+
+  /**
+   * What the call changed in the space as it is shown: inserted (not visible before, visible now), updated (visible before and now)
+   * and deleted (visible before, not now).
+   */
+  static writtenCounts() {
+    let counts = {inserted: 0, updated: 0, deleted: 0};
+    for (const change of FeatureWriter._changes.values())
+      if (change.visibleAfter)
+        counts[change.visibleBefore ? ExecutionAction.UPDATED : ExecutionAction.INSERTED]++;
+      else if (change.visibleBefore)
+        counts.deleted++;
+    return counts;
   }
 
   static newFeatureCollection() {
@@ -1022,12 +1068,6 @@ class FeatureWriter {
       updated: [],
       deleted: []
     };
-    /*
-    The numbers of deletions in "inserted", "updated" and "deleted" (e.g., a written deletion marker or a removed one) of features
-    which were not visible before (not existing or deleted already), so they did not change what the space shows.
-    It is not enumerable, so it does not change the returned FeatureCollection.
-     */
-    Object.defineProperty(result, "invisibleDeletions", {value: {inserted: 0, updated: 0, deleted: 0}, enumerable: false});
     return result;
   }
 

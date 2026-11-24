@@ -26,8 +26,10 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.here.xyz.events.UpdateStrategy;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.util.db.SQLQuery;
+import com.here.xyz.util.db.pg.FeatureWriterQueryBuilder.FeatureWriterQueryContextBuilder;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -168,6 +170,19 @@ class ImportQueryBuilderTest {
     assertNull(query.getNamedParameters().get("superTable"));
     assertNull(query.getNamedParameters().get("superBoundVersion"),
         "The base is not visible with context=EXTENSION, so there is nothing to bind");
+  }
+
+  @Test
+  void requestsTheCountsOfTheFeatureWriterImportOnly() {
+    ImportQueryBuilder queryBuilder = new ImportQueryBuilder(new Space().withVersionsToKeep(10), DEFAULT, "step", "xyz",
+        "target_table", null, 37);
+
+    SQLQuery featureWriterImport = queryBuilder.buildImportFromTmpTableTaskQuery(1, 1, "owner", 2, false,
+        UpdateStrategy.DEFAULT_DELETE_STRATEGY, "{}", "lambda", "region", "PERFORM 1;");
+    assertEquals(true, featureWriterImport.context(FeatureWriterQueryContextBuilder.COUNT_WRITTEN));
+
+    //Other queries do not call write_features, and the shared query context must not be changed
+    assertNull(queryBuilder.getQueryContext().get(FeatureWriterQueryContextBuilder.COUNT_WRITTEN));
   }
 
   @Test

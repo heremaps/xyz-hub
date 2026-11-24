@@ -1206,7 +1206,7 @@ $BODY$;
  */
 --super_bound_version was added; without dropping the old signature, a reused versioned schema keeps both overloads and 9-arg calls become ambiguous
 DROP FUNCTION IF EXISTS execute_express_import_batch(REGCLASS, REGCLASS, REGCLASS, TEXT, BIGINT, NUMERIC, TEXT, BIGINT, BOOLEAN);
---The written counts were added to the result; CREATE OR REPLACE can not change the result columns of an existing function
+--The counts were added to the result columns, which CREATE OR REPLACE can not change
 DROP FUNCTION IF EXISTS execute_express_import_batch(REGCLASS, REGCLASS, REGCLASS, TEXT, BIGINT, NUMERIC, TEXT, BIGINT, BOOLEAN, BIGINT);
 CREATE OR REPLACE FUNCTION execute_express_import_batch(
         source_tbl REGCLASS,
@@ -1226,7 +1226,7 @@ RETURNS TABLE(
         selected_range_start BIGINT,
         selected_range_end BIGINT,
         finished BOOLEAN,
-        --The features this batch has written, by the operation as it ended up in the target
+        --What this batch has changed in the space as it is shown
         inserted_count BIGINT,
         updated_count BIGINT,
         deleted_count BIGINT
@@ -1475,15 +1475,12 @@ BEGIN
                            WHEN target_live THEN 'D'
                            ELSE NULL
                        END::CHAR AS operation,
-                       /*
-                        * Whether the space showed the feature before this batch: its latest row is no deletion, or only the base
-                        * space has it. A row an earlier batch of the same import has written (at the import version) is the
-                        * latest one, so a feature contained in several batches is counted as written once and then changed.
-                        */
+                       --Whether the space showed the feature before this batch (also if an earlier batch of the import wrote it).
+                       --A D row (unlike H / J) does not hide the feature of the base.
                        CASE
-                           WHEN current_exists THEN current_operation NOT IN ('D', 'H', 'J')
-                           ELSE (target_exists AND target_operation NOT IN ('D', 'H', 'J'))
-                               OR (NOT target_exists AND super_exists)
+                           WHEN current_exists THEN current_operation NOT IN ('H', 'J') AND (current_operation != 'D' OR super_exists)
+                           WHEN target_exists THEN target_operation NOT IN ('H', 'J') AND (target_operation != 'D' OR super_exists)
+                           ELSE super_exists
                        END AS visible_before
                   FROM state
             )
@@ -1563,11 +1560,7 @@ BEGIN
                 geo = EXCLUDED.geo
         $fmt$, target_tbl) USING current_version, author, batch_timestamp;
 
-        /*
-         * With history, every UPSERT gets written as a new version (also if it does not differ from the previous one).
-         * The counts tell what happened to the feature as the space shows it (see visible_before), so the deletion of a
-         * feature which was not visible is written (as a marker), but not counted as deleted.
-         */
+        --With history, every UPSERT is a new version, also if it does not differ. A deletion counts only if the feature was visible.
         SELECT COUNT(*) FILTER (WHERE NOT is_deleted AND NOT visible_before),
                COUNT(*) FILTER (WHERE NOT is_deleted AND visible_before),
                COUNT(*) FILTER (WHERE is_deleted AND visible_before)
@@ -1581,9 +1574,11 @@ BEGIN
                    t.id IS NOT NULL AS target_exists,
                    t.id IS NOT NULL AND t.operation != 'D' AS target_live,
                    s.id IS NOT NULL AS super_exists,
-                   --Whether the space showed the feature before: its row is no deletion, or only the base space has it
-                   (t.id IS NOT NULL AND t.operation NOT IN ('D', 'H', 'J'))
-                       OR (t.id IS NULL AND s.id IS NOT NULL) AS visible_before,
+                   --Whether the space showed the feature before (a D row does not hide the feature of the base)
+                   CASE
+                       WHEN t.id IS NOT NULL THEN t.operation NOT IN ('H', 'J') AND (t.operation != 'D' OR s.id IS NOT NULL)
+                       ELSE s.id IS NOT NULL
+                   END AS visible_before,
                    CASE
                        WHEN NOT f.is_deleted THEN 'UPSERT'
                        WHEN $1 != 'DEFAULT' THEN CASE WHEN t.id IS NOT NULL THEN 'DELETE' ELSE 'NOOP' END
@@ -1604,8 +1599,7 @@ BEGIN
         $fmt$, target_tbl, super_join);
         EXECUTE sql_text USING space_context, is_composite;
 
-        --Only the rows actually removed are counted. Removing a deletion marker (context EXTENSION) is not counted as a deletion,
-        --as the space did not show the feature before (see visible_before).
+        --Counts each removed feature once, if it was visible (removing a deletion marker does not count)
         EXECUTE format($fmt$
             WITH deleted AS (
                 DELETE FROM %1$s t
@@ -1614,18 +1608,14 @@ BEGIN
                    AND t.id = w.feature_id
                 RETURNING t.id
             )
-            SELECT COUNT(*)
+            SELECT COUNT(DISTINCT deleted.id)
               FROM deleted
               JOIN pg_temp.xyz_express_import_writes w ON w.feature_id = deleted.id
              WHERE w.visible_before
         $fmt$, target_tbl)
         INTO deleted_count;
 
-        /*
-         * Without history, an UPSERT of an existing feature is skipped if it does not differ (see the WHERE of the
-         * ON CONFLICT clause). Only the rows which were actually written are returned, so they are the ones counted.
-         * The deletion of a feature which was not visible is written (as a marker), but not counted as deleted.
-         */
+        --Without history, an UPSERT which does not differ is skipped, so only the returned rows are counted
         EXECUTE format($fmt$
             WITH written AS (
                 INSERT INTO %1$s AS tbl
@@ -1720,6 +1710,8 @@ BEGIN
     $wrappedinner$
     DECLARE
         batch_result RECORD;
+        blank_rows BIGINT;
+        last_i BIGINT;
         task_id INT := $wrappedouter$||task_id||$wrappedouter$::INT;
         source_tbl REGCLASS := to_regclass('$wrappedouter$||source_tbl::TEXT||$wrappedouter$');
         target_tbl REGCLASS := to_regclass('$wrappedouter$||target_tbl::TEXT||$wrappedouter$');
@@ -1752,6 +1744,21 @@ BEGIN
           );
 
         IF batch_result.finished THEN
+            --Blank lines of the file are loaded as NULL rows, they are reported as processed, so that all rows of the task are counted
+            EXECUTE format('SELECT count(*), max(i) FROM %s WHERE i >= %s', source_tbl, range_start)
+                INTO blank_rows, last_i;
+        END IF;
+
+        IF batch_result.finished AND blank_rows > 0 THEN
+            PERFORM report_task_progress(lambda_function_arn, lambda_region, step_payload, task_id,
+                jsonb_build_object(
+                    'progress', jsonb_build_object('type', 'ImportOutput$ImportProgress', 'tmpTableLoaded', false,
+                        'startI', range_start, 'endI', last_i),
+                    'expressImport', true,
+                    'written', jsonb_build_object('inserted', 0, 'updated', 0, 'deleted', 0, 'rows', blank_rows),
+                    'targetVersion', current_version,
+                    'type', 'ImportOutput'));
+        ELSIF batch_result.finished THEN
             PERFORM report_task_progress(
                 lambda_function_arn,
                 lambda_region,
@@ -1779,11 +1786,13 @@ BEGIN
                         'endI', batch_result.selected_range_end
                     ),
                     'expressImport', true,
-                    --The features written by this batch, the stored task output sums them up (see ImportQueryBuilder)
+                    --Summed up per task (see ImportQueryBuilder)
                     'written', jsonb_build_object(
                         'inserted', batch_result.inserted_count,
                         'updated', batch_result.updated_count,
-                        'deleted', batch_result.deleted_count
+                        'deleted', batch_result.deleted_count,
+                        --Including the blank ones (NULL) before this batch, the range of a batch starts after the previous one
+                        'rows', batch_result.selected_range_end - range_start + 1
                     ),
                     'rows', batch_result.pulled_count,
                     'bytes', batch_result.pulled_bytes,
@@ -1951,6 +1960,19 @@ BEGIN
 
         -- No more rows in the source table at or after range_start -> tmp table fully processed
         IF first_available_i IS NULL THEN
+            --Blank lines of the file are loaded as NULL rows, they are reported as processed, so that all rows of the task are counted
+            EXECUTE format('SELECT count(*), max(i) FROM %s WHERE i >= %s', source_tbl, range_start)
+                INTO pulled_count, selected_range_end;
+            IF pulled_count > 0 THEN
+                PERFORM report_task_progress(lambda_function_arn, lambda_region, step_payload, task_id,
+                    jsonb_build_object(
+                        'progress', jsonb_build_object('type', 'ImportOutput$ImportProgress', 'tmpTableLoaded', false,
+                            'startI', range_start, 'endI', selected_range_end),
+                        'written', jsonb_build_object('inserted', 0, 'updated', 0, 'deleted', 0, 'rows', pulled_count),
+                        'targetVersion', currentVersion,
+                        'type', 'ImportOutput'));
+                RETURN;
+            END IF;
             PERFORM report_task_progress(
                  lambda_function_arn,
                  lambda_region,
@@ -2001,15 +2023,16 @@ BEGIN
                     'startI', selected_range_start,
                     'endI', selected_range_end
                 ),
-                --The features written by this batch, the stored task output sums them up (see ImportQueryBuilder)
-                'written', jsonb_build_object(
-                    'inserted', COALESCE((write_result->>'insertedCount')::BIGINT, 0),
-                    'updated', COALESCE((write_result->>'updatedCount')::BIGINT, 0),
-                    'deleted', COALESCE((write_result->>'deletedCount')::BIGINT, 0)
-                ),
 		        'targetVersion', currentVersion,
                 'type', 'ImportOutput'
-            )
+            --Summed up per task (see ImportQueryBuilder). Without counts, it is left out, so that the import does not count anything.
+            --The rows include the blank ones (NULL) before this batch, the range of a batch starts after the previous one.
+            ) || CASE WHEN write_result->'insertedCount' IS NOT NULL THEN jsonb_build_object('written', jsonb_build_object(
+                    'inserted', (write_result->>'insertedCount')::BIGINT,
+                    'updated', (write_result->>'updatedCount')::BIGINT,
+                    'deleted', (write_result->>'deletedCount')::BIGINT,
+                    'rows', selected_range_end - range_start + 1
+                )) ELSE '{}'::JSONB END
 		);
 
 		EXCEPTION

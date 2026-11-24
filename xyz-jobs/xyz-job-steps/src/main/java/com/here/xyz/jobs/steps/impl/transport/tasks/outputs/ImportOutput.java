@@ -26,8 +26,7 @@ import com.here.xyz.jobs.steps.impl.transport.tasks.TaskPayload;
 import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_DEFAULT;
 
 /**
- * @param written The features which were written into the target, summed up over all batches of the task. Only set for imports
- *  into non-empty layers, which write in batches (see TaskedImportFilesToSpace#useFeatureWriter()).
+ * @param written What the batches of the task have written (only for imports into non-empty layers)
  */
 @JsonInclude(NON_DEFAULT)
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -59,15 +58,16 @@ public record ImportOutput(String importStatistics, long fileBytes,  long target
   }
 
   /**
-   * The numbers of features which were inserted, updated or deleted in the target.
-   * NOTE: The task output stores the sum over all batches of a task, see ImportQueryBuilder#buildTaskOutputMergeExpression().
+   * Summed up over the batches of a task (see ImportQueryBuilder#buildTaskOutputMergeExpression()). The rows are the input rows the
+   * batches have processed.
    */
   @JsonIgnoreProperties(ignoreUnknown = true)
-  public record WrittenFeatures(long inserted, long updated, long deleted) {
-    public static final WrittenFeatures NONE = new WrittenFeatures(0, 0, 0);
+  public record WrittenFeatures(long inserted, long updated, long deleted, long rows) {
+    public static final WrittenFeatures NONE = new WrittenFeatures(0, 0, 0, 0);
 
     public WrittenFeatures plus(WrittenFeatures other) {
-      return other == null ? this : new WrittenFeatures(inserted + other.inserted, updated + other.updated, deleted + other.deleted);
+      return other == null ? this : new WrittenFeatures(inserted + other.inserted, updated + other.updated, deleted + other.deleted,
+          rows + other.rows);
     }
 
     public long total() {

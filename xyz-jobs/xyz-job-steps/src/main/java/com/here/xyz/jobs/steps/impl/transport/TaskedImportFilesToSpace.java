@@ -590,9 +590,9 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
     }
 
     if (!finalizedTaskItems.isEmpty() && statistics.getInsertedCount() == null)
-      infoLog(STEP_ON_ASYNC_SUCCESS, "The written features were not reported by all tasks, so they are not counted.");
+      infoLog(STEP_ON_ASYNC_SUCCESS, "The written features were not reported for all rows, so they are not counted.");
 
-    //More written than requested features is not expected. The count is kept as it is (not clamped), so that it is visible.
+    //Not expected, the count is kept (not clamped), so that it is visible
     if (statistics.getUnchangedCount() != null && statistics.getUnchangedCount() < 0)
       warnLog(STEP_ON_ASYNC_SUCCESS, "More features were written than requested: rows=" + statistics.getFeatureCount()
           + " written=" + (statistics.getFeatureCount() - statistics.getUnchangedCount()));
@@ -607,18 +607,11 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
   }
 
   /**
-   * Adds how the requested features (the featureCount of the statistics) were actually written into the target.
-   * <ul>
-   *   <li>Import into a non-empty layer: The tasks have written the features in batches, each one reporting what it has written
-   *   (summed up in {@link ImportOutput#written()}). The rest is unchanged: features contained more than once in the input,
-   *   deletions of not existing features, and, only without history, features which did not differ from the existing ones.
-   *   With history, such a feature is still written as a new version, so it is counted as updated.</li>
-   *   <li>Import into an empty layer: The rows were inserted by the database import directly, all of them are inserted.</li>
-   * </ul>
-   * The counts are left null, if a batched task with rows did not report what it has written, e.g., as it was executed by a previous
-   * version of the import (during a rollout or before a resume). Counting its rows as unchanged would look like a measured result.
-   * NOTE: The kind of import is told by the task outputs, as only the batched import reports a progress. #useFeatureWriter() can not
-   * be used, as it checks the feature count of the target, which has changed by now.
+   * Adds how the features were written: An import into an empty layer inserts all rows. Otherwise, the batches report what they have
+   * written, the rest is unchanged. The counts stay null if the batches of a task did not report all of its rows (e.g., some ran
+   * with a previous version).
+   * NOTE: If a batch has written, but its report got lost, a resume writes it again and counts it as updated. This is not detected.
+   * NOTE: #useFeatureWriter() can not tell the kind of import anymore, as the target has changed by now.
    */
   static FeatureStatistics withWrittenFeatures(FeatureStatistics statistics, List<ImportOutput> taskOutputs) {
     boolean batched = taskOutputs.stream().anyMatch(output -> output.progress() != null || output.written() != null);
@@ -629,8 +622,7 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
           .withDeletedCount(0L)
           .withUnchangedCount(0L);
 
-    //Every batch of a task reports what it has written, so only a task without rows (an empty file) has nothing to report
-    if (taskOutputs.stream().anyMatch(output -> output.written() == null && output.extractRowCount() > 0))
+    if (taskOutputs.stream().anyMatch(output -> (output.written() == null ? 0 : output.written().rows()) != output.extractRowCount()))
       return statistics;
 
     WrittenFeatures written = taskOutputs.stream()

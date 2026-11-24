@@ -32,7 +32,7 @@ import com.here.xyz.models.hub.Ref;
 public class FeatureStatistics extends ModelBasedOutput {
 
     /**
-     * For an import: The number of features which were requested to be written, that is the number of rows in the input files.
+     * For an import: The rows of the input files. An import into an empty layer drops the deletions before counting.
      */
     @JsonInclude(ALWAYS)
     private long featureCount;
@@ -43,41 +43,29 @@ public class FeatureStatistics extends ModelBasedOutput {
     @JsonInclude(NON_DEFAULT)
     private long fileCount;
     /**
-     * For an import: The number of requested features which did not exist before (were not visible in the target) and exist now.
-     * Together with {@link #updatedCount}, {@link #deletedCount} and {@link #unchangedCount} it adds up to the featureCount.
-     * All four are null if not counted, e.g., for other steps than imports, or if a task of the import did not report what it has
-     * written (see TaskedImportFilesToSpace#withWrittenFeatures()).
-     * <p>
-     * NOTE: The four counts are not serialized, so they are neither stored with the output nor returned by the job API. For now they
-     * are only used for the logs of the import step (see TaskedImportFilesToSpace#processFinalizedTasks()).
-     * TODO: Decide how to publish them, e.g.:
-     * <ul>
-     *   <li>Return them with the output: remove @JsonIgnore and document them in the FeatureStatistics schema of the job API
-     *   (openapi.yaml).</li>
-     *   <li>Report them as metrics: a reporter (e.g., a job finalize observer) reads them from the stored output, which needs them to
-     *   be serialized as well (e.g., only in the Static view), or the step registers them as a separate output with SYSTEM
-     *   visibility.</li>
-     * </ul>
+     * For an import: The features which were not visible before and are now. With the updated, deleted and unchanged counts it adds
+     * up to the featureCount. All four are null if not counted (see TaskedImportFilesToSpace#withWrittenFeatures()).
+     * NOTE: Not serialized, only logged for now.
+     * TODO: Decide how to publish them, e.g., with the output (remove @JsonIgnore, document in openapi.yaml) or as a separate output
+     *  with SYSTEM visibility for a reporter.
      */
     @JsonIgnore
     private Long insertedCount;
     /**
-     * For an import: The number of requested features which existed before and were written again. With history, this includes
-     * features which did not differ from the existing ones, as they are still written as a new version.
-     * A feature contained in several batches of the input is counted by each of them, like separate writes: e.g., inserted by the
-     * first one, then updated (or, without history and not differing, unchanged) or deleted by the following ones.
+     * For an import: The features which were visible before and were written again. With history, also the ones which did not
+     * differ (they still get a new version). A feature in several batches is counted by each of them.
+     * NOTE: A new feature in several files which are imported at the same time can be counted as inserted by each of them.
      */
     @JsonIgnore
     private Long updatedCount;
     /**
-     * For an import: The number of requested features which existed before and are deleted now.
+     * For an import: The features which were visible before and are deleted now.
      */
     @JsonIgnore
     private Long deletedCount;
     /**
-     * For an import: The number of requested features which did not change the target: features contained more than once within
-     * one batch of the input (only the last one is written), deletions of features which did not exist or were deleted already, and,
-     * only without history, features which did not differ from the existing ones.
+     * For an import: The rest, e.g., duplicates within a batch, deletions of features which were not visible and, without history,
+     * features which did not differ.
      */
     @JsonIgnore
     private Long unchangedCount;

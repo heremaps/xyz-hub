@@ -89,8 +89,7 @@ public class TaskedSpaceBasedQueryBuilder extends DatabaseStepQueryBuilder {
   }
 
   /**
-   * The expression for the new {@code taskOutput} of a task, after a non-final update. By default, the properties of the update
-   * replace the existing ones. The stored task output is available as {@code task_output}, the update as {@code #{taskUpdate}}.
+   * The new {@code taskOutput} after a non-final update. By default, the update replaces the existing properties.
    */
   protected SQLQuery buildTaskOutputMergeExpression() {
     return new SQLQuery("COALESCE(task_output->'taskOutput', '{}'::JSONB) || COALESCE((#{taskUpdate}::JSONB)->'taskOutput', '{}'::JSONB)");

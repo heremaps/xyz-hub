@@ -23,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -158,13 +159,8 @@ public class ExpressWriterSmokeIT {
   }
 
   /**
-   * A batch reports what it has changed in the space as it is visible. Three batches into a non-composite space: the first
-   * one inserts a, b and c. The second one changes a, re-sends b unchanged, deletes c, adds d and deletes the not existing x.
-   * The third one deletes c again and changes d.
-   *
-   * <p>With history, every feature of the batch gets written as a new version, so the unchanged b counts as updated.
-   * Without history, b is not written at all, so it is not counted. The deletion of a feature which is not visible
-   * (x, or c the second time) is not counted as a deletion, even if a deletion marker gets written for it.</p>
+   * A batch reports what it has changed in the space as it is shown. The unchanged b counts as updated only with history, the
+   * deletions of x and of c the second time not at all.
    */
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
@@ -193,7 +189,6 @@ public class ExpressWriterSmokeIT {
       assertEquals(1, second.deletedCount(), "Only c was deleted, x did not exist.");
       assertEquals(3, headRowCount(dsp, table), "a, b and d remain.");
 
-      //Deleting c again and re-adding d: c is not visible anymore (a deletion marker or no row at all)
       stage(dsp, stagingTable, deletion("c"), feature("d", "d2"));
       BatchResult third = executeExpressImportBatch(dsp, stagingTable, table, second.selectedRangeEnd() + 1,
           allocateVersion(dsp, table), historyEnabled);
@@ -215,9 +210,7 @@ public class ExpressWriterSmokeIT {
   }
 
   /**
-   * All batches of one import write into the same version. A feature written by an earlier batch of the import counts as existing for
-   * a later one, like separate writes: insert/insert, insert/delete, insert/update and delete/insert.
-   * With history, the unchanged x1 gets written again and counts as updated, without history it is skipped.
+   * The batches of an import write the same version. A feature written by an earlier batch counts as existing for a later one.
    */
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
@@ -258,7 +251,7 @@ public class ExpressWriterSmokeIT {
   }
 
   /**
-   * A feature contained more than once in a batch is collapsed to its last occurrence, so it is written and counted once.
+   * A feature contained twice in a batch is written and counted once.
    */
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
@@ -282,6 +275,127 @@ public class ExpressWriterSmokeIT {
         dropResources(dsp, table, stagingTable);
       }
     }
+  }
+
+  /**
+   * The context DEFAULT shows the base features too.
+   */
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void countsTheWritesIntoACompositeSpace(boolean historyEnabled) throws Exception {
+    String base = "express_smoke_composite_base_" + (historyEnabled ? "history" : "nohistory");
+    String table = "express_smoke_composite_" + (historyEnabled ? "history" : "nohistory");
+    String stagingTable = table + "_staging";
+
+    try (DataSourceProvider dsp = ExpressWriterDataSources.getDataSourceProvider()) {
+      dropResources(dsp, base, base + "_staging");
+      dropResources(dsp, table, stagingTable);
+      createResources(dsp, base, base + "_staging");
+      createResources(dsp, table, stagingTable);
+
+      stage(dsp, base + "_staging", feature("a", "a1"), feature("b", "b1"));
+      executeExpressImportBatch(dsp, base + "_staging", base, 1, allocateVersion(dsp, base), historyEnabled);
+
+      stage(dsp, stagingTable, feature("a", "a2"), deletion("b"), feature("c", "c1"));
+      BatchResult first = executeExpressImportBatch(dsp, stagingTable, table, base, "DEFAULT", 1, allocateVersion(dsp, table),
+          historyEnabled);
+      assertCounts(first, 1, 1, 1, "c is new, a is updated and b deleted, both from the base.");
+
+      stage(dsp, stagingTable, deletion("b"));
+      BatchResult second = executeExpressImportBatch(dsp, stagingTable, table, base, "DEFAULT", first.selectedRangeEnd() + 1,
+          allocateVersion(dsp, table), historyEnabled);
+      assertCounts(second, 0, 0, 0, "b was deleted already.");
+
+      stage(dsp, stagingTable, feature("b", "b2"));
+      BatchResult third = executeExpressImportBatch(dsp, stagingTable, table, base, "DEFAULT", second.selectedRangeEnd() + 1,
+          allocateVersion(dsp, table), historyEnabled);
+      assertCounts(third, 1, 0, 0, "b is written over its deletion marker.");
+    }
+    finally {
+      try (DataSourceProvider dsp = ExpressWriterDataSources.getDataSourceProvider()) {
+        dropResources(dsp, table, stagingTable);
+        dropResources(dsp, base, base + "_staging");
+      }
+    }
+  }
+
+  /**
+   * The context EXTENSION sees the extension only (the import passes no base table).
+   */
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void countsTheWritesIntoTheExtensionOnly(boolean historyEnabled) throws Exception {
+    String table = "express_smoke_extension_" + (historyEnabled ? "history" : "nohistory");
+    String stagingTable = table + "_staging";
+
+    try (DataSourceProvider dsp = ExpressWriterDataSources.getDataSourceProvider()) {
+      dropResources(dsp, table, stagingTable);
+      createResources(dsp, table, stagingTable);
+
+      stage(dsp, stagingTable, deletion("a"), feature("e", "e1"));
+      BatchResult first = executeExpressImportBatch(dsp, stagingTable, table, null, "EXTENSION", 1, allocateVersion(dsp, table),
+          historyEnabled);
+      assertCounts(first, 1, 0, 0, "e is new, a is not in the extension.");
+
+      stage(dsp, stagingTable, feature("e", "e2"));
+      BatchResult second = executeExpressImportBatch(dsp, stagingTable, table, null, "EXTENSION", first.selectedRangeEnd() + 1,
+          allocateVersion(dsp, table), historyEnabled);
+      assertCounts(second, 0, 1, 0, "e has changed.");
+
+      stage(dsp, stagingTable, deletion("e"));
+      BatchResult third = executeExpressImportBatch(dsp, stagingTable, table, null, "EXTENSION", second.selectedRangeEnd() + 1,
+          allocateVersion(dsp, table), historyEnabled);
+      assertCounts(third, 0, 0, 1, "e is deleted.");
+    }
+    finally {
+      try (DataSourceProvider dsp = ExpressWriterDataSources.getDataSourceProvider()) {
+        dropResources(dsp, table, stagingTable);
+      }
+    }
+  }
+
+  /**
+   * With history, a deletion in the extension of a feature the base did not have is a D row. It does not hide the feature the base
+   * gets later, so writing it counts as updated.
+   */
+  @Test
+  void countsAFeatureOfTheBaseBehindADeletionAsVisible() throws Exception {
+    String base = "express_smoke_drow_base";
+    String table = "express_smoke_drow";
+    String stagingTable = table + "_staging";
+
+    try (DataSourceProvider dsp = ExpressWriterDataSources.getDataSourceProvider()) {
+      dropResources(dsp, base, base + "_staging");
+      dropResources(dsp, table, stagingTable);
+      createResources(dsp, base, base + "_staging");
+      createResources(dsp, table, stagingTable);
+
+      stage(dsp, stagingTable, feature("f", "f1"));
+      BatchResult first = executeExpressImportBatch(dsp, stagingTable, table, base, "DEFAULT", 1, allocateVersion(dsp, table), true);
+      stage(dsp, stagingTable, deletion("f"));
+      BatchResult second = executeExpressImportBatch(dsp, stagingTable, table, base, "DEFAULT", first.selectedRangeEnd() + 1,
+          allocateVersion(dsp, table), true);
+      assertCounts(second, 0, 0, 1, "f is deleted (D row, the base does not have it).");
+
+      stage(dsp, base + "_staging", feature("f", "base"));
+      executeExpressImportBatch(dsp, base + "_staging", base, 1, allocateVersion(dsp, base), true);
+
+      stage(dsp, stagingTable, feature("f", "f2"));
+      BatchResult third = executeExpressImportBatch(dsp, stagingTable, table, base, "DEFAULT", second.selectedRangeEnd() + 1,
+          allocateVersion(dsp, table), true);
+      assertCounts(third, 0, 1, 0, "The base shows f behind the D row.");
+    }
+    finally {
+      try (DataSourceProvider dsp = ExpressWriterDataSources.getDataSourceProvider()) {
+        dropResources(dsp, table, stagingTable);
+        dropResources(dsp, base, base + "_staging");
+      }
+    }
+  }
+
+  private static void assertCounts(BatchResult batch, long inserted, long updated, long deleted, String message) {
+    assertEquals(List.of(inserted, updated, deleted), List.of(batch.insertedCount(), batch.updatedCount(), batch.deletedCount()),
+        "inserted, updated, deleted: " + message);
   }
 
   private String stagedId(DataSourceProvider dsp, String stagingTable, long i) throws Exception {
@@ -326,14 +440,20 @@ public class ExpressWriterSmokeIT {
 
   private BatchResult executeExpressImportBatch(DataSourceProvider dsp, String stagingTable, String table,
       long rangeStart, long targetVersion, boolean historyEnabled) throws Exception {
+    return executeExpressImportBatch(dsp, stagingTable, table, null, "DEFAULT", rangeStart, targetVersion, historyEnabled);
+  }
+
+  private BatchResult executeExpressImportBatch(DataSourceProvider dsp, String stagingTable, String table, String superTable,
+      String spaceContext, long rangeStart, long targetVersion, boolean historyEnabled) throws Exception {
     return new SQLQuery("""
         SELECT * FROM execute_express_import_batch(
-            to_regclass(#{sourceTable}), to_regclass(#{targetTable}), NULL::REGCLASS, #{spaceContext},
+            to_regclass(#{sourceTable}), to_regclass(#{targetTable}), to_regclass(#{superTable}), #{spaceContext},
             #{rangeStart}, #{targetMb}::NUMERIC, #{author}, #{currentVersion}, #{historyEnabled})
         """)
         .withNamedParameter("sourceTable", qualified(stagingTable))
         .withNamedParameter("targetTable", qualified(table))
-        .withNamedParameter("spaceContext", "DEFAULT")
+        .withNamedParameter("superTable", superTable == null ? null : qualified(superTable))
+        .withNamedParameter("spaceContext", spaceContext)
         .withNamedParameter("rangeStart", rangeStart)
         .withNamedParameter("targetMb", 10d)
         .withNamedParameter("author", "owner")

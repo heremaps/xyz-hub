@@ -33,6 +33,7 @@ import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
 import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Feature;
+import com.here.xyz.events.UpdateStrategy;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.hub.Ref;
@@ -51,6 +52,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import software.amazon.awssdk.services.cloudwatchevents.model.DeleteRuleRequest;
 import software.amazon.awssdk.services.cloudwatchevents.model.ListRulesRequest;
 import software.amazon.awssdk.services.cloudwatchevents.model.ListTargetsByRuleRequest;
@@ -358,6 +361,67 @@ public class TaskedImportStepTest extends StepTest {
     // Expected visible count: norm1 + norm2 + norm3 + norm4 + norm5 + existing1 + existing2 = 7
     Assertions.assertEquals(Long.valueOf(7), statsAfter.getCount().getValue());
     checkStatistics(10, step.loadUserOutputs()); // todo: clarify should (del3, del4, del5) be within the count ?
+  }
+
+  /**
+   * A deletion import (like the "deleted" step of a patch) uses the FeatureWriter.
+   */
+  @Test
+  public void testImport_inNonEmpty_withDeleteStrategy() throws Exception {
+    putFeatureCollectionToSpace(SPACE_ID, new FeatureCollection().withFeatures(List.of(simpleFeature("del1"), simpleFeature("del2"),
+        simpleFeature("norm1"), simpleFeature("norm2"), simpleFeature("existing1"), simpleFeature("existing2"))));
+
+    uploadInputFile(JOB_ID,
+        ByteStreams.toByteArray(this.getClass().getResourceAsStream("/testFiles/file_with_deleted.geojson")),
+        S3ContentType.APPLICATION_JSON);
+
+    TaskedImportFilesToSpace step = new TaskedImportFilesToSpace()
+        .withJobId(JOB_ID)
+        .withVersionRef(new Ref(Ref.HEAD))
+        .withFormat(TaskedImportFilesToSpace.Format.GEOJSON)
+        .withSpaceId(SPACE_ID)
+        .withUpdateStrategy(UpdateStrategy.DEFAULT_DELETE_STRATEGY)
+        .withInputSets(List.of(USER_INPUTS.get()));
+    Assertions.assertFalse(step.useExpressImport());
+
+    sendLambdaStepRequestBlock(step, true);
+
+    //del1, del2, norm1 and norm2 are deleted, existing1 and existing2 remain
+    Assertions.assertEquals(Long.valueOf(2), getStatistics(SPACE_ID).getCount().getValue());
+    checkStatistics(10, step.loadUserOutputs());
+  }
+
+  /**
+   * Blank lines of a file are loaded as rows without data, the batches skip them (also at the end of the file).
+   */
+  @ParameterizedTest(name = "deleteStrategy={0}")
+  @ValueSource(booleans = {false, true})
+  public void testImport_inNonEmpty_withBlankLines(boolean deleteStrategy) throws Exception {
+    putFeatureCollectionToSpace(SPACE_ID, new FeatureCollection().withFeatures(List.of(simpleFeature("a"), simpleFeature("keep"))));
+
+    uploadInputFile(JOB_ID, ("""
+        {"id":"a","type":"Feature","geometry":{"type":"Point","coordinates":[8.5,50.1]},"properties":{"test":2}}
+
+        {"id":"c","type":"Feature","geometry":{"type":"Point","coordinates":[8.6,50.2]},"properties":{"test":3}}
+
+
+        """).getBytes(), S3ContentType.APPLICATION_JSON);
+
+    TaskedImportFilesToSpace step = new TaskedImportFilesToSpace()
+        .withJobId(JOB_ID)
+        .withVersionRef(new Ref(Ref.HEAD))
+        .withFormat(TaskedImportFilesToSpace.Format.GEOJSON)
+        .withSpaceId(SPACE_ID)
+        .withInputSets(List.of(USER_INPUTS.get()));
+    if (deleteStrategy)
+      step.withUpdateStrategy(UpdateStrategy.DEFAULT_DELETE_STRATEGY);
+    Assertions.assertEquals(!deleteStrategy, step.useExpressImport());
+
+    sendLambdaStepRequestBlock(step, true);
+
+    //The delete strategy deletes a and retains (does not create) c
+    Assertions.assertEquals(Long.valueOf(deleteStrategy ? 1 : 3), getStatistics(SPACE_ID).getCount().getValue());
+    checkStatistics(5, step.loadUserOutputs());
   }
 
 /****  */
