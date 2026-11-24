@@ -98,7 +98,7 @@
     <!-- Dependencies versions -->
     <aws-sdk-version>1.12.772</aws-sdk-version>
     <aws-sdk2-version>2.25.8</aws-sdk2-version>
-    <vertx-version>4.5.14</vertx-version>
+    <vertx-version>4.5.36</vertx-version>
     <geo-tools-version>30.1</geo-tools-version>
     <jts-version>1.19.0</jts-version>
     <jackson-version>2.21.8</jackson-version>
@@ -106,7 +106,7 @@
     <log4j-version>2.25.5</log4j-version>
     <aws-log4j-version>1.5.1</aws-log4j-version>
     <jayway-jsonpath-version>2.10.0</jayway-jsonpath-version>
-    <iceberg-version>1.10.0</iceberg-version>
+    <iceberg-version>1.10.2</iceberg-version>
     <hadoop-version>3.4.1</hadoop-version>
     <!--The Parquet version of iceberg-version-->
     <parquet-version>1.16.0</parquet-version>
@@ -310,11 +310,6 @@
       </dependency>
       <dependency>
         <artifactId>vertx-config</artifactId>
-        <groupId>io.vertx</groupId>
-        <version>${vertx-version}</version>
-      </dependency>
-      <dependency>
-        <artifactId>vertx-web-templ-handlebars</artifactId>
         <groupId>io.vertx</groupId>
         <version>${vertx-version}</version>
       </dependency>
@@ -758,7 +753,13 @@
       <dependency>
         <artifactId>guava</artifactId>
         <groupId>com.google.guava</groupId>
-        <version>32.0.0-jre</version>
+        <version>33.8.0-jre</version>
+      </dependency>
+      <!--javax.annotation.Nonnull/Nullable, came transitively with guava before 33-->
+      <dependency>
+        <groupId>com.google.code.findbugs</groupId>
+        <artifactId>jsr305</artifactId>
+        <version>3.0.2</version>
       </dependency>
       <dependency>
         <groupId>org.apache.commons</groupId>
@@ -934,7 +935,7 @@
       <dependency>
         <groupId>com.mchange</groupId>
         <artifactId>c3p0</artifactId>
-        <version>0.12.0</version>
+        <version>0.14.0</version>
       </dependency>
       <dependency>
         <artifactId>mapbox-vector-tile</artifactId>
@@ -950,6 +951,19 @@
         <groupId>dnsjava</groupId>
         <artifactId>dnsjava</artifactId>
         <version>3.6.1</version>
+      </dependency>
+      <!--Transitive dependencies pinned for security fixes, remove when the parent dependency brings at least this version-->
+      <!--CVE-2026-93451: snappy-java of parquet-hadoop-->
+      <dependency>
+        <groupId>org.xerial.snappy</groupId>
+        <artifactId>snappy-java</artifactId>
+        <version>1.1.10.12</version>
+      </dependency>
+      <!--CVE-2026-54399: httpcore5 of iceberg-core (httpclient5 5.6.5 brings httpcore5 5.4.4)-->
+      <dependency>
+        <groupId>org.apache.httpcomponents.client5</groupId>
+        <artifactId>httpclient5</artifactId>
+        <version>5.6.5</version>
       </dependency>
 
     </dependencies>

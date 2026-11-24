@@ -238,8 +238,8 @@
       <groupId>io.vertx</groupId>
     </dependency>
     <dependency>
-      <artifactId>vertx-web-templ-handlebars</artifactId>
-      <groupId>io.vertx</groupId>
+      <groupId>com.google.code.findbugs</groupId>
+      <artifactId>jsr305</artifactId>
     </dependency>
     <dependency>
       <artifactId>vertx-web-client</artifactId>
