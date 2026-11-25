@@ -464,7 +464,9 @@ public class TagApiIT extends TestSpaceWithFeature {
         .body(new Tag().withId(TAG_1).withVersion(-10))
         .post("/spaces/" + getSpaceId() + "/tags")
         .then()
-        .statusCode(BAD_REQUEST.code());
+        .statusCode(BAD_REQUEST.code())
+        .body("code", equalTo("E318404"))
+        .body("cause", containsString("The version of a tag must not be lower than 0."));
   }
 
   @Ignore("Should we allow tag with -1")
@@ -527,7 +529,9 @@ public class TagApiIT extends TestSpaceWithFeature {
         .body(new Tag().withVersion(-10))
         .patch("/spaces/" + getSpaceId() + "/tags/" + TAG_1)
         .then()
-        .statusCode(BAD_REQUEST.code());
+        .statusCode(BAD_REQUEST.code())
+        .body("code", equalTo("E318404"))
+        .body("cause", containsString("The version of a tag must not be lower than 0."));
   }
 
   @Test

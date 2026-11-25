@@ -45,6 +45,7 @@ import io.vertx.core.Future;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.router.RouterBuilder;
 import java.util.Map;
+import java.util.regex.Pattern;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.logging.log4j.Marker;
@@ -211,7 +212,7 @@ public class TagApi extends SpaceBasedApi {
   }
 
   //TODO: Check why does this return a Future ?
-  private static Future<Tag> deserializeTag(String body) {
+  static Future<Tag> deserializeTag(String body) {
     if (StringUtils.isBlank(body)) {
       return Future.failedFuture(new ValidationException("Unable to parse body"));
     }
@@ -219,15 +220,29 @@ public class TagApi extends SpaceBasedApi {
     try {
       Tag tag = XyzSerializable.deserialize(body, Tag.class);
       if (tag.getVersionRef() == null) {
+        //-2 is the default of Tag.version, i.e. no version given, which means HEAD
+        if (tag.getVersion() < 0 && tag.getVersion() != -2)
+          return Future.failedFuture(negativeTagVersion(String.valueOf(tag.getVersion())));
         tag.setVersionRef(tag.getVersion() == -2 ? new Ref(HEAD) : new Ref(tag.getVersion()));
       }
       return Future.succeededFuture(tag);
     } catch (JsonProcessingException e) {
-      //Tag.setVersionRef() rejects a ref which is not a single version (a range, "*" or a tag)
-      if (ExceptionUtils.getRootCause(e) instanceof InvalidRef)
-        return Future.failedFuture(invalidTagVersionRef(String.valueOf(readVersionRef(body))));
+      //Ref rejects a negative version, Tag.setVersionRef() a ref which is not a single version (a range, "*" or a tag)
+      if (ExceptionUtils.getRootCause(e) instanceof InvalidRef) {
+        final String versionRef = String.valueOf(readVersionRef(body));
+        return Future.failedFuture(NEGATIVE_VERSION.matcher(versionRef).matches()
+            ? negativeTagVersion(versionRef)
+            : invalidTagVersionRef(versionRef));
+      }
       return Future.failedFuture(new ValidationException("Unable to parse body"));
     }
+  }
+
+  private static final Pattern NEGATIVE_VERSION = Pattern.compile("-\\d+");
+
+  private static DetailedHttpException negativeTagVersion(String version) {
+    return new DetailedHttpException("E318404", Map.of("versionRef", version,
+        "cause", "The version of a tag must not be lower than 0."));
   }
 
   private static Object readVersionRef(String body) {
