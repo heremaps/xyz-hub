@@ -261,6 +261,9 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
         return true;
       }
       catch (ConditionalCheckFailedException e) {
+        //The space was deleted after it was listed, e.g. by a parallel deletion; updating it would re-create it
+        logger.warn(marker, "space[{}]: Skipped the deactivation, the space no longer exists in table {}", spaceId,
+            spaces.getTableName());
         return false;
       }
     });
