@@ -75,7 +75,6 @@ import com.here.xyz.responses.ChangesetsStatisticsResponse;
 import com.here.xyz.util.Async;
 import com.here.xyz.util.Hasher;
 import com.here.xyz.util.db.ConnectorParameters;
-import com.here.xyz.util.service.BaseHttpServerVerticle;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.HttpException;
 import com.here.xyz.util.service.errors.DetailedHttpException;
@@ -1040,7 +1039,7 @@ public class SpaceTaskHandler {
   private static void resolveDependenciesForCreation(ConditionalOperation task, Callback<ConditionalOperation> callback) {
     final String spaceId = task.responseSpaces.get(0).getId();
 
-    String author = BaseHttpServerVerticle.getAuthor(task.context);
+    String author = TagApi.getRequestAuthor(task.context);
     // check if there are subscriptions with source pointing to the space id being created
     Service.subscriptionConfigClient.getBySource(task.getMarker(), spaceId)
         .compose(subscriptions -> {

@@ -361,6 +361,9 @@ paths:
 
         If a version is not provided when creating the tag, then the current HEAD version will be
         referenced.
+
+        The version is not verified, so a tag can be created for a version which does not exist yet.
+        A range, all versions (*) or another tag is rejected.
       operationId: createTag
       parameters:
         - $ref: '#/components/parameters/SpaceId'
@@ -385,7 +388,11 @@ paths:
         - Manage Tags
       summary: Update a tag
       description: >-
-        Update the version of a tag.
+        Update the version or the description of a tag.
+
+        Without a version the tag points to the current HEAD version. Other versions are not verified,
+        as on creation. A range, all versions (*) or another tag is rejected.
+        The author and the creation time of the tag are kept.
       operationId: updateTag
       parameters:
         - $ref: '#/components/parameters/SpaceId'

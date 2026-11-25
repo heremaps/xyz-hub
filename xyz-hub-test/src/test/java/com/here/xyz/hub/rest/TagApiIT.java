@@ -24,11 +24,14 @@ import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.restassured.RestAssured.given;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.Properties;
@@ -38,6 +41,7 @@ import io.restassured.response.ValidatableResponse;
 import io.vertx.core.json.JsonObject;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -180,11 +184,13 @@ public class TagApiIT extends TestSpaceWithFeature {
   @Test
   public void updateTagVersion() {
     _createTag();
+    _addOneFeature();
+    _addOneFeature();
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .contentType(ContentType.JSON)
-        .body(new Tag().withVersion(999).serialize())
+        .body(new Tag().withVersion(2).serialize())
         .patch("/spaces/" + getSpaceId() + "/tags/" + TAG_1)
         .then()
         .statusCode(OK.code());
@@ -194,7 +200,94 @@ public class TagApiIT extends TestSpaceWithFeature {
         .get("/spaces/" + getSpaceId() + "/tags/" + TAG_1)
         .then()
         .statusCode(OK.code())
+        .body("version", equalTo(2));
+  }
+
+  //Like on creation, the version is not verified: the latest version known to the Hub may be behind the space
+  @Test
+  public void updateTagToNonExistingVersion() {
+    _addOneFeature();
+    _createTag();
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .contentType(ContentType.JSON)
+        .body(new Tag().withVersion(999).serialize())
+        .patch("/spaces/" + getSpaceId() + "/tags/" + TAG_1)
+        .then()
+        .statusCode(OK.code())
         .body("version", equalTo(999));
+  }
+
+  @Test
+  public void updateTagToRangeOrAllVersions() {
+    _addOneFeature();
+    _addOneFeature();
+    _createTag();
+
+    for (String versionRef : new String[]{"1..2", "1..HEAD", "*"})
+      given()
+          .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+          .contentType(ContentType.JSON)
+          .body("{\"versionRef\":\"" + versionRef + "\"}")
+          .patch("/spaces/" + getSpaceId() + "/tags/" + TAG_1)
+          .then()
+          .statusCode(BAD_REQUEST.code())
+          .body("code", equalTo("E318404"))
+          .body("cause", containsString("A tag must point to a single version or HEAD"));
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .get("/spaces/" + getSpaceId() + "/tags/" + TAG_1)
+        .then()
+        .statusCode(OK.code())
+        .body("version", equalTo(2));
+  }
+
+  //The IT stack runs with USE_AUTHOR_FROM_HEADER=false, so the author is the aid of the token on the old code too; the fallback
+  //to the token is covered by TagApiTest. Only the DynamoDB tag backend stores author and createdAt (JDBCTagConfigClient does not).
+  @Test
+  public void updateTagKeepsAuthorAndCreationTime() {
+    _createTag();
+    Map<String, Object> created = getTag();
+    assertEquals(AuthProfile.ACCESS_ALL.payload.aid, created.get("author"));
+    assertNotEquals(-1, ((Number) created.get("createdAt")).longValue());
+
+    Map<String, Object> updateResponse = given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .contentType(ContentType.JSON)
+        .body(new Tag().withDescription("updated").withVersion(0).serialize())
+        .patch("/spaces/" + getSpaceId() + "/tags/" + TAG_1)
+        .then()
+        .statusCode(OK.code())
+        .extract().jsonPath().getMap("$");
+
+    assertEquals("updated", updateResponse.get("description"));
+    assertEquals(created.get("author"), updateResponse.get("author"));
+    assertEquals(created.get("createdAt"), updateResponse.get("createdAt"));
+
+    //What has been stored is what the update has answered, no matter if the tag is read on its own or as part of the list
+    Map<String, Object> readAfterUpdate = getTag();
+    assertEquals(updateResponse, readAfterUpdate);
+    assertEquals(readAfterUpdate, listTags().stream().filter(tag -> TAG_1.equals(tag.get("id"))).findFirst().orElseThrow());
+  }
+
+  private Map<String, Object> getTag() {
+    return given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .get("/spaces/" + getSpaceId() + "/tags/" + TAG_1)
+        .then()
+        .statusCode(OK.code())
+        .extract().jsonPath().getMap("$");
+  }
+
+  private List<Map<String, Object>> listTags() {
+    return given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .get("/spaces/" + getSpaceId() + "/tags")
+        .then()
+        .statusCode(OK.code())
+        .extract().jsonPath().getList("$");
   }
 
   @Test
@@ -324,6 +417,43 @@ public class TagApiIT extends TestSpaceWithFeature {
         .post("/spaces/" + getSpaceId() + "/tags")
         .then()
         .body("version", equalTo(555));
+  }
+
+  @Test
+  public void testCreateTagWithLatestVersion() {
+    _addOneFeature();
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .contentType(ContentType.JSON)
+        .body(new Tag().withId(TAG_1).withVersion(1))
+        .post("/spaces/" + getSpaceId() + "/tags")
+        .then()
+        .statusCode(OK.code())
+        .body("version", equalTo(1));
+  }
+
+  //Creating a tag for a version which does not exist yet is possible, only updating a tag is verified
+  @Test
+  public void testCreateTagWithNonExistingVersion() {
+    _addOneFeature();
+
+    //The space has the versions 0 and 1
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .contentType(ContentType.JSON)
+        .body(new Tag().withId(TAG_1).withVersion(2))
+        .post("/spaces/" + getSpaceId() + "/tags")
+        .then()
+        .statusCode(OK.code())
+        .body("version", equalTo(2));
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .get("/spaces/" + getSpaceId() + "/tags/" + TAG_1)
+        .then()
+        .statusCode(OK.code())
+        .body("version", equalTo(2));
   }
 
   @Test
@@ -550,7 +680,7 @@ public class TagApiIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .contentType(ContentType.JSON)
-        .body(new Tag().withId(TAG_1).withVersion(1).withDescription("description"))
+        .body(new Tag().withId(TAG_1).withVersion(0).withDescription("description"))
         .patch("/spaces/" + getSpaceId() + "/tags/" + TAG_1)
         .then()
         .statusCode(OK.code())
