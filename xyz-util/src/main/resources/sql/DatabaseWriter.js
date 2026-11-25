@@ -296,7 +296,9 @@ class DatabaseWriter {
    */
   insertHistoryRow(inputFeature, onVersionConflict, baseVersion, baseFeature, version, operation, author, resultHandler) {
     //TODO: Improve performance by reading geo inside JS and then pass it separately and use TEXT / WKB / BYTEA
-    this.enrichTimestamps(inputFeature, operation == "I" || operation == "H", baseFeature);
+    //A feature which is only inherited from the base space is modified, not created, by this write
+    const inheritedFromBase = baseFeature != null && baseFeature.dataset < queryContext().tables.length - 1;
+    this.enrichTimestamps(inputFeature, (operation == "I" && !inheritedFromBase) || operation == "H", baseFeature);
     let extraCols = '';
     let extraVals = '';
 

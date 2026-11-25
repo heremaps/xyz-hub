@@ -382,7 +382,10 @@ public abstract class DatabaseHandler extends StorageConnector {
                     updates.add(f);
                 }
                 else {
-                    f.getProperties().getXyzNamespace().withCreatedAt(f.getProperties().getXyzNamespace().getUpdatedAt());
+                    XyzNamespace xyzNamespace = f.getProperties().getXyzNamespace();
+                    //The Hub sends the createdAt of the visible feature, which can come from the base
+                    if (readVersionsToKeep(event) <= 1 || xyzNamespace.getCreatedAt() <= 0)
+                        xyzNamespace.withCreatedAt(xyzNamespace.getUpdatedAt());
                     inserts.add(f);
                 }
             });
