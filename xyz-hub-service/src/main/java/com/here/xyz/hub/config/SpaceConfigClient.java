@@ -197,6 +197,26 @@ public abstract class SpaceConfigClient implements Initializable {
             spaceId, connectorId, table, source, Core.currentTimeMillis() - start, t.getMessage(), t));
   }
 
+  /**
+   * Sets {@code active} of a stored space to false. Touches no other attribute of the space.
+   *
+   * @param marker The log marker
+   * @param spaceId The ID of the space
+   * @return true if the space was deactivated, false if it does not exist (anymore). A space that does not exist is never stored.
+   */
+  public Future<Boolean> deactivate(Marker marker, String spaceId) {
+    return deactivateSpace(marker, spaceId)
+        .onSuccess(deactivated -> {
+          if (deactivated) {
+            invalidateCache(spaceId);
+            logger.info(marker, "space[{}]: Deactivated", spaceId);
+          }
+          else
+            logger.info(marker, "space[{}]: Not deactivated, the space does not exist", spaceId);
+        })
+        .onFailure(t -> logger.error(marker, "space[{}]: Failed deactivating the space", spaceId, t));
+  }
+
   public Future<List<Space>> getSelected(Marker marker, SpaceAuthorizationCondition authorizedCondition,
       SpaceSelectionCondition selectedCondition, PropertiesQuery propsQuery) {
     return getSelectedSpaces(marker, authorizedCondition, selectedCondition, propsQuery)
@@ -230,6 +250,16 @@ public abstract class SpaceConfigClient implements Initializable {
    * configuration. See {@link #clearLazyTable(Marker, String, String, String, String)} for the conditions and the results.
    */
   protected abstract Future<ClearResult> clearLazyTableFlag(Marker marker, String spaceId, String connectorId, String tableName);
+
+  /**
+   * See {@link #deactivate(Marker, String)}. This default loads the space from the store and stores it again, so a space deleted
+   * between the two calls can still come back. Stores that support conditional updates override it with one operation.
+   */
+  protected Future<Boolean> deactivateSpace(Marker marker, String spaceId) {
+    return getSpace(marker, spaceId)
+        .compose(space -> space == null ? Future.succeededFuture(false)
+            : storeSpace(marker, (Space) space.withActive(false)).map(true));
+  }
 
   public void invalidateCache(String spaceId) {
     cache.remove(spaceId);

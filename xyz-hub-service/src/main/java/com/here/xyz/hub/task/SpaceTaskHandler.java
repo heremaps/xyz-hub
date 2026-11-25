@@ -1017,10 +1017,7 @@ public class SpaceTaskHandler {
     final Future<Void> untagFuture = untagBaseVersion(task, task.responseSpaces.get(0))
         .onFailure(e -> logger.error(task.getMarker(), "Failed to remove the version tag of space {}", spaceId, e));
 
-    final Future<Void> deactivateFuture = getAllExtendingSpaces(task.getMarker(), spaceId)
-        .map(spaces -> spaces.stream().map(space -> Service.spaceConfigClient.store(task.getMarker(), (Space) space.withActive(false))).collect(Collectors.toList()))
-        .map(Future::all)
-        .mapEmpty();
+    final Future<Void> deactivateFuture = deactivateExtendingSpaces(task.getMarker(), spaceId);
 
     //Expire all data references linked to the space
     final Future<Void> expireReferencesFuture = DataReferenceConfigClient.getInstance()
@@ -1076,6 +1073,18 @@ public class SpaceTaskHandler {
   static Level dependencyResolutionFailureLevel(Throwable cause) {
     return cause instanceof HttpException httpException && httpException.status != null
         && httpException.status.code() >= 400 && httpException.status.code() <= 499 ? Level.WARN : Level.ERROR;
+  }
+
+  /**
+   * Deactivates the spaces extending a deleted space, directly or through another extension. The update does not store the loaded
+   * configuration again, so an extension deleted in parallel (e.g. by a catalog deletion) stays deleted.
+   */
+  static Future<Void> deactivateExtendingSpaces(Marker marker, String spaceId) {
+    return getAllExtendingSpaces(marker, spaceId)
+        .compose(spaces -> Future.all(spaces.stream()
+            .map(space -> Service.spaceConfigClient.deactivate(marker, space.getId()))
+            .toList()))
+        .mapEmpty();
   }
 
   private static Future<List<Space>> getAllExtendingSpaces(Marker marker, String spaceId) {
