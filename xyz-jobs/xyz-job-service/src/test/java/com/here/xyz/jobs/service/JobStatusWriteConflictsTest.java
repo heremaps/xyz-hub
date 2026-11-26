@@ -19,6 +19,7 @@
 
 package com.here.xyz.jobs.service;
 
+import static com.here.xyz.jobs.RuntimeInfo.State.FAILED;
 import static com.here.xyz.jobs.RuntimeInfo.State.PENDING;
 import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
 import static com.here.xyz.jobs.RuntimeInfo.State.SUBMITTED;
@@ -28,6 +29,7 @@ import static com.here.xyz.jobs.steps.execution.JobExecutor.SchedulerState.Sched
 import static com.here.xyz.util.Random.randomAlpha;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -222,6 +224,43 @@ public class JobStatusWriteConflictsTest {
     Job storedJob = await(Job.load(job.getId()));
     assertEquals(SUCCEEDED, storedJob.getStatus().getState());
     assertEquals(STEP_COUNT, storedJob.getStatus().getSucceededSteps());
+  }
+
+  @Test
+  public void retryableStepFailureMakesTheJobResumable() throws Exception {
+    Job storedJob = failFirstStepAfterOthersSucceeded(PREFIX + "_retryable", true);
+
+    assertTrue(storedJob.getStepById(stepIds(storedJob).get(0)).getStatus().isFailedRetryable());
+    assertTrue(storedJob.isResumable());
+  }
+
+  @Test
+  public void nonRetryableStepFailureDoesNotMakeTheJobResumable() throws Exception {
+    Job storedJob = failFirstStepAfterOthersSucceeded(PREFIX + "_nonRetryable", false);
+
+    assertFalse(storedJob.getStepById(stepIds(storedJob).get(0)).getStatus().isFailedRetryable());
+    assertFalse(storedJob.isResumable());
+  }
+
+  /**
+   * Lets all steps but the first one succeed and then the first one fail, as reported by an incoming event.
+   *
+   * @return The job as it is stored afterwards
+   */
+  private static Job failFirstStepAfterOthersSucceeded(String jobId, boolean failedRetryable) throws Exception {
+    Job job = storeJob(jobId, RUNNING, RUNNING);
+    List<String> stepIds = stepIds(job);
+    for (String stepId : stepIds.subList(1, STEP_COUNT))
+      await(await(Job.load(job.getId())).updateStepStatus(stepId, new RuntimeInfo().withState(SUCCEEDED), false));
+
+    await(await(Job.load(job.getId())).updateStepStatus(stepIds.get(0), new RuntimeInfo()
+        .withState(FAILED)
+        .withErrorMessage("Step failed")
+        .withFailedRetryable(failedRetryable), false));
+
+    Job storedJob = await(Job.load(job.getId()));
+    assertEquals(FAILED, storedJob.getStatus().getState());
+    return storedJob;
   }
 
   /**

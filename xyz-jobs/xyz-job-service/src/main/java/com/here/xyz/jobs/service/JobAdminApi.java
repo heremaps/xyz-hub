@@ -46,6 +46,7 @@ import com.here.xyz.jobs.config.JobConfigClient;
 import com.here.xyz.jobs.RuntimeInfo;
 import com.here.xyz.jobs.RuntimeInfo.State;
 import com.here.xyz.jobs.steps.Step;
+import com.here.xyz.jobs.steps.execution.EmrJobRunFailure;
 import com.here.xyz.jobs.steps.execution.ErrorCauseResolver;
 import com.here.xyz.jobs.steps.execution.JobExecutor;
 import com.here.xyz.jobs.steps.execution.SFNInspector;
@@ -457,19 +458,32 @@ public class JobAdminApi extends JobApiBase {
 
   static boolean applyFailureInformationIfMissing(RuntimeInfo target, SFNInspector.StepFailureInfo failureInfo) {
     boolean changed = false;
+    //The cause of a failed startJobRun.sync task is the EMR job run, which tells why it failed
+    EmrJobRunFailure emrFailure = EmrJobRunFailure.fromSfnCause(failureInfo.cause());
+    String errorMessage = emrFailure != null ? emrFailure.errorMessage() : failureInfo.error();
     if ((target.getErrorMessage() == null || target.getErrorMessage().isBlank())
-        && failureInfo.error() != null && !failureInfo.error().isBlank()) {
-      target.setErrorMessage(failureInfo.error());
+        && errorMessage != null && !errorMessage.isBlank()) {
+      target.setErrorMessage(errorMessage);
       changed = true;
     }
 
     if (target.getErrorCause() == null || target.getErrorCause().isBlank()) {
-      String codedCause = ErrorCauseResolver.extractCodedMessage(failureInfo.cause());
-      String cause = codedCause != null ? codedCause : ErrorCauseResolver.truncate(failureInfo.cause());
+      String cause;
+      if (emrFailure != null && emrFailure.stateDetails() != null && !emrFailure.stateDetails().isBlank())
+        cause = ErrorCauseResolver.truncate(emrFailure.stateDetails());
+      else {
+        String codedCause = ErrorCauseResolver.extractCodedMessage(failureInfo.cause());
+        cause = codedCause != null ? codedCause : ErrorCauseResolver.truncate(failureInfo.cause());
+      }
       if (cause != null && !cause.isBlank()) {
         target.setErrorCause(cause);
         changed = true;
       }
+    }
+
+    if (emrFailure != null && emrFailure.isTransient() && !target.isFailedRetryable()) {
+      target.setFailedRetryable(true);
+      changed = true;
     }
     return changed;
   }
@@ -554,7 +568,7 @@ public class JobAdminApi extends JobApiBase {
   }
 
   private Future<RuntimeInfo> populateEmrErrorInformation(String emrApplicationId, String emrJobName, String emrJobRunId, RuntimeInfo status) {
-    status.setErrorMessage("EMR Job " + emrJobName + " with run ID " + emrJobRunId + " failed.");
+    status.setErrorMessage(EmrJobRunFailure.errorMessage(emrJobName, emrJobRunId));
     return Core.vertx.<String>executeBlocking(() -> {
           JobRun jobRun = emrServerlessClient().getJobRun(GetJobRunRequest.builder()
               .applicationId(emrApplicationId)
@@ -568,6 +582,7 @@ public class JobAdminApi extends JobApiBase {
         })
         .map(stateDetails -> {
           status.setErrorCause(stateDetails);
+          status.setFailedRetryable(EmrJobRunFailure.isTransient(stateDetails));
           return status;
         });
   }

@@ -435,6 +435,8 @@ public class Job implements XyzSerializable {
         .withErrorCode(status.getErrorCode())
         .withErrorCause(status.getErrorCause())
         .withErrorMessage(status.getErrorMessage());
+    if (status.getState() == FAILED)
+      step.getStatus().setFailedRetryable(status.isFailedRetryable());
 
     return updateStep(step, existingStepState, cancelOnFailure);
   }
