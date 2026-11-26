@@ -548,9 +548,10 @@ public class Config extends BaseConfig {
   public int ICEBERG_READS_SHADOW_MAX_BYTES = 16 * 1024 * 1024;
 
   /**
-   * The suffix of the Iceberg tags which hold the data of a composite space at a version, when the composite extends a pinned base
-   * version. {@code {baseVersion}} and {@code {version}} are replaced by the pinned base version and the read version. Reads of
-   * composites are only routed to tags with this suffix. Empty: composites are not routed.
+   * The suffix of the name of the Iceberg table which holds the data of a composite space, when the composite extends a pinned
+   * base version. Such a composite has an Iceberg table of its own per base version, whose name ends with this suffix
+   * ({@code {baseVersion}} is replaced by the pinned base version); its tags are the composite's versions. Reads of composites are
+   * only routed to references to a table with this suffix. Empty: composites are not routed.
    */
-  public String ICEBERG_READS_COMPOSITE_TAG_SUFFIX = "_b{baseVersion}_v{version}";
+  public String ICEBERG_READS_COMPOSITE_TABLE_SUFFIX = "__b{baseVersion}";
 }
