@@ -60,6 +60,9 @@ public class GraphTransformer {
   private static final int EMR_EXECUTION_TIMEOUT_MINUTES = 12 * 60; //6h
   private static final int MIN_STEP_TIMEOUT_SECONDS = 5 * 60;
   private static final int STEP_EXECUTION_HEARTBEAT_TIMEOUT_SECONDS = 3 * 60; //3min
+  private static final Map<String, List<String>> DEFAULT_EMR_LOG_TYPES = Map.of(
+      "SPARK_DRIVER", List.of("STDERR", "STDOUT"),
+      "SPARK_EXECUTOR", List.of("STDERR", "STDOUT"));
   private Map<String, LambdaTaskParameters> lambdaTaskParametersLookup = new HashMap<>(); //TODO: This is a workaround for an open issue with AWS SDK2 for StepFunctions
   private Map<String, Map<String, Object>> taskParametersLookup = new HashMap<>(); //TODO: This is a workaround for an open issue with AWS SDK2 for StepFunctions
   private final ARN stepLambdaArn;
@@ -347,7 +350,26 @@ public class GraphTransformer {
       return;
     }
 
-    taskParametersLookup.put(state.stateName, Map.of(
+    taskParametersLookup.put(state.stateName, emrTaskParameters(emrStep));
+    state.stateBuilder.resource(EMR_INVOKE_RESOURCE);
+  }
+
+  /**
+   * Provides the Parameters of the startJobRun.sync task of the specified EMR step.
+   * The method is public, so that users of the framework can check what their steps compile to.
+   *
+   * @param emrStep The EMR step
+   * @return The Parameters of the startJobRun.sync task of the step
+   */
+  public static Map<String, Object> emrTaskParameters(RunEmrJob emrStep) {
+    Map<String, Object> cloudWatchLoggingConfiguration = new HashMap<>();
+    cloudWatchLoggingConfiguration.put("Enabled", true);
+    if (emrStep.getCloudWatchLogGroupName() != null)
+      cloudWatchLoggingConfiguration.put("LogGroupName", emrStep.getCloudWatchLogGroupName());
+    cloudWatchLoggingConfiguration.put("LogTypes",
+        emrStep.getCloudWatchLogTypes() != null ? emrStep.getCloudWatchLogTypes() : DEFAULT_EMR_LOG_TYPES);
+
+    return Map.of(
         "Name", emrStep.getEmrJobName(),
         "ApplicationId", emrStep.getApplicationId(),
         "ExecutionRoleArn", emrStep.getExecutionRoleArn(),
@@ -355,13 +377,7 @@ public class GraphTransformer {
         "Tags", emrStep.getTags(),
         "ConfigurationOverrides", Map.of(
             "MonitoringConfiguration", Map.of(
-                "CloudWatchLoggingConfiguration", Map.of(
-                    "Enabled", true,
-                    "LogTypes", Map.of(
-                        "SPARK_DRIVER", List.of("STDERR", "STDOUT"),
-                        "SPARK_EXECUTOR", List.of("STDERR", "STDOUT")
-                    )
-                )
+                "CloudWatchLoggingConfiguration", cloudWatchLoggingConfiguration
             )
         ),
         "JobDriver", Map.of(
@@ -371,8 +387,7 @@ public class GraphTransformer {
                 "SparkSubmitParameters", emrStep.getSparkParams()
             )
         )
-    ));
-    state.stateBuilder.resource(EMR_INVOKE_RESOURCE);
+    );
   }
 
   private record NamedState<SB extends State.Builder>(String stateName, SB stateBuilder) {}

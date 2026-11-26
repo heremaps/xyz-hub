@@ -88,6 +88,8 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
   private Map<String, String> namedScriptParams = new HashMap<>();
   private String sparkParams;
   private Map<String, String> tags = new HashMap<>();
+  private String cloudWatchLogGroupName;
+  private Map<String, List<String>> cloudWatchLogTypes;
 
   @JsonIgnore
   public String getEmrJobName() {
@@ -420,6 +422,39 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
 
   public RunEmrJob withTags(Map<String, String> tags) {
     setTags(tags);
+    return this;
+  }
+
+  /**
+   * @return The CloudWatch log group the EMR job run logs into or <code>null</code> for the default log group of EMR
+   */
+  public String getCloudWatchLogGroupName() {
+    return cloudWatchLogGroupName;
+  }
+
+  public void setCloudWatchLogGroupName(String cloudWatchLogGroupName) {
+    this.cloudWatchLogGroupName = cloudWatchLogGroupName;
+  }
+
+  public RunEmrJob withCloudWatchLogGroupName(String cloudWatchLogGroupName) {
+    setCloudWatchLogGroupName(cloudWatchLogGroupName);
+    return this;
+  }
+
+  /**
+   * @return The log types the EMR job run sends to CloudWatch per worker type, e.g. SPARK_DRIVER -> [STDERR, STDOUT],
+   *  or <code>null</code> for the STDERR and STDOUT logs of the driver and the executors
+   */
+  public Map<String, List<String>> getCloudWatchLogTypes() {
+    return cloudWatchLogTypes;
+  }
+
+  public void setCloudWatchLogTypes(Map<String, List<String>> cloudWatchLogTypes) {
+    this.cloudWatchLogTypes = cloudWatchLogTypes;
+  }
+
+  public RunEmrJob withCloudWatchLogTypes(Map<String, List<String>> cloudWatchLogTypes) {
+    setCloudWatchLogTypes(cloudWatchLogTypes);
     return this;
   }
 
