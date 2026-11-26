@@ -37,7 +37,8 @@ import java.util.Map;
  * {@code space.storage.params.tableName} and it is read from there by all components
  * (see {@code XyzSpaceTableHelper#getTableNameFromSpaceParamsOrSpaceId}).
  * <p>
- * For newly created spaces the name is generated once and is completely independent of the space ID.
+ * For newly created spaces the name is generated once by the service and is completely independent of the space ID.
+ * A table name given by a client is never used, neither on creation nor on update.
  * For legacy spaces (which do not have that property) the table name keeps being derived from the space ID,
  * so this class never modifies an already existing space.
  */
@@ -69,8 +70,18 @@ public class SpaceTableResolver {
   }
 
   /**
-   * Assigns a newly generated, unique physical table name to the specified (newly created) space,
-   * in case it does not have one yet.
+   * @param space A space definition
+   * @return The raw value of {@code storage.params.tableName} (of any type) or {@code null}
+   */
+  public static Object getTableNameParam(Space space) {
+    if (space == null || space.getStorage() == null || space.getStorage().getParams() == null)
+      return null;
+    return space.getStorage().getParams().get(TABLE_NAME);
+  }
+
+  /**
+   * Assigns a newly generated, unique physical table name to the specified (newly created) space.
+   * Any table name of the input is replaced.
    * <p>
    * @param space The space to be created
    * @return The physical table name of the space
@@ -80,12 +91,6 @@ public class SpaceTableResolver {
     if (storage == null)
       throw new IllegalStateException("The space " + space.getId() + " has no storage definition.");
 
-    String existingTableName = getTableName(storage.getParams());
-    if (existingTableName != null) {
-      validateTableName(existingTableName);
-      return existingTableName;
-    }
-
     Map<String, Object> params = storage.getParams() == null ? new HashMap<>() : new HashMap<>(storage.getParams());
     String tableName = generateUniqueTableName();
     params.put(TABLE_NAME, tableName);
@@ -94,7 +99,26 @@ public class SpaceTableResolver {
   }
 
   /**
+   * Removes the physical table name from the storage params of a space that is about to be created.
+   *
+   * @param space The space to be created
+   * @return The removed raw value or {@code null} if there was none
+   */
+  public static Object removeTableName(Space space) {
+    if (space == null || space.getStorage() == null || space.getStorage().getParams() == null
+        || !space.getStorage().getParams().containsKey(TABLE_NAME))
+      return null;
+
+    Map<String, Object> params = new HashMap<>(space.getStorage().getParams());
+    Object removed = params.remove(TABLE_NAME);
+    space.getStorage().setParams(params.isEmpty() ? null : params);
+    return removed;
+  }
+
+  /**
    * Copies the immutable physical table identity from one incarnation of a space definition to another.
+   * The table name of the source always wins: a different name of the target is overwritten, a missing one is added
+   * and, if the source has none, one of the target is removed.
    * Legacy spaces intentionally keep the property absent so connector-side ID resolution remains in effect.
    * The lazy-table flag of the source is copied as well (also for legacy spaces), and a flag of the target that the
    * source does not have is removed.
@@ -190,7 +214,7 @@ public class SpaceTableResolver {
   }
 
   /**
-   * @param tableName A physical table name given by a client
+   * @param tableName A physical table name given by an administrative request
    * @throws IllegalArgumentException If the name contains a null character, exceeds the maximum identifier length of
    *     PostgreSQL or starts with the reserved prefix
    */
