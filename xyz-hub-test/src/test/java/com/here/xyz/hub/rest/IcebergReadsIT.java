@@ -116,6 +116,7 @@ public class IcebergReadsIT extends TestSpaceWithFeature {
   private static long compositeVersion;
   private static long fallbackVersion;
   private static String compositeTag;
+  private static TableIdentifier compositeTableId;
   private static final Map<String, List<JsonNode>> baselines = new HashMap<>();
   private static final Map<String, List<JsonNode>> pagedBaselines = new HashMap<>();
   private static final Map<String, byte[]> mvtBaselines = new HashMap<>();
@@ -160,7 +161,7 @@ public class IcebergReadsIT extends TestSpaceWithFeature {
 
     referenceIds.put(V1, createReference(BASE_SPACE_ID, v1, location(TABLE, "v1")));
     referenceIds.put(V2, createReference(BASE_SPACE_ID, v2, location(TABLE, "v2")));
-    referenceIds.put(COMPOSITE, createReference(COMPOSITE_SPACE_ID, compositeVersion, location(TABLE, compositeTag)));
+    referenceIds.put(COMPOSITE, createReference(COMPOSITE_SPACE_ID, compositeVersion, location(compositeTableId.name(), compositeTag)));
     referenceIds.put("fallback", createReference(FALLBACK_SPACE_ID, fallbackVersion, location("missing_table", "v1")));
   }
 
@@ -175,6 +176,9 @@ public class IcebergReadsIT extends TestSpaceWithFeature {
     removeSpaces();
     if (catalog != null) {
       try {
+        //The composite's table references files of the base: drop it without purge, before the base
+        if (compositeTableId != null)
+          catalog.dropTable(compositeTableId, false);
         catalog.dropTable(TABLE_ID, true);
         if (catalog instanceof SupportsNamespaces namespaces)
           namespaces.dropNamespace(Namespace.of(NAMESPACE));
@@ -386,7 +390,9 @@ public class IcebergReadsIT extends TestSpaceWithFeature {
       extensionFeatures.add(feature(i, i % 2 == 0 ? "A" : "B", 0.005).put("id", "ext-" + i));
     extensionFeatures.add(feature(6, "A", 0).put("n", 600));
     compositeVersion = putFeatures(COMPOSITE_SPACE_ID, extensionFeatures);
-    compositeTag = "ext_" + TABLE + "_b" + v2 + "_v" + compositeVersion;
+    compositeTag = "v" + compositeVersion;
+    //The composite's own table for the pinned base version, ending with the Hub's default ICEBERG_READS_COMPOSITE_TABLE_SUFFIX
+    compositeTableId = TableIdentifier.of(Namespace.of(NAMESPACE), TABLE + "_composite__b" + v2);
 
     createSpaceWithId(FALLBACK_SPACE_ID, 100);
     List<JsonObject> fallbackFeatures = new ArrayList<>();
@@ -397,7 +403,7 @@ public class IcebergReadsIT extends TestSpaceWithFeature {
 
   /**
    * Writes the Iceberg table from the features the Hub returns for each version: tag v1 (append), tag v2 (upserts and a deletion
-   * vector) and the composite's branch from v2 with its tag.
+   * vector), and the composite's own table, which starts with the files of v2 and has the composite's changes, with its tag.
    */
   private static void writeIcebergTables() throws Exception {
     List<JsonNode> v1Features = read(BASE_SPACE_ID, v1, ITERATE, 1000).features();
@@ -410,10 +416,12 @@ public class IcebergReadsIT extends TestSpaceWithFeature {
     IcebergTestTables.upsertAndDelete(table, null, jsons(v2Features), idsOnlyIn(v1Features, v2Features));
     IcebergTestTables.tag(table, "v2");
 
-    String branch = "ext_" + TABLE + "_b" + v2;
-    IcebergTestTables.branchFromTag(table, branch, "v2");
-    IcebergTestTables.upsertAndDelete(table, branch, jsons(compositeFeatures), idsOnlyIn(v2Features, compositeFeatures));
-    IcebergTestTables.tag(table, compositeTag, branch);
+    Table composite = IcebergTestTables.createTable(catalog, compositeTableId);
+    //Iceberg's own deletion of unreferenced files must never touch the base's files
+    composite.updateProperties().set("gc.enabled", "false").commit();
+    IcebergTestTables.shareFiles(table, "v2", composite);
+    IcebergTestTables.upsertAndDelete(composite, null, jsons(compositeFeatures), idsOnlyIn(v2Features, compositeFeatures));
+    IcebergTestTables.tag(composite, compositeTag);
   }
 
   private static Map<String, String> catalogProperties() {

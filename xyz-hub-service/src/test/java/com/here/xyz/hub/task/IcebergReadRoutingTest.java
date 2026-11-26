@@ -239,7 +239,7 @@ class IcebergReadRoutingTest {
   @Test
   void aCompositeUsesItsOwnValue() {
     Service.configuration.ICEBERG_READS = "OFF";
-    loadResult = Future.succeededFuture(List.of(ref(7, "ext_t_b5_v7")));
+    loadResult = Future.succeededFuture(List.of(ref(7, "t__b5", "v7")));
     Space base = space(BASE_ID);
     base.setIcebergReads("ON");
     space = composite(5L);
@@ -296,21 +296,33 @@ class IcebergReadRoutingTest {
   }
 
   @Test
-  void aPinnedCompositeIsRoutedToTheTagOfItsBaseVersion() {
+  void aPinnedCompositeIsRoutedToTheTableOfItsBaseVersion() {
     space = composite(5L);
-    loadResult = Future.succeededFuture(List.of(ref(7, "ext_t_b4_v7"), ref(7, "ext_t_b5_v7"), ref(7, "ext_t_b6_v7")));
+    loadResult = Future.succeededFuture(List.of(ref(7, "t__b4", "v7"), ref(7, "t__b5", "v7"), ref(7, "t__b6", "v7")));
     Reply reply = send(compositeTask(bboxEvent().withRef(new Ref(7)), List.of(space(BASE_ID))));
     assertRouted(reply);
     assertThat(icebergEvents.get(0).getParams()).containsEntry(IcebergLocation.EVENT_PARAM,
-        Map.of(IcebergLocation.EVENT_PARAM_LOCATION, new IcebergLocation("ns", "table", "ext_t_b5_v7").toString()));
+        Map.of(IcebergLocation.EVENT_PARAM_LOCATION, new IcebergLocation("ns", "t__b5", "v7").toString()));
   }
 
   @Test
-  void aPinnedCompositeWithoutTheTagOfItsBaseVersionIsNotRouted() {
+  void aPinnedCompositeWithoutTheTableOfItsBaseVersionIsNotRouted() {
     space = composite(5L);
-    loadResult = Future.succeededFuture(List.of(ref(7, "ext_t_b4_v7")));
+    //Neither another base version's table nor a tag of the composite's version in a table without the suffix
+    loadResult = Future.succeededFuture(List.of(ref(7, "t__b4", "v7"), ref(7, "t", "v7")));
     assertNotRouted(send(compositeTask(bboxEvent().withRef(new Ref(7)), List.of(space(BASE_ID)))));
     assertThat(loads).hasValue(1);
+  }
+
+  @Test
+  void aShadowedCompositeComparesWithItsOwnTable() throws Exception {
+    space = composite(5L);
+    space.setIcebergReads("SHADOW");
+    loadResult = Future.succeededFuture(List.of(ref(7, "t__b4", "v7"), ref(7, "t__b5", "v7")));
+    assertShadowed(send(compositeTask(bboxEvent().withRef(new Ref(7)), List.of(space(BASE_ID)))));
+    assertThat(shadow.get(5, TimeUnit.SECONDS).result).isEqualTo("MATCH");
+    assertThat((Map<String, Object>) icebergEvents.get(0).getParams().get(IcebergLocation.EVENT_PARAM))
+        .containsEntry(IcebergLocation.EVENT_PARAM_LOCATION, new IcebergLocation("ns", "t__b5", "v7").toString());
   }
 
   @Test
@@ -319,7 +331,7 @@ class IcebergReadRoutingTest {
     Space base = space(BASE_ID);
     base.setReadOnly(true);
     base.setReadOnlyHeadVersion(4);
-    loadResult = Future.succeededFuture(List.of(ref(7, "ext_t_b4_v7")));
+    loadResult = Future.succeededFuture(List.of(ref(7, "t__b4", "v7")));
     assertNotRouted(send(compositeTask(bboxEvent().withRef(new Ref(7)), List.of(base))));
     assertThat(loads).hasValue(0);
   }
@@ -327,7 +339,7 @@ class IcebergReadRoutingTest {
   @Test
   void aCompositeOfCompositesIsNotRouted() {
     space = composite(5L);
-    loadResult = Future.succeededFuture(List.of(ref(7, "ext_t_b5_v7")));
+    loadResult = Future.succeededFuture(List.of(ref(7, "t__b5", "v7")));
     assertNotRouted(send(compositeTask(bboxEvent().withRef(new Ref(7)), List.of(space(BASE_ID), space("base-of-base")))));
     assertThat(loads).hasValue(0);
   }
@@ -926,13 +938,17 @@ class IcebergReadRoutingTest {
   }
 
   private static DataReference ref(int endVersion, String tag) {
+    return ref(endVersion, "table", tag);
+  }
+
+  private static DataReference ref(int endVersion, String table, String tag) {
     return new DataReference()
         .withId(UUID.randomUUID())
         .withEntityId(SPACE_ID)
         .withStartVersion(0)
         .withEndVersion(endVersion)
         .withTargetSystem(IcebergVersionCache.TARGET_SYSTEM)
-        .withLocation(new IcebergLocation("ns", "table", tag).toString())
+        .withLocation(new IcebergLocation("ns", table, tag).toString())
         .withCreatedAt(SPACE_CREATED_AT + 1);
   }
 
