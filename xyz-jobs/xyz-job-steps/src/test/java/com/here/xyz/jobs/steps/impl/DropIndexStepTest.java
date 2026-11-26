@@ -153,7 +153,7 @@ public class DropIndexStepTest extends StepTest {
   }
 
   @Test
-  public void bareMaterializationOfEagerSpaceIsUnchanged() throws Exception {
+  public void bareMaterializationOfWrittenSpaceIsUnchanged() throws Exception {
     createTestSpace(true);
     String tableName = getRootTableName(SPACE_ID);
 
@@ -188,7 +188,7 @@ public class DropIndexStepTest extends StepTest {
     return lazy;
   }
 
-  private void createTestSpace(boolean withOnDemandIndices) {
+  private void createTestSpace(boolean withOnDemandIndices) throws Exception {
     Space space = new Space().withId(SPACE_ID);
     if (withOnDemandIndices) {
       space.setSearchableProperties(
@@ -200,5 +200,7 @@ public class DropIndexStepTest extends StepTest {
       );
     }
     createSpace(space, false);
+    //The first write creates the table with the indexes
+    materializeByFirstWrite(SPACE_ID);
   }
 }

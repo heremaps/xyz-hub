@@ -32,7 +32,8 @@ import org.junit.jupiter.api.Test;
 public class AnalyzeSpaceTableStepTest extends StepTest {
 
   @Test
-  public void analyzeEagerSpace() throws Exception {
+  public void analyzeWrittenSpace() throws Exception {
+    materializeByFirstWrite(SPACE_ID);
     deactivate(SPACE_ID);
 
     sendLambdaStepRequestBlock(new AnalyzeSpaceTable().withSpaceId(SPACE_ID).withJobId(JOB_ID), true);

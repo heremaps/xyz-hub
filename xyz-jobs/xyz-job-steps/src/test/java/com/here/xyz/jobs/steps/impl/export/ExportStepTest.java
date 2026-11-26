@@ -104,21 +104,15 @@ public class ExportStepTest extends ExportTestBase {
     }
 
     /**
-     * A never-written lazy space exports like an empty eager space, without and with a filter (which always creates a task), and
-     * keeps its flag.
+     * A never-written lazy space exports nothing, without and with a filter (which always creates a task), and keeps its flag.
      */
     @Test
     public void exportNeverWrittenLazySpaceLikeAnEmptySpace() throws Exception {
-        Space empty = createTestSpace(new Space().withId(SPACE_ID + "_empty"));
         Space lazy = createLazyTestSpace(SPACE_ID + "_lazy", LAZY_CONNECTOR);
         PropertiesQuery propertyFilter = PropertiesQuery.fromString(URLEncoder.encode("p.description=\"Point\"", StandardCharsets.UTF_8));
 
-        for (PropertiesQuery filter : Arrays.asList(null, propertyFilter)) {
-            ExportResult expected = export(empty.getId(), null, filter);
-            ExportResult actual = export(lazy.getId(), null, filter);
-            Assertions.assertEquals(Set.of(), expected.features());
-            Assertions.assertEquals(expected, actual, "filter " + filter);
-        }
+        for (PropertiesQuery filter : Arrays.asList(null, propertyFilter))
+            Assertions.assertEquals(new ExportResult(Set.of(), Set.of(0L)), export(lazy.getId(), null, filter), "filter " + filter);
         Assertions.assertTrue(isFlagged(lazy.getId()));
         Assertions.assertEquals(0, relationCount(DB_URL, tableName(lazy)));
     }

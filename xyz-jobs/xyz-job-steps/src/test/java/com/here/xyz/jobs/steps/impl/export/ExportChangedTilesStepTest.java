@@ -383,14 +383,12 @@ public class ExportChangedTilesStepTest extends ExportTestBase {
     }
 
     /**
-     * The changed tiles of a written lazy extension of a never-written lazy base equal those of the same writes on an eager extension
-     * of an empty base. The base keeps its flag.
+     * The changed tiles of a written lazy extension of a never-written lazy base equal those of the same writes on a standalone
+     * space. The base keeps its flag.
      */
     @Test
     public void exportChangedTilesOfExtensionOfNeverWrittenLazyBase() throws Exception {
-        Space emptyBase = createTestSpace(new Space().withId(SPACE_ID + "_emptyBase").withVersionsToKeep(VERSIONS_TO_KEEP));
-        Space eagerExtension = createTestSpace(new Space().withId(SPACE_ID + "_eagerExt").withVersionsToKeep(VERSIONS_TO_KEEP)
-            .withExtension(new Space.Extension().withSpaceId(emptyBase.getId())));
+        Space standalone = createTestSpace(new Space().withId(SPACE_ID + "_standalone").withVersionsToKeep(VERSIONS_TO_KEEP));
         Space lazyBase = createTestSpace(new Space().withId(SPACE_ID + "_lazyBase").withVersionsToKeep(VERSIONS_TO_KEEP)
             .withStorage(new Space.ConnectorRef().withId(LAZY_CONNECTOR)));
         Space lazyExtension = createTestSpace(new Space().withId(SPACE_ID + "_lazyExt").withVersionsToKeep(VERSIONS_TO_KEEP)
@@ -398,16 +396,16 @@ public class ExportChangedTilesStepTest extends ExportTestBase {
         Assertions.assertTrue(isFlagged(lazyBase.getId()));
         Assertions.assertTrue(isFlagged(lazyExtension.getId()));
 
-        for (Space extension : List.of(eagerExtension, lazyExtension)) {
+        for (Space space : List.of(standalone, lazyExtension)) {
             //Version 1: two new features, version 2: one of them moved
-            putFeatureCollectionToSpace(extension.getId(), new FeatureCollection().withFeatures(List.of(
+            putFeatureCollectionToSpace(space.getId(), new FeatureCollection().withFeatures(List.of(
                 pointFeature("point1", 2.5924, 47.0581), pointFeature("point2", 34.89167, 39.68783))));
-            putFeatureCollectionToSpace(extension.getId(), new FeatureCollection().withFeatures(List.of(
+            putFeatureCollectionToSpace(space.getId(), new FeatureCollection().withFeatures(List.of(
                 pointFeature("point1", 7.59619, 59.5372))));
         }
 
         for (String ref : List.of("0..1", "1..2", "0..HEAD"))
-            Assertions.assertEquals(changedTiles(eagerExtension.getId(), ref), changedTiles(lazyExtension.getId(), ref), "ref " + ref);
+            Assertions.assertEquals(changedTiles(standalone.getId(), ref), changedTiles(lazyExtension.getId(), ref), "ref " + ref);
         Assertions.assertTrue(isFlagged(lazyBase.getId()));
         Assertions.assertEquals(0, relationCount(DB_URL, tableName(lazyBase)));
     }

@@ -53,13 +53,14 @@ public class MaintainJobTestIT extends JobTest {
 
     @Test
     public void testMaintainSimpleSpace() throws Exception {
-        //Indexes are created during the space creation
         createSpace(new Space().withId(SPACE_ID).withSearchableProperties(Map.of(
                         "foo1", true,
                         "foo2.nested", true,
                         "foo3.nested.array::array", true
                 )
         ), false);
+        //The first write creates the table with the indexes of the searchable properties
+        putFeatureToSpace(SPACE_ID, simpleFeature("f1"));
 
         //Modify the searchable properties
         patchSpace(SPACE_ID, Map.of( "searchableProperties", Map.of(

@@ -13,8 +13,11 @@ import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 
 public class JobTest extends JobTestBase {
-  /** A local test connector that creates the tables of new spaces with their first write. */
-  protected static final String LAZY_CONNECTOR = "psql-lazy";
+  /**
+   * The default storage of the local Hub, which creates the tables of new spaces with their first write, like every connector in
+   * use on SIT and PRD.
+   */
+  protected static final String LAZY_CONNECTOR = "psql";
 
   /**
    * @return Whether the config of the space, read through the Hub, has the lazyTable flag

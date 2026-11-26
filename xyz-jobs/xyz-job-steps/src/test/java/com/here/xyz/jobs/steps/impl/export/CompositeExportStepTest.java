@@ -157,22 +157,16 @@ public class CompositeExportStepTest extends ExportTestBase {
     }
 
     /**
-     * A never-written lazy extension of a never-written lazy base exports like the eager composite of two empty spaces, in every
-     * context, and both keep their flags.
+     * A never-written lazy extension of a never-written lazy base exports nothing, in every context, and both keep their flags.
      */
     @Test
     public void exportNeverWrittenLazyCompositeLikeAnEmptyComposite() throws Exception {
-        Space emptyBase = createTestSpace(new Space().withId(SPACE_ID + "_emptyBase"));
-        Space emptyExtension = createTestSpace(new Space().withId(SPACE_ID + "_emptyExt")
-            .withExtension(new Space.Extension().withSpaceId(emptyBase.getId())));
         Space lazyBase = createLazyTestSpace(SPACE_ID + "_lazyBase", LAZY_CONNECTOR);
         Space lazyExtension = createLazyExtension(lazyBase);
 
-        for (SpaceContext context : List.of(SpaceContext.DEFAULT, SpaceContext.EXTENSION, SpaceContext.SUPER)) {
-            ExportResult expected = export(emptyExtension.getId(), context, null);
-            Assertions.assertEquals(Set.of(), expected.features());
-            Assertions.assertEquals(expected, export(lazyExtension.getId(), context, null), "context " + context);
-        }
+        for (SpaceContext context : List.of(SpaceContext.DEFAULT, SpaceContext.EXTENSION, SpaceContext.SUPER))
+            Assertions.assertEquals(new ExportResult(Set.of(), Set.of(0L)), export(lazyExtension.getId(), context, null),
+                "context " + context);
         Assertions.assertTrue(isFlagged(lazyBase.getId()));
         Assertions.assertTrue(isFlagged(lazyExtension.getId()));
         Assertions.assertEquals(0, relationCount(DB_URL, tableName(lazyBase)));

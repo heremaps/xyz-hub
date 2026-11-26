@@ -23,6 +23,7 @@ import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPL
 import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.restassured.RestAssured.given;
+import static org.awaitility.Awaitility.await;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.nullValue;
@@ -32,6 +33,7 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.time.Duration;
 import java.util.HashSet;
 import java.util.Set;
 import org.junit.After;
@@ -39,18 +41,15 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 public class StorageReportingApiIT extends TestSpaceWithFeature {
-  private static final String LAZY_CONNECTOR = "psql-lazy";
-  //A connector without lazyTableCreation in every CI slice
-  private static final String EAGER_DB2_CONNECTOR = "psql_db2_hashed";
+  private static final String LAZY_CONNECTOR = "psql";
+  //On another database than psql
+  private static final String DB2_CONNECTOR = "psql_db2_hashed";
   private static final String DB2_URL = System.getenv().getOrDefault("STORAGE_DB2_URL", "jdbc:postgresql://localhost/postgres_db2");
   private static final String DB_USER = System.getenv().getOrDefault("STORAGE_DB_USER", "postgres");
   private static final String DB_PASSWORD = System.getenv().getOrDefault("STORAGE_DB_PASSWORD", "password");
+  //The Hub removes the lazyTable flag asynchronously, after the response of the first write
+  private static final Duration FLAG_CLEAR_TIMEOUT = Duration.ofSeconds(10);
   private static Set<String> cleanUpIds = new HashSet<>();
-  /**
-   * The content bytes reported for a new space on the connector psql. A connector with lazyTableCreation creates the table of a
-   * space on its first write, so an empty space has no table and reports 0 bytes.
-   */
-  private static int emptySpaceContentBytes;
 
   private static void cleanUp() {
     remove();
@@ -60,16 +59,6 @@ public class StorageReportingApiIT extends TestSpaceWithFeature {
   @BeforeClass
   public static void setup() {
     cleanUp();
-    Boolean lazyTableCreation = given()
-        .accept(APPLICATION_JSON)
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .when()
-        .get("/connectors/psql")
-        .then()
-        .statusCode(OK.code())
-        .extract()
-        .path("params.lazyTableCreation");
-    emptySpaceContentBytes = Boolean.TRUE.equals(lazyTableCreation) ? 0 : 8192;
   }
 
   @After
@@ -111,7 +100,7 @@ public class StorageReportingApiIT extends TestSpaceWithFeature {
         .statusCode(OK.code())
         .body("type", equalTo("StorageStatistics"))
         .body("createdAt", greaterThan(0L))
-        .body("byteSizes." + DEFAULT_SPACE_ID + ".contentBytes.value", equalTo(emptySpaceContentBytes));
+        .body("byteSizes." + DEFAULT_SPACE_ID + ".contentBytes.value", equalTo(0));
   }
 
   @Test
@@ -144,7 +133,7 @@ public class StorageReportingApiIT extends TestSpaceWithFeature {
             .statusCode(OK.code())
             .body("type", equalTo("StorageStatistics"))
             .body("createdAt", greaterThan(0L))
-            .body("byteSizes." + (DEFAULT_SPACE_ID + "-1") + ".contentBytes.value", equalTo(emptySpaceContentBytes))
+            .body("byteSizes." + (DEFAULT_SPACE_ID + "-1") + ".contentBytes.value", equalTo(0))
             .body("byteSizes." + (DEFAULT_SPACE_ID + "-1") + ".storageId", equalTo("psql"))
             .body("byteSizes." + SECOND_SPACE_ID + ".contentBytes.value", greaterThan(8192))
             .body("byteSizes." + SECOND_SPACE_ID + ".storageId", equalTo("psql_db2_hashed"));
@@ -166,10 +155,20 @@ public class StorageReportingApiIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void testEagerSpaceWithoutTableHasNoStorageId() throws SQLException {
-    //The connector reports no storage ID for a space without a table, and the Hub adds one only for lazy spaces
-    String spaceId = createSpaceWithCustomStorage(DEFAULT_SPACE_ID + "-no-table", EAGER_DB2_CONNECTOR, null);
+  public void testWrittenSpaceWithoutTableHasNoStorageId() throws SQLException {
+    //The connector reports no storage ID for a space without a table, and the Hub adds one only for spaces with the lazyTable flag
+    String spaceId = createSpaceWithCustomStorage(DEFAULT_SPACE_ID + "-no-table", DB2_CONNECTOR, null);
     cleanUpIds.add(spaceId);
+    addFeatures(spaceId);
+    await().atMost(FLAG_CLEAR_TIMEOUT).pollInterval(Duration.ofMillis(200)).until(() -> given()
+        .accept(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .when()
+        .get("/spaces/" + spaceId)
+        .then()
+        .statusCode(OK.code())
+        .extract()
+        .path("storage.params.lazyTable") == null);
     String tableName = given()
         .accept(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
@@ -177,7 +176,6 @@ public class StorageReportingApiIT extends TestSpaceWithFeature {
         .get("/spaces/" + spaceId)
         .then()
         .statusCode(OK.code())
-        .body("storage.params.lazyTable", nullValue())
         .extract()
         .path("storage.params.tableName");
     assertNotNull(tableName);

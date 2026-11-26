@@ -38,13 +38,18 @@ import org.junit.jupiter.api.BeforeEach;
 import java.sql.SQLException;
 
 public abstract class StepTest extends StepTestBase {
-  /** A local test connector that creates the tables of new spaces with their first write, on the database "postgres". */
-  protected static final String LAZY_CONNECTOR = "psql-lazy";
+  /**
+   * The default storage of the local Hub, on the database "postgres". Like every connector in use on SIT and PRD, it creates the
+   * table of a new space with its first write.
+   */
+  protected static final String LAZY_CONNECTOR = "psql";
   /** The same on the database "postgres_db2". */
-  protected static final String LAZY_DB2_CONNECTOR = "psql-db2-lazy";
+  protected static final String LAZY_DB2_CONNECTOR = "psql_db2_hashed";
   private static final String PG_HOST = System.getProperty("pg.host", "localhost");
   protected static final String DB_URL = "jdbc:postgresql://" + PG_HOST + "/postgres";
   protected static final String DB2_URL = "jdbc:postgresql://" + PG_HOST + "/postgres_db2";
+  //The Hub removes the lazyTable flag asynchronously, after the response of the first write
+  private static final long FLAG_CLEAR_TIMEOUT_MILLIS = 10_000;
   /** Further spaces of the running test case, deleted after it in reverse order. */
   private final List<String> testSpaces = new ArrayList<>();
 
@@ -102,6 +107,21 @@ public abstract class StepTest extends StepTestBase {
     Space space = createTestSpace(new Space().withId(spaceId).withStorage(new ConnectorRef().withId(connectorId)));
     assertTrue(isFlagged(space.getId()), "A new space of " + connectorId + " has the flag");
     return space;
+  }
+
+  /**
+   * Writes one feature, which creates the table, and waits until the Hub has removed the lazyTable flag, so the space has its
+   * table like a written space on SIT and PRD. All callers use spaces on psql, database "postgres".
+   */
+  protected void materializeByFirstWrite(String spaceId) throws SQLException, InterruptedException {
+    putFeatureToSpace(spaceId, simpleFeature("materialize"));
+    long deadline = System.currentTimeMillis() + FLAG_CLEAR_TIMEOUT_MILLIS;
+    while (isFlagged(spaceId)) {
+      if (System.currentTimeMillis() > deadline)
+        throw new AssertionError("The Hub did not remove the lazyTable flag of space " + spaceId + " after its first write");
+      Thread.sleep(200);
+    }
+    assertTrue(tableExists(DB_URL, tableName(loadSpace(spaceId))), "The first write created the table of space " + spaceId);
   }
 
   /**

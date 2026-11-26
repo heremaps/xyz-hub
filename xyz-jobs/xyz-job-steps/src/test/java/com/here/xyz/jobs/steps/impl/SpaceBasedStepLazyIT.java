@@ -63,14 +63,14 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 
 /**
- * The lazy table helpers of {@link SpaceBasedStep} against the local stack: the Hub, the lazy test connectors and their two
- * databases. The helpers are called directly on a step without a space ID, so no step lambda is involved.
+ * The lazy table helpers of {@link SpaceBasedStep} against the local stack: the Hub, the local connectors psql and
+ * psql_db2_hashed, which create tables lazily, and their two databases. The helpers are called directly on a step without a
+ * space ID, so no step lambda is involved.
  */
 @TestInstance(PER_CLASS)
 public class SpaceBasedStepLazyIT extends StepTestBase {
-  private static final String EAGER_CONNECTOR = "psql";
-  private static final String LAZY_CONNECTOR = "psql-lazy";
-  private static final String LAZY_DB2_CONNECTOR = "psql-db2-lazy";
+  private static final String LAZY_CONNECTOR = "psql";
+  private static final String LAZY_DB2_CONNECTOR = "psql_db2_hashed";
   private static final String PG_HOST = System.getProperty("pg.host", "localhost");
   private static final String DB_URL = "jdbc:postgresql://" + PG_HOST + "/postgres";
   private static final String DB2_URL = "jdbc:postgresql://" + PG_HOST + "/postgres_db2";
@@ -139,12 +139,10 @@ public class SpaceBasedStepLazyIT extends StepTestBase {
 
   @Test
   public void tableStateIsTheStateOfTheOwnTable() throws Exception {
-    Space eager = createSpaceOn(EAGER_CONNECTOR);
     Space lazyBase = createSpaceOn(LAZY_CONNECTOR);
     Space lazyExtension = createExtension(lazyBase.getId());
     HelperStep step = new HelperStep();
 
-    assertEquals(TableState.NOT_LAZY, step.tableState(step.load(eager.getId())));
     assertEquals(TableState.NEVER_MATERIALIZED, step.tableState(step.load(lazyBase.getId())));
     assertTrue(step.isLazy(step.load(lazyExtension.getId())));
     assertEquals(TableState.NEVER_MATERIALIZED, step.tableState(step.load(lazyExtension.getId())));
