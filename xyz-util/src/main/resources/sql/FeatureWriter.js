@@ -59,6 +59,8 @@ class FeatureWriter {
   baseFeature;
   operation = "I";
   isDelete = false;
+  //Whether deleteRow() decides if the feature was visible (only if counting, see deleteFeature())
+  _visibleFromDeletedRow = false;
   attributeConflicts;
   ignoreConflictPaths = {
     [`properties.${XYZ_NS}.author`]: true,
@@ -136,11 +138,16 @@ class FeatureWriter {
     if (this.context != "DEFAULT" && this.context != null && this.context != "EXTENSION" && this.context != "SUPER")
       throw new IllegalArgumentException(`Unsupported context for feature deletion: ${this.context}`);
 
-    //The context DEFAULT needs it anyway
-    let existingFeature = this.context == "DEFAULT" || FeatureWriter.countsRequested ? this.loadFeature(this.inputFeature.id) : null;
+    /*
+    The context DEFAULT needs it anyway, with history writeRow() loads it too (cached).
+    Otherwise, the row is deleted directly and deleteRow() takes the visibility from the deleted row, so that counting needs no extra read.
+     */
+    let loadExisting = this.context == "DEFAULT" || FeatureWriter.countsRequested && this.historyEnabled;
+    this._visibleFromDeletedRow = FeatureWriter.countsRequested && !loadExisting;
+    let existingFeature = loadExisting ? this.loadFeature(this.inputFeature.id) : null;
     let execution = this._deleteFeature(existingFeature);
 
-    if (FeatureWriter.countsRequested && this.inputFeature != null)
+    if (FeatureWriter.countsRequested && loadExisting && this.inputFeature != null)
       FeatureWriter._visibleBefore.set(this.inputFeature, FeatureWriter._isVisible(existingFeature));
     return execution;
   }
@@ -462,7 +469,11 @@ class FeatureWriter {
     //base_version get provided from user (extend api endpoint if necessary)
     this.debugBox("Delete feature with id: " + this.inputFeature.id);
     return FeatureWriter.dbWriter.deleteRow(this.inputFeature, this.version, this.author, this.onVersionConflict, this.baseVersion,
-        result => {
+        (result, deletedRows) => {
+          //Like loadFeature(): only a HEAD row which is not a deletion (D) or a deletion marker (H / J) was visible
+          if (this._visibleFromDeletedRow)
+            FeatureWriter._visibleBefore.set(this.inputFeature,
+                deletedRows.some(row => row.head && !["D", "H", "J"].includes(row.operation)));
           if (result.action == ExecutionAction.NONE) {
             if (this.onVersionConflict != null) {
               plv8.elog(NOTICE, "FW_LOG HandleConflict for deletion of id: " + this.inputFeature.id);

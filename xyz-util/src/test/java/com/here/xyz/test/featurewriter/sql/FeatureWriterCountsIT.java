@@ -251,7 +251,39 @@ public class FeatureWriterCountsIT extends SQLITBase {
   }
 
   /**
-   * Without a context, the feature gets loaded for the counting only.
+   * The context EXTENSION: deleting a deletion marker (H) of a base feature does not count, the feature was not visible.
+   * Without history, the visibility comes from the deleted row (no extra read).
+   */
+  @ParameterizedTest(name = "history={0}, batchMode={1}")
+  @CsvSource({"false,false", "false,true", "true,false", "true,true"})
+  void doesNotCountTheDeletionOfAMarkerInTheExtension(boolean historyEnabled, boolean batchMode) throws Exception {
+    String base = table("markerbase", historyEnabled, batchMode);
+    String extension = table("markerext", historyEnabled, batchMode);
+
+    try (DataSourceProvider dsp = getDataSourceProvider()) {
+      String schema = dsp.getDatabaseSettings().getSchema();
+      createSpaceTable(dsp, schema, base);
+      createSpaceTable(dsp, schema, extension);
+      try {
+        List<String> tables = List.of(base, extension);
+        write(dsp, schema, List.of(base), null, historyEnabled, batchMode, false, false, "REPLACE", false, feature("a", "a1"));
+        write(dsp, schema, tables, SpaceContext.EXTENSION, historyEnabled, batchMode, false, false, "REPLACE", false,
+            feature("e", "e1"));
+        //Writes the marker H for a into the extension
+        assertWritten(0, 0, 1, counts(write(dsp, schema, tables, SpaceContext.DEFAULT, historyEnabled, batchMode, false, true,
+            "REPLACE", false, deletion("a"))));
+        assertWritten(0, 0, 1, counts(write(dsp, schema, tables, SpaceContext.EXTENSION, historyEnabled, batchMode, false, true,
+            "REPLACE", false, deletion("a"), deletion("e"), deletion("missing"))));
+      }
+      finally {
+        dropSpaceTable(dsp, schema, extension);
+        dropSpaceTable(dsp, schema, base);
+      }
+    }
+  }
+
+  /**
+   * Without a context: with history, the feature gets loaded anyway, without history the deleted row tells whether it was visible.
    */
   @ParameterizedTest(name = "history={0}, batchMode={1}")
   @CsvSource({"false,false", "false,true", "true,false", "true,true"})

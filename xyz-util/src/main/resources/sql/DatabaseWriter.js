@@ -472,6 +472,11 @@ class DatabaseWriter {
     else
       method = "_deleteRow3";
 
+    //For the counts, return the deleted rows
+    const returnRows = FeatureWriter.countsRequested;
+    if (returnRows)
+      sql = sql.replace(/;?$/, ` RETURNING operation, next_version = ${MAX_BIG_INT} AS head;`);
+
     if (!this.plans[method]) {
       this.plans[method] = this._preparePlan(sql, parameterTypes);
       this.parameterSets[method] = [];
@@ -479,8 +484,12 @@ class DatabaseWriter {
     }
 
     this.parameterSets[method].push(parameters);
-    this.resultParsers[method].push(deletedRows => {
-      return resultHandler(new FeatureModificationExecutionResult(deletedRows == 0 ? ExecutionAction.NONE : ExecutionAction.DELETED, inputFeature, version, author));
+    this.resultParsers[method].push(result => {
+      //plv8 returns the rows with RETURNING, the number of deleted rows otherwise
+      const deletedRows = returnRows ? result : null;
+      const deletedCount = returnRows ? result.length : result;
+      return resultHandler(new FeatureModificationExecutionResult(deletedCount == 0 ? ExecutionAction.NONE : ExecutionAction.DELETED,
+          inputFeature, version, author), deletedRows);
     });
 
     if (!this.batchMode)
