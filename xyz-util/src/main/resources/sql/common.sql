@@ -79,8 +79,9 @@ $initializeDatabase$;
  * h3 and h3_postgis go into the dedicated schema h3_ext, never into "public" and never into a schema named "h3":
  * Older versions resolve the unqualified type h3index of their own H3 functions through a search path with "public" first, so a
  * base type h3index in "public" would replace their domain h3index.
- * If the extensions are not available (or the privileges are missing), the block only raises a warning, so that the other scripts
- * still get installed. H3 based features (hexbin clustering, h3Index) do not work on such a database then.
+ * If the extensions are not available, the privileges are missing or the installation fails otherwise, the block only raises a
+ * warning, so that the other scripts still get installed. H3 based features (hexbin clustering, h3Index) do not work on such a
+ * database then. Only transient errors (e.g., a lock timeout) fail the script, so that the installer retries it.
  * This script gets installed into several schemas concurrently (e.g., the hub and the jobs schemas), each under a lock of its own
  * schema, so the block takes an additional lock of its own.
  */
@@ -118,6 +119,12 @@ DO $installH3Extensions$
                 RAISE NOTICE 'The H3 extensions were installed concurrently: %', SQLERRM;
             WHEN insufficient_privilege THEN
                 RAISE WARNING 'Missing privileges to install the H3 extensions. H3 features will not work: %', SQLERRM;
+            --Transient errors fail the script, so that the installer retries it instead of skipping the extensions
+            WHEN query_canceled OR lock_not_available OR deadlock_detected OR serialization_failure THEN
+                RAISE;
+            --Any other error must not fail the installation of this script
+            WHEN OTHERS THEN
+                RAISE WARNING 'The H3 extensions could not be installed. H3 features will not work: % (SQLSTATE %)', SQLERRM, SQLSTATE;
         END;
 
         --Ensure to restore the original search path because some of the installations above might have changed it

@@ -117,8 +117,8 @@ public class PooledDataSources extends DataSourceProvider {
 
       QueryRunner runner = new QueryRunner();
       try {
-        int lock_timeout = ( extendedSettings.statementTimeoutSeconds - 7 > 5
-                             ? extendedSettings.statementTimeoutSeconds - 7
+        int lock_timeout = ( extendedSettings.statementTimeoutSeconds - 7 > 5 
+                             ? extendedSettings.statementTimeoutSeconds - 7 
                              : extendedSettings.statementTimeoutSeconds );
 
         runner.execute(connection, "SET enable_seqscan = off;");
