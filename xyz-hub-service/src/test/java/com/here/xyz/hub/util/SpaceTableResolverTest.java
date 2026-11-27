@@ -28,6 +28,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Space.ConnectorRef;
 import com.here.xyz.util.db.pg.LazySpaceTables;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -70,29 +71,93 @@ class SpaceTableResolverTest {
     assertThat(tableName).hasSize(32);
   }
 
-  @Test
-  void doesNotOverrideAnExistingTableName() {
-    Space space = spaceWithStorage(new HashMap<>(Map.of(TABLE_NAME, "some_existing_table")));
+  private static void assertReplacesTheClientTableName(Object clientTableName) {
+    Space space = spaceWithStorage(new HashMap<>(Map.of(TABLE_NAME, clientTableName)));
 
-    assertThat(SpaceTableResolver.assignTableName(space)).isEqualTo("some_existing_table");
+    String tableName = SpaceTableResolver.assignTableName(space);
+
+    assertThat(tableName).matches("[0-9a-f]{32}").isNotEqualTo(clientTableName);
+    assertThat(space.getStorage().getParams()).isEqualTo(Map.of(TABLE_NAME, tableName));
   }
 
   @Test
-  void rejectsExplicitTableNamesLongerThanPostgresSupports() {
-    Space space = spaceWithStorage(Map.of(TABLE_NAME, "a".repeat(SpaceTableResolver.POSTGRES_IDENTIFIER_MAX_BYTES + 1)));
+  void replacesAClientSuppliedTableName() {
+    assertReplacesTheClientTableName("some_existing_table");
+  }
 
-    assertThatThrownBy(() -> SpaceTableResolver.assignTableName(space))
+  @Test
+  void replacesAClientTableNameLongerThanPostgresSupports() {
+    String tableName = "a".repeat(SpaceTableResolver.POSTGRES_IDENTIFIER_MAX_BYTES + 1);
+
+    assertReplacesTheClientTableName(tableName);
+    //The validation is still used for the table names of administrative requests
+    assertThatThrownBy(() -> SpaceTableResolver.validateTableName(tableName))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("must not exceed");
   }
 
   @Test
-  void rejectsExplicitTableNamesContainingNullCharacters() {
-    Space space = spaceWithStorage(Map.of(TABLE_NAME, "invalid\0table"));
+  void replacesAClientTableNameContainingNullCharacters() {
+    String tableName = "invalid\0table";
 
-    assertThatThrownBy(() -> SpaceTableResolver.assignTableName(space))
+    assertReplacesTheClientTableName(tableName);
+    assertThatThrownBy(() -> SpaceTableResolver.validateTableName(tableName))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("null character");
+  }
+
+  @Test
+  void replacesANonStringClientTableName() {
+    assertReplacesTheClientTableName(42);
+  }
+
+  @Test
+  void removeTableNameKeepsOtherParams() {
+    Space space = spaceWithStorage(Map.of(TABLE_NAME, "client_table", "someParam", "someValue"));
+    Space onlyTableName = spaceWithStorage(Map.of(TABLE_NAME, "client_table"));
+    Space withoutTableName = spaceWithStorage(Map.of("someParam", "someValue"));
+
+    assertThat(SpaceTableResolver.removeTableName(space)).isEqualTo("client_table");
+    assertThat(SpaceTableResolver.removeTableName(onlyTableName)).isEqualTo("client_table");
+    assertThat(SpaceTableResolver.removeTableName(withoutTableName)).isNull();
+
+    assertThat(space.getStorage().getParams()).isEqualTo(Map.of("someParam", "someValue"));
+    assertThat(onlyTableName.getStorage().getParams()).isNull();
+    assertThat(withoutTableName.getStorage().getParams()).isEqualTo(Map.of("someParam", "someValue"));
+  }
+
+  @Test
+  void restoresTheAuthoritativeTableNameWhenTheTargetDropsIt() {
+    Map<String, Object> nullTableName = new HashMap<>();
+    nullTableName.put(TABLE_NAME, null);
+    for (Map<String, Object> targetParams : Arrays.<Map<String, Object>>asList(Map.of("otherParam", "value"), null, nullTableName)) {
+      Space source = spaceWithStorage(Map.of(TABLE_NAME, "persisted_table"));
+      Space target = spaceWithStorage(targetParams);
+
+      SpaceTableResolver.preserveTableName(source, target);
+
+      assertThat(target.getStorage().getParams()).containsEntry(TABLE_NAME, "persisted_table");
+    }
+  }
+
+  @Test
+  void restoresTheAuthoritativeTableNameAgainstANonStringValue() {
+    Space source = spaceWithStorage(Map.of(TABLE_NAME, "persisted_table"));
+    Space target = spaceWithStorage(Map.of(TABLE_NAME, 42));
+
+    SpaceTableResolver.preserveTableName(source, target);
+
+    assertThat(target.getStorage().getParams()).isEqualTo(Map.of(TABLE_NAME, "persisted_table"));
+  }
+
+  @Test
+  void removesANonStringTableNameFromALegacySpace() {
+    Space source = spaceWithStorage(null);
+    Space target = spaceWithStorage(Map.of(TABLE_NAME, 42, "otherParam", "value"));
+
+    SpaceTableResolver.preserveTableName(source, target);
+
+    assertThat(target.getStorage().getParams()).isEqualTo(Map.of("otherParam", "value"));
   }
 
   @Test
@@ -196,10 +261,11 @@ class SpaceTableResolverTest {
   }
 
   @Test
-  void rejectsExplicitTableNamesWithTheReservedPrefix() {
-    Space space = spaceWithStorage(Map.of(TABLE_NAME, LazySpaceTables.RESERVED_PREFIX + "v1"));
+  void replacesAClientTableNameWithTheReservedPrefix() {
+    String tableName = LazySpaceTables.RESERVED_PREFIX + "v1";
 
-    assertThatThrownBy(() -> SpaceTableResolver.assignTableName(space))
+    assertReplacesTheClientTableName(tableName);
+    assertThatThrownBy(() -> SpaceTableResolver.validateTableName(tableName))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("reserved prefix");
   }

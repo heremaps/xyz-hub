@@ -347,7 +347,7 @@ public final class IcebergReadRouting {
   private static Future<Optional<IcebergVersion>> lookup(FeatureTask<?, ?> task, long version) {
     try {
       IcebergVersionCache cache = versionCache != null ? versionCache : IcebergVersionCache.getInstance();
-      return cache.lookup(task.getMarker(), task.space, version, IcebergReadEligibility.compositeFilter(task, version));
+      return cache.lookup(task.getMarker(), task.space, version, IcebergReadEligibility.compositeFilter(task));
     }
     catch (Exception e) {
       return Future.failedFuture(e);

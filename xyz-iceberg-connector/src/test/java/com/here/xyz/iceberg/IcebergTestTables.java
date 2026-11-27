@@ -43,7 +43,10 @@ import java.util.Set;
 import java.util.UUID;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.FileMetadata;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.MetricsConfig;
@@ -243,7 +246,45 @@ public final class IcebergTestTables {
     writeDataFiles(table, upsertRecords).forEach(delta::addRows);
     deletes.deleteFiles().forEach(delta::addDeletes);
     deletes.rewrittenDeleteFiles().forEach(delta::removeDeletes);
+    //Without it, a deletion vector which replaces an earlier one of the same data file counts as concurrently added
+    if (current != null)
+      delta.validateFromSnapshot(current.snapshotId());
     delta.toBranch(target);
+    delta.commit();
+  }
+
+  /**
+   * Adds the data files and deletion vectors of {@code from} at the tag to main of {@code to}, in one RowDelta commit, without
+   * copying them: {@code to} then references the files of {@code from}, in manifests of its own. The table of a composite space
+   * on a pinned base version starts like this.
+   */
+  public static void shareFiles(Table from, String tag, Table to) {
+    from.refresh();
+    to.refresh();
+    List<DataFile> dataFiles = new ArrayList<>();
+    Map<String, DeleteFile> deleteFiles = new LinkedHashMap<>();
+    try (CloseableIterable<FileScanTask> tasks = from.newScan().useRef(tag).planFiles()) {
+      for (FileScanTask task : tasks) {
+        DataFile file = task.file();
+        dataFiles.add(DataFiles.builder(from.specs().get(file.specId())).copy(file).withFirstRowId(null).build());
+        //Several deletion vectors share one Puffin file, at their own offsets
+        for (DeleteFile delete : task.deletes())
+          deleteFiles.computeIfAbsent(delete.location() + "#" + delete.contentOffset(), key ->
+              FileMetadata.deleteFileBuilder(from.specs().get(delete.specId()))
+                  .copy(delete)
+                  //copy() leaves out the fields of a deletion vector
+                  .withReferencedDataFile(delete.referencedDataFile())
+                  .withContentOffset(delete.contentOffset())
+                  .withContentSizeInBytes(delete.contentSizeInBytes())
+                  .build());
+      }
+    }
+    catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+    RowDelta delta = to.newRowDelta();
+    dataFiles.forEach(delta::addRows);
+    deleteFiles.values().forEach(delta::addDeletes);
     delta.commit();
   }
 
