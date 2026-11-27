@@ -21,6 +21,7 @@ package com.here.xyz.iceberg;
 
 import com.here.xyz.util.runtime.FunctionRuntime;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -34,7 +35,10 @@ import java.util.regex.Pattern;
  * @param catalogName The name of the Iceberg catalog
  * @param catalogProperties The Iceberg catalog properties, passed to {@code CatalogUtil.buildIcebergCatalog} with the
  *     {@code ${NAME}} placeholders resolved from the function runtime's environment. They may contain secrets, so they are never
- *     logged.
+ *     logged. The S3 retry settings {@code s3.retry.num-retries}, {@code s3.retry.min-wait-ms} and {@code s3.retry.max-wait-ms}
+ *     default to {@link #DEFAULT_S3_RETRY_PROPERTIES} where they are not set: a throttled range GET then waits at most about
+ *     350 ms in total before the read fails and the Hub reads from the space's own connector, instead of the S3FileIO default of
+ *     1 to 20 s per retry, which can use up the whole request timeout. Explicit values win.
  * @param maxBytesPerRequest The maximum number of bytes one request may read from storage
  * @param maxResponseBytes The maximum size of the features of one response
  * @param requestTimeoutMs The time after which a request stops with a TIMEOUT error
@@ -79,10 +83,24 @@ public record IcebergConnectorConfig(String catalogName, Map<String, String> cat
    * Iceberg's LegacyMd5Plugin is missing in the AWS SDK version of the Hub.
    */
   static final String LEGACY_MD5_PLUGIN_PROPERTY = "client.legacy-md5-plugin-enabled";
+  static final String S3_RETRY_NUM_RETRIES = "s3.retry.num-retries";
+  static final String S3_RETRY_MIN_WAIT_MS = "s3.retry.min-wait-ms";
+  static final String S3_RETRY_MAX_WAIT_MS = "s3.retry.max-wait-ms";
+  /**
+   * The S3 retry settings which are added to the catalog properties where they are not set, see {@link #catalogProperties()}
+   */
+  static final Map<String, String> DEFAULT_S3_RETRY_PROPERTIES = s3RetryDefaults();
   private static final Pattern PLACEHOLDER = Pattern.compile("\\$\\{([A-Za-z0-9_.-]+)}");
 
   public IcebergConnectorConfig {
-    catalogProperties = catalogProperties == null ? Map.of() : Collections.unmodifiableMap(new TreeMap<>(catalogProperties));
+    Map<String, String> properties = catalogProperties == null ? new TreeMap<>() : new TreeMap<>(catalogProperties);
+    DEFAULT_S3_RETRY_PROPERTIES.forEach(properties::putIfAbsent);
+    requireNonNegativeInteger(properties, S3_RETRY_NUM_RETRIES);
+    long minWaitMs = requireNonNegativeInteger(properties, S3_RETRY_MIN_WAIT_MS);
+    long maxWaitMs = requireNonNegativeInteger(properties, S3_RETRY_MAX_WAIT_MS);
+    if (minWaitMs > maxWaitMs)
+      throw new IllegalArgumentException(S3_RETRY_MIN_WAIT_MS + " must not be greater than " + S3_RETRY_MAX_WAIT_MS);
+    catalogProperties = Collections.unmodifiableMap(properties);
     filterColumns = filterColumns == null ? DEFAULT_FILTER_COLUMNS : Collections.unmodifiableMap(new TreeMap<>(filterColumns));
     filterColumns.forEach((property, column) -> {
       if (property.isEmpty() || column == null || column.isEmpty() || column.contains("."))
@@ -263,6 +281,25 @@ public record IcebergConnectorConfig(String catalogName, Map<String, String> cat
   private static void requirePositive(long value, String name) {
     if (value <= 0)
       throw new IllegalArgumentException(name + " must be positive");
+  }
+
+  private static Map<String, String> s3RetryDefaults() {
+    Map<String, String> defaults = new LinkedHashMap<>();
+    defaults.put(S3_RETRY_NUM_RETRIES, "3");
+    defaults.put(S3_RETRY_MIN_WAIT_MS, "50");
+    defaults.put(S3_RETRY_MAX_WAIT_MS, "400");
+    return Collections.unmodifiableMap(defaults);
+  }
+
+  private static long requireNonNegativeInteger(Map<String, String> properties, String key) {
+    try {
+      long value = Long.parseLong(properties.get(key));
+      if (value >= 0 && value <= Integer.MAX_VALUE)
+        return value;
+    }
+    catch (NumberFormatException ignored) {
+    }
+    throw new IllegalArgumentException(key + " must be a non-negative integer");
   }
 
   private static void requireShare(double value, String name) {

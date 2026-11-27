@@ -31,7 +31,8 @@ class IcebergConnectorConfigTest {
   void usesTheDefaults() {
     IcebergConnectorConfig config = IcebergConnectorConfig.from(Map.of(), name -> null);
     assertThat(config.catalogName()).isEqualTo("iceberg");
-    assertThat(config.catalogProperties()).isEmpty();
+    assertThat(config.catalogProperties()).isEqualTo(Map.of("s3.retry.num-retries", "3", "s3.retry.min-wait-ms", "50",
+        "s3.retry.max-wait-ms", "400"));
     assertThat(config.maxBytesPerRequest()).isEqualTo(268_435_456L);
     assertThat(config.maxResponseBytes()).isEqualTo(104_857_600L);
     assertThat(config.requestTimeoutMs()).isEqualTo(9_000);
@@ -45,6 +46,43 @@ class IcebergConnectorConfigTest {
     assertThat(config.twoStepReads()).isTrue();
     assertThat(config.rangeReadThreads()).isEqualTo(32);
     assertThat(config.pageIndexCacheHeapShare()).isEqualTo(0.05);
+  }
+
+  @Test
+  void explicitRetrySettingsWin() {
+    IcebergConnectorConfig config = IcebergConnectorConfig.from(Map.of("catalogProperties", Map.of("type", "hadoop",
+        "s3.retry.num-retries", 7)), name -> null);
+    assertThat(config.catalogProperties()).containsEntry("type", "hadoop").containsEntry("s3.retry.num-retries", "7")
+        .containsEntry("s3.retry.min-wait-ms", "50").containsEntry("s3.retry.max-wait-ms", "400");
+  }
+
+  @Test
+  void rejectsInvalidRetrySettings() {
+    assertThatThrownBy(() -> IcebergConnectorConfig.from(Map.of("catalogProperties", Map.of("s3.retry.num-retries", "-1")),
+        name -> null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("s3.retry.num-retries must be a non-negative integer");
+    assertThatThrownBy(() -> IcebergConnectorConfig.from(Map.of("catalogProperties", Map.of("s3.retry.min-wait-ms", "soon")),
+        name -> null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("s3.retry.min-wait-ms must be a non-negative integer");
+    assertThatThrownBy(() -> IcebergConnectorConfig.from(Map.of("catalogProperties", Map.of("s3.retry.max-wait-ms", "1.5")),
+        name -> null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("s3.retry.max-wait-ms must be a non-negative integer");
+    assertThatThrownBy(() -> IcebergConnectorConfig.from(Map.of("catalogProperties", Map.of("s3.retry.min-wait-ms", "500")),
+        name -> null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("s3.retry.min-wait-ms must not be greater than s3.retry.max-wait-ms");
+  }
+
+  @Test
+  void theRetrySettingsArePartOfTheCatalogKey() {
+    IcebergConnectorConfig a = IcebergConnectorConfig.from(Map.of("catalogProperties", Map.of("type", "hadoop")), n -> null);
+    IcebergConnectorConfig b = IcebergConnectorConfig.from(Map.of("catalogProperties", Map.of("type", "hadoop",
+        "s3.retry.max-wait-ms", "800")), n -> null);
+    assertThat(a.catalogKey()).isNotEqualTo(b.catalogKey());
+    assertThat(a.catalogKey().catalogProperties()).containsEntry("s3.retry.max-wait-ms", "400");
   }
 
   @Test

@@ -69,12 +69,14 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 
 class IcebergConnectorTest {
 
@@ -89,6 +91,12 @@ class IcebergConnectorTest {
   private static final int ROW_GROUP_ROWS = 4;
   private static final int ROW_GROUP_TABLE_ROWS = 40;
   private static final Set<String> ROW_GROUP_DELETED_IDS = Set.of("g05", "g17", "g33");
+  //A table with the object-store layout (hashed data paths) and one which shares its files
+  private static final String OBJECT_STORE_TABLE = "objectstore_layer";
+  private static final String OBJECT_STORE_SHARED_TABLE = "objectstore_layer_shared__b1";
+  private static final Set<String> OBJECT_STORE_IDS = Set.of("os1", "os2", "os4", "os5");
+  private static final Set<String> OBJECT_STORE_SHARED_IDS = Set.of("os2", "os4", "os5", "os6");
+  private static final String HASHED_DATA_PATH = "/data/[01]{4}/[01]{4}/[01]{4}/[01]{8}-";
 
   @TempDir
   static Path warehouseDir;
@@ -138,6 +146,34 @@ class IcebergConnectorTest {
     IcebergTestTables.upsertAndDelete(rowGroups, null, List.of(point("g10", "Road", 20.01, 20, "g10-v2")),
         List.copyOf(ROW_GROUP_DELETED_IDS));
     IcebergTestTables.tag(rowGroups, "v1");
+
+    writeObjectStoreTables();
+  }
+
+  private static void writeObjectStoreTables() {
+    Map<String, String> objectStorage = Map.of("write.object-storage.enabled", "true", "write.object-storage.partitioned-paths",
+        "false");
+    Table base = IcebergTestTables.createTable(catalog, TableIdentifier.of(Namespace.of(NAMESPACE), OBJECT_STORE_TABLE),
+        IcebergTestTables.Layout.CURRENT, objectStorage);
+    IcebergTestTables.append(base, null, List.of(
+        point("os1", "Road", 1, 1, "os1"),
+        point("os2", "Road", 2, 2, "os2-v1"),
+        point("os3", "Road", 2.2, 2.2, "os3"),
+        point("os4", "Water", 30, 30, "os4")));
+    IcebergTestTables.upsertAndDelete(base, null, List.of(point("os2", "Road", 2, 2, "os2-v2"), point("os5", "Road", 1.5, 1.5,
+        "os5")), List.of("os3"));
+    IcebergTestTables.tag(base, "v1");
+
+    Table shared = IcebergTestTables.createTable(catalog, TableIdentifier.of(Namespace.of(NAMESPACE), OBJECT_STORE_SHARED_TABLE),
+        IcebergTestTables.Layout.CURRENT, objectStorage);
+    IcebergTestTables.shareFiles(base, "v1", shared);
+    IcebergTestTables.upsertAndDelete(shared, null, List.of(point("os6", "Road", 1.2, 1.2, "os6")), List.of("os1"));
+    IcebergTestTables.tag(shared, "v1");
+  }
+
+  @AfterEach
+  void resetFailingFileIO() {
+    FailingFileIO.reset();
   }
 
   private static String rowGroupId(int i) {
@@ -468,6 +504,137 @@ class IcebergConnectorTest {
 
   private static String path(String location) {
     return URI.create(location).getPath();
+  }
+
+  @Test
+  void theObjectStoreTablesHaveHashedDataPaths() throws Exception {
+    for (String tableName : List.of(OBJECT_STORE_TABLE, OBJECT_STORE_SHARED_TABLE)) {
+      Table table = catalog.loadTable(TableIdentifier.of(Namespace.of(NAMESPACE), tableName));
+      int dataFiles = 0;
+      int deleteFiles = 0;
+      try (var tasks = table.newScan().useRef("v1").planFiles()) {
+        for (FileScanTask task : tasks) {
+          dataFiles++;
+          assertThat(path(task.file().location())).containsPattern(HASHED_DATA_PATH);
+          for (var delete : task.deletes()) {
+            deleteFiles++;
+            assertThat(path(delete.location())).containsPattern(HASHED_DATA_PATH);
+          }
+        }
+      }
+      assertThat(dataFiles).as(tableName).isPositive();
+      assertThat(deleteFiles).as(tableName).isPositive();
+    }
+  }
+
+  @ParameterizedTest(name = "twoStepReads={0}")
+  @ValueSource(booleans = {true, false})
+  void readsAnObjectStoreTable(boolean twoStep) throws Exception {
+    BBox area = new BBox(0, 0, 2.5, 2.5);
+    assertThat(ids(invoke(reader(located(new GetFeaturesByBBoxEvent<>().withBbox(area), OBJECT_STORE_TABLE), twoStep))))
+        .containsExactlyInAnyOrder("os1", "os2", "os5");
+    GetFeaturesByTileEvent tile = new GetFeaturesByTileEvent().withBbox(area).withMargin(0).withResponseType(ResponseType.GEO_JSON);
+    assertThat(ids(invoke(reader(located(tile, OBJECT_STORE_TABLE), twoStep)))).containsExactlyInAnyOrder("os1", "os2", "os5");
+    FeatureCollection all = featureCollection(invoke(located(new IterateFeaturesEvent<>().withLimit(1000), OBJECT_STORE_TABLE)));
+    assertThat(ids(all)).containsExactlyInAnyOrderElementsOf(OBJECT_STORE_IDS);
+    assertThat(names(all, "os2")).containsExactly("os2-v2");
+  }
+
+  @ParameterizedTest(name = "twoStepReads={0}")
+  @ValueSource(booleans = {true, false})
+  void readsAnObjectStoreTableWhichSharesTheFilesOfAnother(boolean twoStep) throws Exception {
+    BBox area = new BBox(0, 0, 2.5, 2.5);
+    assertThat(ids(invoke(reader(located(new GetFeaturesByBBoxEvent<>().withBbox(area), OBJECT_STORE_SHARED_TABLE), twoStep))))
+        .containsExactlyInAnyOrder("os2", "os5", "os6");
+    FeatureCollection all = featureCollection(invoke(located(new IterateFeaturesEvent<>().withLimit(1000),
+        OBJECT_STORE_SHARED_TABLE)));
+    assertThat(ids(all)).containsExactlyInAnyOrderElementsOf(OBJECT_STORE_SHARED_IDS);
+    assertThat(names(all, "os2")).containsExactly("os2-v2");
+    //The base is unchanged
+    assertThat(ids(invoke(located(new IterateFeaturesEvent<>().withLimit(1000), OBJECT_STORE_TABLE))))
+        .containsExactlyInAnyOrderElementsOf(OBJECT_STORE_IDS);
+  }
+
+  /**
+   * Sets the location of the table at v1 and the default connector params
+   */
+  private static <T extends Event<?>> T located(T event, String table) {
+    event.setParams(icebergParams(new IcebergLocation(NAMESPACE, table, "v1")));
+    return withConnectorParams(event, connectorParams(Map.of()));
+  }
+
+  @ParameterizedTest(name = "failures={0}")
+  @ValueSource(ints = {1, 3})
+  void retriesATokenPageAfterStorageErrors(int failures) throws Exception {
+    String token = warmUpFailingCatalog();
+    List<String> expected = ids(invoke(failingIterate(token, Map.of())));
+    assertThat(expected).isNotEmpty();
+    FailingFileIO.FAILURES.set(failures);
+    assertThat(ids(invoke(failingIterate(token, Map.of())))).isEqualTo(expected);
+    assertThat(FailingFileIO.FAILURES.get()).isNotPositive();
+  }
+
+  @Test
+  void aTokenPageFailsAfterTheRetries() throws Exception {
+    String token = warmUpFailingCatalog();
+    FailingFileIO.FAILURES.set(Integer.MAX_VALUE);
+    assertThat(invoke(failingIterate(token, Map.of()))).isInstanceOf(ErrorResponse.class);
+  }
+
+  @Test
+  void aTokenPageIsNotRetriedWithoutTimeLeft() throws Exception {
+    String token = warmUpFailingCatalog();
+    FailingFileIO.FAILURES.set(1);
+    assertThat(invoke(failingIterate(token, Map.of("requestTimeoutMs", 1000)))).isInstanceOf(ErrorResponse.class);
+  }
+
+  @ParameterizedTest(name = "status={0}")
+  @ValueSource(ints = {403, 404})
+  void aTokenPageIsNotRetriedOnClientErrors(int status) throws Exception {
+    String token = warmUpFailingCatalog();
+    FailingFileIO.STATUS = status;
+    FailingFileIO.FAILURES.set(1);
+    assertThat(invoke(failingIterate(token, Map.of()))).isInstanceOf(ErrorResponse.class);
+  }
+
+  @Test
+  void aFirstPageIsNotRetried() throws Exception {
+    warmUpFailingCatalog();
+    FailingFileIO.FAILURES.set(1);
+    assertThat(invoke(failingIterate(null, Map.of()))).isInstanceOf(ErrorResponse.class);
+  }
+
+  @Test
+  void onlyThrottlingAndServerErrorsAreRetryable() {
+    assertThat(IcebergConnector.isRetryable(new IllegalStateException(s3Error(503)))).isTrue();
+    assertThat(IcebergConnector.isRetryable(new IllegalStateException(s3Error(500)))).isTrue();
+    assertThat(IcebergConnector.isRetryable(s3Error(429))).isTrue();
+    assertThat(IcebergConnector.isRetryable(s3Error(403))).isFalse();
+    assertThat(IcebergConnector.isRetryable(s3Error(404))).isFalse();
+    assertThat(IcebergConnector.isRetryable(new IllegalStateException("other"))).isFalse();
+  }
+
+  private static S3Exception s3Error(int status) {
+    return (S3Exception) S3Exception.builder().statusCode(status).message("test").build();
+  }
+
+  /**
+   * Reads the first page through the catalog with the failing FileIO, which also loads the table, its planned files and footers
+   * into the caches, and returns the token of the next page
+   */
+  private static String warmUpFailingCatalog() throws Exception {
+    String token = featureCollection(invoke(failingIterate(null, Map.of()))).getNextPageToken();
+    assertThat(token).isNotNull();
+    return token;
+  }
+
+  private static IterateFeaturesEvent<?> failingIterate(String token, Map<String, Object> overrides) {
+    IterateFeaturesEvent<?> event = new IterateFeaturesEvent<>().withLimit(3).withNextPageToken(token);
+    event.setParams(icebergParams(new IcebergLocation(NAMESPACE, TABLE, "v2")));
+    Map<String, Object> params = connectorParams(Map.of("catalogName", "failing", "catalogProperties", Map.of("type", "hadoop",
+        "warehouse", warehouse, "io-impl", FailingFileIO.class.getName())));
+    params.putAll(overrides);
+    return withConnectorParams(event, params);
   }
 
   @ParameterizedTest(name = "twoStepReads={0}")
