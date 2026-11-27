@@ -1414,6 +1414,7 @@ components:
             Each hexagon has an address being described by the H3 addressing scheme.
             For more information on this topic see: https://eng.uber.com/h3/
             The geometry of a hexagon is a Polygon, or a MultiPolygon for a cell that is split at the antimeridian.
+            Such a cell counts the features on both sides of the antimeridian.
             The property "pentagon" is true for the 12 pentagon cells of each resolution.
 
           * "quadbin"
