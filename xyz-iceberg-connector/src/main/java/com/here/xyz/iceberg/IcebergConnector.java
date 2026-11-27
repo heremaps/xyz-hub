@@ -150,25 +150,26 @@ public class IcebergConnector extends StorageConnector {
 
     long startTime = System.currentTimeMillis();
     IcebergLocation location = location(event);
-    SnapshotFiles files = tables.resolve(location);
-    if (tokenSnapshotId != null && tokenSnapshotId != files.snapshotId())
-      throw new ErrorResponseException(ILLEGAL_ARGUMENT, "The page token belongs to another version of the data");
-    if (start.fileIndex() > files.tasks().size())
-      throw new ErrorResponseException(ILLEGAL_ARGUMENT, "Invalid page token");
-
-    FeatureScan scan = newScan(event, files, startTime).withFilters(filters).withLimit(event.getLimit()).withPaging(start);
-    //An iteration never switches the backend, so it only starts here if no page can fail because of a row group above the budget
+    Result result;
+    long snapshotId;
     if (tokenSnapshotId == null) {
+      SnapshotFiles files = tables.resolve(location);
+      FeatureScan scan = newScan(event, files, startTime).withFilters(filters).withLimit(event.getLimit()).withPaging(start);
+      //An iteration never switches the backend, so it only starts here if no page can fail because of a row group above the budget
       long maxRowGroupBytes = scan.maxRowGroupBytes(startTime + config.requestTimeoutMs());
       if (maxRowGroupBytes > config.maxBytesPerRequest())
         throw notImplemented("Iterating a version with a row group of " + maxRowGroupBytes + " bytes (more than maxBytesPerRequest "
             + config.maxBytesPerRequest() + ")");
+      result = run(event, location, files, scan, startTime);
+      snapshotId = files.snapshotId();
     }
-    Result result = tokenSnapshotId == null ? run(event, location, files, scan, startTime)
-        : runPage(event, location, files, filters, start, scan, startTime);
+    else {
+      result = runPage(event, location, tokenSnapshotId, filters, start, startTime);
+      snapshotId = tokenSnapshotId;
+    }
     FeatureCollection response = response(result);
     if (result.next() != null) {
-      String nextToken = new PageToken(files.snapshotId(), result.next()).toString();
+      String nextToken = new PageToken(snapshotId, result.next()).toString();
       response.setHandle(nextToken); //Kept for backwards compatibility, like in the PSQL connector
       response.setNextPageToken(nextToken);
     }
@@ -176,17 +177,17 @@ public class IcebergConnector extends StorageConnector {
   }
 
   /**
-   * Runs the scan of an iterate page with a page token, retrying it after a throttling or server error of the storage while the
-   * request timeout leaves time for it. Only these pages are retried: they are read only from Iceberg, so the Hub has no other
+   * Reads an iterate page with a page token, retrying it after a throttling or server error of the storage while the request
+   * timeout leaves time for it. Each attempt also loads the table and its planned files, which an instance without them in its
+   * caches reads from the storage, too. Only these pages are retried: they are read only from Iceberg, so the Hub has no other
    * storage to fall back to for them, and a page restarts at the file, row group and row of its token, so a rerun returns the same
    * features. All other reads fail fast and the Hub reads them from the space's own connector.
    */
-  private Result runPage(IterateFeaturesEvent<?> event, IcebergLocation location, SnapshotFiles files,
-      List<List<ColumnFilter>> filters, Position start, FeatureScan firstScan, long startTime) throws InterruptedException {
-    FeatureScan scan = firstScan;
+  private Result runPage(IterateFeaturesEvent<?> event, IcebergLocation location, long tokenSnapshotId,
+      List<List<ColumnFilter>> filters, Position start, long startTime) throws ErrorResponseException, InterruptedException {
     for (int attempt = 1; ; attempt++) {
       try {
-        return run(event, location, files, scan, startTime);
+        return readPage(event, location, tokenSnapshotId, filters, start, startTime);
       }
       catch (RuntimeException e) {
         if (!isRetryable(e) || attempt > PAGE_RETRY_WAITS_MS.length)
@@ -197,9 +198,22 @@ public class IcebergConnector extends StorageConnector {
         logger.warn("{} Retrying the iterate page after attempt {} in {} ms, location={}: {}", traceItem, attempt, waitMs, location,
             retryableCause(e).toString());
         Thread.sleep(waitMs);
-        scan = newScan(event, files, startTime).withFilters(filters).withLimit(event.getLimit()).withPaging(start);
       }
     }
+  }
+
+  /**
+   * One attempt of {@link #runPage}
+   */
+  private Result readPage(IterateFeaturesEvent<?> event, IcebergLocation location, long tokenSnapshotId,
+      List<List<ColumnFilter>> filters, Position start, long startTime) throws ErrorResponseException {
+    SnapshotFiles files = tables.resolve(location);
+    if (tokenSnapshotId != files.snapshotId())
+      throw new ErrorResponseException(ILLEGAL_ARGUMENT, "The page token belongs to another version of the data");
+    if (start.fileIndex() > files.tasks().size())
+      throw new ErrorResponseException(ILLEGAL_ARGUMENT, "Invalid page token");
+    FeatureScan scan = newScan(event, files, startTime).withFilters(filters).withLimit(event.getLimit()).withPaging(start);
+    return run(event, location, files, scan, startTime);
   }
 
   /**
