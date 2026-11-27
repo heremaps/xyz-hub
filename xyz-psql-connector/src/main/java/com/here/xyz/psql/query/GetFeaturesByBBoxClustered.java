@@ -34,6 +34,7 @@ import com.here.xyz.psql.factory.TweaksSQL;
 import com.here.xyz.psql.tools.DhString;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.db.SQLQuery;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.Map;
@@ -79,6 +80,12 @@ public class GetFeaturesByBBoxClustered<E extends GetFeaturesByBBoxEvent, R exte
             + HEXBIN + ", " + QUAD);
       }
     }
+  }
+
+  //buildQuery() of this class sets its own isMvtRequested, the one of GetFeaturesByBBox stays false
+  @Override
+  public R handle(ResultSet rs) throws SQLException {
+    return isMvtRequested ? (R) mvtResultSetHandler(rs) : super.handle(rs);
   }
 
   /**
