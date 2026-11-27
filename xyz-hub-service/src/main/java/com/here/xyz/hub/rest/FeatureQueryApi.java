@@ -75,9 +75,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.regex.Pattern;
 import org.apache.logging.log4j.Marker;
 
 public class FeatureQueryApi extends SpaceBasedApi {
+  private static final Pattern H3_INDEX_PATTERN = Pattern.compile("^[0-9a-fA-F]{15,16}$");
 
   public FeatureQueryApi(RouterBuilder rb) {
     rb.getRoute("getFeaturesBySpatial").setDoValidation(false).addHandler(this::getFeaturesBySpatial);
@@ -214,6 +216,7 @@ public class FeatureQueryApi extends SpaceBasedApi {
       final String refFeatureId = Query.getRefFeatureId(context);
       final String refSpaceId = Query.getRefSpaceId(context);
       final String h3Index = Query.getH3Index(context);
+      validateH3Index(h3Index);
 
       Geometry geometry = null;
 
@@ -270,6 +273,18 @@ public class FeatureQueryApi extends SpaceBasedApi {
     } catch (HttpException e) {
       sendErrorResponse(context, e);
     }
+  }
+
+  /**
+   * Checks the format of the h3Index. Whether it is a valid H3 cell is checked by the storage.
+   *
+   * @param h3Index The h3Index or <code>null</code> if none was provided
+   * @throws HttpException With status 400 if the h3Index is not 15 or 16 hexadecimal digits
+   */
+  static void validateH3Index(String h3Index) throws HttpException {
+    if (h3Index != null && !H3_INDEX_PATTERN.matcher(h3Index).matches())
+      throw new HttpException(BAD_REQUEST, "Invalid argument! '" + Query.H3_INDEX + "' must be an H3 cell index of 15 or 16 "
+          + "hexadecimal digits.");
   }
 
   /**
