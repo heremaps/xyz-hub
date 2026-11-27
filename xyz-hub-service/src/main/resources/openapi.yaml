@@ -1413,6 +1413,9 @@ components:
             The hexbin algorithm divides the world in hexagonal "bins" on a specified resolution.
             Each hexagon has an address being described by the H3 addressing scheme.
             For more information on this topic see: https://eng.uber.com/h3/
+            The geometry of a hexagon is a Polygon, or a MultiPolygon for a cell that is split at the antimeridian.
+            Such a cell counts the features on both sides of the antimeridian.
+            The property "pentagon" is true for the 12 pentagon cells of each resolution.
 
           * "quadbin"
 
@@ -1451,7 +1454,7 @@ components:
         | resolution  | Number  | NO        | deprecated, renamed to absoluteResolution                             |
         | relativeResolution | Number  | NO        | integer value [-2,2] to be added to current used resolution  |
         | property    | String  | NO        | A property of the original features for which to calculate statistics |
-        | pointmode   | Boolean | NO        | retuns the centroid of hexagons as geojson feature                    |
+        | pointmode   | Boolean | NO        | retuns the center of hexagons as geojson feature                      |
         | singlecoord | Boolean | NO        | force to evaluate the first object coordinate only (default: false)   |
         | sampling    | String  | NO        | samplingratio of underlying dataset  |
         |             |         |           | string value [off (1/1), low (1/8), lowmed (1/32), med (1/128), medhigh (1/1024), high (1/4096)] (default: off) |
@@ -1830,7 +1833,9 @@ components:
       name: h3Index
       in: query
       description: >-
-        H3 index
+        H3 index: an H3 cell index as 15 or 16 hexadecimal digits, e.g., `871faeba8ffffff`.
+        Malformed values and values that are not a valid H3 cell are rejected with status 400.
+        A cell crossing the antimeridian is matched with its boundary split at +-180 degrees.
       schema:
         type: string
     Radius:

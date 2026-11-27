@@ -108,8 +108,8 @@
   </profiles>
   <build>
     <!--
-      The hub script check of the ITs lists ext.sql and h3.sql of xyz-psql-connector under /sql. Without them on the test class
-      path, the ITs would depend on a hub.ext schema that someone else installed in the test database.
+      The hub script check of the ITs lists ext.sql and hexbin_h3.sql of xyz-psql-connector under /sql. Without them on the test
+      class path, the ITs would depend on a hub.ext schema that someone else installed in the test database.
     -->
     <testResources>
       <testResource>
@@ -119,7 +119,7 @@
         <directory>${project.basedir}/../xyz-psql-connector/src/main/resources</directory>
         <includes>
           <include>sql/ext.sql</include>
-          <include>sql/h3.sql</include>
+          <include>sql/hexbin_h3.sql</include>
         </includes>
       </testResource>
     </testResources>

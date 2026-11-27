@@ -81,15 +81,17 @@ public class PooledDataSources extends DataSourceProvider {
   }
 
   /**
-   * Builds the search path of the connections: the current schema, "public", "topology", then the provided schemas, each as a
-   * quoted identifier with embedded double quotes doubled.
+   * Builds the search path of the connections: the current schema, "public", "topology", "h3_ext", then the provided schemas,
+   * each as a quoted identifier with embedded double quotes doubled.
+   * "h3_ext" holds the extensions h3 and h3_postgis. The SQL functions of h3_postgis call further functions unqualified, so the
+   * schema must be on the search path. A schema of the search path that does not exist is ignored by the database.
    *
    * @param currentSchema The connector schema
    * @param searchPath The further schemas, e.g., the script schemas
    * @return The value for {@code SET search_path}
    */
   public static String compileSearchPath(String currentSchema, List<String> searchPath) {
-    List<String> enrichedSearchPath = new ArrayList<>(List.of(currentSchema, "public", "topology"));
+    List<String> enrichedSearchPath = new ArrayList<>(List.of(currentSchema, "public", "topology", "h3_ext"));
     enrichedSearchPath.addAll(searchPath);
     return enrichedSearchPath.stream().map(schema -> "\"" + schema.replace("\"", "\"\"") + "\"")
         .collect(Collectors.joining(", "));

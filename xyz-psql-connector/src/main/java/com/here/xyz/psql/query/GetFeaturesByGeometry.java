@@ -45,7 +45,9 @@ public class GetFeaturesByGeometry extends Spatial<GetFeaturesByGeometryEvent, F
     final int radius = event.getRadius();
 
     SQLQuery geoFilter = event.getH3Index() != null
-            ? new SQLQuery("(h3ToGeoBoundaryDeg(('x' || #{h3Index})::bit(60)::bigint))").withNamedParameter("h3Index", event.getH3Index())
+            //xyz_h3_cell() rejects a value that is not a valid H3 cell. A cell crossing the antimeridian is split into a MultiPolygon.
+            ? new SQLQuery("(h3_ext.h3_cell_to_boundary_geometry(xyz_h3_cell(#{h3Index})))")
+            .withNamedParameter("h3Index", event.getH3Index())
             : new SQLQuery("st_force3d(ST_GeomFromText(#{wktGeometry}" + (radius != 0 ? "" : ", 4326") + "))")
             .withNamedParameter("wktGeometry", WKTHelper.geometryToWKT2d(event.getGeometry()));
 

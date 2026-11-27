@@ -25,7 +25,7 @@ let pgClient = new Client({
   user: "postgres",
   password: "password",
   database: "postgres",
-  options: `-c search_path=public,topology,hub.common,hub.geo,hub.feature_writer,hub.h3,hub.ext`
+  options: `-c search_path=public,topology,hub.common,hub.geo,hub.feature_writer,hub.ext`
 });
 
 let clientConnected = false;

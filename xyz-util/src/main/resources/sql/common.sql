@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@
  */
 
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -71,6 +71,67 @@ DO $initializeDatabase$
         EXECUTE format('SET search_path = %s', original_search_path);
 END;
 $initializeDatabase$;
+
+/**
+ * Installs the extensions h3 and h3_postgis (and postgis_raster, which h3_postgis requires).
+ * Unlike the block above, which returns early on every database that has postgis already, this block also runs on existing
+ * databases. It can be folded into the block above once the extensions are installed on all databases.
+ * h3 and h3_postgis go into the dedicated schema h3_ext, never into "public" and never into a schema named "h3":
+ * Older versions resolve the unqualified type h3index of their own H3 functions through a search path with "public" first, so a
+ * base type h3index in "public" would replace their domain h3index.
+ * If the extensions are not available, the privileges are missing or the installation fails otherwise, the block only raises a
+ * warning, so that the other scripts still get installed. H3 based features (hexbin clustering, h3Index) do not work on such a
+ * database then. Only transient errors (e.g., a lock timeout) fail the script, so that the installer retries it.
+ * This script gets installed into several schemas concurrently (e.g., the hub and the jobs schemas), each under a lock of its own
+ * schema, so the block takes an additional lock of its own.
+ */
+DO $installH3Extensions$
+    DECLARE
+        original_search_path text := current_setting('search_path');
+    BEGIN
+        IF (SELECT count(*) FROM pg_extension e JOIN pg_namespace n ON n.oid = e.extnamespace
+            WHERE e.extname IN ('h3', 'h3_postgis') AND n.nspname = 'h3_ext') = 2 THEN
+            RETURN;
+        END IF;
+
+        IF (SELECT count(*) FROM pg_available_extensions WHERE name IN ('h3', 'h3_postgis', 'postgis_raster')) < 3 THEN
+            RAISE WARNING 'The extensions h3, h3_postgis and postgis_raster are not all available. H3 features will not work.';
+            RETURN;
+        END IF;
+
+        IF EXISTS(SELECT 1 FROM pg_extension e JOIN pg_namespace n ON n.oid = e.extnamespace
+            WHERE e.extname IN ('h3', 'h3_postgis') AND n.nspname != 'h3_ext') THEN
+            RAISE WARNING 'The extension h3 or h3_postgis is installed in another schema than h3_ext. H3 features will not work.';
+            RETURN;
+        END IF;
+
+        PERFORM pg_advisory_xact_lock(('x' || left(md5('xyz_h3_extensions'), 15))::bit(60)::bigint);
+
+        BEGIN
+            --No VERSION clause: the default version of the database is used. No CASCADE: it would put postgis_raster into h3_ext.
+            CREATE EXTENSION IF NOT EXISTS postgis_raster SCHEMA public;
+            CREATE SCHEMA IF NOT EXISTS h3_ext;
+            CREATE EXTENSION IF NOT EXISTS h3 SCHEMA h3_ext;
+            CREATE EXTENSION IF NOT EXISTS h3_postgis SCHEMA h3_ext;
+            GRANT USAGE ON SCHEMA h3_ext TO PUBLIC;
+        EXCEPTION
+            WHEN unique_violation OR duplicate_object THEN
+                --The lock above rules out concurrent installs by the Hub and the job steps, so this is mostly a conflicting object
+                RAISE WARNING 'The H3 extensions could not be installed, an object exists already. H3 features might not work: %', SQLERRM;
+            WHEN insufficient_privilege THEN
+                RAISE WARNING 'Missing privileges to install the H3 extensions. H3 features will not work: %', SQLERRM;
+            --Transient errors fail the script, so that the installer retries it instead of skipping the extensions
+            WHEN query_canceled OR lock_not_available OR deadlock_detected OR serialization_failure THEN
+                RAISE;
+            --Any other error must not fail the installation of this script
+            WHEN OTHERS THEN
+                RAISE WARNING 'The H3 extensions could not be installed. H3 features will not work: % (SQLSTATE %)', SQLERRM, SQLSTATE;
+        END;
+
+        --Ensure to restore the original search path because some of the installations above might have changed it
+        EXECUTE format('SET search_path = %s', original_search_path);
+END;
+$installH3Extensions$;
 
 /**
  * Returns a context field's value.

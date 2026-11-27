@@ -21,6 +21,7 @@ package com.here.xyz.psql;
 
 import static com.here.xyz.responses.XyzError.EXCEPTION;
 import static com.here.xyz.responses.XyzError.ILLEGAL_ARGUMENT;
+import static com.here.xyz.responses.XyzError.NOT_IMPLEMENTED;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -47,6 +48,32 @@ class SQLExceptionMappingTest {
     assertEquals(ILLEGAL_ARGUMENT, e.getErrorResponse().getError());
     //The message must not echo the invalid input
     assertFalse(e.getErrorResponse().getErrorMessage().contains("\u0000"));
+  }
+
+  @Test
+  void invalidH3CellIsAnIllegalArgument() {
+    ErrorResponseException e = map(new SQLException("ERROR: Invalid h3Index 871faeba8fffff1: not a valid H3 cell Query: SELECT 1",
+        "XYZ40"));
+    assertEquals(ILLEGAL_ARGUMENT, e.getErrorResponse().getError());
+    //The message must not echo the invalid input
+    assertFalse(e.getErrorResponse().getErrorMessage().contains("871faeba8fffff1"));
+  }
+
+  @Test
+  void missingH3ExtensionIsNotImplemented() {
+    assertEquals(NOT_IMPLEMENTED, map(new SQLException("ERROR: function xyz_h3_cover(geometry, integer) does not exist Query: "
+        + "SELECT 1", "42883")).getErrorResponse().getError());
+    assertEquals(NOT_IMPLEMENTED, map(new SQLException("ERROR: schema \"h3_ext\" does not exist Query: SELECT 1", "3F000"))
+        .getErrorResponse().getError());
+    assertEquals(NOT_IMPLEMENTED, map(new SQLException("ERROR: type \"h3_ext.h3index\" does not exist", "42704"))
+        .getErrorResponse().getError());
+  }
+
+  @Test
+  void otherMissingFunctionsStayExceptions() {
+    //Only the server's message counts, not the query text appended to it
+    assertEquals(EXCEPTION, map(new SQLException("ERROR: function max_bigint() does not exist Query: SELECT "
+        + "h3_ext.h3_is_pentagon(cc.h3)", "42883")).getErrorResponse().getError());
   }
 
   @Test
