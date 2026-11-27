@@ -76,11 +76,24 @@ class GetFeaturesByBBoxClusteredTest {
       params.put("pointmode", true);
     String sql = sql(event(params));
     for (String expected : new String[]{"h3_ext.h3_cell_to_boundary_geometry(cc.h3)", "h3_ext.h3_cell_to_geometry(cc.h3)",
-        "h3_ext.h3_is_pentagon(cc.h3)", "h3_ext.h3_get_hexagon_edge_length_avg(", "xyz_h3_cover(", "OPERATOR(h3_ext.@)"})
+        "h3_ext.h3_is_pentagon(cc.h3)", "h3_ext.h3_get_hexagon_edge_length_avg(", "xyz_h3_cover(", "OPERATOR(h3_ext.@)",
+        "xyz_h3_buffered_bbox("})
       assertTrue(sql.contains(expected), expected + " missing in: " + sql);
-    //No Polygon typmod (a cell split at the antimeridian is a MultiPolygon), no centroid of the boundary, no functions of the port
+    //No Polygon typmod (a cell split at the antimeridian is a MultiPolygon), no centroid of the boundary, no functions of the port,
+    //no inline buffered envelope (it wraps around at the antimeridian)
     for (String unexpected : new String[]{"::geometry(Polygon", "bit(64)", "h3togeoboundarydeg", "coveringDeg", "edgeLengthM",
-        "h3ToGeoDeg", "st_centroid(geo)"})
+        "h3ToGeoDeg", "st_centroid(geo)", "st_envelope( st_buffer("})
       assertFalse(sql.contains(unexpected), unexpected + " found in: " + sql);
+  }
+
+  @Test
+  void hexbinBboxAtTheAntimeridianUsesTheSameFilter() throws Exception {
+    GetFeaturesByBBoxEvent event = event(new HashMap<>(Map.of("absoluteResolution", 5)));
+    event.setBbox(new BBox(179, 0, 180, 2));
+    String sql = sql(event);
+    //The request bbox is passed unchanged, the split at the antimeridian happens in SQL
+    String expected = "xyz_h3_buffered_bbox(179.00000000000000, 0.00000000000000, 180.00000000000000, 2.00000000000000, "
+        + "2.5 * h3_ext.h3_get_hexagon_edge_length_avg(5, 'm'))";
+    assertTrue(sql.contains(expected), expected + " missing in: " + sql);
   }
 }

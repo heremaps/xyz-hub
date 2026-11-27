@@ -19,17 +19,25 @@
 
 package com.here.xyz.psql;
 
+import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.GEO_JSON;
+import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT;
 import static com.here.xyz.responses.XyzError.ILLEGAL_ARGUMENT;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
+import com.here.xyz.events.GetFeaturesByTileEvent;
+import com.here.xyz.events.GetFeaturesByTileEvent.ResponseType;
 import com.here.xyz.events.ModifyFeaturesEvent;
+import com.here.xyz.models.geojson.WebMercatorTile;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
@@ -51,12 +59,15 @@ import java.util.TreeSet;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.locationtech.jts.geom.Coordinate;
 
 /**
  * Hexbin clustering and the h3Index filter on top of the extensions h3 and h3_postgis.
  * The features of the different tests are far enough apart, so that the (buffered) bounding box of one test contains no feature
- * of another test.
+ * of another test. The exception are the antimeridian tests: their bounding boxes overlap, so they only assert on their own cell.
  */
 public class PSQLH3IT extends PSQLAbstractIT {
   private static final String SPACE = PSQLH3IT.class.getSimpleName().toLowerCase() + "_" + Random.randomAlpha(5).toLowerCase();
@@ -67,6 +78,9 @@ public class PSQLH3IT extends PSQLAbstractIT {
   private static final String PENTAGON_CENTER = point(10.536199075, 64.700000128);
   //The cell 857eb1c3fffffff (resolution 5) crosses the antimeridian and contains both points at +-179.99
   private static final String ANTIMERIDIAN_CELL = "857eb1c3fffffff";
+  //The cell 857eb3b3fffffff (resolution 5) crosses the antimeridian with two parts of about equal size, and contains the four points
+  //am-east-1, am-east-2, am-west-1 and am-west-2
+  private static final String SPLIT_CELL = "857eb3b3fffffff";
 
   @BeforeAll
   public static void createFixture() throws Exception {
@@ -78,7 +92,11 @@ public class PSQLH3IT extends PSQLAbstractIT {
         feature("pentagon", PENTAGON_CENTER),
         feature("east", point(179.99, 0.55)),
         feature("west", point(-179.99, 0.55)),
-        feature("east-outside", point(179.0, 0.55))));
+        feature("east-outside", point(179.0, 0.55)),
+        feature("am-east-1", point(179.97, 1.146), 1),
+        feature("am-east-2", point(179.96, 1.15), 2),
+        feature("am-west-1", point(-179.97, 1.146), 3),
+        feature("am-west-2", point(-179.96, 1.15), 4)));
   }
 
   @AfterAll
@@ -130,14 +148,126 @@ public class PSQLH3IT extends PSQLAbstractIT {
   }
 
   @Test
-  public void hexbinAtTheAntimeridian() throws Exception {
-    //The request must not fail on the cell that is split at the antimeridian (a MultiPolygon). That cell itself is not returned:
-    //Hexbin only returns cells that are contained properly by the buffered bounding box, which never extends beyond +-180.
+  public void hexbinReturnsTheCellAcrossTheAntimeridian() throws Exception {
+    //The cell that is split at the antimeridian is returned as a MultiPolygon and counts the points on both sides.
+    //The buffered bounding box is split at the antimeridian as well, and its parts reach beyond +-180, so the cell is contained properly.
     FeatureCollection result = hexbin(new BBox(179.5, 0, 180, 1), Map.of("absoluteResolution", 5));
-    for (Feature cell : result.getFeatures()) {
-      assertFalse(ANTIMERIDIAN_CELL.equals(cell.getProperties().get("kind_detail")));
-      for (Coordinate coordinate : cell.getGeometry().getJTSGeometry().getCoordinates())
+    Feature cell = cell(result, ANTIMERIDIAN_CELL);
+    assertEquals("MultiPolygon", cell.getGeometry().getJTSGeometry().getGeometryType());
+    assertEquals(2L, qty(cell));
+    for (Feature any : result.getFeatures())
+      for (Coordinate coordinate : any.getGeometry().getJTSGeometry().getCoordinates())
         assertTrue(coordinate.x >= -180 && coordinate.x <= 180, "Longitude out of range: " + coordinate.x);
+  }
+
+  @ParameterizedTest
+  @CsvSource({"179, 0, 180, 2", "-180, 0, -179, 2"})
+  public void hexbinCountsBothSidesOfTheAntimeridian(double west, double south, double east, double north) throws Exception {
+    FeatureCollection result = hexbin(new BBox(west, south, east, north), Map.of("absoluteResolution", 5, "property", "value"));
+    Feature cell = cell(result, SPLIT_CELL);
+    assertEquals("MultiPolygon", cell.getGeometry().getJTSGeometry().getGeometryType());
+    assertFalse((Boolean) cell.getProperties().get("pentagon"));
+    Map<String, Object> statistics = (Map<String, Object>) ((Map<String, Object>) cell.getProperties().get("aggregation")).get("value");
+    assertEquals(4L, ((Number) statistics.get("qty")).longValue());
+    assertEquals(1.0, ((Number) statistics.get("min")).doubleValue());
+    assertEquals(4.0, ((Number) statistics.get("max")).doubleValue());
+    assertEquals(10.0, ((Number) statistics.get("sum")).doubleValue());
+  }
+
+  @ParameterizedTest
+  @CsvSource({"179, 0, 180, 2", "-180, 0, -179, 2"})
+  public void hexbinPointModeAcrossTheAntimeridian(double west, double south, double east, double north) throws Exception {
+    FeatureCollection result = hexbin(new BBox(west, south, east, north), Map.of("absoluteResolution", 5, "pointmode", true));
+    org.locationtech.jts.geom.Geometry geometry = cell(result, SPLIT_CELL).getGeometry().getJTSGeometry();
+    //The true center of the cell, not the centroid of its split boundary. For the bbox at -180 it lies at +179.998, outside the bbox.
+    assertEquals("Point", geometry.getGeometryType());
+    double[] center = center(SPLIT_CELL);
+    assertEquals(center[0], geometry.getCoordinate().x, 1e-6);
+    assertEquals(center[1], geometry.getCoordinate().y, 1e-6);
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {127, 0})
+  public void hexbinTileAtTheAntimeridian(int x) throws Exception {
+    //Level 7 results in resolution 5
+    BBox tileBBox = WebMercatorTile.forWeb(7, x, 63).getBBox(false);
+    FeatureCollection result = deserializeResponse(invokeLambda(tileEvent(x, GEO_JSON, defaultTestConnectorParams)));
+    Feature cell = cell(result, SPLIT_CELL);
+    assertEquals(4L, qty(cell));
+    //Clipped to the tile, so only the part on the side of the tile remains
+    org.locationtech.jts.geom.Geometry geometry = cell.getGeometry().getJTSGeometry();
+    assertEquals("Polygon", geometry.getGeometryType());
+    for (Coordinate coordinate : geometry.getCoordinates())
+      assertTrue(coordinate.x >= tileBBox.minLon() && coordinate.x <= tileBBox.maxLon(), "Outside of the tile: " + coordinate.x);
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {127, 0})
+  public void hexbinMvtTileAtTheAntimeridian(int x) throws Exception {
+    Map<String, Object> connectorParams = new HashMap<>(defaultTestConnectorParams);
+    connectorParams.put("mvtSupport", true);
+    //The type BinaryResponse is not registered for the JSON deserialization, so the response is read as a tree
+    String serialized = invokeLambda(tileEvent(x, MVT, connectorParams));
+    JsonNode response = new ObjectMapper().readTree(serialized);
+    assertEquals("BinaryResponse", response.path("type").asText(), serialized);
+    byte[] bytes = response.path("bytes").binaryValue();
+    assertNotNull(bytes, "The tile must not be empty");
+    //The connector module has no MVT decoder, but the property values are plain strings in the encoded tile
+    assertTrue(new String(bytes, UTF_8).contains(SPLIT_CELL), "The cell " + SPLIT_CELL + " is missing");
+  }
+
+  //Proves today's envelope, bit for bit, for the bboxes of the existing ITs and for the cases that are excluded from the split
+  @ParameterizedTest
+  @CsvSource({"12, 54, 15, 51, 6", "11.25, 48.92249926375824, 22.5, 55.77657301866769, 4", "8.5, 50.1, 8.6, 50.2, 7",
+      "10, 64.5, 11.1, 64.9, 6", "170, 0, -170, 10, 2", "-170, 0, 170, 10, 2", "-179.9999, -85, 180, 85, 2", "10, 84, 20, 89, 0",
+      "170, 0, 175, 1, 9"})
+  public void bufferedBboxAwayFromTheAntimeridianIsUnchanged(double west, double south, double east, double north, int resolution)
+      throws Exception {
+    try (Connection connection = LAMBDA.dataSourceProvider.getWriter().getConnection();
+        PreparedStatement statement = connection.prepareStatement(
+            "SELECT ST_AsEWKB(xyz_h3_buffered_bbox(?, ?, ?, ?, 2.5 * h3_ext.h3_get_hexagon_edge_length_avg(?, 'm'))) = "
+                + "ST_AsEWKB(st_envelope(st_buffer(ST_MakeEnvelope(?, ?, ?, ?, 4326)::geography, "
+                + "2.5 * h3_ext.h3_get_hexagon_edge_length_avg(?, 'm'))::geometry))")) {
+      for (int offset : new int[]{0, 5}) {
+        statement.setDouble(offset + 1, west);
+        statement.setDouble(offset + 2, south);
+        statement.setDouble(offset + 3, east);
+        statement.setDouble(offset + 4, north);
+        statement.setInt(offset + 5, resolution);
+      }
+      try (ResultSet result = statement.executeQuery()) {
+        assertTrue(result.next());
+        assertTrue(result.getBoolean(1));
+      }
+    }
+  }
+
+  @ParameterizedTest
+  @CsvSource({"179, 0, 180, 2, 178.78, -179.78", "-180, 0, -179, 2, 179.78, -178.78"})
+  public void bufferedBboxIsSplitAtTheAntimeridian(double west, double south, double east, double north, double eastPartWest,
+      double westPartEast) throws Exception {
+    try (Connection connection = LAMBDA.dataSourceProvider.getWriter().getConnection();
+        PreparedStatement statement = connection.prepareStatement(
+            "SELECT ST_GeometryType(b), ST_NumGeometries(b), "
+                + "ST_XMin(ST_GeometryN(b, 1)), ST_XMax(ST_GeometryN(b, 1)), ST_YMin(ST_GeometryN(b, 1)), ST_YMax(ST_GeometryN(b, 1)), "
+                + "ST_XMin(ST_GeometryN(b, 2)), ST_XMax(ST_GeometryN(b, 2)), ST_YMin(ST_GeometryN(b, 2)), ST_YMax(ST_GeometryN(b, 2)) "
+                + "FROM xyz_h3_buffered_bbox(?, ?, ?, ?, 2.5 * h3_ext.h3_get_hexagon_edge_length_avg(5, 'm')) b")) {
+      statement.setDouble(1, west);
+      statement.setDouble(2, south);
+      statement.setDouble(3, east);
+      statement.setDouble(4, north);
+      try (ResultSet result = statement.executeQuery()) {
+        assertTrue(result.next());
+        assertEquals("ST_MultiPolygon", result.getString(1));
+        assertEquals(2, result.getInt(2));
+        //The part east of the antimeridian, then the one west of it
+        assertEquals(eastPartWest, result.getDouble(3), 0.01);
+        assertEquals(181.0, result.getDouble(4));
+        assertEquals(-181.0, result.getDouble(7));
+        assertEquals(westPartEast, result.getDouble(8), 0.01);
+        assertEquals(result.getDouble(5), result.getDouble(9));
+        assertEquals(result.getDouble(6), result.getDouble(10));
+      }
     }
   }
 
@@ -180,6 +310,44 @@ public class PSQLH3IT extends PSQLAbstractIT {
     return result;
   }
 
+  private static GetFeaturesByTileEvent tileEvent(int x, ResponseType responseType, Map<String, Object> connectorParams) {
+    return new GetFeaturesByTileEvent()
+        .withLevel(7)
+        .withX(x)
+        .withY(63)
+        .withResponseType(responseType)
+        .withBbox(WebMercatorTile.forWeb(7, x, 63).getBBox(false))
+        .withClip(true)
+        .withClusteringType("hexbin")
+        .withClusteringParams(new HashMap<>())
+        .withConnectorParams(connectorParams)
+        .withSpace(SPACE);
+  }
+
+  private static Feature cell(FeatureCollection result, String h3Index) throws Exception {
+    return result.getFeatures().stream()
+        .filter(cell -> h3Index.equals(cell.getProperties().get("kind_detail")))
+        .findFirst()
+        .orElseThrow(() -> new AssertionError("The cell " + h3Index + " is missing in " + result.serialize()));
+  }
+
+  private static long qty(Feature cell) {
+    return ((Number) ((Map<String, Object>) cell.getProperties().get("aggregation")).get("qty")).longValue();
+  }
+
+  //The longitude and latitude of h3_cell_to_geometry() of the cell
+  private static double[] center(String h3Index) throws Exception {
+    try (Connection connection = LAMBDA.dataSourceProvider.getWriter().getConnection();
+        PreparedStatement statement = connection.prepareStatement(
+            "SELECT ST_X(c), ST_Y(c) FROM h3_ext.h3_cell_to_geometry(?::h3_ext.h3index) c")) {
+      statement.setString(1, h3Index);
+      try (ResultSet result = statement.executeQuery()) {
+        assertTrue(result.next());
+        return new double[]{result.getDouble(1), result.getDouble(2)};
+      }
+    }
+  }
+
   private static long sumOfQty(FeatureCollection result) throws Exception {
     long sum = 0;
     for (Feature cell : result.getFeatures())
@@ -215,6 +383,13 @@ public class PSQLH3IT extends PSQLAbstractIT {
         .withId(id)
         .withGeometry(XyzSerializable.deserialize(geoJson, Geometry.class))
         .withProperties(new Properties().withXyzNamespace(new XyzNamespace()));
+  }
+
+  private static Feature feature(String id, String geoJson, int value) throws Exception {
+    return new Feature()
+        .withId(id)
+        .withGeometry(XyzSerializable.deserialize(geoJson, Geometry.class))
+        .withProperties(new Properties().withXyzNamespace(new XyzNamespace()).with("value", value));
   }
 
   private static String point(double lon, double lat) {

@@ -74,3 +74,53 @@ BEGIN
 END
 $BODY$
 LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE;
+
+/**
+ * Returns the number of consecutive vertices of the rings and lines of the geometry whose longitudes differ by more than 180 degrees.
+ * A buffer computed on the geography and cast back to geometry has such a jump wherever its boundary crosses the antimeridian.
+ */
+CREATE OR REPLACE FUNCTION xyz_h3_antimeridian_jumps(geo GEOMETRY) RETURNS BIGINT AS
+$BODY$
+    SELECT count(*) FROM (
+        SELECT abs(ST_X(geom) - lag(ST_X(geom)) OVER (PARTITION BY path[1:array_length(path, 1) - 1]
+            ORDER BY path[array_length(path, 1)])) AS dx
+        FROM ST_DumpPoints(geo)
+    ) vertices WHERE dx > 180
+$BODY$
+LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE;
+
+/**
+ * Returns the bounding box buffered by the distance in meters, which hexbin uses to read the features and to select the cells.
+ * Usually the envelope of the buffer. If the buffer crosses the antimeridian, a MultiPolygon of two envelopes instead, one on each
+ * side of +-180, so that it does not wrap around into an envelope over almost all longitudes. Both parts reach one degree beyond
+ * +-180, so that the parts of a cell split at the antimeridian, which end on +-180, lie in their interior.
+ * The envelope of the buffer is kept for a bbox with west > east or spanning 180 degrees or more, and for a buffer around a pole.
+ */
+CREATE OR REPLACE FUNCTION xyz_h3_buffered_bbox(west FLOAT8, south FLOAT8, east FLOAT8, north FLOAT8, distance FLOAT8)
+    RETURNS GEOMETRY AS
+$BODY$
+DECLARE
+    buffered GEOMETRY := ST_Buffer(ST_MakeEnvelope(west, south, east, north, 4326)::geography, distance)::geometry;
+    jumps BIGINT;
+    shifted GEOMETRY;
+BEGIN
+    IF west > east OR east - west >= 180 THEN
+        RETURN ST_Envelope(buffered);
+    END IF;
+    jumps := xyz_h3_antimeridian_jumps(buffered);
+    --No jump: no crossing. An odd number: the buffer surrounds a pole, its envelope covers all longitudes already.
+    IF jumps = 0 OR jumps % 2 = 1 THEN
+        RETURN ST_Envelope(buffered);
+    END IF;
+    --Longitudes from 0 to 360, so that the buffer is continuous across the antimeridian
+    shifted := ST_ShiftLongitude(buffered);
+    --A buffer that crosses the prime meridian as well is wider than 180 degrees, keep its envelope
+    IF xyz_h3_antimeridian_jumps(shifted) > 0 OR ST_XMin(shifted) >= 180 OR ST_XMax(shifted) <= 180 THEN
+        RETURN ST_Envelope(buffered);
+    END IF;
+    RETURN ST_Collect(
+        ST_MakeEnvelope(ST_XMin(shifted), ST_YMin(buffered), 181, ST_YMax(buffered), 4326),
+        ST_MakeEnvelope(-181, ST_YMin(buffered), ST_XMax(shifted) - 360, ST_YMax(buffered), 4326));
+END
+$BODY$
+LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE;

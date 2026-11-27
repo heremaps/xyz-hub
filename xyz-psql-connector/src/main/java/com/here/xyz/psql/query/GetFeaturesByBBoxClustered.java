@@ -148,10 +148,10 @@ public class GetFeaturesByBBoxClustered<E extends GetFeaturesByBBoxEvent, R exte
         String statisticalProperty = (String) clusteringParams.get(HEXBIN_PROPERTY);
         boolean statisticalPropertyProvided = (statisticalProperty != null && statisticalProperty.length() > 0),
                 h3cflip = clusteringParams.get(HEXBIN_POINTMODE) == Boolean.TRUE;
+        //xyz_h3_buffered_bbox() (hexbin_h3.sql) splits the buffered bbox at the antimeridian instead of letting it wrap around
                /** todo: replace format %.14f with parameterized version e.g. re-use #buildGeoFilterFromBbox()*/
         final String expBboxSql = DhString
-                .format("st_envelope( st_buffer( ST_MakeEnvelope(%.14f,%.14f,%.14f,%.14f, 4326)::geography, "
-                        + "( 2.5 * h3_ext.h3_get_hexagon_edge_length_avg( %d, 'm' )) )::geometry )",
+                .format("xyz_h3_buffered_bbox(%.14f, %.14f, %.14f, %.14f, 2.5 * h3_ext.h3_get_hexagon_edge_length_avg(%d, 'm'))",
                         bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat(), h3Resolution);
 
         /*clippedGeo - passed bbox is extended by "margin" on service level */
@@ -223,6 +223,7 @@ public class GetFeaturesByBBoxClustered<E extends GetFeaturesByBBoxEvent, R exte
         .withNamedParameter("zLevel", zLevel)
         .withQueryFragment("geoResultFieldName", !h3cflip ? "centroid" : "hexagon")
         .withQueryFragment("fid", fid)
+        //A cell split at the antimeridian passes st_containsproperly (omni), because the split filter reaches beyond +-180
         .withQueryFragment("geoFilter", expBboxSql)
         .withQueryFragment("filterEmptyGeo", event.getClip() ? DhString.format(" and not st_isempty( %s ) ", clippedGeo) : "")
         .withNamedParameter("limit", event.getLimit());
