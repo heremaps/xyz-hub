@@ -85,6 +85,8 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
   public static final String CLEAR_LAZY_TABLE_CONDITION = "#s.#i = :connector AND #s.#p.#t = :table";
   public static final String CLEAR_LAZY_TABLE_LEGACY_CONDITION =
       "#s.#i = :connector AND attribute_exists(#s.#p) AND attribute_not_exists(#s.#p.#t)";
+  public static final String DEACTIVATE_UPDATE_EXPRESSION = "SET #a = :false";
+  public static final String DEACTIVATE_CONDITION = "attribute_exists(#i)";
 
   private final DynamoClient dynamoClient;
   private Table spaces;
@@ -249,6 +251,36 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
     AttributeValue params = storage == null || storage.getM() == null ? null : storage.getM().get("params");
     return params != null && params.getM() != null && params.getM().containsKey("lazyTable") ? ClearResult.REMOVED
         : ClearResult.ABSENT;
+  }
+
+  @Override
+  protected Future<Boolean> deactivateSpace(Marker marker, String spaceId) {
+    return dynamoClient.executeQueryAsync(() -> {
+      try {
+        dynamoClient.client.updateItem(buildDeactivateRequest(spaces.getTableName(), spaceId));
+        return true;
+      }
+      catch (ConditionalCheckFailedException e) {
+        //The space was deleted after it was listed, e.g. by a parallel deletion; updating it would re-create it
+        logger.warn(marker, "space[{}]: Skipped the deactivation, the space no longer exists in table {}", spaceId,
+            spaces.getTableName());
+        return false;
+      }
+    });
+  }
+
+  /**
+   * The update request that sets {@code active} of a space to false. It never creates an item, because the condition is false for
+   * a missing one, e.g. for an extension deleted in parallel to the deletion of its base.
+   */
+  public static UpdateItemRequest buildDeactivateRequest(String table, String spaceId) {
+    return new UpdateItemRequest()
+        .withTableName(table)
+        .withKey(Collections.singletonMap("id", new AttributeValue(spaceId)))
+        .withUpdateExpression(DEACTIVATE_UPDATE_EXPRESSION)
+        .withConditionExpression(DEACTIVATE_CONDITION)
+        .withExpressionAttributeNames(Map.of("#a", "active", "#i", "id"))
+        .withExpressionAttributeValues(Map.of(":false", new AttributeValue().withBOOL(false)));
   }
 
   private boolean packagesEqual(List<String> packages1, List<String> packages2) {
