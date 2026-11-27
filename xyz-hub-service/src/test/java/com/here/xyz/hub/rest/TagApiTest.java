@@ -21,11 +21,13 @@ package com.here.xyz.hub.rest;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.jwt.JWTPayload;
 import com.here.xyz.models.hub.Tag;
+import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.service.errors.DetailedHttpException;
 import com.here.xyz.util.service.errors.ErrorManager;
 import io.vertx.core.Future;
@@ -99,9 +101,7 @@ public class TagApiTest {
   @Test
   public void negativeVersionIsRejected() {
     for (String body : new String[]{"{\"version\":-10}", "{\"version\":-1}", "{\"versionRef\":\"-10\"}"}) {
-      Future<Tag> result = TagApi.deserializeTag(body);
-      assertTrue(body, result.failed());
-      DetailedHttpException e = (DetailedHttpException) result.cause();
+      DetailedHttpException e = assertThrows(body, DetailedHttpException.class, () -> TagApi.deserializeTag(body));
       assertEquals(body, "E318404", e.errorDefinition.getCode());
       assertEquals(body, 400, e.status.code());
       assertEquals(body, "The version of a tag must not be lower than 0.", e.placeholders.get("cause"));
@@ -110,21 +110,25 @@ public class TagApiTest {
 
   @Test
   public void rangeInBodyIsStillRejectedAsRange() {
-    Future<Tag> result = TagApi.deserializeTag("{\"versionRef\":\"1..3\"}");
-    assertTrue(result.failed());
-    DetailedHttpException e = (DetailedHttpException) result.cause();
+    DetailedHttpException e = assertThrows(DetailedHttpException.class, () -> TagApi.deserializeTag("{\"versionRef\":\"1..3\"}"));
     assertEquals("E318404", e.errorDefinition.getCode());
     assertEquals("1..3", e.placeholders.get("versionRef"));
     assertTrue(e.placeholders.get("cause").startsWith("A tag must point to a single version or HEAD"));
   }
 
   @Test
-  public void validVersionsAreAccepted() {
-    assertTrue(TagApi.deserializeTag("{\"version\":0}").result().getVersionRef().isSingleVersion());
-    assertEquals(5, TagApi.deserializeTag("{\"version\":5}").result().getVersionRef().getVersion());
-    assertEquals(5, TagApi.deserializeTag("{\"versionRef\":\"5\"}").result().getVersionRef().getVersion());
+  public void blankOrInvalidBodyIsRejected() {
+    for (String body : new String[]{null, "", "  ", "{"})
+      assertThrows(String.valueOf(body), ValidationException.class, () -> TagApi.deserializeTag(body));
+  }
+
+  @Test
+  public void validVersionsAreAccepted() throws Exception {
+    assertTrue(TagApi.deserializeTag("{\"version\":0}").getVersionRef().isSingleVersion());
+    assertEquals(5, TagApi.deserializeTag("{\"version\":5}").getVersionRef().getVersion());
+    assertEquals(5, TagApi.deserializeTag("{\"versionRef\":\"5\"}").getVersionRef().getVersion());
     //No version at all means HEAD
-    assertTrue(TagApi.deserializeTag("{\"id\":\"t\"}").result().getVersionRef().isHead());
+    assertTrue(TagApi.deserializeTag("{\"id\":\"t\"}").getVersionRef().isHead());
   }
 
   @Test

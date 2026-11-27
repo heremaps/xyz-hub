@@ -52,6 +52,10 @@ import org.apache.logging.log4j.Marker;
 
 public class TagApi extends SpaceBasedApi {
   private static final Pattern NEGATIVE_VERSION = Pattern.compile("-\\d+");
+  //The aid of the token of the DUMMY authorization (auth/dummyJwt.json), which identifies nobody
+  private static final String ANONYMOUS_AID = "ANONYMOUS";
+  //DynamoTagConfigClient reports a tag stored without author as "system"
+  private static final String MISSING_AUTHOR = "system";
 
   public TagApi(RouterBuilder rb) {
     rb.getRoute("createTag").setDoValidation(false).addHandler(handleErrors(this::createTag));
@@ -62,18 +66,18 @@ public class TagApi extends SpaceBasedApi {
   }
 
   // TODO auth
-  private void createTag(RoutingContext context) {
+  private void createTag(RoutingContext context) throws ValidationException, DetailedHttpException {
     String author = getRequestAuthor(context);
-    deserializeTag(context.body().asString())
-        .compose(tag -> createTag(
-            getMarker(context),
-            getSpaceId(context),
-            tag.getId(),
-            tag.getVersionRef(),
-            tag.isSystem(),
-            tag.getDescription(),
-            author,
-            Core.currentTimeMillis()))
+    final Tag tag = deserializeTag(context.body().asString());
+    createTag(
+        getMarker(context),
+        getSpaceId(context),
+        tag.getId(),
+        tag.getVersionRef(),
+        tag.isSystem(),
+        tag.getDescription(),
+        author,
+        Core.currentTimeMillis())
         .onSuccess(result -> sendResponse(context, HttpResponseStatus.OK.code(), result))
         .onFailure(t -> sendErrorResponse(context, t));
   }
@@ -120,15 +124,15 @@ public class TagApi extends SpaceBasedApi {
   }
 
   // TODO auth
-  private void updateTag(RoutingContext context) {
+  private void updateTag(RoutingContext context) throws ValidationException, DetailedHttpException {
     final String spaceId = getSpaceId(context);
     final String tagId = context.pathParam(Path.TAG_ID);
     final Marker marker = getMarker(context);
 
     String author = getRequestAuthor(context);
-    deserializeTag(context.body().asString())
-        .compose(tag -> updateTag(marker, spaceId, tagId, tag.getVersionRef(), author, tag.getDescription()))
-        .onSuccess(tag -> sendResponse(context, HttpResponseStatus.OK.code(), tag))
+    final Tag tag = deserializeTag(context.body().asString());
+    updateTag(marker, spaceId, tagId, tag.getVersionRef(), author, tag.getDescription())
+        .onSuccess(updatedTag -> sendResponse(context, HttpResponseStatus.OK.code(), updatedTag))
         .onFailure(t -> sendErrorResponse(context, t));
   }
 
@@ -212,30 +216,31 @@ public class TagApi extends SpaceBasedApi {
         .compose(none -> Service.tagConfigClient.deleteTag(marker, tagId, spaceId));
   }
 
-  //TODO: Check why does this return a Future ?
-  static Future<Tag> deserializeTag(String body) {
-    if (StringUtils.isBlank(body)) {
-      return Future.failedFuture(new ValidationException("Unable to parse body"));
-    }
+  /**
+   * Thrown exceptions reach the client through {@link #handleErrors}, like the failures of the returned futures of the handlers.
+   */
+  static Tag deserializeTag(String body) throws ValidationException, DetailedHttpException {
+    if (StringUtils.isBlank(body))
+      throw new ValidationException("Unable to parse body");
 
     try {
       Tag tag = XyzSerializable.deserialize(body, Tag.class);
       if (tag.getVersionRef() == null) {
         //-2 is the default of Tag.version, i.e. no version given, which means HEAD
         if (tag.getVersion() < 0 && tag.getVersion() != -2)
-          return Future.failedFuture(negativeTagVersion(String.valueOf(tag.getVersion())));
+          throw negativeTagVersion(String.valueOf(tag.getVersion()));
         tag.setVersionRef(tag.getVersion() == -2 ? new Ref(HEAD) : new Ref(tag.getVersion()));
       }
-      return Future.succeededFuture(tag);
+      return tag;
     } catch (JsonProcessingException e) {
       //Ref rejects a negative version, Tag.setVersionRef() a ref which is not a single version (a range, "*" or a tag)
       if (ExceptionUtils.getRootCause(e) instanceof InvalidRef) {
         final String versionRef = String.valueOf(readVersionRef(body));
-        return Future.failedFuture(NEGATIVE_VERSION.matcher(versionRef).matches()
+        throw NEGATIVE_VERSION.matcher(versionRef).matches()
             ? negativeTagVersion(versionRef)
-            : invalidTagVersionRef(versionRef));
+            : invalidTagVersionRef(versionRef);
       }
-      return Future.failedFuture(new ValidationException("Unable to parse body"));
+      throw new ValidationException("Unable to parse body");
     }
   }
 
@@ -293,8 +298,6 @@ public class TagApi extends SpaceBasedApi {
    * The anonymous token of the DUMMY authorization (e.g. a Hub embedded behind a gateway that removes the token) identifies
    * nobody, so it is not used.
    */
-  private static final String ANONYMOUS_AID = "ANONYMOUS";
-
   public static String getRequestAuthor(RoutingContext context) {
     return resolveAuthor(BaseHttpServerVerticle.getAuthor(context), BaseHttpServerVerticle.getJWT(context));
   }
@@ -306,14 +309,12 @@ public class TagApi extends SpaceBasedApi {
     return StringUtils.firstNonBlank(jwt.aid, jwt.cid, requestAuthor);
   }
 
-  //DynamoTagConfigClient reports a tag stored without author as "system" and without creation time as -1
-  private static final String MISSING_AUTHOR = "system";
-
   static String keptAuthor(Tag loadedTag, String requestAuthor) {
     final String author = loadedTag.getAuthor();
     return (StringUtils.isBlank(author) || MISSING_AUTHOR.equals(author)) && StringUtils.isNotBlank(requestAuthor) ? requestAuthor : author;
   }
 
+  //DynamoTagConfigClient reports a tag stored without creation time as -1
   static long keptCreatedAt(Tag loadedTag) {
     return loadedTag.getCreatedAt() <= 0 ? Core.currentTimeMillis() : loadedTag.getCreatedAt();
   }
