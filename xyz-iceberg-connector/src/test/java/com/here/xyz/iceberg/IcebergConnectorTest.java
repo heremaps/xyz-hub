@@ -62,6 +62,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.FileScanTask;
@@ -571,6 +572,17 @@ class IcebergConnectorTest {
     assertThat(expected).isNotEmpty();
     FailingFileIO.FAILURES.set(failures);
     assertThat(ids(invoke(failingIterate(token, Map.of())))).isEqualTo(expected);
+    assertThat(FailingFileIO.FAILURES.get()).isNotPositive();
+  }
+
+  @Test
+  void retriesATokenPageWhoseTableLoadFails() throws Exception {
+    String token = warmUpFailingCatalog();
+    List<String> expected = ids(invoke(failingIterate(token, Map.of())));
+    //A catalog name of its own gives an instance with empty caches, as on a new container, so its first read is the table metadata
+    Map<String, Object> cold = Map.of("catalogName", "failing-cold-" + UUID.randomUUID());
+    FailingFileIO.FAILURES.set(1);
+    assertThat(ids(invoke(failingIterate(token, cold)))).isEqualTo(expected);
     assertThat(FailingFileIO.FAILURES.get()).isNotPositive();
   }
 
