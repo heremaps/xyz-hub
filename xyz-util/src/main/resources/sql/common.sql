@@ -134,6 +134,65 @@ END;
 $installH3Extensions$;
 
 /**
+ * Drops the schemas of the PL/pgSQL H3 port that versions before the h3 extension used: hub.h3, hub.h3:<version>, jobs.h3 and
+ * jobs.h3:<version>. The installer never uninstalls the schemas of a script it no longer loads, so this is done explicitly.
+ * No other schema is touched, e.g. hub.hexbin_h3*, h3_ext, or copies of the port in schemas of other names.
+ * A schema with an object outside of these schemas depending on it is kept with a warning, because DROP SCHEMA ... CASCADE would
+ * drop that object, too. Errors only raise a warning, so that the other scripts still get installed; transient errors fail the
+ * script, so that the installer retries it. This script gets installed into several schemas concurrently (the hub and the jobs
+ * schemas), each under a lock of its own schema, so the block takes an additional lock of its own.
+ * This block can be removed once it ran on all databases.
+ */
+DO $dropH3PortSchemas$
+    DECLARE
+        port_schema_pattern CONSTANT text := '^(hub|jobs)[.]h3(:.+)?$';
+        port_schema_oid oid;
+        port_schema text;
+        outside_dependents text;
+    BEGIN
+        IF NOT EXISTS(SELECT 1 FROM pg_namespace WHERE nspname ~ port_schema_pattern) THEN
+            RETURN;
+        END IF;
+
+        PERFORM pg_advisory_xact_lock(('x' || left(md5('xyz_h3_extensions'), 15))::bit(60)::bigint);
+
+        --Read again under the lock: a concurrent installation might have dropped them already
+        FOR port_schema_oid, port_schema IN SELECT oid, nspname FROM pg_namespace WHERE nspname ~ port_schema_pattern
+            ORDER BY nspname LOOP
+            BEGIN
+                WITH members(classid, objid) AS (
+                    SELECT d.classid, d.objid FROM pg_depend d
+                    WHERE d.refclassid = 'pg_namespace'::regclass::oid AND d.refobjid = port_schema_oid
+                    UNION
+                    --Array and row types have no dependency on the namespace of their own
+                    SELECT 'pg_type'::regclass::oid, t.oid FROM pg_type t WHERE t.typnamespace = port_schema_oid
+                )
+                SELECT string_agg(DISTINCT o.identity, ', ') INTO outside_dependents
+                FROM members m
+                JOIN pg_depend d ON d.refclassid = m.classid AND d.refobjid = m.objid
+                CROSS JOIN LATERAL pg_identify_object(d.classid, d.objid, d.objsubid) o
+                --The schema of pg_identify_object() is quoted if needed, e.g. "hub.h3:4.0.1"
+                WHERE d.deptype IN ('n', 'a') AND (o.schema IS NULL OR (parse_ident(o.schema))[1] !~ port_schema_pattern);
+
+                IF outside_dependents IS NULL THEN
+                    EXECUTE format('DROP SCHEMA IF EXISTS %I CASCADE', port_schema);
+                ELSE
+                    RAISE WARNING 'The schema % of the old H3 port is kept, objects outside of it depend on it: %', port_schema,
+                        left(outside_dependents, 1000);
+                END IF;
+            EXCEPTION
+                --Transient errors fail the script, so that the installer retries it
+                WHEN query_canceled OR lock_not_available OR deadlock_detected OR serialization_failure THEN
+                    RAISE;
+                --Any other error must not fail the installation of this script
+                WHEN OTHERS THEN
+                    RAISE WARNING 'The schema % of the old H3 port could not be dropped: % (SQLSTATE %)', port_schema, SQLERRM, SQLSTATE;
+            END;
+        END LOOP;
+END;
+$dropH3PortSchemas$;
+
+/**
  * Returns a context field's value.
  */
 CREATE OR REPLACE FUNCTION context(key TEXT) RETURNS JSONB AS $BODY$
