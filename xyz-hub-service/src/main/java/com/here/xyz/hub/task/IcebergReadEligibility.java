@@ -55,7 +55,6 @@ final class IcebergReadEligibility {
 
   private static final String RAW_OPTIMIZATION_MODE = "raw";
   static final String BASE_VERSION_PLACEHOLDER = "{baseVersion}";
-  static final String VERSION_PLACEHOLDER = "{version}";
 
   private IcebergReadEligibility() {}
 
@@ -115,22 +114,21 @@ final class IcebergReadEligibility {
   }
 
   /**
-   * The filter for the Iceberg versions which hold the data of the task's space at the given version. For a composite space,
-   * which extends a pinned base version B, only the tags ending with {@link com.here.xyz.hub.Config#ICEBERG_READS_COMPOSITE_TAG_SUFFIX}
-   * (by default {@code ..._b<B>_v<version>}) hold the merged data.
+   * The filter for the Iceberg versions which hold the data of the task's space. For a composite space, which extends a pinned
+   * base version B, only the versions in tables whose name ends with {@link com.here.xyz.hub.Config#ICEBERG_READS_COMPOSITE_TABLE_SUFFIX}
+   * (by default {@code ...__b<B>}) hold the merged data.
    * Must only be called for tasks which are eligible.
    */
-  static Predicate<IcebergVersion> compositeFilter(FeatureTask<?, ?> task, long version) {
+  static Predicate<IcebergVersion> compositeFilter(FeatureTask<?, ?> task) {
     Extension extension = task.space.getExtension();
     if (extension == null)
       return v -> true;
-    String suffix = compositeTagSuffix().replace(BASE_VERSION_PLACEHOLDER, String.valueOf(extension.getVersion()))
-        .replace(VERSION_PLACEHOLDER, String.valueOf(version));
-    return v -> v.location().ref().endsWith(suffix);
+    String suffix = compositeTableSuffix().replace(BASE_VERSION_PLACEHOLDER, String.valueOf(extension.getVersion()));
+    return v -> v.location().table().endsWith(suffix);
   }
 
-  private static String compositeTagSuffix() {
-    String suffix = Service.configuration == null ? null : Service.configuration.ICEBERG_READS_COMPOSITE_TAG_SUFFIX;
+  private static String compositeTableSuffix() {
+    String suffix = Service.configuration == null ? null : Service.configuration.ICEBERG_READS_COMPOSITE_TABLE_SUFFIX;
     return suffix == null ? "" : suffix.trim();
   }
 
@@ -239,8 +237,8 @@ final class IcebergReadEligibility {
     //The Hub reads a version E of an unpinned composite with the base as it was when E was written, which no tag records
     if (extension.getVersion() == null)
       return "unpinned composite";
-    if (compositeTagSuffix().isEmpty())
-      return "composite without ICEBERG_READS_COMPOSITE_TAG_SUFFIX";
+    if (compositeTableSuffix().isEmpty())
+      return "composite without ICEBERG_READS_COMPOSITE_TABLE_SUFFIX";
     return null;
   }
 

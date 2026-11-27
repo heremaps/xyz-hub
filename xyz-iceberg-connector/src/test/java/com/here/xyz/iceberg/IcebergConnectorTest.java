@@ -54,6 +54,7 @@ import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.service.aws.lambda.SimulatedContext;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.net.URI;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -394,6 +395,79 @@ class IcebergConnectorTest {
     assertThat(names(v1, "p2")).containsExactly("p2-v1");
     assertThat(names(v2, "p2")).containsExactly("p2-v2");
     assertThat(v1.getNextPageToken()).isNull();
+  }
+
+  /**
+   * A table which references the data files and deletion vectors of another table at a tag, as the table of a composite space on
+   * a pinned base version does, plus changes of its own: a delete in a data file which has a deletion vector already (merged into
+   * a new deletion vector of the second table) and an update.
+   */
+  @Test
+  void readsATableWhichSharesTheFilesOfAnother() throws Exception {
+    Table base = catalog.loadTable(TableIdentifier.of(Namespace.of(NAMESPACE), TABLE));
+    String sharedTable = TABLE + "_shared__b2";
+    Table shared = IcebergTestTables.createTable(catalog, TableIdentifier.of(Namespace.of(NAMESPACE), sharedTable));
+    assertThat(shared.schema().asStruct()).isEqualTo(base.schema().asStruct());
+    IcebergTestTables.shareFiles(base, "v2", shared);
+    //p1 is in the data file with the deletion vector of p2 and p3
+    IcebergTestTables.upsertAndDelete(shared, null, List.of(point("r1", "Road", 10.3, 10, "r1-shared")), List.of("p1"));
+    IcebergTestTables.tag(shared, "v5");
+    Set<String> expected = new HashSet<>(V2_IDS);
+    expected.remove("p1");
+    IterateFeaturesEvent<?> event = new IterateFeaturesEvent<>().withLimit(1000);
+    event.setParams(icebergParams(new IcebergLocation(NAMESPACE, sharedTable, "v5")));
+    FeatureCollection read = featureCollection(invoke(withConnectorParams(event, connectorParams(Map.of()))));
+    assertThat(ids(read)).containsExactlyInAnyOrderElementsOf(expected);
+    assertThat(names(read, "r1")).containsExactly("r1-shared");
+    assertThat(names(read, "p2")).containsExactly("p2-v2");
+    //The base is unchanged
+    FeatureCollection baseRead = featureCollection(invoke(iterate("v2", 1000, null)));
+    assertThat(ids(baseRead)).containsExactlyInAnyOrderElementsOf(V2_IDS);
+    assertThat(names(baseRead, "r1")).containsExactly("r1");
+    //One deletion vector per data file, the merged one in the second table's folder; its manifests are its own
+    //The locations of a HadoopCatalog differ in the form of the file URI (file:/ or file:///)
+    String baseFolder = path(base.location()) + "/";
+    String sharedFolder = path(shared.location()) + "/";
+    shared.refresh();
+    int sharedDataFiles = 0;
+    int mergedDeletionVectors = 0;
+    try (var tasks = shared.newScan().useRef("v5").planFiles()) {
+      for (FileScanTask task : tasks) {
+        assertThat(task.deletes()).hasSizeLessThanOrEqualTo(1);
+        if (path(task.file().location()).startsWith(baseFolder))
+          sharedDataFiles++;
+        //p2 and p3 of the base plus p1
+        if (!task.deletes().isEmpty() && task.deletes().get(0).recordCount() == 3) {
+          mergedDeletionVectors++;
+          assertThat(path(task.file().location())).startsWith(baseFolder);
+          assertThat(path(task.deletes().get(0).location())).startsWith(sharedFolder);
+        }
+      }
+    }
+    assertThat(sharedDataFiles).isGreaterThan(0);
+    assertThat(mergedDeletionVectors).isEqualTo(1);
+    assertThat(deletedRowsByFolder(shared, "v5", sharedFolder)).isEqualTo(4);
+    assertThat(shared.snapshot("v5").allManifests(shared.io())).isNotEmpty()
+        .allSatisfy(manifest -> assertThat(path(manifest.path())).startsWith(sharedFolder).doesNotStartWith(baseFolder));
+  }
+
+  /**
+   * The number of rows deleted by the deletion vectors in the folder, at the ref
+   */
+  private static long deletedRowsByFolder(Table table, String ref, String folder) throws Exception {
+    long rows = 0;
+    Set<String> seen = new HashSet<>();
+    try (var tasks = table.newScan().useRef(ref).planFiles()) {
+      for (FileScanTask task : tasks)
+        for (var delete : task.deletes())
+          if (path(delete.location()).startsWith(folder) && seen.add(delete.location() + "#" + delete.contentOffset()))
+            rows += delete.recordCount();
+    }
+    return rows;
+  }
+
+  private static String path(String location) {
+    return URI.create(location).getPath();
   }
 
   @ParameterizedTest(name = "twoStepReads={0}")

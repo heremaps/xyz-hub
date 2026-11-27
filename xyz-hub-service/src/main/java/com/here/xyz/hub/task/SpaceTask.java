@@ -228,6 +228,7 @@ public abstract class SpaceTask<X extends SpaceTask<?>> extends Task<Event, X> {
           .then(SpaceTaskHandler::preprocess)
           .then(this::verifyResourceExists)
           .then(SpaceTaskHandler::processModifyOp)
+          .then(SpaceTaskHandler::preserveTableName)
           .then(SpaceTaskHandler::postProcess)
           .then(SpaceTaskHandler::handleReadOnlyUpdate)
           .then(SpaceTaskHandler::validate)

@@ -221,18 +221,20 @@ class IcebergReadEligibilityTest {
   }
 
   @Test
-  void theCompositeFilterAcceptsOnlyTagsOfThePinnedBase() {
-    Predicate<IcebergVersion> plain = IcebergReadEligibility.compositeFilter(bboxTask(bboxEvent()), 7);
-    assertThat(plain.test(version("v7"))).isTrue();
-    assertThat(plain.test(version("ext_t_b4_v7"))).isTrue();
-
+  void theCompositeFilterAcceptsOnlyTheTableOfThePinnedBase() {
+    Predicate<IcebergVersion> plain = IcebergReadEligibility.compositeFilter(bboxTask(bboxEvent()));
+    assertThat(plain.test(version("t", "v7"))).isTrue();
+    assertThat(plain.test(version("t__b4", "v7"))).isTrue();
     space = composite(5L);
-    Predicate<IcebergVersion> pinned = IcebergReadEligibility.compositeFilter(bboxTask(bboxEvent()), 7);
-    assertThat(pinned.test(version("ext_t_b5_v7"))).isTrue();
-    assertThat(pinned.test(version("ext_t_b4_v7"))).isFalse();
-    assertThat(pinned.test(version("ext_t_b5_v8"))).isFalse();
-    assertThat(pinned.test(version("ext_t_b15_v7"))).isFalse();
-    assertThat(pinned.test(version("v7"))).isFalse();
+    Predicate<IcebergVersion> pinned = IcebergReadEligibility.compositeFilter(bboxTask(bboxEvent()));
+    assertThat(pinned.test(version("t__b5", "v7"))).isTrue();
+    assertThat(pinned.test(version("t__b5", "v8"))).isTrue();
+    assertThat(pinned.test(version("t__b4", "v7"))).isFalse();
+    assertThat(pinned.test(version("t__b15", "v7"))).isFalse();
+    assertThat(pinned.test(version("t__b55", "v7"))).isFalse();
+    assertThat(pinned.test(version("t", "v7"))).isFalse();
+    //The old tag form on the base table is not the composite's data
+    assertThat(pinned.test(version("t", "t_b5_v7"))).isFalse();
   }
 
   @Test
@@ -255,15 +257,15 @@ class IcebergReadEligibilityTest {
   }
 
   @Test
-  void theCompositeTagSuffixIsConfigurable() {
+  void theCompositeTableSuffixIsConfigurable() {
     space = composite(5L);
-    Service.configuration.ICEBERG_READS_COMPOSITE_TAG_SUFFIX = "@{baseVersion}-{version}";
-    Predicate<IcebergVersion> pinned = IcebergReadEligibility.compositeFilter(bboxTask(bboxEvent()), 7);
-    assertThat(pinned.test(version("t@5-7"))).isTrue();
-    assertThat(pinned.test(version("ext_t_b5_v7"))).isFalse();
-
-    Service.configuration.ICEBERG_READS_COMPOSITE_TAG_SUFFIX = "";
-    assertThat(reason(bboxTask(bboxEvent()), List.of(space(BASE_ID)))).contains("ICEBERG_READS_COMPOSITE_TAG_SUFFIX");
+    Service.configuration.ICEBERG_READS_COMPOSITE_TABLE_SUFFIX = "_base{baseVersion}";
+    Predicate<IcebergVersion> pinned = IcebergReadEligibility.compositeFilter(bboxTask(bboxEvent()));
+    assertThat(pinned.test(version("t_base5", "v7"))).isTrue();
+    assertThat(pinned.test(version("t__b5", "v7"))).isFalse();
+    Service.configuration.ICEBERG_READS_COMPOSITE_TABLE_SUFFIX = "";
+    assertThat(reason(bboxTask(bboxEvent()), List.of(space(BASE_ID))))
+        .isEqualTo("composite without ICEBERG_READS_COMPOSITE_TABLE_SUFFIX");
   }
 
   private String reason(FeatureTask<?, ?> task) {
@@ -275,8 +277,8 @@ class IcebergReadEligibilityTest {
     return IcebergReadEligibility.reasonNotEligible(task, IcebergConnectorConfig.DEFAULT_FILTER_COLUMNS.keySet());
   }
 
-  private static IcebergVersion version(String tag) {
-    return new IcebergVersion(7, new IcebergLocation("ns", "table", tag), null, 1, UUID.randomUUID());
+  private static IcebergVersion version(String table, String tag) {
+    return new IcebergVersion(7, new IcebergLocation("ns", table, tag), null, 1, UUID.randomUUID());
   }
 
   private static PropertiesQuery notEquals() {
