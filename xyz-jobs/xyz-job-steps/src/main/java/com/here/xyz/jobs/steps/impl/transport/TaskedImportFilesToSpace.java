@@ -43,6 +43,7 @@ import com.here.xyz.jobs.steps.execution.StepException;
 import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
 import com.here.xyz.jobs.steps.impl.transport.tasks.inputs.ImportInput;
 import com.here.xyz.jobs.steps.impl.transport.tasks.outputs.ImportOutput;
+import com.here.xyz.jobs.steps.impl.transport.tasks.outputs.ImportOutput.WrittenFeatures;
 import com.here.xyz.jobs.steps.impl.transport.tools.ImportFilesQuickValidator;
 import com.here.xyz.jobs.steps.impl.transport.tools.ImportQueryBuilder;
 import com.here.xyz.jobs.steps.inputs.Input;
@@ -582,17 +583,56 @@ public class TaskedImportFilesToSpace extends TaskedSpaceBasedStep<TaskedImportF
       long totalImportedRows = finalizedTaskItems.stream().mapToLong(item -> item.output().extractRowCount()).sum();
       long totalImportedBytes = finalizedTaskItems.stream().mapToLong(item -> item.output().fileBytes()).sum();
 
-      statistics = new FeatureStatistics()
+      statistics = withWrittenFeatures(new FeatureStatistics()
               .withFeatureCount(totalImportedRows)
-              .withByteSize(totalImportedBytes);
+              .withByteSize(totalImportedBytes), finalizedTaskItems.stream().map(FinalizedTaskItem::output).toList());
       statistics.withFileName(STATISTICS + ".json");
     }
 
-    infoLog(STEP_ON_ASYNC_SUCCESS, "Job Statistics: bytes=" + statistics.getByteSize() + " rows=" + statistics.getFeatureCount());
+    if (!finalizedTaskItems.isEmpty() && statistics.getInsertedCount() == null)
+      infoLog(STEP_ON_ASYNC_SUCCESS, "The written features were not reported for all rows, so they are not counted.");
+
+    //Not expected, the count is kept (not clamped), so that it is visible
+    if (statistics.getUnchangedCount() != null && statistics.getUnchangedCount() < 0)
+      warnLog(STEP_ON_ASYNC_SUCCESS, "More features were written than requested: rows=" + statistics.getFeatureCount()
+          + " written=" + (statistics.getFeatureCount() - statistics.getUnchangedCount()));
+
+    infoLog(STEP_ON_ASYNC_SUCCESS, "Job Statistics: bytes=" + statistics.getByteSize() + " rows=" + statistics.getFeatureCount()
+        + " inserted=" + statistics.getInsertedCount() + " updated=" + statistics.getUpdatedCount()
+        + " deleted=" + statistics.getDeletedCount() + " unchanged=" + statistics.getUnchangedCount());
     registerOutputs(List.of(statistics), STATISTICS);
 
     infoLog(STEP_ON_ASYNC_SUCCESS, "Set contentUpdatedAt on target space");
     hubWebClient().patchSpace(getSpaceId(), Map.of("contentUpdatedAt", Core.currentTimeMillis()));
+  }
+
+  /**
+   * Adds how the features were written: An import into an empty layer inserts all rows. Otherwise, the batches report what they have
+   * written, the rest is unchanged. The counts stay null if the batches of a task did not report all of its rows (e.g., some ran
+   * with a previous version).
+   * NOTE: If a batch has written, but its report got lost, a resume writes it again and counts it as updated. This is not detected.
+   * NOTE: #useFeatureWriter() can not tell the kind of import anymore, as the target has changed by now.
+   */
+  static FeatureStatistics withWrittenFeatures(FeatureStatistics statistics, List<ImportOutput> taskOutputs) {
+    boolean batched = taskOutputs.stream().anyMatch(output -> output.progress() != null || output.written() != null);
+    if (!batched)
+      return statistics
+          .withInsertedCount(statistics.getFeatureCount())
+          .withUpdatedCount(0L)
+          .withDeletedCount(0L)
+          .withUnchangedCount(0L);
+
+    if (taskOutputs.stream().anyMatch(output -> (output.written() == null ? 0 : output.written().rows()) != output.extractRowCount()))
+      return statistics;
+
+    WrittenFeatures written = taskOutputs.stream()
+        .map(ImportOutput::written)
+        .reduce(WrittenFeatures.NONE, WrittenFeatures::plus);
+    return statistics
+        .withInsertedCount(written.inserted())
+        .withUpdatedCount(written.updated())
+        .withDeletedCount(written.deleted())
+        .withUnchangedCount(statistics.getFeatureCount() - written.total());
   }
 
   protected String bucketRegion(String bucketName) {

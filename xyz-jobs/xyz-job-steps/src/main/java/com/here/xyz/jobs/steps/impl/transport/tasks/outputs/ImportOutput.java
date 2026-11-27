@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,17 +25,20 @@ import com.here.xyz.jobs.steps.impl.transport.tasks.TaskPayload;
 
 import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_DEFAULT;
 
+/**
+ * @param written What the batches of the task have written (only for imports into non-empty layers)
+ */
 @JsonInclude(NON_DEFAULT)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record ImportOutput(String importStatistics, long fileBytes,  long targetVersion,
-                           ImportProgress progress) implements TaskPayload {
+                           ImportProgress progress, WrittenFeatures written) implements TaskPayload {
 
   public ImportOutput(String importStatistics, long fileBytes,  long targetVersion) {
-    this(importStatistics, fileBytes, targetVersion, null);
+    this(importStatistics, fileBytes, targetVersion, null, null);
   }
 
   public ImportOutput(ImportProgress progress) {
-    this(null, -1, -1, progress);
+    this(null, -1, -1, progress, null);
   }
 
   //@TODO: shift this extraction to SQL function "perform_import_from_s3_task()"
@@ -53,5 +56,22 @@ public record ImportOutput(String importStatistics, long fileBytes,  long target
       this(tmpTableLoaded, -1,-1);
     }
   }
-}
 
+  /**
+   * Summed up over the batches of a task (see ImportQueryBuilder#buildTaskOutputMergeExpression()). The rows are the input rows the
+   * batches have processed.
+   */
+  @JsonIgnoreProperties(ignoreUnknown = true)
+  public record WrittenFeatures(long inserted, long updated, long deleted, long rows) {
+    public static final WrittenFeatures NONE = new WrittenFeatures(0, 0, 0, 0);
+
+    public WrittenFeatures plus(WrittenFeatures other) {
+      return other == null ? this : new WrittenFeatures(inserted + other.inserted, updated + other.updated, deleted + other.deleted,
+          rows + other.rows);
+    }
+
+    public long total() {
+      return inserted + updated + deleted;
+    }
+  }
+}

@@ -59,6 +59,8 @@ class FeatureWriter {
   baseFeature;
   operation = "I";
   isDelete = false;
+  //Whether deleteRow() decides if the feature was visible (only if counting, see deleteFeature())
+  _visibleFromDeletedRow = false;
   attributeConflicts;
   ignoreConflictPaths = {
     [`properties.${XYZ_NS}.author`]: true,
@@ -114,7 +116,18 @@ class FeatureWriter {
    * @returns {FeatureModificationExecutionResult}
    */
   writeFeature() {
-    return this.isDelete ? this.deleteFeature() : this.writeRow();
+    if (this.isDelete)
+      return this.deleteFeature();
+    if (!FeatureWriter.countsRequested)
+      return this.writeRow();
+
+    //NOTE: Cached, writeRow() loads it anyway
+    let visibleBefore = FeatureWriter._isVisible(this.loadFeature(this.inputFeature.id));
+    let execution = this.writeRow();
+    //Null if nothing was written (partial write with onNotExists = RETAIN)
+    if (this.inputFeature != null)
+      FeatureWriter._visibleBefore.set(this.inputFeature, visibleBefore);
+    return execution;
   }
 
   /**
@@ -122,8 +135,30 @@ class FeatureWriter {
    * @returns {FeatureModificationExecutionResult}
    */
   deleteFeature() {
+    if (this.context != "DEFAULT" && this.context != null && this.context != "EXTENSION" && this.context != "SUPER")
+      throw new IllegalArgumentException(`Unsupported context for feature deletion: ${this.context}`);
+
+    /*
+    The context DEFAULT needs it anyway, with history writeRow() loads it too (cached).
+    Otherwise, the row is deleted directly and deleteRow() takes the visibility from the deleted row, so that counting needs no extra read.
+     */
+    let loadExisting = this.context == "DEFAULT" || FeatureWriter.countsRequested && this.historyEnabled;
+    this._visibleFromDeletedRow = FeatureWriter.countsRequested && !loadExisting;
+    let existingFeature = loadExisting ? this.loadFeature(this.inputFeature.id) : null;
+    let execution = this._deleteFeature(existingFeature);
+
+    if (FeatureWriter.countsRequested && loadExisting && this.inputFeature != null)
+      FeatureWriter._visibleBefore.set(this.inputFeature, FeatureWriter._isVisible(existingFeature));
+    return execution;
+  }
+
+  /**
+   * @param existingFeature The HEAD of the feature in the context of this write
+   * @returns {FeatureModificationExecutionResult}
+   * @private
+   */
+  _deleteFeature(existingFeature) {
     if (this.context == "DEFAULT") {
-      let existingFeature = this.loadFeature(this.inputFeature.id);
       if (!this.historyEnabled && existingFeature && !existingFeature.containingDatasets.some(dataset => dataset < this.tables.length - 1))
         //Only delete the row directly iff the feature exists, but not in SUPER
         return this.deleteRow();
@@ -134,18 +169,14 @@ class FeatureWriter {
       this._transformToDeletedFeature();
       return this.writeRow();
     }
-    else if (this.context == null || this.context == "EXTENSION" || this.context == "SUPER") {
-      if (this.historyEnabled) {
-        //TODO: Only insert deletion row if the object actually exists in HEAD
-        this.onExists = "DELETE";
-        this.onNotExists = this.onNotExists == "ERROR" ? this.onNotExists : "RETAIN";
-        this._transformToDeletedFeature();
-        return this.writeRow();
-      }
-      return this.deleteRow();
+    if (this.historyEnabled) {
+      //TODO: Only insert deletion row if the object actually exists in HEAD
+      this.onExists = "DELETE";
+      this.onNotExists = this.onNotExists == "ERROR" ? this.onNotExists : "RETAIN";
+      this._transformToDeletedFeature();
+      return this.writeRow();
     }
-    else
-      throw new IllegalArgumentException(`Unsupported context for feature deletion: ${this.context}`);
+    return this.deleteRow();
   }
 
   _transformToDeletedFeature() {
@@ -155,6 +186,25 @@ class FeatureWriter {
   static _transformToDeletedFeature(featureId) {
     return {type: "Feature", id: featureId, properties: {[XYZ_NS]: {deleted: true}}};
   }
+
+  /**
+   * Whether the space showed a written feature before (only if counting). Kept apart, so that an input feature can not fake it.
+   * @type {WeakMap<object, boolean>}
+   */
+  static _visibleBefore = new WeakMap();
+
+  /**
+   * @returns {boolean} Whether the space shows the HEAD feature, which is not the case for a deletion marker (H / J)
+   */
+  static _isVisible(headFeature) {
+    return headFeature != null && headFeature.operation != "H" && headFeature.operation != "J";
+  }
+
+  /**
+   * Whether the caller requested the counts ("countWritten" in the query context), so that other writes do no extra work.
+   * @type {boolean}
+   */
+  static countsRequested = false;
 
   /**
    * @throws VersionConflictError, MergeConflictError, FeatureExistsError
@@ -419,7 +469,11 @@ class FeatureWriter {
     //base_version get provided from user (extend api endpoint if necessary)
     this.debugBox("Delete feature with id: " + this.inputFeature.id);
     return FeatureWriter.dbWriter.deleteRow(this.inputFeature, this.version, this.author, this.onVersionConflict, this.baseVersion,
-        result => {
+        (result, deletedRows) => {
+          //Like loadFeature(): only a HEAD row which is not a deletion (D) or a deletion marker (H / J) was visible
+          if (this._visibleFromDeletedRow)
+            FeatureWriter._visibleBefore.set(this.inputFeature,
+                deletedRows.some(row => row.head && !["D", "H", "J"].includes(row.operation)));
           if (result.action == ExecutionAction.NONE) {
             if (this.onVersionConflict != null) {
               plv8.elog(NOTICE, "FW_LOG HandleConflict for deletion of id: " + this.inputFeature.id);
@@ -979,17 +1033,53 @@ class FeatureWriter {
         result.features.push(execution.feature);
       if (execution.action != ExecutionAction.NONE)
         result[execution.action].push(execution.feature.id);
+      if (FeatureWriter.countsRequested)
+        FeatureWriter._countResult(execution);
     }
   }
 
+  /**
+   * For each changed feature ID: whether the space showed it before this call (its first result) and after it (its last result).
+   * NOTE: In batch mode, all writes of an ID see the state before the call, so an ID is counted once per call.
+   * @type {Map<string, {visibleBefore: boolean, visibleAfter: boolean}>}
+   */
+  static _changes = new Map();
+
+  static _countResult(execution) {
+    if (execution.action == ExecutionAction.NONE)
+      return;
+    let change = FeatureWriter._changes.get(execution.feature.id);
+    if (change == null) {
+      let visibleBefore = FeatureWriter._visibleBefore.get(execution.feature);
+      change = {visibleBefore: visibleBefore ?? execution.action != ExecutionAction.INSERTED};
+      FeatureWriter._changes.set(execution.feature.id, change);
+    }
+    change.visibleAfter = execution.action != ExecutionAction.DELETED && execution.feature.properties?.[XYZ_NS]?.deleted !== true;
+  }
+
+  /**
+   * What the call changed in the space as it is shown: inserted (not visible before, visible now), updated (visible before and now)
+   * and deleted (visible before, not now).
+   */
+  static writtenCounts() {
+    let counts = {inserted: 0, updated: 0, deleted: 0};
+    for (const change of FeatureWriter._changes.values())
+      if (change.visibleAfter)
+        counts[change.visibleBefore ? ExecutionAction.UPDATED : ExecutionAction.INSERTED]++;
+      else if (change.visibleBefore)
+        counts.deleted++;
+    return counts;
+  }
+
   static newFeatureCollection() {
-    return {
+    let result = {
       type: "FeatureCollection",
       features: [],
       inserted: [],
       updated: [],
       deleted: []
     };
+    return result;
   }
 
   /**

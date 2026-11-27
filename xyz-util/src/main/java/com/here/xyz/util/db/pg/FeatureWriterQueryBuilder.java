@@ -155,6 +155,7 @@ public class FeatureWriterQueryBuilder {
   }
 
   public static class FeatureWriterQueryContextBuilder {
+    public static final String COUNT_WRITTEN = "countWritten";
 
     private Map<String, Object> queryContext = new HashMap<>();
 
@@ -201,6 +202,15 @@ public class FeatureWriterQueryBuilder {
 
     public FeatureWriterQueryContextBuilder withBatchMode(boolean batchMode) {
       queryContext.put("batchMode", batchMode);
+      return this;
+    }
+
+    /**
+     * Requests write_features to add the inserted, updated and deleted counts to its compact result (for imports). Off by default,
+     * as it needs extra work.
+     */
+    public FeatureWriterQueryContextBuilder withCountWritten(boolean countWritten) {
+      queryContext.put(COUNT_WRITTEN, countWritten);
       return this;
     }
 

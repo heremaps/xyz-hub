@@ -85,6 +85,8 @@
                     <include>com.here.xyz.test.sql.base.ScriptInstallerIT</include>
                     <include>com.here.xyz.util.db.datasource.DatabaseSettingsScriptCheckIT</include>
                     <include>com.here.xyz.test.sql.spacemanagement.XyzSpaceTableHelperIT</include>
+                    <!--Postgres only, tagged with the group below so that it runs with them-->
+                    <include>com.here.xyz.test.featurewriter.sql.FeatureWriterCountsIT</include>
                   </includes>
                   <!--The three older classes above run only their lazy space table cases-->
                   <groups>lazy-space-tables</groups>

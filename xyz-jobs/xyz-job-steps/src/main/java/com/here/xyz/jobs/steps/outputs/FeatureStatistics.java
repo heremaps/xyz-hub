@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 HERE Europe B.V.
+ * Copyright (C) 2017-2026 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ package com.here.xyz.jobs.steps.outputs;
 import static com.fasterxml.jackson.annotation.JsonInclude.Include.ALWAYS;
 import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_DEFAULT;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.here.xyz.models.hub.Ref;
@@ -30,6 +31,9 @@ import com.here.xyz.models.hub.Ref;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class FeatureStatistics extends ModelBasedOutput {
 
+    /**
+     * For an import: The rows of the input files. An import into an empty layer drops the deletions before counting.
+     */
     @JsonInclude(ALWAYS)
     private long featureCount;
     @JsonInclude(ALWAYS)
@@ -38,6 +42,33 @@ public class FeatureStatistics extends ModelBasedOutput {
     private Ref versionRef;
     @JsonInclude(NON_DEFAULT)
     private long fileCount;
+    /**
+     * For an import: The features which were not visible before and are now. With the updated, deleted and unchanged counts it adds
+     * up to the featureCount. All four are null if not counted (see TaskedImportFilesToSpace#withWrittenFeatures()).
+     * NOTE: Not serialized, only logged for now.
+     * TODO: Decide how to publish them, e.g., with the output (remove @JsonIgnore, document in openapi.yaml) or as a separate output
+     *  with SYSTEM visibility for a reporter.
+     */
+    @JsonIgnore
+    private Long insertedCount;
+    /**
+     * For an import: The features which were visible before and were written again. With history, also the ones which did not
+     * differ (they still get a new version). A feature in several batches is counted by each of them.
+     * NOTE: A new feature in several files which are imported at the same time can be counted as inserted by each of them.
+     */
+    @JsonIgnore
+    private Long updatedCount;
+    /**
+     * For an import: The features which were visible before and are deleted now.
+     */
+    @JsonIgnore
+    private Long deletedCount;
+    /**
+     * For an import: The rest, e.g., duplicates within a batch, deletions of features which were not visible and, without history,
+     * features which did not differ.
+     */
+    @JsonIgnore
+    private Long unchangedCount;
     @JsonInclude(NON_DEFAULT)
     private String tag;
 
@@ -103,6 +134,58 @@ public class FeatureStatistics extends ModelBasedOutput {
 
     public FeatureStatistics withTag(String tag) {
         setTag(tag);
+        return this;
+    }
+
+    public Long getInsertedCount() {
+        return insertedCount;
+    }
+
+    public void setInsertedCount(Long insertedCount) {
+        this.insertedCount = insertedCount;
+    }
+
+    public FeatureStatistics withInsertedCount(Long insertedCount) {
+        setInsertedCount(insertedCount);
+        return this;
+    }
+
+    public Long getUpdatedCount() {
+        return updatedCount;
+    }
+
+    public void setUpdatedCount(Long updatedCount) {
+        this.updatedCount = updatedCount;
+    }
+
+    public FeatureStatistics withUpdatedCount(Long updatedCount) {
+        setUpdatedCount(updatedCount);
+        return this;
+    }
+
+    public Long getDeletedCount() {
+        return deletedCount;
+    }
+
+    public void setDeletedCount(Long deletedCount) {
+        this.deletedCount = deletedCount;
+    }
+
+    public FeatureStatistics withDeletedCount(Long deletedCount) {
+        setDeletedCount(deletedCount);
+        return this;
+    }
+
+    public Long getUnchangedCount() {
+        return unchangedCount;
+    }
+
+    public void setUnchangedCount(Long unchangedCount) {
+        this.unchangedCount = unchangedCount;
+    }
+
+    public FeatureStatistics withUnchangedCount(Long unchangedCount) {
+        setUnchangedCount(unchangedCount);
         return this;
     }
 }

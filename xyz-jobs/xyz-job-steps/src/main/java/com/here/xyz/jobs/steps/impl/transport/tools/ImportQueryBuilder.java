@@ -24,7 +24,10 @@ import com.here.xyz.jobs.steps.impl.transport.tasks.inputs.ImportInput;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.util.db.SQLQuery;
 
+import com.here.xyz.util.db.pg.FeatureWriterQueryBuilder.FeatureWriterQueryContextBuilder;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
@@ -65,6 +68,30 @@ public class ImportQueryBuilder extends TaskedSpaceBasedQueryBuilder {
              < COALESCE((#{taskUpdate}::JSONB #>> '{taskOutput,progress,endI}')::BIGINT, -1)
         )
         """);
+  }
+
+  /**
+   * Sums up the {@code written} of the batches. A batch is counted once, as {@link #buildTaskOutputUpdateCondition()} rejects
+   * duplicate updates.
+   */
+  @Override
+  protected SQLQuery buildTaskOutputMergeExpression() {
+    return new SQLQuery("""
+        (${{defaultMerge}}) || CASE
+          WHEN (#{taskUpdate}::JSONB) #> '{taskOutput,written}' IS NULL THEN '{}'::JSONB
+          ELSE jsonb_build_object('written', jsonb_build_object(
+            'inserted', COALESCE((task_output #>> '{taskOutput,written,inserted}')::BIGINT, 0)
+                      + COALESCE(((#{taskUpdate}::JSONB) #>> '{taskOutput,written,inserted}')::BIGINT, 0),
+            'updated', COALESCE((task_output #>> '{taskOutput,written,updated}')::BIGINT, 0)
+                      + COALESCE(((#{taskUpdate}::JSONB) #>> '{taskOutput,written,updated}')::BIGINT, 0),
+            'deleted', COALESCE((task_output #>> '{taskOutput,written,deleted}')::BIGINT, 0)
+                      + COALESCE(((#{taskUpdate}::JSONB) #>> '{taskOutput,written,deleted}')::BIGINT, 0),
+            'rows', COALESCE((task_output #>> '{taskOutput,written,rows}')::BIGINT, 0)
+                      + COALESCE(((#{taskUpdate}::JSONB) #>> '{taskOutput,written,rows}')::BIGINT, 0)
+          ))
+        END
+        """)
+        .withQueryFragment("defaultMerge", super.buildTaskOutputMergeExpression());
   }
 
   public SQLQuery buildNextVersionQuery(String versionTable){
@@ -165,7 +192,7 @@ public class ImportQueryBuilder extends TaskedSpaceBasedQueryBuilder {
             "SELECT perform_import_from_tmp_table_task(#{taskId}, to_regclass(#{sourceTable}), #{rangeStart}, #{targetMb}, #{maxFeatures}, "
                     + "#{author}, #{currentVersion}, #{isPartial}, #{onExists}, #{onNotExists}, #{onVersionConflict}, "
                     + "#{onMergeConflict}, #{stepPayload}::JSON->'step', #{lambdaFunctionArn}, #{lambdaRegion}, '${{failureCallback}}')")
-            .withContext(getQueryContext())
+            .withContext(buildCountingQueryContext())
             .withAsync(true)
             .withNamedParameter("taskId", taskId)
             .withNamedParameter("sourceTable", getTemporaryDataTableName(taskId))
@@ -183,6 +210,12 @@ public class ImportQueryBuilder extends TaskedSpaceBasedQueryBuilder {
             .withNamedParameter("lambdaFunctionArn", lambdaArn)
             .withNamedParameter("lambdaRegion", ownLambdaRegion)
             .withQueryFragment("failureCallback", failureCallback);
+  }
+
+  private Map<String, Object> buildCountingQueryContext() {
+    Map<String, Object> queryContext = new HashMap<>(getQueryContext());
+    queryContext.put(FeatureWriterQueryContextBuilder.COUNT_WRITTEN, true);
+    return queryContext;
   }
 
   /**

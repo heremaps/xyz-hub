@@ -1206,6 +1206,8 @@ $BODY$;
  */
 --super_bound_version was added; without dropping the old signature, a reused versioned schema keeps both overloads and 9-arg calls become ambiguous
 DROP FUNCTION IF EXISTS execute_express_import_batch(REGCLASS, REGCLASS, REGCLASS, TEXT, BIGINT, NUMERIC, TEXT, BIGINT, BOOLEAN);
+--The counts were added to the result columns, which CREATE OR REPLACE can not change
+DROP FUNCTION IF EXISTS execute_express_import_batch(REGCLASS, REGCLASS, REGCLASS, TEXT, BIGINT, NUMERIC, TEXT, BIGINT, BOOLEAN, BIGINT);
 CREATE OR REPLACE FUNCTION execute_express_import_batch(
         source_tbl REGCLASS,
         target_tbl REGCLASS,
@@ -1223,7 +1225,11 @@ RETURNS TABLE(
         pulled_bytes BIGINT,
         selected_range_start BIGINT,
         selected_range_end BIGINT,
-        finished BOOLEAN
+        finished BOOLEAN,
+        --What this batch has changed in the space as it is shown
+        inserted_count BIGINT,
+        updated_count BIGINT,
+        deleted_count BIGINT
     )
     LANGUAGE 'plpgsql'
     VOLATILE
@@ -1241,6 +1247,7 @@ DECLARE
     super_version_predicate TEXT;
     sql_text TEXT;
     has_stale_head BOOLEAN;
+    written_deletions BIGINT;
     is_composite BOOLEAN := super_tbl IS NOT NULL;
     is_old_layout BOOLEAN;
 BEGIN
@@ -1286,6 +1293,9 @@ BEGIN
     selected_range_start := NULL;
     selected_range_end := NULL;
     finished := false;
+    inserted_count := 0;
+    updated_count := 0;
+    deleted_count := 0;
 
     DROP TABLE IF EXISTS pg_temp.xyz_express_import_batch;
     CREATE TEMP TABLE xyz_express_import_batch (
@@ -1423,6 +1433,7 @@ BEGIN
                        p.jsondata AS target_jsondata,
                        current_row.id IS NOT NULL AS current_exists,
                        current_row.jsondata AS current_jsondata,
+                       current_row.operation AS current_operation,
                        s.id IS NOT NULL AS super_exists,
                        s.jsondata AS super_jsondata
                   FROM pg_temp.xyz_express_import_final f
@@ -1436,7 +1447,7 @@ BEGIN
                        LIMIT 1
                   ) p ON true
                   LEFT JOIN LATERAL (
-                      SELECT t.id, t.jsondata
+                      SELECT t.id, t.jsondata, t.operation
                         FROM %1$s t
                        WHERE t.id = f.feature_id
                          AND t.version = $1
@@ -1463,7 +1474,14 @@ BEGIN
                                END
                            WHEN target_live THEN 'D'
                            ELSE NULL
-                       END::CHAR AS operation
+                       END::CHAR AS operation,
+                       --Whether the space showed the feature before this batch (also if an earlier batch of the import wrote it).
+                       --A D row (unlike H / J) does not hide the feature of the base.
+                       CASE
+                           WHEN current_exists THEN current_operation NOT IN ('H', 'J') AND (current_operation != 'D' OR super_exists)
+                           WHEN target_exists THEN target_operation NOT IN ('H', 'J') AND (target_operation != 'D' OR super_exists)
+                           ELSE super_exists
+                       END AS visible_before
                   FROM state
             )
             SELECT classified.*,
@@ -1541,6 +1559,14 @@ BEGIN
                 ),
                 geo = EXCLUDED.geo
         $fmt$, target_tbl) USING current_version, author, batch_timestamp;
+
+        --With history, every UPSERT is a new version, also if it does not differ. A deletion counts only if the feature was visible.
+        SELECT COUNT(*) FILTER (WHERE NOT is_deleted AND NOT visible_before),
+               COUNT(*) FILTER (WHERE NOT is_deleted AND visible_before),
+               COUNT(*) FILTER (WHERE is_deleted AND visible_before)
+          INTO inserted_count, updated_count, deleted_count
+          FROM pg_temp.xyz_express_import_writes
+         WHERE action = 'UPSERT';
     ELSE
         sql_text := format($fmt$
             CREATE TEMP TABLE xyz_express_import_writes ON COMMIT DROP AS
@@ -1548,6 +1574,11 @@ BEGIN
                    t.id IS NOT NULL AS target_exists,
                    t.id IS NOT NULL AND t.operation != 'D' AS target_live,
                    s.id IS NOT NULL AS super_exists,
+                   --Whether the space showed the feature before (a D row does not hide the feature of the base)
+                   CASE
+                       WHEN t.id IS NOT NULL THEN t.operation NOT IN ('H', 'J') AND (t.operation != 'D' OR s.id IS NOT NULL)
+                       ELSE s.id IS NOT NULL
+                   END AS visible_before,
                    CASE
                        WHEN NOT f.is_deleted THEN 'UPSERT'
                        WHEN $1 != 'DEFAULT' THEN CASE WHEN t.id IS NOT NULL THEN 'DELETE' ELSE 'NOOP' END
@@ -1568,51 +1599,72 @@ BEGIN
         $fmt$, target_tbl, super_join);
         EXECUTE sql_text USING space_context, is_composite;
 
-        EXECUTE format(
-            'DELETE FROM %s t
-                  USING pg_temp.xyz_express_import_writes w
-                  WHERE w.action = ''DELETE''
-                    AND t.id = w.feature_id',
-            target_tbl
-        );
-
+        --Counts each removed feature once, if it was visible (removing a deletion marker does not count)
         EXECUTE format($fmt$
-            INSERT INTO %1$s AS tbl
-                (id, version, operation, author, jsondata, geo)
-            SELECT w.feature_id,
-                   $1,
-                   w.operation,
-                   $2,
-                   jsonb_set(
-                       w.normalized_jsondata,
-                       '{properties,@ns:com:here:xyz}',
-                       COALESCE(
-                           w.normalized_jsondata#>'{properties,@ns:com:here:xyz}',
-                           '{}'::JSONB
-                       ) || jsonb_build_object(
-                           'createdAt', $3,
-                           'updatedAt', $3
+            WITH deleted AS (
+                DELETE FROM %1$s t
+                 USING pg_temp.xyz_express_import_writes w
+                 WHERE w.action = 'DELETE'
+                   AND t.id = w.feature_id
+                RETURNING t.id
+            )
+            SELECT COUNT(DISTINCT deleted.id)
+              FROM deleted
+              JOIN pg_temp.xyz_express_import_writes w ON w.feature_id = deleted.id
+             WHERE w.visible_before
+        $fmt$, target_tbl)
+        INTO deleted_count;
+
+        --Without history, an UPSERT which does not differ is skipped, so only the returned rows are counted
+        EXECUTE format($fmt$
+            WITH written AS (
+                INSERT INTO %1$s AS tbl
+                    (id, version, operation, author, jsondata, geo)
+                SELECT w.feature_id,
+                       $1,
+                       w.operation,
+                       $2,
+                       jsonb_set(
+                           w.normalized_jsondata,
+                           '{properties,@ns:com:here:xyz}',
+                           COALESCE(
+                               w.normalized_jsondata#>'{properties,@ns:com:here:xyz}',
+                               '{}'::JSONB
+                           ) || jsonb_build_object(
+                               'createdAt', $3,
+                               'updatedAt', $3
+                           ),
+                           true
                        ),
-                       true
-                   ),
-                   w.normalized_geo
-              FROM pg_temp.xyz_express_import_writes w
-             WHERE w.action = 'UPSERT'
-            ON CONFLICT (id, next_version) DO UPDATE SET
-                version = greatest(tbl.version, EXCLUDED.version),
-                operation = CASE WHEN EXCLUDED.operation = 'H' THEN 'J' ELSE 'U' END,
-                author = EXCLUDED.author,
-                jsondata = jsonb_set(
-                    EXCLUDED.jsondata,
-                    '{properties,@ns:com:here:xyz,createdAt}',
-                    tbl.jsondata#>'{properties,@ns:com:here:xyz,createdAt}'
-                ),
-                geo = EXCLUDED.geo
-            WHERE
-                EXCLUDED.jsondata #- ARRAY['properties', '@ns:com:here:xyz']
-                    IS DISTINCT FROM tbl.jsondata #- ARRAY['properties', '@ns:com:here:xyz']
-                OR EXCLUDED.geo IS DISTINCT FROM tbl.geo
-        $fmt$, target_tbl) USING current_version, author, batch_timestamp;
+                       w.normalized_geo
+                  FROM pg_temp.xyz_express_import_writes w
+                 WHERE w.action = 'UPSERT'
+                ON CONFLICT (id, next_version) DO UPDATE SET
+                    version = greatest(tbl.version, EXCLUDED.version),
+                    operation = CASE WHEN EXCLUDED.operation = 'H' THEN 'J' ELSE 'U' END,
+                    author = EXCLUDED.author,
+                    jsondata = jsonb_set(
+                        EXCLUDED.jsondata,
+                        '{properties,@ns:com:here:xyz,createdAt}',
+                        tbl.jsondata#>'{properties,@ns:com:here:xyz,createdAt}'
+                    ),
+                    geo = EXCLUDED.geo
+                WHERE
+                    EXCLUDED.jsondata #- ARRAY['properties', '@ns:com:here:xyz']
+                        IS DISTINCT FROM tbl.jsondata #- ARRAY['properties', '@ns:com:here:xyz']
+                    OR EXCLUDED.geo IS DISTINCT FROM tbl.geo
+                RETURNING tbl.id
+            )
+            SELECT COUNT(*) FILTER (WHERE NOT w.is_deleted AND NOT w.visible_before),
+                   COUNT(*) FILTER (WHERE NOT w.is_deleted AND w.visible_before),
+                   COUNT(*) FILTER (WHERE w.is_deleted AND w.visible_before)
+              FROM written
+              JOIN pg_temp.xyz_express_import_writes w ON w.feature_id = written.id
+        $fmt$, target_tbl)
+        INTO inserted_count, updated_count, written_deletions
+        USING current_version, author, batch_timestamp;
+
+        deleted_count := deleted_count + written_deletions;
     END IF;
 
     RETURN NEXT;
@@ -1658,6 +1710,8 @@ BEGIN
     $wrappedinner$
     DECLARE
         batch_result RECORD;
+        blank_rows BIGINT;
+        last_i BIGINT;
         task_id INT := $wrappedouter$||task_id||$wrappedouter$::INT;
         source_tbl REGCLASS := to_regclass('$wrappedouter$||source_tbl::TEXT||$wrappedouter$');
         target_tbl REGCLASS := to_regclass('$wrappedouter$||target_tbl::TEXT||$wrappedouter$');
@@ -1690,6 +1744,21 @@ BEGIN
           );
 
         IF batch_result.finished THEN
+            --Blank lines of the file are loaded as NULL rows, they are reported as processed, so that all rows of the task are counted
+            EXECUTE format('SELECT count(*), max(i) FROM %s WHERE i >= %s', source_tbl, range_start)
+                INTO blank_rows, last_i;
+        END IF;
+
+        IF batch_result.finished AND blank_rows > 0 THEN
+            PERFORM report_task_progress(lambda_function_arn, lambda_region, step_payload, task_id,
+                jsonb_build_object(
+                    'progress', jsonb_build_object('type', 'ImportOutput$ImportProgress', 'tmpTableLoaded', false,
+                        'startI', range_start, 'endI', last_i),
+                    'expressImport', true,
+                    'written', jsonb_build_object('inserted', 0, 'updated', 0, 'deleted', 0, 'rows', blank_rows),
+                    'targetVersion', current_version,
+                    'type', 'ImportOutput'));
+        ELSIF batch_result.finished THEN
             PERFORM report_task_progress(
                 lambda_function_arn,
                 lambda_region,
@@ -1717,6 +1786,14 @@ BEGIN
                         'endI', batch_result.selected_range_end
                     ),
                     'expressImport', true,
+                    --Summed up per task (see ImportQueryBuilder)
+                    'written', jsonb_build_object(
+                        'inserted', batch_result.inserted_count,
+                        'updated', batch_result.updated_count,
+                        'deleted', batch_result.deleted_count,
+                        --Including the blank ones (NULL) before this batch, the range of a batch starts after the previous one
+                        'rows', batch_result.selected_range_end - range_start + 1
+                    ),
                     'rows', batch_result.pulled_count,
                     'bytes', batch_result.pulled_bytes,
                     'oversizedSingleton',
@@ -1784,7 +1861,7 @@ BEGIN
 	$wrappedinner$
 	DECLARE
         feature_collection TEXT;
-        featureCount INT := 0;
+        write_result JSONB;
         pulled_count INT := 0;
         pulled_bytes BIGINT := 0;
         selected_range_start BIGINT := NULL;
@@ -1883,6 +1960,19 @@ BEGIN
 
         -- No more rows in the source table at or after range_start -> tmp table fully processed
         IF first_available_i IS NULL THEN
+            --Blank lines of the file are loaded as NULL rows, they are reported as processed, so that all rows of the task are counted
+            EXECUTE format('SELECT count(*), max(i) FROM %s WHERE i >= %s', source_tbl, range_start)
+                INTO pulled_count, selected_range_end;
+            IF pulled_count > 0 THEN
+                PERFORM report_task_progress(lambda_function_arn, lambda_region, step_payload, task_id,
+                    jsonb_build_object(
+                        'progress', jsonb_build_object('type', 'ImportOutput$ImportProgress', 'tmpTableLoaded', false,
+                            'startI', range_start, 'endI', selected_range_end),
+                        'written', jsonb_build_object('inserted', 0, 'updated', 0, 'deleted', 0, 'rows', pulled_count),
+                        'targetVersion', currentVersion,
+                        'type', 'ImportOutput'));
+                RETURN;
+            END IF;
             PERFORM report_task_progress(
                  lambda_function_arn,
                  lambda_region,
@@ -1907,7 +1997,7 @@ BEGIN
                   ERRCODE = 'XYZ40';
         END IF;
 
-        SELECT (write_features(
+        SELECT write_features(
                 feature_collection,
                 'FeatureCollection',
                 author,
@@ -1918,11 +2008,8 @@ BEGIN
                 onVersionConflict,
                 onMergeConflict,
                 isPartial
-                )::jsonb ->> 'count')::int
-        INTO featureCount;
-
-        --currently we are not using this
-        --import_statistics := format('%s rows imported', featureCount);
+                )::jsonb
+        INTO write_result;
 
 		PERFORM report_task_progress(
 			 lambda_function_arn,
@@ -1938,7 +2025,14 @@ BEGIN
                 ),
 		        'targetVersion', currentVersion,
                 'type', 'ImportOutput'
-            )
+            --Summed up per task (see ImportQueryBuilder). Without counts, it is left out, so that the import does not count anything.
+            --The rows include the blank ones (NULL) before this batch, the range of a batch starts after the previous one.
+            ) || CASE WHEN write_result->'insertedCount' IS NOT NULL THEN jsonb_build_object('written', jsonb_build_object(
+                    'inserted', (write_result->>'insertedCount')::BIGINT,
+                    'updated', (write_result->>'updatedCount')::BIGINT,
+                    'deleted', (write_result->>'deletedCount')::BIGINT,
+                    'rows', selected_range_end - range_start + 1
+                )) ELSE '{}'::JSONB END
 		);
 
 		EXCEPTION
