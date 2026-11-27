@@ -116,7 +116,8 @@ DO $installH3Extensions$
             GRANT USAGE ON SCHEMA h3_ext TO PUBLIC;
         EXCEPTION
             WHEN unique_violation OR duplicate_object THEN
-                RAISE NOTICE 'The H3 extensions were installed concurrently: %', SQLERRM;
+                --The lock above rules out concurrent installs by the Hub and the job steps, so this is mostly a conflicting object
+                RAISE WARNING 'The H3 extensions could not be installed, an object exists already. H3 features might not work: %', SQLERRM;
             WHEN insufficient_privilege THEN
                 RAISE WARNING 'Missing privileges to install the H3 extensions. H3 features will not work: %', SQLERRM;
             --Transient errors fail the script, so that the installer retries it instead of skipping the extensions
