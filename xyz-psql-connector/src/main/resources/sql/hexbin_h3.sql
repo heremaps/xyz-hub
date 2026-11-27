@@ -27,7 +27,8 @@ BEGIN
     IF to_regtype('h3_ext.h3index') IS NULL
         OR to_regprocedure('h3_ext.h3_cell_to_boundary_geometry(h3_ext.h3index)') IS NULL THEN
         RAISE EXCEPTION 'The extensions h3 and h3_postgis are not installed in schema h3_ext, the H3 functions can not be installed.'
-            USING HINT = 'common.sql creates them if h3, h3_postgis and postgis_raster are available.';
+            USING HINT = 'common.sql creates them on a new database if h3, h3_postgis and postgis_raster are available. '
+                || 'On an existing database, create them in schema h3_ext manually.';
     END IF;
 END
 $checkH3Extension$;
