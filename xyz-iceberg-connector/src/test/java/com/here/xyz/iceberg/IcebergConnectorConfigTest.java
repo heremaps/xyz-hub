@@ -38,6 +38,7 @@ class IcebergConnectorConfigTest {
     assertThat(config.scanCacheHeapShare()).isEqualTo(0.05);
     assertThat(config.footerCacheHeapShare()).isEqualTo(0.02);
     assertThat(config.tableCacheTtlSeconds()).isEqualTo(60);
+    assertThat(config.catalogIdleTimeoutSeconds()).isEqualTo(600);
     assertThat(config.planningThreads()).isEqualTo(2);
     assertThat(config.missingCacheTtlSeconds()).isEqualTo(30);
     assertThat(config.filterColumns()).isEqualTo(Map.of("momType", "mom_type"));
@@ -81,6 +82,19 @@ class IcebergConnectorConfigTest {
         n -> null);
     IcebergConnectorConfig d = IcebergConnectorConfig.from(Map.of("catalogProperties", catalog, "twoStepReads", false), n -> null);
     assertThat(a.catalogKey()).isNotEqualTo(b.catalogKey()).isNotEqualTo(c.catalogKey()).isEqualTo(d.catalogKey());
+  }
+
+  @Test
+  void readsTheCatalogIdleTimeout() {
+    Map<String, Object> catalog = Map.of("type", "hadoop", "warehouse", "file:/tmp/w");
+    IcebergConnectorConfig a = IcebergConnectorConfig.from(Map.of("catalogProperties", catalog), n -> null);
+    IcebergConnectorConfig b = IcebergConnectorConfig.from(Map.of("catalogProperties", catalog, "catalogIdleTimeoutSeconds", 3600),
+        n -> null);
+    assertThat(b.catalogIdleTimeoutSeconds()).isEqualTo(3600);
+    assertThat(b.toString()).contains("catalogIdleTimeoutSeconds=3600");
+    assertThat(a.catalogKey()).isNotEqualTo(b.catalogKey());
+    assertThatThrownBy(() -> IcebergConnectorConfig.from(Map.of("catalogIdleTimeoutSeconds", 0), name -> null))
+        .isInstanceOf(IllegalArgumentException.class);
   }
 
   @Test

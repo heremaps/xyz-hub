@@ -41,6 +41,8 @@ import java.util.regex.Pattern;
  * @param scanCacheHeapShare The share of the max heap for the cache of planned scans
  * @param footerCacheHeapShare The share of the max heap for the cache of Parquet footers
  * @param tableCacheTtlSeconds How long loaded table metadata is reused
+ * @param catalogIdleTimeoutSeconds How long the catalog, its thread pools and caches are kept without a request before they are
+ *     closed. Much longer than a request may take, so that they are never closed while a request uses them.
  * @param missingCacheTtlSeconds How long a table or ref which does not exist is remembered as missing, so that a stale location
  *     does not load the table from the catalog on every request
  * @param planningThreads The number of threads for planning the files of a snapshot
@@ -55,8 +57,8 @@ import java.util.regex.Pattern;
  */
 public record IcebergConnectorConfig(String catalogName, Map<String, String> catalogProperties, long maxBytesPerRequest,
     long maxResponseBytes, long requestTimeoutMs, double scanCacheHeapShare, double footerCacheHeapShare, long tableCacheTtlSeconds,
-    long missingCacheTtlSeconds, int planningThreads, Map<String, String> filterColumns, boolean twoStepReads, int rangeReadThreads,
-    double pageIndexCacheHeapShare) {
+    long catalogIdleTimeoutSeconds, long missingCacheTtlSeconds, int planningThreads, Map<String, String> filterColumns,
+    boolean twoStepReads, int rangeReadThreads, double pageIndexCacheHeapShare) {
 
   static final String DEFAULT_CATALOG_NAME = "iceberg";
   static final long DEFAULT_MAX_BYTES_PER_REQUEST = 256L * 1024 * 1024;
@@ -65,6 +67,7 @@ public record IcebergConnectorConfig(String catalogName, Map<String, String> cat
   static final double DEFAULT_SCAN_CACHE_HEAP_SHARE = 0.05;
   static final double DEFAULT_FOOTER_CACHE_HEAP_SHARE = 0.02;
   static final long DEFAULT_TABLE_CACHE_TTL_SECONDS = 60;
+  static final long DEFAULT_CATALOG_IDLE_TIMEOUT_SECONDS = 600;
   static final long DEFAULT_MISSING_CACHE_TTL_SECONDS = 30;
   static final int DEFAULT_PLANNING_THREADS = 2;
   static final boolean DEFAULT_TWO_STEP_READS = true;
@@ -94,6 +97,7 @@ public record IcebergConnectorConfig(String catalogName, Map<String, String> cat
     requireShare(scanCacheHeapShare, "scanCacheHeapShare");
     requireShare(footerCacheHeapShare, "footerCacheHeapShare");
     requirePositive(tableCacheTtlSeconds, "tableCacheTtlSeconds");
+    requirePositive(catalogIdleTimeoutSeconds, "catalogIdleTimeoutSeconds");
     requirePositive(missingCacheTtlSeconds, "missingCacheTtlSeconds");
     requirePositive(planningThreads, "planningThreads");
     requirePositive(rangeReadThreads, "rangeReadThreads");
@@ -120,6 +124,7 @@ public record IcebergConnectorConfig(String catalogName, Map<String, String> cat
         doubleParam(params, "scanCacheHeapShare", DEFAULT_SCAN_CACHE_HEAP_SHARE),
         doubleParam(params, "footerCacheHeapShare", DEFAULT_FOOTER_CACHE_HEAP_SHARE),
         longParam(params, "tableCacheTtlSeconds", DEFAULT_TABLE_CACHE_TTL_SECONDS),
+        longParam(params, "catalogIdleTimeoutSeconds", DEFAULT_CATALOG_IDLE_TIMEOUT_SECONDS),
         longParam(params, "missingCacheTtlSeconds", DEFAULT_MISSING_CACHE_TTL_SECONDS),
         (int) longParam(params, "planningThreads", DEFAULT_PLANNING_THREADS),
         filterColumns(params),
@@ -153,8 +158,8 @@ public record IcebergConnectorConfig(String catalogName, Map<String, String> cat
    */
   CatalogKey catalogKey() {
     return new CatalogKey(catalogName, catalogProperties, scanCacheHeapShare, footerCacheHeapShare, tableCacheTtlSeconds,
-        missingCacheTtlSeconds, planningThreads, filterColumns.values().stream().distinct().sorted().toList(), rangeReadThreads,
-        pageIndexCacheHeapShare);
+        catalogIdleTimeoutSeconds, missingCacheTtlSeconds, planningThreads, filterColumns.values().stream().distinct().sorted().toList(),
+        rangeReadThreads, pageIndexCacheHeapShare);
   }
 
   @Override
@@ -163,14 +168,15 @@ public record IcebergConnectorConfig(String catalogName, Map<String, String> cat
     return "IcebergConnectorConfig[catalogName=" + catalogName + ", catalogProperties=" + catalogProperties.keySet()
         + ", maxBytesPerRequest=" + maxBytesPerRequest + ", maxResponseBytes=" + maxResponseBytes + ", requestTimeoutMs="
         + requestTimeoutMs + ", scanCacheHeapShare=" + scanCacheHeapShare + ", footerCacheHeapShare=" + footerCacheHeapShare
-        + ", tableCacheTtlSeconds=" + tableCacheTtlSeconds + ", missingCacheTtlSeconds=" + missingCacheTtlSeconds
+        + ", tableCacheTtlSeconds=" + tableCacheTtlSeconds + ", catalogIdleTimeoutSeconds=" + catalogIdleTimeoutSeconds
+        + ", missingCacheTtlSeconds=" + missingCacheTtlSeconds
         + ", planningThreads=" + planningThreads + ", filterColumns=" + filterColumns + ", twoStepReads=" + twoStepReads
         + ", rangeReadThreads=" + rangeReadThreads + ", pageIndexCacheHeapShare=" + pageIndexCacheHeapShare + "]";
   }
 
   record CatalogKey(String catalogName, Map<String, String> catalogProperties, double scanCacheHeapShare,
-      double footerCacheHeapShare, long tableCacheTtlSeconds, long missingCacheTtlSeconds, int planningThreads,
-      List<String> statsColumns, int rangeReadThreads, double pageIndexCacheHeapShare) {
+      double footerCacheHeapShare, long tableCacheTtlSeconds, long catalogIdleTimeoutSeconds, long missingCacheTtlSeconds,
+      int planningThreads, List<String> statsColumns, int rangeReadThreads, double pageIndexCacheHeapShare) {
 
     @Override
     public String toString() {
