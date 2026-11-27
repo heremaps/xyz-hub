@@ -130,6 +130,7 @@ public class CreateIndexStepTest extends StepTest {
     }
 
     private void executeCreateIndexStep(String spaceId, Index index) throws Exception {
+        materializeByFirstWrite(spaceId);
         String tableName = getRootTableName(spaceId);
         CreateIndex step = new CreateIndex().withSpaceId(spaceId).withIndex(index);
 

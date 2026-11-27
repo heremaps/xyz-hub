@@ -175,6 +175,11 @@ any other traffic perturbs. Such classes belong in the `integration-test-exclusi
 
 **Clean up in `@AfterClass`.** Leaked space tables accumulate until the suite slows down and then hangs.
 
+**A new space has no table until its first write.** The local connectors `psql` (the default storage) and
+`psql_db2_hashed` have `lazyTableCreation`, like every connector in use on SIT and PRD. Reads of a never-written
+space answer from the empty-space template. A test that needs the table (indexes, analyze, direct SQL) writes a
+feature first; the job step tests use `StepTest#materializeByFirstWrite`.
+
 **Reuse the base classes**: `TestSpaceWithFeature` in `xyz-hub-test`, `StepTestBase` and `JobTestBase` for the
 job modules. The latter two live in `src/main/java` because both job modules share them.
 

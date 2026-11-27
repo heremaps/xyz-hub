@@ -40,7 +40,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assume.assumeFalse;
 
 import com.here.xyz.util.db.pg.LockHelper;
 import io.restassured.response.Response;
@@ -66,15 +65,15 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 /**
- * Spaces of a connector with lazyTableCreation: the Hub marks a new space with storage.params.lazyTable, the connector creates
- * its table on the first write, and the Hub removes the flag after that write.
+ * Spaces of the local connector psql, which has lazyTableCreation like every connector in use on SIT and PRD: the Hub marks a
+ * new space with storage.params.lazyTable, the connector creates its table on the first write, and the Hub removes the flag
+ * after that write.
  */
 public class LazySpaceApiIT extends TestSpaceWithFeature {
 
-  private static final String LAZY_CONNECTOR = "psql-lazy";
-  //Another database than the one of psql-lazy
-  private static final String LAZY_DB2_CONNECTOR = "psql-db2-lazy";
-  private static final String EAGER_CONNECTOR = "psql";
+  private static final String LAZY_CONNECTOR = "psql";
+  //Another database than the one of psql
+  private static final String LAZY_DB2_CONNECTOR = "psql_db2_hashed";
 
   private static final String DB_URL = System.getenv().getOrDefault("STORAGE_DB_URL", "jdbc:postgresql://localhost/postgres");
   private static final String DB2_URL = System.getenv().getOrDefault("STORAGE_DB2_URL", "jdbc:postgresql://localhost/postgres_db2");
@@ -91,8 +90,6 @@ public class LazySpaceApiIT extends TestSpaceWithFeature {
   //Tables left on the first database by a space that was switched to another connector without moving its table
   private static final List<String> orphanedTables = new ArrayList<>();
 
-  private static boolean eagerConnectorIsLazy;
-
   //Created in setup(), so that the wait of the contentUpdatedAt cases overlaps with the other tests
   private static String contentUpdatedAtSpaceId;
   private static long contentUpdatedAtSpaceCreated;
@@ -103,17 +100,6 @@ public class LazySpaceApiIT extends TestSpaceWithFeature {
 
   @BeforeClass
   public static void setup() {
-    Boolean lazyTableCreation = given()
-        .accept(APPLICATION_JSON)
-        .headers(getAuthHeaders(ACCESS_ALL))
-        .when()
-        .get("/connectors/" + EAGER_CONNECTOR)
-        .then()
-        .statusCode(OK.code())
-        .extract()
-        .path("params.lazyTableCreation");
-    eagerConnectorIsLazy = Boolean.TRUE.equals(lazyTableCreation);
-
     contentUpdatedAtSpaceId = createLazySpace("cua");
     contentUpdatedAtSpaceCreated = System.currentTimeMillis();
     contentUpdatedAtBeforeWrite = contentUpdatedAt(contentUpdatedAtSpaceId);
@@ -142,46 +128,41 @@ public class LazySpaceApiIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void readsAnswerLikeAnEagerEmptySpace() throws SQLException {
-    String eagerSpaceId = createSpaceOn("eager", EAGER_CONNECTOR, null);
+  public void readsAnswerLikeAnEmptySpace() throws SQLException {
     String lazySpaceId = createLazySpace("reads");
 
     for (String path : List.of("/search", "/search?p.key1=value1", "/iterate", "/bbox?west=-10&south=-10&east=10&north=10",
-        "/tile/quadkey/120", "/spatial?lat=0&lon=0&radius=1000", "/features?id=a&id=b", "/statistics")) {
-      Response eager = get(eagerSpaceId, path);
+        "/tile/quadkey/120", "/spatial?lat=0&lon=0&radius=1000", "/features?id=a&id=b")) {
       Response lazy = get(lazySpaceId, path);
-      assertEquals(path, eager.statusCode(), lazy.statusCode());
       assertEquals(path, OK.code(), lazy.statusCode());
-      assertEquals(path, comparable(eager), comparable(lazy));
+      assertEquals(path, 0, new JsonObject(lazy.asString()).getJsonArray("features").size());
     }
-    assertEquals(get(eagerSpaceId, "/features/a").statusCode(), get(lazySpaceId, "/features/a").statusCode());
+    Response statistics = get(lazySpaceId, "/statistics");
+    assertEquals(OK.code(), statistics.statusCode());
+    assertEquals(0L, new JsonObject(statistics.asString()).getJsonObject("count").getLong("value").longValue());
+    assertEquals(NOT_FOUND.code(), get(lazySpaceId, "/features/a").statusCode());
 
     assertTrue(isFlagged(lazySpaceId));
     assertEquals("A read creates no table", 0, relationCount(DB_URL, tableName(lazySpaceId)));
   }
 
   @Test
-  public void fullStatisticsListTheSearchablePropertiesLikeAnEagerEmptySpace() throws SQLException {
+  public void fullStatisticsListTheSearchableProperties() throws SQLException {
     JsonObject properties = new JsonObject().put("searchableProperties", new JsonObject()
         .put("value", true)
         .put("d01.nested", true)
         .put("off", false));
-    String eagerBaseId = createSpaceOn("statbase", EAGER_CONNECTOR, properties);
     String lazyBaseId = createSpaceOn("statlazy", LAZY_CONNECTOR, properties);
-    String eagerExtensionId = createExtension("statbaseext", eagerBaseId);
     String lazyExtensionId = createExtension("statlazyext", lazyBaseId);
 
+    //The parity with an eagerly created twin is covered by PSQLLazyCompositeIT
     for (String query : List.of("", "?fastMode=true"))
-      assertEquals("Base" + query, statisticsWithoutSizes(get(eagerBaseId, "/statistics" + query)),
-          statisticsWithoutSizes(get(lazyBaseId, "/statistics" + query)));
+      statisticsWithoutSizes(get(lazyBaseId, "/statistics" + query));
     for (String context : List.of("DEFAULT", "EXTENSION", "SUPER"))
-      for (String fastMode : List.of("", "&fastMode=true")) {
-        String path = "/statistics?context=" + context + fastMode;
-        assertEquals("Extension " + path, statisticsWithoutSizes(get(eagerExtensionId, path)),
-            statisticsWithoutSizes(get(lazyExtensionId, path)));
-      }
+      for (String fastMode : List.of("", "&fastMode=true"))
+        statisticsWithoutSizes(get(lazyExtensionId, "/statistics?context=" + context + fastMode));
 
-    JsonArray listed = statisticsWithoutSizes(get(eagerBaseId, "/statistics")).getJsonObject("properties").getJsonArray("value");
+    JsonArray listed = statisticsWithoutSizes(get(lazyBaseId, "/statistics")).getJsonObject("properties").getJsonArray("value");
     assertEquals(List.of("d01.nested", "value"), listed.stream().map(property -> ((JsonObject) property).getString("key")).toList());
     listed.forEach(property -> assertTrue(property.toString(), ((JsonObject) property).getBoolean("searchable")));
     for (String lazyId : List.of(lazyBaseId, lazyExtensionId)) {
@@ -366,15 +347,6 @@ public class LazySpaceApiIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void clientLazyTableOnEagerConnectorCreatesTable() throws SQLException {
-    assumeFalse("Needs a connector without lazyTableCreation", eagerConnectorIsLazy);
-    String spaceId = createSpaceOn("client", EAGER_CONNECTOR, null, new JsonObject().put("lazyTable", true));
-
-    assertFalse("The Hub never takes the flag from the client", isFlagged(spaceId));
-    assertTrue(hasRelation(DB_URL, tableName(spaceId)));
-  }
-
-  @Test
   public void adminClearLazyTable() {
     String spaceId = createLazySpace("admin");
     String table = tableName(spaceId);
@@ -441,18 +413,11 @@ public class LazySpaceApiIT extends TestSpaceWithFeature {
   }
 
   private static String createSpaceOn(String name, String storageId, JsonObject properties) {
-    return createSpaceOn(name, storageId, properties, null);
-  }
-
-  private static String createSpaceOn(String name, String storageId, JsonObject properties, JsonObject storageParams) {
     String spaceId = "x-lazy-" + name + "-" + RUN_ID + TEST_SUFFIX;
-    JsonObject storage = new JsonObject().put("id", storageId);
-    if (storageParams != null)
-      storage.put("params", storageParams);
     JsonObject space = new JsonObject()
         .put("id", spaceId)
         .put("title", "Lazy space test " + name)
-        .put("storage", storage);
+        .put("storage", new JsonObject().put("id", storageId));
     if (properties != null)
       space.mergeIn(properties);
     return post(space);

@@ -44,8 +44,7 @@ import org.junit.Test;
  */
 public class SpaceTableNameApiIT extends TestSpaceWithFeature {
 
-  private static final String EAGER_CONNECTOR = "psql";
-  private static final String LAZY_CONNECTOR = "psql-lazy";
+  private static final String CONNECTOR = "psql";
   private static final String GENERATED_NAME = "[0-9a-f]{32}";
 
   private static final String RUN_ID = RandomStringUtils.randomAlphanumeric(6).toLowerCase(Locale.ROOT);
@@ -62,7 +61,7 @@ public class SpaceTableNameApiIT extends TestSpaceWithFeature {
   public void createIgnoresTheClientTableName() {
     String clientTableName = "client_" + RUN_ID;
     String spaceId = spaceId("create");
-    Map<String, Object> responseParams = post(space(spaceId, EAGER_CONNECTOR, new JsonObject().put("tableName", clientTableName)))
+    Map<String, Object> responseParams = post(space(spaceId, CONNECTOR, new JsonObject().put("tableName", clientTableName)))
         .extract()
         .path("storage.params");
 
@@ -70,26 +69,15 @@ public class SpaceTableNameApiIT extends TestSpaceWithFeature {
     assertGenerated(tableName);
     assertNotEquals(clientTableName, tableName);
     assertEquals(tableName, responseParams.get("tableName"));
-  }
-
-  @Test
-  public void createWithATableNameOnALazyConnectorSetsTheLazyFlag() {
-    String clientTableName = "client_lazy_" + RUN_ID;
-    String spaceId = spaceId("createlazy");
-    post(space(spaceId, LAZY_CONNECTOR, new JsonObject().put("tableName", clientTableName)));
-
-    Map<String, Object> params = storageParams(spaceId);
-    assertGenerated((String) params.get("tableName"));
-    assertNotEquals(clientTableName, params.get("tableName"));
-    assertEquals(Boolean.TRUE, params.get("lazyTable"));
+    assertEquals(Boolean.TRUE, storageParams(spaceId).get("lazyTable"));
   }
 
   @Test
   public void patchCannotChangeTheTableName() {
-    String spaceId = createSpace("patch", EAGER_CONNECTOR);
+    String spaceId = createSpace("patch", CONNECTOR);
     String tableName = tableName(spaceId);
 
-    String responseTableName = patch(spaceId, storage(EAGER_CONNECTOR, new JsonObject().put("tableName", "other_" + RUN_ID)))
+    String responseTableName = patch(spaceId, storage(CONNECTOR, new JsonObject().put("tableName", "other_" + RUN_ID)))
         .extract()
         .path("storage.params.tableName");
 
@@ -99,23 +87,23 @@ public class SpaceTableNameApiIT extends TestSpaceWithFeature {
 
   @Test
   public void patchCannotRemoveTheTableName() {
-    String spaceId = createSpace("remove", EAGER_CONNECTOR);
+    String spaceId = createSpace("remove", CONNECTOR);
     String tableName = tableName(spaceId);
 
-    patch(spaceId, storage(EAGER_CONNECTOR, new JsonObject().putNull("tableName")));
+    patch(spaceId, storage(CONNECTOR, new JsonObject().putNull("tableName")));
     assertEquals(tableName, tableName(spaceId));
 
-    patch(spaceId, new JsonObject().put("storage", new JsonObject().put("id", EAGER_CONNECTOR).putNull("params")));
+    patch(spaceId, new JsonObject().put("storage", new JsonObject().put("id", CONNECTOR).putNull("params")));
     assertEquals(tableName, tableName(spaceId));
   }
 
   @Test
   public void patchCannotChangeTheLazyFlagOrTheTableName() {
-    String spaceId = createSpace("patchlazy", LAZY_CONNECTOR);
+    String spaceId = createSpace("patchlazy", CONNECTOR);
     String tableName = tableName(spaceId);
     assertEquals(Boolean.TRUE, storageParams(spaceId).get("lazyTable"));
 
-    patch(spaceId, storage(LAZY_CONNECTOR, new JsonObject().put("tableName", "other_" + RUN_ID).put("lazyTable", false)));
+    patch(spaceId, storage(CONNECTOR, new JsonObject().put("tableName", "other_" + RUN_ID).put("lazyTable", false)));
 
     Map<String, Object> params = storageParams(spaceId);
     assertEquals(tableName, params.get("tableName"));
@@ -124,17 +112,17 @@ public class SpaceTableNameApiIT extends TestSpaceWithFeature {
 
   @Test
   public void patchWithReadOnlyAndATableNameKeepsTheTableName() {
-    String spaceId = createSpace("readonly", EAGER_CONNECTOR);
+    String spaceId = createSpace("readonly", CONNECTOR);
     String tableName = tableName(spaceId);
 
-    patch(spaceId, storage(EAGER_CONNECTOR, new JsonObject().put("tableName", "other_" + RUN_ID)).put("readOnly", true));
+    patch(spaceId, storage(CONNECTOR, new JsonObject().put("tableName", "other_" + RUN_ID)).put("readOnly", true));
 
     assertEquals(tableName, tableName(spaceId));
   }
 
   @Test
   public void patchOfAnExtensionIgnoresTheTableName() {
-    String baseId = createSpace("base", EAGER_CONNECTOR);
+    String baseId = createSpace("base", CONNECTOR);
     String extensionId = spaceId("ext");
     post(new JsonObject()
         .put("id", extensionId)
@@ -144,7 +132,7 @@ public class SpaceTableNameApiIT extends TestSpaceWithFeature {
     assertGenerated(tableName);
     assertNotEquals(tableName(baseId), tableName);
 
-    patch(extensionId, storage(EAGER_CONNECTOR, new JsonObject().put("tableName", "other_" + RUN_ID)));
+    patch(extensionId, storage(CONNECTOR, new JsonObject().put("tableName", "other_" + RUN_ID)));
 
     assertEquals(tableName, tableName(extensionId));
   }
