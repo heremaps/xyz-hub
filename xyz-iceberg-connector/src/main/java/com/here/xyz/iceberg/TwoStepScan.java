@@ -71,6 +71,7 @@ import org.apache.parquet.column.ColumnReader;
 import org.apache.parquet.column.impl.ColumnReadStoreImpl;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.column.statistics.Statistics;
+import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.filter2.compat.FilterCompat;
 import org.apache.parquet.filter2.predicate.FilterPredicate;
 import org.apache.parquet.hadoop.ParquetFileReader;
@@ -127,12 +128,20 @@ import org.locationtech.jts.io.WKBReader;
 final class TwoStepScan {
 
   private static final List<String> BBOX_COLUMNS = List.of("bbox.xmin", "bbox.ymin", "bbox.xmax", "bbox.ymax");
-  private static final ParquetReadOptions READ_OPTIONS = ParquetReadOptions.builder()
-      .useStatsFilter(false)
-      .useDictionaryFilter(false)
-      .useBloomFilter(false)
-      .useColumnIndexFilter(false)
-      .build();
+  /**
+   * New read options for each reader: the options hold a CodecFactory, which is not thread-safe, and every
+   * {@link ParquetFileReader#close()} releases the decompressors of that factory. Shared options let the readers of concurrent
+   * scans release each other's decompressors (DS-2908). A {@link PlainParquetConfiguration} keeps the build cheap,
+   * {@link ParquetReadOptions#builder()} would create and parse a Hadoop configuration for each reader.
+   */
+  private static ParquetReadOptions readOptions() {
+    return ParquetReadOptions.builder(new PlainParquetConfiguration())
+        .useStatsFilter(false)
+        .useDictionaryFilter(false)
+        .useBloomFilter(false)
+        .useColumnIndexFilter(false)
+        .build();
+  }
   private static final int CHECK_INTERVAL_VALUES = 1024;
   /**
    * The smallest batch of kept rows of round 2 if the read has a limit
@@ -967,7 +976,7 @@ final class TwoStepScan {
      * A Parquet reader of the buffered file with the cached footer, reading only the given columns.
      */
     private ParquetFileReader reader(Collection<ColumnDescriptor> read) throws IOException {
-      ParquetFileReader reader = new ParquetFileReader(file, footer, READ_OPTIONS, file.newStream());
+      ParquetFileReader reader = new ParquetFileReader(file, footer, readOptions(), file.newStream());
       reader.setRequestedSchema(requestedSchema(footer.getFileMetaData().getSchema(), List.copyOf(read)));
       return reader;
     }

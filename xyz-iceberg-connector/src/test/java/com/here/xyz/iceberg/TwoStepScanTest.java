@@ -47,6 +47,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.hadoop.conf.Configuration;
@@ -175,6 +179,62 @@ class TwoStepScanTest {
     Set<String> ids = ids(wideRead);
     assertThat(ids).doesNotContainAnyElementsOf(deletes);
     assertThat(wideRead).filteredOn(json -> json.contains("\"f0030\"")).allSatisfy(json -> assertThat(json).contains("f0030-v2"));
+  }
+
+  /**
+   * Concurrent two-step scans in one JVM, as concurrent tile requests to the embedded connector (DS-2908): shared Parquet read
+   * options made {@code ParquetFileReader.close()} of one scan iterate the decompressor map of a CodecFactory while the readers
+   * of other scans added to it, which failed scans with a ConcurrentModificationException.
+   */
+  @Test
+  void concurrentTwoStepScans() throws Exception {
+    String name = "concurrent";
+    Table table = IcebergTestTables.createTable(catalog, id(name), Layout.CELL, MANY_PAGES);
+    Random random = new Random(42);
+    List<String> all = new ArrayList<>();
+    for (int i = 0; i < 3000; i++)
+      all.add(randomFeature(random, String.format("k%04d", i), "v1"));
+    for (int i = 0; i < 3; i++)
+      IcebergTestTables.append(table, null, all.subList(i * 1000, (i + 1) * 1000));
+    IcebergTestTables.tag(table, "v1");
+    SnapshotFiles files = resolve(name);
+
+    List<Read> reads = new ArrayList<>();
+    for (int i = 0; i < 20; i++) {
+      double size = 0.02 + random.nextDouble() * 0.2;
+      double x = TILE_LONS[0] - 0.1 + random.nextDouble() * 0.4, y = TILE_LATS[0] - 0.1 + random.nextDouble() * 0.4;
+      reads.add(new Read(box(x, y, x + size, y + size), null, Long.MAX_VALUE));
+    }
+    List<List<String>> expected = new ArrayList<>();
+    for (Read read : reads)
+      expected.add(scan(files, read, false).run().features());
+    assertThat(expected).anySatisfy(features -> assertThat(features).isNotEmpty());
+
+    int threads = 16, scansPerThread = 40;
+    ExecutorService pool = Executors.newFixedThreadPool(threads);
+    try {
+      CountDownLatch start = new CountDownLatch(1);
+      List<Future<?>> futures = new ArrayList<>();
+      for (int t = 0; t < threads; t++) {
+        Random threadRandom = new Random(t);
+        futures.add(pool.submit(() -> {
+          start.await();
+          for (int i = 0; i < scansPerThread; i++) {
+            int read = threadRandom.nextInt(reads.size());
+            FeatureScan twoStep = scan(files, reads.get(read), true);
+            assertThat(twoStep.run().features()).as(reads.get(read).toString()).isEqualTo(expected.get(read));
+            assertThat(twoStep.stats().reader).isEqualTo("TS");
+          }
+          return null;
+        }));
+      }
+      start.countDown();
+      for (Future<?> future : futures)
+        future.get();
+    }
+    finally {
+      pool.shutdownNow();
+    }
   }
 
   @Test
