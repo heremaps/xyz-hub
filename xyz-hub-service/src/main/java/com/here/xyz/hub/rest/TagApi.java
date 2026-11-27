@@ -51,6 +51,7 @@ import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.logging.log4j.Marker;
 
 public class TagApi extends SpaceBasedApi {
+  private static final Pattern NEGATIVE_VERSION = Pattern.compile("-\\d+");
 
   public TagApi(RouterBuilder rb) {
     rb.getRoute("createTag").setDoValidation(false).addHandler(handleErrors(this::createTag));
@@ -237,8 +238,6 @@ public class TagApi extends SpaceBasedApi {
       return Future.failedFuture(new ValidationException("Unable to parse body"));
     }
   }
-
-  private static final Pattern NEGATIVE_VERSION = Pattern.compile("-\\d+");
 
   private static DetailedHttpException negativeTagVersion(String version) {
     return new DetailedHttpException("E318404", Map.of("versionRef", version,
