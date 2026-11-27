@@ -24,6 +24,7 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.Expiry;
 import com.github.benmanes.caffeine.cache.RemovalCause;
 import com.github.benmanes.caffeine.cache.Scheduler;
 import com.here.xyz.iceberg.IcebergConnectorConfig.CatalogKey;
@@ -41,6 +42,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.ToLongFunction;
@@ -69,8 +71,9 @@ import org.apache.parquet.internal.hadoop.metadata.IndexReference;
 
 /**
  * The catalog and the caches of one connector configuration. The Hub creates a new connector instance per request, so the instances
- * of this class are kept in a static cache. An instance which was not used for {@link #IDLE_TIMEOUT} is closed and removed, so a
- * changed configuration (or a rotated placeholder value) does not keep the catalog, the thread pool and the caches of the old one.
+ * of this class are kept in a static cache. An instance which was not used for {@code catalogIdleTimeoutSeconds} is closed and
+ * removed, so a changed configuration (or a rotated placeholder value) does not keep the catalog, the thread pool and the caches of
+ * the old one.
  */
 final class IcebergTables {
 
@@ -83,12 +86,8 @@ final class IcebergTables {
   private static final int TASK_WEIGHT_BYTES = 2048;
   private static final int MAX_MISSING_ENTRIES = 10_000;
   private static final int MAX_ROW_GROUP_SIZE_ENTRIES = 10_000;
-  /**
-   * Much longer than a request may take, so an instance is never closed while a request uses it.
-   */
-  static final Duration IDLE_TIMEOUT = Duration.ofMinutes(10);
   private static final Cache<CatalogKey, IcebergTables> INSTANCES = Caffeine.newBuilder()
-      .expireAfterAccess(IDLE_TIMEOUT)
+      .expireAfter(new IdleTimeout())
       .scheduler(Scheduler.systemScheduler())
       .<CatalogKey, IcebergTables>removalListener((key, instance, cause) -> {
         if (instance != null && cause != RemovalCause.REPLACED)
@@ -144,6 +143,26 @@ final class IcebergTables {
     maxRowGroupBytes = Caffeine.newBuilder()
         .maximumSize(MAX_ROW_GROUP_SIZE_ENTRIES)
         .build();
+  }
+
+  /**
+   * Expires an instance {@code catalogIdleTimeoutSeconds} of its key after its last use.
+   */
+  private static final class IdleTimeout implements Expiry<CatalogKey, IcebergTables> {
+    @Override
+    public long expireAfterCreate(CatalogKey key, IcebergTables instance, long currentTime) {
+      return TimeUnit.SECONDS.toNanos(key.catalogIdleTimeoutSeconds());
+    }
+
+    @Override
+    public long expireAfterUpdate(CatalogKey key, IcebergTables instance, long currentTime, long currentDuration) {
+      return expireAfterCreate(key, instance, currentTime);
+    }
+
+    @Override
+    public long expireAfterRead(CatalogKey key, IcebergTables instance, long currentTime, long currentDuration) {
+      return expireAfterCreate(key, instance, currentTime);
+    }
   }
 
   static IcebergTables forConfig(IcebergConnectorConfig config) {
