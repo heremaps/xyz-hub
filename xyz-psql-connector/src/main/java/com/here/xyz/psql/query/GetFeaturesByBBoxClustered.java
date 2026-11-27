@@ -143,7 +143,8 @@ public class GetFeaturesByBBoxClustered<E extends GetFeaturesByBBoxEvent, R exte
                 h3cflip = clusteringParams.get(HEXBIN_POINTMODE) == Boolean.TRUE;
                /** todo: replace format %.14f with parameterized version e.g. re-use #buildGeoFilterFromBbox()*/
         final String expBboxSql = DhString
-                .format("st_envelope( st_buffer( ST_MakeEnvelope(%.14f,%.14f,%.14f,%.14f, 4326)::geography, ( 2.5 * h3_ext.h3_get_hexagon_edge_length_avg( %d, 'm' )) )::geometry )",
+                .format("st_envelope( st_buffer( ST_MakeEnvelope(%.14f,%.14f,%.14f,%.14f, 4326)::geography, "
+                        + "( 2.5 * h3_ext.h3_get_hexagon_edge_length_avg( %d, 'm' )) )::geometry )",
                         bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat(), h3Resolution);
 
         /*clippedGeo - passed bbox is extended by "margin" on service level */

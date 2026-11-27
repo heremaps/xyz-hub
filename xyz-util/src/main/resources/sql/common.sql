@@ -94,13 +94,13 @@ DO $installH3Extensions$
         END IF;
 
         IF (SELECT count(*) FROM pg_available_extensions WHERE name IN ('h3', 'h3_postgis', 'postgis_raster')) < 3 THEN
-            RAISE WARNING 'The extensions h3, h3_postgis and postgis_raster are not all available. H3 based features will not work on this database.';
+            RAISE WARNING 'The extensions h3, h3_postgis and postgis_raster are not all available. H3 features will not work.';
             RETURN;
         END IF;
 
         IF EXISTS(SELECT 1 FROM pg_extension e JOIN pg_namespace n ON n.oid = e.extnamespace
             WHERE e.extname IN ('h3', 'h3_postgis') AND n.nspname != 'h3_ext') THEN
-            RAISE WARNING 'The extension h3 or h3_postgis is installed in another schema than h3_ext. H3 based features will not work on this database.';
+            RAISE WARNING 'The extension h3 or h3_postgis is installed in another schema than h3_ext. H3 features will not work.';
             RETURN;
         END IF;
 
@@ -117,7 +117,7 @@ DO $installH3Extensions$
             WHEN unique_violation OR duplicate_object THEN
                 RAISE NOTICE 'The H3 extensions were installed concurrently: %', SQLERRM;
             WHEN insufficient_privilege THEN
-                RAISE WARNING 'Missing privileges to install the H3 extensions. H3 based features will not work on this database: %', SQLERRM;
+                RAISE WARNING 'Missing privileges to install the H3 extensions. H3 features will not work: %', SQLERRM;
         END;
 
         --Ensure to restore the original search path because some of the installations above might have changed it
