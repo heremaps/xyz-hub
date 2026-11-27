@@ -544,24 +544,28 @@ public class Job implements XyzSerializable {
     if (isResumable()) {
       clearErrors();
       getStatus().setState(RESUMING);
-      getSteps().stepStream().forEach(step -> {
-        if (step.getStatus().getState().isValidSuccessor(RESUMING)) //NOTE: Steps with e.g. state SUCCEEDED must not be resumed
-          step.getStatus().setState(RESUMING);
-      });
+      setStateOfResumableSteps(RESUMING);
       //TODO: Prepare steps to be re-executed here?
       return store()
           .compose(v -> {
             getStatus().setState(PENDING);
-            getSteps().stepStream().forEach(step -> {
-              if (step.getStatus().getState().isValidSuccessor(PENDING)) //NOTE: Steps with e.g. state SUCCEEDED must not be resumed
-                getStatus().setState(PENDING);
-            });
+            setStateOfResumableSteps(PENDING);
             return store()
                 .compose(v2 -> startExecution(true));
           }).map(true);
     }
     else
       return Future.failedFuture(new IllegalStateException("Job " + getId() + " is not resumable."));
+  }
+
+  /**
+   * Sets the given state on all steps which can transition into it.
+   * Steps with e.g. state SUCCEEDED must not be resumed, so they keep their state.
+   */
+  void setStateOfResumableSteps(State newState) {
+    getSteps().stepStream()
+        .filter(step -> step.getStatus().getState().isValidSuccessor(newState))
+        .forEach(step -> step.getStatus().setState(newState));
   }
 
   /**
