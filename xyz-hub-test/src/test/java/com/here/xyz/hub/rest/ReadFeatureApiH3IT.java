@@ -45,6 +45,8 @@ import org.junit.experimental.categories.Category;
 @Category(RestTests.class)
 public class ReadFeatureApiH3IT extends TestSpaceWithFeature {
   private static final String SPACE_ID = "x-h3-api" + TEST_SUFFIX;
+  //The message of the Hub's check, so the tests prove that the Hub rejects the value and not the storage
+  private static final String HUB_MESSAGE = "Invalid argument! 'h3Index' must be an H3 cell index of 15 or 16 hexadecimal digits.";
 
   @BeforeClass
   public static void setup() throws Exception {
@@ -76,14 +78,18 @@ public class ReadFeatureApiH3IT extends TestSpaceWithFeature {
   @Test
   public void malformedH3IndexIsABadRequest() {
     for (String h3Index : new String[]{"zz", "871faeba8fffff", "871faeba8ffffff12", "871faeba8fffffg"})
-      getSpatial(h3Index).statusCode(BAD_REQUEST.code());
+      getSpatial(h3Index)
+          .statusCode(BAD_REQUEST.code())
+          .body("errorMessage", equalTo(HUB_MESSAGE));
   }
 
   @Test
   public void invalidH3CellIsABadRequest() {
     //Formatted correctly, but not a valid H3 cell, so rejected by the storage
     for (String h3Index : new String[]{"871faeba8fffff1", "ffffffffffffffff"})
-      getSpatial(h3Index).statusCode(BAD_REQUEST.code());
+      getSpatial(h3Index)
+          .statusCode(BAD_REQUEST.code())
+          .body("errorMessage", equalTo("Invalid h3Index: not a valid H3 cell."));
   }
 
   @Test
@@ -96,7 +102,8 @@ public class ReadFeatureApiH3IT extends TestSpaceWithFeature {
         .when()
         .post(getSpacesPath() + "/" + SPACE_ID + "/spatial?h3Index=zz")
         .then()
-        .statusCode(BAD_REQUEST.code());
+        .statusCode(BAD_REQUEST.code())
+        .body("errorMessage", equalTo(HUB_MESSAGE));
   }
 
   private static ValidatableResponse getSpatial(String h3Index) {
