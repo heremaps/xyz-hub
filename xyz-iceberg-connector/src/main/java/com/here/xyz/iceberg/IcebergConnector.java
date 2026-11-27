@@ -86,6 +86,7 @@ import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Point;
+import software.amazon.awssdk.awscore.exception.AwsServiceException;
 
 /**
  * A read-only connector for exported space versions stored in Apache Iceberg tables.
@@ -104,6 +105,14 @@ public class IcebergConnector extends StorageConnector {
   private static final double MIN_UTM_LATITUDE = -80;
   private static final double MAX_UTM_LATITUDE = 84;
   private static final GeometryFactory GEOMETRY_FACTORY = new GeometryFactory();
+  /**
+   * The waits before the retries of an iterate page with a page token, see {@link #runPage}
+   */
+  private static final long[] PAGE_RETRY_WAITS_MS = {200, 400, 800};
+  /**
+   * The time which must be left of the request timeout after the wait for a retry of an iterate page
+   */
+  private static final long PAGE_RETRY_MIN_REMAINING_MS = 1_000;
 
   private IcebergConnectorConfig config;
   private IcebergTables tables;
@@ -155,7 +164,8 @@ public class IcebergConnector extends StorageConnector {
         throw notImplemented("Iterating a version with a row group of " + maxRowGroupBytes + " bytes (more than maxBytesPerRequest "
             + config.maxBytesPerRequest() + ")");
     }
-    Result result = run(event, location, files, scan, startTime);
+    Result result = tokenSnapshotId == null ? run(event, location, files, scan, startTime)
+        : runPage(event, location, files, filters, start, scan, startTime);
     FeatureCollection response = response(result);
     if (result.next() != null) {
       String nextToken = new PageToken(files.snapshotId(), result.next()).toString();
@@ -163,6 +173,48 @@ public class IcebergConnector extends StorageConnector {
       response.setNextPageToken(nextToken);
     }
     return response;
+  }
+
+  /**
+   * Runs the scan of an iterate page with a page token, retrying it after a throttling or server error of the storage while the
+   * request timeout leaves time for it. Only these pages are retried: they are read only from Iceberg, so the Hub has no other
+   * storage to fall back to for them, and a page restarts at the file, row group and row of its token, so a rerun returns the same
+   * features. All other reads fail fast and the Hub reads them from the space's own connector.
+   */
+  private Result runPage(IterateFeaturesEvent<?> event, IcebergLocation location, SnapshotFiles files,
+      List<List<ColumnFilter>> filters, Position start, FeatureScan firstScan, long startTime) throws InterruptedException {
+    FeatureScan scan = firstScan;
+    for (int attempt = 1; ; attempt++) {
+      try {
+        return run(event, location, files, scan, startTime);
+      }
+      catch (RuntimeException e) {
+        if (!isRetryable(e) || attempt > PAGE_RETRY_WAITS_MS.length)
+          throw e;
+        long waitMs = PAGE_RETRY_WAITS_MS[attempt - 1];
+        if (System.currentTimeMillis() + waitMs + PAGE_RETRY_MIN_REMAINING_MS > startTime + config.requestTimeoutMs())
+          throw e;
+        logger.warn("{} Retrying the iterate page after attempt {} in {} ms, location={}: {}", traceItem, attempt, waitMs, location,
+            retryableCause(e).toString());
+        Thread.sleep(waitMs);
+        scan = newScan(event, files, startTime).withFilters(filters).withLimit(event.getLimit()).withPaging(start);
+      }
+    }
+  }
+
+  /**
+   * Whether the failure is a throttling or server error of the storage, which a later attempt may not get
+   */
+  static boolean isRetryable(Throwable failure) {
+    return retryableCause(failure) != null;
+  }
+
+  private static AwsServiceException retryableCause(Throwable failure) {
+    for (Throwable cause = failure; cause != null; cause = cause.getCause())
+      if (cause instanceof AwsServiceException serviceException && (serviceException.isThrottlingException()
+          || serviceException.statusCode() >= 500 && serviceException.statusCode() <= 599))
+        return serviceException;
+    return null;
   }
 
   @Override

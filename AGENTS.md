@@ -50,7 +50,9 @@ Iceberg reads (`xyz-hub-service` `task/IcebergReadRouting`, `task/IcebergReadMod
 (`OFF` by default, or `ON`) applies to spaces without the internal space property `icebergReads` (`OFF`, `ON` or
 `SHADOW`, admin-only). The `location` of a space's ICEBERG data reference selects the Iceberg table and tag its version
 reads return, and nothing checks it. `/hub/references` must only be open to trusted callers wherever any space reads
-from Iceberg (`ON` or `SHADOW`).
+from Iceberg (`ON` or `SHADOW`). The connector adds the catalog properties `s3.retry.num-retries=3`,
+`s3.retry.min-wait-ms=50` and `s3.retry.max-wait-ms=400` when they are not set, so a throttled read falls back quickly;
+iterate pages with an Iceberg page token, which have no fallback, are retried up to 3 times within the request timeout.
 
 Shared test utilities live in `src/main/java`: `StepTestBase` and `JobTestBase` are used by both job modules.
 
