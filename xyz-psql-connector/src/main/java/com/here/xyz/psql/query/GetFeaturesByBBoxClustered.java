@@ -143,7 +143,7 @@ public class GetFeaturesByBBoxClustered<E extends GetFeaturesByBBoxEvent, R exte
                 h3cflip = clusteringParams.get(HEXBIN_POINTMODE) == Boolean.TRUE;
                /** todo: replace format %.14f with parameterized version e.g. re-use #buildGeoFilterFromBbox()*/
         final String expBboxSql = DhString
-                .format("st_envelope( st_buffer( ST_MakeEnvelope(%.14f,%.14f,%.14f,%.14f, 4326)::geography, ( 2.5 * edgeLengthM( %d )) )::geometry )",
+                .format("st_envelope( st_buffer( ST_MakeEnvelope(%.14f,%.14f,%.14f,%.14f, 4326)::geography, ( 2.5 * h3_ext.h3_get_hexagon_edge_length_avg( %d, 'm' )) )::geometry )",
                         bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat(), h3Resolution);
 
         /*clippedGeo - passed bbox is extended by "margin" on service level */
@@ -174,7 +174,7 @@ public class GetFeaturesByBBoxClustered<E extends GetFeaturesByBBoxEvent, R exte
             + "                 #{h3Resolution}::integer as resolution, "
             + "                 #{zLevel}::integer as level, "
             + "                 ${{aggregationField}} as aggregation, "
-            + "                 h3IsPentagon( ('x' || h3 )::bit(64)::bigint ) as pentagon, "
+            + "                 pentagon as pentagon, "
             + "                 st_asgeojson( ${{geoResult}}, 7 )::json#>'{coordinates}' as ${{geoResultFieldName}} "
             + "       ) prop "
             + "     ) as properties "
@@ -184,7 +184,7 @@ public class GetFeaturesByBBoxClustered<E extends GetFeaturesByBBoxEvent, R exte
             + "  from "
             + "  ( "
             + "   with h3cluster as "
-            + "   ( select oo.h3, "
+            + "   ( select oo.h3, oo.pentagon, oo.center, "
             + "           ( select row_to_json( t1 ) from (select qty${{statistics}}) t1 ) as agg, "
             + "                    st_containsproperly(${{geoFilter}}, oo.geo) as omni,"
             + "                    oo.geo "
@@ -207,9 +207,10 @@ public class GetFeaturesByBBoxClustered<E extends GetFeaturesByBBoxEvent, R exte
 
     final SQLQuery query = new SQLQuery(h3Sql)
         .withNamedParameter("h3Resolution", h3Resolution)
-        .withQueryFragment("geoResult", !h3cflip ? "st_centroid(geo)" : "geo")
+        //The cell's point is its center, not the centroid of its boundary, which is split at the antimeridian
+        .withQueryFragment("geoResult", !h3cflip ? "center" : "geo")
         .withQueryFragment("geo", new SQLQuery(getResponseType(event) == GEO_JSON ? "st_asgeojson(${{innerGeo}}, 7)::json" : "(${{innerGeo}})")
-            .withQueryFragment("innerGeo", h3cflip ? "st_centroid(geo)" : clippedGeo))
+            .withQueryFragment("innerGeo", h3cflip ? "center" : clippedGeo))
         .withQueryFragment("statistics", statisticalPropertyProvided ? ", min, max, sum, avg, median" : "")
         .withNamedParameter("zLevel", zLevel)
         .withQueryFragment("geoResultFieldName", !h3cflip ? "centroid" : "hexagon")
@@ -441,10 +442,10 @@ public class GetFeaturesByBBoxClustered<E extends GetFeaturesByBBoxEvent, R exte
           + "              from ${schema}.${headTable} v "
           /*
           Replaces a ST_Within/ST_Intersection case whose branches both paid ST_MakeValid, the more
-          expensive of the two. Overlay output is valid by construction, which is what coveringDeg needs.
+          expensive of the two. Overlay output is valid by construction, which is what xyz_h3_cover needs.
            */
           + "               left join lateral "
-          + "                ( select st_force3d(st_setsrid( h3ToGeoDeg( coveringDeg( "
+          + "                ( select st_force3d(st_setsrid( h3_ext.h3_cell_to_geometry( xyz_h3_cover( "
           + "                                                  xyz_clip_geometry(geo, ${{geoFilter}}) "
           + "                                                  , #{h3Resolution}::INTEGER)), st_srid(geo))) "
           + "                  where st_geometrytype(v.geo) != 'ST_Point'"
@@ -452,20 +453,23 @@ public class GetFeaturesByBBoxClustered<E extends GetFeaturesByBBoxEvent, R exte
           + "                on ( true ) ";
   private static String h3sqlMid_0 =
       "     ( "
-          + "      select to_hex(cc.h3) as h3,"
+          + "      select cc.h3::text as h3,"
           + "              count(1) as qty,"
           + "              min(cc.unnest) as min,"
           + "              max(cc.unnest) as max,"
           + "              sum(cc.unnest) as sum,"
           + "              round( avg(cc.unnest ),5) as avg,  "
           + "              percentile_cont(0.5) within group (order by cc.unnest) as median,"
-          + "              h3togeoboundarydeg(cc.h3)::geometry(Polygon, 4326) AS geo"
+          + "              h3_ext.h3_is_pentagon(cc.h3) as pentagon,"
+          + "              h3_ext.h3_cell_to_geometry(cc.h3) as center,"
+          //A Polygon, or a MultiPolygon for a cell that is split at the antimeridian
+          + "              h3_ext.h3_cell_to_boundary_geometry(cc.h3) AS geo"
           + "      from "
           + "      ( select c.h3, unnest(c.cvals) "
           + "      from "
           + "      ( "
           + "        select a_data.cvals, "
-          + "        coveringDeg(a_data.refpt, #{h3Resolution}::INTEGER) as h3 "
+          + "        ST_Force2D(a_data.refpt) OPERATOR(h3_ext.@) #{h3Resolution}::INTEGER as h3 "
           + "        from "
           + "        ( "
           + "          select "

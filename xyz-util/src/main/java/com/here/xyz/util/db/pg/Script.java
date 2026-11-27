@@ -406,6 +406,7 @@ public class Script {
           "/sql/geo.sql",
           "/sql/feature_writer.sql",
           "/sql/h3.sql",
+          "/sql/hexbin_h3.sql",
           "/sql/ext.sql",
           "/jobs/transport.sql"
       );

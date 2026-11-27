@@ -22,6 +22,7 @@ package com.here.xyz.psql;
 import static com.here.xyz.responses.XyzError.EXCEPTION;
 import static com.here.xyz.responses.XyzError.ILLEGAL_ARGUMENT;
 import static com.here.xyz.responses.XyzError.NOT_FOUND;
+import static com.here.xyz.responses.XyzError.NOT_IMPLEMENTED;
 import static com.here.xyz.responses.XyzError.PAYLOAD_TO_LARGE;
 import static com.here.xyz.responses.XyzError.TIMEOUT;
 
@@ -82,6 +83,8 @@ public class PSQLXyzConnector extends DatabaseHandler {
   private static final Logger logger = LogManager.getLogger(PSQLXyzConnector.class);
   protected static final Pattern ERRVALUE_22P02 = Pattern.compile("invalid input syntax for type numeric:\\s+\"([^\"]*)\"\\s+Query:"),
       ERRVALUE_22P05 = Pattern.compile("ERROR:\\s+(.*)\\s+Detail:\\s+(.*)\\s+Where:");
+  //The message of xyz_h3_cell() (hexbin_h3.sql) for an h3Index that is malformed or not a valid H3 cell
+  private static final String INVALID_H3_CELL = "not a valid H3 cell";
 
   @Override
   protected HealthStatus processHealthCheckEvent(HealthCheckEvent event) throws Exception {
@@ -262,6 +265,19 @@ public class PSQLXyzConnector extends DatabaseHandler {
           throw new ErrorResponseException(ILLEGAL_ARGUMENT, e.getMessage());
       }
 
+      case "XYZ40": //XYZ40 - illegal argument, e.g., an h3Index rejected by xyz_h3_cell()
+        if (e.getMessage() != null && e.getMessage().contains(INVALID_H3_CELL))
+          //The message must not echo the invalid input
+          throw new ErrorResponseException(ILLEGAL_ARGUMENT, "Invalid h3Index: " + INVALID_H3_CELL + ".");
+        break;
+
+      case "42883": //42883 - undefined_function
+      case "42704": //42704 - undefined_object
+      case "3F000": //3F000 - invalid_schema_name
+        if (isMissingH3(e))
+          throw new ErrorResponseException(NOT_IMPLEMENTED, "H3 is not available on this storage.");
+        break;
+
       case "22P05": {
         if (e.getMessage() == null)
           break;
@@ -303,5 +319,19 @@ public class PSQLXyzConnector extends DatabaseHandler {
     }
 
     throw new ErrorResponseException(EXCEPTION, e.getMessage());
+  }
+
+  /**
+   * @return Whether the error is about a missing object of the H3 extensions (schema h3_ext) or of the script hexbin_h3.sql, e.g.,
+   *  because the extensions are not available on the database. Only the server's message is checked, not the query text that
+   *  might be appended to it.
+   */
+  private static boolean isMissingH3(SQLException e) {
+    if (e.getMessage() == null)
+      return false;
+    String message = e.getMessage();
+    int queryStart = message.indexOf(" Query: ");
+    String serverMessage = queryStart < 0 ? message : message.substring(0, queryStart);
+    return serverMessage.contains("h3_ext") || serverMessage.contains("xyz_h3_");
   }
 }

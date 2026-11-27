@@ -107,19 +107,19 @@ public class ScriptInstallerTest {
   public void compileSearchPathAsTheConnectionsGetIt() {
     //The path XyzConnectionCustomizer.onAcquire set before the method was extracted
     List<String> scriptSchemas = List.of("hub.common", "hub.ext");
-    List<String> enrichedSearchPath = new ArrayList<>(List.of("lazy_abc", "public", "topology"));
+    List<String> enrichedSearchPath = new ArrayList<>(List.of("lazy_abc", "public", "topology", "h3_ext"));
     enrichedSearchPath.addAll(scriptSchemas);
     String before = enrichedSearchPath.stream().map(schema -> "\"" + schema + "\"").collect(Collectors.joining(", "));
 
     assertEquals(before, PooledDataSources.compileSearchPath("lazy_abc", scriptSchemas));
-    assertEquals("\"lazy_abc\", \"public\", \"topology\", \"hub.common\", \"hub.ext\"",
+    assertEquals("\"lazy_abc\", \"public\", \"topology\", \"h3_ext\", \"hub.common\", \"hub.ext\"",
         PooledDataSources.compileSearchPath("lazy_abc", scriptSchemas));
-    assertEquals("\"public\", \"public\", \"topology\"", PooledDataSources.compileSearchPath("public", List.of()));
+    assertEquals("\"public\", \"public\", \"topology\", \"h3_ext\"", PooledDataSources.compileSearchPath("public", List.of()));
   }
 
   @Test
   public void compileSearchPathDoublesEmbeddedQuotes() {
-    assertEquals("\"a\"\"b\", \"public\", \"topology\", \"x\"\"\"\"y\"",
+    assertEquals("\"a\"\"b\", \"public\", \"topology\", \"h3_ext\", \"x\"\"\"\"y\"",
         PooledDataSources.compileSearchPath("a\"b", List.of("x\"\"y")));
   }
 

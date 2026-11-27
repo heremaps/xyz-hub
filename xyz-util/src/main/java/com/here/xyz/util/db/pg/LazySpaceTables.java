@@ -483,7 +483,7 @@ public class LazySpaceTables {
    *
    * @param connection The connection of the script installer
    * @param schema The connector schema
-   * @param searchPath The script schemas, which are put on the search path after the schema, "public" and "topology"
+   * @param searchPath The script schemas, which are put on the search path after the schema, "public", "topology" and "h3_ext"
    * @param budgetMillis The total time the installation may take
    * @return <code>null</code> if this call created the template, otherwise the probe read under the lock
    * @throws SQLException If the installation failed, with SQLSTATE 57014 if the budget was used up

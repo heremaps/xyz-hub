@@ -19,6 +19,7 @@
 
 package com.here.xyz.psql.query;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
@@ -65,5 +66,21 @@ class GetFeaturesByBBoxClusteredTest {
     String sql = sql(event(params));
     assertTrue(sql.contains("jsonb_set('{}'::jsonb, "), sql);
     assertTrue(sql.contains("(jsondata#>> "), sql);
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void hexbinUsesTheH3Extension(boolean pointMode) throws Exception {
+    Map<String, Object> params = new HashMap<>(Map.of("absoluteResolution", 9));
+    if (pointMode)
+      params.put("pointmode", true);
+    String sql = sql(event(params));
+    for (String expected : new String[]{"h3_ext.h3_cell_to_boundary_geometry(cc.h3)", "h3_ext.h3_cell_to_geometry(cc.h3)",
+        "h3_ext.h3_is_pentagon(cc.h3)", "h3_ext.h3_get_hexagon_edge_length_avg(", "xyz_h3_cover(", "OPERATOR(h3_ext.@)"})
+      assertTrue(sql.contains(expected), expected + " missing in: " + sql);
+    //No Polygon typmod (a cell split at the antimeridian is a MultiPolygon), no centroid of the boundary, no functions of the port
+    for (String unexpected : new String[]{"::geometry(Polygon", "bit(64)", "h3togeoboundarydeg", "coveringDeg", "edgeLengthM",
+        "h3ToGeoDeg", "st_centroid(geo)"})
+      assertFalse(sql.contains(unexpected), unexpected + " found in: " + sql);
   }
 }

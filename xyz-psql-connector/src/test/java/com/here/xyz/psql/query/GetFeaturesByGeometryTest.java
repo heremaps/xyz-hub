@@ -82,7 +82,9 @@ class GetFeaturesByGeometryTest {
     GetFeaturesByGeometryEvent event = event(MULTI_POINT).withH3Index("861fa3a07ffffff");
     assertFalse(GetFeaturesByGeometry.isMultiPartFilter(event));
     String sql = sql(event);
-    assertTrue(sql.contains("h3ToGeoBoundaryDeg("), sql);
+    assertTrue(sql.contains("h3_ext.h3_cell_to_boundary_geometry(xyz_h3_cell("), sql);
+    //The h3Index is a bound parameter
+    assertFalse(sql.contains("861fa3a07ffffff"), sql);
     assertTrue(sql.contains("ST_Intersects(geo, "), sql);
     assertFalse(sql.contains("ST_Dump"), sql);
     assertFalse(sql.contains("_ST_Intersects"), sql);
